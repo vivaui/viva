@@ -1,13 +1,13 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/style"
 )
 
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
-func paintAddons(f *Frame, n *Node, snapshot style.InputSnapshot, a *FieldAddons) {
+func paintAddons(f *Frame, n *Node, snapshot base.InputSnapshot, a *FieldAddons) {
 	canvas, theme := f.Surface, f.Palette
 	disabled := n.Flags&FlagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.Rect, a.GetStart(), a.GetEnd())

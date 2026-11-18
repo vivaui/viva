@@ -3,8 +3,9 @@ package {{PACKAGE}}
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // ToastQueueTimeout and ToastQueueLimit are Base UI's default toast lifetime
@@ -272,23 +273,23 @@ var (
 const toastDuration = 500 * time.Millisecond
 
 // Aliases into the style vocabulary.
-type ToastQueue = style.ToastQueue
-type ToastSnapshot = style.ToastSnapshot
-type ToastQueueEntry = style.ToastQueueEntry
-type ToastType = style.ToastType
-type ToastPosition = style.ToastPosition
+type ToastQueue = base.ToastQueue
+type ToastSnapshot = base.ToastSnapshot
+type ToastQueueEntry = base.ToastQueueEntry
+type ToastType = base.ToastKind
+type ToastPosition = base.ToastPosition
 
 const (
-	ToastBottomCenter = style.ToastBottomCenter
-	ToastBottomLeft   = style.ToastBottomLeft
-	ToastBottomRight  = style.ToastBottomRight
-	ToastDefault      = style.ToastDefault
-	ToastError        = style.ToastError
-	ToastInfo         = style.ToastInfo
-	ToastLoading      = style.ToastLoading
-	ToastSuccess      = style.ToastSuccess
-	ToastTopCenter    = style.ToastTopCenter
-	ToastTopLeft      = style.ToastTopLeft
-	ToastTopRight     = style.ToastTopRight
-	ToastWarning      = style.ToastWarning
+	ToastBottomCenter = base.ToastBottomCenter
+	ToastBottomLeft   = base.ToastBottomLeft
+	ToastBottomRight  = base.ToastBottomRight
+	ToastDefault      = base.ToastDefault
+	ToastError        = base.ToastError
+	ToastInfo         = base.ToastInfo
+	ToastLoading      = base.ToastLoading
+	ToastSuccess      = base.ToastSuccess
+	ToastTopCenter    = base.ToastTopCenter
+	ToastTopLeft      = base.ToastTopLeft
+	ToastTopRight     = base.ToastTopRight
+	ToastWarning      = base.ToastWarning
 )

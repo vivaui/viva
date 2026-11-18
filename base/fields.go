@@ -1,7 +1,8 @@
-package style
+package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -47,7 +48,7 @@ type InputSnapshot struct {
 	CompositionEnd   int
 	// Text styles the text of the field: its size, weight and color. The zero value is the
 	// theme's body size, regular weight and foreground, which is what the shadcn field is.
-	Text InputTextStyle
+	Text style.InputTextStyle
 	// Blink is the phase of the caret a field paints itself (see InputTextStyle.Mono and
 	// HideEditorText): the caret is drawn only while it is lit. Nil keeps it lit.
 	Blink *CaretBlink

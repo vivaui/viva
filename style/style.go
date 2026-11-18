@@ -1,7 +1,13 @@
-// Package style is the vocabulary a control's look is chosen with: its variant
-// and its size. The engine and the styled controls both speak it, so the engine
-// does not depend on a particular design system; package components aliases
-// these types for the buttons and other controls it paints.
+// Package style is the vocabulary a control's look is chosen with: variants and
+// sizes, the resolved looks a recipe returns, and the values a painter reads
+// (segment options, table columns, tooltip sides, and the like). It carries
+// values only: behaviour, state machines and layout live in package base, whose
+// recipes and painters both speak this vocabulary through package components.
+//
+// The direction is gfx -> style -> base -> ui, with components next to base
+// above style. A type that changes state or measures with a canvas belongs in
+// base, not here; if a value is only ever consumed by a painter, it belongs
+// here.
 package style
 
 // Variant selects a control's look among the design system's variants.

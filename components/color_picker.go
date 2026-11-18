@@ -1,8 +1,8 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 func pickerUnit(v float32) float32 {
@@ -269,12 +269,12 @@ func pickerFocusRing(c *gfx.Canvas, theme gfx.Theme, b gfx.Rect) {
 }
 
 // Aliases into the style vocabulary.
-type ColorPickerValue = style.ColorPickerValue
-type ColorPickerIDs = style.ColorPickerIDs
-type ColorPickerLabels = style.ColorPickerLabels
-type ColorPickerLayout = style.ColorPickerLayout
+type ColorPickerValue = base.ColorPickerValue
+type ColorPickerIDs = base.ColorPickerIDs
+type ColorPickerLabels = base.ColorPickerLabels
+type ColorPickerLayout = base.ColorPickerLayout
 
 // ParseColorHex parses #RGB, #RGBA, #RRGGBB and #RRGGBBAA; it lives in style.
 func ParseColorHex(value string, alpha bool) (gfx.Color, bool) {
-	return style.ParseColorHex(value, alpha)
+	return base.ParseColorHex(value, alpha)
 }

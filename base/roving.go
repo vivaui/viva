@@ -71,21 +71,21 @@ func (p *Page) RoveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			if _, inside := event.Target.In(d.scope); !inside {
 				continue
 			}
-			options := make([]style.TabOption, len(d.labels))
+			options := make([]TabOption, len(d.labels))
 			for i, label := range d.labels {
-				options[i] = style.TabOption{ID: d.scope.At(i), Label: label}
+				options[i] = TabOption{ID: d.scope.At(i), Label: label}
 			}
-			orientation := style.TabsHorizontal
+			orientation := TabsHorizontal
 			if d.vertical {
-				orientation = style.TabsVertical
+				orientation = TabsVertical
 			}
-			next, ok = style.TabsKeyDown(event.Target, options, orientation, style.DirectionLTR, event.Key)
+			next, ok = TabsKeyDown(event.Target, options, orientation, WritingLTR, event.Key)
 		} else {
 			options := WidgetsOf(r.f).segmented[n.Aux].options
 			if !hasOption(options, event.Target) {
 				continue
 			}
-			next, ok = style.SegmentedControlKeyDown(event.Target, options, style.DirectionLTR, event.Key)
+			next, ok = SegmentedControlKeyDown(event.Target, options, WritingLTR, event.Key)
 		}
 		if !ok {
 			return gfx.EventResult{}, false

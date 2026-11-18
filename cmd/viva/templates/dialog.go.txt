@@ -3,8 +3,9 @@ package {{PACKAGE}}
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // DialogOptions carries the stable identities and requested content size for
@@ -520,4 +521,4 @@ func popoverRecipe(theme *gfx.Theme) PopupLook {
 }
 
 // Aliases into the style vocabulary, kept for callers of this component.
-type DialogHeader = style.DialogHeader
+type DialogHeader = base.DialogHeader

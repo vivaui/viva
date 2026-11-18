@@ -9,7 +9,7 @@ import (
 )
 
 // clock is the time type-ahead measures its pause by; tests replace it.
-var clock = time.Now
+var Clock = time.Now
 
 // typeAheadPause is how long a pause ends a word being typed.
 const typeAheadPause = time.Second
@@ -143,7 +143,7 @@ func (s *SelectState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if !s.Open && !onTrigger || s.Open && !onItem && !onTrigger {
 		return gfx.EventResult{}
 	}
-	now := clock()
+	now := Clock()
 	if s.typedLen > 0 && now.Sub(s.typedAt) > typeAheadPause || s.typedLen+len(event.Text) > len(s.typed) {
 		s.typedLen = 0
 	}

@@ -2,7 +2,6 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // CellRect is where source cell (row, column) was painted by the last paint,
@@ -39,7 +38,7 @@ func (s *TableState) CellRect(row, column int) (gfx.Rect, bool) {
 
 // recordTableCells keeps the cells of the last paint for CellRect: the left
 // edge of every painted column, plus the right edge of the last, and the top
-// and height of a row. The columns come from style.TableCellBounds, the
+// and height of a row. The columns come from TableCellBounds, the
 // same layout the rows and the header are painted from, so a table pays one
 // pass over its columns a frame and no per-cell allocation. A frozen column's
 // edge is taken from the body's unscrolled origin, where the band paints it;
@@ -51,7 +50,7 @@ func (f *Frame) RecordTableCells(t *TableDecl, body Rect, left, top, contentWidt
 	if len(t.spec.Columns) == 0 || rowHeight <= 0 {
 		return
 	}
-	cells := style.TableCellBounds(t.spec.Columns, Rect{Width: contentWidth, Height: rowHeight}, WidgetsOf(f).rects[:0])
+	cells := TableCellBounds(t.spec.Columns, Rect{Width: contentWidth, Height: rowHeight}, WidgetsOf(f).rects[:0])
 	WidgetsOf(f).rects = cells[:0]
 	for index, cell := range cells {
 		x := left + cell.X

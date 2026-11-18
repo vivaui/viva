@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // scrollbarLinger is how long a scroll area's bars stay after the pointer leaves
@@ -22,7 +21,7 @@ const SlotScrollbarFade uint8 = 200
 // a press beside it brings the middle of the thumb under the pointer, and the press
 // drags it until it is let go. The canvas captures the pointer for the press, so the
 // moves come to the bar wherever the pointer is.
-func (f *Frame) DragScrollbar(s *ScrollState, bar gfx.ID, geometry style.ScrollAreaGeometry, axis int) {
+func (f *Frame) DragScrollbar(s *ScrollState, bar gfx.ID, geometry ScrollAreaGeometry, axis int) {
 	event, ok := f.Surface.PointerOn(bar)
 	if !ok {
 		return

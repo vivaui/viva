@@ -224,7 +224,7 @@ func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label 
 	return base.ColorPickerID(c, ID, state, Color, Label)
 }
 
-func Summary(v style.ColorPickerValue) string { return base.Summary(v) }
+func Summary(v base.ColorPickerValue) string { return base.Summary(v) }
 
 func Slider(c C, state *SliderState) Box { return base.Slider(c, state) }
 
@@ -268,7 +268,7 @@ func FocusBind[T comparable](Box Box, field *T, Value T) Box {
 
 func FocusedValue[T comparable](c C, field *T) T { return base.FocusedValue(c, field) }
 
-func BindIconHover(state *style.IconHover, ID gfx.ID) IconHover {
+func BindIconHover(state *base.IconHoverState, ID gfx.ID) IconHover {
 	return base.BindIconHover(state, ID)
 }
 

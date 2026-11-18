@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -59,13 +58,13 @@ func (b Box) TabStop(on bool) Box {
 // closed.
 type ColorPickerState struct {
 	open, restoreFocus, applied bool
-	draft                       style.ColorPickerValue
+	draft                       ColorPickerValue
 	hexEditor                   text.Editor
 	hex                         Field
 	seen, Summary               string
 	invalid                     bool
 	handlers                    Handlers
-	layout                      style.ColorPickerLayout
+	layout                      ColorPickerLayout
 	target                      *Color
 	Bound                       bool
 }
@@ -97,7 +96,7 @@ type ColorPickerLook struct {
 	round  bool
 	icon   *gfx.Icon
 	empty  bool
-	labels style.ColorPickerLabels
+	labels ColorPickerLabels
 }
 
 // ColorPicker adds a color trigger over *color that opens a panel to pick one: a plane for
@@ -181,7 +180,7 @@ func (b Box) NoColor(empty bool) Box {
 // PanelLabels overrides the words of a ColorPicker's panel: its title, the plane, the hue
 // bar, the hex field and the buttons. A label left empty keeps its default. Other
 // elements ignore it.
-func (b Box) PanelLabels(labels style.ColorPickerLabels) Box {
+func (b Box) PanelLabels(labels ColorPickerLabels) Box {
 	if extra := b.pickerExtra(); extra != nil {
 		extra.pickerLook.labels = labels
 	}
@@ -215,7 +214,7 @@ func (s *ColorPickerState) ApplyDraft() {
 	s.ClosePanel()
 }
 
-func (s *ColorPickerState) SetDraftValue(v style.ColorPickerValue) {
+func (s *ColorPickerState) SetDraftValue(v ColorPickerValue) {
 	s.draft = v
 	var buf [9]byte
 	value := string(v.AppendHex(buf[:0], false))
@@ -227,7 +226,7 @@ func (s *ColorPickerState) SetDraftValue(v style.ColorPickerValue) {
 	s.Summary = Summary(v)
 }
 
-func Summary(v style.ColorPickerValue) string {
+func Summary(v ColorPickerValue) string {
 	return strconv.Itoa(int(v.Saturation*100+.5)) + "% / " + strconv.Itoa(int(v.Brightness*100+.5)) + "%"
 }
 
@@ -277,7 +276,7 @@ func (s *ColorPickerState) syncHex() {
 		return
 	}
 	s.seen = value
-	color, valid := style.ParseColorHex(value, false)
+	color, valid := ParseColorHex(value, false)
 	s.invalid = !valid
 	if valid {
 		s.draft = s.draft.WithColor(color)

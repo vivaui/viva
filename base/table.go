@@ -44,7 +44,7 @@ type TableSpec struct {
 	Sortable []bool
 	Source   TableSource
 	// RowHeight is the height of every row, header included; zero takes the
-	// theme's style.TableRowHeight and TableHeaderHeight.
+	// theme's TableRowHeight and TableHeaderHeight.
 	RowHeight float32
 	// FontSize is the size of body and header text; zero takes the theme's
 	// Metrics.FontSizeM.
@@ -553,7 +553,7 @@ func (t *TableDecl) rowHeight(Palette Theme) float32 {
 	if t.spec.RowHeight > 0 {
 		return t.spec.RowHeight
 	}
-	return style.TableRowHeight(Palette)
+	return TableRowHeight(Palette)
 }
 
 func (t *TableDecl) headerHeight(Palette Theme) float32 {
@@ -563,5 +563,5 @@ func (t *TableDecl) headerHeight(Palette Theme) float32 {
 	if t.spec.RowHeight > 0 {
 		return t.spec.RowHeight
 	}
-	return style.TableHeaderHeight(Palette)
+	return TableHeaderHeight(Palette)
 }

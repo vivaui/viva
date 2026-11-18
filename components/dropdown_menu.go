@@ -5,6 +5,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -534,7 +536,7 @@ func (menu menuSurface) rowBounds(height float32) gfx.Rect {
 // one the keyboard can move to and match by label.
 func (menu *menuSurface) takeItem(row gfx.Rect, id gfx.ID, label string, disabled bool) bool {
 	if scroll := menu.options.scroll; scroll != nil && !id.IsZero() {
-		scroll.Items = append(scroll.Items, style.MenuScrollItem{ID: id, Label: label, Top: menu.used, Height: row.Height, Disabled: disabled})
+		scroll.Items = append(scroll.Items, base.MenuScrollItem{ID: id, Label: label, Top: menu.used, Height: row.Height, Disabled: disabled})
 	}
 	return menu.take(row)
 }
@@ -1019,11 +1021,11 @@ func menuItemRecipe(theme *gfx.Theme, state gfx.State) MenuItemLook {
 type MenuItemPaint = style.MenuItemPaint
 
 // Aliases into the style vocabulary.
-type HierarchyMenuItem = style.HierarchyMenuItem
-type HierarchyMenuAction = style.HierarchyMenuAction
-type HierarchyMenuState = style.HierarchyMenuState
-type HierarchyMenuKeyResult = style.HierarchyMenuKeyResult
-type HierarchyMenuOptions = style.HierarchyMenuOptions
-type MenuScroll = style.MenuScroll
-type MenuScrollItem = style.MenuScrollItem
-type PointerRow = style.PointerRow
+type HierarchyMenuItem = base.HierarchyMenuItem
+type HierarchyMenuAction = base.HierarchyMenuAction
+type HierarchyMenuState = base.HierarchyMenuState
+type HierarchyMenuKeyResult = base.HierarchyMenuKeyResult
+type HierarchyMenuOptions = base.HierarchyMenuOptions
+type MenuScroll = base.MenuScroll
+type MenuScrollItem = base.MenuScrollItem
+type PointerRow = base.PointerRow

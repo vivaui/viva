@@ -1,8 +1,8 @@
 package {{PACKAGE}}
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // InputGroupCommand is a request for the caller-owned editor. Addon button
@@ -16,29 +16,29 @@ const (
 
 // InputGroupSemantics is the typed semantic projection of the embedded text
 // control. Selection and composition are normalized UTF-8 byte ranges.
-type InputGroupSemantics = style.InputGroupSemantics
-type InputGroupSlotKind = style.InputGroupSlotKind
+type InputGroupSemantics = base.InputGroupSemantics
+type InputGroupSlotKind = base.InputGroupSlotKind
 
 const (
-	InputGroupSlotNone    = style.InputGroupSlotNone
-	InputGroupSlotText    = style.InputGroupSlotText
-	InputGroupSlotButton  = style.InputGroupSlotButton
-	InputGroupSlotKbd     = style.InputGroupSlotKbd
-	InputGroupSlotIcon    = style.InputGroupSlotIcon
-	InputGroupSlotSpinner = style.InputGroupSlotSpinner
+	InputGroupSlotNone    = base.InputGroupSlotNone
+	InputGroupSlotText    = base.InputGroupSlotText
+	InputGroupSlotButton  = base.InputGroupSlotButton
+	InputGroupSlotKbd     = base.InputGroupSlotKbd
+	InputGroupSlotIcon    = base.InputGroupSlotIcon
+	InputGroupSlotSpinner = base.InputGroupSlotSpinner
 )
 
-type InputGroupButtonSize = style.InputGroupButtonSize
+type InputGroupButtonSize = base.InputGroupButtonSize
 
 const (
-	InputGroupButtonXS     = style.InputGroupButtonXS
-	InputGroupButtonSM     = style.InputGroupButtonSM
-	InputGroupButtonIconXS = style.InputGroupButtonIconXS
-	InputGroupButtonIconSM = style.InputGroupButtonIconSM
+	InputGroupButtonXS     = base.InputGroupButtonXS
+	InputGroupButtonSM     = base.InputGroupButtonSM
+	InputGroupButtonIconXS = base.InputGroupButtonIconXS
+	InputGroupButtonIconSM = base.InputGroupButtonIconSM
 )
 
-type InputGroupSlot = style.InputGroupSlot
-type InputGroupSnapshot = style.InputGroupSnapshot
+type InputGroupSlot = base.InputGroupSlot
+type InputGroupSnapshot = base.InputGroupSnapshot
 
 // InputGroupCommandForKey maps only commands owned by the selected control
 // shape. Single-line groups leave Enter to form activation; multiline groups

@@ -3,6 +3,8 @@ package {{PACKAGE}}
 import (
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -14,7 +16,7 @@ type TextEntryLook = style.TextEntryLook
 // text without transferring editing ownership to the component. Secure makes
 // it a password field: the value is never exposed, DisplayValue is ignored,
 // and the field paints one bullet per character.
-type InputSnapshot = style.InputSnapshot
+type InputSnapshot = base.InputSnapshot
 
 // InputTextStyle is how the text of a single-line field is set. One value drives everything
 // that depends on it, so they cannot disagree: the glyphs painted, the position of the caret,

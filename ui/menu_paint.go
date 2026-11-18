@@ -1,17 +1,17 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
-	"github.com/vivaui/viva/style"
 )
 
 // row is row i as the components paint it. Its Keys are the MenuItems' scratch,
 // good until the next row.
 func menuItemsRow(m *MenuItems, i int) components.DropdownMenuItem {
 	row := &m.Items[i]
-	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRows + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
+	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
 	if row.GetDestructive() {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -150,7 +150,7 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 		m.SetFocusFirst(false)
 		for i := range m.Items {
 			if row := &m.Items[i]; row.Kind == MenuRowItem && !row.GetDisabled() {
-				Surface.RequestFocus(scope.At(MenuRows + i))
+				Surface.RequestFocus(scope.At(MenuRowsPart + i))
 				break
 			}
 		}
@@ -186,7 +186,7 @@ func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 func menuSize(m *MenuItems) (width, height float32) {
 	f := m.GetF()
 	theme := &f.Palette
-	width, height = m.MinWidth(), 2*style.DropdownMenuPadding
+	width, height = m.MinWidth(), 2*base.DropdownMenuPadding
 	for i := range m.Items {
 		item := &m.Items[i]
 		height += rowExtent(m, i)
@@ -218,7 +218,7 @@ func menuSize(m *MenuItems) (width, height float32) {
 // scratch, good until the next row.
 func menuItemRow(m *MenuItems, i int) components.DropdownMenuItem {
 	row := &m.Items[i]
-	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRows + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
+	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
 	if row.GetDestructive() {
 		item.Variant = components.DropdownMenuItemDestructive
 	}

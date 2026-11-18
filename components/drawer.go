@@ -3,8 +3,8 @@ package components
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // DrawerSide selects the viewport edge occupied by a drawer.
@@ -387,4 +387,4 @@ func (drawer Drawer) paintClose(bounds gfx.Rect) {
 const drawerDuration = 450 * time.Millisecond
 
 // Aliases into the style vocabulary, kept for callers of this component.
-type DrawerSwipe = style.DrawerSwipe
+type DrawerSwipe = base.SwipeGesture

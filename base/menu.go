@@ -185,7 +185,7 @@ func (m *MenuItems) hover() {
 		return
 	}
 	at, inside := canvas.Hovered().In(m.scope)
-	row := at - MenuRows
+	row := at - MenuRowsPart
 	if !inside || row < 0 || row >= len(m.Items) || row == m.sub || m.Items[row].disabled ||
 		!m.Items[row].submenu && m.sub < 0 {
 		m.intent.Reset()
@@ -210,7 +210,7 @@ const (
 	MenuFocus = iota
 	MenuDismiss
 	MenuBar
-	MenuRows
+	MenuRowsPart
 )
 
 type MenuRowKind uint8
@@ -227,8 +227,8 @@ const (
 // between paints, where it is scrolled to.
 type MenuItems struct {
 	Items     []MenuRow
-	Scroll    style.MenuScroll
-	typeahead style.MenuTypeahead // the letters typed to reach an item
+	Scroll    MenuScroll
+	typeahead MenuTypeahead // the letters typed to reach an item
 	paint     func(*DrawContext)
 	keys      [6]string // the keycaps of the row being measured or painted
 	page      *Page
@@ -251,7 +251,7 @@ type MenuItems struct {
 	root, Parent *MenuItems
 	sub          int        // the row whose submenu is open, or -1
 	subMenu      *MenuItems // that submenu, once declared in this paint
-	intent       style.HoverIntent
+	intent       HoverIntent
 	seen         uint32 // the page's epoch the menu was last declared in
 	focusSub     bool   // the keyboard opened the submenu: its first row takes the focus
 	focusFirst   bool   // this submenu's first row takes the focus as it paints
@@ -386,7 +386,7 @@ func (m *MenuItems) Item(Label string) MenuItem {
 func (m *MenuItems) Sub(Label string, body func(*MenuItems)) MenuItem {
 	item := m.Item(Label)
 	m.Items[item.i].submenu = true
-	if canvas := m.f.Surface; canvas != nil && canvas.Clicked(m.scope.At(MenuRows+item.i)) {
+	if canvas := m.f.Surface; canvas != nil && canvas.Clicked(m.scope.At(MenuRowsPart+item.i)) {
 		m.sub, m.subMenu = item.i, nil // a click opens it, as the pointer resting there does
 	}
 	if m.sub != item.i {
@@ -546,7 +546,7 @@ func (item MenuItem) Chosen(on bool) MenuItem {
 func (item MenuItem) Clicked() bool {
 	m := item.menu
 	canvas := m.f.Surface
-	if canvas == nil || m.Items[item.i].disabled || m.Items[item.i].submenu || !canvas.Clicked(m.scope.At(MenuRows+item.i)) {
+	if canvas == nil || m.Items[item.i].disabled || m.Items[item.i].submenu || !canvas.Clicked(m.scope.At(MenuRowsPart+item.i)) {
 		return false
 	}
 	*m.open = false
@@ -622,7 +622,7 @@ func (m *MenuItems) submenuKey(event gfx.KeyEvent, inside bool) (gfx.EventResult
 	switch event.Key {
 	case gfx.KeyRight, gfx.KeyEnter, gfx.KeySpace:
 		at, _ := event.Target.In(m.scope)
-		if row := at - MenuRows; row >= 0 && row < len(m.Items) && m.Items[row].submenu && !m.Items[row].disabled {
+		if row := at - MenuRowsPart; row >= 0 && row < len(m.Items) && m.Items[row].submenu && !m.Items[row].disabled {
 			m.sub, m.subMenu, m.focusSub = row, nil, true
 			return gfx.EventResult{Handled: true, Repaint: true}, true
 		}
@@ -630,7 +630,7 @@ func (m *MenuItems) submenuKey(event gfx.KeyEvent, inside bool) (gfx.EventResult
 		if parent := m.Parent; parent != nil {
 			row := parent.sub
 			parent.sub, parent.subMenu = -1, nil
-			return gfx.EventResult{Handled: true, Repaint: true, Focus: parent.scope.At(MenuRows + row), FocusVisible: true}, true
+			return gfx.EventResult{Handled: true, Repaint: true, Focus: parent.scope.At(MenuRowsPart + row), FocusVisible: true}, true
 		}
 	}
 	return gfx.EventResult{}, false
@@ -683,11 +683,11 @@ func (p *Page) DeclareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 			popup.BelowBox(anchorBox, 4, Start)
 		}
 	} else {
-		height = min(height, max(f.bounds.Height-2*style.DropdownMenuPadding, 0))
-		clamped := style.ClampOverlay(gfx.Point{X: menu.at.X, Y: menu.at.Y}, gfx.Size{Width: width, Height: height}, f.bounds, style.DropdownMenuPadding)
+		height = min(height, max(f.bounds.Height-2*DropdownMenuPadding, 0))
+		clamped := ClampOverlay(gfx.Point{X: menu.at.X, Y: menu.at.Y}, gfx.Size{Width: width, Height: height}, f.bounds, DropdownMenuPadding)
 		popup.At(clamped.X, clamped.Y)
 	}
-	popup.Size(width, height).Within(f.bounds.Inset(gfx.All(style.DropdownMenuPadding)))
+	popup.Size(width, height).Within(f.bounds.Inset(gfx.All(DropdownMenuPadding)))
 	popup.Draw(menu.paint)
 	if menu.hasPageContent() {
 		// The page row is a child of the popup: it paints and takes hits in the
@@ -709,7 +709,7 @@ func (p *Page) DeclareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 // again opens with none.
 func (m *MenuItems) fresh() {
 	if m.seen+1 != m.page.epoch {
-		m.sub, m.subMenu, m.intent = -1, nil, style.HoverIntent{}
+		m.sub, m.subMenu, m.intent = -1, nil, HoverIntent{}
 	}
 	m.unpainted, m.drawPanel, m.drawItem = false, nil, nil
 	m.seen = m.page.epoch
@@ -726,7 +726,7 @@ func (m *MenuItems) Size() (width, height float32) {
 // declarePageRows declares the page controls of every page content row at the
 // place the menu's rows and scroll put them.
 func (m *MenuItems) declarePageRows(c C, width, height float32) {
-	pad := float32(style.DropdownMenuPadding)
+	pad := float32(DropdownMenuPadding)
 	y := pad - m.Scroll.Offset
 	for i := range m.Items {
 		row := &m.Items[i]

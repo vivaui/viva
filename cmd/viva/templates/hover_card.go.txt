@@ -3,8 +3,9 @@ package {{PACKAGE}}
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // HoverCardSide selects the anchor edge used by a hover card.
@@ -218,4 +219,4 @@ func (card HoverCard) contentBounds(width, headerHeight float32) (gfx.Rect, Over
 }
 
 // Aliases into the style vocabulary, kept for callers of this component.
-type HoverIntent = style.HoverIntent
+type HoverIntent = base.HoverIntent

@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // ToastKind is the icon of a toast, and what it tells assistive technology.
@@ -54,12 +53,12 @@ type Toaster struct {
 	// Position is where the stack sits; the bottom right when zero.
 	Position ToastPosition
 
-	queue   style.ToastQueue
+	queue   ToastQueue
 	toasts  []toast // oldest first
 	Next    uint32
 	scope   gfx.Scope
-	stack   []style.SonnerToast // scratch for one paint, newest first
-	entries []style.ToastQueueEntry
+	stack   []SonnerToast // scratch for one paint, newest first
+	entries []ToastQueueEntry
 	acted   ToastID // the toast whose action this paint delivered, or 0
 }
 

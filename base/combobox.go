@@ -5,7 +5,6 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/window"
 )
 
@@ -46,7 +45,7 @@ type ComboboxOption struct {
 }
 
 // ComboboxPaint is room in an option's row and what paints it: see ComboboxOption.
-type ComboboxPaint = style.SingleSelectPaint
+type ComboboxPaint = SingleSelectPaint
 
 func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
 	p := c.page
@@ -140,14 +139,14 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 // comboState is what a Combobox keeps between paints: the list's state, the search
 // editor's platform input, and its options keyed by their index.
 type ComboState struct {
-	list    style.SingleSelectState
+	list    SingleSelectState
 	input   window.TextInput
 	ids     comboIDs
 	labels  []string
 	descs   []ComboboxOption // what Describe last gave, to tell a change
 	scratch []ComboboxOption
 	keys    []string // keys[i] is the Value of option i: its index
-	opts    []style.SingleSelectOption
+	opts    []SingleSelectOption
 	synced  string // the chosen key as *value and the list last agreed on it
 	created string // what the user created in this paint, for Created
 	paint   func(*DrawContext)
@@ -321,7 +320,7 @@ func (s *ComboState) setOptions(labels []string) {
 	}
 	s.opts = s.opts[:0]
 	for i, label := range labels {
-		s.opts = append(s.opts, style.SingleSelectOption{Value: s.keys[i], Label: label})
+		s.opts = append(s.opts, SingleSelectOption{Value: s.keys[i], Label: label})
 	}
 	s.list.SetOptions(s.opts)
 }
@@ -357,7 +356,7 @@ func (b Box) Describe(describe func(i int) ComboboxOption) Box {
 	s.SetDescs(append(s.GetDescs()[:0], s.GetScratch()...))
 	s.SetOpts(s.GetOpts()[:0])
 	for i, d := range s.GetDescs() {
-		s.SetOpts(append(s.GetOpts(), style.SingleSelectOption{Value: s.GetKeys()[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content}))
+		s.SetOpts(append(s.GetOpts(), SingleSelectOption{Value: s.GetKeys()[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content}))
 	}
 	s.ListPtr().SetOptions(s.GetOpts())
 	return b

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -213,5 +214,5 @@ func switchRecipe(theme *gfx.Theme, state gfx.State, progress float32) SwitchLoo
 	return look
 }
 func SwitchExtent(theme gfx.Theme, on bool) (width, height float32) {
-	return style.SwitchExtent(theme, on)
+	return base.SwitchExtent(theme, on)
 }

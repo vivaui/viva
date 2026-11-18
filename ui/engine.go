@@ -139,7 +139,7 @@ const (
 	MenuRowItem        = base.MenuRowItem
 	MenuRowLabel       = base.MenuRowLabel
 	MenuRowSeparator   = base.MenuRowSeparator
-	MenuRows           = base.MenuRows
+	MenuRowsPart       = base.MenuRowsPart
 	PKToaster          = base.PKToaster
 	ProgressHeight     = base.ProgressHeight
 	ProgressWidth      = base.ProgressWidth

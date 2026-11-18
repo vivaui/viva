@@ -1,4 +1,4 @@
-package style
+package base
 
 import (
 	"slices"
@@ -792,7 +792,7 @@ func (m *HierarchyMenuState) Key(event gfx.KeyEvent, open bool) HierarchyMenuKey
 // Wheel scrolls the panel under the pointer: the deepest open one that holds it.
 func (m *HierarchyMenuState) Wheel(event gfx.ScrollEvent) bool {
 	for level := m.DepthValue; level >= 0; level-- {
-		if pointInRect(gfx.Point{X: event.X, Y: event.Y}, m.Panels[level]) {
+		if pointInRect(event.X, event.Y, m.Panels[level]) {
 			return m.Scrolls[level].Wheel(event)
 		}
 	}
@@ -1229,9 +1229,4 @@ func menuTypeaheadCanCycle(scroll *MenuScroll) bool {
 		}
 	}
 	return true
-}
-
-func pointInRect(point gfx.Point, bounds gfx.Rect) bool {
-	return point.X >= bounds.X && point.X < bounds.X+bounds.Width &&
-		point.Y >= bounds.Y && point.Y < bounds.Y+bounds.Height
 }

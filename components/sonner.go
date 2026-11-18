@@ -1,8 +1,8 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // SonnerOptions configures one stateless paint of a caller-owned stack. Toasts
@@ -102,4 +102,4 @@ func sonnerUnion(a, b gfx.Rect) gfx.Rect {
 }
 
 // Aliases into the style vocabulary.
-type SonnerToast = style.SonnerToast
+type SonnerToast = base.SonnerToast

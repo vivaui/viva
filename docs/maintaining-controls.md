@@ -4,6 +4,27 @@ How a control is built, what keeps its two forms the same, and what adding one t
 Written from the code and from the history of earlier additions; where a step is a
 convention rather than something a test checks, it says so.
 
+## Layers
+
+```
+gfx -> style -> base -> ui
+          \-> components   (style recipes; may read base)
+app is the platform loop below ui; it knows nothing of pages.
+```
+
+- `style` carries look values only: variants, sizes, resolved looks and the
+  values painters read. No state machines, no canvas measurement.
+- `base` is the engine: element tree, layout, input/focus routing, control state
+  and behaviour. It never imports `components`, `ui` or `app`. It is published
+  because the styled layer and the recipes copied by `viva add` import it.
+- `components` is the style library: recipes and canvas painters. It may import
+  `base` for the state a copied recipe reads, but not `ui` or `app`.
+- `ui` composes `base` and `components`, installs the painting hooks, and is the
+  application-facing facade. Applications declare pages with `ui.C`.
+
+`internal/layering` checks both forbidden and allowed edges; a new dependency is
+an explicit edit there.
+
 ## Two forms of one control
 
 A control that ships with a look has a **styled form** and a **Base**:

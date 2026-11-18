@@ -3,6 +3,8 @@ package {{PACKAGE}}
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -464,9 +466,9 @@ const (
 )
 
 func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
-	return style.ClampOverlay(point, size, viewport, margin)
+	return base.ClampOverlay(point, size, viewport, margin)
 }
 
 func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
-	return style.OverlayClamp(bounds, viewport, margin)
+	return base.OverlayClamp(bounds, viewport, margin)
 }

@@ -3,8 +3,9 @@ package components
 import (
 	"math"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // singleSelectIcon reports whether an icon has anything to paint.
@@ -273,9 +274,9 @@ func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, heigh
 }
 
 // Aliases into the style vocabulary.
-type SingleSelectOption = style.SingleSelectOption
-type SingleSelectPaint = style.SingleSelectPaint
-type SingleSelectChoice = style.SingleSelectChoice
-type SingleSelectState = style.SingleSelectState
-type SingleSelectOptions = style.SingleSelectOptions
-type SingleSelectLayout = style.SingleSelectLayout
+type SingleSelectOption = base.SingleSelectOption
+type SingleSelectPaint = base.SingleSelectPaint
+type SingleSelectChoice = base.SingleSelectChoice
+type SingleSelectState = base.SingleSelectState
+type SingleSelectOptions = base.SingleSelectOptions
+type SingleSelectLayout = base.SingleSelectLayout

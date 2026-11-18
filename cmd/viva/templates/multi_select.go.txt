@@ -5,8 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -55,7 +56,7 @@ type MultiSelectState struct {
 	focusInput, reveal bool
 	// hover is the row the pointer last crossed onto: hovering that row moves
 	// Active there, so the highlight and Enter name one row instead of two.
-	hover                                 style.PointerRow
+	hover                                 base.PointerRow
 	createText, createPrefix, createValue string
 	overflowText                          string
 	overflowCount                         int
@@ -155,7 +156,7 @@ func (s *MultiSelectState) Choices() []MultiSelectChoice {
 	s.reveal = true
 	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
 	// over again, or a pointer parked on a row would lose it to the reset above.
-	s.hover = style.PointerRow{}
+	s.hover = base.PointerRow{}
 	return s.choices
 }
 

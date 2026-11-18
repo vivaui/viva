@@ -1,4 +1,4 @@
-package base
+package base_test
 
 import (
 	"fmt"
@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	. "github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -330,8 +332,8 @@ func drawFruit(state *SelectState, labels []string, height float32) {
 // repeated letter cycles, a pause starts a new word, and other focus is left alone.
 func TestSelectTypeAheadJumpsToTheMatchingOption(t *testing.T) {
 	now := time.Unix(1000, 0)
-	clock = func() time.Time { return now }
-	defer func() { clock = time.Now }()
+	Clock = func() time.Time { return now }
+	defer func() { Clock = time.Now }()
 	var state SelectState
 	drawFruit(&state, fruit, 400)
 	trigger := selScope.At(len(fruit))
@@ -630,8 +632,8 @@ func TestSelectInScrollAreaShowsItsListBeyondTheClip(t *testing.T) {
 // start with matches nothing.
 func TestSelectTypeAheadSkipsDisabledOptions(t *testing.T) {
 	now := time.Unix(1000, 0)
-	clock = func() time.Time { return now }
-	defer func() { clock = time.Now }()
+	Clock = func() time.Time { return now }
+	defer func() { Clock = time.Now }()
 	disabled := []bool{false, false, true, false} // Apple, Avocado, Banana, Blueberry
 	draw := func(state *SelectState) {
 		var view View

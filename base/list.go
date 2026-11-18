@@ -9,7 +9,6 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
-	"github.com/vivaui/viva/style"
 )
 
 // ListState is what a List knows of its rows between paints: the height of each row
@@ -103,7 +102,7 @@ type listInternals struct {
 	followFrame  uint8      // the paints a following list asked for to reach its end, counted to a bound
 	declared     []listDeclRow
 	f            *Frame
-	typeahead    style.MenuTypeahead
+	typeahead    MenuTypeahead
 	paint        func(*DrawContext) // the area's Draw, made once
 	over         func(*DrawContext) // its DrawOver, made once
 	block        func(*DrawContext) // what keeps the pinned header's rows from the pointer
@@ -1307,7 +1306,7 @@ func (p *Page) ListType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		if s.Label == nil || s.NoTypeahead || event.Modifiers&^gfx.ModifierShift != 0 {
 			return gfx.EventResult{}, false
 		}
-		rows := style.MenuTypeaheadRows{
+		rows := MenuTypeaheadRows{
 			N: s.list.n, ID: func(i int) gfx.ID { return s.list.rows.At(s.key(i)) }, Label: s.Label,
 		}
 		if s.Header != nil {

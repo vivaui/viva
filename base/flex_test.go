@@ -1,7 +1,9 @@
-package base
+package base_test
 
 import (
 	"testing"
+
+	. "github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -434,7 +436,7 @@ func TestEllipsisKeepsOneLineAndEndsItWithAnEllipsis(t *testing.T) {
 	if name.Rect().Height != 17 || after.Rect().Y != 17 {
 		t.Errorf("an ellipsized text is %v tall and the next element starts at %v, want one line, 17 and 17", name.Rect().Height, after.Rect().Y)
 	}
-	if got := f.Lines[f.Nodes[name.i].LineFirst]; got == "a file name that is far too long to fit" || got == "" {
+	if got := f.Lines[f.Nodes[name.GetI()].LineFirst]; got == "a file name that is far too long to fit" || got == "" {
 		t.Errorf("the line is %q, want it shortened", got)
 	}
 }
@@ -511,7 +513,7 @@ func TestFieldsAreLaidOutAndPaintedInTreeOrder(t *testing.T) {
 	var input, segment, area Box
 	f := view.Begin(canvas, theme, gfx.Rect{Width: 300, Height: 300})
 	f.Column().Fill().Gap(8).Children(func() {
-		input = f.Input(style.InputSnapshot{ID: rowID, Label: "Name", Value: "x"})
+		input = f.Input(InputSnapshot{ID: rowID, Label: "Name", Value: "x"})
 		segment = f.Segmented(options, save)
 		area = f.Textarea(components.TextareaSnapshot{Label: "Notes"})
 	})
@@ -527,10 +529,10 @@ func TestFieldsAreLaidOutAndPaintedInTreeOrder(t *testing.T) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Gap(8).Children(func() {
-				f.Input(style.InputSnapshot{ID: rowID, Value: "x"})
+				f.Input(InputSnapshot{ID: rowID, Value: "x"})
 				f.Segmented(options, save)
 				f.Textarea(components.TextareaSnapshot{})
-				f.InputGroup(style.InputGroupSnapshot{})
+				f.InputGroup(InputGroupSnapshot{})
 			})
 		})
 	}

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -345,5 +346,5 @@ func (p segmentPalette) foreground(theme *gfx.Theme, state gfx.State) gfx.Color 
 // segmentFocused reports whether the choice holds the keyboard visibly: a disabled one never does.
 func segmentFocused(state gfx.State) bool { return !state.Disabled && state.FocusVisible }
 func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
-	return style.SegmentedControlKeyDown(current, options, style.Direction(direction), key)
+	return base.SegmentedControlKeyDown(current, options, base.WritingDirection(direction), key)
 }

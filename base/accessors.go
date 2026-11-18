@@ -34,7 +34,7 @@ func (x *ColorPickerLook) GetEmpty() bool { return x.empty }
 func (x *ColorPickerLook) GetIcon() *gfx.Icon { return x.icon }
 
 // GetLabels reads the labels of ColorPickerLook for the styled painting layer.
-func (x *ColorPickerLook) GetLabels() style.ColorPickerLabels { return x.labels }
+func (x *ColorPickerLook) GetLabels() ColorPickerLabels { return x.labels }
 
 // GetRound reads the round of ColorPickerLook for the styled painting layer.
 func (x *ColorPickerLook) GetRound() bool { return x.round }
@@ -43,7 +43,7 @@ func (x *ColorPickerLook) GetRound() bool { return x.round }
 func (x *ColorPickerState) GetApplied() bool { return x.applied }
 
 // GetDraft reads the draft of ColorPickerState for the styled painting layer.
-func (x *ColorPickerState) GetDraft() style.ColorPickerValue { return x.draft }
+func (x *ColorPickerState) GetDraft() ColorPickerValue { return x.draft }
 
 // GetHandlers reads the handlers of ColorPickerState for the styled painting layer.
 func (x *ColorPickerState) GetHandlers() Handlers { return x.handlers }
@@ -58,7 +58,7 @@ func (x *ColorPickerState) GetHexEditor() text.Editor { return x.hexEditor }
 func (x *ColorPickerState) GetInvalid() bool { return x.invalid }
 
 // GetLayout reads the layout of ColorPickerState for the styled painting layer.
-func (x *ColorPickerState) GetLayout() style.ColorPickerLayout { return x.layout }
+func (x *ColorPickerState) GetLayout() ColorPickerLayout { return x.layout }
 
 // GetOpen reads the open of ColorPickerState for the styled painting layer.
 func (x *ColorPickerState) GetOpen() bool { return x.open }
@@ -115,10 +115,10 @@ func (x *ComboState) GetLabels() []string { return x.labels }
 func (x *ComboState) GetLayer() uint16 { return x.layer }
 
 // GetList reads the list of ComboState for the styled painting layer.
-func (x *ComboState) GetList() style.SingleSelectState { return x.list }
+func (x *ComboState) GetList() SingleSelectState { return x.list }
 
 // GetOpts reads the opts of ComboState for the styled painting layer.
-func (x *ComboState) GetOpts() []style.SingleSelectOption { return x.opts }
+func (x *ComboState) GetOpts() []SingleSelectOption { return x.opts }
 
 // GetPaint reads the paint of ComboState for the styled painting layer.
 func (x *ComboState) GetPaint() func(*DrawContext) { return x.paint }
@@ -335,16 +335,16 @@ func (x *Extra) GetTooltipSide() uint8 { return x.tooltipSide }
 func (x *Extra) GetWithin() Rect { return x.within }
 
 // GetEnd reads the end of FieldAddons for the styled painting layer.
-func (x *FieldAddons) GetEnd() style.InputGroupSlot { return x.end }
+func (x *FieldAddons) GetEnd() InputGroupSlot { return x.end }
 
 // GetStart reads the start of FieldAddons for the styled painting layer.
-func (x *FieldAddons) GetStart() style.InputGroupSlot { return x.start }
+func (x *FieldAddons) GetStart() InputGroupSlot { return x.start }
 
 // GetArea reads the area of Field for the styled painting layer.
-func (x *Field) GetArea() *style.TextareaLayout { return x.area }
+func (x *Field) GetArea() *TextareaLayout { return x.area }
 
 // GetBlink reads the blink of Field for the styled painting layer.
-func (x *Field) GetBlink() style.CaretBlink { return x.blink }
+func (x *Field) GetBlink() CaretBlink { return x.blink }
 
 // GetChanged reads the changed of Field for the styled painting layer.
 func (x *Field) GetChanged() bool { return x.changed }
@@ -410,7 +410,7 @@ func (x *Frame) GetNativeMark() int { return x.nativeMark }
 func (x *Frame) GetPage() *Page { return x.page }
 
 // GetPaintAddonsFn reads the PaintAddonsFn of Frame for the styled painting layer.
-func (x *Frame) GetPaintAddonsFn() func(f *Frame, n *Node, snapshot style.InputSnapshot, a *FieldAddons) {
+func (x *Frame) GetPaintAddonsFn() func(f *Frame, n *Node, snapshot InputSnapshot, a *FieldAddons) {
 	return x.PaintAddonsFn
 }
 
@@ -472,7 +472,7 @@ func (x *IconHover) GetSlot() uint8 { return x.slot }
 func (x *IconHover) GetSpan() time.Duration { return x.span }
 
 // GetState reads the state of IconHover for the styled painting layer.
-func (x *IconHover) GetState() *style.IconHover { return x.state }
+func (x *IconHover) GetState() *IconHoverState { return x.state }
 
 // GetBeforeX reads the beforeX of LayoutContext for the styled painting layer.
 func (x *LayoutContext) GetBeforeX() []float32 { return x.beforeX }
@@ -559,7 +559,7 @@ func (x *MenuItems) GetFocusFirst() bool { return x.focusFirst }
 func (x *MenuItems) GetFocusSub() bool { return x.focusSub }
 
 // GetIntent reads the intent of MenuItems for the styled painting layer.
-func (x *MenuItems) GetIntent() style.HoverIntent { return x.intent }
+func (x *MenuItems) GetIntent() HoverIntent { return x.intent }
 
 // GetItemPainter reads the itemPainter of MenuItems for the styled painting layer.
 func (x *MenuItems) GetItemPainter() func(style.MenuItemPaint) { return x.itemPainter }
@@ -607,7 +607,7 @@ func (x *MenuItems) GetSub() int { return x.sub }
 func (x *MenuItems) GetSubMenu() *MenuItems { return x.subMenu }
 
 // GetTypeahead reads the typeahead of MenuItems for the styled painting layer.
-func (x *MenuItems) GetTypeahead() style.MenuTypeahead { return x.typeahead }
+func (x *MenuItems) GetTypeahead() MenuTypeahead { return x.typeahead }
 
 // GetUnpainted reads the unpainted of MenuItems for the styled painting layer.
 func (x *MenuItems) GetUnpainted() bool { return x.unpainted }
@@ -1221,16 +1221,16 @@ func (x *TabsDecl) GetVertical() bool { return x.vertical }
 func (x *Toaster) GetActed() ToastID { return x.acted }
 
 // GetEntries reads the entries of Toaster for the styled painting layer.
-func (x *Toaster) GetEntries() []style.ToastQueueEntry { return x.entries }
+func (x *Toaster) GetEntries() []ToastQueueEntry { return x.entries }
 
 // GetQueue reads the queue of Toaster for the styled painting layer.
-func (x *Toaster) GetQueue() style.ToastQueue { return x.queue }
+func (x *Toaster) GetQueue() ToastQueue { return x.queue }
 
 // GetScope reads the scope of Toaster for the styled painting layer.
 func (x *Toaster) GetScope() gfx.Scope { return x.scope }
 
 // GetStack reads the stack of Toaster for the styled painting layer.
-func (x *Toaster) GetStack() []style.SonnerToast { return x.stack }
+func (x *Toaster) GetStack() []SonnerToast { return x.stack }
 
 // GetToasts reads the toasts of Toaster for the styled painting layer.
 func (x *Toaster) GetToasts() []toast { return x.toasts }
@@ -1278,7 +1278,7 @@ func (x *TreeState) GetN() int { return x.n }
 func (x *TreeState) GetNameOf() func(int) string { return x.nameOf }
 
 // GetNames reads the names of TreeState for the styled painting layer.
-func (x *TreeState) GetNames() []style.MenuTypeaheadItem { return x.names }
+func (x *TreeState) GetNames() []MenuTypeaheadItem { return x.names }
 
 // GetPaint reads the paint of TreeState for the styled painting layer.
 func (x *TreeState) GetPaint() func(*DrawContext) { return x.paint }
@@ -1296,7 +1296,7 @@ func (x *TreeState) GetScope() gfx.Scope { return x.scope }
 func (x *TreeState) GetToggled() int { return x.toggled }
 
 // GetTypeahead reads the typeahead of TreeState for the styled painting layer.
-func (x *TreeState) GetTypeahead() style.MenuTypeahead { return x.typeahead }
+func (x *TreeState) GetTypeahead() MenuTypeahead { return x.typeahead }
 
 // GetAlertDialogs reads the alertDialogs of Widgets for the styled painting layer.
 func (x *Widgets) GetAlertDialogs() []AlertDialogDecl { return x.alertDialogs }
@@ -1314,10 +1314,10 @@ func (x *Widgets) GetDialogs() []DialogDecl { return x.dialogs }
 func (x *Widgets) GetDrawers() []drawerState { return x.drawers }
 
 // GetGroups reads the groups of Widgets for the styled painting layer.
-func (x *Widgets) GetGroups() []style.InputGroupSnapshot { return x.groups }
+func (x *Widgets) GetGroups() []InputGroupSnapshot { return x.groups }
 
 // GetInputs reads the inputs of Widgets for the styled painting layer.
-func (x *Widgets) GetInputs() []style.InputSnapshot { return x.inputs }
+func (x *Widgets) GetInputs() []InputSnapshot { return x.inputs }
 
 // GetLayer reads the layer of Widgets for the styled painting layer.
 func (x *Widgets) GetLayer() uint16 { return x.layer }
@@ -1359,7 +1359,7 @@ func (x *Widgets) GetTables() []TableDecl { return x.tables }
 func (x *Widgets) GetTabs() []TabsDecl { return x.tabs }
 
 // GetTextareas reads the textareas of Widgets for the styled painting layer.
-func (x *Widgets) GetTextareas() []style.TextareaSnapshot { return x.textareas }
+func (x *Widgets) GetTextareas() []TextareaSnapshot { return x.textareas }
 
 // GetMoved reads the moved of armedButton for the styled painting layer.
 func (x *armedButton) GetMoved() bool { return x.moved }
@@ -1635,7 +1635,7 @@ func (x *listInternals) GetSubmittedRow() int32 { return x.submittedRow }
 func (x *listInternals) GetTab() int { return x.tab }
 
 // GetTypeahead reads the typeahead of listInternals for the styled painting layer.
-func (x *listInternals) GetTypeahead() style.MenuTypeahead { return x.typeahead }
+func (x *listInternals) GetTypeahead() MenuTypeahead { return x.typeahead }
 
 // GetKnown reads the known of listTree for the styled painting layer.
 func (x *listTree) GetKnown() []int32 { return x.known }
@@ -1953,7 +1953,7 @@ func (x *SliderState) SetDraggingState(v bool) { x.dragging = v }
 func (x *SliderState) SetGrab(v float32) { x.grab = v }
 
 // SetStack writes the stack of Toaster.
-func (x *Toaster) SetStack(v []style.SonnerToast) { x.stack = v }
+func (x *Toaster) SetStack(v []SonnerToast) { x.stack = v }
 
 // SetActed writes the acted toast of Toaster.
 func (x *Toaster) SetActed(v ToastID) { x.acted = v }
@@ -1980,7 +1980,7 @@ func (x *ColorPickerState) SetOpenState(v bool) { x.open = v }
 func (x *ColorPickerState) SetRestoreFocusState(v bool) { x.restoreFocus = v }
 
 // SetLayoutValue is set by the styled painting layer.
-func (x *ColorPickerState) SetLayoutValue(v style.ColorPickerLayout) { x.layout = v }
+func (x *ColorPickerState) SetLayoutValue(v ColorPickerLayout) { x.layout = v }
 
 // SetAppliedValue is set by the styled painting layer.
 func (x *ColorPickerState) SetAppliedValue(v bool) { x.applied = v }
@@ -2025,7 +2025,7 @@ func (x *Widgets) SetRects(v []Rect) { x.rects = v }
 func (x *Extra) SetIcon(v gfx.Icon) { x.icon = v }
 
 // SetStart is set by the styled painting layer.
-func (x *FieldAddons) SetStart(v style.InputGroupSlot) { x.start = v }
+func (x *FieldAddons) SetStart(v InputGroupSlot) { x.start = v }
 
 // SetBarLit is set by the styled painting layer.
 func (x *ScrollState) SetBarLit(v bool) { x.barLit = v }
@@ -2034,7 +2034,7 @@ func (x *ScrollState) SetBarLit(v bool) { x.barLit = v }
 func (x *ComboState) SetScratch(v []ComboboxOption) { x.scratch = v }
 
 // SetOpts is read or set by the styled painting layer.
-func (x *ComboState) SetOpts(v []style.SingleSelectOption) { x.opts = v }
+func (x *ComboState) SetOpts(v []SingleSelectOption) { x.opts = v }
 
 // SetDescs is read or set by the styled painting layer.
 func (x *ComboState) SetDescs(v []ComboboxOption) { x.descs = v }
@@ -2061,19 +2061,19 @@ func (x *AlertDialogDecl) SpecPtr() *AlertDialogSpec { return &x.spec }
 func (x *ComboState) IDsPtr() *comboIDs { return &x.ids }
 
 // ListPtr is used by the styled painting layer.
-func (x *ComboState) ListPtr() *style.SingleSelectState { return &x.list }
+func (x *ComboState) ListPtr() *SingleSelectState { return &x.list }
 
 // HexPtr is used by the styled painting layer.
 func (x *ColorPickerState) HexPtr() *Field { return &x.hex }
 
 // QueuePtr is used by the styled painting layer.
-func (x *Toaster) QueuePtr() *style.ToastQueue { return &x.queue }
+func (x *Toaster) QueuePtr() *ToastQueue { return &x.queue }
 
 // DragPtr is used by the styled painting layer.
 func (x *TreeState) DragPtr() *treeDrag { return &x.drag }
 
 // SetEnd is used by the styled painting layer.
-func (x *FieldAddons) SetEnd(v style.InputGroupSlot) { x.end = v }
+func (x *FieldAddons) SetEnd(v InputGroupSlot) { x.end = v }
 
 // SetHeader is used by the styled painting layer.
 func (x *DialogDecl) SetHeader(v int32) { x.header = v }

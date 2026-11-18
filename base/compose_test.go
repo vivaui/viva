@@ -1,9 +1,11 @@
 //go:build darwin || windows || linux
 
-package base
+package base_test
 
 import (
 	"testing"
+
+	. "github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"

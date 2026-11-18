@@ -4,7 +4,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/window"
 )
@@ -52,7 +51,7 @@ type Field struct {
 	input window.TextInput
 	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
 	// field does (see Box.Mono): the platform draws the caret of the others.
-	blink style.CaretBlink
+	blink CaretBlink
 	// seen is the text as the field was last declared, and changed whether that
 	// declaration found it edited since the one before (Box.Changed).
 	seen    string
@@ -63,7 +62,7 @@ type Field struct {
 	// area lays a field out in rows when it is declared as a FieldArea; nil until it
 	// is. rows is whether the last declaration was one: a field declared as a
 	// FieldArea once and as a Field since keeps its layout but moves by its line.
-	area *style.TextareaLayout
+	area *TextareaLayout
 	rows bool
 }
 
@@ -211,7 +210,7 @@ func Fields(fields ...*Field) func(window.TextInputContext) *window.TextInput {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) style.InputSnapshot {
+func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.ID = ID
@@ -220,7 +219,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) sty
 	field.seen = value
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
-	snapshot := style.InputSnapshot{
+	snapshot := InputSnapshot{
 		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
@@ -259,10 +258,10 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) sty
 func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Box {
 	input := field.Snapshot(f, ID, Label, placeholder)
 	if field.area == nil {
-		field.area = new(style.TextareaLayout)
+		field.area = new(TextareaLayout)
 	}
 	field.rows = true
-	return f.Textarea(style.TextareaSnapshot{
+	return f.Textarea(TextareaSnapshot{
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
@@ -284,8 +283,8 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 	if !field.rows || event.Target != field.ID || field.ID.IsZero() {
 		return gfx.EventResult{}
 	}
-	movement, extend := style.TextareaMovementForKey(event.Key, event.Modifiers)
-	if movement == style.TextareaMoveNone {
+	movement, extend := TextareaMovementForKey(event.Key, event.Modifiers)
+	if movement == TextareaMoveNone {
 		return gfx.EventResult{}
 	}
 	editor := field.ensure()

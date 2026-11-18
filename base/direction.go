@@ -1,18 +1,18 @@
-package style
+package base
 
 import "github.com/vivaui/viva/gfx"
 
-// Direction is an explicit local inline-flow direction. The zero value and
+// WritingDirection is an explicit local inline-flow direction. The zero value and
 // unknown values resolve to LTR; no platform or process-global state is read or
 // changed.
-type Direction uint8
+type WritingDirection uint8
 
 const (
-	DirectionLTR Direction = iota + 1
-	DirectionRTL
+	WritingLTR WritingDirection = iota + 1
+	WritingRTL
 
-	LTR = DirectionLTR
-	RTL = DirectionRTL
+	LTR = WritingLTR
+	RTL = WritingRTL
 )
 
 // LogicalRect describes geometry from inline-start and block-start.
@@ -32,12 +32,12 @@ type LogicalInsets struct {
 }
 
 // IsRTL reports whether logical inline-start is the physical right edge.
-func (direction Direction) IsRTL() bool {
-	return direction == DirectionRTL
+func (direction WritingDirection) IsRTL() bool {
+	return direction == WritingRTL
 }
 
 // Rect resolves logical geometry inside a physical containing rectangle.
-func (direction Direction) Rect(container gfx.Rect, logical LogicalRect) gfx.Rect {
+func (direction WritingDirection) Rect(container gfx.Rect, logical LogicalRect) gfx.Rect {
 	x := container.X + logical.InlineStart
 	if direction.IsRTL() {
 		x = container.X + container.Width - logical.InlineStart - logical.InlineSize
@@ -52,7 +52,7 @@ func (direction Direction) Rect(container gfx.Rect, logical LogicalRect) gfx.Rec
 
 // Inset resolves logical insets and clamps an over-constrained result to an
 // empty physical rectangle.
-func (direction Direction) Inset(bounds gfx.Rect, insets LogicalInsets) gfx.Rect {
+func (direction WritingDirection) Inset(bounds gfx.Rect, insets LogicalInsets) gfx.Rect {
 	start := max(insets.Start, 0)
 	top := max(insets.Top, 0)
 	end := max(insets.End, 0)
@@ -67,20 +67,20 @@ func (direction Direction) Inset(bounds gfx.Rect, insets LogicalInsets) gfx.Rect
 }
 
 // Start returns a strip at logical inline-start.
-func (direction Direction) Start(bounds gfx.Rect, size float32) gfx.Rect {
+func (direction WritingDirection) Start(bounds gfx.Rect, size float32) gfx.Rect {
 	size = min(max(size, 0), max(bounds.Width, 0))
 	return direction.Rect(bounds, LogicalRect{InlineSize: size, BlockSize: max(bounds.Height, 0)})
 }
 
 // End returns a strip at logical inline-end.
-func (direction Direction) End(bounds gfx.Rect, size float32) gfx.Rect {
+func (direction WritingDirection) End(bounds gfx.Rect, size float32) gfx.Rect {
 	size = min(max(size, 0), max(bounds.Width, 0))
 	return direction.Rect(bounds, LogicalRect{InlineStart: max(bounds.Width-size, 0), InlineSize: size, BlockSize: max(bounds.Height, 0)})
 }
 
 // InlineDelta converts a logical positive movement toward inline-end into a
 // physical x delta.
-func (direction Direction) InlineDelta(delta float32) float32 {
+func (direction WritingDirection) InlineDelta(delta float32) float32 {
 	if direction.IsRTL() {
 		return -delta
 	}
@@ -89,7 +89,7 @@ func (direction Direction) InlineDelta(delta float32) float32 {
 
 // VisualIndex maps a logical index to its physical order. Out-of-range inputs
 // return -1 rather than silently wrapping.
-func (direction Direction) VisualIndex(logicalIndex, count int) int {
+func (direction WritingDirection) VisualIndex(logicalIndex, count int) int {
 	if logicalIndex < 0 || logicalIndex >= count {
 		return -1
 	}

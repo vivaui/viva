@@ -47,11 +47,11 @@ type TreeState struct {
 	toggled, chosen int
 	dropped         TreeMove
 	drag            treeDrag
-	typeahead       style.MenuTypeahead
-	names           []style.MenuTypeaheadItem // the rows as typeahead matches them
-	nameOf          func(int) string          // label, until the next paint: the keys between read it
-	f               *Frame                    // the frame the tree was last declared in
-	scope           gfx.Scope                 // the ids of the rows (scope.At(0)) and chevrons (At(1))
+	typeahead       MenuTypeahead
+	names           []MenuTypeaheadItem // the rows as typeahead matches them
+	nameOf          func(int) string    // label, until the next paint: the keys between read it
+	f               *Frame              // the frame the tree was last declared in
+	scope           gfx.Scope           // the ids of the rows (scope.At(0)) and chevrons (At(1))
 	rows, chevrons  gfx.Scope
 	Scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
 	n               int
@@ -519,7 +519,7 @@ func (p *Page) TreeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		s.names = s.names[:0]
 		for i := 0; i < s.n; i++ {
-			s.names = append(s.names, style.MenuTypeaheadItem{ID: s.rows.At(s.key(i)), Label: s.nameOf(i), Disabled: s.Node(i).Disabled})
+			s.names = append(s.names, MenuTypeaheadItem{ID: s.rows.At(s.key(i)), Label: s.nameOf(i), Disabled: s.Node(i).Disabled})
 		}
 		now := ClockEpoch.Add(s.f.Surface.Now())
 		typing := text == " " && s.typeahead.Typing(now)

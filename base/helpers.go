@@ -1,13 +1,14 @@
-package style
+package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // TabsKeyDown applies orientation-aware roving focus to current. Arrow keys on
 // the tab list's layout axis wrap through enabled non-zero options; Home and
 // End choose the first and last. Horizontal Left and Right reverse in RTL.
-func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
+func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction WritingDirection, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
 	case gfx.KeyLeft:
@@ -105,7 +106,7 @@ func SwitchExtent(theme gfx.Theme, small bool) (width, height float32) {
 // by the slider pattern, so the caller passes anything else on.
 //
 //	next, handled := components.SliderKeyDown(m.volume, 0, 100, 5, components.LTR, event.Key, event.Modifiers)
-func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
+func SliderKeyDown(value, minimum, maximum, step float32, direction WritingDirection, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
 	return SliderKeyDownLarge(value, minimum, maximum, step, 10, direction, key, modifiers)
 }
 
@@ -124,7 +125,7 @@ func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin floa
 // Right wrap through enabled non-zero options and reverse in RTL; Home and End
 // choose the first and last enabled options. Vertical arrows are not owned by
 // a horizontal segmented control.
-func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
+func SegmentedControlKeyDown(current gfx.ID, options []style.SegmentOption, direction WritingDirection, key gfx.Key) (gfx.ID, bool) {
 	step := 0
 	switch key {
 	case gfx.KeyLeft:
@@ -147,7 +148,7 @@ func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction 
 	return nextEnabledSegment(current, options, step), true
 }
 
-func firstEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
+func firstEnabledSegment(current gfx.ID, options []style.SegmentOption, step int) gfx.ID {
 	for index := 0; index < len(options); index++ {
 		candidate := index
 		if step < 0 {
@@ -161,7 +162,7 @@ func firstEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.
 	return current
 }
 
-func nextEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
+func nextEnabledSegment(current gfx.ID, options []style.SegmentOption, step int) gfx.ID {
 	if len(options) == 0 {
 		return current
 	}
@@ -199,7 +200,7 @@ func TableHeaderHeight(theme gfx.Theme) float32 { return theme.Metrics.ControlHe
 // Row paint them: fixed widths in order, a column without one taking what is left,
 // cells that no longer fit left out. It lets a caller put something on a cell, a
 // sort arrow or a hit region, without painting the row first.
-func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
+func TableCellBounds(columns []style.TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
 	x, remaining := row.X, row.Width
 	for index, column := range columns {
 		width := TableColumnWidth(column, index == len(columns)-1, remaining)
@@ -215,7 +216,7 @@ func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.
 
 // tableColumnWidth is the width a column gets of the room remaining: its own, or
 // all that is left for a column with no width (and for a last one too wide).
-func TableColumnWidth(column TableColumn, last bool, remaining float32) float32 {
+func TableColumnWidth(column style.TableColumn, last bool, remaining float32) float32 {
 	width := column.Width
 	if width <= 0 || last && width > remaining {
 		width = remaining

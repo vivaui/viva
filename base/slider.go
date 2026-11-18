@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // sliderLength and sliderThickness are what a Slider is when it is given neither: the
@@ -203,7 +202,7 @@ func (s *SliderState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if unit <= 0 {
 		unit = (s.max - s.min) / 100
 	}
-	value, handled := style.SliderKeyDownLarge(s.Value, s.min, s.max, unit, 10, style.LTR, event.Key, event.Modifiers)
+	value, handled := SliderKeyDownLarge(s.Value, s.min, s.max, unit, 10, LTR, event.Key, event.Modifiers)
 	if !handled {
 		return gfx.EventResult{}
 	}

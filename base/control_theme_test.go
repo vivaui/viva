@@ -1,11 +1,12 @@
-package base
+package base_test
 
 import (
 	"testing"
 
+	. "github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 var (
@@ -19,8 +20,8 @@ var (
 // overrides, and the control beside it keeps the theme's.
 func TestRadiusAndFontSizeStyleTheControlTheyAreCalledOn(t *testing.T) {
 	theme := gfx.LightTheme()
-	snapshot := func(ID gfx.ID) style.InputSnapshot {
-		return style.InputSnapshot{ID: ID, Label: "Name", Value: "Gopher", Focused: ID == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
+	snapshot := func(ID gfx.ID) InputSnapshot {
+		return InputSnapshot{ID: ID, Label: "Name", Value: "Gopher", Focused: ID == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
 	}
 	var view View
 	flexed := testCanvas()
@@ -45,7 +46,7 @@ func TestRadiusZeroSquaresAControl(t *testing.T) {
 	var view View
 	canvas := testCanvas()
 	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 60}, func(f *Frame) {
-		f.Input(style.InputSnapshot{ID: ctlFirst, Label: "x"}).Radius(0)
+		f.Input(InputSnapshot{ID: ctlFirst, Label: "x"}).Radius(0)
 	})
 	if got := canvas.Rectangles()[0].Radius; got != 0 {
 		t.Fatalf("radius = %v, want a square corner", got)
@@ -90,7 +91,7 @@ func TestFontSizeWidensASelectAndItsList(t *testing.T) {
 			})
 		})
 		n := box.N()
-		return n.Rect.Width, box.f.Nodes[WidgetsOf(box.f).selects[n.Aux].popup].Size[AxisX].Value
+		return n.Rect.Width, box.GetF().Nodes[WidgetsOf(box.GetF()).GetSelects()[n.Aux].GetPopup()].Size[AxisX].Value
 	}
 	plainTrigger, plainList := width(0)
 	bigTrigger, bigList := width(26)
@@ -103,7 +104,7 @@ func TestStyledControlsAllocateNothingOnceWarm(t *testing.T) {
 	var view View
 	canvas := testCanvas()
 	theme := gfx.LightTheme()
-	snapshot := style.InputSnapshot{ID: ctlFirst, Label: "Name", Value: "Gopher"}
+	snapshot := InputSnapshot{ID: ctlFirst, Label: "Name", Value: "Gopher"}
 	run := func() {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {

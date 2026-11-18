@@ -48,7 +48,7 @@ var trimControls = func(f *Frame) {
 //	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
 //
 // The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
-func (f *Frame) Input(snapshot style.InputSnapshot) Box {
+func (f *Frame) Input(snapshot InputSnapshot) Box {
 	b := f.InputBase(snapshot)
 	f.Nodes[b.i].Flags |= flagThemed
 	return b
@@ -72,7 +72,7 @@ func (f *Frame) Input(snapshot style.InputSnapshot) Box {
 // it, from the snapshot it passed.
 //
 //	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
-func (f *Frame) InputBase(snapshot style.InputSnapshot) Box {
+func (f *Frame) InputBase(snapshot InputSnapshot) Box {
 	b := f.Box(kindInput)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(WidgetsOf(f).inputs))
@@ -83,7 +83,7 @@ func (f *Frame) InputBase(snapshot style.InputSnapshot) Box {
 
 // InputGroup adds a components.PaintInputGroup (a field with slots beside or above
 // it). Give it a Height when it has block slots; without one it is a control tall.
-func (f *Frame) InputGroup(snapshot style.InputGroupSnapshot) Box {
+func (f *Frame) InputGroup(snapshot InputGroupSnapshot) Box {
 	b := f.Box(kindInputGroup)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(WidgetsOf(f).groups))
@@ -94,7 +94,7 @@ func (f *Frame) InputGroup(snapshot style.InputGroupSnapshot) Box {
 // Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
 // is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
 // the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
-func (f *Frame) Textarea(snapshot style.TextareaSnapshot) Box {
+func (f *Frame) Textarea(snapshot TextareaSnapshot) Box {
 	b := f.TextareaBase(snapshot)
 	f.Nodes[b.i].Flags |= flagThemed
 	return b
@@ -105,7 +105,7 @@ func (f *Frame) Textarea(snapshot style.TextareaSnapshot) Box {
 // and the fill, border, corners, shadow and padding are the element's. The snapshot's
 // InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
 // is one row tall plus its Pad and Border unless given a Height.
-func (f *Frame) TextareaBase(snapshot style.TextareaSnapshot) Box {
+func (f *Frame) TextareaBase(snapshot TextareaSnapshot) Box {
 	b := f.Box(kindTextarea)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(WidgetsOf(f).textareas))

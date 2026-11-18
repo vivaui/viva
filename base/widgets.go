@@ -43,9 +43,9 @@ type Widgets struct {
 	layer        uint16   // the layer the declaration is in: a Dialog raises it for its body
 	// The control tables: inputs, groups, textareas, segmented choices and the
 	// options Choice builds. The engine keeps them opaque.
-	inputs    []style.InputSnapshot
-	groups    []style.InputGroupSnapshot
-	textareas []style.TextareaSnapshot
+	inputs    []InputSnapshot
+	groups    []InputGroupSnapshot
+	textareas []TextareaSnapshot
 	segmented []segmented
 	choices   []style.SegmentOption
 }

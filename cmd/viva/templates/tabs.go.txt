@@ -1,8 +1,8 @@
 package {{PACKAGE}}
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // Tabs paints a compact Base UI-style tab list. The active tab and associated
@@ -393,21 +393,21 @@ func tabTriggerRecipe(theme *gfx.Theme, variant TabsVariant, state gfx.State) Ta
 	return look
 }
 
-type TabOption = style.TabOption
+type TabOption = base.TabOption
 
-type TabsOrientation = style.TabsOrientation
+type TabsOrientation = base.TabsOrientation
 
-type TabsVariant = style.TabsVariant
+type TabsVariant = base.TabsVariant
 
 func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
-	return style.TabsKeyDown(current, options, orientation, style.Direction(direction), key)
+	return base.TabsKeyDown(current, options, orientation, base.WritingDirection(direction), key)
 }
 
 const (
-	TabsHorizontal = style.TabsHorizontal
+	TabsHorizontal = base.TabsHorizontal
 )
 const (
-	TabsVertical = style.TabsVertical
-	TabsDefault  = style.TabsDefault
-	TabsLine     = style.TabsLine
+	TabsVertical = base.TabsVertical
+	TabsDefault  = base.TabsDefault
+	TabsLine     = base.TabsLine
 )

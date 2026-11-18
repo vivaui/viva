@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -1015,12 +1017,12 @@ const (
 )
 
 func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
-	return style.TableCellBounds(columns, row, dst)
+	return base.TableCellBounds(columns, row, dst)
 }
 
 func tableColumnWidth(column TableColumn, last bool, remaining float32) float32 {
-	return style.TableColumnWidth(column, last, remaining)
+	return base.TableColumnWidth(column, last, remaining)
 }
-func TableRowHeight(theme gfx.Theme) float32 { return style.TableRowHeight(theme) }
+func TableRowHeight(theme gfx.Theme) float32 { return base.TableRowHeight(theme) }
 
-func TableHeaderHeight(theme gfx.Theme) float32 { return style.TableHeaderHeight(theme) }
+func TableHeaderHeight(theme gfx.Theme) float32 { return base.TableHeaderHeight(theme) }

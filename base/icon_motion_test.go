@@ -1,8 +1,10 @@
-package base
+package base_test
 
 import (
 	"testing"
 	"time"
+
+	. "github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"

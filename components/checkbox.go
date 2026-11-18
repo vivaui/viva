@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -232,4 +233,4 @@ func PaintCheckboxMark(canvas *gfx.Canvas, bounds gfx.Rect, state gfx.State, col
 		paintCheck(canvas, bounds, bounds.Height*0.875, color)
 	}
 }
-func CheckboxExtent(theme gfx.Theme) float32 { return style.CheckboxExtent(theme) }
+func CheckboxExtent(theme gfx.Theme) float32 { return base.CheckboxExtent(theme) }

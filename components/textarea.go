@@ -1,8 +1,8 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // TextareaCommandForKey maps only keys owned by a multiline editor. Text
@@ -348,26 +348,26 @@ func trimTrailingSpaces(value string) string {
 }
 
 // Aliases into the style vocabulary.
-type TextareaSnapshot = style.TextareaSnapshot
-type TextareaSemantics = style.TextareaSemantics
-type TextareaMovement = style.TextareaMovement
-type TextareaLayout = style.TextareaLayout
-type TextareaCommand = style.TextareaCommand
+type TextareaSnapshot = base.TextareaSnapshot
+type TextareaSemantics = base.TextareaSemantics
+type TextareaMovement = base.TextareaMovement
+type TextareaLayout = base.TextareaLayout
+type TextareaCommand = base.TextareaCommand
 
 const (
-	TextareaCommandInsertNewline = style.TextareaCommandInsertNewline
-	TextareaCommandNone          = style.TextareaCommandNone
-	TextareaMoveDown             = style.TextareaMoveDown
-	TextareaMoveLineEnd          = style.TextareaMoveLineEnd
-	TextareaMoveLineStart        = style.TextareaMoveLineStart
-	TextareaMoveNone             = style.TextareaMoveNone
-	TextareaMovePageDown         = style.TextareaMovePageDown
-	TextareaMovePageUp           = style.TextareaMovePageUp
-	TextareaMoveTextEnd          = style.TextareaMoveTextEnd
-	TextareaMoveTextStart        = style.TextareaMoveTextStart
-	TextareaMoveUp               = style.TextareaMoveUp
+	TextareaCommandInsertNewline = base.TextareaCommandInsertNewline
+	TextareaCommandNone          = base.TextareaCommandNone
+	TextareaMoveDown             = base.TextareaMoveDown
+	TextareaMoveLineEnd          = base.TextareaMoveLineEnd
+	TextareaMoveLineStart        = base.TextareaMoveLineStart
+	TextareaMoveNone             = base.TextareaMoveNone
+	TextareaMovePageDown         = base.TextareaMovePageDown
+	TextareaMovePageUp           = base.TextareaMovePageUp
+	TextareaMoveTextEnd          = base.TextareaMoveTextEnd
+	TextareaMoveTextStart        = base.TextareaMoveTextStart
+	TextareaMoveUp               = base.TextareaMoveUp
 )
 
 func TextareaMovementForKey(key gfx.Key, modifiers gfx.Modifiers) (TextareaMovement, bool) {
-	return style.TextareaMovementForKey(key, modifiers)
+	return base.TextareaMovementForKey(key, modifiers)
 }

@@ -1,8 +1,10 @@
-package base
+package base_test
 
 import (
 	"fmt"
 	"testing"
+
+	. "github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -58,8 +60,8 @@ func TestTableCellsAreWhereTheRowsWerePainted(t *testing.T) {
 	})
 	table.paint(gfx.Rect{Width: width, Height: height})
 	rowH := components.TableRowHeight(gfx.LightTheme())
-	if rowH != table.state.cellRowHeight {
-		t.Fatalf("recorded row height %v, want the painted %v", table.state.cellRowHeight, rowH)
+	if rowH != table.state.GetCellRowHeight() {
+		t.Fatalf("recorded row height %v, want the painted %v", table.state.GetCellRowHeight(), rowH)
 	}
 	// The table is taller than it needs and so scrolls; its first row is painted
 	// under the header, at the top of the body.

@@ -1,15 +1,15 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
-	"github.com/vivaui/viva/style"
 )
 
 // draw paints the field, and its list while it is open.
 func comboStateDraw(s *ComboState, d *DrawContext) {
 	n := &s.GetF().Nodes[s.Node]
 	ids := s.IDsPtr()
-	options := style.SingleSelectOptions{
+	options := base.SingleSelectOptions{
 		InputID: ids.GetInput(), TriggerID: ids.GetTrigger(), DismissID: ids.GetDismiss(), Scope: ids.GetFocus(),
 		ScrollID: ids.Scroll, OptionIDs: ids.GetOptions(),
 		Label: s.Label, Placeholder: s.GetPlaceholder(), EmptyLabel: s.GetEmpty(), CreatePrefix: s.GetCreatePrefix(),

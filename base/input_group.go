@@ -1,4 +1,4 @@
-package style
+package base
 
 import "github.com/vivaui/viva/gfx"
 

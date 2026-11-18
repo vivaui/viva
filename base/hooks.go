@@ -11,7 +11,7 @@ var (
 	PaintSwatch          func(f *Frame, n *Node, r Rect)
 	PaintPickerPanel     func(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, look ColorPickerLook)
 	PaintCombo           func(s *ComboState, d *DrawContext)
-	PaintAddons          func(f *Frame, n *Node, snapshot style.InputSnapshot, a *FieldAddons)
+	PaintAddons          func(f *Frame, n *Node, snapshot InputSnapshot, a *FieldAddons)
 	PaintScrollbars      func(f *Frame, n *Node, s *ScrollState)
 	PaintTooltip         func(f *Frame)
 	PaintTabs            func(f *Frame, n *Node)
@@ -100,7 +100,7 @@ func (f *Frame) paintTooltip() {
 	}
 }
 
-func (f *Frame) paintAddons(n *Node, snapshot style.InputSnapshot, a *FieldAddons) {
+func (f *Frame) paintAddons(n *Node, snapshot InputSnapshot, a *FieldAddons) {
 	if PaintAddons != nil {
 		PaintAddons(f, n, snapshot, a)
 	}

@@ -1,8 +1,8 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 const (
@@ -438,4 +438,4 @@ func scrollAreaExpand(bounds gfx.Rect, amount float32) gfx.Rect {
 }
 
 // Aliases into the style vocabulary, kept for callers of this component.
-type ScrollAreaGeometry = style.ScrollAreaGeometry
+type ScrollAreaGeometry = base.ScrollAreaGeometry

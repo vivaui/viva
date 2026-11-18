@@ -1,14 +1,14 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // SpinnerPhase selects one of the eight static frames in the official
 // sixteen-pixel loading indicator. Advancing the phase and scheduling another
 // frame are explicit caller responsibilities.
-type SpinnerPhase = style.SpinnerPhase
+type SpinnerPhase = base.SpinnerPhase
 
 const (
 	spinnerPhaseCount SpinnerPhase = 8

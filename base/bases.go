@@ -2,7 +2,6 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // The Base of a control is the control without its look: what it does, as an element
@@ -93,10 +92,10 @@ func (f *Frame) ComboboxBase(ID gfx.ID, Label, Value string, open bool) Box {
 // Clicked and is a switch in the given state to assistive technology, with the pointer
 // region reaching beyond the track as the shadcn control's does. The track and the thumb
 // are the caller's, drawn with Draw; gfx.Canvas.Animate gives the thumb's travel, and
-// components.SwitchRecipe the colors at a point of it. style.SwitchExtent is the
+// components.SwitchRecipe the colors at a point of it. SwitchExtent is the
 // size of the small switch.
 func (f *Frame) SwitchBase(ID gfx.ID, on bool) Box {
-	width, height := style.SwitchExtent(f.Palette, false)
+	width, height := SwitchExtent(f.Palette, false)
 	b := f.Row().Center().Size(width, height).HitOutset(8, 12, 8, 12)
 	if on {
 		f.Nodes[b.i].Flags |= flagChecked
@@ -117,7 +116,7 @@ func (f *Frame) SwitchBase(ID gfx.ID, on bool) Box {
 // caller's to say, as it is for Invalid.
 func (f *Frame) CheckboxBase(ID gfx.ID, checked bool) Box {
 	theme := f.Palette
-	side := style.CheckboxExtent(theme)
+	side := CheckboxExtent(theme)
 	scale := theme.Metrics.ControlHeight / 32
 	b := f.Row().Center().Size(side, side).HitOutset(8*scale, 12*scale, 8*scale, 12*scale)
 	if checked {

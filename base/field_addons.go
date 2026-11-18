@@ -2,13 +2,12 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // fieldAddons is what sits inside a field beside its text: an icon at the start,
 // and a button at the end.
 type FieldAddons struct {
-	start, end style.InputGroupSlot
+	start, end InputGroupSlot
 }
 
 func (b Box) Addons() *FieldAddons {
@@ -41,16 +40,16 @@ func (b Box) Icon(icon gfx.Icon) Box {
 		b.GetF().Extra(b.GetI()).SetIcon(icon)
 		return b
 	}
-	b.Addons().SetStart(style.InputGroupSlot{Kind: style.InputGroupSlotIcon, Icon: icon})
+	b.Addons().SetStart(InputGroupSlot{Kind: InputGroupSlotIcon, Icon: icon})
 	return b
 }
 
 // Action puts an icon button at the end of the field's addons.
 func (b Box) Action(icon gfx.Icon, Label string) Box {
 	a := b.Addons()
-	a.SetEnd(style.InputGroupSlot{
-		Kind: style.InputGroupSlotButton, ID: b.ActionID(), Icon: icon, Label: Label,
-		ButtonSize: style.InputGroupButtonIconXS,
+	a.SetEnd(InputGroupSlot{
+		Kind: InputGroupSlotButton, ID: b.ActionID(), Icon: icon, Label: Label,
+		ButtonSize: InputGroupButtonIconXS,
 	})
 	return b
 }
@@ -63,7 +62,7 @@ func (b Box) ActionClicked() bool {
 		return false
 	}
 	end := b.GetF().GetAddons()[b.GetF().Exts[n.Ext].GetAddons()-1].GetEnd()
-	if end.Kind != style.InputGroupSlotButton || n.Flags&FlagDisabled != 0 || !b.GetF().Surface.Clicked(end.ID) {
+	if end.Kind != InputGroupSlotButton || n.Flags&FlagDisabled != 0 || !b.GetF().Surface.Clicked(end.ID) {
 		return false
 	}
 	b.GetF().Surface.RequestFocus(WidgetsOf(b.GetF()).GetInputs()[n.Aux].ID)

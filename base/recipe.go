@@ -2,7 +2,6 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 )
 
 // A control declared with the theme's look (Input, and the controls that follow it) is a
@@ -128,7 +127,7 @@ func (f *Frame) InputLine(n *Node) float32 {
 func textEntryInsets(Palette *Theme, k Kind) (x, y float32) {
 	x = Palette.Metrics.TextInsetX()
 	if k == kindTextarea {
-		y = style.TextareaPadY
+		y = TextareaPadY
 	}
 	return x, y
 }

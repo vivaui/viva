@@ -1,4 +1,4 @@
-package style
+package base
 
 import (
 	"time"
@@ -176,7 +176,7 @@ func (l ColorPickerLayout) Key(event gfx.KeyEvent, v ColorPickerValue) (ColorPic
 			}
 			value, maximum, unit, large = v.Alpha, 1, .01, .1
 		}
-		next, ok := SliderKeyDownLarge(value, 0, maximum, unit, large, DirectionLTR, event.Key, event.Modifiers)
+		next, ok := SliderKeyDownLarge(value, 0, maximum, unit, large, WritingLTR, event.Key, event.Modifiers)
 		if !ok {
 			return v, gfx.EventResult{}
 		}
@@ -202,7 +202,7 @@ func (l ColorPickerLayout) Key(event gfx.KeyEvent, v ColorPickerValue) (ColorPic
 // The state owns no timer. Progress asks the canvas for the wake-up that ends the
 // dwell, and PlayOnce asks for frames while the gesture runs. The result is the
 // gesture's linear progress in [0, 1]; the caller maps it onto a transform.
-type IconHover struct {
+type IconHoverState struct {
 	target gfx.ID
 	since  time.Duration
 	// fired marks the slots that already played for target, so a pointer that
@@ -214,17 +214,17 @@ type IconHover struct {
 }
 
 // played reports whether slot already played its gesture for the current target.
-func (hover *IconHover) played(slot uint8) bool {
+func (hover *IconHoverState) played(slot uint8) bool {
 	return hover.fired[slot/64]>>(slot%64)&1 != 0
 }
 
 // markPlayed records that slot played its gesture for the current target.
-func (hover *IconHover) markPlayed(slot uint8) {
+func (hover *IconHoverState) markPlayed(slot uint8) {
 	hover.fired[slot/64] |= 1 << (slot % 64)
 }
 
 // reArm clears every slot's played mark, so the next hover replays them.
-func (hover *IconHover) reArm() {
+func (hover *IconHoverState) reArm() {
 	hover.fired = [4]uint64{}
 }
 
@@ -234,7 +234,7 @@ func (hover *IconHover) reArm() {
 // is how long the pointer must rest before the gesture starts, and duration is
 // the gesture itself. A zero ID paints still, which makes the value safe to use
 // from a static preview.
-func (hover *IconHover) Progress(canvas *gfx.Canvas, id gfx.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
+func (hover *IconHoverState) Progress(canvas *gfx.Canvas, id gfx.ID, slot uint8, dwell, duration time.Duration) (progress float32, playing bool) {
 	if hover == nil || canvas == nil || id.IsZero() {
 		return 1, false
 	}
@@ -279,25 +279,13 @@ type SonnerToast struct {
 	Disabled    bool
 }
 
-// ToastType selects the official semantic icon treatment.
-type ToastType uint8
-
-const (
-	ToastDefault ToastType = iota
-	ToastSuccess
-	ToastInfo
-	ToastWarning
-	ToastError
-	ToastLoading
-)
-
 // ToastSnapshot is the complete caller-owned state painted for one frame.
 // Timing, expiry, swipe interpretation, and stack membership live outside the
 // component.
 type ToastSnapshot struct {
 	Title       string
 	Description string
-	Type        ToastType
+	Type        ToastKind
 	Index       uint16
 	Expanded    bool
 	Limited     bool
@@ -335,19 +323,6 @@ type ToastQueue struct {
 	Limit   int
 	entries []toastQueueEntry
 }
-
-// ToastPosition is the corner or edge of the viewport a toast stack grows from.
-// Toasts stack away from it: up from a bottom position, down from a top one.
-type ToastPosition uint8
-
-const (
-	ToastBottomRight ToastPosition = iota
-	ToastBottomLeft
-	ToastBottomCenter
-	ToastTopRight
-	ToastTopLeft
-	ToastTopCenter
-)
 
 func (queue *ToastQueue) timeout() time.Duration {
 	if queue.Timeout > 0 {
@@ -529,7 +504,7 @@ func pickerUnit(v float32) float32 {
 // configurable large step: the arrows move by step (Right and Up up, Left and
 // Down down; Left and Right swap in RTL), Shift with an arrow and PageUp and
 // PageDown by largeStep, and Home and End to the minimum and maximum.
-func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
+func SliderKeyDownLarge(value, minimum, maximum, step, largeStep float32, direction WritingDirection, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
 	unit := step
 	if unit <= 0 {
 		unit = 1
