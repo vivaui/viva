@@ -120,7 +120,7 @@ func TestColorPickerDraftFollowsTheDragBeforeApply(t *testing.T) {
 	}
 }
 
-// A spec's ID names the trigger with the application's identity, so a row's
+// ColorPickerID names the trigger with the application's identity, so a row's
 // words can be its label: clicking them opens the panel.
 func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 	var state ui.ColorPickerState
@@ -133,7 +133,7 @@ func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 		ui.Row(c).Children(func() {
 			words := ui.Text(c, "Accent").LabelFor(id)
 			_ = words
-			ui.ColorPickerWith(c, &state, ui.ColorPickerSpec{ID: id, Label: "Accent"}, &color)
+			ui.ColorPickerID(c, id, &state, &color, "Accent")
 		})
 	})
 	var trigger gfx.Rect
@@ -171,5 +171,21 @@ func TestColorSwatchPaintsWithoutAllocating(t *testing.T) {
 	d.repaint()
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("a warm swatch row paints with %v allocations, want 0", allocs)
+	}
+}
+
+func TestColorPickerLookMethodsApplyToThePickerAndNotToOtherElements(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(10, 20, 30)
+	pipette := gfx.Icon{ViewBox: 24, Stroke: 1.5}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(8).Gap(4).Children(func() {
+			ui.ColorPicker(c, &state, &color, "Accent").RoundTrigger().TriggerIcon(&pipette).NoColor(false)
+			ui.Text(c, "plain").RoundTrigger().NoColor(true) // ignored, as documented
+		})
+	})
+	d.click("Accent")
+	if !state.Open() {
+		t.Fatal("a picker given look methods did not open")
 	}
 }

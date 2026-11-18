@@ -225,7 +225,7 @@ type extra struct {
 	swatchValue   Color            // its color and whether it is the chosen one of its set
 	swatchChosen  bool
 	picker        *ColorPickerState // a ColorPicker's state, painted by paintColorPicker
-	pickerSpec    ColorPickerSpec   // how it looks
+	pickerLook    colorPickerLook   // how it looks
 }
 
 // frame is one page being declared. It is handed to the function given to

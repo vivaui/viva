@@ -101,20 +101,13 @@ func (s *ColorPickerState) Applied() bool {
 	return applied
 }
 
-// ColorPickerSpec is how a ColorPicker looks: Label names it for assistive technology
-// (and heads its panel), Round makes the trigger a disc, Icon draws a glyph over it (a
-// pipette for a custom color), Empty shows it as no color whatever its value, and
-// Labels override the panel's words.
-type ColorPickerSpec struct {
-	// ID, when set, names the trigger with the application's identity, as
-	// ColorSwatchID does; the page's own identity names it otherwise. A row's
-	// words can then be its LabelFor, as for any control the application names.
-	ID     gfx.ID
-	Label  string
-	Round  bool
-	Icon   *gfx.Icon
-	Empty  bool
-	Labels components.ColorPickerLabels
+// colorPickerLook is how a ColorPicker looks, set by its Box methods.
+type colorPickerLook struct {
+	label  string
+	round  bool
+	icon   *gfx.Icon
+	empty  bool
+	labels components.ColorPickerLabels
 }
 
 // ColorPicker adds a color trigger over *color that opens a panel to pick one: a plane for
@@ -122,19 +115,24 @@ type ColorPickerSpec struct {
 // color is staged while the panel is open and written to *color on Apply (Enter in the
 // hex field); Cancel, Escape and a press outside leave it as it was. A transparent
 // *color is no color, which Clear sets. The box is the 32 pixel trigger; Applied
-// reports a change.
+// reports a change. RoundTrigger, TriggerIcon, NoColor and PanelLabels change how it looks.
 //
 //	ui.ColorPicker(c, &m.picker, &m.accent, "Accent")
 //	if m.picker.Applied() { m.save() }
 func ColorPicker(c C, state *ColorPickerState, color *Color, label string) Box {
-	return ColorPickerWith(c, state, ColorPickerSpec{Label: label}, color)
+	return colorPicker(c, gfx.ID{}, state, color, label)
 }
 
-// ColorPickerWith is ColorPicker with a spec.
-func ColorPickerWith(c C, s *ColorPickerState, spec ColorPickerSpec, color *Color) Box {
+// ColorPickerID is ColorPicker for a trigger the application already names, as
+// ColorSwatchID is for a swatch; a row's words can then be its LabelFor, as for any
+// control the application names.
+func ColorPickerID(c C, id gfx.ID, state *ColorPickerState, color *Color, label string) Box {
+	return colorPicker(c, id, state, color, label)
+}
+
+func colorPicker(c C, id gfx.ID, s *ColorPickerState, color *Color, label string) Box {
 	p := c.page
 	p.forbidInMemo("ColorPicker")
-	id := spec.ID
 	if id.IsZero() {
 		id = p.controlID(pkControl)
 	}
@@ -146,21 +144,65 @@ func ColorPickerWith(c C, s *ColorPickerState, spec ColorPickerSpec, color *Colo
 	}
 	if s.open {
 		p.overlay = true
-		control := Control(c, spec.Label, &s.handlers).Absolute().Left(0).Top(0).Size(0, 0)
-		control.HitWith(s.handlers.parts.At(8), spec.Label, gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true, SkipFocus: true})
+		control := Control(c, label, &s.handlers).Absolute().Left(0).Top(0).Size(0, 0)
+		control.HitWith(s.handlers.parts.At(8), label, gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true, SkipFocus: true})
 		p.fields = append(p.fields, fieldEntry{id: s.handlers.parts.At(3), field: &s.hex})
 		s.hex.id = s.handlers.parts.At(3)
 		s.syncHex()
 	}
 	b := Slot(c).Size(32, 32).Shrink(0)
 	n := b.n()
-	n.id, n.label = id, spec.Label
+	n.id, n.label = id, label
 	// Like the swatch, the picker paints from what the element carries: a Draw
 	// callback made for each paint would allocate one closure a paint.
 	extra := b.f.extra(b.i)
-	extra.picker, extra.pickerSpec = s, spec
+	extra.picker, extra.pickerLook = s, colorPickerLook{label: label}
 	b.f.paintPickerFn = (*frame).paintColorPicker
 	return b
+}
+
+// RoundTrigger makes a ColorPicker's trigger a disc. Other elements ignore it.
+func (b Box) RoundTrigger() Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.pickerLook.round = true
+	}
+	return b
+}
+
+// TriggerIcon draws a glyph over a ColorPicker's trigger, such as a pipette for a custom
+// color. Other elements ignore it.
+func (b Box) TriggerIcon(icon *gfx.Icon) Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.pickerLook.icon = icon
+	}
+	return b
+}
+
+// NoColor shows a ColorPicker's trigger as no color whatever its value, when empty. Other
+// elements ignore it.
+func (b Box) NoColor(empty bool) Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.pickerLook.empty = empty
+	}
+	return b
+}
+
+// PanelLabels overrides the words of a ColorPicker's panel: its title, the plane, the hue
+// bar, the hex field and the buttons. A label left empty keeps its default. Other
+// elements ignore it.
+func (b Box) PanelLabels(labels components.ColorPickerLabels) Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.pickerLook.labels = labels
+	}
+	return b
+}
+
+func (b Box) pickerExtra() *extra {
+	n := b.n()
+	if n.ext == 0 || b.f.exts[n.ext].picker == nil {
+		return nil
+	}
+	return &b.f.exts[n.ext]
 }
 
 // paintColorPicker draws a ColorPicker's trigger, and its panel while it is open.
@@ -168,7 +210,7 @@ func (f *frame) paintColorPicker(n *node) {
 	extra := &f.exts[n.ext]
 	ctx := Ctx{page: f.page, f: f}
 	d := DrawContext{Canvas: f.canvas, Theme: &f.theme, Rect: n.rect, Label: n.label}
-	extra.picker.paint(&d, &ctx, n.id, extra.pickerSpec)
+	extra.picker.paint(&d, &ctx, n.id, extra.pickerLook)
 }
 
 // parts are the identities the panel's regions take.
@@ -180,14 +222,14 @@ func (s *ColorPickerState) ids(trigger gfx.ID) components.ColorPickerIDs {
 	return components.ColorPickerIDs{Trigger: trigger, Saturation: at(0), Hue: at(1), Hex: at(3), Clear: at(4), Cancel: at(5), Apply: at(6), Dismiss: at(7)}
 }
 
-func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, spec ColorPickerSpec) {
+func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, look colorPickerLook) {
 	canvas := d.Canvas
 	ids := s.ids(id)
 	if canvas.Clicked(id) {
 		if s.open {
 			s.close()
 		} else {
-			s.openPanel(spec)
+			s.openPanel()
 		}
 		return
 	}
@@ -195,19 +237,19 @@ func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, spec ColorPicke
 		canvas.RequestFocus(id)
 		s.restoreFocus = false
 	}
-	labels := spec.Labels
+	labels := look.labels
 	if labels.Color == "" {
-		labels.Color = spec.Label
+		labels.Color = look.label
 	}
 	value, empty := s.draft, false
 	if !s.open {
 		value = value.WithColor(*s.target)
 		empty = s.target.Alpha == 0
 	}
-	empty = empty || spec.Empty
+	empty = empty || look.empty
 	options := components.ColorPickerOptions{
 		IDs: ids, Labels: labels, Value: value, Open: s.open, Empty: empty,
-		RoundTrigger: spec.Round, TriggerIcon: spec.Icon, SaturationText: s.summary,
+		RoundTrigger: look.round, TriggerIcon: look.icon, SaturationText: s.summary,
 		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: c.f.widgetLayer() + 2,
 	}
 	if s.open {
@@ -234,7 +276,7 @@ func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, spec ColorPicke
 	}
 }
 
-func (s *ColorPickerState) openPanel(ColorPickerSpec) {
+func (s *ColorPickerState) openPanel() {
 	color := *s.target
 	if color.Alpha == 0 {
 		color = Color{Red: 0.231, Green: 0.51, Blue: 0.965, Alpha: 1} // #3B82F6, as the field's placeholder
