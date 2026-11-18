@@ -263,14 +263,14 @@ func (b Box) Gradient(angle Angle, from, to Color) Box {
 // the line from 0 to 1 (see gfx.Canvas.FillGradient). The stops are copied.
 //
 //	f.Row().Radius(12).GradientStops(ui.ToBottomRight, gfx.Stop(0, a), gfx.Stop(0.6, b), gfx.Stop(1, c))
-func (b Box) GradientStops(angle Angle, stops ...gfx.GradientStop) Box {
+func (b Box) GradientStops(angle Angle, Stops ...gfx.GradientStop) Box {
 	b.n()
-	if len(stops) == 0 {
+	if len(Stops) == 0 {
 		return b
 	}
 	f := b.f
-	f.Gradients = append(f.Gradients, gradient{angle: angle, First: int32(len(f.stops)), count: int32(len(stops))})
-	f.stops = append(f.stops, stops...)
+	f.Gradients = append(f.Gradients, gradient{angle: angle, First: int32(len(f.Stops)), count: int32(len(Stops))})
+	f.Stops = append(f.Stops, Stops...)
 	f.extra(b.i).gradient = int32(len(f.Gradients))
 	return b
 }
@@ -380,7 +380,7 @@ func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
 // paintGradient draws the gradient of an element over its whole rectangle.
 func (f *frame) paintGradient(n *node, extra *extra) {
 	g := f.Gradients[extra.gradient-1]
-	stops := f.stops[g.First : g.First+g.count]
+	stops := f.Stops[g.First : g.First+g.count]
 	if f.Opacity < 1 {
 		stops = append(f.paintStops[:0], stops...)
 		f.paintStops = stops
