@@ -81,6 +81,31 @@ func TestDialogBodyHeightFitsTheSurface(t *testing.T) {
 	sameCanvas(t, "body height", flexed, direct)
 }
 
+// A Dialog given a header keeps its metrics: a confirmation passing
+// components.AlertDialogHeader gets the alert dialog's title size and line box.
+func TestDialogPaintsTheHeaderMetricsItWasGiven(t *testing.T) {
+	theme := gfx.LightTheme()
+	canvas := testCanvas()
+	var view View
+	view.Draw(canvas, theme, gfx.Rect{Width: 640, Height: 400}, func(f *Frame) {
+		f.Dialog(DialogSpec{
+			Title: "Delete host?", Width: 400, Scope: dlgScope.ID(tree.Name("scope")), DismissID: dlgNo, CloseID: dlgClose,
+			Header: components.AlertDialogHeader(theme.Metrics),
+		})
+	})
+	for _, text := range canvas.Texts() {
+		if text.Value != "Delete host?" {
+			continue
+		}
+		if text.Style.Size != theme.Metrics.FontSizeM+5 || text.Bounds.Height != theme.Metrics.FontSizeM+8 {
+			t.Errorf("title %v in a %v box, want the alert dialog's %v in %v",
+				text.Style.Size, text.Bounds.Height, theme.Metrics.FontSizeM+5, theme.Metrics.FontSizeM+8)
+		}
+		return
+	}
+	t.Fatal("no title painted")
+}
+
 func TestDialogReportsDismissalAndTheButtonsAreClicked(t *testing.T) {
 	theme := gfx.LightTheme()
 	draw := func(canvas *gfx.Canvas) (dismissed, deleted bool) {
