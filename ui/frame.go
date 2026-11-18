@@ -50,6 +50,7 @@ const (
 	kindImage
 	kindSplitButton
 	kindBadge
+	kindPagination
 )
 
 type direction uint8

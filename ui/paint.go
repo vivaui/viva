@@ -236,6 +236,8 @@ func (f *frame) paintControl(n *node, r Rect) {
 		f.paintSplitButton(n)
 	case kindBadge:
 		f.paintBadge(n)
+	case kindPagination:
+		f.paintPagination(n)
 	case kindSlider:
 		f.paintSlider(n)
 	case kindSwitch:
