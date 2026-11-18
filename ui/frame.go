@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -25,52 +26,52 @@ const (
 	Between
 )
 
-type kind uint8
+type kind = base.Kind
 
 const (
-	kindContainer kind = iota
-	kindText
-	kindSpacer
-	kindButton
-	kindCheckbox
-	kindSwitch
-	kindIcon
-	kindSlot
-	kindInput
-	kindInputGroup
-	kindTextarea
-	kindSegmented
-	kindTable
-	kindTabs
-	kindSelect
-	kindProgress
-	kindSpinner
-	kindSplitter
-	kindSlider
-	kindImage
-	kindSplitButton
-	kindBadge
-	kindPagination
+	kindContainer   = base.KindContainer
+	kindText        = base.KindText
+	kindSpacer      = base.KindSpacer
+	kindButton      = base.KindButton
+	kindCheckbox    = base.KindCheckbox
+	kindSwitch      = base.KindSwitch
+	kindIcon        = base.KindIcon
+	kindSlot        = base.KindSlot
+	kindInput       = base.KindInput
+	kindInputGroup  = base.KindInputGroup
+	kindTextarea    = base.KindTextarea
+	kindSegmented   = base.KindSegmented
+	kindTable       = base.KindTable
+	kindTabs        = base.KindTabs
+	kindSelect      = base.KindSelect
+	kindProgress    = base.KindProgress
+	kindSpinner     = base.KindSpinner
+	kindSplitter    = base.KindSplitter
+	kindSlider      = base.KindSlider
+	kindImage       = base.KindImage
+	kindSplitButton = base.KindSplitButton
+	kindBadge       = base.KindBadge
+	kindPagination  = base.KindPagination
 )
 
-type direction uint8
+type direction = base.Direction
 
 const (
-	column direction = iota
-	row
-	stack
-	grid
-	custom // a Layout places the children itself (see layout_custom.go)
-	flow   // a row that wraps onto more lines (see flow.go)
+	column = base.DirectionColumn
+	row    = base.DirectionRow
+	stack  = base.DirectionStack
+	grid   = base.DirectionGrid
+	custom = base.DirectionCustom
+	flow   = base.DirectionFlow
 )
 
-type dimKind uint8
+type dimKind = base.DimKind
 
 const (
-	dimAuto dimKind = iota
-	dimPx
-	dimFill
-	dimPercent // value is a percentage of the container's content box
+	dimAuto    = base.DimAuto
+	dimPx      = base.DimPx
+	dimFill    = base.DimFill
+	dimPercent = base.DimPercent
 )
 
 type dimension struct {
@@ -79,36 +80,36 @@ type dimension struct {
 }
 
 const (
-	flagClip uint32 = 1 << iota
-	flagMono
-	flagTextCenter
-	flagDisabled
-	flagChecked
-	flagSmall
-	flagGrowSet
-	flagShrinkSet
-	flagHasColor
-	flagHasHit
-	flagWrap
-	flagScroll
-	flagBasis
-	flagOutline
-	flagDialog      // a Dialog's root: painted by components.Dialog around its children
-	flagAlertDialog // an AlertDialog's root: painted by components.AlertDialog
-	flagChildren    // Children was called on the element, even if it declared nothing
-	flagHasRadius   // Radius was called: on a control, its corners are its own, not the theme's
-	flagThemed      // a control with the theme's look: what the caller did not set, the recipe does
-	flagSetBackground
-	flagSetBorder
-	flagSetShadow
-	flagSetPad
-	flagSelected // the element is the chosen one of several (State.Selected)
-	flagOpen     // the element shows what it controls (State.Open)
-	flagVeto     // a click on the element is not delivered: its identity moved to it under a held press or focus
-	flagPopover  // a Popover's root: painted with components.Popover's dismiss, focus scope and Escape around its children
-	flagDrawer   // a Drawer's root: painted by components.Drawer around its children
-	flagLabelFor // the element is a label of the control its identity names (LabelFor)
-	flagMixed    // a Checkbox that is neither on nor off: some of what it stands for is chosen
+	flagClip          = base.FlagClip
+	flagMono          = base.FlagMono
+	flagTextCenter    = base.FlagTextCenter
+	flagDisabled      = base.FlagDisabled
+	flagChecked       = base.FlagChecked
+	flagSmall         = base.FlagSmall
+	flagGrowSet       = base.FlagGrowSet
+	flagShrinkSet     = base.FlagShrinkSet
+	flagHasColor      = base.FlagHasColor
+	flagHasHit        = base.FlagHasHit
+	flagWrap          = base.FlagWrap
+	flagScroll        = base.FlagScroll
+	flagBasis         = base.FlagBasis
+	flagOutline       = base.FlagOutline
+	flagDialog        = base.FlagDialog
+	flagAlertDialog   = base.FlagAlertDialog
+	flagChildren      = base.FlagChildren
+	flagHasRadius     = base.FlagHasRadius
+	flagThemed        = base.FlagThemed
+	flagSetBackground = base.FlagSetBackground
+	flagSetBorder     = base.FlagSetBorder
+	flagSetShadow     = base.FlagSetShadow
+	flagSetPad        = base.FlagSetPad
+	flagSelected      = base.FlagSelected
+	flagOpen          = base.FlagOpen
+	flagVeto          = base.FlagVeto
+	flagPopover       = base.FlagPopover
+	flagDrawer        = base.FlagDrawer
+	flagLabelFor      = base.FlagLabelFor
+	flagMixed         = base.FlagMixed
 )
 
 // node is one element of the page. Fields are plain values so a node is reused
