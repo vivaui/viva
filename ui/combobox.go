@@ -32,28 +32,36 @@ func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	return combobox(c, value, choices, nameOf, nil, label)
 }
 
-// ComboboxOption describes one choice of a ComboboxItems: Label is its name; Detail is shown
-// after it in a muted face (an address, an account) and, with Search (extra text that is
-// never shown, such as a group or an alias), is matched by what the user types; Disabled
-// keeps the choice in the list, dimmed and not chosen by a click or the keys, so a search
-// can still explain why it cannot be had.
+// ComboboxOption describes one choice of a Combobox made with ComboboxWith: Label is its
+// name; Detail is shown after it in a muted face (an address, an account) and, with Search
+// (extra text that is never shown, such as a group or an alias), is matched by what the
+// user types; Disabled keeps the choice in the list, dimmed and not chosen by a click or
+// the keys, so a search can still explain why it cannot be had.
 type ComboboxOption struct {
 	Label, Detail, Search string
 	Disabled              bool
 }
 
-// ComboboxItems is Combobox for choices that carry more than a name: describe gives each
-// choice's ComboboxOption. Everything else, Clearable, Empty, Creatable and Created
-// included, is Combobox's.
+// ComboboxSpec is what ComboboxWith knows of its choices beyond a name. Describe gives
+// each choice's ComboboxOption; it is called for every choice in every paint, so keep it
+// to reading fields.
+type ComboboxSpec[T comparable] struct {
+	Describe func(T) ComboboxOption
+}
+
+// ComboboxWith is Combobox for choices that carry more than a name, as spec describes
+// them. Everything else, Clearable, Empty, Creatable and Created included, is Combobox's.
 //
-//	ui.ComboboxItems(c, &m.host, hosts, func(h Host) ui.ComboboxOption {
-//		return ui.ComboboxOption{Label: h.Name, Detail: h.Address, Search: h.Group, Disabled: !h.Online}
+//	ui.ComboboxWith(c, &m.host, hosts, ui.ComboboxSpec[Host]{
+//		Describe: func(h Host) ui.ComboboxOption {
+//			return ui.ComboboxOption{Label: h.Name, Detail: h.Address, Search: h.Group, Disabled: !h.Online}
+//		},
 //	}, "Host")
-func ComboboxItems[T comparable](c C, value *T, choices []T, describe func(T) ComboboxOption, label string) Box {
-	if describe == nil {
-		panic("ui: ComboboxItems needs describe")
+func ComboboxWith[T comparable](c C, value *T, choices []T, spec ComboboxSpec[T], label string) Box {
+	if spec.Describe == nil {
+		panic("ui: ComboboxWith needs a Describe")
 	}
-	return combobox(c, value, choices, nil, describe, label)
+	return combobox(c, value, choices, nil, spec.Describe, label)
 }
 
 func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, describe func(T) ComboboxOption, label string) Box {
@@ -158,7 +166,7 @@ type comboState struct {
 	input   app.TextInput
 	ids     comboIDs
 	labels  []string
-	descs   []ComboboxOption // what ComboboxItems last described, to tell a change
+	descs   []ComboboxOption // what ComboboxWith last described, to tell a change
 	scratch []ComboboxOption
 	keys    []string // keys[i] is the Value of option i: its index
 	opts    []components.SingleSelectOption
