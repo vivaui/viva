@@ -125,7 +125,8 @@ func (m *model) page(c ui.C) {
   makes some rows section headings: the heading of the section at the top stays there until the next pushes it away (give it a
   Background; it is not chosen, focused or typed to, and the keys pass over it). `m.list.Reorder = func(rows []int, to int)` lets
   the user drag rows (the chosen ones when the row dragged is chosen) and calls it with the rows and the row they go before; move
-  them there, in the model. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
+  them there, in the model. `m.list.Handle = grips` (a `gfx.Scope`) makes a drag start only on the hit each row names in that
+  scope, as a grip, so the row body keeps its clicks; the arrows, Home and End on a focused grip then reorder without Alt. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
   horizontal wheel, or the wheel with Shift); a column header above it follows with
   `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,

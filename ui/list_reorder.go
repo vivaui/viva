@@ -24,6 +24,10 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		dragEdgeScroll(canvas, in.scroll, in.view, drag.at, band, &drag.scrolled)
 	}
 	_, event, ok := canvas.PointerIn(in.rows)
+	if !ok && !s.Handle.IsZero() {
+		// A drag that starts on the handle carries the handle as its target.
+		_, event, ok = canvas.PointerIn(s.Handle)
+	}
 	if !ok {
 		return
 	}
@@ -34,7 +38,15 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		if event.Button > gfx.PointerButtonPrimary {
 			return
 		}
-		if row := s.indexOf(event.Target); row >= 0 && !s.isHeader(row) {
+		row := -1
+		if !s.Handle.IsZero() {
+			if at, inside := event.Target.In(s.Handle); inside {
+				row = at
+			}
+		} else if at := s.indexOf(event.Target); at >= 0 {
+			row = at
+		}
+		if row >= 0 && !s.isHeader(row) {
 			// Not consumed: a press that does not move is still the row's click.
 			drag.pressed, drag.from, drag.start, drag.at = true, row, point, point
 		}
@@ -122,6 +134,44 @@ func (in *listInternals) drawOver(d *DrawContext) {
 	}
 	y = min(max(y, d.Rect.Y+1), d.Rect.Y+d.Rect.Height-1)
 	d.Canvas.Fill(Rect{X: d.Rect.X, Y: y - 1, Width: d.Rect.Width, Height: 2}, d.Theme.Primary)
+}
+
+// reorderByHandle is Up or Down on a row's handle, as the grip of a reorder list
+// takes it: the rows the drag would carry move one row and the keyboard follows the
+// handle where it goes. At the first or the last row it moves nothing.
+func (s *ListState) reorderByHandle(row int, up bool) (gfx.EventResult, bool) {
+	result, handled := s.reorderByKey(row, up)
+	if !handled || result.Focus.IsZero() {
+		return result, handled
+	}
+	newRow := row - 1
+	if !up {
+		newRow = row + 1
+	}
+	result.Focus, result.FocusVisible = s.Handle.At(newRow), true
+	return result, handled
+}
+
+// reorderHandleToEdge is Home or End on a row's handle: its rows go to the top or
+// the bottom of the list.
+func (s *ListState) reorderHandleToEdge(row int, top bool) (gfx.EventResult, bool) {
+	var drag listDrag
+	drag.from = row
+	s.carriedRows(&drag)
+	rows := drag.rows
+	to := s.list.n
+	if top {
+		to = 0
+	}
+	if movesNothing(rows, to) {
+		return gfx.EventResult{Handled: true}, true
+	}
+	s.Reorder(rows, to)
+	newRow := 0
+	if !top {
+		newRow = s.list.n - len(rows)
+	}
+	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.Handle.At(newRow), FocusVisible: true}, true
 }
 
 // reorderByKey is Alt with Up or Down on a row of a List with Reorder: the rows the

@@ -60,6 +60,11 @@ type ListState struct {
 	// a press on a control in it (a button) is that control's. Alt with Up or Down on
 	// a row does the same for the keyboard, one place at a time.
 	Reorder func(rows []int, to int)
+	// Handle, when set, makes a drag start only on a press on the row's handle:
+	// a hit the application names in this scope by the row's index, as a reorder
+	// list's grip, so the row body keeps its clicks. Zero starts the drag on the
+	// row itself (see Reorder).
+	Handle gfx.Scope
 	// RowWidth, when positive, makes the rows at least that wide: where they are
 	// wider than the list it scrolls sideways too (the horizontal wheel, or the
 	// wheel with Shift), and where they are not they grow to its width, as the
@@ -1136,6 +1141,16 @@ func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 	}
 	for _, s := range p.listStates {
+		if !s.Handle.IsZero() && s.Reorder != nil && event.Modifiers == 0 {
+			if row, inside := event.Target.In(s.Handle); inside && row >= 0 && row < s.list.n && !s.isHeader(row) {
+				switch event.Key {
+				case gfx.KeyUp, gfx.KeyDown:
+					return s.reorderByHandle(row, event.Key == gfx.KeyUp)
+				case gfx.KeyHome, gfx.KeyEnd:
+					return s.reorderHandleToEdge(row, event.Key == gfx.KeyHome)
+				}
+			}
+		}
 		if _, inside := event.Target.In(s.list.rows); !inside {
 			continue
 		}
