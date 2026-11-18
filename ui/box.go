@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -426,7 +425,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.Switc
 // and ring of the button in each state, as PageConfig.Styles.Button is for every button of a
 // page, and wins over it. Start from components.ButtonRecipe and change what differs:
 //
-//	ui.Button(c, "Save").ButtonRecipe(func(t gfx.Theme, v components.ButtonVariant, s gfx.State) style.ButtonLook {
+//	ui.Button(c, "Save").ButtonRecipe(func(t gfx.Theme, v style.Variant, s gfx.State) style.ButtonLook {
 //		t.Primary, t.PrimaryForeground = dark, light
 //		return components.ButtonRecipe(t, v, s)
 //	})
@@ -435,7 +434,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.Switc
 // and a control with no theme look at all uses ButtonBase. Declare the function once (a
 // package-level func or a method value kept in the model), as a closure made in each paint
 // allocates. Other elements ignore it.
-func (b Box) ButtonRecipe(recipe func(gfx.Theme, components.ButtonVariant, gfx.State) style.ButtonLook) Box {
+func (b Box) ButtonRecipe(recipe func(gfx.Theme, style.Variant, gfx.State) style.ButtonLook) Box {
 	if n := b.n(); n.kind == kindButton {
 		b.f.extra(b.i).buttonRecipe = recipe
 	}
@@ -532,7 +531,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 	}
 	switch n.kind {
 	case kindSegmented:
-		for _, option := range b.f.segmented[n.aux].options {
+		for _, option := range widgetsOf(b.f).segmented[n.aux].options {
 			if b.f.canvas.Clicked(option.ID) {
 				return option.ID, true
 			}
@@ -591,7 +590,7 @@ func (b Box) ChosenIndex() (int, bool) {
 		return 0, false
 	}
 	n := b.n()
-	for index, option := range b.f.segmented[n.aux].options {
+	for index, option := range widgetsOf(b.f).segmented[n.aux].options {
 		if option.ID == id {
 			return index, true
 		}

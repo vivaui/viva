@@ -72,7 +72,7 @@ func (p *Page) roveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			}
 			next, ok = components.TabsKeyDown(event.Target, options, orientation, components.DirectionLTR, event.Key)
 		} else {
-			options := r.f.segmented[n.aux].options
+			options := widgetsOf(r.f).segmented[n.aux].options
 			if !hasOption(options, event.Target) {
 				continue
 			}

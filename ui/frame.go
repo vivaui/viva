@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -196,9 +195,9 @@ const (
 type extra struct {
 	hit           gfx.HitOptions
 	icon          gfx.Icon
-	iconTransform gfx.IconTransform                                                          // moves the icon inside its box without moving the box
-	buttonRecipe  func(gfx.Theme, components.ButtonVariant, gfx.State) components.ButtonLook // ButtonRecipe: this button's own look
-	switchRecipe  func(gfx.Theme, gfx.State, float32) components.SwitchLook                  // SwitchRecipe: this switch's own look
+	iconTransform gfx.IconTransform                                          // moves the icon inside its box without moving the box
+	buttonRecipe  func(gfx.Theme, style.Variant, gfx.State) style.ButtonLook // ButtonRecipe: this button's own look
+	switchRecipe  func(gfx.Theme, gfx.State, float32) style.SwitchLook       // SwitchRecipe: this switch's own look
 	border        Color
 	shadow        gfx.ShadowLevel
 	ring          Color   // Ring: a line around the outside of the element
@@ -244,41 +243,36 @@ type frame struct {
 	theme       Theme
 	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	nodes       []node
-	inputs      []components.InputSnapshot
-	addons      []fieldAddons // the icons and buttons inside fields, by 1 + extra.addons
-	groups      []components.InputGroupSnapshot
-	textareas   []components.TextareaSnapshot
-	segmented   []segmented
-	choices     []components.SegmentOption // the options Choice builds, shared by the frame
-	images      []gfx.Bitmap               // what each Image element draws, indexed by its aux
-	exts        []extra                    // exts[0] is never written: an element without extras points at it
-	floats      []int32                    // the Popups, which belong to no container
-	states      []stateLooks               // what Hover, Pressed and Focus declared, by element
-	draws       []drawHooks                // what Draw and DrawOver declared, by element
-	memoDepth   int                        // how many Memos of a page are recording what is declared now
-	page        *Page                      // the page declaring this frame; nil for a frame of the application's
-	tooltips    bool                       // an element was given a Tooltip: End paints the one the pointer rests on
-	tooltip     any                        // the tooltip state the layer above owns: see tooltipOf
-	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
-	gradients   []gradient                 // the gradients of the elements that have one
-	stops       []gfx.GradientStop         // their stops, in the order declared
-	paintStops  []gfx.GradientStop         // the stops of the gradient being painted, faded
-	opacity     float32                    // the product of the opacities of the elements being painted
-	popupLayer  uint16                     // the canvas layer the Popups are painted on
-	nativeMark  int                        // how many native views the canvas had when the page began
-	binds       []bindDecl                 // the bound controls, see bind.go
+	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
+	images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
+	exts        []extra            // exts[0] is never written: an element without extras points at it
+	floats      []int32            // the Popups, which belong to no container
+	states      []stateLooks       // what Hover, Pressed and Focus declared, by element
+	draws       []drawHooks        // what Draw and DrawOver declared, by element
+	memoDepth   int                // how many Memos of a page are recording what is declared now
+	page        *Page              // the page declaring this frame; nil for a frame of the application's
+	tooltips    bool               // an element was given a Tooltip: End paints the one the pointer rests on
+	tooltip     any                // the tooltip state the layer above owns: see tooltipOf
+	drawContext DrawContext        // what a Draw callback is handed, reused for the frame
+	gradients   []gradient         // the gradients of the elements that have one
+	stops       []gfx.GradientStop // their stops, in the order declared
+	paintStops  []gfx.GradientStop // the stops of the gradient being painted, faded
+	opacity     float32            // the product of the opacities of the elements being painted
+	popupLayer  uint16             // the canvas layer the Popups are painted on
+	nativeMark  int                // how many native views the canvas had when the page began
+	binds       []bindDecl         // the bound controls, see bind.go
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
 	paintPopoverFn func(f *frame, i int32, n *node)
-	groupFn        func(f *frame, i int32, axis FocusAxis, from gfx.Mark)                     // set by the first FocusGroup, like paintDrawerFn
-	paintDrawerFn  func(f *frame, n *node)                                                    // set by the first Drawer, so a frame without one does not link it
-	paintAddonsFn  func(f *frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
-	paintTooltipFn func(f *frame)                                                             // set by the first Tooltip, so a frame without one does not link it
-	paintBarsFn    func(f *frame, n *node, s *ScrollState)                                    // set by the first Scrollbars, so a frame without one does not link them
-	paintSwatchFn  func(f *frame, n *node, r Rect)                                            // set by the first ColorSwatch, so one closure is not made for each paint
-	paintPickerFn  func(f *frame, n *node)                                                    // set by the first ColorPicker, for the same reason
-	settleFn       func(f *frame, i int32) *bindDecl                                          // i < 0 settles them all
+	groupFn        func(f *frame, i int32, axis FocusAxis, from gfx.Mark)                // set by the first FocusGroup, like paintDrawerFn
+	paintDrawerFn  func(f *frame, n *node)                                               // set by the first Drawer, so a frame without one does not link it
+	paintAddonsFn  func(f *frame, n *node, snapshot style.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
+	paintTooltipFn func(f *frame)                                                        // set by the first Tooltip, so a frame without one does not link it
+	paintBarsFn    func(f *frame, n *node, s *ScrollState)                               // set by the first Scrollbars, so a frame without one does not link them
+	paintSwatchFn  func(f *frame, n *node, r Rect)                                       // set by the first ColorSwatch, so one closure is not made for each paint
+	paintPickerFn  func(f *frame, n *node)                                               // set by the first ColorPicker, for the same reason
+	settleFn       func(f *frame, i int32) *bindDecl                                     // i < 0 settles them all
 	captionFn      func(f *frame, n *node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
@@ -334,7 +328,6 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.nodes = f.nodes[:0]
 	f.lines = f.lines[:0]
 	f.exts = append(f.exts[:0], extra{})
-	f.inputs, f.groups, f.textareas, f.segmented, f.choices = f.inputs[:0], f.groups[:0], f.textareas[:0], f.segmented[:0], f.choices[:0]
 	f.images = f.images[:0]
 	f.addons = f.addons[:0]
 	clear(f.binds) // a binding holds pointers into the model: not past the frame
@@ -353,8 +346,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 		f.nativeMark = len(canvas.NativeViews())
 	}
 	f.scratch.reset()
-	widgetsOf(f).sweepPopoverFocus()
-	widgetsOf(f).reset()
+	resetControls(f)
 	f.scrolls.epoch++
 	f.parent = -1
 	root := f.add(kindContainer)
@@ -439,11 +431,6 @@ func (f *frame) trim() {
 	}
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.nodes = trimFlexCapacity(f.nodes)
-	f.inputs = trimFlexCapacity(f.inputs)
-	f.groups = trimFlexCapacity(f.groups)
-	f.textareas = trimFlexCapacity(f.textareas)
-	f.segmented = trimFlexCapacity(f.segmented)
-	f.choices = trimFlexCapacity(f.choices)
 	f.images = trimFlexCapacity(f.images)
 	f.exts = trimFlexCapacity(f.exts)
 	f.draws = trimFlexCapacity(f.draws)
@@ -452,17 +439,7 @@ func (f *frame) trim() {
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
 	f.wraps = trimFlexCapacity(f.wraps)
-	widgetsOf(f).tables = trimFlexCapacity(widgetsOf(f).tables)
-	widgetsOf(f).tabs = trimFlexCapacity(widgetsOf(f).tabs)
-	widgetsOf(f).selects = trimFlexCapacity(widgetsOf(f).selects)
-	widgetsOf(f).rows = trimFlexCapacity(widgetsOf(f).rows)
-	widgetsOf(f).dialogs = trimFlexCapacity(widgetsOf(f).dialogs)
-	widgetsOf(f).popovers = trimFlexCapacity(widgetsOf(f).popovers)
-	widgetsOf(f).popoverFocus = trimFlexCapacity(widgetsOf(f).popoverFocus)
-	widgetsOf(f).splits = trimFlexCapacity(widgetsOf(f).splits)
-	widgetsOf(f).sliders = trimFlexCapacity(widgetsOf(f).sliders)
-	widgetsOf(f).cells = trimFlexCapacity(widgetsOf(f).cells)
-	widgetsOf(f).rects = trimFlexCapacity(widgetsOf(f).rects)
+	trimControls(f)
 	f.scratch.abs = trimFlexCapacity(f.scratch.abs)
 	f.scratch.rows = trimFlexCapacity(f.scratch.rows)
 	f.scratch.rowAt = trimFlexCapacity(f.scratch.rowAt)
@@ -697,117 +674,6 @@ func (f *frame) extra(i int32) *extra {
 		f.exts = append(f.exts, extra{})
 	}
 	return &f.exts[n.ext]
-}
-
-// segmented is what a Segmented control is painted from.
-type segmented struct {
-	options  []components.SegmentOption
-	selected gfx.ID
-}
-
-// Input adds a single-line text field with the shadcn look, the height of a control and
-// as wide as its container unless given a width. It is InputBase with that look: the
-// recipe (components.TextEntryRecipe) fills in the fill, border, corners, shadow and the
-// padding of the text, and whatever the element sets itself (Background, Border, Radius,
-// Shadow, Pad) replaces the recipe's, so the field is restyled with the calls any element
-// takes rather than with a variant:
-//
-//	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
-//
-// The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
-func (f *frame) Input(snapshot components.InputSnapshot) Box {
-	b := f.InputBase(snapshot)
-	f.nodes[b.i].flags |= flagThemed
-	return b
-}
-
-// InputBase adds a single-line text field without a look: no fill, border, shadow or
-// padding of its own, and no focus color. What it looks like is the element's, with the
-// calls any element takes (Background, Border, Radius, Shadow, Pad, Ring and the Hover,
-// Pressed and Focus looks, which follow the snapshot's ID); what it does is Input's:
-// the value, placeholder, selection, input-method composition, caret and masking are
-// painted by the same code and the platform edits it. The text sits inside the element's
-// Pad and Border. FontSize, Weight, Color and Mono (with MonoFace) style the text (with the
-// snapshot's own Text for what the element leaves unsaid): one value for the glyphs, the caret, the
-// selection and what the platform is told. A Mono field is painted by the component, since the
-// platform's text service draws one proportional face: it still edits through the platform, whose
-// own text and overlays are hidden, and a FieldBase gives the component the caret, the selection and
-// the composition from its editor. Radius rounds the element's own box.
-//
-// It is as tall as a line of its text (LineHeight, or the size plus seven) plus its Pad and
-// Border unless given a Height, and as wide as its container unless given a Width. Invalid has no look here: the caller draws
-// it, from the snapshot it passed.
-//
-//	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
-func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
-	b := f.box(kindInput)
-	n := &f.nodes[b.i]
-	n.aux = int32(len(f.inputs))
-	n.id = snapshot.ID
-	f.inputs = append(f.inputs, snapshot)
-	return b
-}
-
-// InputGroup adds a components.PaintInputGroup (a field with slots beside or above
-// it). Give it a Height when it has block slots; without one it is a control tall.
-func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
-	b := f.box(kindInputGroup)
-	n := &f.nodes[b.i]
-	n.aux = int32(len(f.groups))
-	f.groups = append(f.groups, snapshot)
-	return b
-}
-
-// Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
-// is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
-// the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
-func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
-	b := f.TextareaBase(snapshot)
-	f.nodes[b.i].flags |= flagThemed
-	return b
-}
-
-// TextareaBase adds a multi-line text field without a look, as InputBase is a single-line
-// one: the rows, wrapping, selection, composition, caret and scrolling are the textarea's,
-// and the fill, border, corners, shadow and padding are the element's. The snapshot's
-// InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
-// is one row tall plus its Pad and Border unless given a Height.
-func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
-	b := f.box(kindTextarea)
-	n := &f.nodes[b.i]
-	n.aux = int32(len(f.textareas))
-	n.id = snapshot.ID
-	f.textareas = append(f.textareas, snapshot)
-	return b
-}
-
-// Segmented adds a components.SegmentedControl choosing among options, selected
-// being the ID of the current one. The options slice is kept until End.
-func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
-	b := f.box(kindSegmented)
-	n := &f.nodes[b.i]
-	n.aux = int32(len(f.segmented))
-	f.segmented = append(f.segmented, segmented{options: options, selected: selected})
-	return b
-}
-
-// Choice adds a segmented control choosing among labels, selected being the index of
-// the current one (negative for none). Its options are identified by scope.At(0),
-// scope.At(1), ...: declare a scope for it once (tree.Sub(page, tree.Name("theme"))),
-// and read the click with Box.ChosenIndex.
-//
-//	if i, ok := f.Choice(themeScope, themeLabels, m.theme).ChosenIndex(); ok { m.theme = i }
-func (f *frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
-	first := len(f.choices)
-	for index, label := range labels {
-		f.choices = append(f.choices, components.SegmentOption{ID: scope.At(index), Label: label})
-	}
-	options := f.choices[first:len(f.choices):len(f.choices)]
-	chosen := gfx.ID{}
-	if selected >= 0 && selected < len(labels) {
-		chosen = scope.At(selected)
-	}
-	return f.Segmented(options, chosen)
 }
 
 // checkHits stops a page that declared the one shape that cannot be what was meant: a

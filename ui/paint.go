@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -238,47 +237,4 @@ func (f *frame) paintText(n *node) {
 	if clipped {
 		f.canvas.Unclip()
 	}
-}
-
-func (f *frame) paintInput(n *node) {
-	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
-	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
-	// What it says of its alignment is the same, but a field is start-aligned unless it says
-	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
-	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
-	snapshot := f.inputs[n.aux]
-	if n.textEnd {
-		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
-			snapshot.Alignment = gfx.AlignEnd
-		}
-	}
-	if n.fontSize > 0 {
-		snapshot.Text.Size = n.fontSize
-	}
-	if n.weight > 0 {
-		snapshot.Text.Weight = n.weight
-	}
-	if n.flags&flagHasColor != 0 {
-		snapshot.Text.Color = n.color
-	}
-	if n.flags&flagMono != 0 {
-		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.face
-	}
-	if a := f.exts[n.ext].addons; a != 0 {
-		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
-		return
-	}
-	components.PaintInputContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
-}
-
-// paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
-// Border, as paintInput does for a line.
-func (f *frame) paintTextarea(n *node) {
-	if n.flags&flagHasColor != 0 {
-		theme := f.theme
-		theme.Foreground = n.color
-		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), f.textareas[n.aux])
-		return
-	}
-	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), f.textareas[n.aux])
 }

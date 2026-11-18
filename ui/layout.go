@@ -4,7 +4,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -532,15 +531,7 @@ func (f *frame) measureBaseline(n *node) {
 		}
 		n.baseline = top + row
 	case kindButton:
-		theme := f.theme
-		if n.hasOwnTheme() {
-			theme = f.ownTheme(n)
-		}
-		button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.buttonSize)
-		n.baseline = f.canvas.LabelBaseline(
-			gfx.Rect{Height: n.pref[axisY]},
-			gfx.TextStyle{Size: button.LabelFontSize()},
-		)
+		n.baseline = controlBaseline(f, n)
 	case kindContainer:
 		n.baseline = n.pref[axisY]
 		is, _ := n.inset(axisY)

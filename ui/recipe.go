@@ -85,10 +85,10 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 	var state gfx.State
 	switch n.kind {
 	case kindInput:
-		snapshot := &f.inputs[n.aux]
+		snapshot := &widgetsOf(f).inputs[n.aux]
 		state = gfx.State{Focused: snapshot.Focused || f.focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
 	case kindTextarea:
-		snapshot := &f.textareas[n.aux]
+		snapshot := &widgetsOf(f).textareas[n.aux]
 		state = gfx.State{Focused: snapshot.Focused || f.focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
 	default:
 		return
@@ -137,7 +137,7 @@ func (f *frame) inputLine(n *node) float32 {
 	}
 	size := n.fontSize
 	if size <= 0 {
-		size = f.inputs[n.aux].Text.Size
+		size = widgetsOf(f).inputs[n.aux].Text.Size
 	}
 	if size <= 0 {
 		size = f.theme.Metrics.FontSizeM

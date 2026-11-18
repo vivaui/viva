@@ -111,11 +111,11 @@ func (f *frame) paintSwitch(v ControlView) {
 }
 
 func (f *frame) paintInputGroup(v ControlView) {
-	components.PaintInputGroup(f.canvas, f.theme, v.Rect, f.groups[v.Aux])
+	components.PaintInputGroup(f.canvas, f.theme, v.Rect, widgetsOf(f).groups[v.Aux])
 }
 
 func (f *frame) paintSegmented(v ControlView) {
-	choice := f.segmented[v.Aux]
+	choice := widgetsOf(f).segmented[v.Aux]
 	components.BeginSegmentedControl(f.canvas, f.theme, v.Rect, choice.options, choice.selected).Paint()
 }
 
@@ -161,7 +161,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindSegmented:
 		var width float32 = 8
-		for _, option := range f.segmented[n.aux].options {
+		for _, option := range widgetsOf(f).segmented[n.aux].options {
 			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
 		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
@@ -172,7 +172,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindInputGroup:
 		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
-		if n.kind == kindInputGroup && f.groups[n.aux].Multiline {
+		if n.kind == kindInputGroup && widgetsOf(f).groups[n.aux].Multiline {
 			n.pref[axisY] = 64
 		}
 	case kindTextarea:
@@ -234,3 +234,194 @@ func (f *frame) paintButton(n *node) {
 // The element's box is already down, so only the content and the hit are left. The hit
 // is the whole element, whose looks follow the same identity, while the platform is told
 // the text sits in the padded rectangle.
+
+// resetControls starts the control declarations of a paint: ui owns the tables
+// and the engine only calls the hook.
+var resetControls = func(f *frame) {
+	w := widgetsOf(f)
+	w.sweepPopoverFocus()
+	w.reset()
+}
+
+// trimControls drops what a larger page left behind, after the paint.
+var trimControls = func(f *frame) {
+	w := widgetsOf(f)
+	w.tables = trimFlexCapacity(w.tables)
+	w.tabs = trimFlexCapacity(w.tabs)
+	w.selects = trimFlexCapacity(w.selects)
+	w.rows = trimFlexCapacity(w.rows)
+	w.dialogs = trimFlexCapacity(w.dialogs)
+	w.popovers = trimFlexCapacity(w.popovers)
+	w.popoverFocus = trimFlexCapacity(w.popoverFocus)
+	w.splits = trimFlexCapacity(w.splits)
+	w.sliders = trimFlexCapacity(w.sliders)
+	w.cells = trimFlexCapacity(w.cells)
+	w.rects = trimFlexCapacity(w.rects)
+	w.inputs = trimFlexCapacity(w.inputs)
+	w.groups = trimFlexCapacity(w.groups)
+	w.textareas = trimFlexCapacity(w.textareas)
+	w.segmented = trimFlexCapacity(w.segmented)
+	w.choices = trimFlexCapacity(w.choices)
+}
+
+// Input adds a single-line text field with the shadcn look, the height of a control and
+// as wide as its container unless given a width. It is InputBase with that look: the
+// recipe (components.TextEntryRecipe) fills in the fill, border, corners, shadow and the
+// padding of the text, and whatever the element sets itself (Background, Border, Radius,
+// Shadow, Pad) replaces the recipe's, so the field is restyled with the calls any element
+// takes rather than with a variant:
+//
+//	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
+//
+// The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
+func (f *frame) Input(snapshot components.InputSnapshot) Box {
+	b := f.InputBase(snapshot)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// InputBase adds a single-line text field without a look: no fill, border, shadow or
+// padding of its own, and no focus color. What it looks like is the element's, with the
+// calls any element takes (Background, Border, Radius, Shadow, Pad, Ring and the Hover,
+// Pressed and Focus looks, which follow the snapshot's ID); what it does is Input's:
+// the value, placeholder, selection, input-method composition, caret and masking are
+// painted by the same code and the platform edits it. The text sits inside the element's
+// Pad and Border. FontSize, Weight, Color and Mono (with MonoFace) style the text (with the
+// snapshot's own Text for what the element leaves unsaid): one value for the glyphs, the caret, the
+// selection and what the platform is told. A Mono field is painted by the component, since the
+// platform's text service draws one proportional face: it still edits through the platform, whose
+// own text and overlays are hidden, and a FieldBase gives the component the caret, the selection and
+// the composition from its editor. Radius rounds the element's own box.
+//
+// It is as tall as a line of its text (LineHeight, or the size plus seven) plus its Pad and
+// Border unless given a Height, and as wide as its container unless given a Width. Invalid has no look here: the caller draws
+// it, from the snapshot it passed.
+//
+//	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
+func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
+	b := f.box(kindInput)
+	n := &f.nodes[b.i]
+	n.aux = int32(len(widgetsOf(f).inputs))
+	n.id = snapshot.ID
+	widgetsOf(f).inputs = append(widgetsOf(f).inputs, snapshot)
+	return b
+}
+
+// InputGroup adds a components.PaintInputGroup (a field with slots beside or above
+// it). Give it a Height when it has block slots; without one it is a control tall.
+func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
+	b := f.box(kindInputGroup)
+	n := &f.nodes[b.i]
+	n.aux = int32(len(widgetsOf(f).groups))
+	widgetsOf(f).groups = append(widgetsOf(f).groups, snapshot)
+	return b
+}
+
+// Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
+// is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
+// the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
+func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
+	b := f.TextareaBase(snapshot)
+	f.nodes[b.i].flags |= flagThemed
+	return b
+}
+
+// TextareaBase adds a multi-line text field without a look, as InputBase is a single-line
+// one: the rows, wrapping, selection, composition, caret and scrolling are the textarea's,
+// and the fill, border, corners, shadow and padding are the element's. The snapshot's
+// InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
+// is one row tall plus its Pad and Border unless given a Height.
+func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
+	b := f.box(kindTextarea)
+	n := &f.nodes[b.i]
+	n.aux = int32(len(widgetsOf(f).textareas))
+	n.id = snapshot.ID
+	widgetsOf(f).textareas = append(widgetsOf(f).textareas, snapshot)
+	return b
+}
+
+// Segmented adds a components.SegmentedControl choosing among options, selected
+// being the ID of the current one. The options slice is kept until End.
+func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
+	b := f.box(kindSegmented)
+	n := &f.nodes[b.i]
+	n.aux = int32(len(widgetsOf(f).segmented))
+	widgetsOf(f).segmented = append(widgetsOf(f).segmented, segmented{options: options, selected: selected})
+	return b
+}
+
+// Choice adds a segmented control choosing among labels, selected being the index of
+// the current one (negative for none). Its options are identified by scope.At(0),
+// scope.At(1), ...: declare a scope for it once (tree.Sub(page, tree.Name("theme"))),
+// and read the click with Box.ChosenIndex.
+//
+//	if i, ok := f.Choice(themeScope, themeLabels, m.theme).ChosenIndex(); ok { m.theme = i }
+func (f *frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
+	first := len(widgetsOf(f).choices)
+	for index, label := range labels {
+		widgetsOf(f).choices = append(widgetsOf(f).choices, components.SegmentOption{ID: scope.At(index), Label: label})
+	}
+	options := widgetsOf(f).choices[first:len(widgetsOf(f).choices):len(widgetsOf(f).choices)]
+	chosen := gfx.ID{}
+	if selected >= 0 && selected < len(labels) {
+		chosen = scope.At(selected)
+	}
+	return f.Segmented(options, chosen)
+}
+
+func (f *frame) paintInput(n *node) {
+	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
+	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.
+	// What it says of its alignment is the same, but a field is start-aligned unless it says
+	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
+	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
+	snapshot := widgetsOf(f).inputs[n.aux]
+	if n.textEnd {
+		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
+			snapshot.Alignment = gfx.AlignEnd
+		}
+	}
+	if n.fontSize > 0 {
+		snapshot.Text.Size = n.fontSize
+	}
+	if n.weight > 0 {
+		snapshot.Text.Weight = n.weight
+	}
+	if n.flags&flagHasColor != 0 {
+		snapshot.Text.Color = n.color
+	}
+	if n.flags&flagMono != 0 {
+		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.face
+	}
+	if a := f.exts[n.ext].addons; a != 0 {
+		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
+		return
+	}
+	components.PaintInputContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
+}
+
+// paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
+// Border, as paintInput does for a line.
+func (f *frame) paintTextarea(n *node) {
+	if n.flags&flagHasColor != 0 {
+		theme := f.theme
+		theme.Foreground = n.color
+		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])
+		return
+	}
+	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])
+}
+
+// controlBaseline is the label's baseline of a button, for a row that lines
+// elements up by it. The engine asks the hook; the control layer answers.
+var controlBaseline = func(f *frame, n *node) float32 {
+	theme := f.theme
+	if n.hasOwnTheme() {
+		theme = f.ownTheme(n)
+	}
+	button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.buttonSize)
+	return f.canvas.LabelBaseline(
+		gfx.Rect{Height: n.pref[axisY]},
+		gfx.TextStyle{Size: button.LabelFontSize()},
+	)
+}

@@ -41,11 +41,25 @@ type widgets struct {
 	rects        []Rect   // one row's cells
 	rows         []Rect   // the rows of every open SelectBase list in the frame
 	layer        uint16   // the layer the declaration is in: a Dialog raises it for its body
+	// The control tables: inputs, groups, textareas, segmented choices and the
+	// options Choice builds. The engine keeps them opaque.
+	inputs    []components.InputSnapshot
+	groups    []components.InputGroupSnapshot
+	textareas []components.TextareaSnapshot
+	segmented []segmented
+	choices   []components.SegmentOption
+}
+
+// segmented is what a Segmented control is painted from.
+type segmented struct {
+	options  []components.SegmentOption
+	selected gfx.ID
 }
 
 func (w *widgets) reset() {
 	w.tables, w.tabs, w.selects, w.dialogs = w.tables[:0], w.tabs[:0], w.selects[:0], w.dialogs[:0]
 	w.alertDialogs = w.alertDialogs[:0]
+	w.inputs, w.groups, w.textareas, w.segmented, w.choices = w.inputs[:0], w.groups[:0], w.textareas[:0], w.segmented[:0], w.choices[:0]
 	w.paginations = w.paginations[:0]
 	w.paginationItems = w.paginationItems[:0]
 	w.popovers, w.drawers = w.popovers[:0], w.drawers[:0]
