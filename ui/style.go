@@ -128,25 +128,25 @@ const (
 	slotFocused
 )
 
-func (b Box) states() *stateLooks {
+func (b Box) States() *stateLooks {
 	b.n()
 	extra := b.f.extra(b.i)
-	if extra.states == 0 {
-		b.f.states = append(b.f.states, stateLooks{})
-		extra.states = int32(len(b.f.states))
+	if extra.States == 0 {
+		b.f.States = append(b.f.States, stateLooks{})
+		extra.States = int32(len(b.f.States))
 	}
-	return &b.f.states[extra.states-1]
+	return &b.f.States[extra.States-1]
 }
 
 // Hover is how the element looks while the pointer is over it.
-func (b Box) Hover(look Look) Box { b.states().hover = look; return b }
+func (b Box) Hover(look Look) Box { b.States().hover = look; return b }
 
 // Pressed is how the element looks while it is held down.
-func (b Box) Pressed(look Look) Box { b.states().pressed = look; return b }
+func (b Box) Pressed(look Look) Box { b.States().pressed = look; return b }
 
 // Focus is how the element looks while the keyboard has it and the focus is
 // visible, which is after the keyboard moved it there and not after a click.
-func (b Box) Focus(look Look) Box { b.states().focus = look; return b }
+func (b Box) Focus(look Look) Box { b.States().focus = look; return b }
 
 // AutoFocus gives the element the keyboard focus in the paint it first appears
 // in: the search field of a page as it opens, the first field of a form when it is
@@ -184,12 +184,12 @@ func (b Box) AutoFocus() Box {
 // A container that takes its look from the field inside it follows that field with StateFrom.
 // Focused applies first, so a Focus look, which is the stronger statement, wins over it where
 // both say something about the same field.
-func (b Box) Focused(look Look) Box { b.states().focused = look; return b }
+func (b Box) Focused(look Look) Box { b.States().focused = look; return b }
 
 // StateFrom makes the element take its Hover, Pressed and Focus looks, and the
 // timeline of its Transition, from the state of container instead of its own, so
 // that what is inside a row changes with the row.
-func (b Box) StateFrom(container Box) Box { b.states().follow = container.i + 1; return b }
+func (b Box) StateFrom(container Box) Box { b.States().follow = container.i + 1; return b }
 
 // Transition fades the element between its looks over the theme's Transition
 // motion; TransitionWith does it over another. An idle element schedules nothing.
@@ -199,7 +199,7 @@ func (b Box) Transition() Box {
 }
 
 func (b Box) TransitionWith(motion gfx.Motion) Box {
-	states := b.states()
+	states := b.States()
 	states.motion, states.animated = motion, true
 	return b
 }
@@ -292,10 +292,10 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 	if n.Flags&flagThemed != 0 {
 		f.themedDefaults(n, extra, &s)
 	}
-	if extra.states == 0 {
+	if extra.States == 0 {
 		return s
 	}
-	looks := &f.states[extra.states-1]
+	looks := &f.States[extra.States-1]
 	source := n.ID
 	if looks.follow != 0 {
 		source = f.Nodes[looks.follow-1].ID

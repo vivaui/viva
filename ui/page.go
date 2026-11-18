@@ -256,7 +256,7 @@ type Page struct {
 	keyName     gfx.Name
 	menuName    gfx.Name // the place of a ContextMenu inside its target (contextMenu)
 	held        [2]armedButton
-	states      map[protoStateKey]protoState
+	States      map[protoStateKey]protoState
 	fields      []fieldEntry
 	focusFields map[any]any
 	focusPaint  []focusState
@@ -434,7 +434,7 @@ func (p *Page) init(tree *gfx.Tree) {
 	p.bound = map[boundKey]protoBound{}
 	p.names = map[gfx.ID]nameUse{}
 	p.memos = map[gfx.ID]*memoEntry{}
-	p.states = map[protoStateKey]protoState{}
+	p.States = map[protoStateKey]protoState{}
 	p.texts = map[gfx.ID]*boundText{}
 	p.ctx.stateSeq = map[stateName]uint32{}
 	p.epoch = 1
@@ -1068,9 +1068,9 @@ func (p *Page) sweep() {
 			delete(p.names, id)
 		}
 	}
-	for key, state := range p.states {
+	for key, state := range p.States {
 		if state.epoch+2 < p.epoch {
-			delete(p.states, key)
+			delete(p.States, key)
 		}
 	}
 }
@@ -1247,14 +1247,14 @@ func stateIn[T any](p *Page, scope gfx.Scope, name string) *T {
 	n := c.stateSeq[at]
 	c.stateSeq[at] = n + 1
 	key := protoStateKey{stateName: at, n: n}
-	entry, ok := p.states[key]
+	entry, ok := p.States[key]
 	value, typed := entry.value.(*T)
 	if !ok || !typed {
 		value = new(T)
 		entry.value = value
 	}
 	entry.epoch = p.epoch
-	p.states[key] = entry
+	p.States[key] = entry
 	if len(p.recording) > 0 {
 		p.noteState(key)
 	}

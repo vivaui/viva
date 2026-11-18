@@ -198,7 +198,7 @@ type extra struct {
 	borderDashed  bool
 	fade          float32          // 1 less the opacity, so that the zero value is opaque
 	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
-	states        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
+	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to
 	maxPct        [2]float32       // MaxWidthPercent and MaxHeightPercent; zero is none
 	hitOut        [4]float32       // how far the hit region reaches beyond the rectangle: top, right, bottom, left
@@ -240,7 +240,7 @@ type frame struct {
 	Images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts        []extra            // exts[0] is never written: an element without extras points at it
 	Floats      []int32            // the Popups, which belong to no container
-	states      []stateLooks       // what Hover, Pressed and Focus declared, by element
+	States      []stateLooks       // what Hover, Pressed and Focus declared, by element
 	draws       []drawHooks        // what Draw and DrawOver declared, by element
 	memoDepth   int                // how many Memos of a page are recording what is declared now
 	page        *Page              // the page declaring this frame; nil for a frame of the application's
@@ -326,7 +326,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
-	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
+	f.States, f.gradients, f.stops = f.States[:0], f.gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
 	f.draws = f.draws[:0]
 	f.Opacity = 1

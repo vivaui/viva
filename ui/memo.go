@@ -145,13 +145,13 @@ type memoEntry struct {
 	names   []gfx.ID
 	keys    []keyKey
 	intKeys []intKey
-	states  []protoStateKey
+	States  []protoStateKey
 	memos   []*memoEntry
 }
 
 func (entry *memoEntry) reset() {
 	entry.bound, entry.names, entry.keys = entry.bound[:0], entry.names[:0], entry.keys[:0]
-	entry.intKeys, entry.states = entry.intKeys[:0], entry.states[:0]
+	entry.intKeys, entry.States = entry.intKeys[:0], entry.States[:0]
 	clear(entry.memos)
 	entry.memos = entry.memos[:0]
 	entry.painted, entry.held = false, false
@@ -279,10 +279,10 @@ func (p *Page) touchMemo(entry *memoEntry) {
 			p.intKeys[key] = e
 		}
 	}
-	for _, key := range entry.states {
-		if s, ok := p.states[key]; ok {
+	for _, key := range entry.States {
+		if s, ok := p.States[key]; ok {
 			s.epoch = p.epoch
-			p.states[key] = s
+			p.States[key] = s
 		}
 	}
 	for _, inner := range entry.memos {
@@ -311,7 +311,7 @@ func (p *Page) noteKey(key keyKey) {
 
 func (p *Page) noteState(key protoStateKey) {
 	for _, entry := range p.recording {
-		entry.states = append(entry.states, key)
+		entry.States = append(entry.States, key)
 	}
 }
 
