@@ -269,3 +269,34 @@ func TestComboboxDescribeShowsTheChosenDetail(t *testing.T) {
 		t.Fatal("the field does not show the chosen option's detail")
 	}
 }
+
+// An option can reserve room at either end of its row and paint it, and paint its own text.
+func TestComboboxOptionPaintsLeadingTrailingAndContent(t *testing.T) {
+	var chosen hostChoice
+	leading, trailing, content := 0, 0, 0
+	dot := ui.ComboboxPaint{Width: 10, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { leading++ }}
+	tag := ui.ComboboxPaint{Width: 30, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { trailing++ }}
+	own := ui.ComboboxPaint{Width: 80, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { content++ }}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+			ui.Combobox(c, &chosen, hostChoices, func(h hostChoice) string { return h.name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					o := ui.ComboboxOption{Detail: hostChoices[i].addr, Leading: dot, Trailing: tag}
+					if i == 1 {
+						o.Content = own
+					}
+					return o
+				})
+		})
+	})
+	d.click("Host")
+	// Three rows have a dot and a tag; only the second paints its own text. The list is
+	// painted in more than one pass, so compare the counts with each other.
+	if content == 0 || leading != 3*content || trailing != 3*content {
+		t.Fatalf("painted leading %d, trailing %d, content %d; want 3, 3, 1 times the passes", leading, trailing, content)
+	}
+	d.click("Production")
+	if chosen.id != 1 {
+		t.Fatalf("a press on an option with slots chose %v", chosen)
+	}
+}

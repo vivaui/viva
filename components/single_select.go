@@ -26,6 +26,19 @@ type SingleSelectOption struct {
 	// host's address, in the list and while the option is the field's value. The query
 	// matches it too, as it matches Search.
 	Detail string
+	// Leading and Trailing reserve room before the label and at the end of the row, which
+	// their Paint fills: a flag, a status dot, a badge, a shortcut. Content, when it has a
+	// Paint, paints the row's text itself in place of the label and detail, in the room
+	// between them. Each is drawn over its slot and takes no input: a press on it is the
+	// option's. The field shows the chosen option's label and detail only.
+	Leading, Trailing, Content SingleSelectPaint
+}
+
+// SingleSelectPaint is room an option reserves in its row, Width pixels wide, and what
+// paints it. A zero Width with a Paint takes what is left of the row (Content only).
+type SingleSelectPaint struct {
+	Width float32
+	Paint func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
 }
 
 // singleSelectIcon reports whether an icon has anything to paint.
@@ -391,7 +404,16 @@ func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choi
 				continue
 			}
 			width := canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular)
-			if choice.Detail != "" {
+			if choice.Content.Paint != nil {
+				width = choice.Content.Width
+			}
+			if choice.Leading.Paint != nil {
+				width += choice.Leading.Width + singleSelectDetailGap
+			}
+			if choice.Trailing.Paint != nil {
+				width += choice.Trailing.Width + singleSelectDetailGap
+			}
+			if choice.Detail != "" && choice.Content.Paint == nil {
 				width += singleSelectDetailGap + canvas.TextWidthWeight(choice.Detail, theme.Metrics.FontSizeS, gfx.WeightRegular)
 			}
 			if singleSelectIcon(choice.Icon) {
@@ -580,8 +602,22 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 				canvas.DrawIcon(choice.Icon, gfx.Rect{X: left, Y: row.Y + (row.Height-side)/2, Width: side, Height: side}, color)
 				left += menuIconSize + menuIconGap
 			}
-			labelWidth := max(row.Width-(left-row.X)-38, 0)
-			paintLabelAndDetail(canvas, theme, left, row.Y, labelWidth, row.Height, label, choice.Detail, color, choice.Disabled)
+			right := row.X + row.Width - 30
+			if slot := choice.Trailing; slot.Paint != nil {
+				right -= slot.Width
+				slot.Paint(canvas, gfx.Rect{X: right, Y: row.Y, Width: slot.Width, Height: row.Height}, theme)
+				right -= singleSelectDetailGap
+			}
+			if slot := choice.Leading; slot.Paint != nil {
+				slot.Paint(canvas, gfx.Rect{X: left, Y: row.Y, Width: slot.Width, Height: row.Height}, theme)
+				left += slot.Width + singleSelectDetailGap
+			}
+			labelWidth := max(right-left-8, 0)
+			if content := choice.Content; content.Paint != nil {
+				content.Paint(canvas, gfx.Rect{X: left, Y: row.Y, Width: labelWidth, Height: row.Height}, theme)
+			} else {
+				paintLabelAndDetail(canvas, theme, left, row.Y, labelWidth, row.Height, label, choice.Detail, color, choice.Disabled)
+			}
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}

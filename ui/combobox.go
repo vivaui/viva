@@ -34,10 +34,19 @@ func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 // (extra text that is never shown, such as a group or an alias), is matched by what the
 // user types; Disabled keeps the choice in the list, dimmed and not chosen by a click or
 // the keys, so a search can still explain why it cannot be had.
+//
+// Leading and Trailing reserve room before the label and at the end of the row for what
+// their Paint draws (a flag, a status dot, a badge), and Content paints the row's text
+// itself in place of the label and detail. They draw only: a press on them chooses the
+// option, and the field shows the chosen option's label and detail.
 type ComboboxOption struct {
-	Label, Detail, Search string
-	Disabled              bool
+	Label, Detail, Search      string
+	Disabled                   bool
+	Leading, Trailing, Content ComboboxPaint
 }
+
+// ComboboxPaint is room in an option's row and what paints it: see ComboboxOption.
+type ComboboxPaint = components.SingleSelectPaint
 
 func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
 	p := c.page
@@ -264,7 +273,7 @@ func (b Box) Describe(describe func(i int) ComboboxOption) Box {
 			d.Label = s.labels[i]
 		}
 		s.scratch = append(s.scratch, d)
-		same = same && s.descs[i] == d
+		same = same && s.descs[i].sameAs(d)
 	}
 	if same {
 		return b
@@ -272,7 +281,7 @@ func (b Box) Describe(describe func(i int) ComboboxOption) Box {
 	s.descs = append(s.descs[:0], s.scratch...)
 	s.opts = s.opts[:0]
 	for i, d := range s.descs {
-		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled})
+		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content})
 	}
 	s.list.SetOptions(s.opts)
 	return b
@@ -359,4 +368,16 @@ func (p *Page) overlayWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 		return p.comboWheel(event)
 	}
 	return gfx.EventResult{}, false
+}
+
+// sameAs reports whether two descriptions give the same row. Painters are functions and
+// cannot be compared, so a row that has one is taken as changed in every paint: its
+// list is rebuilt, which costs the options' slice and nothing else.
+func (o ComboboxOption) sameAs(p ComboboxOption) bool {
+	if o.Leading.Paint != nil || o.Trailing.Paint != nil || o.Content.Paint != nil ||
+		p.Leading.Paint != nil || p.Trailing.Paint != nil || p.Content.Paint != nil {
+		return false
+	}
+	return o.Label == p.Label && o.Detail == p.Detail && o.Search == p.Search && o.Disabled == p.Disabled &&
+		o.Leading.Width == p.Leading.Width && o.Trailing.Width == p.Trailing.Width && o.Content.Width == p.Content.Width
 }
