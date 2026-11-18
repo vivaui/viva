@@ -45,7 +45,7 @@ func snapshotGroupAPaint(canvas *gfx.Canvas) groupAPaintSnapshot {
 func TestGroupACatalogOrder(t *testing.T) {
 	want := []string{
 		"accordion", "alert", "alert-dialog", "aspect-ratio", "attachment",
-		"avatar", "breadcrumb", "bubble", "button-group", "calendar", "card",
+		"avatar", "avatar-editor", "breadcrumb", "bubble", "button-group", "calendar", "card",
 		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox",
 	}
 	if len(groupAComponents) != len(want) {

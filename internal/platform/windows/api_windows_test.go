@@ -50,12 +50,13 @@ func TestNativeStructureABI(t *testing.T) {
 		{"DWRITE_TEXT_METRICS", unsafe.Sizeof(textMetrics{}), 36},
 		{"rectangle shader instance", unsafe.Sizeof(rectangleInstance{}), rectangleInstanceBytes},
 		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 64},
+		{"DEVMODEW", unsafe.Sizeof(displayMode{}), 220},
 	} {
 		if layout.size != layout.want {
 			t.Errorf("%s: size %d, want %d", layout.name, layout.size, layout.want)
 		}
 	}
-	if unsafe.Offsetof(swapChainDesc1{}.Scaling) != 32 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
+	if unsafe.Offsetof(swapChainDesc1{}.Scaling) != 32 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(displayMode{}.Frequency) != 184 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
 		t.Fatal("native member alignment mismatch")
 	}
 	wantTextureIID := guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}

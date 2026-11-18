@@ -257,6 +257,7 @@ type Page struct {
 	freshAt     gfx.Scope
 	kindName    [pkKinds]gfx.Name
 	keyName     gfx.Name
+	menuName    gfx.Name // the place of a ContextMenu inside its target (contextMenu)
 	held        [2]armedButton
 	states      map[protoStateKey]protoState
 	fields      []fieldEntry
@@ -428,6 +429,7 @@ func (p *Page) init(tree *gfx.Tree) {
 		p.kindName[kind] = p.tree.Name(fmt.Sprintf("~k%d", kind))
 	}
 	p.keyName = p.tree.Name("~key")
+	p.menuName = p.tree.Name("~menu")
 	p.freshAt = p.tree.Sub(p.root, p.tree.Name("~new"))
 	p.keys = map[keyKey]keyEntry{}
 	p.intKeys = map[intKey]keyEntry{}
@@ -564,6 +566,11 @@ func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
 		p.pointer, p.pointerIn = gfx.Point{X: event.X, Y: event.Y}, true
 	case gfx.PointerExit:
 		p.pointerIn = false
+		// A press the platform took for itself (a window move) never gets its release:
+		// the rows a List was carrying are not dropped.
+		for _, s := range p.listStates {
+			s.list.drag.reset()
+		}
 	}
 	// A bar is revealed by the pointer being over its area, and an area with no
 	// hit regions of its own would otherwise move no hover and never repaint to

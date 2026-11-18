@@ -122,6 +122,14 @@ func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func
 			// pointer opened it, and the chosen row (or a dismissal) closes it.
 			open = &menu.shown
 		}
+		if bound.IsZero() {
+			// The target's scope holds the identities inside it: the parts of a
+			// Control (Handlers.Parts) and the children of a container. The rows, the
+			// backdrop, the scroll bar and the focus trap of the menu take a place of
+			// their own under it, or a press on a row would reach the control as a
+			// press on one of its parts.
+			scope = p.tree.Sub(scope, p.menuName)
+		}
 		p.declareMenu(c, menu, scope, open, -1, opened, body)
 	}
 }
@@ -258,6 +266,8 @@ func (m *MenuItems) size() (width, height float32) {
 			height += components.DropdownMenuSeparatorHeight
 		case menuRowLabel:
 			height += components.DropdownMenuLabelHeight
+		case menuRowContent:
+			height += item.height
 		default:
 			row := m.row(i)
 			if m.context {
@@ -298,6 +308,7 @@ const (
 	menuRowItem menuRowKind = iota
 	menuRowLabel
 	menuRowSeparator
+	menuRowContent
 )
 
 // MenuItems is an open Menu or ContextMenu being declared: what its rows are, and,
@@ -422,13 +433,17 @@ type menuRow struct {
 	icon        gfx.Icon
 	// The shortcut the row shows, a keymap.Chord's fields: the Page's type would
 	// keep that type's methods in every program, Menu or not.
-	modifiers   gfx.Modifiers
-	char        byte
-	key         gfx.Key
-	destructive bool
-	disabled    bool
-	submenu     bool // the row opens a submenu
-	checked     int8 // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
+	modifiers     gfx.Modifiers
+	char          byte
+	key           gfx.Key
+	destructive   bool
+	disabled      bool
+	submenu       bool // the row opens a submenu
+	trailingWidth float32
+	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
+	height        float32                                                    // a content row's height
+	content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
 // minWidth is shadcn's: 8rem for a DropdownMenu, 9rem for a ContextMenu.
@@ -443,7 +458,7 @@ func (m *MenuItems) minWidth() float32 {
 // good until the next row.
 func (m *MenuItems) row(i int) components.DropdownMenuItem {
 	row := &m.items[i]
-	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon}
+	item := components.DropdownMenuItem{ID: m.scope.At(menuRows + i), Label: row.label, Description: row.description, Disabled: row.disabled, Icon: row.icon, TrailingWidth: row.trailingWidth}
 	if row.destructive {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -533,6 +548,36 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 	m.widthMin, m.widthMax = least, greatest
 }
 
+// Content adds a row height tall that body paints: the room for what a menu row cannot say,
+// such as a strip of color swatches. It is not an item, so the keyboard passes over it; body
+// takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
+// called while scrolling has the row out of sight.
+func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
+	m.items = append(m.items, menuRow{kind: menuRowContent, height: height, content: body})
+}
+
+// paintContent calls a content row's painter over its row, inside the menu's clip.
+func (m *MenuItems) paintContent(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
+	if bounds.Width <= 0 || row.content == nil {
+		return
+	}
+	begin()
+	canvas.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
+	row.content(canvas, bounds, theme)
+	canvas.Unclip()
+	end()
+}
+
+// paintTrailing calls a row's trailing painter over the slot the menu reserved at its end.
+func (m *MenuItems) paintTrailing(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
+	if slot.Width <= 0 || row.trailing == nil {
+		return
+	}
+	begin()
+	row.trailing(canvas, slot, theme)
+	end()
+}
+
 // Label adds a heading over the items that follow it.
 func (m *MenuItems) Label(label string) {
 	m.items = append(m.items, menuRow{kind: menuRowLabel, label: label})
@@ -541,6 +586,16 @@ func (m *MenuItems) Label(label string) {
 // Separator adds a line between groups of items.
 func (m *MenuItems) Separator() {
 	m.items = append(m.items, menuRow{kind: menuRowSeparator})
+}
+
+// Trailing reserves width pixels at the item's end and has paint fill them: a small control
+// of the row's own, such as the eye that hides a shell from a list. The control declares its
+// own hit, over the row's, so pressing it does not choose the row; it is not called while
+// scrolling has the row out of sight. A menu row has either Trailing or a shortcut.
+func (item MenuItem) Trailing(width float32, paint func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) MenuItem {
+	row := &item.menu.items[item.i]
+	row.trailingWidth, row.trailing = width, paint
+	return item
 }
 
 // Destructive paints the item in the destructive color: an action that deletes.
@@ -642,8 +697,16 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddSeparator()
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
+			case menuRowContent:
+				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
-				if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
+				if row.trailing != nil {
+					r, slot := menu.AddItemSlot(contextItem(m.row(i)))
+					if i == m.sub {
+						trigger = r
+					}
+					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+				} else if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
 					trigger = r
 				}
 			}
@@ -675,8 +738,16 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				menu.AddSeparator()
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
+			case menuRowContent:
+				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			default:
-				if r := menu.AddItem(m.row(i)); i == m.sub {
+				if row.trailing != nil {
+					r, slot := menu.AddItemSlot(m.row(i))
+					if i == m.sub {
+						trigger = r
+					}
+					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+				} else if r := menu.AddItem(m.row(i)); i == m.sub {
 					trigger = r
 				}
 			}
@@ -702,7 +773,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 // contextItem is a dropdown row as a context menu's: the two describe one row.
 func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 	context := components.ContextMenuItem{
-		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled,
+		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled, TrailingWidth: item.TrailingWidth,
 		Checked: item.Checked, Selected: item.Selected,
 	}
 	switch item.Kind {
@@ -732,7 +803,9 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			trigger = m.f.nodes[m.anchor].id
 		}
 		_, inside := event.Target.In(m.scope)
-		last := i == len(p.menus)-1 && event.Target.IsZero()
+		// A context menu is modal: its arrows move through it from wherever the focus is,
+		// as a menu opened at a point of the window has no control of its own to be on.
+		last := i == len(p.menus)-1 && (event.Target.IsZero() || m.context)
 		if !inside && !last && (event.Target != trigger || trigger.IsZero()) {
 			continue
 		}

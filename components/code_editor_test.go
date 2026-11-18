@@ -413,6 +413,22 @@ func TestCodeEditorMoveKeepsTheColumnAcrossShortLines(t *testing.T) {
 	}
 }
 
+func TestCodeEditorCRLFLineEndStopsBeforeThePair(t *testing.T) {
+	const value = "ab\r\ncd"
+	for _, wrap := range []bool{false, true} {
+		fixture := newCodeFixture(value)
+		fixture.snapshot.Wrap = wrap
+		fixture.paint()
+		if got := fixture.editor.Move(value, 1, TextareaMoveLineEnd); got != 2 {
+			t.Fatalf("wrap=%t: End offset=%d, want before CRLF", wrap, got)
+		}
+		point := gfx.Point{X: fixture.editor.content.X + fixture.editor.content.Width, Y: fixture.editor.content.Y + fixture.editor.lineHeight/2}
+		if got, ok := fixture.editor.OffsetAt(point); !ok || got != 2 {
+			t.Fatalf("wrap=%t: click past line end offset=%d, ok=%t, want before CRLF", wrap, got, ok)
+		}
+	}
+}
+
 func TestCodeEditorHomeGoesToTheFirstCharacterFirst(t *testing.T) {
 	value := "x\n  ab"
 	f := newCodeFixture(value)

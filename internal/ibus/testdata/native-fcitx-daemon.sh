@@ -34,6 +34,16 @@ if [ "$VIVA_FCITX_BACKEND" = wayland ]; then
 else
     export GDK_BACKEND=x11
 fi
+if [ "${VIVA_GTK_SEAT_NATIVE:-0}" = 1 ]; then
+    VIVA_GTK_SEAT_DRIVER="$fixture_dir/wayland-seat.py"
+    export VIVA_GTK_SEAT_DRIVER VIVA_ACCESSIBILITY=1
+    if [ "$VIVA_FCITX_BACKEND" = wayland ]; then
+        WESTON_X11_WINDOW_ID=$(awk '/x11 output .* window id / { print $NF; exit }' "$task_dir/weston.log")
+        case "$WESTON_X11_WINDOW_ID" in ''|*[!0-9]*) echo 'Weston X11 output window missing' >&2; exit 1 ;; esac
+        export WESTON_X11_WINDOW_ID
+    fi
+    /usr/bin/python3 "$fixture_dir/reference-client.py" --activation-environment
+fi
 export IBUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
 export IBUS_ADDRESS_FILE=$task_dir/ibus-address
 # This fixture uses GTK/IBus over D-Bus, not Weston's privileged IM binding.

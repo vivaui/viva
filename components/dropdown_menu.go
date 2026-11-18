@@ -283,6 +283,10 @@ func (menu *DropdownMenu) EndContent() { menu.surface.popOverlay() }
 // AddSeparator paints the official -mx-1/my-1 divider geometry.
 func (menu *DropdownMenu) AddSeparator() gfx.Rect { return menu.surface.addSeparator() }
 
+// AddContent reserves a row height tall, painted by the caller between BeginContent and
+// EndContent. It is not an item: it takes no focus and no hit of its own.
+func (menu *DropdownMenu) AddContent(height float32) gfx.Rect { return menu.surface.addContent(height) }
+
 // End paints the scrollbar of a menu whose items did not all fit, after the last
 // item, and ends the menu's entrance and exit: call it once the last item is
 // painted, or the menu appears and disappears at once.
@@ -948,6 +952,17 @@ func (menu *menuSurface) addLabel(label string, inset bool) gfx.Rect {
 			Size: size, Weight: weight, Color: color,
 		})
 	})
+	return row
+}
+
+// addContent reserves a row height tall for the caller to paint into, which the menu
+// paints nothing of; it is not an item and takes no focus. It returns the row, or the zero
+// rectangle when scrolling has it out of sight.
+func (menu *menuSurface) addContent(height float32) gfx.Rect {
+	row := menu.rowBounds(height)
+	if !menu.take(row) {
+		return gfx.Rect{}
+	}
 	return row
 }
 

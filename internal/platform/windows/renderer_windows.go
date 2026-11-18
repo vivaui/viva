@@ -266,12 +266,8 @@ func (renderer *renderer) createDeviceAndResources(software bool) error {
 	return fmt.Errorf("create D3D11 device and swap chain, hardware and software (WARP) both failed: %w: %w", platform.ErrNoGraphics, failure)
 }
 
-// createWindowSwapChain makes the swap chain the window presents through. The
-// scale mode is DXGI_SCALING_NONE: when the window changes size before the frame
-// for the new size is presented, the desktop keeps the previous back buffer at
-// its own size in the top-left corner instead of stretching it over the new
-// client area. DXGI_SCALING_STRETCH (the default of the older
-// D3D11CreateDeviceAndSwapChain path) is what made a live resize wobble.
+// createWindowSwapChain keeps the previous frame at its native size between
+// live resize ticks. DXGI fills newly exposed pixels with the renderer background.
 func (renderer *renderer) createWindowSwapChain() error {
 	var factory uintptr
 	status, _, _ := createDXGIFactory.Call(uintptr(unsafe.Pointer(&factory2IID)), uintptr(unsafe.Pointer(&factory)))
@@ -288,6 +284,12 @@ func (renderer *renderer) createWindowSwapChain() error {
 	if err := hresult(status); err != nil {
 		return fmt.Errorf("create swap chain for window: %w", err)
 	}
+	// IDXGISwapChain1::SetBackgroundColor is slot 25 (GetDesc1 is 18, GetHwnd 20,
+	// Present1 22, IsTemporaryMonoSupported 23, GetRestrictToOutput 24). The color
+	// only fills pixels a resize exposes, so its HRESULT is ignored: a failure must
+	// not fail device creation for hardware and WARP alike.
+	background := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
+	comCall(renderer.swap, 25, uintptr(unsafe.Pointer(&background)))
 	return nil
 }
 
@@ -543,10 +545,9 @@ func (renderer *renderer) present(width, height int, scale float32) error {
 	return renderer.presentWithSync(width, height, scale, 1)
 }
 
-// presentWithSync presents with a DXGI sync interval. A live resize presents
-// immediately (0) so the frame drawn for the new size reaches the swap chain
-// before WM_SIZE returns; the swap chain itself uses DXGI_SCALING_NONE, so an
-// older frame is shown at its own size instead of stretched over the window.
+// presentWithSync presents with a DXGI sync interval. Modal resize ticks use 0
+// because the timer already paces them. HWND chains use DXGI_SCALING_NONE;
+// composition chains retain the DXGI-required STRETCH mode without a visual scale.
 func (renderer *renderer) presentWithSync(width, height int, scale float32, sync uintptr) error {
 	if width <= 0 || height <= 0 {
 		return nil
