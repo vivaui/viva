@@ -352,7 +352,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		} else if child.Size[axis].Kind == dimFill {
 			grow = 1
 		}
-		child.growNow = grow
+		child.GrowNow = grow
 		switch {
 		case child.Flags&flagShrinkSet != 0:
 			child.shrinkNow = child.Shrink
@@ -393,7 +393,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 				continue
 			}
 			baseSum += child.base
-			growSum += child.growNow
+			growSum += child.GrowNow
 			shrinkSum += child.shrinkNow * child.base
 		}
 		room := avail
@@ -410,7 +410,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			want := child.base
 			switch {
 			case free > 0 && growSum > 0:
-				want += free * child.growNow / growSum
+				want += free * child.GrowNow / growSum
 			case free < 0 && shrinkSum > 0:
 				want += free * child.shrinkNow * child.base / shrinkSum
 			}
