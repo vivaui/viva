@@ -1088,7 +1088,7 @@ func (p *Page) TextInput(context window.TextInputContext) *window.TextInput {
 // own (Draw, not Paint): its tabs, shortcuts, controls and drag states. A page
 // that paints a whole window gets the same routing from Config's OnKey. Give the
 // page the event before the host's own key handling, and do not call it for a
-// page Config already routes.
+// page Configure already routes.
 func (p *Page) Key(event gfx.KeyEvent) gfx.EventResult { return p.onKey(event) }
 
 // Pointer routes a pointer event for a page the application draws into a region
