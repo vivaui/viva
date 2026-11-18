@@ -207,7 +207,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		hi := max(avail-gaps-thickness-d.minSecond, lo)
 		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
 		first := &f.nodes[d.First]
-		first.raw[axis], first.Pref[axis] = pos, pos
+		first.Raw[axis], first.Pref[axis] = pos, pos
 		state.Pos = pos
 		state.thickness = thickness
 		state.lo, state.hi, state.span = lo, hi, avail

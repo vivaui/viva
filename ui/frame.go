@@ -156,7 +156,7 @@ type node struct {
 	Baseline             float32 // distance from the top to the first line of text
 
 	Pref                [2]float32
-	raw                 [2]float32 // pref before Min/Max, the size growth starts from
+	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	growNow, shrinkNow  float32
 	base, want, bounded float32 // while flexible lengths are resolved
 	frozen              bool

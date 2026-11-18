@@ -94,7 +94,7 @@ func (f *frame) measure(axis int) {
 		if d := n.Size[axis]; d.Kind == dimPx {
 			n.Pref[axis] = d.value
 		}
-		n.raw[axis] = n.Pref[axis]
+		n.Raw[axis] = n.Pref[axis]
 		n.Pref[axis] = clamp(n.Pref[axis], n.MinS[axis], n.MaxS[axis])
 		// A baseline is measured on the clamped size, the one paint lays the
 		// line out in.
@@ -491,7 +491,7 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 	case d.Kind == dimPercent:
 		return avail * d.value / 100
 	}
-	return child.raw[axis]
+	return child.Raw[axis]
 }
 
 // alignOn is how a child sits across its container: its own Self, else the
