@@ -14,13 +14,13 @@ func (s *scratch) reset() { s.abs = s.abs[:0] }
 // trimFlexCapacity gives back a slice's backing array when it is far larger
 // than its content. A page that once had a large table should not keep that
 // capacity for the view's whole life.
-func trimFlexCapacity[T any](items []T) []T {
+func trimFlexCapacity[T any](Items []T) []T {
 	const minCapacity = 4096
 	const ratio = 4
-	if cap(items) <= minCapacity || len(items)*ratio >= cap(items) {
-		return items
+	if cap(Items) <= minCapacity || len(Items)*ratio >= cap(Items) {
+		return Items
 	}
-	next := make([]T, len(items), max(len(items)*2, minCapacity/64))
-	copy(next, items)
+	next := make([]T, len(Items), max(len(Items)*2, minCapacity/64))
+	copy(next, Items)
 	return next
 }

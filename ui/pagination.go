@@ -41,27 +41,27 @@ type paginationDecl struct {
 //		{ID: nextID, Label: "Next", Kind: ui.PaginationNext, Disabled: m.page+1 == m.pages},
 //	})
 //	if id, ok := row.Chosen(); ok && id == nextID { ... }
-func (f *frame) Pagination(items []PaginationItem) Box {
+func (f *frame) Pagination(Items []PaginationItem) Box {
 	b := f.box(kindPagination)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(widgetsOf(f).paginations))
 	start := int32(len(widgetsOf(f).paginationItems))
-	for _, item := range items {
+	for _, item := range Items {
 		widgetsOf(f).paginationItems = append(widgetsOf(f).paginationItems, components.PaginationItem{
 			ID: item.ID, Label: item.Label, Kind: components.PaginationKind(item.Kind),
 			Current: item.Current, Disabled: item.Disabled,
 		})
 	}
-	widgetsOf(f).paginations = append(widgetsOf(f).paginations, paginationDecl{start: start, count: int32(len(items))})
+	widgetsOf(f).paginations = append(widgetsOf(f).paginations, paginationDecl{start: start, count: int32(len(Items))})
 	return b
 }
 
 // Pagination adds a row of page items to a page.
-func Pagination(c C, items []PaginationItem) Box {
+func Pagination(c C, Items []PaginationItem) Box {
 	if c == nil || c.page == nil || c.f == nil {
 		panic("ui: Pagination is for a page")
 	}
-	return c.f.Pagination(items)
+	return c.f.Pagination(Items)
 }
 
 // paintPagination paints the row's items into the element's rectangle, which the

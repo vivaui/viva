@@ -563,9 +563,9 @@ func TestContextMenuAtTakesTheArrowsFromTheFocusedControl(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			ui.Button(c, "Anchor")
-			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, gfx.Point{X: 100, Y: 100}, func(items *ui.MenuItems) {
-				items.Item("One")
-				if items.Item("Two").Clicked() {
+			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, gfx.Point{X: 100, Y: 100}, func(Items *ui.MenuItems) {
+				Items.Item("One")
+				if Items.Item("Two").Clicked() {
 					m.connected = "two"
 				}
 			})
@@ -587,10 +587,10 @@ func TestContextMenuAtNamedByAZeroSizeSlotTakesTheArrows(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.PopupLayer(c, 600)
 		anchor := ui.Slot(c).Absolute().Left(100).Top(100).Size(0, 0).HitWith(ui.ID(c), "", gfx.HitOptions{SkipFocus: true, SkipTab: true})
-		ui.ContextMenuAt(c, anchor, &m.open, gfx.Point{X: 100, Y: 100}, func(items *ui.MenuItems) {
-			items.RowHeight(24)
-			items.Item("One")
-			if items.Item("Two").Clicked() {
+		ui.ContextMenuAt(c, anchor, &m.open, gfx.Point{X: 100, Y: 100}, func(Items *ui.MenuItems) {
+			Items.RowHeight(24)
+			Items.Item("One")
+			if Items.Item("Two").Clicked() {
 				m.connected = "two"
 			}
 		})

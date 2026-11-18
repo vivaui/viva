@@ -15,7 +15,7 @@ import (
 type sectioned struct {
 	list    ui.ListState
 	sel     ui.Selection
-	items   []sectionItem
+	Items   []sectionItem
 	c       ui.C
 	rowFn   func(ui.ListRow)
 	width   float32
@@ -30,13 +30,13 @@ type sectionItem struct {
 func newSectioned(sections ...[]string) *sectioned {
 	m := &sectioned{}
 	for _, section := range sections {
-		m.items = append(m.items, sectionItem{text: section[0], header: true})
+		m.Items = append(m.Items, sectionItem{text: section[0], header: true})
 		for _, name := range section[1:] {
-			m.items = append(m.items, sectionItem{text: name})
+			m.Items = append(m.Items, sectionItem{text: name})
 		}
 	}
-	m.list.Header = func(i int) bool { return m.items[i].header }
-	m.list.Label = func(i int) string { return m.items[i].text }
+	m.list.Header = func(i int) bool { return m.Items[i].header }
+	m.list.Label = func(i int) string { return m.Items[i].text }
 	m.list.Selection = &m.sel
 	m.rowFn = m.row
 	return m
@@ -47,14 +47,14 @@ func (m *sectioned) row(row ui.ListRow) {
 	if row.Header {
 		row.Element.Background(m.c.Theme().Muted)
 	}
-	row.Element.Children(func() { ui.Text(m.c, m.items[row.Index].text) })
+	row.Element.Children(func() { ui.Text(m.c, m.Items[row.Index].text) })
 }
 
 func (m *sectioned) page(c ui.C) {
 	m.c = c
 	m.list.RowWidth = m.width
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.List(c, &m.list, len(m.items), m.rowFn).Label("Items").Grow(1)
+		ui.List(c, &m.list, len(m.Items), m.rowFn).Label("Items").Grow(1)
 	})
 }
 

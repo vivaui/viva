@@ -500,7 +500,7 @@ func (n *node) alignOn(Parent *node) Align {
 	if n.self != Auto {
 		return n.self
 	}
-	return Parent.items
+	return Parent.Items
 }
 
 // measureBaseline finds the distance from the top of an element to its first line

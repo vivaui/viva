@@ -119,7 +119,7 @@ type node struct {
 	grow, shrink         float32
 	pad, margin          [4]float32 // top, right, bottom, left
 	Gap                  float32
-	items, self, justify Align
+	Items, self, justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
 	BorderWidth, Radius  float32
@@ -454,7 +454,7 @@ func (f *frame) add(k Kind) int32 {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
 	index := int32(len(f.nodes))
-	f.nodes = append(f.nodes, node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, items: Auto})
+	f.nodes = append(f.nodes, node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, Items: Auto})
 	if f.Parent >= 0 {
 		parent := &f.nodes[f.Parent]
 		if parent.Last < 0 {

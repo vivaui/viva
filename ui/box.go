@@ -249,7 +249,7 @@ func (b Box) LineGap(v float32) Box {
 // Items places the children across the container (Start, Center, End or
 // Stretch, the default); Self does it for this element alone; Justify places
 // them along it when none grows (Start, Center, End or Between).
-func (b Box) Items(a Align) Box   { b.n().items = a; return b }
+func (b Box) Items(a Align) Box   { b.n().Items = a; return b }
 func (b Box) Self(a Align) Box    { b.n().self = a; return b }
 func (b Box) Justify(a Align) Box { b.n().justify = a; return b }
 
