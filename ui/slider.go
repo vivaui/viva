@@ -211,7 +211,7 @@ func (f *frame) settleSlider(n *node) {
 	if vertical {
 		pointer = event.Y
 	}
-	track := components.BeginSlider(nil, f.theme, n.ID, s.area, s.Value).Range(s.min, s.max).Step(s.step)
+	track := components.BeginSlider(nil, f.Palette, n.ID, s.area, s.Value).Range(s.min, s.max).Step(s.step)
 	if vertical {
 		track = track.Vertical()
 	}
@@ -263,7 +263,7 @@ func (f *frame) paintSlider(n *node) {
 		})
 		return
 	}
-	slider := components.BeginSlider(f.Surface, f.theme, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
+	slider := components.BeginSlider(f.Surface, f.Palette, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
 	if n.Natural > 0 {
 		slider = slider.Vertical()
 	}

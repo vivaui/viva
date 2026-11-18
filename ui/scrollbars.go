@@ -49,7 +49,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	// bars are revealed while the pointer is over the area or a bar is dragged,
 	// and stay revealed for a moment after the pointer leaves or the view moves,
 	// fading out as they go.
-	theme, revealed := f.theme, float32(1)
+	theme, revealed := f.Palette, float32(1)
 	if f.page != nil {
 		now := f.Surface.Now()
 		if !s.barSeen {

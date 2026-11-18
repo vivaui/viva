@@ -182,9 +182,9 @@ func TestFieldDisabledIsDimmedAndInert(t *testing.T) {
 	}
 }
 
-var darkSaveRecipe = func(theme gfx.Theme, variant components.ButtonVariant, state gfx.State) components.ButtonLook {
-	theme.Primary, theme.PrimaryForeground = gfx.RGB(24, 24, 27), gfx.RGB(250, 250, 250)
-	return components.ButtonRecipe(theme, variant, state)
+var darkSaveRecipe = func(Palette gfx.Theme, variant components.ButtonVariant, state gfx.State) components.ButtonLook {
+	Palette.Primary, Palette.PrimaryForeground = gfx.RGB(24, 24, 27), gfx.RGB(250, 250, 250)
+	return components.ButtonRecipe(Palette, variant, state)
 }
 
 // A Button given its own recipe is painted with it; the others on the page keep the theme's.

@@ -208,25 +208,25 @@ func (s *TreeState) DisclosureID(i int) gfx.ID {
 	return s.chevrons.At(s.key(i))
 }
 
-func (s *TreeState) rowHeight(theme *Theme) float32 {
+func (s *TreeState) rowHeight(Palette *Theme) float32 {
 	if s.RowHeight > 0 {
 		return s.RowHeight
 	}
-	return theme.Metrics.ControlHeight
+	return Palette.Metrics.ControlHeight
 }
 
-func (s *TreeState) heightOf(node TreeNode, theme *Theme) float32 {
+func (s *TreeState) heightOf(node TreeNode, Palette *Theme) float32 {
 	if node.Height > 0 {
 		return node.Height
 	}
-	return s.rowHeight(theme)
+	return s.rowHeight(Palette)
 }
 
-func (s *TreeState) indent(theme *Theme) float32 {
+func (s *TreeState) indent(Palette *Theme) float32 {
 	if s.Indent > 0 {
 		return s.Indent
 	}
-	return 16 * theme.Metrics.ControlHeight / 32
+	return 16 * Palette.Metrics.ControlHeight / 32
 }
 
 // row declares row i: the row element, painted by components.Tree, holding what
@@ -251,7 +251,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 			s.toggled = i
 		}
 	}
-	theme := &f.theme
+	theme := &f.Palette
 	left := float32(item.Depth) * s.indent(theme)
 	if node.Branch {
 		left += 24 // the chevron, as components.Tree places it
@@ -405,7 +405,7 @@ func (s *TreeState) edgeScroll(Surface *gfx.Canvas) {
 	if drag.view.Height <= 0 {
 		return
 	}
-	band := min(s.rowHeight(&s.c.f.theme), drag.view.Height/4)
+	band := min(s.rowHeight(&s.c.f.Palette), drag.view.Height/4)
 	dragEdgeScroll(Surface, s.Scroll, drag.view, drag.at, band, &drag.scrolled)
 }
 

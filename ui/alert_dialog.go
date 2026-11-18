@@ -86,7 +86,7 @@ func (f *frame) paintAlertDialog(n *node) {
 	if spec.Small {
 		options.Size = components.AlertDialogSmall
 	}
-	dialog := components.BeginAlertDialog(f.Surface, f.theme, n.rect, options)
+	dialog := components.BeginAlertDialog(f.Surface, f.Palette, n.rect, options)
 	if spec.Disabled {
 		dialog = dialog.Disabled()
 	}

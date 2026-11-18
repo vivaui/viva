@@ -85,7 +85,7 @@ func (b Box) actionID() gfx.ID {
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
 func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
-	canvas, theme := f.Surface, f.theme
+	canvas, theme := f.Surface, f.Palette
 	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.rect, a.start, a.end)
 	components.PaintInputAddon(canvas, theme, start, a.start, true, disabled)

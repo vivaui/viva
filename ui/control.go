@@ -82,7 +82,7 @@ func Control(c C, label string, h *Handlers) Box {
 	if p.pointerRoute == nil {
 		p.keyRoute, p.pointerRoute = (*Page).routeKey, (*Page).routePointer
 	}
-	theme := &c.f.theme
+	theme := &c.f.Palette
 	// What the text service is given when Text leaves it unset: the page's body text.
 	return c.f.Slot().HitWith(id, label, gfx.HitOptions{Role: role,
 		TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground})

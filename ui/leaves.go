@@ -75,7 +75,7 @@ func intersect(a, b Rect) Rect {
 func (f *frame) paintProgress(n *node) {
 	r := n.rect
 	if n.Natural >= 0 {
-		components.Progress(f.Surface, f.theme, r, n.Natural)
+		components.Progress(f.Surface, f.Palette, r, n.Natural)
 		return
 	}
 	canvas := f.Surface
@@ -85,7 +85,7 @@ func (f *frame) paintProgress(n *node) {
 	if r.Height <= 0 {
 		r.Height = progressHeight
 	}
-	canvas.Rounded(r, r.Height/2, f.theme.Muted)
+	canvas.Rounded(r, r.Height/2, f.Palette.Muted)
 	segment := r.Width * indeterminateShare
 	x := r.X + (r.Width-segment)/2
 	if !canvas.ReduceMotion() {
@@ -96,7 +96,7 @@ func (f *frame) paintProgress(n *node) {
 		}
 	}
 	canvas.Clip(r)
-	canvas.Rounded(Rect{X: x, Y: r.Y, Width: segment, Height: r.Height}, r.Height/2, f.theme.Primary)
+	canvas.Rounded(Rect{X: x, Y: r.Y, Width: segment, Height: r.Height}, r.Height/2, f.Palette.Primary)
 	canvas.Unclip()
 }
 
@@ -109,5 +109,5 @@ func (f *frame) paintSpinner(n *node) {
 			canvas.RequestFrameIn(spinnerStep)
 		}
 	}
-	components.PaintSpinner(canvas, f.theme, n.rect, phase)
+	components.PaintSpinner(canvas, f.Palette, n.rect, phase)
 }

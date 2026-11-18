@@ -24,7 +24,7 @@ func RadioID[T comparable](c C, ID gfx.ID, value *T, option T, label string) Box
 }
 
 func radio[T comparable](c C, ID gfx.ID, value *T, option T, label string) Box {
-	th := c.f.theme
+	th := c.f.Palette
 	m := th.Metrics
 	b := c.f.RadioBase(ID, label, *value == option)
 	choose(c, b, value, option)

@@ -50,8 +50,8 @@ func (f *frame) paint(i int32) {
 	parentOpacity, parentTheme := f.Opacity, Theme{}
 	f.Opacity *= style.Opacity
 	if style.Opacity < 1 {
-		parentTheme = f.theme // a theme is large: copied only for what is faded
-		f.theme = f.theme.WithOpacity(style.Opacity)
+		parentTheme = f.Palette // a theme is large: copied only for what is faded
+		f.Palette = f.Palette.WithOpacity(style.Opacity)
 	}
 	f.paintRing(r, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.Flags&flagClip != 0 {
@@ -129,10 +129,10 @@ func (f *frame) paint(i int32) {
 	color := n.Color
 	n.Color = fade(style.Color, f.Opacity)
 	if n.hasOwnTheme() {
-		saved := f.theme
-		f.theme = f.ownTheme(n)
+		saved := f.Palette
+		f.Palette = f.ownTheme(n)
 		f.paintControl(n, r)
-		f.theme = saved
+		f.Palette = saved
 	} else {
 		f.paintControl(n, r)
 	}
@@ -166,7 +166,7 @@ func (f *frame) paint(i int32) {
 	}
 	f.Opacity = parentOpacity
 	if style.Opacity < 1 {
-		f.theme = parentTheme
+		f.Palette = parentTheme
 	}
 }
 

@@ -428,7 +428,7 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	if state.listMaxHeight > 0 {
 		d.visible = min(d.visible, listRowsForHeight(len(labels), state.listMaxHeight))
 	}
-	widest := state.widestOption(f.Surface, labels, f.theme.Metrics.FontSizeM)
+	widest := state.widestOption(f.Surface, labels, f.Palette.Metrics.FontSizeM)
 	state.disabled = nil
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
@@ -638,15 +638,15 @@ func (s *SelectState) triggerID(count int) gfx.ID {
 
 func (f *frame) measureSelect(n *node) {
 	d := &widgetsOf(f).selects[n.Aux]
-	widest := d.state.widestOption(f.Surface, d.labels, f.theme.Metrics.FontSizeM)
-	height := f.theme.Metrics.ControlHeight
+	widest := d.state.widestOption(f.Surface, d.labels, f.Palette.Metrics.FontSizeM)
+	height := f.Palette.Metrics.ControlHeight
 	switch {
 	case n.ButtonSize == components.ButtonSizeXSmall:
 		height -= 8
 	case n.Flags&flagSmall != 0:
 		height -= 4
 	}
-	n.Pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
+	n.Pref = [2]float32{widest + f.Palette.Metrics.PadControlX + 36, height}
 }
 
 func (f *frame) paintSelect(n *node) {
@@ -686,7 +686,7 @@ func (f *frame) paintSelect(n *node) {
 		list.Width = max(list.Width, trigger.Width)
 		options.Open, options.Content = true, list
 	}
-	control := components.BeginSelect(f.Surface, f.theme, trigger, options)
+	control := components.BeginSelect(f.Surface, f.Palette, trigger, options)
 	if !open {
 		return
 	}

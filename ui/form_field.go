@@ -21,10 +21,10 @@ type FormFieldState struct {
 	// Description is a line of help under the control, above Error, in the muted color.
 	Description string
 
-	label  string
-	theme  *Theme
-	layout field.Layout
-	paint  func(*DrawContext)
+	label   string
+	Palette *Theme
+	layout  field.Layout
+	paint   func(*DrawContext)
 }
 
 // FormField declares a form field: a title, and the control declared in its
@@ -58,7 +58,7 @@ func FormField(c C, state *FormFieldState, label string) Box {
 		panic("ui: FormField needs its FormFieldState")
 	}
 	state.label = label
-	state.theme = c.Theme()
+	state.Palette = c.Theme()
 	if state.paint == nil {
 		state.paint = state.draw
 	}
@@ -89,7 +89,7 @@ func (state *FormFieldState) PlaceWidth(ctx *LayoutContext, bounds Rect) {
 // MeasureHeight is the field's own height: BeginField's title, control and the
 // two rows it reserves.
 func (state *FormFieldState) MeasureHeight(ctx *LayoutContext) float32 {
-	layout := field.Measure(*state.theme, Rect{Width: ctx.ContentWidth()}, state.spec())
+	layout := field.Measure(*state.Palette, Rect{Width: ctx.ContentWidth()}, state.spec())
 	return layout.Bounds.Height
 }
 
@@ -100,7 +100,7 @@ func (state *FormFieldState) PlaceHeight(ctx *LayoutContext, bounds Rect) {
 	if ctx.Count() > 1 {
 		panic("ui: FormField takes one control child; wrap them in a Row or Column")
 	}
-	state.layout = field.Measure(*state.theme, bounds, state.spec())
+	state.layout = field.Measure(*state.Palette, bounds, state.spec())
 	if ctx.Count() == 1 {
 		control := state.layout.Control
 		ctx.SetX(0, control.X)

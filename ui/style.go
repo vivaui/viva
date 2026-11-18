@@ -195,7 +195,7 @@ func (b Box) StateFrom(container Box) Box { b.States().follow = container.i + 1;
 // motion; TransitionWith does it over another. An idle element schedules nothing.
 func (b Box) Transition() Box {
 	b.n()
-	return b.TransitionWith(b.f.theme.Transition)
+	return b.TransitionWith(b.f.Palette.Transition)
 }
 
 func (b Box) TransitionWith(motion gfx.Motion) Box {

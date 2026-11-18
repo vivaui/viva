@@ -61,13 +61,13 @@ func (f *frame) paintSegmentedControl(n *node, r Rect)  { f.paintSegmented(viewO
 
 func (f *frame) paintCheckbox(v ControlView) {
 	canvas := f.Surface
-	side := components.CheckboxExtent(f.theme)
+	side := components.CheckboxExtent(f.Palette)
 	bounds := Rect{X: v.Rect.X + (v.Rect.Width-side)/2, Y: v.Rect.Y + (v.Rect.Height-side)/2, Width: side, Height: side}
 	if v.Text != "" {
 		bounds.X = v.Rect.X
 		f.paintCaptionView(v, bounds)
 	}
-	checkbox := components.BeginCheckbox(canvas, f.theme, v.ID, bounds, v.Flags&flagChecked != 0)
+	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&flagChecked != 0)
 	if v.Flags&flagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
 	}
@@ -86,13 +86,13 @@ func (f *frame) paintCheckbox(v ControlView) {
 func (f *frame) paintSwitch(v ControlView) {
 	canvas := f.Surface
 	small := v.Flags&flagSmall != 0
-	width, height := components.SwitchExtent(f.theme, small)
+	width, height := components.SwitchExtent(f.Palette, small)
 	bounds := Rect{X: v.Rect.X + (v.Rect.Width-width)/2, Y: v.Rect.Y + (v.Rect.Height-height)/2, Width: width, Height: height}
 	if v.Text != "" {
 		bounds.X = v.Rect.X
 		f.paintCaptionView(v, bounds)
 	}
-	control := components.BeginSwitch(canvas, f.theme, v.ID, bounds, v.Flags&flagChecked != 0)
+	control := components.BeginSwitch(canvas, f.Palette, v.ID, bounds, v.Flags&flagChecked != 0)
 	if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.styles != nil && f.styles.Switch != nil {
@@ -111,12 +111,12 @@ func (f *frame) paintSwitch(v ControlView) {
 }
 
 func (f *frame) paintInputGroup(v ControlView) {
-	components.PaintInputGroup(f.Surface, f.theme, v.Rect, widgetsOf(f).groups[v.Aux])
+	components.PaintInputGroup(f.Surface, f.Palette, v.Rect, widgetsOf(f).groups[v.Aux])
 }
 
 func (f *frame) paintSegmented(v ControlView) {
 	choice := widgetsOf(f).segmented[v.Aux]
-	components.BeginSegmentedControl(f.Surface, f.theme, v.Rect, choice.options, choice.selected).Paint()
+	components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.options, choice.selected).Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package
@@ -124,7 +124,7 @@ func (f *frame) paintSegmented(v ControlView) {
 func (f *frame) measureControls(n *node) {
 	switch n.Kind {
 	case kindButton:
-		button := components.BeginButton(f.Surface, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].icon)
+		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].icon)
 		if d := n.Size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
@@ -134,49 +134,49 @@ func (f *frame) measureControls(n *node) {
 			n.Pref[axisX] = n.Pref[axisY]
 		}
 	case kindBadge:
-		w, h := components.BadgeExtent(f.Surface, f.theme, n.text)
+		w, h := components.BadgeExtent(f.Surface, f.Palette, n.text)
 		n.Pref = [2]float32{w, h}
 	case kindPagination:
-		w, h := components.PaginationExtent(f.Surface, f.theme, f.paginationItems(n))
+		w, h := components.PaginationExtent(f.Surface, f.Palette, f.paginationItems(n))
 		n.Pref = [2]float32{w, h}
 	case kindSplitButton:
-		button := components.BeginButton(f.Surface, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
+		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
 		trigger := widgetsOf(f).splitButtons[n.Aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
 		}
 		n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
 	case kindCheckbox:
-		w, h := components.CheckboxHitExtent(f.theme)
+		w, h := components.CheckboxHitExtent(f.Palette)
 		n.Pref = [2]float32{w, h}
 		if n.text != "" {
-			n.Pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = components.CheckboxExtent(f.Palette) + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
-		w, h := components.SwitchHitExtent(f.theme, n.Flags&flagSmall != 0)
+		w, h := components.SwitchHitExtent(f.Palette, n.Flags&flagSmall != 0)
 		n.Pref = [2]float32{w, h}
 		if n.text != "" {
-			control, _ := components.SwitchExtent(f.theme, n.Flags&flagSmall != 0)
+			control, _ := components.SwitchExtent(f.Palette, n.Flags&flagSmall != 0)
 			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
 		var width float32 = 8
 		for _, option := range widgetsOf(f).segmented[n.Aux].options {
-			width += f.Surface.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
+			width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
-		n.Pref = [2]float32{width, f.theme.Metrics.ControlHeight}
+		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
 	case kindInput:
 		n.Pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
 		if n.Flags&flagThemed != 0 {
-			n.Pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+			n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
 		}
 	case kindInputGroup:
-		n.Pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
 		if n.Kind == kindInputGroup && widgetsOf(f).groups[n.Aux].Multiline {
 			n.Pref[axisY] = 64
 		}
 	case kindTextarea:
-		n.Pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
+		n.Pref = [2]float32{n.padX(), f.Palette.Metrics.FontSizeM + 7 + n.padY()}
 		if n.Flags&flagThemed != 0 {
 			n.Pref = [2]float32{0, 64}
 		}
@@ -196,7 +196,7 @@ func (f *frame) measureControls(n *node) {
 func (f *frame) paintButton(n *node) {
 	r := n.rect
 	extra := &f.Exts[n.Ext]
-	button := components.BeginButton(f.Surface, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
+	button := components.BeginButton(f.Surface, f.Palette, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
@@ -397,25 +397,25 @@ func (f *frame) paintInput(n *node) {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
 		return
 	}
-	components.PaintInputContent(f.Surface, f.theme, n.rect, f.contentRect(n), snapshot)
+	components.PaintInputContent(f.Surface, f.Palette, n.rect, f.contentRect(n), snapshot)
 }
 
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
 func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
-		theme := f.theme
+		theme := f.Palette
 		theme.Foreground = n.Color
 		components.PaintTextareaContent(f.Surface, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 }
 
 // controlBaseline is the label's baseline of a button, for a row that lines
 // elements up by it. The engine asks the hook; the control layer answers.
 var controlBaseline = func(f *frame, n *node) float32 {
-	theme := f.theme
+	theme := f.Palette
 	if n.hasOwnTheme() {
 		theme = f.ownTheme(n)
 	}

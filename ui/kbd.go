@@ -8,7 +8,7 @@ import "github.com/vivaui/viva/gfx"
 //
 //	ui.Kbd(c, "⌘", "W")
 func Kbd(c C, keys ...string) Box {
-	th := c.f.theme
+	th := c.f.Palette
 	m := th.Metrics
 	height := m.FontSizeS + 9
 	radius := m.RadiusControl * 0.75

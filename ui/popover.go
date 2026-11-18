@@ -66,8 +66,8 @@ type popoverDecl struct {
 //		if p.Dismissed() { m.open = false }
 //	}
 func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
-	metrics := f.theme.Metrics
-	look := components.PopoverRecipe(f.theme)
+	metrics := f.Palette.Metrics
+	look := components.PopoverRecipe(f.Palette)
 	width := spec.Width
 	if width <= 0 {
 		width = 288
@@ -137,7 +137,7 @@ func (f *frame) paintPopover(i int32, n *node) {
 	savedLayer := widgetsOf(f).layer
 	widgetsOf(f).layer = layer
 	n.Flags &^= flagPopover
-	presence, pivot := components.PopupMotion(f.theme, n.rect, f.Nodes[d.anchor].rect)
+	presence, pivot := components.PopupMotion(f.Palette, n.rect, f.Nodes[d.anchor].rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
 	canvas.EndPresence()

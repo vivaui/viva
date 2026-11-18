@@ -151,7 +151,7 @@ func (d *drawerSpec) swipe(f *frame, s *drawerSwipe) bool {
 	}
 	if event, ok := canvas.PointerOn(d.handle); ok {
 		// The pointer's travel toward the edge, and how far the panel reaches from it.
-		content := d.component(canvas, f.theme, f.bounds, 0).Layout(d.Description).Content
+		content := d.component(canvas, f.Palette, f.bounds, 0).Layout(d.Description).Content
 		toward, extent := event.Y, content.Height
 		switch d.Side {
 		case DrawerTop:
@@ -195,8 +195,8 @@ type drawerDecl struct {
 	layer        uint16
 }
 
-func (spec *drawerSpec) component(Surface *gfx.Canvas, theme Theme, bounds Rect, layer uint16) components.Drawer {
-	drawer := components.BeginDrawer(Surface, theme, bounds, components.DrawerOptions{
+func (spec *drawerSpec) component(Surface *gfx.Canvas, Palette Theme, bounds Rect, layer uint16) components.Drawer {
+	drawer := components.BeginDrawer(Surface, Palette, bounds, components.DrawerOptions{
 		Layer: layer, Scope: spec.scope, DismissID: spec.dismiss, CloseID: spec.close,
 		Side: spec.Side.component(), ContentExtent: spec.Size, InitialFocusID: spec.InitialFocus,
 		HandleID: spec.handle, Offset: spec.offset,
@@ -211,13 +211,13 @@ func (spec *drawerSpec) component(Surface *gfx.Canvas, theme Theme, bounds Rect,
 // body and footer at the rectangles components.Drawer gives them.
 func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 	layer := f.widgetLayer() + 2
-	layout := spec.component(f.Surface, f.theme, f.bounds, layer).Layout(spec.Description)
+	layout := spec.component(f.Surface, f.Palette, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body
 	switch {
 	case spec.title == "":
 		body = layout.Content // the panel is the body's
 	case !footer:
-		body.Height = max(layout.Content.Y+layout.Content.Height-f.theme.Metrics.PadSurface-body.Y, 0)
+		body.Height = max(layout.Content.Y+layout.Content.Height-f.Palette.Metrics.PadSurface-body.Y, 0)
 	}
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
@@ -234,7 +234,7 @@ func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 		d.body = place(f.Column(), body).i
 		if footer {
 			// The buttons against the right edge in the order given, as a Dialog's.
-			d.footer = place(f.Row(), layout.Footer).Gap(f.theme.Metrics.GapItem).Justify(End).Items(Center).i
+			d.footer = place(f.Row(), layout.Footer).Gap(f.Palette.Metrics.GapItem).Justify(End).Items(Center).i
 		}
 	})
 	widgetsOf(f).drawers = append(widgetsOf(f).drawers, d)
@@ -254,7 +254,7 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 // body and footer inside the layer and focus scope it opens.
 func (f *frame) paintDrawer(n *node) {
 	d := &widgetsOf(f).drawers[n.Aux]
-	drawer := d.spec.component(f.Surface, f.theme, n.rect, d.layer)
+	drawer := d.spec.component(f.Surface, f.Palette, n.rect, d.layer)
 	if n.Flags&flagDisabled != 0 {
 		drawer = drawer.Disabled()
 	}

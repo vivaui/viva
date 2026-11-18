@@ -331,7 +331,7 @@ func (b Box) Color(c Color) Box {
 }
 func (b Box) Muted() Box {
 	b.n()
-	return b.Color(b.f.theme.MutedForeground)
+	return b.Color(b.f.Palette.MutedForeground)
 }
 func (b Box) Mono() Box { b.n().Flags |= flagMono; return b }
 

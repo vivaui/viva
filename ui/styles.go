@@ -22,12 +22,12 @@ import (
 // page-wide case.
 type Styles struct {
 	// Button dresses Button, and the buttons a component paints.
-	Button func(theme gfx.Theme, variant components.ButtonVariant, state gfx.State) components.ButtonLook
+	Button func(Palette gfx.Theme, variant components.ButtonVariant, state gfx.State) components.ButtonLook
 	// Checkbox dresses Checkbox.
-	Checkbox func(theme gfx.Theme, state gfx.State) components.CheckboxLook
+	Checkbox func(Palette gfx.Theme, state gfx.State) components.CheckboxLook
 	// Switch dresses Switch, progress being how far the thumb has travelled.
-	Switch func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook
+	Switch func(Palette gfx.Theme, state gfx.State, progress float32) components.SwitchLook
 	// TextEntry dresses Input and Textarea: their fill, border, corners and
 	// shadow. Their padding, and where the text sits, stay the metrics'.
-	TextEntry func(theme gfx.Theme, state gfx.State) components.TextEntryLook
+	TextEntry func(Palette gfx.Theme, state gfx.State) components.TextEntryLook
 }

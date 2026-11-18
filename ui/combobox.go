@@ -124,7 +124,7 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	state.layer = f.widgetLayer() + 1
 	// The field declares its own hits as it paints; the element only places it, as
 	// wide as its container, a control tall.
-	b := f.Slot().Height(f.theme.Metrics.ControlHeight)
+	b := f.Slot().Height(f.Palette.Metrics.ControlHeight)
 	b.n().ID = ids.input // what Tooltip, Shortcut and AutoFocus name
 	state.node, state.gen = b.i, b.gen
 	b.Draw(state.paint)

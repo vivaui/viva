@@ -62,7 +62,7 @@ func (f *frame) paintTooltip() {
 		f.tooltip = nil
 		return
 	}
-	f.tooltipState().Paint(f.Surface, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
+	f.tooltipState().Paint(f.Surface, f.Palette, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
 		components.HoverTooltipDelay)
 }
 

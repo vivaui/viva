@@ -48,7 +48,7 @@ func (f *frame) ButtonBase(ID gfx.ID, label string) Box {
 // Label names it. A mixed box is HitWith the gfx.HitOptions it needs, and State.Mixed is the
 // caller's to say, as it is for Invalid.
 func (f *frame) CheckboxBase(ID gfx.ID, checked bool) Box {
-	theme := f.theme
+	theme := f.Palette
 	side := components.CheckboxExtent(theme)
 	scale := theme.Metrics.ControlHeight / 32
 	b := f.Row().Center().Size(side, side).HitOutset(8*scale, 12*scale, 8*scale, 12*scale)
@@ -65,7 +65,7 @@ func (f *frame) CheckboxBase(ID gfx.ID, checked bool) Box {
 // components.SwitchRecipe the colors at a point of it. components.SwitchExtent is the
 // size of the small switch.
 func (f *frame) SwitchBase(ID gfx.ID, on bool) Box {
-	width, height := components.SwitchExtent(f.theme, false)
+	width, height := components.SwitchExtent(f.Palette, false)
 	b := f.Row().Center().Size(width, height).HitOutset(8, 12, 8, 12)
 	if on {
 		f.Nodes[b.i].Flags |= flagChecked

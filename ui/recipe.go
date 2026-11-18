@@ -25,14 +25,14 @@ func (f *frame) recipeTheme(n *node, scratch *Theme) *Theme {
 		*scratch = f.ownTheme(n)
 		return scratch
 	}
-	return &f.theme
+	return &f.Palette
 }
 
 // textEntryInsets is the room the shadcn text-entry controls leave between their edge and
 // their text: across, the metrics' text inset; down, nothing for a line (which is centered
 // in the control's whole height) and a fixed margin for rows that start at the top.
-func textEntryInsets(theme *Theme, k Kind) (x, y float32) {
-	x = theme.Metrics.TextInsetX()
+func textEntryInsets(Palette *Theme, k Kind) (x, y float32) {
+	x = Palette.Metrics.TextInsetX()
 	if k == kindTextarea {
 		y = components.TextareaPadY
 	}
@@ -41,11 +41,11 @@ func textEntryInsets(theme *Theme, k Kind) (x, y float32) {
 
 // textEntryLook is the recipe a themed Input or Textarea is dressed with: the
 // page's Styles.TextEntry when it set one, else the theme's.
-func (f *frame) textEntryLook(theme *Theme, state gfx.State) components.TextEntryLook {
+func (f *frame) textEntryLook(Palette *Theme, state gfx.State) components.TextEntryLook {
 	if f.styles != nil && f.styles.TextEntry != nil {
-		return f.styles.TextEntry(*theme, state)
+		return f.styles.TextEntry(*Palette, state)
 	}
-	return components.TextEntryRecipe(*theme, state)
+	return components.TextEntryRecipe(*Palette, state)
 }
 
 // applyRecipes gives every themed element the measurements its recipe has, before the page
@@ -140,7 +140,7 @@ func (f *frame) inputLine(n *node) float32 {
 		size = widgetsOf(f).inputs[n.Aux].Text.Size
 	}
 	if size <= 0 {
-		size = f.theme.Metrics.FontSizeM
+		size = f.Palette.Metrics.FontSizeM
 	}
 	return size + 7
 }

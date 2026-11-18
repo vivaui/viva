@@ -394,13 +394,13 @@ func TestPagePopoverMoves(t *testing.T) {
 	still := pageTheme
 	still.Transition.Duration = 0
 	for _, test := range []struct {
-		name  string
-		theme *gfx.Theme
-		moves bool
+		name    string
+		Palette *gfx.Theme
+		moves   bool
 	}{{"moving", &pageTheme, true}, {"still", &still, false}} {
 		t.Run(test.name, func(t *testing.T) {
 			open := false
-			d := openPageWith(t, ui.PageConfig{Theme: test.theme, View: func(c ui.C) {
+			d := openPageWith(t, ui.PageConfig{Theme: test.Palette, View: func(c ui.C) {
 				ui.Column(c).Pad(16).Children(func() {
 					more := ui.Button(c, "More")
 					if more.Clicked() {

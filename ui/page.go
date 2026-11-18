@@ -110,7 +110,7 @@ func ID(c C) gfx.ID { return c.page.controlID(pkCustom) }
 func (c *Ctx) Application() *app.Application { return c.page.application }
 
 // Theme is the page's theme. Read it; do not keep it.
-func (c *Ctx) Theme() *Theme { return &c.f.theme }
+func (c *Ctx) Theme() *Theme { return &c.f.Palette }
 
 // Bounds is the rectangle the page is laid out in, as the window gave it.
 func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
@@ -230,7 +230,7 @@ type Page struct {
 	root       gfx.Scope
 	view       view
 	ctx        Ctx
-	theme      Theme
+	Palette    Theme
 	themeSet   bool
 	themeEpoch uint32
 	themed     bool
@@ -667,7 +667,7 @@ func (p *Page) cancelDrag(event gfx.KeyEvent) (gfx.EventResult, bool) {
 
 // currentTheme is the theme the page paints with: the one given, or the system's.
 func (p *Page) currentTheme() Theme {
-	theme := p.theme
+	theme := p.Palette
 	if p.config.Theme != nil {
 		theme = *p.config.Theme
 	} else if !p.themed || p.stale.Swap(false) {
@@ -678,8 +678,8 @@ func (p *Page) currentTheme() Theme {
 			theme = gfx.LightTheme()
 		}
 	}
-	if !p.themeSet || theme != p.theme {
-		p.theme = theme
+	if !p.themeSet || theme != p.Palette {
+		p.Palette = theme
 		p.themeEpoch++
 		p.themeSet = true
 	}

@@ -233,7 +233,7 @@ type extra struct {
 // paint through a View; applications do not reach a frame.
 type frame struct {
 	Surface     *gfx.Canvas
-	theme       Theme
+	Palette     Theme
 	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	Nodes       []node
 	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
@@ -291,8 +291,8 @@ type frame struct {
 type view struct{ frame *frame }
 
 // Draw declares, lays out and paints one page inside bounds. build runs once.
-func (view *view) Draw(Surface *gfx.Canvas, theme Theme, bounds Rect, build func(*frame)) {
-	f := view.Begin(Surface, theme, bounds)
+func (view *view) Draw(Surface *gfx.Canvas, Palette Theme, bounds Rect, build func(*frame)) {
+	f := view.Begin(Surface, Palette, bounds)
 	build(f)
 	f.End()
 }
@@ -300,7 +300,7 @@ func (view *view) Draw(Surface *gfx.Canvas, theme Theme, bounds Rect, build func
 // Begin starts a page for callers that need the rectangles it lays out (Box.Rect)
 // before painting something of their own; End finishes it. Draw is Begin, build
 // and End.
-func (view *view) Begin(Surface *gfx.Canvas, theme Theme, bounds Rect) *frame {
+func (view *view) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *frame {
 	if view.frame == nil {
 		view.frame = new(frame)
 	}
@@ -317,7 +317,7 @@ func (view *view) Begin(Surface *gfx.Canvas, theme Theme, bounds Rect) *frame {
 		f = &next
 	}
 	f.gen++
-	f.Surface, f.theme, f.bounds, f.done = Surface, theme, bounds, false
+	f.Surface, f.Palette, f.bounds, f.done = Surface, Palette, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
 	f.Exts = append(f.Exts[:0], extra{})
@@ -441,7 +441,7 @@ func (f *frame) trim() {
 
 // Canvas and Theme give the declaration what it was started with.
 func (f *frame) Canvas() *gfx.Canvas { return f.Surface }
-func (f *frame) Theme() Theme        { return f.theme }
+func (f *frame) Theme() Theme        { return f.Palette }
 
 // Bounds is the rectangle this frame lays out in, as the caller gave it to Draw
 // or Begin. Custom painting (a tooltip, a highlight) uses it to stay inside the
@@ -571,8 +571,8 @@ func (f *frame) Text(value string) Box {
 	b := f.box(kindText)
 	n := &f.Nodes[b.i]
 	n.text = value
-	n.FontSize = f.theme.Metrics.FontSizeM
-	n.Color = f.theme.Foreground
+	n.FontSize = f.Palette.Metrics.FontSizeM
+	n.Color = f.Palette.Foreground
 	n.Shrink = 1
 	return b
 }
@@ -590,7 +590,7 @@ func (f *frame) Spacer() Box {
 func (f *frame) Divider() Box {
 	b := f.box(kindContainer)
 	n := &f.Nodes[b.i]
-	n.Background = f.theme.Border
+	n.Background = f.Palette.Border
 	if f.Parent >= 0 && (f.Nodes[f.Parent].Dir == row || f.Nodes[f.Parent].Dir == flow) {
 		n.Size[axisX] = dimension{dimPx, 1}
 	} else {
@@ -605,7 +605,7 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 	b := f.box(kindIcon)
 	n := &f.Nodes[b.i]
 	f.extra(b.i).icon = icon
-	n.Color = f.theme.Foreground
+	n.Color = f.Palette.Foreground
 	return b
 }
 

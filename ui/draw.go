@@ -102,7 +102,7 @@ func (f *frame) stateOf(n *node) gfx.State {
 // runDraw calls fn for n with the context reused for the frame.
 func (f *frame) runDraw(n *node, fn func(*DrawContext)) {
 	d := &f.drawContext
-	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.Surface, &f.theme, n.rect, f.stateOf(n), f.Opacity, n.label
+	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.Surface, &f.Palette, n.rect, f.stateOf(n), f.Opacity, n.label
 	d.frame, d.node = f, n
 	fn(d)
 }

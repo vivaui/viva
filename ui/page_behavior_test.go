@@ -413,8 +413,8 @@ func TestDeclaringAfterEndPanics(t *testing.T) {
 // a control dressed as its old hand-painted switch was.
 func TestSwitchUsesItsOwnRecipe(t *testing.T) {
 	on := true
-	ownLook := func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
-		look := components.SwitchRecipe(theme, state, progress)
+	ownLook := func(Palette gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+		look := components.SwitchRecipe(Palette, state, progress)
 		look.Track = gfx.RGB(1, 2, 3)
 		return look
 	}
@@ -425,8 +425,8 @@ func TestSwitchUsesItsOwnRecipe(t *testing.T) {
 			// A theme of its own: a page without one asks the system appearance,
 			// which must not be asked off the main thread.
 			Theme: &pageTheme,
-			Styles: &ui.Styles{Switch: func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
-				look := components.SwitchRecipe(theme, state, progress)
+			Styles: &ui.Styles{Switch: func(Palette gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+				look := components.SwitchRecipe(Palette, state, progress)
 				look.Track = gfx.RGB(9, 9, 9)
 				return look
 			}},

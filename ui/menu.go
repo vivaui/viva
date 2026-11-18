@@ -295,7 +295,7 @@ func (m *MenuItems) hover() {
 // size is the menu's: as wide as its widest row and as tall as its rows.
 func (m *MenuItems) Size() (width, height float32) {
 	f := m.f
-	theme := &f.theme
+	theme := &f.Palette
 	width, height = m.minWidth(), 2*components.DropdownMenuPadding
 	for i := range m.Items {
 		item := &m.Items[i]
@@ -424,7 +424,7 @@ func (m *MenuItems) Unpainted() *MenuItems {
 
 // DrawPanel paints an Unpainted menu's surface, inside the menu's layer and
 // clipping and within its entrance. Nil paints no surface.
-func (m *MenuItems) DrawPanel(draw func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) *MenuItems {
+func (m *MenuItems) DrawPanel(draw func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme)) *MenuItems {
 	m.drawPanel = draw
 	return m
 }
@@ -452,9 +452,9 @@ func (m *MenuItems) paintItem(parts components.MenuItemPaint) {
 }
 
 // paintPanel is DrawPanel as the components take it.
-func (m *MenuItems) paintPanel(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+func (m *MenuItems) paintPanel(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
 	if m.drawPanel != nil {
-		m.drawPanel(Surface, bounds, theme)
+		m.drawPanel(Surface, bounds, Palette)
 	}
 }
 
@@ -472,11 +472,11 @@ type menuRow struct {
 	disabled      bool
 	submenu       bool // the row opens a submenu
 	trailingWidth float32
-	trailing      func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
-	height        float32                                                     // a content row's height
-	Content       func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
-	pageContent   func(c C, bounds Rect)                                      // what a page content row declares
-	checked       int8                                                        // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
+	trailing      func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme)
+	height        float32                                                       // a content row's height
+	Content       func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) // what paints a content row
+	pageContent   func(c C, bounds Rect)                                        // what a page content row declares
+	checked       int8                                                          // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
 // minWidth is shadcn's: 8rem for a DropdownMenu, 9rem for a ContextMenu.
@@ -585,7 +585,7 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 // such as a strip of color swatches. It is not an item, so the keyboard passes over it; body
 // takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
 // called while scrolling has the row out of sight.
-func (m *MenuItems) Content(height float32, body func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
+func (m *MenuItems) Content(height float32, body func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme)) {
 	m.Items = append(m.Items, menuRow{Kind: menuRowContent, height: height, Content: body})
 }
 
@@ -610,30 +610,30 @@ func (m *MenuItems) rowExtent(i int) float32 {
 		return row.height
 	}
 	if m.context {
-		return components.ContextMenuItemHeight(m.f.theme, contextItem(m.row(i)), m.rowSize)
+		return components.ContextMenuItemHeight(m.f.Palette, contextItem(m.row(i)), m.rowSize)
 	}
-	return components.DropdownMenuItemHeight(m.f.theme, m.row(i))
+	return components.DropdownMenuItemHeight(m.f.Palette, m.row(i))
 }
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
-func (m *MenuItems) paintContent(Surface *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
+func (m *MenuItems) paintContent(Surface *gfx.Canvas, Palette gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
 	if bounds.Width <= 0 || row.Content == nil {
 		return
 	}
 	begin()
 	Surface.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
-	row.Content(Surface, bounds, theme)
+	row.Content(Surface, bounds, Palette)
 	Surface.Unclip()
 	end()
 }
 
 // paintTrailing calls a row's trailing painter over the slot the menu reserved at its end.
-func (m *MenuItems) paintTrailing(Surface *gfx.Canvas, theme gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
+func (m *MenuItems) paintTrailing(Surface *gfx.Canvas, Palette gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
 	if slot.Width <= 0 || row.trailing == nil {
 		return
 	}
 	begin()
-	row.trailing(Surface, slot, theme)
+	row.trailing(Surface, slot, Palette)
 	end()
 }
 
@@ -651,7 +651,7 @@ func (m *MenuItems) Separator() {
 // of the row's own, such as the eye that hides a shell from a list. The control declares its
 // own hit, over the row's, so pressing it does not choose the row; it is not called while
 // scrolling has the row out of sight. A menu row has either Trailing or a shortcut.
-func (item MenuItem) Trailing(width float32, paint func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) MenuItem {
+func (item MenuItem) Trailing(width float32, paint func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme)) MenuItem {
 	row := &item.menu.Items[item.i]
 	row.trailingWidth, row.trailing = width, paint
 	return item
@@ -733,7 +733,7 @@ func (m *MenuItems) draw(d *DrawContext) {
 
 // paintAt paints the menu over bounds in layer, then the submenu open in it beside
 // its row, a layer over.
-func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, layer uint16) {
+func (m *MenuItems) paintAt(Surface *gfx.Canvas, Palette *Theme, bounds Rect, layer uint16) {
 	f, scope := m.f, m.scope
 	m.Scroll.BarID = scope.At(menuBar)
 	// A submenu is in its root's focus scope, which keeps the keyboard in the chain
@@ -745,7 +745,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 	}
 	var trigger Rect // the row of the open submenu
 	if m.context {
-		menu := components.BeginContextMenu(Surface, *theme, bounds, components.ContextMenuOptions{
+		menu := components.BeginContextMenu(Surface, *Palette, bounds, components.ContextMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
 			Scroll: &m.Scroll, Submenu: m.Parent != nil, RowHeight: m.rowSize,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
@@ -757,7 +757,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
-				m.paintContent(Surface, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+				m.paintContent(Surface, *Palette, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:
 				menu.AddContent(row.height) // the page declares the row's controls
 			default:
@@ -766,7 +766,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 					if i == m.sub {
 						trigger = r
 					}
-					m.paintTrailing(Surface, *theme, row, slot, menu.BeginContent, menu.EndContent)
+					m.paintTrailing(Surface, *Palette, row, slot, menu.BeginContent, menu.EndContent)
 				} else if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
 					trigger = r
 				}
@@ -788,7 +788,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 				side = components.OverlayBottom
 			}
 		}
-		menu := components.BeginDropdownMenu(Surface, *theme, bounds, components.DropdownMenuOptions{
+		menu := components.BeginDropdownMenu(Surface, *Palette, bounds, components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
 			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
@@ -800,7 +800,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
-				m.paintContent(Surface, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+				m.paintContent(Surface, *Palette, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:
 				menu.AddContent(row.height) // the page declares the row's controls
 			default:
@@ -809,7 +809,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 					if i == m.sub {
 						trigger = r
 					}
-					m.paintTrailing(Surface, *theme, row, slot, menu.BeginContent, menu.EndContent)
+					m.paintTrailing(Surface, *Palette, row, slot, menu.BeginContent, menu.EndContent)
 				} else if r := menu.AddItem(m.row(i)); i == m.sub {
 					trigger = r
 				}
@@ -829,7 +829,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, laye
 	if child := m.subMenu; child != nil && trigger.Width > 0 { // a row scrolled out of sight shows none
 		width, height := child.Size()
 		placed := components.SubmenuPlacement(trigger, gfx.Size{Width: width, Height: height}, f.bounds.Inset(gfx.All(components.DropdownMenuPadding)))
-		child.paintAt(Surface, theme, placed, layer+1)
+		child.paintAt(Surface, Palette, placed, layer+1)
 	}
 }
 

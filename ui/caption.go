@@ -48,7 +48,7 @@ func (f *frame) captionSize(n *node) float32 {
 	if n.FontSize > 0 {
 		return n.FontSize
 	}
-	return f.theme.Metrics.FontSizeM
+	return f.Palette.Metrics.FontSizeM
 }
 
 // paintCaption paints a Checkbox's or Switch's Caption after the control's bounds and
@@ -58,12 +58,12 @@ func (f *frame) captionSize(n *node) float32 {
 func (f *frame) paintCaptionView(v ControlView, control Rect) {
 	size := v.Font
 	if size <= 0 {
-		size = f.theme.Metrics.FontSizeM
+		size = f.Palette.Metrics.FontSizeM
 	}
 	line := size + 7
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: v.Rect.Y + (v.Rect.Height-line)/2, Width: max(v.Rect.X+v.Rect.Width-x, 0), Height: line}
-	color := fade(f.theme.Foreground, f.Opacity)
+	color := fade(f.Palette.Foreground, f.Opacity)
 	if v.HasColor {
 		color = v.Color
 	}
@@ -80,7 +80,7 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: n.rect.Y + (n.rect.Height-line)/2, Width: max(n.rect.X+n.rect.Width-x, 0), Height: line}
 	disabled := n.Flags&flagDisabled != 0
-	color := fade(f.theme.Foreground, f.Opacity)
+	color := fade(f.Palette.Foreground, f.Opacity)
 	if n.Flags&flagHasColor != 0 {
 		color = n.Color // faded with the element already
 	}

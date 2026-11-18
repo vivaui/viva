@@ -614,7 +614,7 @@ func TestMenuContentRow(t *testing.T) {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
 				menu.Item("One")
-				menu.Content(40, func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+				menu.Content(40, func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
 					painted = bounds
 					Surface.Hit(gfx.Item(77), bounds)
 				})
@@ -644,7 +644,7 @@ func TestMenuItemTrailingControl(t *testing.T) {
 		ui.Column(c).Pad(16).Children(func() {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
-				if menu.Item("One").Trailing(24, func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+				if menu.Item("One").Trailing(24, func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
 					eye = bounds
 					Surface.HitWithOptions(gfx.Item(88), bounds, "Hide", gfx.HitOptions{Role: gfx.RoleButton})
 				}).Clicked() {

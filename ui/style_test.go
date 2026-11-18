@@ -395,17 +395,17 @@ func TestDrawContextDashedBorderIsFadedWithTheElement(t *testing.T) {
 
 // styled declares a page with every look, ring, gradient and fade, to count what
 // it allocates.
-func styled(view *View, Surface *gfx.Canvas, theme gfx.Theme) {
-	view.Draw(Surface, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
+func styled(view *View, Surface *gfx.Canvas, Palette gfx.Theme) {
+	view.Draw(Surface, Palette, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 		f.Column().Pad(24).Gap(12).Children(func() {
 			for range 12 {
-				row := f.Row().Gap(8).Pad(6).Radius(8).Background(theme.Card).Shadow(gfx.ShadowSM).Opacity(0.9).
+				row := f.Row().Gap(8).Pad(6).Radius(8).Background(Palette.Card).Shadow(gfx.ShadowSM).Opacity(0.9).
 					Hit(styleRow, "row").Transition().
-					Hover(Look{}.Background(theme.Hover).Shadow(gfx.ShadowMD)).
+					Hover(Look{}.Background(Palette.Hover).Shadow(gfx.ShadowMD)).
 					Pressed(Look{}.Opacity(0.7)).
-					Focus(Look{}.Ring(3, theme.Ring))
+					Focus(Look{}.Ring(3, Palette.Ring))
 				row.Children(func() {
-					f.Row().Size(24, 24).Radius(12).Gradient(ToBottomRight, theme.Primary, theme.Accent)
+					f.Row().Size(24, 24).Radius(12).Gradient(ToBottomRight, Palette.Primary, Palette.Accent)
 					f.Text("a row of the list").Grow(1)
 					f.Icon(gfx.Icon{ViewBox: 24}).Size(16, 16).Opacity(0).StateFrom(row).Hover(Look{}.Opacity(1))
 				})

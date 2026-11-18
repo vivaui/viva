@@ -109,10 +109,10 @@ func (f *frame) measureLeaf(n *node) {
 		f.measureLeafIn(n)
 		return
 	}
-	saved := f.theme
-	f.theme = f.ownTheme(n)
+	saved := f.Palette
+	f.Palette = f.ownTheme(n)
 	f.measureLeafIn(n)
-	f.theme = saved
+	f.Palette = saved
 }
 
 // controlMeasurer measures a control: its geometry comes from the style layer,

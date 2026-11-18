@@ -252,21 +252,21 @@ func (b Box) HeaderClicked() (int, bool) {
 	return b.f.Surface.ClickedIn(widgetsOf(b.f).tables[n.Aux].spec.Header)
 }
 
-func (t *tableDecl) rowHeight(theme Theme) float32 {
+func (t *tableDecl) rowHeight(Palette Theme) float32 {
 	if t.spec.RowHeight > 0 {
 		return t.spec.RowHeight
 	}
-	return components.TableRowHeight(theme)
+	return components.TableRowHeight(Palette)
 }
 
-func (t *tableDecl) headerHeight(theme Theme) float32 {
+func (t *tableDecl) headerHeight(Palette Theme) float32 {
 	if len(t.spec.Headers) == 0 {
 		return 0
 	}
 	if t.spec.RowHeight > 0 {
 		return t.spec.RowHeight
 	}
-	return components.TableHeaderHeight(theme)
+	return components.TableHeaderHeight(Palette)
 }
 
 // measureTable: as wide as its fixed columns, as tall as its header and rows.
@@ -276,7 +276,7 @@ func (f *frame) measureTable(n *node) {
 	for _, column := range t.spec.Columns {
 		width += max(column.Width, 0)
 	}
-	n.Pref = [2]float32{width, t.headerHeight(f.theme) + float32(t.rows)*t.rowHeight(f.theme)}
+	n.Pref = [2]float32{width, t.headerHeight(f.Palette) + float32(t.rows)*t.rowHeight(f.Palette)}
 }
 
 // tableColumnsWidth is the total width a table's columns declare: the fixed
@@ -337,7 +337,7 @@ func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 func (f *frame) paintTable(n *node) {
 	t := &widgetsOf(f).tables[n.Aux]
 	r := n.rect
-	rowHeight, headerHeight := t.rowHeight(f.theme), t.headerHeight(f.theme)
+	rowHeight, headerHeight := t.rowHeight(f.Palette), t.headerHeight(f.Palette)
 	canvas := f.Surface
 	body := Rect{X: r.X, Y: r.Y + headerHeight, Width: r.Width, Height: max(r.Height-headerHeight, 0)}
 	content := float32(t.rows) * rowHeight
@@ -472,7 +472,7 @@ func (f *frame) paintTable(n *node) {
 			// painted from the body's left edge rather than the offset one.
 			canvas.Unclip()
 			canvas.Clip(Rect{X: body.X, Y: body.Y, Width: frozenWidth, Height: body.Height})
-			canvas.Fill(Rect{X: body.X, Y: top + float32(first)*rowHeight, Width: frozenWidth, Height: float32(last-first)*rowHeight + extra}, f.theme.Background)
+			canvas.Fill(Rect{X: body.X, Y: top + float32(first)*rowHeight, Width: frozenWidth, Height: float32(last-first)*rowHeight + extra}, f.Palette.Background)
 			f.paintTableRows(t, Rect{X: body.X, Y: top + float32(first)*rowHeight, Width: contentWidth, Height: float32(last-first)*rowHeight + extra}, first, last, top, contentWidth, rowHeight)
 			canvas.Unclip()
 		}
@@ -480,12 +480,12 @@ func (f *frame) paintTable(n *node) {
 			canvas.Unclip()
 		}
 		if sideways && frozenWidth > 0 {
-			canvas.Fill(Rect{X: seam - tableFrozenSeparator, Y: top + float32(first)*rowHeight, Width: tableFrozenSeparator, Height: float32(last-first)*rowHeight + extra}, f.theme.Border)
+			canvas.Fill(Rect{X: seam - tableFrozenSeparator, Y: top + float32(first)*rowHeight, Width: tableFrozenSeparator, Height: float32(last-first)*rowHeight + extra}, f.Palette.Border)
 		}
 	}
 	if scrolls || sticky {
 		if headerHeight > 0 {
-			canvas.Fill(Rect{X: r.X, Y: headerY, Width: body.Width, Height: headerHeight}, f.theme.Background)
+			canvas.Fill(Rect{X: r.X, Y: headerY, Width: body.Width, Height: headerHeight}, f.Palette.Background)
 		}
 		f.paintTableHeader(t, Rect{X: left, Y: headerY, Width: contentWidth, Height: r.Height}, body, headerHeight, rowHeight, sideways && frozenWidth == 0, frozenWidth)
 	}
@@ -500,7 +500,7 @@ func (f *frame) paintTable(n *node) {
 // grid's geometry: every column paints, and the clip does the segmentation.
 func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
 	canvas := f.Surface
-	table := components.BeginTable(canvas, f.theme, rows, t.spec.Columns).
+	table := components.BeginTable(canvas, f.Palette, rows, t.spec.Columns).
 		RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 	w := widgetsOf(f)
 	if cap(w.cells) < len(t.spec.Columns) {
@@ -512,7 +512,7 @@ func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, co
 			cells[column] = t.spec.Source.Cell(row, column)
 		}
 		if t.spec.Striped && row%2 == 1 {
-			stripe := f.theme.Muted
+			stripe := f.Palette.Muted
 			stripe.Alpha *= 0.6
 			canvas.Fill(Rect{X: rows.X, Y: top + float32(row)*rowHeight, Width: contentWidth, Height: rowHeight}, stripe)
 		}
@@ -559,7 +559,7 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 		verticalLabel = ""
 	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
-	area := components.BeginScrollArea(f.Surface, f.theme, areaBounds, Content).
+	area := components.BeginScrollArea(f.Surface, f.Palette, areaBounds, Content).
 		Offset(offsetX, offsetY).
 		Frozen(frozenWidth).
 		ScrollbarSize(size).
@@ -641,11 +641,11 @@ func (f *frame) paintTableHeader(t *tableDecl, r, viewport Rect, headerHeight, r
 		f.paintTableHeaderRow(t, r, headerHeight, rowHeight)
 		canvas.Unclip()
 		canvas.Clip(Rect{X: viewport.X, Y: r.Y, Width: frozenWidth, Height: headerHeight})
-		canvas.Fill(Rect{X: viewport.X, Y: r.Y, Width: frozenWidth, Height: headerHeight}, f.theme.Background)
+		canvas.Fill(Rect{X: viewport.X, Y: r.Y, Width: frozenWidth, Height: headerHeight}, f.Palette.Background)
 		pinned := r
 		pinned.X = viewport.X
 		f.paintTableHeaderRow(t, pinned, headerHeight, rowHeight)
-		canvas.Fill(Rect{X: seam - tableFrozenSeparator, Y: r.Y, Width: tableFrozenSeparator, Height: headerHeight}, f.theme.Border)
+		canvas.Fill(Rect{X: seam - tableFrozenSeparator, Y: r.Y, Width: tableFrozenSeparator, Height: headerHeight}, f.Palette.Border)
 		canvas.Unclip()
 		return
 	}
@@ -659,7 +659,7 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
 	cells := components.TableCellBounds(t.spec.Columns, bounds, widgetsOf(f).rects[:0])
 	widgetsOf(f).rects = cells[:0]
-	hover := f.theme.Hover
+	hover := f.Palette.Hover
 	for column, cell := range cells {
 		if column < len(t.spec.Sortable) && t.spec.Sortable[column] && !t.spec.Header.IsZero() && canvas.Hovered() == t.spec.Header.At(column) {
 			canvas.Fill(cell, hover)
@@ -669,12 +669,12 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 	if r.Height <= headerHeight {
 		headerRow.Height = headerHeight
 	}
-	table := components.BeginTable(canvas, f.theme, headerRow, t.spec.Columns).
+	table := components.BeginTable(canvas, f.Palette, headerRow, t.spec.Columns).
 		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 	table.Header(t.spec.Headers)
 
 	sorted, descending, isSorted := t.state.Sort()
-	metrics := f.theme.Metrics
+	metrics := f.Palette.Metrics
 	fontSize := t.spec.FontSize
 	if fontSize <= 0 {
 		fontSize = metrics.FontSizeM
@@ -701,7 +701,7 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 			case components.TableAlignRight:
 				x = text.X + text.Width - min(width, text.Width) - 4 - 12
 			}
-			canvas.LabelCenter(arrow, Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: f.theme.MutedForeground})
+			canvas.LabelCenter(arrow, Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: f.Palette.MutedForeground})
 		}
 		canvas.HitWithLabel(t.spec.Header.At(column), cell, title)
 	}

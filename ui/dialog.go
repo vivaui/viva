@@ -66,9 +66,9 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 		width = 448
 	}
 	// The sizes of the header and footer, and the padding, are components.Dialog's.
-	geometry := components.BeginDialog(f.Surface, f.theme, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
+	geometry := components.BeginDialog(f.Surface, f.Palette, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
 	padding := geometry.Header.X - geometry.Content.X
-	gap := f.theme.Metrics.GapItem
+	gap := f.Palette.Metrics.GapItem
 	// The body sits as far under the header, and above the footer, as the dialog
 	// leaves between them.
 	above := geometry.Body.Y - (geometry.Header.Y + geometry.Header.Height)
@@ -176,7 +176,7 @@ func (b Box) Dismissed() bool {
 func (f *frame) paintDialog(n *node) {
 	d := &widgetsOf(f).dialogs[n.Aux]
 	surface := f.Nodes[n.First].rect
-	dialog := components.BeginDialog(f.Surface, f.theme, n.rect, components.DialogOptions{
+	dialog := components.BeginDialog(f.Surface, f.Palette, n.rect, components.DialogOptions{
 		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,
 		InitialFocusID: d.spec.InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
 		Header: d.spec.Header,

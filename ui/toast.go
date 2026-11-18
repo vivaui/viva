@@ -221,7 +221,7 @@ func Toasts(c C, t *Toaster) {
 		}
 		t.stack = append(t.stack, toast)
 	}
-	components.PaintSonner(canvas, c.f.theme, c.f.bounds, t.stack, components.SonnerOptions{
+	components.PaintSonner(canvas, c.f.Palette, c.f.bounds, t.stack, components.SonnerOptions{
 		Layer: ToastLayer, Expanded: held, Position: components.ToastPosition(t.Position),
 	})
 	if deadline, ok := t.queue.NextDeadline(); ok {

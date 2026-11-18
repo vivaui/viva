@@ -73,7 +73,7 @@ func (f *frame) measureTabs(n *node) {
 	t := &widgetsOf(f).tabs[n.Aux]
 	var widest float32
 	for _, label := range t.labels {
-		widest = max(widest, f.Surface.TextWidthWeight(label, f.theme.Metrics.FontSizeM, gfx.WeightMedium))
+		widest = max(widest, f.Surface.TextWidthWeight(label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium))
 	}
 	count := float32(len(t.labels))
 	var gap float32
@@ -108,7 +108,7 @@ func (f *frame) paintTabs(n *node) {
 			bounds.Width = max(bounds.Width-tabIndicator-1, 0)
 		}
 	}
-	tabs := components.BeginTabList(f.Surface, f.theme, bounds, t.scope, t.labels, t.selected)
+	tabs := components.BeginTabList(f.Surface, f.Palette, bounds, t.scope, t.labels, t.selected)
 	if t.line {
 		tabs = tabs.Line()
 	}

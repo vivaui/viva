@@ -267,7 +267,7 @@ func (f *frame) paintSplitter(n *node) {
 		}
 	}
 
-	theme := f.theme
+	theme := f.Palette
 	pressed := canvas.Pressed() == n.ID
 	hovered := canvas.Hovered() == n.ID
 	line, thickness := theme.Border, float32(1)

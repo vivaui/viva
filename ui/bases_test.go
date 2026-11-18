@@ -81,12 +81,12 @@ func TestCheckboxBaseWithTheRecipeIsTheShadcnCheckbox(t *testing.T) {
 
 // plainTriangles is what a box in no special state paints as strokes: the mark of a
 // checked one, nothing for an unchecked one.
-func plainTriangles(theme gfx.Theme, on bool) []gfx.Triangle {
+func plainTriangles(Palette gfx.Theme, on bool) []gfx.Triangle {
 	var view View
 	canvas := testCanvas()
-	view.Draw(canvas, theme, gfx.Rect{Width: 100, Height: 60}, func(f *Frame) {
+	view.Draw(canvas, Palette, gfx.Rect{Width: 100, Height: 60}, func(f *Frame) {
 		state := gfx.State{Checked: on}
-		look := components.CheckboxRecipe(theme, state)
+		look := components.CheckboxRecipe(Palette, state)
 		f.CheckboxBase(baseBox, on).Radius(look.Radius).Background(look.Fill).Border(1, look.Border).
 			Draw(func(d *DrawContext) { components.PaintCheckboxMark(d.Canvas, d.Rect, state, look.Mark) })
 	})
