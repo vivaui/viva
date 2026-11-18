@@ -16,7 +16,7 @@ import (
 func (f *frame) Badge(label string) Box {
 	b := f.box(kindBadge)
 	n := &f.Nodes[b.i]
-	n.text, n.label = label, label
+	n.Text, n.label = label, label
 	return b
 }
 

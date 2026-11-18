@@ -17,14 +17,14 @@ func cellCanvas() *gfx.Canvas {
 
 // monoLines draws a Mono paragraph of at most maxLines lines width wide, at a size whose
 // cell is 5, and returns what was painted and the width and height the layout gave it.
-func monoLines(t *testing.T, text string, width float32, MaxLines int) ([]string, gfx.Rect) {
+func monoLines(t *testing.T, Text string, width float32, MaxLines int) ([]string, gfx.Rect) {
 	t.Helper()
 	var view View
 	canvas := cellCanvas()
 	var box Box
 	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 600})
 	f.Column().Children(func() {
-		box = f.Text(text).Mono().FontSize(10).MaxLines(MaxLines)
+		box = f.Text(Text).Mono().FontSize(10).MaxLines(MaxLines)
 	})
 	f.End()
 	var lines []string

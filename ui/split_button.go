@@ -95,9 +95,9 @@ func (b Box) MenuLabel(label string) Box {
 }
 
 // MenuHint is the description read after a SplitButton trigger's name.
-func (b Box) MenuHint(text string) Box {
+func (b Box) MenuHint(Text string) Box {
 	if n := b.n(); n.Kind == kindSplitButton {
-		widgetsOf(b.f).splitButtons[n.Aux].menuHint = text
+		widgetsOf(b.f).splitButtons[n.Aux].menuHint = Text
 	}
 	return b
 }

@@ -80,8 +80,8 @@ func (f *frame) measure(axis int) {
 			first := int32(len(f.Lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
-			if n.text != "" && n.Natural <= n.rect.Width-n.padX() && strings.IndexByte(n.text, '\n') < 0 {
-				f.Lines = append(f.Lines, n.text)
+			if n.Text != "" && n.Natural <= n.rect.Width-n.padX() && strings.IndexByte(n.Text, '\n') < 0 {
+				f.Lines = append(f.Lines, n.Text)
 			} else {
 				f.Lines = f.wrapText(f.Lines, n)
 			}
@@ -126,9 +126,9 @@ func (f *frame) measureLeafIn(n *node) {
 			// A Mono text is as wide as its cells: a wide character takes two, a combining
 			// mark none, as the canvas measures and draws it.
 			_, ch := f.Surface.MonoCellSize(n.FontSize, n.Face)
-			n.Pref = [2]float32{f.Surface.TextWidthStyle(n.text, n.textStyle()), ch}
+			n.Pref = [2]float32{f.Surface.TextWidthStyle(n.Text, n.textStyle()), ch}
 		} else {
-			n.Pref = [2]float32{f.Surface.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
+			n.Pref = [2]float32{f.Surface.TextWidthWeight(n.Text, n.FontSize, n.Weight), n.leading()}
 		}
 		n.Natural = n.Pref[axisX]
 		n.Pref[axisX] += n.padX() // a Text takes its Pad and Border like a container

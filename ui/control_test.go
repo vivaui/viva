@@ -20,7 +20,7 @@ type console struct {
 	drags   int
 	Scroll  float32
 	focused bool
-	text    app.TextInput
+	Text    app.TextInput
 	asked   gfx.ID
 }
 
@@ -52,9 +52,9 @@ func newConsole() *console {
 		},
 		Text: func(context app.TextInputContext) *app.TextInput {
 			t.asked = context.ID
-			t.text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
-			t.text.OnEvent = t.onText
-			return &t.text
+			t.Text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
+			t.Text.OnEvent = t.onText
+			return &t.Text
 		},
 	}
 	t.draw = func(d *ui.DrawContext) {

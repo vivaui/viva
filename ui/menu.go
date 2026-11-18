@@ -671,8 +671,8 @@ func (item MenuItem) Disabled(disabled bool) MenuItem {
 
 // Description adds a muted second line under the item's label, for an action whose
 // meaning needs a word more: what a model answers, which folder a file goes to.
-func (item MenuItem) Description(text string) MenuItem {
-	item.menu.Items[item.i].description = text
+func (item MenuItem) Description(Text string) MenuItem {
+	item.menu.Items[item.i].description = Text
 	return item
 }
 

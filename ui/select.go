@@ -507,7 +507,7 @@ func selectRows(count int, frame float32) int {
 // Placeholder is the text a Select or Combobox shows while nothing is selected.
 func (b Box) Placeholder(value string) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		n.text = value
+		n.Text = value
 	} else if s := b.combo(); s != nil {
 		s.placeholder = value
 	}
@@ -541,9 +541,9 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 
 // Hint is the description assistive technology reads after a Select's name and value, for
 // what the value alone does not say, such as the path a chosen shell stands for.
-func (b Box) Hint(text string) Box {
+func (b Box) Hint(Text string) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		widgetsOf(b.f).selects[n.Aux].hint = text
+		widgetsOf(b.f).selects[n.Aux].hint = Text
 	}
 	return b
 }
@@ -660,7 +660,7 @@ func (f *frame) paintSelect(n *node) {
 	}
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
 	options := components.SelectOptions{
-		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.text, Hint: d.hint,
+		TriggerID: d.triggerID(count), Label: n.label, Placeholder: n.Text, Hint: d.hint,
 		Disabled: n.Flags&flagDisabled != 0,
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}
@@ -678,7 +678,7 @@ func (f *frame) paintSelect(n *node) {
 		}
 	}
 	if options.Label == "" {
-		options.Label = n.text
+		options.Label = n.Text
 	}
 	open := d.popup >= 0
 	if open {

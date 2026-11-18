@@ -40,7 +40,7 @@ func (pool *slotPool) give(slot, epoch uint32) {
 // keyKey is one row of Key or KeyIndex: its parent scope and its key.
 type keyKey struct {
 	Parent gfx.Scope
-	text   string
+	Text   string
 	number int
 	isText bool
 }
@@ -64,7 +64,7 @@ type armedButton struct {
 
 func (key keyKey) describe() string {
 	if key.isText {
-		return `"` + key.text + `"`
+		return `"` + key.Text + `"`
 	}
 	digits := [20]byte{}
 	at := len(digits)

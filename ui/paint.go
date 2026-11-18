@@ -112,7 +112,7 @@ func (f *frame) paint(i int32) {
 		if n.Flags&flagLabelFor != 0 {
 			text := n.label
 			if text == "" && n.Kind == kindText {
-				text = n.text
+				text = n.Text
 			}
 			canvas.HitLabel(n.ID, hit, text, n.Flags&flagDisabled != 0)
 		} else {
@@ -200,7 +200,7 @@ func (f *frame) paintControl(n *node, r Rect) {
 }
 
 func (f *frame) paintText(n *node) {
-	if n.text == "" {
+	if n.Text == "" {
 		return
 	}
 	left, right := n.inset(axisX)
@@ -218,7 +218,7 @@ func (f *frame) paintText(n *node) {
 		// A paragraph has one direction: each of its lines follows it, not the first strong
 		// character of the line.
 		if style.Direction == gfx.DirectionAuto {
-			style.Direction = gfx.TextDirectionOf(n.text)
+			style.Direction = gfx.TextDirectionOf(n.Text)
 		}
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
@@ -233,7 +233,7 @@ func (f *frame) paintText(n *node) {
 	if clipped {
 		f.Surface.Clip(r)
 	}
-	f.Surface.LabelAligned(n.text, bounds, style, alignment)
+	f.Surface.LabelAligned(n.Text, bounds, style, alignment)
 	if clipped {
 		f.Surface.Unclip()
 	}

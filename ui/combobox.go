@@ -288,9 +288,9 @@ func (b Box) Describe(describe func(i int) ComboboxOption) Box {
 }
 
 // Empty is what a Combobox's list says when nothing matches what was typed.
-func (b Box) Empty(text string) Box {
+func (b Box) Empty(Text string) Box {
 	if s := b.combo(); s != nil {
-		s.empty = text
+		s.empty = Text
 	}
 	return b
 }

@@ -28,15 +28,15 @@ func (b Box) Mixed(mixed bool) Box {
 	return b
 }
 
-func (b Box) Caption(text string) Box {
+func (b Box) Caption(Text string) Box {
 	n := b.n()
 	if n.Kind != kindCheckbox && n.Kind != kindSwitch {
 		return b
 	}
-	n.text = text
+	n.Text = Text
 	b.f.captionFn = (*frame).paintCaption
 	if n.label == "" {
-		n.label = text
+		n.label = Text
 	}
 	return b
 }
@@ -87,6 +87,6 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	if disabled {
 		color.Alpha *= 0.5
 	}
-	f.Surface.Label(n.text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
-	f.Surface.HitLabel(n.ID, r, n.text, disabled)
+	f.Surface.Label(n.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	f.Surface.HitLabel(n.ID, r, n.Text, disabled)
 }

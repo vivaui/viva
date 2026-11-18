@@ -50,9 +50,9 @@ func TestShortcutActsWhereTheFocusIs(t *testing.T) {
 	m := &shortcutModel{rows: []string{"a", "b"}}
 	d := openPage(t, m.page)
 
-	chord := func(text rune) {
+	chord := func(Text rune) {
 		t.Helper()
-		if _, err := d.driver.ShortcutChord(ui.Primary, text); err != nil {
+		if _, err := d.driver.ShortcutChord(ui.Primary, Text); err != nil {
 			t.Fatal(err)
 		}
 	}

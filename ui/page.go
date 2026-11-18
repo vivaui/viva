@@ -71,7 +71,7 @@ type protoName struct {
 // their names, focus and state as rows come, go and move. Keys are unique among
 // their siblings in a paint.
 func (c *Ctx) Key(key string) C {
-	c.Next, c.nextSet = protoName{key: keyKey{text: key, isText: true}, kindOf: 1}, true
+	c.Next, c.nextSet = protoName{key: keyKey{Text: key, isText: true}, kindOf: 1}, true
 	return c
 }
 

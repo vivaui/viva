@@ -15,11 +15,11 @@ const TooltipLayer = 1000
 // pointer leaves. The element is a control, or a container given an identity.
 //
 //	ui.Button(c, "").Icon(trash).Tooltip("Delete")
-func (b Box) Tooltip(text string) Box {
+func (b Box) Tooltip(Text string) Box {
 	if b.n().ID.IsZero() {
 		panic("ui: Tooltip needs an element with an identity: a control, or a container given Hit")
 	}
-	b.f.extra(b.i).tooltip = text
+	b.f.extra(b.i).tooltip = Text
 	b.f.tooltips = true
 	b.f.paintTooltipFn = (*frame).paintTooltip
 	return b

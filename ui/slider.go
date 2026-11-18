@@ -32,7 +32,7 @@ type SliderState struct {
 	grab     float32 // how far from the thumb's middle a drag took hold of it
 	off      bool    // the slider was declared Disabled
 	moved    bool    // Key changed the value and no declaration has reported it yet
-	text     string  // Value as accessibility text, formatted when it changes
+	Text     string  // Value as accessibility text, formatted when it changes
 	textOf   float32
 }
 
@@ -86,10 +86,10 @@ func (s *SliderState) fit(value float32) float32 {
 // valueText is Value as the text a screen reader announces, formatted only when the
 // value has changed.
 func (s *SliderState) valueText() string {
-	if s.text == "" || s.textOf != s.Value {
-		s.text, s.textOf = strconv.FormatFloat(float64(s.Value), 'f', -1, 32), s.Value
+	if s.Text == "" || s.textOf != s.Value {
+		s.Text, s.textOf = strconv.FormatFloat(float64(s.Value), 'f', -1, 32), s.Value
 	}
-	return s.text
+	return s.Text
 }
 
 type sliderDecl struct {

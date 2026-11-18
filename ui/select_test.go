@@ -335,8 +335,8 @@ func TestSelectTypeAheadJumpsToTheMatchingOption(t *testing.T) {
 	var state SelectState
 	drawFruit(&state, fruit, 400)
 	trigger := selScope.At(len(fruit))
-	typed := func(target gfx.ID, text string) gfx.EventResult {
-		return state.Key(gfx.KeyEvent{Text: text, Target: target})
+	typed := func(target gfx.ID, Text string) gfx.EventResult {
+		return state.Key(gfx.KeyEvent{Text: Text, Target: target})
 	}
 
 	if got := typed(omit, "b"); got.Handled || state.Open {

@@ -134,7 +134,7 @@ func (f *frame) measureControls(n *node) {
 			n.Pref[axisX] = n.Pref[axisY]
 		}
 	case kindBadge:
-		w, h := components.BadgeExtent(f.Surface, f.Palette, n.text)
+		w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
 		n.Pref = [2]float32{w, h}
 	case kindPagination:
 		w, h := components.PaginationExtent(f.Surface, f.Palette, f.paginationItems(n))
@@ -149,15 +149,15 @@ func (f *frame) measureControls(n *node) {
 	case kindCheckbox:
 		w, h := components.CheckboxHitExtent(f.Palette)
 		n.Pref = [2]float32{w, h}
-		if n.text != "" {
-			n.Pref[axisX] = components.CheckboxExtent(f.Palette) + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+		if n.Text != "" {
+			n.Pref[axisX] = components.CheckboxExtent(f.Palette) + captionGap + f.Surface.TextWidthWeight(n.Text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
 		w, h := components.SwitchHitExtent(f.Palette, n.Flags&flagSmall != 0)
 		n.Pref = [2]float32{w, h}
-		if n.text != "" {
+		if n.Text != "" {
 			control, _ := components.SwitchExtent(f.Palette, n.Flags&flagSmall != 0)
-			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.Text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
 		var width float32 = 8

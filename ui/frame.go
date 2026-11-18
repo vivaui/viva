@@ -124,7 +124,7 @@ type node struct {
 	Background           Color
 	BorderWidth, Radius  float32
 	GridCol, GridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
-	text                 string
+	Text                 string
 	FontSize, Weight     float32
 	LineH                float32 // 0 is the size plus seven
 	Face                 gfx.MonoFace
@@ -570,7 +570,7 @@ func (f *frame) Paragraph(value string, MaxLines int) Box {
 func (f *frame) Text(value string) Box {
 	b := f.box(kindText)
 	n := &f.Nodes[b.i]
-	n.text = value
+	n.Text = value
 	n.FontSize = f.Palette.Metrics.FontSizeM
 	n.Color = f.Palette.Foreground
 	n.Shrink = 1

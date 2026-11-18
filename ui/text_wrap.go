@@ -11,7 +11,7 @@ import (
 // that did not change can append the saved lines instead of measuring every
 // prefix again.
 type wrapCache struct {
-	text     string
+	Text     string
 	Size     float32
 	Weight   float32
 	mono     bool
@@ -45,12 +45,12 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 	if mono {
 		face = n.Face
 	}
-	if wrapped.filled && wrapped.text == n.text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight && wrapped.mono == mono && wrapped.Face == face && wrapped.width == width && wrapped.MaxLines == maxLines {
+	if wrapped.filled && wrapped.Text == n.Text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight && wrapped.mono == mono && wrapped.Face == face && wrapped.width == width && wrapped.MaxLines == maxLines {
 		return append(dst, wrapped.Lines...)
 	}
 	start := len(dst)
-	dst = f.Surface.WrapLinesStyle(dst, n.text, n.textStyle(), width, maxLines, cache)
-	wrapped.text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.text, n.FontSize, n.Weight, mono, face, width, maxLines
+	dst = f.Surface.WrapLinesStyle(dst, n.Text, n.textStyle(), width, maxLines, cache)
+	wrapped.Text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.Text, n.FontSize, n.Weight, mono, face, width, maxLines
 	wrapped.Lines = append(wrapped.Lines[:0], dst[start:]...)
 	wrapped.filled = true
 	return dst

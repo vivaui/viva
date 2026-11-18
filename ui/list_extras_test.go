@@ -23,20 +23,20 @@ type sectioned struct {
 }
 
 type sectionItem struct {
-	text   string
+	Text   string
 	header bool
 }
 
 func newSectioned(sections ...[]string) *sectioned {
 	m := &sectioned{}
 	for _, section := range sections {
-		m.Items = append(m.Items, sectionItem{text: section[0], header: true})
+		m.Items = append(m.Items, sectionItem{Text: section[0], header: true})
 		for _, name := range section[1:] {
-			m.Items = append(m.Items, sectionItem{text: name})
+			m.Items = append(m.Items, sectionItem{Text: name})
 		}
 	}
 	m.list.Header = func(i int) bool { return m.Items[i].header }
-	m.list.Label = func(i int) string { return m.Items[i].text }
+	m.list.Label = func(i int) string { return m.Items[i].Text }
 	m.list.Selection = &m.sel
 	m.rowFn = m.row
 	return m
@@ -47,7 +47,7 @@ func (m *sectioned) row(row ui.ListRow) {
 	if row.Header {
 		row.Element.Background(m.c.Theme().Muted)
 	}
-	row.Element.Children(func() { ui.Text(m.c, m.Items[row.Index].text) })
+	row.Element.Children(func() { ui.Text(m.c, m.Items[row.Index].Text) })
 }
 
 func (m *sectioned) page(c ui.C) {

@@ -13,7 +13,7 @@ type basesModel struct {
 	radio, tab     string
 	slider         ui.SliderState
 	Size           string
-	text           string
+	Text           string
 	changed        int
 	paintFn        func(*ui.DrawContext)
 }
@@ -39,7 +39,7 @@ func (m *basesModel) page(c ui.C) {
 			}
 		})
 		ui.SliderBase(c, &m.slider).Height(16).Width(120).Label("Base slider")
-		ui.TextFieldBase(c, &m.text, "Base field", "").Width(120)
+		ui.TextFieldBase(c, &m.Text, "Base field", "").Width(120)
 	})
 }
 
@@ -92,8 +92,8 @@ func TestPageBasesDoWhatTheControlsDo(t *testing.T) {
 	}
 	d.click("Base field")
 	d.typeText("hi")
-	if m.text != "hi" {
-		t.Fatalf("TextFieldBase holds %q", m.text)
+	if m.Text != "hi" {
+		t.Fatalf("TextFieldBase holds %q", m.Text)
 	}
 	d.click("Base slider")
 	before := m.slider.Value
