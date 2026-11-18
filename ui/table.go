@@ -529,7 +529,7 @@ func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, co
 // paintTableScrollbars paints and drags the bars of a Table that scrolls itself.
 // They share the body's content extents and offsets; a bar sits in the gutter the
 // spec asked for and over the body's edge when it did not.
-func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Size, offsetX, offsetY, frozenWidth float32) {
+func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Size, offsetX, offsetY, frozenWidth float32) {
 	revealed := f.page == nil || f.page.pointerOver(r) || t.state.Scroll.dragging
 	label := t.spec.ScrollbarLabel
 	if label == "" {
@@ -559,7 +559,7 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, content gfx.Siz
 		verticalLabel = ""
 	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
-	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, content).
+	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, Content).
 		Offset(offsetX, offsetY).
 		Frozen(frozenWidth).
 		ScrollbarSize(size).

@@ -45,7 +45,7 @@ func (b Box) Children(fn func()) Box {
 func (b Box) Rect() Rect { return b.n().rect }
 
 // Content is the natural height of a Scroll's children, valid after End.
-func (b Box) Content() float32 { return b.n().content }
+func (b Box) Content() float32 { return b.n().Content }
 
 // Clicked reports whether this paint is delivering a click on the element, which
 // needs an ID: a Button, Checkbox or Switch has one, any other element takes one

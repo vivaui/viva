@@ -9,12 +9,12 @@ import (
 
 type overlayModel struct {
 	overlay ui.Box
-	content ui.Box
+	Content ui.Box
 }
 
 func (m *overlayModel) view(c ui.C) {
 	ui.Column(c).Fill().Pad(10).Children(func() {
-		m.content = ui.Button(c, "Content")
+		m.Content = ui.Button(c, "Content")
 	})
 	m.overlay = ui.Overlay(c, ui.OverlaySpec{
 		Band: ui.LayerPaneChrome, Bounds: gfx.Rect{X: 40, Y: 40, Width: 160, Height: 120},

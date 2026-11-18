@@ -60,7 +60,7 @@ type TreeState struct {
 	paint           func(*DrawContext)
 	c               C
 	label           func(int) string
-	content         func(int)
+	Content         func(int)
 }
 
 type treeRow struct {
@@ -149,7 +149,7 @@ func (s *TreeState) Chosen() (int, bool) { return s.chosen, s.chosen >= 0 }
 //	if i, ok := m.files.Chosen(); ok { m.open(i) }
 //
 // Not inside a Memo.
-func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i int)) Box {
+func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i int)) Box {
 	p := c.page
 	p.forbidInMemo("Tree")
 	if state.Node == nil {
@@ -164,7 +164,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 	}
 	state.toggled, state.chosen = -1, -1
 	state.dropped = TreeMove{From: -1}
-	state.c, state.label, state.content, state.n = c, label, content, n
+	state.c, state.label, state.Content, state.n = c, label, Content, n
 	state.nameOf, state.f = label, c.f
 	if state.CanDrop != nil {
 		state.dragPointer(c.f.canvas)
@@ -178,7 +178,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, content func(i
 	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
 	state.scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
-	state.c, state.label, state.content = nil, nil, nil // the model's functions: not kept past the paint
+	state.c, state.label, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
 		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).routeKey, (*Page).treeKey, (*Page).typeKey
@@ -260,8 +260,8 @@ func (s *TreeState) row(i int, rowBox Box) {
 		b := Row(c).Height(s.heightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.paint)
 		s.declared = append(s.declared, treeRow{index: i, key: key, node: b.i, gen: b.gen, item: item})
 		b.Children(func() {
-			if s.content != nil {
-				s.content(i)
+			if s.Content != nil {
+				s.Content(i)
 			} else {
 				Text(c, item.Label)
 			}

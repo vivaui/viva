@@ -179,7 +179,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	// say how much they need.
 	switch s := f.sidewaysState(n); {
 	case axis == axisY:
-		n.content = total
+		n.Content = total
 	case s != nil:
 		s.ContentWidth = total
 	default:

@@ -141,7 +141,7 @@ type node struct {
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
 	scroll               float32   // how far a Scroll is scrolled
-	content              float32   // the natural height of a Scroll's children
+	Content              float32   // the natural height of a Scroll's children
 	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	basis                float32   // Basis, when flagBasis is set
 	aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented

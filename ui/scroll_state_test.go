@@ -14,7 +14,7 @@ type scrollModel struct {
 	goTo     float32 // asks the next paint to scroll there when positive
 	end      bool
 	offset   float32
-	content  float32
+	Content  float32
 	viewport float32
 	atEnd    bool
 }
@@ -39,7 +39,7 @@ func (m *scrollModel) page(c ui.C) {
 			state.ScrollToEnd()
 			m.end = false
 		}
-		m.offset, m.content, m.viewport, m.atEnd = state.Offset, state.Content, state.Viewport, state.AtEnd()
+		m.offset, m.Content, m.viewport, m.atEnd = state.Offset, state.Content, state.Viewport, state.AtEnd()
 		area.Children(func() {
 			for i := range m.n {
 				ui.Button(c.KeyInt(i), m.labels[i]).Outline()
@@ -54,8 +54,8 @@ func TestScrollStateReadsAndMovesAPageScrollArea(t *testing.T) {
 	m := newScrollModel(60)
 	d := openPage(t, m.page)
 	d.repaint() // the layout of the first paint is what the second reads
-	if m.content <= m.viewport || m.viewport <= 0 {
-		t.Fatalf("content %v, viewport %v: the layout was not reported", m.content, m.viewport)
+	if m.Content <= m.viewport || m.viewport <= 0 {
+		t.Fatalf("content %v, viewport %v: the layout was not reported", m.Content, m.viewport)
 	}
 	if m.offset != 0 || d.has("Row 40") {
 		t.Fatalf("offset %v at the start, row 40 shown %v", m.offset, d.has("Row 40"))

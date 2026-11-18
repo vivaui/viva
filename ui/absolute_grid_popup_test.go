@@ -74,7 +74,7 @@ func TestGridSpanWiderThanTheGridIsAsWideAsTheGrid(t *testing.T) {
 }
 
 func TestAbsoluteChildDoesNotChangeItsSiblingsIsAboveThemAndWinsTheHit(t *testing.T) {
-	layout := func(withBadge bool) (card, badge, body, content Box, canvas *gfx.Canvas) {
+	layout := func(withBadge bool) (card, badge, body, Content Box, canvas *gfx.Canvas) {
 		var view View
 		canvas = testCanvas()
 		f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200})
@@ -86,7 +86,7 @@ func TestAbsoluteChildDoesNotChangeItsSiblingsIsAboveThemAndWinsTheHit(t *testin
 					badge = f.Button(save, "x").IconOnly().Absolute().Top(-6).Right(-6)
 				}
 			})
-			content = f.Slot().Height(30)
+			Content = f.Slot().Height(30)
 		})
 		f.End()
 		return

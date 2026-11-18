@@ -474,7 +474,7 @@ type menuRow struct {
 	trailingWidth float32
 	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
 	height        float32                                                    // a content row's height
-	content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	Content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
 	pageContent   func(c C, bounds Rect)                                     // what a page content row declares
 	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
@@ -586,7 +586,7 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 // takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
 // called while scrolling has the row out of sight.
 func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
-	m.Items = append(m.Items, menuRow{Kind: menuRowContent, height: height, content: body})
+	m.Items = append(m.Items, menuRow{Kind: menuRowContent, height: height, Content: body})
 }
 
 // ContentPage adds a row height tall whose controls body declares in the page:
@@ -617,12 +617,12 @@ func (m *MenuItems) rowExtent(i int) float32 {
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
 func (m *MenuItems) paintContent(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
-	if bounds.Width <= 0 || row.content == nil {
+	if bounds.Width <= 0 || row.Content == nil {
 		return
 	}
 	begin()
 	canvas.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
-	row.content(canvas, bounds, theme)
+	row.Content(canvas, bounds, theme)
 	canvas.Unclip()
 	end()
 }

@@ -464,13 +464,13 @@ func TestTreeRowAndDisclosureIDs(t *testing.T) {
 type labelTreeModel struct {
 	*treeModel
 	c       ui.C
-	content func(int) // m.row, made once
+	Content func(int) // m.row, made once
 	renamed string
 }
 
 func newLabelTreeModel(folders []folder) *labelTreeModel {
 	m := &labelTreeModel{treeModel: newTreeModel(folders)}
-	m.content = m.row
+	m.Content = m.row
 	return m
 }
 
@@ -487,7 +487,7 @@ func (m *labelTreeModel) row(i int) {
 func (m *labelTreeModel) page(c ui.C) {
 	m.c = c
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.Tree(c, &m.state, len(m.visible), m.label, m.content).Grow(1)
+		ui.Tree(c, &m.state, len(m.visible), m.label, m.Content).Grow(1)
 		if i, ok := m.state.Chosen(); ok {
 			m.opened = m.name(i)
 		}

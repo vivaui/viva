@@ -420,7 +420,7 @@ func (f *frame) reportScrolls() {
 		}
 		s := f.exts[n.ext].scrollState
 		is, ie := n.inset(axisY)
-		s.Content, s.Viewport = n.content, max(n.rect.Height-is-ie, 0)
+		s.Content, s.Viewport = n.Content, max(n.rect.Height-is-ie, 0)
 		if s.pinned() {
 			s.Offset = s.Max()
 			s.toEnd = false
