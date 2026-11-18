@@ -38,16 +38,16 @@ func (f *frame) breakLines(n *node, avail float32) {
 		}
 		used += size
 		count++
-		child.gridRow = uint16(line)
+		child.GridRow = uint16(line)
 	}
 }
 
 // lineEnd is the child after the last on the line child c is on, or -1 when that
 // line is the last.
 func (f *frame) lineEnd(c int32) int32 {
-	line := f.nodes[c].gridRow
+	line := f.nodes[c].GridRow
 	c = f.nodes[c].Next
-	for c >= 0 && f.nodes[c].gridRow == line {
+	for c >= 0 && f.nodes[c].GridRow == line {
 		c = f.nodes[c].Next
 	}
 	return c

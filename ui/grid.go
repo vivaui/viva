@@ -62,7 +62,7 @@ func (f *frame) placeGrid(n *node, columns int) int {
 			}
 			col++
 		}
-		child.GridCol, child.gridRow = uint16(col), uint16(row)
+		child.GridCol, child.GridRow = uint16(col), uint16(row)
 		if tall {
 			for r := row; r < row+rs; r++ {
 				for k := col; k < col+cs; k++ {
@@ -96,7 +96,7 @@ func (f *frame) gridRows(n *node) int {
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		_, rs := child.span()
-		rows = max(rows, int(child.gridRow)+rs)
+		rows = max(rows, int(child.GridRow)+rs)
 		widest = max(widest, rs)
 	}
 	s.rows = s.rows[:0]
@@ -111,7 +111,7 @@ func (f *frame) gridRows(n *node) int {
 			}
 			ms, me := child.marginOn(axisY)
 			need := child.pref[axisY] + ms + me
-			first := int(child.gridRow)
+			first := int(child.GridRow)
 			have := n.gap * float32(span-1)
 			for r := first; r < first+span; r++ {
 				have += s.rows[r]
@@ -177,7 +177,7 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		_, rs := child.span()
-		first := int(child.gridRow)
+		first := int(child.GridRow)
 		last := first + rs - 1
 		ms, me := child.marginOn(axisY)
 		covered := s.rowAt[last] + s.rows[last] - s.rowAt[first]

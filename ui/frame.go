@@ -123,7 +123,7 @@ type node struct {
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
 	BorderWidth, Radius  float32
-	GridCol, gridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
+	GridCol, GridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
 	FontSize, Weight     float32
 	LineH                float32 // 0 is the size plus seven

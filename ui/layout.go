@@ -537,7 +537,7 @@ func (f *frame) measureBaseline(n *node) {
 		is, _ := n.inset(axisY)
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
-			if n.Dir == flow && child.gridRow != 0 {
+			if n.Dir == flow && child.GridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
 			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.First < 0 {
@@ -545,7 +545,7 @@ func (f *frame) measureBaseline(n *node) {
 			}
 			value := is + child.margin[0] + child.baseline
 			if n.Dir == row || n.Dir == flow {
-				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].gridRow == 0); k = f.nodes[k].Next {
+				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].GridRow == 0); k = f.nodes[k].Next {
 					other := &f.nodes[k]
 					value = max(value, is+other.margin[0]+other.baseline)
 				}
