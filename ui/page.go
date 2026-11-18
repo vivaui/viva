@@ -313,9 +313,9 @@ type Page struct {
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
-	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves and chooses rows of a List
-	wheelXRoute   func(*Page, gfx.ScrollEvent) (moved, only bool)   // the sideways wheel of a List with RowWidth
-	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
+	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)      // moves and chooses rows of a List
+	wheelXRoute   func(*Page, gfx.ScrollEvent, int32) (moved, only bool) // the sideways wheel of a List with RowWidth, inside a wheel panel
+	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)      // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
 	textRoute     func(*Page, gfx.ID) *app.TextInput
 }
@@ -1161,8 +1161,10 @@ func (p *Page) pointerOver(r Rect) bool {
 }
 
 // Wheel scrolls an open Select, else the scroll area under the pointer, and gives
-// an event neither takes to the OnScroll Config was given. It is the Config's
-// OnScroll; a host that draws a page into a region calls it itself.
+// an event neither takes to the OnScroll Config was given. Over an open Popover's
+// panel, a Dialog or a modal Drawer only what is inside the panel scrolls, and an
+// event nothing there takes stops at the panel. It is the Config's OnScroll; a host
+// that draws a page into a region calls it itself.
 func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {
@@ -1174,10 +1176,15 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 			return state.Wheel(event)
 		}
 	}
+	f := p.view.frame
+	panel := int32(-1)
+	if f != nil {
+		panel = f.wheelPanel(event.X, event.Y)
+	}
 	// A TextArea under the pointer scrolls its own rows first; at its end the wheel goes on
 	// to the page, as in a browser.
 	for _, entry := range p.fields {
-		if entry.field.rows && entry.field.area != nil && entry.field.area.Wheel(event) {
+		if entry.field.rows && entry.field.area != nil && f.within(entry.box, panel) && entry.field.area.Wheel(event) {
 			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
@@ -1189,17 +1196,21 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	moved := false
 	if p.wheelXRoute != nil {
 		var only bool
-		if moved, only = p.wheelXRoute(p, event); only && moved {
+		if moved, only = p.wheelXRoute(p, event, panel); only && moved {
 			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
-	if result := p.view.Wheel(event); result.Handled || result.Repaint {
-		result.Repaint = result.Repaint || moved
-		return result
+	manual := false
+	if f != nil {
+		var result gfx.EventResult
+		if result, manual = f.wheelArea(panel, event); result.Handled || result.Repaint {
+			result.Repaint = result.Repaint || moved
+			return result
+		}
 	}
 	for i := len(p.tables) - 1; i >= 0; i-- {
 		route := &p.tables[i]
-		if !route.scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) {
+		if !route.scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) || panel >= 0 && route.root != panel {
 			continue
 		}
 		state := &route.state.Scroll
@@ -1213,6 +1224,9 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	if moved {
 		return gfx.EventResult{Handled: true, Repaint: true}
+	}
+	if panel >= 0 && !manual {
+		return gfx.EventResult{Handled: true} // what the panel covers is out of the wheel's reach
 	}
 	if p.baseScroll != nil {
 		return p.baseScroll(event)
