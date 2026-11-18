@@ -19,17 +19,17 @@ type bindDecl struct {
 }
 
 // bindBool makes the Checkbox or Switch b flip value when it is clicked.
-func (f *frame) bindBool(b Box, value *bool) {
+func (f *frame) bindBool(b Box, Value *bool) {
 	f.extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.settleFn = (*frame).settleAt
-	f.Binds = append(f.Binds, bindDecl{flag: value})
+	f.Binds = append(f.Binds, bindDecl{flag: Value})
 }
 
 // bindIndex makes the Choice, Tabs or Select b set value to the option chosen.
-func (f *frame) bindIndex(b Box, value *int) {
+func (f *frame) bindIndex(b Box, Value *int) {
 	f.extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.settleFn = (*frame).settleAt
-	f.Binds = append(f.Binds, bindDecl{index: value})
+	f.Binds = append(f.Binds, bindDecl{index: Value})
 }
 
 // bindField makes Changed on the Field b report an edit of field.

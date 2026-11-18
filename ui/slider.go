@@ -72,15 +72,15 @@ func (s *SliderState) Key(event gfx.KeyEvent) gfx.EventResult {
 }
 
 // fit keeps a value inside the range and on a multiple of the step from its start.
-func (s *SliderState) fit(value float32) float32 {
+func (s *SliderState) fit(Value float32) float32 {
 	if s.max <= s.min {
 		return s.min
 	}
-	value = min(max(value, s.min), s.max)
+	Value = min(max(Value, s.min), s.max)
 	if s.step > 0 {
-		value = min(s.min+float32(int((value-s.min)/s.step+0.5))*s.step, s.max)
+		Value = min(s.min+float32(int((Value-s.min)/s.step+0.5))*s.step, s.max)
 	}
-	return value
+	return Value
 }
 
 // valueText is Value as the text a screen reader announces, formatted only when the

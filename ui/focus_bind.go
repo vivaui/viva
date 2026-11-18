@@ -24,7 +24,7 @@ import "github.com/vivaui/viva/gfx"
 //
 // Not inside a Memo, whose copies are not declared. Use FocusedValue to read the
 // focus that is committed, rather than the request.
-func FocusBind[T comparable](box Box, field *T, value T) Box {
+func FocusBind[T comparable](box Box, field *T, Value T) Box {
 	n := box.n()
 	if box.f.memoDepth > 0 {
 		panic("ui: FocusBind in a Memo: a copied part is not declared, so its binding would disappear; declare it outside the Memo")
@@ -58,7 +58,7 @@ func FocusBind[T comparable](box Box, field *T, value T) Box {
 		state.bindings = state.bindings[:0]
 		p.focusPaint = append(p.focusPaint, state)
 	}
-	state.bindings = append(state.bindings, focusBinding[T]{ID: n.ID, value: value})
+	state.bindings = append(state.bindings, focusBinding[T]{ID: n.ID, Value: Value})
 	return box
 }
 
@@ -82,7 +82,7 @@ func FocusedValue[T comparable](c C, field *T) T {
 	focused := canvas.Focused()
 	for i := range state.bindings {
 		if state.bindings[i].ID == focused {
-			return state.bindings[i].value
+			return state.bindings[i].Value
 		}
 	}
 	return zero
@@ -97,7 +97,7 @@ type focusState interface {
 
 type focusBinding[T comparable] struct {
 	ID    gfx.ID
-	value T
+	Value T
 }
 
 type focusBindings[T comparable] struct {
@@ -125,14 +125,14 @@ func (s *focusBindings[T]) settle(Surface *gfx.Canvas, focused gfx.ID) {
 	focusedBound := false
 	for i := range s.bindings {
 		if s.bindings[i].ID == focused {
-			focusedValue, focusedBound = s.bindings[i].value, true
+			focusedValue, focusedBound = s.bindings[i].Value, true
 			break
 		}
 	}
 	desiredID := gfx.ID{}
 	desiredBound := false
 	for i := range s.bindings {
-		if s.bindings[i].value == desired {
+		if s.bindings[i].Value == desired {
 			desiredID, desiredBound = s.bindings[i].ID, true
 			break
 		}

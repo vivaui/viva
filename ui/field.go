@@ -98,10 +98,10 @@ func (field *Field) Text() string { return field.ensure().String() }
 
 // SetText replaces the contents and puts the caret at the end. Like Text, it
 // must run on the window thread, not in a background worker.
-func (field *Field) SetText(value string) {
+func (field *Field) SetText(Value string) {
 	editor := field.ensure()
 	editor.SetSelection(text.Range{Start: 0, End: editor.RuneCount()})
-	editor.Insert(value)
+	editor.Insert(Value)
 	field.seen = editor.String() // the program's own change is not an edit
 }
 

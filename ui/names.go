@@ -50,7 +50,7 @@ type keyEntry struct{ slot, epoch uint32 }
 // boundKey is one value a control is bound to; n counts the controls of the same
 // kind bound to it in one paint, which share the value but not the identity.
 type boundKey struct {
-	value unsafe.Pointer
+	Value unsafe.Pointer
 	Kind  uint8
 	n     uint32
 }

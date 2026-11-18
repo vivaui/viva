@@ -53,11 +53,11 @@ func (f *frame) placePopup(n *node, axis int) {
 	size := n.Pref[axis]
 	switch d := n.Size[axis]; d.Kind {
 	case dimPx:
-		size = d.value
+		size = d.Value
 	case dimFill:
 		size = span
 	case dimPercent:
-		size = span * d.value / 100
+		size = span * d.Value / 100
 	}
 	size = min(clamp(size, n.MinS[axis], n.MaxS[axis]), max(span, 0))
 	anchor := n.Anchor

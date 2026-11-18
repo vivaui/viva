@@ -66,9 +66,9 @@ const (
 	dimPercent = base.DimPercent
 )
 
-type dimension struct {
+type Dimension struct {
 	Kind  dimKind
-	value float32
+	Value float32
 }
 
 const (
@@ -114,7 +114,7 @@ type node struct {
 
 	Parent, First, Last, Next int32
 
-	Size                 [2]dimension
+	Size                 [2]Dimension
 	MinS, MaxS           [2]float32 // a max of zero is no max
 	Grow, Shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
@@ -345,7 +345,7 @@ func (view *view) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *frame 
 	root := f.add(kindContainer)
 	n := &f.Nodes[root]
 	n.Dir = column
-	n.Size = [2]dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
+	n.Size = [2]Dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
 	f.Parent = root
 	return f
 }
@@ -562,15 +562,15 @@ func (f *frame) Scroll(offset float32) Box {
 // maxLines of them (the last ends with an ellipsis), so its height follows its
 // width. It is what Text is not: a Text is one line and is clipped. Zero or less
 // takes as many lines as the width needs, as Box.MaxLines.
-func (f *frame) Paragraph(value string, MaxLines int) Box {
-	return f.Text(value).MaxLines(MaxLines)
+func (f *frame) Paragraph(Value string, MaxLines int) Box {
+	return f.Text(Value).MaxLines(MaxLines)
 }
 
 // Text adds one line of text, in the theme's body size and foreground color.
-func (f *frame) Text(value string) Box {
+func (f *frame) Text(Value string) Box {
 	b := f.box(kindText)
 	n := &f.Nodes[b.i]
-	n.Text = value
+	n.Text = Value
 	n.FontSize = f.Palette.Metrics.FontSizeM
 	n.Color = f.Palette.Foreground
 	n.Shrink = 1
@@ -592,9 +592,9 @@ func (f *frame) Divider() Box {
 	n := &f.Nodes[b.i]
 	n.Background = f.Palette.Border
 	if f.Parent >= 0 && (f.Nodes[f.Parent].Dir == row || f.Nodes[f.Parent].Dir == flow) {
-		n.Size[axisX] = dimension{dimPx, 1}
+		n.Size[axisX] = Dimension{dimPx, 1}
 	} else {
-		n.Size[axisY] = dimension{dimPx, 1}
+		n.Size[axisY] = Dimension{dimPx, 1}
 	}
 	return b
 }

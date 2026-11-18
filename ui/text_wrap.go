@@ -64,7 +64,7 @@ func (n *node) textStyle() gfx.TextStyle {
 
 // Wrap adds text that breaks into as many lines as the width it is given needs,
 // so its height follows its width: Paragraph without a limit.
-func (f *frame) Wrap(value string) Box { return f.Paragraph(value, math.MaxInt32) }
+func (f *frame) Wrap(Value string) Box { return f.Paragraph(Value, math.MaxInt32) }
 
 // MaxLines makes a Text a paragraph of at most n lines, the last ending with an
 // ellipsis when the text needs more (n of one is Ellipsis); n of zero or less

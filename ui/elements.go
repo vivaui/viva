@@ -41,7 +41,7 @@ func ScrollAt(c C, offset float32) Box {
 
 // Leaves without identity.
 
-func Text(c C, value string) Box { return c.f.Text(value) }
+func Text(c C, Value string) Box { return c.f.Text(Value) }
 
 // Textf allocates its string in every paint.
 func Textf(c C, format string, args ...any) Box { return c.f.Text(fmt.Sprintf(format, args...)) }
@@ -54,11 +54,11 @@ func Image(c C, bitmap gfx.Bitmap) Box          { return c.f.Image(bitmap) }
 
 // Paragraph is text that wraps to the width it gets, at most maxLines lines:
 // zero or less takes as many lines as the width needs, as Box.MaxLines.
-func Paragraph(c C, value string, MaxLines int) Box { return c.f.Paragraph(value, MaxLines) }
+func Paragraph(c C, Value string, MaxLines int) Box { return c.f.Paragraph(Value, MaxLines) }
 
 // Wrap is text that wraps to the width it gets, with no line limit: Paragraph
 // without a maximum.
-func Wrap(c C, value string) Box { return c.f.Wrap(value) }
+func Wrap(c C, Value string) Box { return c.f.Wrap(Value) }
 
 // Slot reserves room for something painted by hand (Draw) or a native view
 // (NativeView): Rect says where, once the page is laid out.
@@ -106,24 +106,24 @@ func Button(c C, Label string) Box {
 // The click writes *value when Clicked or Changed is first read on the box, or else
 // when the paint ends; reading *value earlier in that paint sees the previous value,
 // and a Disabled declared after the box still holds.
-func Checkbox(c C, value *bool, Label string) Box {
-	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(value)), *value)
+func Checkbox(c C, Value *bool, Label string) Box {
+	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(Value)), *Value)
 	if Label != "" {
 		b.Caption(Label)
 	}
-	c.f.bindBool(b, value)
+	c.f.bindBool(b, Value)
 	return b
 }
 
 // Switch is Checkbox's two-state switch. Like Checkbox, it writes *value when Clicked
 // or Changed is first read on it, or else when the paint ends; reading *value earlier
 // in that paint sees the previous value.
-func Switch(c C, value *bool, Label string) Box {
-	b := c.f.Switch(c.page.boundID(pkSwitch, unsafe.Pointer(value)), *value)
+func Switch(c C, Value *bool, Label string) Box {
+	b := c.f.Switch(c.page.boundID(pkSwitch, unsafe.Pointer(Value)), *Value)
 	if Label != "" {
 		b.Caption(Label)
 	}
-	c.f.bindBool(b, value)
+	c.f.bindBool(b, Value)
 	return b
 }
 
@@ -141,12 +141,12 @@ func optionLabel[T comparable](option T, Label func(T) string) string {
 
 // options writes the labels of options into the page's scratch, and returns them
 // and the index of *value among the options (-1 when it is none of them).
-func options[T comparable](p *Page, value *T, options []T, Label func(T) string) ([]string, int) {
+func options[T comparable](p *Page, Value *T, options []T, Label func(T) string) ([]string, int) {
 	first := len(p.labels)
 	selected := -1
 	for i, option := range options {
 		p.labels = append(p.labels, optionLabel(option, Label))
-		if option == *value {
+		if option == *Value {
 			selected = i
 		}
 	}
@@ -168,10 +168,10 @@ func optionIcons[T comparable](p *Page, choices []T, icon func(T) gfx.Icon) []gf
 
 // pick writes the option a click chose into *value, where the control is declared,
 // and records whether it did for Changed.
-func pick[T comparable](c C, b Box, value *T, options []T, index int, ok bool) {
-	changed := ok && index < len(options) && options[index] != *value
+func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
+	changed := ok && index < len(options) && options[index] != *Value
 	if changed {
-		*value = options[index]
+		*Value = options[index]
 	}
 	c.f.bindDone(b, changed)
 }
@@ -182,42 +182,42 @@ func pick[T comparable](c C, b Box, value *T, options []T, index int, ok bool) {
 //
 //	ui.Choice(c, &m.theme, []Theme{Light, Dark}, Theme.String)
 //	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil)
-func Choice[T comparable](c C, value *T, choices []T, Label func(T) string) Box {
+func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	p := c.page
-	scope := p.boundScope(pkChoice, unsafe.Pointer(value))
-	labels, selected := options(p, value, choices, Label)
+	scope := p.boundScope(pkChoice, unsafe.Pointer(Value))
+	labels, selected := options(p, Value, choices, Label)
 	b := c.f.Choice(scope, labels, selected)
 	p.rove(c.f, b, false)
 	index, ok := b.ChosenIndex()
-	pick(c, b, value, choices, index, ok)
+	pick(c, b, Value, choices, index, ok)
 	return b
 }
 
 // Tabs is a tab strip over tabs, *value the active one; a click sets it. Declare
 // what the active tab shows after it.
-func Tabs[T comparable](c C, value *T, tabs []T, Label func(T) string) Box {
+func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 	p := c.page
-	scope := p.boundScope(pkTabs, unsafe.Pointer(value))
-	labels, selected := options(p, value, tabs, Label)
+	scope := p.boundScope(pkTabs, unsafe.Pointer(Value))
+	labels, selected := options(p, Value, tabs, Label)
 	b := c.f.Tabs(scope, labels, selected)
 	p.rove(c.f, b, true)
 	index, ok := b.TabClicked()
-	pick(c, b, value, tabs, index, ok)
+	pick(c, b, Value, tabs, index, ok)
 	return b
 }
 
 // Select is a drop-down over choices, *value the chosen one (Placeholder shows while
 // it is none of them); picking an option sets it. Whether its list is open is the
 // Select's own state.
-func Select[T comparable](c C, value *T, choices []T, Label func(T) string) Box {
-	return selectOf(c, value, choices, Label, nil, false, gfx.ID{})
+func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
+	return selectOf(c, Value, choices, Label, nil, false, gfx.ID{})
 }
 
 // SelectID is Select for a control the application already names: the trigger's
 // hit is id, so a row's words can be its LabelFor and the application's key and
 // focus routing can target it. The list's options keep the page's own identities.
-func SelectID[T comparable](c C, ID gfx.ID, value *T, choices []T, Label func(T) string) Box {
-	return selectOf(c, value, choices, Label, nil, false, ID)
+func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T) string) Box {
+	return selectOf(c, Value, choices, Label, nil, false, ID)
 }
 
 // SelectIcon is Select with an icon before every option: icon names each option's
@@ -226,18 +226,18 @@ func SelectID[T comparable](c C, ID gfx.ID, value *T, choices []T, Label func(T)
 // paints exactly what Select does.
 //
 //	ui.SelectIcon(c, &m.locale, locales, localeName, localeFlag)
-func SelectIcon[T comparable](c C, value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
-	return selectOf(c, value, choices, Label, optionIcons(c.page, choices, icon), false, gfx.ID{})
+func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
+	return selectOf(c, Value, choices, Label, optionIcons(c.page, choices, icon), false, gfx.ID{})
 }
 
 // selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
 // control without the theme's look. icons, when SelectIcon's icon function gave
 // them, are indexed by option like the labels; nil is the select without icons.
-func selectOf[T comparable](c C, value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
+func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
 	p := c.page
-	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
+	scope := p.boundScope(pkSelect, unsafe.Pointer(Value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
-	labels, selected := options(p, value, choices, Label)
+	labels, selected := options(p, Value, choices, Label)
 	var b Box
 	if Base {
 		b = c.f.SelectBase(scope, state, labels, selected)
@@ -251,7 +251,7 @@ func selectOf[T comparable](c C, value *T, choices []T, Label func(T) string, ic
 		p.keyRoute, p.selectRoute = (*Page).routeKey, (*Page).selectKey
 	}
 	index, ok := b.Picked()
-	pick(c, b, value, choices, index, ok)
+	pick(c, b, Value, choices, index, ok)
 	if state.Open {
 		p.overlay = true // its open list holds the pointer and keys as a Popover does
 	}
@@ -290,14 +290,14 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 // edited, and the string already holds the edit then.
 //
 //	ui.TextField(c, &m.name, "Name", "Your name")
-func TextField[T TextValue](c C, value T, Label, placeholder string) Box {
-	return textFieldOf(c, value, Label, placeholder, false)
+func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
+	return textFieldOf(c, Value, Label, placeholder, false)
 }
 
 // textFieldOf is TextField, or TextFieldBase when base is set.
-func textFieldOf[T TextValue](c C, value T, Label, placeholder string, Base bool) Box {
+func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool) Box {
 	p := c.page
-	field, id := fieldOf(p, pkField, value)
+	field, id := fieldOf(p, pkField, Value)
 	var b Box
 	if Base {
 		b = c.f.FieldBase(field, id, Label, placeholder)
@@ -332,9 +332,9 @@ func TextFieldID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
 // The page gives the platform its editor, as for a TextField; it has no Submitted.
 //
 //	ui.TextArea(c, &m.notes, "Notes", "Anything to add").Height(120)
-func TextArea[T TextValue](c C, value T, Label, placeholder string) Box {
+func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
 	p := c.page
-	field, id := fieldOf(p, pkArea, value)
+	field, id := fieldOf(p, pkArea, Value)
 	b := c.f.FieldArea(field, id, Label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {

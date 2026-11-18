@@ -34,7 +34,7 @@ import "github.com/vivaui/viva/gfx"
 // A Memo holds no Scroll, List, Popover, Modal or Control: their state is kept
 // by being declared. MemoCheck(true) declares every part and panics where a copy
 // would have differed from it: run tests with it.
-func Memo[T comparable](c C, value T, fn func()) Box {
+func Memo[T comparable](c C, Value T, fn func()) Box {
 	p := c.page
 	at, _ := p.name(pkMemo)
 	id := p.ID(at)
@@ -51,14 +51,14 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 		cell = &memoCell[T]{}
 		entry.cell = cell
 	}
-	same := cell.set && cell.v == value
+	same := cell.set && cell.v == Value
 	f := c.f
 	if p.memoHit(entry, same) && !p.checkingMemos() {
 		b := f.Slot().Size(entry.Rect.Width, entry.Rect.Height).Shrink(0)
 		f.extra(b.i).memo = p.memoBox(entry, true)
 		p.touchMemo(entry)
 		entry.epoch = p.epoch
-		cell.v, cell.set = value, true
+		cell.v, cell.set = Value, true
 		if entry.listens && f.Surface != nil {
 			// The part's controls were not asked about a click this paint, as
 			// they were not declared: say they listen, so that the runtime
@@ -91,7 +91,7 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 		p.memoChecks = append(p.memoChecks, memoCheckOf{span: prev, at: prevAt})
 		p.memoBoxes[len(p.memoBoxes)-1].check = int32(len(p.memoChecks))
 	}
-	cell.v, cell.set = value, true
+	cell.v, cell.set = Value, true
 	entry.scale, entry.fonts = 0, 0
 	if f.Surface != nil {
 		entry.scale = f.Surface.PixelScale()

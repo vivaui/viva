@@ -71,9 +71,9 @@ func iconHoverTransform(progress float32) gfx.IconTransform {
 	return gfx.IconTransform{Translate: Point{Y: -lift}}
 }
 
-func abs32(value float32) float32 {
-	if value < 0 {
-		return -value
+func abs32(Value float32) float32 {
+	if Value < 0 {
+		return -Value
 	}
-	return value
+	return Value
 }

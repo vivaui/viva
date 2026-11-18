@@ -28,8 +28,8 @@ type boundText struct {
 // the last paint is written to *value, and a value the program changed is put in
 // the field with the caret at its end. When both changed, what the user typed is
 // kept, as the newer edit.
-func fieldOf[T TextValue](p *Page, Kind uint8, value T) (*Field, gfx.ID) {
-	switch v := any(value).(type) {
+func fieldOf[T TextValue](p *Page, Kind uint8, Value T) (*Field, gfx.ID) {
+	switch v := any(Value).(type) {
 	case *Field:
 		return v, p.boundID(Kind, unsafe.Pointer(v))
 	case *string:

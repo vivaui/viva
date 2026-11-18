@@ -11,7 +11,7 @@ import (
 // stars are parts it declares as it draws, with its own keys.
 type stars struct {
 	handlers ui.Handlers
-	value    int
+	Value    int
 	pressed  []int // the parts a pointer event was aimed at
 	typed    []string
 	drawFn   func(*ui.DrawContext) // s.draw, made once: a method value made in each paint allocates
@@ -46,7 +46,7 @@ func (s *stars) key(event gfx.KeyEvent) gfx.EventResult {
 		prev := max(i-1, 0)
 		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.handlers.Parts().At(prev), FocusVisible: true}
 	case gfx.KeyEnter, gfx.KeySpace:
-		s.value = i + 1
+		s.Value = i + 1
 		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	return gfx.EventResult{}
@@ -55,7 +55,7 @@ func (s *stars) key(event gfx.KeyEvent) gfx.EventResult {
 func (s *stars) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if i, ok := s.part(event.Target); ok && event.Kind == gfx.PointerDown {
 		s.pressed = append(s.pressed, i)
-		s.value = i + 1
+		s.Value = i + 1
 		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	return gfx.EventResult{}
@@ -68,7 +68,7 @@ func (s *stars) draw(d *ui.DrawContext) {
 	for i := range 5 {
 		r := gfx.Rect{X: d.Rect.X + float32(i)*34, Y: d.Rect.Y, Width: 32, Height: 32}
 		color := d.Theme.Muted
-		if i < s.value {
+		if i < s.Value {
 			color = d.Theme.Primary
 		}
 		d.Canvas.Fill(r, color)
@@ -90,8 +90,8 @@ func TestControlPartsTakeThePointerAndTheKeys(t *testing.T) {
 	s := newStars()
 	d := openPage(t, s.page)
 	d.click("Star 4")
-	if s.value != 4 || len(s.pressed) == 0 || s.pressed[0] != 3 {
-		t.Fatalf("a press on star 4: value %d, parts pressed %v", s.value, s.pressed)
+	if s.Value != 4 || len(s.pressed) == 0 || s.pressed[0] != 3 {
+		t.Fatalf("a press on star 4: value %d, parts pressed %v", s.Value, s.pressed)
 	}
 	if d.focused() != "Star 4" {
 		t.Fatalf("the press focused %q", d.focused())
@@ -103,8 +103,8 @@ func TestControlPartsTakeThePointerAndTheKeys(t *testing.T) {
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyEnter)
-	if d.focused() != "Star 3" || s.value != 3 {
-		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.focused(), s.value)
+	if d.focused() != "Star 3" || s.Value != 3 {
+		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.focused(), s.Value)
 	}
 }
 
@@ -140,8 +140,8 @@ func TestControlPartsAreItsOwn(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 'g'); err != nil {
 		t.Fatal(err)
 	}
-	if s.value != 0 || len(s.typed) != 0 {
-		t.Fatalf("value %d, typed %q from a key on a button", s.value, s.typed)
+	if s.Value != 0 || len(s.typed) != 0 {
+		t.Fatalf("value %d, typed %q from a key on a button", s.Value, s.typed)
 	}
 }
 
@@ -202,7 +202,7 @@ func TestControlContextMenuIsNotItsParts(t *testing.T) {
 	if d.has("Clear") {
 		t.Fatal("a click outside the menu left it open")
 	}
-	if len(s.pressed) != 0 || s.value != 0 {
-		t.Fatalf("the menu pressed the parts %v, value %d", s.pressed, s.value)
+	if len(s.pressed) != 0 || s.Value != 0 {
+		t.Fatalf("the menu pressed the parts %v, value %d", s.pressed, s.Value)
 	}
 }

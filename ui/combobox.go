@@ -25,8 +25,8 @@ import (
 // search by and a disabled state.
 //
 // Not inside a Memo.
-func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, Label string) Box {
-	return combobox(c, value, choices, nameOf, Label)
+func Combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
+	return combobox(c, Value, choices, nameOf, Label)
 }
 
 // ComboboxOption describes one choice of a Combobox, as Describe gives it: Label is its
@@ -48,20 +48,20 @@ type ComboboxOption struct {
 // ComboboxPaint is room in an option's row and what paints it: see ComboboxOption.
 type ComboboxPaint = components.SingleSelectPaint
 
-func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, Label string) Box {
+func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
 	p := c.page
 	p.forbidInMemo("Combobox")
 	if Label == "" {
 		panic("ui: Combobox needs a label: it is the field's name for assistive technology")
 	}
-	scope := p.boundScope(pkCombobox, unsafe.Pointer(value))
+	scope := p.boundScope(pkCombobox, unsafe.Pointer(Value))
 	state := stateIn[comboState](p, scope, "combobox")
 	if state.paint == nil {
 		state.paint = state.draw // made once: a method value made in each paint allocates
 		state.list.LabelsOnly, state.list.MatchCaseInsensitive = true, true
 	}
 	f := c.f
-	labels, selected := options(p, value, choices, nameOf)
+	labels, selected := options(p, Value, choices, nameOf)
 	state.setOptions(labels)
 	key := ""
 	if selected >= 0 {
@@ -98,11 +98,11 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, L
 		var zero T
 		switch i, isKey := comboKey(chosen); {
 		case chosen == "": // cleared
-			changed = *value != zero
-			*value, key = zero, ""
+			changed = *Value != zero
+			*Value, key = zero, ""
 		case isKey && i < len(choices):
-			changed = *value != choices[i]
-			*value, key = choices[i], chosen
+			changed = *Value != choices[i]
+			*Value, key = choices[i], chosen
 		case !isKey: // typed and created: the application takes it into its choices
 			state.created = chosen
 			state.list.ForgetCreated()
@@ -168,11 +168,11 @@ const comboKeyPrefix = "\x00"
 
 // comboKey reads an option's index from a Value; isKey is false for a value the
 // user created.
-func comboKey(value string) (index int, isKey bool) {
-	if len(value) < 2 || value[0] != 0 {
+func comboKey(Value string) (index int, isKey bool) {
+	if len(Value) < 2 || Value[0] != 0 {
 		return 0, false
 	}
-	i, err := strconv.Atoi(value[1:])
+	i, err := strconv.Atoi(Value[1:])
 	return i, err == nil
 }
 

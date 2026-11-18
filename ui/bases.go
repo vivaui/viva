@@ -118,10 +118,10 @@ func (f *frame) OptionBase(ID gfx.ID, Label string, selected bool) Box {
 // ComboboxBase adds the trigger of a select without a look: it reports Clicked, and to
 // assistive technology it is a combobox that is expanded or not and has value as its value.
 // The list it opens is a Popup of OptionBase rows.
-func (f *frame) ComboboxBase(ID gfx.ID, Label, value string, open bool) Box {
+func (f *frame) ComboboxBase(ID gfx.ID, Label, Value string, open bool) Box {
 	b := f.Row().Center()
 	if open {
 		f.Nodes[b.i].Flags |= flagOpen
 	}
-	return b.HitWith(ID, Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: value, Expanded: open, Expandable: true})
+	return b.HitWith(ID, Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: Value, Expanded: open, Expandable: true})
 }

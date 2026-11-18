@@ -10,8 +10,8 @@ import "github.com/vivaui/viva/gfx"
 // application's identity.
 //
 //	ui.Radio(c, &m.plan, Monthly, "Monthly")
-func Radio[T comparable](c C, value *T, option T, Label string) Box {
-	return radio(c, c.page.controlID(pkRadio), value, option, Label)
+func Radio[T comparable](c C, Value *T, option T, Label string) Box {
+	return radio(c, c.page.controlID(pkRadio), Value, option, Label)
 }
 
 // RadioID is Radio for an option the application already names, as TextFieldID is for
@@ -19,19 +19,19 @@ func Radio[T comparable](c C, value *T, option T, Label string) Box {
 // application's own routing or a test can address it.
 //
 //	ui.RadioID(c, hitKeepParent, &m.ungroup, false, "Keep hosts in the parent")
-func RadioID[T comparable](c C, ID gfx.ID, value *T, option T, Label string) Box {
-	return radio(c, ID, value, option, Label)
+func RadioID[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
+	return radio(c, ID, Value, option, Label)
 }
 
-func radio[T comparable](c C, ID gfx.ID, value *T, option T, Label string) Box {
+func radio[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
 	th := c.f.Palette
 	m := th.Metrics
-	b := c.f.RadioBase(ID, Label, *value == option)
-	choose(c, b, value, option)
-	if b.State().FocusVisible && *value != option {
-		*value = option
+	b := c.f.RadioBase(ID, Label, *Value == option)
+	choose(c, b, Value, option)
+	if b.State().FocusVisible && *Value != option {
+		*Value = option
 	}
-	chosen := *value == option
+	chosen := *Value == option
 	border, fill := th.Input, th.Background
 	fill.Alpha = 0
 	if chosen {

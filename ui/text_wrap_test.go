@@ -12,7 +12,7 @@ import (
 func runeCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
 	canvas.SetTree(&tree)
-	canvas.SetMeasurer(func(value string, Size, Weight float32) float32 { return float32(utf8.RuneCountInString(value)) * Size })
+	canvas.SetMeasurer(func(Value string, Size, Weight float32) float32 { return float32(utf8.RuneCountInString(Value)) * Size })
 	return canvas
 }
 

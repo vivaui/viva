@@ -94,9 +94,9 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 		var size float32
 		switch d := a.Size[axis]; {
 		case d.Kind == dimPx:
-			size = d.value
+			size = d.Value
 		case d.Kind == dimPercent:
-			size = span * d.value / 100
+			size = span * d.Value / 100
 		case d.Kind == dimFill, d.Kind == dimAuto && hasStart && hasEnd:
 			size = span - ms - me
 			if hasStart {

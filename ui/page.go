@@ -356,7 +356,7 @@ type protoStateKey struct {
 }
 
 type protoState struct {
-	value any
+	Value any
 	epoch uint32
 }
 
@@ -991,8 +991,8 @@ func (p *Page) controlID(Kind uint8) gfx.ID {
 
 // boundScope is the scope of a control that numbers its own parts (the options of
 // a Choice, the tabs of Tabs): the scope its bound name makes.
-func (p *Page) boundScope(Kind uint8, value unsafe.Pointer) gfx.Scope {
-	id := p.boundID(Kind, value)
+func (p *Page) boundScope(Kind uint8, Value unsafe.Pointer) gfx.Scope {
+	id := p.boundID(Kind, Value)
 	return p.tree.Sub(id.Scope(), id.Name())
 }
 
@@ -1001,9 +1001,9 @@ func (p *Page) boundScope(Kind uint8, value unsafe.Pointer) gfx.Scope {
 // its name. A new value takes its place's name, unless a value declared in an
 // earlier paint than the last still holds it; a value that is new in every paint (a
 // copy) is given the name the last paint's copy had, so a copy works as its place.
-func (p *Page) boundID(Kind uint8, value unsafe.Pointer) gfx.ID {
+func (p *Page) boundID(Kind uint8, Value unsafe.Pointer) gfx.ID {
 	at, named := p.name(Kind)
-	key := boundKey{value: value, Kind: Kind}
+	key := boundKey{Value: Value, Kind: Kind}
 	for {
 		entry, ok := p.bound[key]
 		if ok && entry.epoch == p.epoch {
@@ -1248,10 +1248,10 @@ func stateIn[T any](p *Page, scope gfx.Scope, name string) *T {
 	c.stateSeq[at] = n + 1
 	key := protoStateKey{stateName: at, n: n}
 	entry, ok := p.States[key]
-	value, typed := entry.value.(*T)
+	value, typed := entry.Value.(*T)
 	if !ok || !typed {
 		value = new(T)
-		entry.value = value
+		entry.Value = value
 	}
 	entry.epoch = p.epoch
 	p.States[key] = entry

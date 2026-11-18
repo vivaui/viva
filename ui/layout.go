@@ -92,7 +92,7 @@ func (f *frame) measure(axis int) {
 			f.measureContainer(n, axis)
 		}
 		if d := n.Size[axis]; d.Kind == dimPx {
-			n.Pref[axis] = d.value
+			n.Pref[axis] = d.Value
 		}
 		n.Raw[axis] = n.Pref[axis]
 		n.Pref[axis] = clamp(n.Pref[axis], n.MinS[axis], n.MaxS[axis])
@@ -301,9 +301,9 @@ func crossSize(child *node, axis int, avail float32, align Align, hi float32) fl
 	lo := child.MinS[axis]
 	switch {
 	case d.Kind == dimPx:
-		return clamp(d.value, lo, hi)
+		return clamp(d.Value, lo, hi)
 	case d.Kind == dimPercent:
-		return clamp(avail*d.value/100, lo, hi)
+		return clamp(avail*d.Value/100, lo, hi)
 	case d.Kind == dimFill, d.Kind == dimAuto && (align == Stretch || align == Auto && child.stretches(axis)):
 		return clamp(max(avail, 0), lo, hi)
 	}
@@ -489,7 +489,7 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 	case child.Flags&flagBasis != 0:
 		return child.Basis
 	case d.Kind == dimPercent:
-		return avail * d.value / 100
+		return avail * d.Value / 100
 	}
 	return child.Raw[axis]
 }

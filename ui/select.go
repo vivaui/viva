@@ -492,7 +492,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.state.listMaxWidth > 0 {
 		width = min(width, d.state.listMaxWidth)
 	}
-	f.Nodes[d.popup].Size[axisX] = dimension{dimPx, width}
+	f.Nodes[d.popup].Size[axisX] = Dimension{dimPx, width}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.
@@ -505,11 +505,11 @@ func selectRows(count int, frame float32) int {
 }
 
 // Placeholder is the text a Select or Combobox shows while nothing is selected.
-func (b Box) Placeholder(value string) Box {
+func (b Box) Placeholder(Value string) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		n.Text = value
+		n.Text = Value
 	} else if s := b.combo(); s != nil {
-		s.placeholder = value
+		s.placeholder = Value
 	}
 	return b
 }

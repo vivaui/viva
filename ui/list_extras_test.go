@@ -72,10 +72,10 @@ func manySections() *sectioned {
 }
 
 // textsNamed returns the bounds of every painted text with the value.
-func (d *pageDriver) textsNamed(value string) []gfx.Rect {
+func (d *pageDriver) textsNamed(Value string) []gfx.Rect {
 	var bounds []gfx.Rect
 	for _, text := range d.driver.Snapshot().Texts {
-		if text.Value == value {
+		if text.Value == Value {
 			bounds = append(bounds, text.Bounds)
 		}
 	}
@@ -472,11 +472,11 @@ func (m *widthModel) page(c ui.C) {
 	})
 }
 
-func firstX(d *pageDriver, value string) float32 {
+func firstX(d *pageDriver, Value string) float32 {
 	d.t.Helper()
-	got := d.textsNamed(value)
+	got := d.textsNamed(Value)
 	if len(got) == 0 {
-		d.t.Fatalf("%q is not painted", value)
+		d.t.Fatalf("%q is not painted", Value)
 	}
 	return got[0].X
 }

@@ -86,9 +86,9 @@ func (d *pageDriver) key(key gfx.Key) {
 	}
 }
 
-func (d *pageDriver) typeText(value string) {
+func (d *pageDriver) typeText(Value string) {
 	d.t.Helper()
-	if err := d.driver.Type(value); err != nil {
+	if err := d.driver.Type(Value); err != nil {
 		d.t.Fatal(err)
 	}
 }
@@ -105,7 +105,7 @@ func (d *pageDriver) focused() string {
 
 func benchCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
-	canvas.SetMeasurer(func(value string, Size, Weight float32) float32 { return float32(len(value)) * Size / 2 })
+	canvas.SetMeasurer(func(Value string, Size, Weight float32) float32 { return float32(len(Value)) * Size / 2 })
 	return canvas
 }
 

@@ -135,10 +135,10 @@ func TestListRowHeightAtReportsLaidOutRows(t *testing.T) {
 	}
 }
 
-func fmtSscan(value string, i *int) (int, error) {
-	n, err := strconv.Atoi(strings.TrimPrefix(value, "row "))
+func fmtSscan(Value string, i *int) (int, error) {
+	n, err := strconv.Atoi(strings.TrimPrefix(Value, "row "))
 	*i = n
-	if err != nil || !strings.HasPrefix(value, "row ") {
+	if err != nil || !strings.HasPrefix(Value, "row ") {
 		return 0, strconv.ErrSyntax
 	}
 	return 1, nil
