@@ -89,6 +89,7 @@ type TableSpec struct {
 // tableRoute is a Table of the last paint that scrolls itself, and where: the
 // page gives it the wheel and the keys that reach it.
 type tableRoute struct {
+	root       int32 // the root of the tree the table is in: the page's or a panel's (frame.rootOf)
 	state      *TableState
 	bounds     Rect
 	scrolls    bool
@@ -371,7 +372,7 @@ func (f *frame) paintTable(n *node) {
 	}
 	if f.page != nil {
 		f.page.tables = append(f.page.tables, tableRoute{
-			state: t.state, bounds: r, scrolls: scrolls, sideways: sideways,
+			root: f.rootOf(n.parent), state: t.state, bounds: r, scrolls: scrolls, sideways: sideways,
 			bar: t.spec.Scrollbar, horizontal: t.spec.HorizontalScrollbar,
 		})
 	}
