@@ -253,7 +253,7 @@ type frame struct {
 	Opacity     float32            // the product of the opacities of the elements being painted
 	popupLayer  uint16             // the canvas layer the Popups are painted on
 	nativeMark  int                // how many native views the canvas had when the page began
-	binds       []bindDecl         // the bound controls, see bind.go
+	Binds       []bindDecl         // the bound controls, see bind.go
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
@@ -323,8 +323,8 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.Exts = append(f.Exts[:0], extra{})
 	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]
-	clear(f.binds) // a binding holds pointers into the model: not past the frame
-	f.binds = f.binds[:0]
+	clear(f.Binds) // a binding holds pointers into the model: not past the frame
+	f.Binds = f.Binds[:0]
 	f.floats = f.floats[:0]
 	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
@@ -356,7 +356,7 @@ func (f *frame) End() {
 	if f.done {
 		return
 	}
-	if f.settleFn != nil && len(f.binds) > 0 {
+	if f.settleFn != nil && len(f.Binds) > 0 {
 		f.settleFn(f, -1)
 	}
 	f.done = true
@@ -427,7 +427,7 @@ func (f *frame) trim() {
 	f.Images = trimFlexCapacity(f.Images)
 	f.Exts = trimFlexCapacity(f.Exts)
 	f.draws = trimFlexCapacity(f.draws)
-	f.binds = trimFlexCapacity(f.binds)
+	f.Binds = trimFlexCapacity(f.Binds)
 	f.floats = trimFlexCapacity(f.floats)
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
