@@ -239,7 +239,7 @@ type frame struct {
 	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
 	Images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts        []extra            // exts[0] is never written: an element without extras points at it
-	floats      []int32            // the Popups, which belong to no container
+	Floats      []int32            // the Popups, which belong to no container
 	states      []stateLooks       // what Hover, Pressed and Focus declared, by element
 	draws       []drawHooks        // what Draw and DrawOver declared, by element
 	memoDepth   int                // how many Memos of a page are recording what is declared now
@@ -325,7 +325,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.addons = f.addons[:0]
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
-	f.floats = f.floats[:0]
+	f.Floats = f.Floats[:0]
 	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
 	f.draws = f.draws[:0]
@@ -366,7 +366,7 @@ func (f *frame) End() {
 	f.measure(axisX)
 	root.rect.X, root.rect.Width = f.bounds.X, f.bounds.Width
 	f.solve(0, axisX)
-	for _, index := range f.floats {
+	for _, index := range f.Floats {
 		f.placePopup(&f.Nodes[index], axisX)
 		f.solve(index, axisX)
 	}
@@ -377,13 +377,13 @@ func (f *frame) End() {
 		// A CustomLayout moved children horizontally after their width was solved.
 		// Their subtrees moved with them, and a popup that hangs off one is placed
 		// again from the anchor's final rectangle before its height is placed.
-		for _, index := range f.floats {
+		for _, index := range f.Floats {
 			f.placePopup(&f.Nodes[index], axisX)
 			f.solve(index, axisX)
 		}
 		f.shiftedX = false
 	}
-	for _, index := range f.floats {
+	for _, index := range f.Floats {
 		f.placePopup(&f.Nodes[index], axisY)
 		f.solve(index, axisY)
 	}
@@ -395,7 +395,7 @@ func (f *frame) End() {
 	if f.popupLayer != 0 {
 		f.canvas.PushLayer(f.popupLayer)
 	}
-	for _, index := range f.floats {
+	for _, index := range f.Floats {
 		f.paint(index)
 	}
 	if f.popupLayer != 0 {
@@ -428,7 +428,7 @@ func (f *frame) trim() {
 	f.Exts = trimFlexCapacity(f.Exts)
 	f.draws = trimFlexCapacity(f.draws)
 	f.Binds = trimFlexCapacity(f.Binds)
-	f.floats = trimFlexCapacity(f.floats)
+	f.Floats = trimFlexCapacity(f.Floats)
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
 	f.wraps = trimFlexCapacity(f.wraps)
@@ -499,7 +499,7 @@ func (f *frame) Popup() Box {
 	f.Parent = -1
 	b := f.box(kindContainer)
 	f.Parent = saved
-	f.floats = append(f.floats, b.i)
+	f.Floats = append(f.Floats, b.i)
 	return b
 }
 
