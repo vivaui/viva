@@ -418,9 +418,13 @@ func TestSwitchUsesItsOwnRecipe(t *testing.T) {
 		look.Track = gfx.RGB(1, 2, 3)
 		return look
 	}
+	pageTheme := gfx.LightTheme()
 	paint := func(withOwn bool) []gfx.Rectangle {
 		var canvas gfx.Canvas
 		page := ui.NewPage(ui.PageConfig{
+			// A theme of its own: a page without one asks the system appearance,
+			// which must not be asked off the main thread.
+			Theme: &pageTheme,
 			Styles: &ui.Styles{Switch: func(theme gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
 				look := components.SwitchRecipe(theme, state, progress)
 				look.Track = gfx.RGB(9, 9, 9)
