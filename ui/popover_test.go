@@ -53,9 +53,9 @@ func TestPopoverHeaderAndFixedBody(t *testing.T) {
 // it: the space between description and body follows the theme's PadSurface, not
 // the panel's item gap.
 func TestPopoverHeaderToBodyFollowsSurfacePadding(t *testing.T) {
-	gapFor := func(pad float32) float32 {
+	gapFor := func(Pad float32) float32 {
 		theme := pageTheme
-		theme.Metrics.PadSurface = pad
+		theme.Metrics.PadSurface = Pad
 		open := true
 		var body ui.Box
 		d := openPageWith(t, ui.PageConfig{Theme: &theme, View: func(c ui.C) {

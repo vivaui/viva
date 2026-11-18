@@ -1,17 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
-
-// SonnerToast is one caller-owned toast snapshot plus stable interaction IDs.
-// The caller owns insertion, expiry, swipe state, and removal.
-type SonnerToast struct {
-	Snapshot    ToastSnapshot
-	Scope       gfx.ID
-	DismissID   gfx.ID
-	ActionID    gfx.ID
-	ActionLabel string
-	Disabled    bool
-}
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // SonnerOptions configures one stateless paint of a caller-owned stack. Toasts
 // are ordered newest first. Layer is the oldest toast's layer; each newer toast
@@ -108,3 +100,6 @@ func sonnerUnion(a, b gfx.Rect) gfx.Rect {
 	bottom := max(a.Y+a.Height, b.Y+b.Height)
 	return gfx.Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
 }
+
+// Aliases into the style vocabulary.
+type SonnerToast = style.SonnerToast

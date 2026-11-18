@@ -1,8 +1,9 @@
 package components
 
 import (
-	"github.com/vivaui/viva/gfx"
 	"math"
+
+	"github.com/vivaui/viva/gfx"
 )
 
 // ImageViewOptions holds caller-owned zoom/pan state. Zoom zero fits the image;

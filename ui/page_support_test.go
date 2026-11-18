@@ -1,10 +1,11 @@
 package ui_test
 
 import (
+	"testing"
+
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"testing"
 )
 
 // pageDriver is a headless window that paints a Page.
@@ -17,20 +18,20 @@ type pageDriver struct {
 
 var pageTheme = gfx.LightTheme()
 
-func openPage(t *testing.T, view func(ui.C)) *pageDriver {
+func openPage(t *testing.T, View func(ui.C)) *pageDriver {
 	t.Helper()
-	return openPageWith(t, ui.PageConfig{View: view}, app.Config{})
+	return openPageWith(t, ui.PageConfig{View: View}, app.Config{})
 }
 
-func openPageWith(t *testing.T, config ui.PageConfig, base app.Config) *pageDriver {
+func openPageWith(t *testing.T, config ui.PageConfig, Base app.Config) *pageDriver {
 	t.Helper()
 	page := ui.NewPage(config)
 	invalidator := new(app.Invalidator)
-	base.Invalidator = invalidator
-	if base.Width == 0 {
-		base.Width, base.Height = 480, 480
+	Base.Invalidator = invalidator
+	if Base.Width == 0 {
+		Base.Width, Base.Height = 480, 480
 	}
-	driver, err := app.NewDriver(page.Config(base), nil)
+	driver, err := app.NewDriver(ui.Configure(page, Base), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,21 +50,21 @@ func (d *pageDriver) repaint() {
 }
 
 // hit finds the control named label (its accessible name), the front-most first.
-func (d *pageDriver) hit(label string) gfx.Hit {
+func (d *pageDriver) hit(Label string) gfx.Hit {
 	d.t.Helper()
 	hits := d.driver.Snapshot().Hits
 	for i := len(hits) - 1; i >= 0; i-- {
-		if hit := hits[i]; hit.Label == label && !hit.IsLabel && !hit.Backdrop && !hit.ID.IsZero() {
+		if hit := hits[i]; hit.Label == Label && !hit.IsLabel && !hit.Backdrop && !hit.ID.IsZero() {
 			return hit
 		}
 	}
-	d.t.Fatalf("no control labeled %q", label)
+	d.t.Fatalf("no control labeled %q", Label)
 	return gfx.Hit{}
 }
 
-func (d *pageDriver) has(label string) bool {
+func (d *pageDriver) has(Label string) bool {
 	for _, hit := range d.driver.Snapshot().Hits {
-		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+		if hit.Label == Label && !hit.IsLabel && !hit.Backdrop {
 			return true
 		}
 	}
@@ -72,9 +73,9 @@ func (d *pageDriver) has(label string) bool {
 
 func center(r gfx.Rect) (float32, float32) { return r.X + r.Width/2, r.Y + r.Height/2 }
 
-func (d *pageDriver) click(label string) {
+func (d *pageDriver) click(Label string) {
 	d.t.Helper()
-	if err := d.driver.Click(center(d.hit(label).Bounds)); err != nil {
+	if err := d.driver.Click(center(d.hit(Label).Bounds)); err != nil {
 		d.t.Fatal(err)
 	}
 }
@@ -86,14 +87,14 @@ func (d *pageDriver) key(key gfx.Key) {
 	}
 }
 
-func (d *pageDriver) typeText(value string) {
+func (d *pageDriver) typeText(Value string) {
 	d.t.Helper()
-	if err := d.driver.Type(value); err != nil {
+	if err := d.driver.Type(Value); err != nil {
 		d.t.Fatal(err)
 	}
 }
 
-func (d *pageDriver) focused() string {
+func (d *pageDriver) Focused() string {
 	snapshot := d.driver.Snapshot()
 	for _, hit := range snapshot.Hits {
 		if hit.ID == snapshot.Focused && !hit.IsLabel && !hit.Backdrop {
@@ -105,19 +106,19 @@ func (d *pageDriver) focused() string {
 
 func benchCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
-	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
+	canvas.SetMeasurer(func(Value string, Size, Weight float32) float32 { return float32(len(Value)) * Size / 2 })
 	return canvas
 }
 
-func drawPage(page *ui.Page, canvas *gfx.Canvas, view func(ui.C)) {
-	canvas.Reset()
-	canvas.BeginFrame()
-	page.Draw(canvas, gfx.Rect{Width: 600, Height: 400}, view)
-	canvas.EndFrame()
+func drawPage(page *ui.Page, Surface *gfx.Canvas, View func(ui.C)) {
+	Surface.Reset()
+	Surface.BeginFrame()
+	page.Draw(Surface, gfx.Rect{Width: 600, Height: 400}, View)
+	Surface.EndFrame()
 }
 
 type fleetHost struct {
-	name, addr string
+	Name, addr string
 	handled    bool
 }
 
@@ -126,13 +127,13 @@ type fleetModel struct {
 	filter  int
 	scans   int
 	labels  []string
-	summary string
+	Summary string
 }
 
 func newFleetModel() *fleetModel {
-	m := &fleetModel{labels: []string{"All", "Open", "Handled"}, summary: "8 hosts"}
+	m := &fleetModel{labels: []string{"All", "Open", "Handled"}, Summary: "8 hosts"}
 	for i := range 8 {
-		m.hosts = append(m.hosts, fleetHost{name: "host-" + string(rune('a'+i)), addr: "10.0.0.1", handled: i%2 == 0})
+		m.hosts = append(m.hosts, fleetHost{Name: "host-" + string(rune('a'+i)), addr: "10.0.0.1", handled: i%2 == 0})
 	}
 	return m
 }
@@ -148,7 +149,7 @@ var (
 	benchRows   = benchTree.Sub(benchPage, benchTree.Name("rows"))
 )
 
-func (m *fleetModel) frame(f *ui.Frame) {
+func (m *fleetModel) Frame(f *ui.Frame) {
 	f.Column().Fill().Pad(22).Gap(14).Children(func() {
 		f.Text("Fleet check").FontSize(26).Bold()
 		if i, ok := f.Choice(benchFilter, m.labels, m.filter).ChosenIndex(); ok {
@@ -158,7 +159,7 @@ func (m *fleetModel) frame(f *ui.Frame) {
 			for i := range m.hosts {
 				h := &m.hosts[i]
 				f.Row().FillWidth().Pad(12).Gap(12).Children(func() {
-					f.Text(h.name).Bold()
+					f.Text(h.Name).Bold()
 					f.Text(h.addr).Muted()
 					if f.Checkbox(benchRows.At(i), h.handled).Clicked() {
 						h.handled = !h.handled
@@ -167,7 +168,7 @@ func (m *fleetModel) frame(f *ui.Frame) {
 			}
 		})
 		f.Row().Gap(10).Children(func() {
-			f.Text(m.summary).Muted()
+			f.Text(m.Summary).Muted()
 			if f.Button(benchScan, "Scan again").Clicked() {
 				m.scans++
 			}
@@ -185,7 +186,7 @@ func BenchmarkFrameFleet(b *testing.B) {
 	for b.Loop() {
 		canvas.Reset()
 		canvas.BeginFrame()
-		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 400}, m.frame)
+		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 400}, m.Frame)
 		canvas.EndFrame()
 	}
 }

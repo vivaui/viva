@@ -268,7 +268,7 @@ ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
 
 自定义布局用 `ui.CustomLayout(c, &m.masonry)`：容器里的流动子元素由 model 中的 `ui.Layout` 测量和摆放。`MeasureWidth`、`MeasureHeight` 说明内容想要多宽多高，`PlaceWidth`、`PlaceHeight` 给每个子元素尺寸和位置。页面负责 identity、焦点、命中、裁剪和绝对定位子元素；布局拥有子元素的尺寸和位置。`PlaceHeight` 还可以在知道高度后横向移动子元素（masonry 就在这里分列）；页面会一起移动子元素的子树，并按新锚点重新放置它的 popup。滚动和虚拟化请包在 `Scroll`/`List`/`Tree` 里，不要声明在 `Memo` 里。
 
-`c.Bounds()` 和 `c.Canvas()` 给出页面的矩形和画布，用来量文本或组件、读指针和焦点状态；声明和绘制仍走页面。`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。一个应用窗口就是一个 page：`ui.Run` 或 `Page.Config` 接好输入，窗格是同一个 page 里的 keyed 容器，不是第二个 `Page`。当 `Modal` 自动生成的 ID 不合适时，用 `ui.Dialog(c, ui.DialogSpec{...})` 声明由应用自己命名目标的对话框。应用代码不触碰 Page 下面的引擎；组件作者有自己的文档。
+`c.Bounds()` 和 `c.Canvas()` 给出页面的矩形和画布，用来量文本或组件、读指针和焦点状态；声明和绘制仍走页面。`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。一个应用窗口就是一个 page：`ui.Run` 或 `Configure` 接好输入，窗格是同一个 page 里的 keyed 容器，不是第二个 `Page`。当 `Modal` 自动生成的 ID 不合适时，用 `ui.Dialog(c, ui.DialogSpec{...})` 声明由应用自己命名目标的对话框。应用代码不触碰 Page 下面的引擎；组件作者有自己的文档。
 
 `examples/guides/page` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制用时 9.8 µs，预热后不分配；一千个带 Key 的行是 0.75 ms。两百行的列表每行套一个 `Memo` 后从 271 µs 降到 87 µs，整个列表套一个是 37 µs；复制保留的是上一遍绘制的命令，这两百行约占 0.5 MB（`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`）。
 
@@ -421,7 +421,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
+	return ui.Configure(page, app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {

@@ -1,6 +1,11 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type CheckboxLook = style.CheckboxLook
 
 // Checkbox paints one official shadcn checkable control. State remains owned
 // by the caller and is exposed through a stable typed hit.
@@ -96,9 +101,6 @@ func (result CheckboxResult) Clicked() bool {
 	return result.canvas != nil && result.canvas.Clicked(result.id)
 }
 
-// CheckboxExtent is the side of a checkbox's square at the theme's density.
-func CheckboxExtent(theme gfx.Theme) float32 { return 16 * theme.Metrics.ControlHeight / 32 }
-
 // CheckboxHitExtent is the width and height of the interaction region Paint
 // declares around a checkbox at the theme's density. A layout that gives a
 // checkbox this much room can center the square inside it and keep adjacent
@@ -165,21 +167,6 @@ func paintCheck(canvas *gfx.Canvas, bounds gfx.Rect, size float32, color gfx.Col
 }
 
 // CheckboxLook is the look of a checkbox in one state.
-type CheckboxLook struct {
-	// Fill, Border and Mark are the colors of the box, its line and its check or dash.
-	// Over an opaque theme Fill and Border are flattened onto the page background, as
-	// TextEntryLook's are, so the box paints as one solid shape (RoundedBorder).
-	Fill, Border, Mark gfx.Color
-	// Radius is the corner radius of the box.
-	Radius float32
-	// Shadow is the elevation under the box.
-	Shadow gfx.ShadowLevel
-	// Ring is the halo of a focused or invalid box; it is transparent, with a zero
-	// RingWidth, when there is none. RingRadius is its outer corner radius and
-	// RingWidth how far it reaches beyond the box.
-	Ring                  gfx.Color
-	RingWidth, RingRadius float32
-}
 
 // CheckboxRecipe resolves the look of a checkbox. Checked, Mixed, FocusVisible, Invalid and
 // Disabled of state are read; a checked or mixed box takes the primary color whatever else
@@ -245,3 +232,4 @@ func PaintCheckboxMark(canvas *gfx.Canvas, bounds gfx.Rect, state gfx.State, col
 		paintCheck(canvas, bounds, bounds.Height*0.875, color)
 	}
 }
+func CheckboxExtent(theme gfx.Theme) float32 { return style.CheckboxExtent(theme) }

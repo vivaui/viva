@@ -14,7 +14,7 @@ type formFieldModel struct {
 	control ui.Box
 }
 
-func (m *formFieldModel) view(c ui.C) {
+func (m *formFieldModel) View(c ui.C) {
 	m.field = ui.FormField(c, &m.state, "Email").Width(220).Children(func() {
 		m.control = ui.Slot(c)
 	})
@@ -26,9 +26,9 @@ func (m *formFieldModel) view(c ui.C) {
 // component it replaces, not against a second copy of the formula.
 func TestFormFieldMatchesBeginField(t *testing.T) {
 	m := &formFieldModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 
 	layout := field.Measure(pageTheme, m.field.Rect(), field.Spec{Title: "Email"})
 	if got := m.control.Rect(); got != layout.Control {
@@ -62,7 +62,7 @@ type fixedFormFieldModel struct {
 	control ui.Box
 }
 
-func (m *fixedFormFieldModel) view(c ui.C) {
+func (m *fixedFormFieldModel) View(c ui.C) {
 	ui.Column(c).Fill().Pad(10).Children(func() {
 		ui.Row(c).Height(70).Width(240).Children(func() {
 			m.field = ui.FormField(c, &m.state, "Proxy").Grow(1).Children(func() {
@@ -77,9 +77,9 @@ func (m *fixedFormFieldModel) view(c ui.C) {
 // (which reserves a description and an error) and overflowing the row.
 func TestFormFieldFillsAFixedRow(t *testing.T) {
 	m := &fixedFormFieldModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 
 	bounds := m.field.Rect()
 	if bounds.Height != 70 {
@@ -102,7 +102,7 @@ type popupFieldModel struct {
 
 var fieldZones = []string{"Asia/Shanghai", "Asia/Tokyo", "Europe/Berlin"}
 
-func (m *popupFieldModel) view(c ui.C) {
+func (m *popupFieldModel) View(c ui.C) {
 	ui.Column(c).Fill().Pad(10).Items(ui.Start).Children(func() {
 		m.field = ui.FormField(c, &m.state, "Zone").Width(240).Children(func() {
 			ui.Combobox(c, &m.zone, fieldZones, nil, "Time zone")
@@ -115,7 +115,7 @@ func (m *popupFieldModel) view(c ui.C) {
 // title around it.
 func TestFormFieldDoesNotClipAControlPopup(t *testing.T) {
 	m := &popupFieldModel{}
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	d.click("Time zone")
 	field := m.field.Rect()
 	found := false
@@ -134,10 +134,10 @@ func TestFormFieldDoesNotClipAControlPopup(t *testing.T) {
 // the paint callback, and the shared fieldlayout is value math.
 func TestFormFieldAllocatesNothing(t *testing.T) {
 	m := &formFieldModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
-	run := func() { drawPage(page, canvas, m.view) }
+	drawPage(page, canvas, m.View)
+	run := func() { drawPage(page, canvas, m.View) }
 	if allocs := testing.AllocsPerRun(100, run); allocs != 0 {
 		t.Fatalf("a warm page with a FormField allocates %v times a frame, want 0", allocs)
 	}
@@ -145,10 +145,10 @@ func TestFormFieldAllocatesNothing(t *testing.T) {
 
 func BenchmarkFormField(b *testing.B) {
 	m := &formFieldModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }

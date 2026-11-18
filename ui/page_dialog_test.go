@@ -48,9 +48,9 @@ func TestPageDialogKeepsItsExplicitTargets(t *testing.T) {
 	}
 }
 
-func hasText(d *pageDriver, value string) bool {
+func hasText(d *pageDriver, Value string) bool {
 	for _, text := range d.driver.Snapshot().Texts {
-		if text.Value == value {
+		if text.Value == Value {
 			return true
 		}
 	}

@@ -12,7 +12,7 @@ func open(t *testing.T, m *model) (*app.Driver, *app.Invalidator) {
 	t.Helper()
 	invalidator := new(app.Invalidator)
 	page := ui.NewPage(ui.PageConfig{View: m.page})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 460, Height: 900, Invalidator: invalidator}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 460, Height: 900, Invalidator: invalidator}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

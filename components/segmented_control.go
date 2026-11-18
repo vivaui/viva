@@ -2,16 +2,14 @@ package components
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
+
+type SegmentOption = style.SegmentOption
 
 // SegmentOption is one stable choice in a SegmentedControl. ID is returned by
 // the normal canvas pointer and keyboard activation path; callers should keep
 // both ID and order stable between paints.
-type SegmentOption struct {
-	ID       gfx.ID
-	Label    string
-	Disabled bool
-}
 
 // SegmentedControl paints a compact, neutral choice group. It retains no
 // state: selection belongs to the application and every paint reads transient
@@ -114,74 +112,6 @@ func (result SegmentedControlResult) Clicked() (gfx.ID, bool) {
 func (control SegmentedControl) Disabled() SegmentedControl {
 	control.disabled = true
 	return control
-}
-
-// SegmentedControlKeyDown applies horizontal roving focus to current. Left and
-// Right wrap through enabled non-zero options and reverse in RTL; Home and End
-// choose the first and last enabled options. Vertical arrows are not owned by
-// a horizontal segmented control.
-func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
-	step := 0
-	switch key {
-	case gfx.KeyLeft:
-		step = -1
-		if direction.IsRTL() {
-			step = 1
-		}
-	case gfx.KeyRight:
-		step = 1
-		if direction.IsRTL() {
-			step = -1
-		}
-	case gfx.KeyHome:
-		return firstEnabledSegment(current, options, 1), true
-	case gfx.KeyEnd:
-		return firstEnabledSegment(current, options, -1), true
-	default:
-		return current, false
-	}
-	return nextEnabledSegment(current, options, step), true
-}
-
-func firstEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
-	for index := 0; index < len(options); index++ {
-		candidate := index
-		if step < 0 {
-			candidate = len(options) - 1 - index
-		}
-		option := options[candidate]
-		if !option.ID.IsZero() && !option.Disabled {
-			return option.ID
-		}
-	}
-	return current
-}
-
-func nextEnabledSegment(current gfx.ID, options []SegmentOption, step int) gfx.ID {
-	if len(options) == 0 {
-		return current
-	}
-	currentIndex := -1
-	for index := range options {
-		if options[index].ID == current {
-			currentIndex = index
-			break
-		}
-	}
-	if currentIndex < 0 {
-		return firstEnabledSegment(current, options, step)
-	}
-	for offset := 1; offset <= len(options); offset++ {
-		index := (currentIndex + step*offset) % len(options)
-		if index < 0 {
-			index += len(options)
-		}
-		option := options[index]
-		if !option.ID.IsZero() && !option.Disabled {
-			return option.ID
-		}
-	}
-	return current
 }
 
 // Paint draws the track, one stable surface command per option, separators,
@@ -414,3 +344,6 @@ func (p segmentPalette) foreground(theme *gfx.Theme, state gfx.State) gfx.Color 
 
 // segmentFocused reports whether the choice holds the keyboard visibly: a disabled one never does.
 func segmentFocused(state gfx.State) bool { return !state.Disabled && state.FocusVisible }
+func SegmentedControlKeyDown(current gfx.ID, options []SegmentOption, direction Direction, key gfx.Key) (gfx.ID, bool) {
+	return style.SegmentedControlKeyDown(current, options, style.Direction(direction), key)
+}

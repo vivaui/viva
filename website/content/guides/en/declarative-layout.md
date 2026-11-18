@@ -267,7 +267,7 @@ ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
 
 A custom layout is `ui.CustomLayout(c, &m.masonry)`: the container's in-flow children are measured and placed by a `ui.Layout` kept in the model. `MeasureWidth` and `MeasureHeight` say how wide and tall the content wants to be; `PlaceWidth` and `PlaceHeight` give every child its extent and origin. The page keeps identities, focus, hits, clipping and absolute children; the layout owns the children's sizes and positions. `PlaceHeight` may also move a child horizontally once heights are known—a masonry chooses its columns there; the page moves the child's subtree with it and places its popups again from the new anchor. Wrap it in `Scroll`, `List` or `Tree` for scrolling and virtualization, and do not declare it inside a `Memo`.
 
-`c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Page.Config` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. Application code does not reach the engine underneath the page; component authors have their own guide.
+`c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Configure` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. Application code does not reach the engine underneath the page; component authors have their own guide.
 
 The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`).
 
@@ -420,7 +420,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
+	return ui.Configure(page, app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {

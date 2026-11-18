@@ -9,12 +9,12 @@ import (
 
 type overlayModel struct {
 	overlay ui.Box
-	content ui.Box
+	Content ui.Box
 }
 
-func (m *overlayModel) view(c ui.C) {
+func (m *overlayModel) View(c ui.C) {
 	ui.Column(c).Fill().Pad(10).Children(func() {
-		m.content = ui.Button(c, "Content")
+		m.Content = ui.Button(c, "Content")
 	})
 	m.overlay = ui.Overlay(c, ui.OverlaySpec{
 		Band: ui.LayerPaneChrome, Bounds: gfx.Rect{X: 40, Y: 40, Width: 160, Height: 120},
@@ -28,9 +28,9 @@ func (m *overlayModel) view(c ui.C) {
 // overlay's button is reached after the content's by Tab.
 func TestOverlayPaintsAndTabsOnItsBand(t *testing.T) {
 	m := &overlayModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 
 	if got := m.overlay.Rect(); got != (gfx.Rect{X: 40, Y: 40, Width: 160, Height: 120}) {
 		t.Fatalf("overlay rect = %+v", got)
@@ -52,13 +52,13 @@ func TestOverlayPaintsAndTabsOnItsBand(t *testing.T) {
 		t.Fatalf("hits: content at %d, overlay at %d; the overlay must be painted after the page", contentIndex, overlayIndex)
 	}
 
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	d.key(gfx.KeyTab)
-	if got := d.focused(); got != "Content" {
+	if got := d.Focused(); got != "Content" {
 		t.Fatalf("first Tab focuses %q, want the page's Content", got)
 	}
 	d.key(gfx.KeyTab)
-	if got := d.focused(); got != "Overlay" {
+	if got := d.Focused(); got != "Overlay" {
 		t.Fatalf("second Tab focuses %q, want the overlay's Overlay", got)
 	}
 }
@@ -68,7 +68,7 @@ type dialogOverlayModel struct {
 	open    bool
 }
 
-func (m *dialogOverlayModel) view(c ui.C) {
+func (m *dialogOverlayModel) View(c ui.C) {
 	m.overlay = ui.Overlay(c, ui.OverlaySpec{
 		Band: ui.LayerPaneChrome, Bounds: gfx.Rect{X: 0, Y: 0, Width: 120, Height: 120},
 	}).Children(func() {
@@ -83,9 +83,9 @@ func (m *dialogOverlayModel) view(c ui.C) {
 // sidebar paints its contents and takes hits above the overlay.
 func TestWidgetsStayAboveAnApplicationOverlay(t *testing.T) {
 	m := &dialogOverlayModel{open: true}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 
 	var overlayLayer, insideLayer uint16
 	for _, hit := range canvas.Hits() {
@@ -105,10 +105,10 @@ func TestWidgetsStayAboveAnApplicationOverlay(t *testing.T) {
 // frame's reused float list, and the band is a node field.
 func TestOverlayAllocatesNothing(t *testing.T) {
 	m := &overlayModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
-	drawPage(page, canvas, m.view)
-	run := func() { drawPage(page, canvas, m.view) }
+	drawPage(page, canvas, m.View)
+	run := func() { drawPage(page, canvas, m.View) }
 	if allocs := testing.AllocsPerRun(100, run); allocs != 0 {
 		t.Fatalf("a warm page with an overlay allocates %v times a frame, want 0", allocs)
 	}
@@ -116,11 +116,11 @@ func TestOverlayAllocatesNothing(t *testing.T) {
 
 func BenchmarkOverlay(b *testing.B) {
 	m := &overlayModel{}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -128,7 +128,7 @@ type blockOverlayModel struct {
 	underClicks int
 }
 
-func (m *blockOverlayModel) view(c ui.C) {
+func (m *blockOverlayModel) View(c ui.C) {
 	ui.Column(c).Fill().Children(func() {
 		if ui.Button(c, "Under").Size(180, 180).Clicked() {
 			m.underClicks++
@@ -145,7 +145,7 @@ func (m *blockOverlayModel) view(c ui.C) {
 // the page: the button under its empty area is not clicked.
 func TestOverlayBlockKeepsPressesFromThePage(t *testing.T) {
 	m := &blockOverlayModel{}
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	if err := d.driver.Click(90, 90); err != nil {
 		t.Fatal(err)
 	}

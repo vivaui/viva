@@ -4,16 +4,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-)
-
-// PopoverSide selects the edge of the anchor used by a popover.
-type PopoverSide uint8
-
-const (
-	PopoverBottom PopoverSide = iota
-	PopoverTop
-	PopoverRight
-	PopoverLeft
+	"github.com/vivaui/viva/style"
 )
 
 // PopoverAlign selects placement along the anchor's cross axis.
@@ -325,26 +316,6 @@ func PlaceOverlay(anchor gfx.Rect, size gfx.Size, viewport gfx.Rect, placement O
 	return overlayClamp(bounds, viewport, placement.Margin), side
 }
 
-// ClampOverlay keeps an overlay opened at point inside viewport, except for its
-// margin. Unlike PlaceOverlay, a context menu that fits above the pointer but
-// would clamp below it stays at the pointer's y; that is how a native context
-// menu opens at the mouse rather than choosing a side.
-func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
-	return overlayClamp(gfx.Rect{X: point.X, Y: point.Y, Width: size.Width, Height: size.Height}, viewport, margin)
-}
-
-// overlayClamp shrinks bounds to fit viewport less margin and shifts them back
-// inside it.
-func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
-	left, top := viewport.X+margin, viewport.Y+margin
-	right, bottom := viewport.X+viewport.Width-margin, viewport.Y+viewport.Height-margin
-	bounds.Width = min(bounds.Width, max(right-left, 0))
-	bounds.Height = min(bounds.Height, max(bottom-top, 0))
-	bounds.X = max(min(bounds.X, right-bounds.Width), left)
-	bounds.Y = max(min(bounds.Y, bottom-bounds.Height), top)
-	return bounds
-}
-
 func overlayOpposite(side OverlaySide) OverlaySide {
 	switch side {
 	case OverlayTop:
@@ -480,4 +451,22 @@ func popupSideOf(content, anchor gfx.Rect) OverlaySide {
 		return OverlayTop
 	}
 	return OverlayBottom
+}
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type PopoverSide = style.PopoverSide
+
+const (
+	PopoverBottom = style.PopoverBottom
+	PopoverLeft   = style.PopoverLeft
+	PopoverRight  = style.PopoverRight
+	PopoverTop    = style.PopoverTop
+)
+
+func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
+	return style.ClampOverlay(point, size, viewport, margin)
+}
+
+func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
+	return style.OverlayClamp(bounds, viewport, margin)
 }

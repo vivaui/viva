@@ -15,7 +15,7 @@ import (
 type sectioned struct {
 	list    ui.ListState
 	sel     ui.Selection
-	items   []sectionItem
+	Items   []sectionItem
 	c       ui.C
 	rowFn   func(ui.ListRow)
 	width   float32
@@ -23,20 +23,20 @@ type sectioned struct {
 }
 
 type sectionItem struct {
-	text   string
+	Text   string
 	header bool
 }
 
 func newSectioned(sections ...[]string) *sectioned {
 	m := &sectioned{}
 	for _, section := range sections {
-		m.items = append(m.items, sectionItem{text: section[0], header: true})
+		m.Items = append(m.Items, sectionItem{Text: section[0], header: true})
 		for _, name := range section[1:] {
-			m.items = append(m.items, sectionItem{text: name})
+			m.Items = append(m.Items, sectionItem{Text: name})
 		}
 	}
-	m.list.Header = func(i int) bool { return m.items[i].header }
-	m.list.Label = func(i int) string { return m.items[i].text }
+	m.list.Header = func(i int) bool { return m.Items[i].header }
+	m.list.Label = func(i int) string { return m.Items[i].Text }
 	m.list.Selection = &m.sel
 	m.rowFn = m.row
 	return m
@@ -47,14 +47,14 @@ func (m *sectioned) row(row ui.ListRow) {
 	if row.Header {
 		row.Element.Background(m.c.Theme().Muted)
 	}
-	row.Element.Children(func() { ui.Text(m.c, m.items[row.Index].text) })
+	row.Element.Children(func() { ui.Text(m.c, m.Items[row.Index].Text) })
 }
 
 func (m *sectioned) page(c ui.C) {
 	m.c = c
 	m.list.RowWidth = m.width
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.List(c, &m.list, len(m.items), m.rowFn).Label("Items").Grow(1)
+		ui.List(c, &m.list, len(m.Items), m.rowFn).Label("Items").Grow(1)
 	})
 }
 
@@ -72,10 +72,10 @@ func manySections() *sectioned {
 }
 
 // textsNamed returns the bounds of every painted text with the value.
-func (d *pageDriver) textsNamed(value string) []gfx.Rect {
+func (d *pageDriver) textsNamed(Value string) []gfx.Rect {
 	var bounds []gfx.Rect
 	for _, text := range d.driver.Snapshot().Texts {
-		if text.Value == value {
+		if text.Value == Value {
 			bounds = append(bounds, text.Bounds)
 		}
 	}
@@ -83,14 +83,14 @@ func (d *pageDriver) textsNamed(value string) []gfx.Rect {
 }
 
 // listArea is the rectangle of the listbox named label.
-func (d *pageDriver) listArea(label string) gfx.Rect {
+func (d *pageDriver) ListArea(Label string) gfx.Rect {
 	d.t.Helper()
 	for _, hit := range d.driver.Snapshot().Hits {
-		if hit.Container && hit.Role == gfx.RoleListBox && hit.Label == label {
+		if hit.Container && hit.Role == gfx.RoleListBox && hit.Label == Label {
 			return hit.Bounds
 		}
 	}
-	d.t.Fatalf("no listbox %q", label)
+	d.t.Fatalf("no listbox %q", Label)
 	return gfx.Rect{}
 }
 
@@ -110,7 +110,7 @@ func TestListHeaderStaysAtTheTop(t *testing.T) {
 	m := manySections()
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	if got := d.textsNamed("Section 0"); len(got) != 1 {
 		t.Fatalf("at the top Section 0 is painted %d times", len(got))
 	}
@@ -157,28 +157,28 @@ func TestListHeaderIsNotARow(t *testing.T) {
 
 	d.click("croissant")
 	d.key(gfx.KeyDown)
-	if d.focused() != "butter" {
-		t.Fatalf("Down from the last row of a section went to %q, not past the heading to butter", d.focused())
+	if d.Focused() != "butter" {
+		t.Fatalf("Down from the last row of a section went to %q, not past the heading to butter", d.Focused())
 	}
 	d.key(gfx.KeyUp)
-	if d.focused() != "croissant" {
-		t.Fatalf("Up went to %q", d.focused())
+	if d.Focused() != "croissant" {
+		t.Fatalf("Up went to %q", d.Focused())
 	}
 	d.key(gfx.KeyHome)
-	if d.focused() != "bagel" || m.list.Selected() != 1 {
-		t.Fatalf("Home went to %q (row %d), not the first row", d.focused(), m.list.Selected())
+	if d.Focused() != "bagel" || m.list.Selected() != 1 {
+		t.Fatalf("Home went to %q (row %d), not the first row", d.Focused(), m.list.Selected())
 	}
 	d.key(gfx.KeyUp)
-	if d.focused() != "bagel" {
-		t.Fatalf("Up from the first row went to %q", d.focused())
+	if d.Focused() != "bagel" {
+		t.Fatalf("Up from the first row went to %q", d.Focused())
 	}
 	d.key(gfx.KeyEnd)
-	if d.focused() != "cheese" {
-		t.Fatalf("End went to %q", d.focused())
+	if d.Focused() != "cheese" {
+		t.Fatalf("End went to %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
-	if d.focused() != "cheese" {
-		t.Fatalf("Down from the last row went to %q", d.focused())
+	if d.Focused() != "cheese" {
+		t.Fatalf("Down from the last row went to %q", d.Focused())
 	}
 
 	// Typing goes round past a heading whose name begins with the letter.
@@ -186,8 +186,8 @@ func TestListHeaderIsNotARow(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 'b'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "bagel" {
-		t.Fatalf("typing b from butter went to %q, not round to bagel", d.focused())
+	if d.Focused() != "bagel" {
+		t.Fatalf("typing b from butter went to %q, not round to bagel", d.Focused())
 	}
 
 	// Primary+A and a Shift range choose rows, not headings.
@@ -210,14 +210,14 @@ func TestListHeaderDoesNotCoverTheRowYouMoveTo(t *testing.T) {
 	m := manySections()
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	d.wheel(area, 0, 600, 0) // rows from about 25 on, the top one under the pinned heading
 	d.click("2-4")
 	for range 4 {
 		d.key(gfx.KeyUp)
 	}
-	if d.focused() != "2-0" {
-		t.Fatalf("Up four times from 2-4 went to %q", d.focused())
+	if d.Focused() != "2-0" {
+		t.Fatalf("Up four times from 2-4 went to %q", d.Focused())
 	}
 	d.repaint()
 	heading := d.textsNamed("Section 2")
@@ -236,7 +236,7 @@ func TestListHeaderRepaintAllocates(t *testing.T) {
 	m := manySections()
 	d := openPage(t, m.page)
 	d.repaint()
-	d.wheel(d.listArea("Items"), 0, 15*24, 0)
+	d.wheel(d.ListArea("Items"), 0, 15*24, 0)
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("%v allocations a repaint", allocs)
 	}
@@ -393,7 +393,7 @@ func TestListReorderScrollsAtTheEdge(t *testing.T) {
 	m := newReordering(names...)
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	start := d.hit("row 00").Bounds
 	x := start.X + start.Width/2
 	if err := d.driver.Press(x, start.Y+4, gfx.PointerButtonPrimary); err != nil {
@@ -472,11 +472,11 @@ func (m *widthModel) page(c ui.C) {
 	})
 }
 
-func firstX(d *pageDriver, value string) float32 {
+func firstX(d *pageDriver, Value string) float32 {
 	d.t.Helper()
-	got := d.textsNamed(value)
+	got := d.textsNamed(Value)
 	if len(got) == 0 {
-		d.t.Fatalf("%q is not painted", value)
+		d.t.Fatalf("%q is not painted", Value)
 	}
 	return got[0].X
 }
@@ -487,7 +487,7 @@ func TestListRowWidthScrollsSideways(t *testing.T) {
 	m := newWidthModel(800, "alpha", "beta", "gamma")
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	x0 := firstX(d, "size")
 	if x0 < area.X+700 {
 		t.Fatalf("the size is at %v: the rows are not 800 px wide, the size at their end", x0)
@@ -517,7 +517,7 @@ func TestListRowWidthScrollsSideways(t *testing.T) {
 	narrow := newWidthModel(300, "alpha", "beta")
 	dn := openPage(t, narrow.page)
 	dn.repaint()
-	nArea := dn.listArea("Items")
+	nArea := dn.ListArea("Items")
 	before := firstX(dn, "size")
 	if before < nArea.X+nArea.Width-80 {
 		t.Fatalf("rows narrower than the list did not grow to its width: size at %v, list %v", before, nArea)
@@ -534,13 +534,13 @@ func TestListRowWidthOffsetFollowsTheWindow(t *testing.T) {
 	m := newWidthModel(800, "alpha", "beta")
 	d := openPage(t, m.page)
 	d.repaint()
-	d.wheel(d.listArea("Items"), 100000, 0, 0) // to the end
+	d.wheel(d.ListArea("Items"), 100000, 0, 0) // to the end
 	if err := d.driver.Resize(700, 480); err != nil {
 		t.Fatal(err)
 	}
 	d.repaint()
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	if room := 800 - area.Width; m.list.ScrollX() > room+0.5 {
 		t.Fatalf("ScrollX %v is past the %v left to scroll in a list %v wide", m.list.ScrollX(), room, area.Width)
 	}
@@ -563,7 +563,7 @@ func TestListRowWidthHeaderFollowsAndHitsStayInside(t *testing.T) {
 	}
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	h0 := firstX(d, "Name header")
 	e0 := firstX(d, "End header")
 	s0 := firstX(d, "size")
@@ -592,7 +592,7 @@ func TestListRowWidthWithAHeading(t *testing.T) {
 	m.width = 800
 	d := openPage(t, m.page)
 	d.repaint()
-	area := d.listArea("Items")
+	area := d.ListArea("Items")
 	d.wheel(area, 0, 15*24, 0)
 	before := d.textsNamed("Section 1")
 	if len(before) == 0 {

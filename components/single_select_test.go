@@ -381,7 +381,7 @@ func TestSingleSelectTreeChoosesParentsAndLeavesByFullPath(t *testing.T) {
 	s.Open = true
 	// Level 2 under School/Gansu (the open trail) is chosen by level<<16|row.
 	s.Choices()
-	s.tree.trail[0], s.tree.trail[1], s.tree.depth = 1, 2, 2
+	s.Tree.Trail[0], s.Tree.Trail[1], s.Tree.DepthValue = 1, 2, 2
 	if !s.Choose(2<<16|1) || s.Value() != "School/Gansu/Tianshui" {
 		t.Fatalf("choosing a third-level row left %q", s.Value())
 	}
@@ -392,13 +392,13 @@ func TestSingleSelectTreeKeyboardMovesBetweenLevels(t *testing.T) {
 	s.Open = true
 	s.Key(gfx.KeyEvent{Key: gfx.KeyRight}) // School
 	s.Key(gfx.KeyEvent{Key: gfx.KeyRight}) // Gansu
-	if s.tree.depth != 2 || s.tree.level != 2 {
-		t.Fatalf("Right twice: depth %d level %d, want 2 and 2", s.tree.depth, s.tree.level)
+	if s.Tree.DepthValue != 2 || s.Tree.Level != 2 {
+		t.Fatalf("Right twice: depth %d level %d, want 2 and 2", s.Tree.DepthValue, s.Tree.Level)
 	}
 	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
 	s.Key(gfx.KeyEvent{Key: gfx.KeyLeft})
-	if s.tree.depth != 1 || s.tree.level != 1 {
-		t.Fatalf("Left: depth %d level %d, want 1 and 1", s.tree.depth, s.tree.level)
+	if s.Tree.DepthValue != 1 || s.Tree.Level != 1 {
+		t.Fatalf("Left: depth %d level %d, want 1 and 1", s.Tree.DepthValue, s.Tree.Level)
 	}
 	s.Key(gfx.KeyEvent{Key: gfx.KeyRight})
 	s.Key(gfx.KeyEvent{Key: gfx.KeyDown})
@@ -408,8 +408,8 @@ func TestSingleSelectTreeKeyboardMovesBetweenLevels(t *testing.T) {
 	}
 	s.Open = true
 	s.Key(gfx.KeyEvent{Key: gfx.KeyEscape})
-	if !s.Open || s.tree.depth != 1 {
-		t.Fatalf("Escape closed the list (open %v, depth %d) instead of the last fly-out", s.Open, s.tree.depth)
+	if !s.Open || s.Tree.DepthValue != 1 {
+		t.Fatalf("Escape closed the list (open %v, depth %d) instead of the last fly-out", s.Open, s.Tree.DepthValue)
 	}
 }
 
@@ -418,15 +418,15 @@ func TestSingleSelectTreeKeyboardMovesBetweenLevels(t *testing.T) {
 func TestSingleSelectTreeFallsBackToFlatWhileSearching(t *testing.T) {
 	s, _ := hierarchicalSelectFixture()
 	s.Open = true
-	if !s.treeActive() {
+	if !s.TreeActive() {
 		t.Fatal("tree not active without a query")
 	}
 	s.Query.Insert("tian")
-	if s.treeActive() || len(s.Choices()) < 2 || s.Choices()[1].Value != "School/Gansu/Tianshui" {
+	if s.TreeActive() || len(s.Choices()) < 2 || s.Choices()[1].Value != "School/Gansu/Tianshui" {
 		t.Fatalf("a query did not give the flat list of full paths: %+v", s.Choices())
 	}
 	s.Query = text.Editor{}
-	if !s.treeActive() {
+	if !s.TreeActive() {
 		t.Fatal("clearing the query did not return to the tree")
 	}
 }
@@ -446,15 +446,15 @@ func TestSingleSelectTreeOpensAtOnceAndSwitchesAfterARest(t *testing.T) {
 	}
 	one := paint(gfx.ID{})
 	both := paint(o.OptionIDs.At(0))
-	if s.tree.depth != 1 || both.Width <= one.Width {
-		t.Fatalf("depth %d popup %+v -> %+v: the fly-out did not open at once", s.tree.depth, one, both)
+	if s.Tree.DepthValue != 1 || both.Width <= one.Width {
+		t.Fatalf("depth %d popup %+v -> %+v: the fly-out did not open at once", s.Tree.DepthValue, one, both)
 	}
-	if panel := s.tree.panels[1]; panel.X < s.tree.panels[0].X || panel.X+panel.Width > 800 || panel.Y < 0 || panel.Y+panel.Height > 600 {
+	if panel := s.Tree.Panels[1]; panel.X < s.Tree.Panels[0].X || panel.X+panel.Width > 800 || panel.Y < 0 || panel.Y+panel.Height > 600 {
 		t.Fatalf("fly-out %+v outside the viewport", panel)
 	}
 	// Another row of the first level takes the fly-out away only after resting.
 	paint(o.OptionIDs.At(1))
-	if s.tree.depth != 1 {
+	if s.Tree.DepthValue != 1 {
 		t.Fatal("the fly-out closed the moment the pointer crossed another row")
 	}
 	if _, ok := canvas.NextFrame(); !ok {
@@ -462,15 +462,15 @@ func TestSingleSelectTreeOpensAtOnceAndSwitchesAfterARest(t *testing.T) {
 	}
 	now += hierarchySwitchDelay + time.Millisecond
 	paint(o.OptionIDs.At(1))
-	if s.tree.depth != 0 {
-		t.Fatalf("depth %d after resting on a row with no children", s.tree.depth)
+	if s.Tree.DepthValue != 0 {
+		t.Fatalf("depth %d after resting on a row with no children", s.Tree.DepthValue)
 	}
 }
 
 func TestSingleSelectTreeBeyondSupportedDepthIsFlat(t *testing.T) {
 	s, _ := hierarchicalSelectFixture()
 	s.SetOptions([]SingleSelectOption{{Value: strings.Repeat("a/", hierarchyMaxLevels) + "z"}})
-	if s.treeActive() {
+	if s.TreeActive() {
 		t.Fatal("a value nested past the supported depth must not use the tree")
 	}
 }

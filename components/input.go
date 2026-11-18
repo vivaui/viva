@@ -4,101 +4,24 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/text"
+	"github.com/vivaui/viva/style"
 )
+
+type TextEntryLook = style.TextEntryLook
 
 // InputSnapshot is one caller-owned single-line editor presentation. Value is
 // exposed to accessibility; DisplayValue may contain masking or IME preedit
 // text without transferring editing ownership to the component. Secure makes
 // it a password field: the value is never exposed, DisplayValue is ignored,
 // and the field paints one bullet per character.
-type InputSnapshot struct {
-	ID    gfx.ID
-	Label string
-	// Alignment places the text within the content rectangle. Zero preserves
-	// the ordinary direction-dependent start alignment, which is left-to-right
-	// for Latin text. AlignRight suits a numeric field. The label, caret,
-	// selection, composition and platform editor all take the same alignment.
-	Alignment       gfx.Alignment
-	Value           string
-	DisplayValue    string
-	Placeholder     string
-	Hint            string
-	Disabled        bool
-	ReadOnly        bool
-	Invalid         bool
-	Secure          bool
-	Focused         bool
-	PlatformEditing bool
-	// HideEditorText makes the platform editor behind a focused input invisible and the
-	// component paint the text, selection, composition and caret itself; the editor is
-	// only where input arrives (give Caret, SelectionStart/End and CompositionStart/End,
-	// and set ShowCaret while the field is focused). A platform that lays out its own text
-	// can put the line a fraction of a pixel away from the canvas line; with the text
-	// painted here it cannot move when the field opens. A fixed-pitch field does this
-	// always (see InputTextStyle.Mono).
-	HideEditorText bool
-	NavigationKeys bool
-	ShowCaret      bool
-	Caret          int
-	SelectionStart int
-	SelectionEnd   int
-	// SelectionRanges, when nonempty, replaces the single selection for
-	// painting: the selections of a multi-selection editor (see
-	// text.Editor.SelectionSpansInto). They are byte offsets into Value, in
-	// order, non-overlapping, and may sit anywhere on the line. Collapsed ones
-	// paint nothing. The caret is still Caret, so only the primary selection has
-	// one.
-	SelectionRanges  []text.Span
-	CompositionStart int
-	CompositionEnd   int
-	// Text styles the text of the field: its size, weight and color. The zero value is the
-	// theme's body size, regular weight and foreground, which is what the shadcn field is.
-	Text InputTextStyle
-	// Blink is the phase of the caret a field paints itself (see InputTextStyle.Mono and
-	// HideEditorText): the caret is drawn only while it is lit. Nil keeps it lit.
-	Blink *CaretBlink
-}
+type InputSnapshot = style.InputSnapshot
 
 // InputTextStyle is how the text of a single-line field is set. One value drives everything
 // that depends on it, so they cannot disagree: the glyphs painted, the position of the caret,
 // the selection and the composition underline, the ellipsis a long placeholder ends in, the
 // height of the caret, and the text geometry (size, weight and color) declared to the
 // platform's text service.
-type InputTextStyle struct {
-	// Size is the font size in points; zero is the theme's body size.
-	Size float32
-	// Weight is the font weight, 100 to 900 as in gfx.TextStyle; zero is regular.
-	Weight float32
-	// Color is the color of the text; the zero color, which is transparent, is the theme's
-	// foreground.
-	Color gfx.Color
-	// Mono sets the text in a fixed-pitch face, MonoFace choosing which (gfx.TextStyle's own).
-	// The platform's text service draws one proportional face, so a mono field is painted
-	// by the component: its glyphs, selection, composition underline and caret are drawn in
-	// the field, and the platform is kept for what only it does (typing, the input method
-	// and the clipboard) with its own text and overlays hidden. The snapshot must then say
-	// where the caret, the selection and the composition are (Caret, SelectionStart and so
-	// on), and may give the caret's blink phase in Blink.
-	Mono     bool
-	MonoFace gfx.MonoFace
-}
-
-// style is the gfx.TextStyle the field's text is drawn and measured in under a theme: the zero
-// size, weight and color are the theme's body size, regular weight and foreground.
-func (s InputTextStyle) style(theme *gfx.Theme) gfx.TextStyle {
-	style := gfx.TextStyle{Size: s.Size, Weight: s.Weight, Color: s.Color, Mono: s.Mono, MonoFace: s.MonoFace}
-	if style.Size <= 0 {
-		style.Size = theme.Metrics.FontSizeM
-	}
-	if style.Weight <= 0 {
-		style.Weight = gfx.WeightRegular
-	}
-	if style.Color == (gfx.Color{}) {
-		style.Color = theme.Foreground
-	}
-	return style
-}
+type InputTextStyle = style.InputTextStyle
 
 // PaintInput paints the official Vega input recipe and returns its normalized
 // geometry. Byte offsets describe DisplayValue (or Value when DisplayValue is
@@ -149,7 +72,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 	if snapshot.Alignment == gfx.AlignLeft {
 		snapshot.Alignment = gfx.AlignStart
 	}
-	style := snapshot.Text.style(&theme)
+	style := snapshot.Text.TextStyle(&theme)
 	// A mono field is painted by the component whatever the snapshot says of the platform: the
 	// platform's text service cannot draw its face, so its text and overlays are hidden. A
 	// field that asked to hide the editor's text is painted by the component too, and the
@@ -216,7 +139,7 @@ func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snaps
 }
 
 func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) {
-	textStyle := snapshot.Text.style(&theme)
+	textStyle := snapshot.Text.TextStyle(&theme)
 	fontSize, ink := textStyle.Size, textStyle.Color
 	color := ink
 	if value == "" {
@@ -419,16 +342,6 @@ func textEntryDark(theme *gfx.Theme) bool { return theme.Background.Red < 0.5 }
 // InputOTP are painted with. It is the recipe those controls share, as plain values: an
 // application that builds a field from its own elements (ui.InputBase) reads it to take
 // the shadcn surface for a state and change what it wants of it.
-type TextEntryLook struct {
-	// Fill and Border are the colors of the surface. Over an opaque theme they are
-	// flattened onto the page background, as RoundedBorder needs, so a translucent token
-	// does not tint the control's interior; over a translucent theme they keep their alpha.
-	Fill, Border gfx.Color
-	// BorderWidth and Radius are the line and the corners.
-	BorderWidth, Radius float32
-	// Shadow is the elevation under the control.
-	Shadow gfx.ShadowLevel
-}
 
 // TextEntryRecipe resolves the text-entry recipe for state:
 //

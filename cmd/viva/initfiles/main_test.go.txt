@@ -13,7 +13,7 @@ import (
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
 	page := ui.NewPage(ui.PageConfig{View: m.page})
-	driver, err := app.NewDriver(page.Config(config()), nil)
+	driver, err := app.NewDriver(ui.Configure(page, config()), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

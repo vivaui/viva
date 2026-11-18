@@ -13,10 +13,10 @@ func TestColorSwatchChoosesByClick(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Row(c).Gap(4).Children(func() {
 			for _, s := range []struct {
-				name string
+				Name string
 				col  gfx.Color
 			}{{"Red", red}, {"Blue", blue}} {
-				if ui.ColorSwatch(c.Key(s.name), s.col, chosen == s.col, s.name).Clicked() {
+				if ui.ColorSwatch(c.Key(s.Name), s.col, chosen == s.col, s.Name).Clicked() {
 					chosen = s.col
 				}
 			}
@@ -37,9 +37,9 @@ func TestColorSwatchChoosesByClick(t *testing.T) {
 	}
 }
 
-func pickerPage(t *testing.T, state *ui.ColorPickerState, color *gfx.Color) *pageDriver {
+func pickerPage(t *testing.T, state *ui.ColorPickerState, Color *gfx.Color) *pageDriver {
 	return openPage(t, func(c ui.C) {
-		ui.Column(c).Pad(16).Children(func() { ui.ColorPicker(c, state, color, "Accent") })
+		ui.Column(c).Pad(16).Children(func() { ui.ColorPicker(c, state, Color, "Accent") })
 	})
 }
 
@@ -52,7 +52,7 @@ func TestColorPickerAppliesATypedHex(t *testing.T) {
 		t.Fatal("the trigger did not open the panel")
 	}
 	d.click("Hex color")
-	state.TypeHexForTest("#FF0000")
+	state.SetHexText("#FF0000")
 	d.click("OK")
 	if state.Open() || !state.Applied() {
 		t.Fatalf("Apply left open=%v", state.Open())
@@ -120,7 +120,7 @@ func TestColorPickerDraftFollowsTheDragBeforeApply(t *testing.T) {
 	}
 }
 
-// A spec's ID names the trigger with the application's identity, so a row's
+// ColorPickerID names the trigger with the application's identity, so a row's
 // words can be its label: clicking them opens the panel.
 func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 	var state ui.ColorPickerState
@@ -133,7 +133,7 @@ func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 		ui.Row(c).Children(func() {
 			words := ui.Text(c, "Accent").LabelFor(id)
 			_ = words
-			ui.ColorPickerWith(c, &state, ui.ColorPickerSpec{ID: id, Label: "Accent"}, &color)
+			ui.ColorPickerID(c, id, &state, &color, "Accent")
 		})
 	})
 	var trigger gfx.Rect
@@ -161,15 +161,51 @@ func TestColorSwatchPaintsWithoutAllocating(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Row(c).Gap(4).Children(func() {
 			for _, s := range []struct {
-				name string
+				Name string
 				col  gfx.Color
 			}{{"Red", red}, {"Blue", blue}, {"Blue2", blue}, {"Red2", red}, {"Red3", red}, {"Blue3", blue}, {"Red4", red}} {
-				ui.ColorSwatch(c.Key(s.name), s.col, chosen == s.col, s.name)
+				ui.ColorSwatch(c.Key(s.Name), s.col, chosen == s.col, s.Name)
 			}
 		})
 	})
 	d.repaint()
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("a warm swatch row paints with %v allocations, want 0", allocs)
+	}
+}
+
+func TestColorPickerLookMethodsApplyToThePickerAndNotToOtherElements(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(10, 20, 30)
+	pipette := gfx.Icon{ViewBox: 24, Stroke: 1.5}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(8).Gap(4).Children(func() {
+			ui.ColorPicker(c, &state, &color, "Accent").RoundTrigger().TriggerIcon(&pipette).NoColor(false)
+			ui.Text(c, "plain").RoundTrigger().NoColor(true) // ignored, as documented
+		})
+	})
+	d.click("Accent")
+	if !state.Open() {
+		t.Fatal("a picker given look methods did not open")
+	}
+}
+
+// A swatch is named by the application with Hit, and declares one hit, not two.
+func TestColorSwatchTakesTheApplicationsIDWithHit(t *testing.T) {
+	id := gfx.Item(77)
+	d := openPage(t, func(c ui.C) {
+		ui.ColorSwatch(c, gfx.RGB(1, 2, 3), true, "Teal").Hit(id, "Teal")
+	})
+	n := 0
+	for _, h := range d.driver.Snapshot().Hits {
+		if h.ID == id {
+			n++
+			if h.Role != gfx.RoleRadio {
+				t.Fatalf("the named swatch is a %v, want a radio", h.Role)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("the swatch declares %d hits under its id, want 1", n)
 	}
 }

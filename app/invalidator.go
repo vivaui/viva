@@ -1,6 +1,9 @@
 package app
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/window"
+)
 
 // Invalidator lets background goroutines ask the window to repaint. Create one,
 // pass it as Config.Invalidator, and call Invalidate from anywhere after the
@@ -13,6 +16,8 @@ import "github.com/vivaui/viva/internal/platform"
 type Invalidator struct {
 	waker platform.Waker
 }
+
+var _ window.Invalidator = (*Invalidator)(nil)
 
 // Invalidate requests one repaint on the window thread. It is safe to call
 // from any goroutine and never blocks on the application.
