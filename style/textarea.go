@@ -467,10 +467,8 @@ func trimTrailingSpaces(value string) string {
 	return value
 }
 
-
 // TextareaPadY is the space above the first row and below the last (py-2).
 const TextareaPadY = 8
-
 
 // TextareaMovementForKey says which movement a key asks for in a multiline
 // editor, and whether it extends the selection (Shift). Home and End, Cmd+Left
