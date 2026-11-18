@@ -2,393 +2,14 @@ package components
 
 import (
 	"math"
-	"slices"
-	"strings"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/text"
+	"github.com/vivaui/viva/style"
 )
-
-// SingleSelectOption is a stable selectable value; an empty Label displays Value.
-type SingleSelectOption struct {
-	Value, Label string
-	Disabled     bool
-	// Icon, when it has any geometry, is painted before the label in the flat
-	// list, and before the field's text while it is that option's value. A
-	// single-color icon takes the text color; a multi-color one keeps its own.
-	// The hierarchical list (Separator) paints names only.
-	Icon gfx.Icon
-	// Search is extra text the query matches besides the label and the value,
-	// for what the row does not show, such as an address or a group. It is never
-	// painted.
-	Search string
-	// Detail is secondary text shown after the label in a muted, smaller face, such as a
-	// host's address, in the list and while the option is the field's value. The query
-	// matches it too, as it matches Search.
-	Detail string
-	// Leading and Trailing reserve room before the label and at the end of the row, which
-	// their Paint fills: a flag, a status dot, a badge, a shortcut. Content, when it has a
-	// Paint, paints the row's text itself in place of the label and detail, in the room
-	// between them. Each is drawn over its slot and takes no input: a press on it is the
-	// option's. The field shows the chosen option's label and detail only.
-	Leading, Trailing, Content SingleSelectPaint
-}
-
-// SingleSelectPaint is room an option reserves in its row, Width pixels wide, and what
-// paints it. A zero Width with a Paint takes what is left of the row (Content only).
-type SingleSelectPaint struct {
-	Width float32
-	Paint func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
-}
 
 // singleSelectIcon reports whether an icon has anything to paint.
 func singleSelectIcon(icon gfx.Icon) bool {
 	return len(icon.Commands) > 0 || len(icon.Layers) > 0
-}
-
-// SingleSelectChoice is one filtered existing or creatable option.
-type SingleSelectChoice struct {
-	SingleSelectOption
-	Selected, Create bool
-}
-
-// SingleSelectState owns one selection and a separate native search editor.
-// Selecting replaces the previous value and closes the list. Bind the native
-// text input to Query, and route option clicks and input keys to Choose and Key.
-type SingleSelectState struct {
-	Query                             text.Editor
-	Open                              bool
-	Active                            int
-	AllowCreate, MatchCaseInsensitive bool
-	// LabelsOnly makes the query match the options' labels (and Search), not their
-	// values: for values that are keys of the caller's, which the user never sees.
-	LabelsOnly bool
-	// Separator, when set, makes the popup hierarchical: values are paths whose
-	// segments are split at Separator, the list shows the first segment and a
-	// row with children opens a fly-out of the next. Choosing any row, a parent
-	// included, selects the path up to it. Typing falls back to a flat list of
-	// full paths. Rows show their own segment, not the option's Label.
-	Separator       string
-	value           string
-	options, custom []SingleSelectOption
-	choices         []SingleSelectChoice
-	validateCreate  func(string) bool
-	revision, built uint64
-	// rebuilt counts list rebuilds; widest caches the widest existing label
-	// for the list and font size it was measured at.
-	rebuilt, widestRebuilt          uint64
-	widestSize, widest              float32
-	lastQuery, lastSep              string
-	tree                            HierarchyMenuState
-	treeOK                          bool
-	lastAllow, lastCase, prepared   bool
-	scroll                          MenuScroll
-	openPainted, focusInput, reveal bool
-	// hover is the row the pointer last crossed onto: hovering that row moves
-	// Active there, so the highlight and Enter name one row instead of two.
-	hover                                 pointerRow
-	createPrefix, createValue, createText string
-}
-
-func (s *SingleSelectState) SetOptions(options []SingleSelectOption) {
-	s.options = append(s.options[:0], options...)
-	s.revision++
-}
-
-func (s *SingleSelectState) Value() string { return s.value }
-
-func (s *SingleSelectState) SetValue(value string) {
-	s.value = value
-	s.Query = text.Editor{}
-	s.revision++
-}
-
-// ForgetCreated drops the values the user created with AllowCreate, for a caller
-// that keeps them among the options it sets itself: the list would show each twice.
-func (s *SingleSelectState) ForgetCreated() {
-	if len(s.custom) == 0 {
-		return
-	}
-	clear(s.custom)
-	s.custom = s.custom[:0]
-	s.revision++
-}
-
-func (s *SingleSelectState) SetValidateCreate(validate func(string) bool) {
-	s.validateCreate = validate
-	s.revision++
-}
-
-// Dismiss closes the list and drops the search text without changing the
-// value. Call it when focus or a press leaves the field.
-func (s *SingleSelectState) Dismiss() {
-	if !s.Open && s.Query.String() == "" {
-		return
-	}
-	s.Query = text.Editor{}
-	s.Open = false
-	s.Active = 0
-	s.tree.Reset()
-}
-
-func (s *SingleSelectState) equal(a, b string) bool {
-	return a == b || s.MatchCaseInsensitive && strings.EqualFold(a, b)
-}
-
-func (s *SingleSelectState) label(value string) string {
-	for _, option := range s.options {
-		if s.equal(option.Value, value) && option.Label != "" {
-			return option.Label
-		}
-	}
-	return value
-}
-
-// detail is the detail of the option with value, or "".
-func (s *SingleSelectState) detail(value string) string {
-	for _, option := range s.options {
-		if s.equal(option.Value, value) {
-			return option.Detail
-		}
-	}
-	return ""
-}
-
-// selectedIcon is the icon of the chosen option, when it has one.
-func (s *SingleSelectState) selectedIcon() gfx.Icon {
-	for _, option := range s.options {
-		if s.equal(option.Value, s.value) {
-			return option.Icon
-		}
-	}
-	return gfx.Icon{}
-}
-
-// Choices returns a read-only view until the next query or selection change.
-// It caches filtered rows, preserving selected and newly created values
-// even when the caller's options do not contain them. Exact labels and disabled
-// values cannot be bypassed through a duplicate create row.
-func (s *SingleSelectState) Choices() []SingleSelectChoice {
-	query := strings.TrimSpace(s.Query.String())
-	if s.prepared && s.built == s.revision && query == s.lastQuery && s.lastAllow == s.AllowCreate && s.lastCase == s.MatchCaseInsensitive && s.lastSep == s.Separator {
-		return s.choices
-	}
-	if query != s.lastQuery && query != "" {
-		s.Open = true
-	}
-	s.choices = s.choices[:0]
-	exact, haveValue := false, s.value == ""
-	match := strings.ToLower(query)
-	add := func(option SingleSelectOption) {
-		label := option.Label
-		if label == "" {
-			label = option.Value
-		}
-		exact = exact || s.equal(query, option.Value) || s.equal(query, label)
-		haveValue = haveValue || s.equal(s.value, option.Value)
-		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
-			(s.LabelsOnly || !strings.Contains(strings.ToLower(option.Value), match)) &&
-			!strings.Contains(strings.ToLower(option.Search), match) &&
-			!strings.Contains(strings.ToLower(option.Detail), match) {
-			return
-		}
-		option.Label = label
-		s.choices = append(s.choices, SingleSelectChoice{SingleSelectOption: option, Selected: s.equal(s.value, option.Value)})
-	}
-	for _, option := range s.options {
-		add(option)
-	}
-	for _, option := range s.custom {
-		if !slices.ContainsFunc(s.options, func(o SingleSelectOption) bool { return s.equal(o.Value, option.Value) }) {
-			add(option)
-		}
-	}
-	if !haveValue {
-		add(SingleSelectOption{Value: s.value, Label: s.label(s.value)})
-	}
-	if s.AllowCreate && query != "" && !exact {
-		s.choices = append(s.choices, SingleSelectChoice{})
-		copy(s.choices[1:], s.choices[:len(s.choices)-1])
-		s.choices[0] = SingleSelectChoice{SingleSelectOption: SingleSelectOption{Value: query, Label: query, Disabled: s.validateCreate != nil && !s.validateCreate(query)}, Create: true}
-	}
-	s.Active = 0
-	for i, choice := range s.choices {
-		if !choice.Disabled && (s.choices[s.Active].Disabled || query == "" && choice.Selected) {
-			s.Active = i
-		}
-	}
-	s.lastQuery, s.built, s.prepared = query, s.revision, true
-	s.rebuilt++
-	s.lastAllow, s.lastCase, s.lastSep = s.AllowCreate, s.MatchCaseInsensitive, s.Separator
-	s.treeOK = false
-	if s.Separator != "" && query == "" {
-		s.treeOK = s.tree.Build(s.Separator, s.value, s.equal, len(s.choices), func(i int) HierarchyMenuItem {
-			return HierarchyMenuItem{Value: s.choices[i].Value, Disabled: s.choices[i].Disabled}
-		})
-	}
-	s.scroll.Offset, s.reveal = 0, true
-	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
-	// over again, or a pointer parked on a row would lose it to the reset above.
-	s.hover = pointerRow{}
-	return s.choices
-}
-
-// Choose always selects a single value, including when the row was selected.
-//
-// In a hierarchical list index is the number of the row's identity: its level
-// shifted left by 16 plus its row, which is the plain row number in the first
-// level and in a flat list.
-func (s *SingleSelectState) Choose(index int) bool {
-	choices := s.Choices()
-	if s.treeActive() {
-		value, ok := s.tree.Choose(index)
-		if ok {
-			s.SetValue(value)
-			s.Open, s.focusInput = false, true
-		}
-		return ok
-	}
-	if index < 0 || index >= len(choices) || choices[index].Disabled {
-		return false
-	}
-	choice := choices[index]
-	if choice.Create {
-		s.custom = append(s.custom, choice.SingleSelectOption)
-	}
-	s.SetValue(choice.Value)
-	s.Open, s.focusInput = false, true
-	return true
-}
-
-func (s *SingleSelectState) Clear() {
-	s.SetValue("")
-	s.Open, s.focusInput = false, true
-}
-
-// CommitQuery confirms an exact existing value or a valid new value. A form can
-// call it on submit to preserve ordinary text-field save behavior.
-func (s *SingleSelectState) CommitQuery() bool {
-	if _, composing := s.Query.Composition(); composing {
-		return false
-	}
-	query := strings.TrimSpace(s.Query.String())
-	if query == "" {
-		return true
-	}
-	choices := s.Choices()
-	for i, choice := range choices {
-		if !choice.Create && (s.equal(query, choice.Value) || s.equal(query, choice.Label)) {
-			return s.Choose(i)
-		}
-	}
-	for i, choice := range choices {
-		if choice.Create {
-			return s.Choose(i)
-		}
-	}
-	return false
-}
-
-func (s *SingleSelectState) Key(event gfx.KeyEvent) gfx.EventResult {
-	if event.Release || event.Modifiers != 0 && !(event.Key == gfx.KeyTab && event.Modifiers == gfx.ModifierShift) {
-		return gfx.EventResult{}
-	}
-	if _, composing := s.Query.Composition(); composing {
-		return gfx.EventResult{Handled: event.Key == gfx.KeyEnter}
-	}
-	choices := s.Choices()
-	if s.treeActive() {
-		result := s.tree.Key(event, s.Open)
-		if result.Opened {
-			s.Open = true
-		}
-		if result.Picked {
-			s.SetValue(result.Chosen)
-			s.Open, s.focusInput = false, true
-		}
-		if result.Handled {
-			return result.EventResult
-		}
-	}
-	switch event.Key {
-	case gfx.KeyDown, gfx.KeyUp:
-		if !s.Open {
-			s.Open = true
-			return gfx.EventResult{Handled: true, Repaint: true}
-		}
-		step := 1
-		if event.Key == gfx.KeyUp {
-			step = -1
-		}
-		for i, next := 0, s.Active; i < len(choices); i++ {
-			next = (next + step + len(choices)) % len(choices)
-			if !choices[next].Disabled {
-				s.Active = next
-				break
-			}
-		}
-		s.reveal = true
-		return gfx.EventResult{Handled: true, Repaint: true}
-	case gfx.KeyEnter:
-		if !event.Repeat {
-			if !s.Open && s.Query.String() == "" {
-				s.Open = true
-			} else {
-				s.Choose(s.Active)
-			}
-		}
-		return gfx.EventResult{Handled: true, Repaint: true}
-	case gfx.KeyEscape:
-		if s.Open || s.Query.String() != "" {
-			s.Dismiss()
-			return gfx.EventResult{Handled: true, Repaint: true}
-		}
-	case gfx.KeyTab:
-		if s.Open {
-			// Leaving the field drops the search text: a closed field paints the
-			// selected label, never the query it did not commit.
-			s.Dismiss()
-			return gfx.EventResult{Handled: true, Repaint: true, ContinueTraversal: true}
-		}
-	case gfx.KeyBackspace:
-		if !event.Repeat && s.Query.String() == "" && s.value != "" {
-			s.Clear()
-			return gfx.EventResult{Handled: true, Repaint: true}
-		}
-	}
-	return gfx.EventResult{}
-}
-
-// Wheel scrolls the list, or in a hierarchical one the panel under the pointer.
-func (s *SingleSelectState) Wheel(event gfx.ScrollEvent) bool {
-	if s.treeActive() {
-		return s.tree.Wheel(event)
-	}
-	return s.scroll.Wheel(event)
-}
-
-func (s *SingleSelectState) Pointer(event gfx.PointerEvent) gfx.EventResult {
-	if s.treeActive() {
-		return s.tree.Pointer(event)
-	}
-	if s.scroll.BarID.IsZero() || event.Target != s.scroll.BarID && !s.scroll.Dragging() {
-		return gfx.EventResult{}
-	}
-	return gfx.EventResult{Handled: true, Repaint: s.scroll.Drag(event)}
-}
-
-// SingleSelectOptions names the control's hit IDs, its popup layer and the
-// strings the caller supplies for its labels and create row.
-type SingleSelectOptions struct {
-	InputID, TriggerID, ClearID, DismissID, Scope, ScrollID  gfx.ID
-	OptionIDs                                                gfx.Scope
-	Label, Placeholder, EmptyLabel, CreatePrefix, ClearLabel string
-	// Viewport bounds the popup and backdrop independently of the input's
-	// ancestor scroll clips. Set it to the window or a narrower overlay region.
-	Viewport          gfx.Rect
-	Layer             uint16
-	Disabled, Invalid bool
-	MaxRows           int
 }
 
 // singleSelectDetailGap is the space between an option's label and its detail.
@@ -397,8 +18,8 @@ const singleSelectDetailGap = 8
 // popupWidth is the width that shows every label of choices untruncated.
 func popupWidth(s *SingleSelectState, canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
 	size := theme.Metrics.FontSizeM
-	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
-		s.widest = 0
+	if s.WidestRebuilt != s.Rebuilt || s.WidestSize != size {
+		s.WidestValue = 0
 		for _, choice := range choices {
 			if choice.Create {
 				continue
@@ -419,21 +40,17 @@ func popupWidth(s *SingleSelectState, canvas *gfx.Canvas, theme gfx.Theme, choic
 			if singleSelectIcon(choice.Icon) {
 				width += menuIconSize + menuIconGap
 			}
-			s.widest = max(s.widest, width)
+			s.WidestValue = max(s.WidestValue, width)
 		}
-		s.widestRebuilt, s.widestSize = s.rebuilt, size
+		s.WidestRebuilt, s.WidestSize = s.Rebuilt, size
 	}
-	widest := s.widest
+	widest := s.WidestValue
 	if len(choices) > 0 && choices[0].Create {
 		widest = max(widest, canvas.TextWidthWeight(o.CreatePrefix+choices[0].Label, size, gfx.WeightRegular))
 	}
 	// A row spends 8 on the left and 30 on the check before the menu padding.
 	return float32(math.Ceil(float64(widest))) + 46 + 1
 }
-
-// SingleSelectLayout is where the control, its native input and its popup were
-// painted, for callers that route text input or place overlays.
-type SingleSelectLayout struct{ Bounds, Input, Popup gfx.Rect }
 
 // PaintSingleSelect shares text-entry and menu primitives with Combobox and
 // MultiSelect. The query stays a native editor; no chip or multi-selection is
@@ -449,10 +66,10 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	choices := s.Choices()
 	open := s.Open && !o.Disabled
 	floating := o.Viewport.Width > 0 && o.Viewport.Height > 0
-	if s.openPainted && !open && canvas.Focused() == o.InputID {
+	if s.OpenPainted && !open && canvas.Focused() == o.InputID {
 		canvas.RequestFocus(o.InputID)
 	}
-	s.openPainted = open
+	s.OpenPainted = open
 	if open {
 		canvas.PushLayer(o.Layer)
 		defer canvas.PopLayer()
@@ -478,7 +95,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	if o.Disabled {
 		iconColor.Alpha *= .5
 	}
-	if !o.ClearID.IsZero() && (s.value != "" || query != "") {
+	if !o.ClearID.IsZero() && (s.ValueText != "" || query != "") {
 		clear := gfx.Rect{X: right - 24, Y: trigger.Y, Width: 24, Height: 24}
 		if !o.Disabled && canvas.Hovered() == o.ClearID {
 			canvas.Rounded(clear, theme.Metrics.RadiusItem(), theme.Muted)
@@ -495,7 +112,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	layout.Input = gfx.Rect{X: bounds.X + inset, Y: bounds.Y + 1, Width: max(1, right-bounds.X-inset), Height: bounds.Height - 2}
 	display, color := query, theme.Foreground
 	if display == "" {
-		display = s.label(s.value)
+		display = s.Label(s.ValueText)
 		if display == "" {
 			display, color = o.Placeholder, theme.MutedForeground
 		} else if open {
@@ -505,7 +122,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	if o.Disabled {
 		color.Alpha *= .5
 	}
-	if icon := s.selectedIcon(); singleSelectIcon(icon) {
+	if icon := s.SelectedIcon(); singleSelectIcon(icon) {
 		side := min(menuIconSize, layout.Input.Height)
 		canvas.DrawIcon(icon, gfx.Rect{X: layout.Input.X, Y: bounds.Y + (bounds.Height-side)/2, Width: side, Height: side}, color)
 		layout.Input.X += menuIconSize + menuIconGap
@@ -514,25 +131,25 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	if canvas.Focused() != o.InputID || query == "" {
 		detail := ""
 		if query == "" && !open {
-			detail = s.detail(s.value)
+			detail = s.Detail(s.ValueText)
 		}
 		paintLabelAndDetail(canvas, theme, layout.Input.X, layout.Input.Y, layout.Input.Width, layout.Input.Height, display, detail, color, o.Disabled)
 	}
 	accessibleValue := query
 	if accessibleValue == "" {
-		accessibleValue = s.label(s.value)
+		accessibleValue = s.Label(s.ValueText)
 	}
 	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: accessibleValue, Expanded: open, Disabled: o.Disabled, Cursor: gfx.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
 	paintChevron(canvas, &chevronDownIcon, trigger, iconColor)
-	if s.focusInput {
+	if s.FocusInput {
 		canvas.RequestFocus(o.InputID)
-		s.focusInput = false
+		s.FocusInput = false
 	}
 	if !open {
 		return layout
 	}
-	if s.treeActive() {
-		layout.Popup = PaintHierarchyMenu(canvas, theme, bounds, &s.tree, HierarchyMenuOptions{
+	if s.TreeActive() {
+		layout.Popup = PaintHierarchyMenu(canvas, theme, bounds, &s.Tree, HierarchyMenuOptions{
 			OptionIDs: o.OptionIDs, ScrollID: o.ScrollID, Scope: o.Scope, Layer: o.Layer, Label: o.Label,
 			EmptyLabel: o.EmptyLabel, Viewport: o.Viewport, MaxRows: o.MaxRows,
 		})
@@ -562,13 +179,13 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	canvas.Block(layout.Popup)
 	canvas.Container(layout.Popup, gfx.RoleListBox, o.Label)
 	paintPopupSurface(canvas, &theme, layout.Popup, gfx.ShadowMD)
-	s.scroll.BarID = o.ScrollID
-	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
+	s.Scroll.BarID = o.ScrollID
+	menu := menuSurface{canvas: canvas, theme: theme, bounds: layout.Popup, options: menuSurfaceOptions{layer: o.Layer, scope: o.Scope, scroll: &s.Scroll}, top: layout.Popup.Y + 4, bottom: layout.Popup.Y + layout.Popup.Height - 4, viewHeight: layout.Popup.Height - 8}
 	menu.beginScroll()
 	// Move the cursor before any row is painted: syncing it while the rows are
 	// drawn would tint the previous row and the new one in the same frame.
 	hovered := canvas.Hovered()
-	if s.hover.entered(hovered) && !hovered.IsZero() {
+	if s.Hover.Entered(hovered) && !hovered.IsZero() {
 		for i := range choices {
 			if o.OptionIDs.At(i) == hovered && !choices[i].Disabled {
 				s.Active = i
@@ -590,11 +207,11 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 			color := look.Foreground
 			label := choice.Label
 			if choice.Create {
-				if s.createPrefix != o.CreatePrefix || s.createValue != label {
-					s.createPrefix, s.createValue = o.CreatePrefix, label
-					s.createText = o.CreatePrefix + label
+				if s.CreatePrefix != o.CreatePrefix || s.CreateValue != label {
+					s.CreatePrefix, s.CreateValue = o.CreatePrefix, label
+					s.CreateText = o.CreatePrefix + label
 				}
-				label = s.createText
+				label = s.CreateText
 			}
 			left := row.X + 8
 			if singleSelectIcon(choice.Icon) {
@@ -628,18 +245,11 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 		canvas.LabelCenter(o.EmptyLabel, layout.Popup, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground})
 	}
 	menu.end()
-	if s.reveal && s.scroll.Reveal(o.OptionIDs.At(s.Active)) {
+	if s.Reveal && s.Scroll.Reveal(o.OptionIDs.At(s.Active)) {
 		canvas.RequestFrame()
 	}
-	s.reveal = false
+	s.Reveal = false
 	return layout
-}
-
-// treeActive reports whether the popup is the hierarchical one: a separator is
-// set, no search text is typed, and every value fits the supported depth.
-func (s *SingleSelectState) treeActive() bool {
-	s.Choices()
-	return s.treeOK && s.Separator != "" && s.lastQuery == ""
 }
 
 // paintLabelAndDetail paints a label in the width it has and, after it, the muted detail in
@@ -661,3 +271,11 @@ func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, heigh
 		canvas.Label(canvas.FitLine(detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted})
 	}
 }
+
+// Aliases into the style vocabulary.
+type SingleSelectOption = style.SingleSelectOption
+type SingleSelectPaint = style.SingleSelectPaint
+type SingleSelectChoice = style.SingleSelectChoice
+type SingleSelectState = style.SingleSelectState
+type SingleSelectOptions = style.SingleSelectOptions
+type SingleSelectLayout = style.SingleSelectLayout

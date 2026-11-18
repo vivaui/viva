@@ -293,65 +293,6 @@ func (menu *DropdownMenu) AddContent(height float32) gfx.Rect { return menu.surf
 // painted, or the menu appears and disappears at once.
 func (menu *DropdownMenu) End() { menu.surface.end() }
 
-// MenuScroll is the caller-owned scroll position of a menu or command list whose
-// items do not all fit its bounds, as `overflow-y-auto` is the browser's. Keep one
-// per open list, hand its address to the list's options, and feed wheel gestures
-// that happen over the list to Wheel:
-//
-//	var scroll components.MenuScroll // reset to its zero value when the list opens
-//	...
-//	menu := components.BeginDropdownMenu(canvas, theme, bounds, components.DropdownMenuOptions{Scroll: &scroll})
-//	... AddItem ...
-//	menu.End() // paints the scrollbar
-//	...
-//	config.OnScroll = func(event gfx.ScrollEvent) gfx.EventResult {
-//		if menuOpen && pointInRect(event.X, event.Y, menuBounds) {
-//			return gfx.EventResult{Handled: true, Repaint: scroll.Wheel(event)}
-//		}
-//		...
-//	}
-//
-// Rows that are scrolled out declare no hit, so Tab and the pointer cannot reach
-// them; the arrow keys can, through Navigate, and a row the keyboard focuses is
-// scrolled into view by the next paint. Set BarID to make the scrollbar draggable.
-//
-// The list measures its content as it paints, so Offset is clamped to what the
-// last paint found. Set Offset to zero when the items change.
-type MenuScroll struct {
-	// Offset is how far the content has moved up, in pixels.
-	Offset float32
-	// BarID, when set, makes the scrollbar a hit of that identity so the thumb can
-	// be dragged (see Drag). The rows' hits then end where the bar starts.
-	BarID gfx.ID
-	max   float32
-	// measured says a paint has found max, so Offset can be held to it; before
-	// that an Offset the caller set stands.
-	measured bool
-	// view is the height of the room the rows show in; items are the rows with
-	// an identity, as the last paint laid them out in content coordinates.
-	view  float32
-	items []menuScrollItem
-	// TabCloses makes Tab close the list and continue through the page, as a
-	// dropdown or select does. A context menu leaves it false, because Base UI
-	// keeps Tab inside a context menu.
-	TabCloses bool
-	// followed is the keyboard focus the list last scrolled to.
-	followed gfx.ID
-	// barTop and thumb place the thumb of the last paint; grab is where in the
-	// thumb a drag holds it.
-	barTop, thumb, grab float32
-	dragging            bool
-}
-
-// menuScrollItem is a selectable row: what it says and where it lies in the
-// content, so the keyboard can also match it by name.
-type menuScrollItem struct {
-	id          gfx.ID
-	label       string
-	top, height float32
-	disabled    bool
-}
-
 // The draggable scrollbar track is menuBarWidth wide and ends 2px inside the
 // surface, over the thumb; the rows' hits end where it starts, menuBarInset short
 // of their paint.
@@ -360,223 +301,25 @@ const (
 	menuBarInset = float32(4)
 )
 
-// Max is how far the list can scroll: how much of its content the last paint
-// did not fit. It is zero until the list has painted, and for a list that fits.
-func (scroll *MenuScroll) Max() float32 { return scroll.max }
-
-// Wheel scrolls by one scroll gesture and reports whether the position changed.
-// A notch of a wheel (a gesture that is not Precise) moves at least 24 pixels.
-func (scroll *MenuScroll) Wheel(event gfx.ScrollEvent) bool {
-	step := event.DeltaY
-	if !event.Precise {
-		if step > 0 && step < 24 {
-			step = 24
-		} else if step < 0 && step > -24 {
-			step = -24
-		}
-	}
-	return scroll.By(step)
-}
-
-// By scrolls by step pixels (positive reveals what is below) and reports whether
-// the position changed.
-func (scroll *MenuScroll) By(step float32) bool {
-	before := scroll.Offset
-	scroll.Offset = max(min(before+step, scroll.max), 0)
-	return scroll.Offset != before
-}
-
-// Reveal scrolls the least that brings the item with that identity fully into
-// view, as the last paint laid the list out, and reports whether the position
-// changed. The first item scrolls to the top, so a group label above it shows,
-// and the last to the end. An identity the list did not paint changes nothing.
-func (scroll *MenuScroll) Reveal(id gfx.ID) bool {
-	if id.IsZero() {
-		return false
-	}
-	for index := range scroll.items {
-		if scroll.items[index].id == id {
-			return scroll.revealAt(index)
-		}
-	}
-	return false
-}
-
-func (scroll *MenuScroll) revealAt(index int) bool {
-	item := scroll.items[index]
-	target := scroll.Offset
-	switch {
-	case index == 0:
-		target = 0
-	case item.top < scroll.Offset:
-		target = item.top
-	case item.top+item.height > scroll.Offset+scroll.view:
-		target = item.top + item.height - scroll.view
-		if index == len(scroll.items)-1 {
-			target = scroll.max
-		}
-	}
-	before := scroll.Offset
-	scroll.Offset = max(min(target, scroll.max), 0)
-	return scroll.Offset != before
-}
-
-// Navigate is the arrow-key movement of a list: Up and Down step to the previous
-// and next enabled item, Home and End go to the first and last, PageUp and
-// PageDown move a viewport's height. It returns the identity of the item the key
-// leads to from the item from (the zero identity when none has the keyboard) and
-// scrolls it into view; ask the runtime to focus it:
-//
-//	if id, ok := scroll.Navigate(event.Key, event.Target, true); ok {
-//		return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}
-//	}
-//
-// loop makes Down past the last item arrive at the first, and Up past the first
-// at the last, as a menu does; a list that does not loop stays on its edge. It
-// reports false for any other key, and for a list without an enabled item.
-func (scroll *MenuScroll) Navigate(key gfx.Key, from gfx.ID, loop bool) (gfx.ID, bool) {
-	switch key {
-	case gfx.KeyUp, gfx.KeyDown, gfx.KeyHome, gfx.KeyEnd, gfx.KeyPageUp, gfx.KeyPageDown:
-	default:
-		return gfx.ID{}, false
-	}
-	first, last, current := -1, -1, -1
-	for index, item := range scroll.items {
-		if item.id == from {
-			current = index
-		}
-		if item.disabled {
-			continue
-		}
-		if first < 0 {
-			first = index
-		}
-		last = index
-	}
-	if first < 0 {
-		return gfx.ID{}, false
-	}
-	next := func(from, step int) int {
-		for index := from + step; index >= 0 && index < len(scroll.items); index += step {
-			if !scroll.items[index].disabled {
-				return index
-			}
-		}
-		return -1
-	}
-	target := -1
-	switch {
-	case key == gfx.KeyHome:
-		target = first
-	case key == gfx.KeyEnd:
-		target = last
-	case current < 0:
-		target = first
-		if key == gfx.KeyUp {
-			target = last
-		}
-	case key == gfx.KeyDown:
-		if target = next(current, 1); target < 0 {
-			target = current
-			if loop {
-				target = first
-			}
-		}
-	case key == gfx.KeyUp:
-		if target = next(current, -1); target < 0 {
-			target = current
-			if loop {
-				target = last
-			}
-		}
-	case key == gfx.KeyPageDown:
-		reach := scroll.items[current].top + scroll.view
-		target = current
-		for index := next(current, 1); index >= 0 && scroll.items[index].top <= reach; index = next(index, 1) {
-			target = index
-		}
-		if target == current {
-			target = next(current, 1)
-		}
-		if target < 0 {
-			target = last
-		}
-	case key == gfx.KeyPageUp:
-		reach := scroll.items[current].top - scroll.view
-		target = current
-		for index := next(current, -1); index >= 0 && scroll.items[index].top >= reach; index = next(index, -1) {
-			target = index
-		}
-		if target == current {
-			target = next(current, -1)
-		}
-		if target < 0 {
-			target = first
-		}
-	}
-	scroll.revealAt(target)
-	return scroll.items[target].id, true
-}
-
-// Match returns the first enabled row whose label starts with prefix, ignoring
-// case, searching after from and wrapping once, and scrolls it into view. It is
-// Base UI's menu and select typeahead: the caller owns the typed text and when a
-// session starts or expires (Base UI resets it after 500ms), then hands each
-// printable key to Match. Passing the item the keyboard or selection started on
-// as from starts at the next row, as a new session does; passing the previous
-// match continues after it, which is how a repeated first letter cycles through
-// same-initial rows. It reports false for an empty prefix or when nothing among
-// the last paint's rows matches.
-func (scroll *MenuScroll) Match(prefix string, from gfx.ID) (gfx.ID, bool) {
-	if prefix == "" || len(scroll.items) == 0 {
-		return gfx.ID{}, false
-	}
-	start := 0
-	if !from.IsZero() {
-		for index := range scroll.items {
-			if scroll.items[index].id == from {
-				start = index + 1
-				break
-			}
-		}
-	}
-	for offset := 0; offset < len(scroll.items); offset++ {
-		index := (start + offset) % len(scroll.items)
-		item := scroll.items[index]
-		if item.id.IsZero() || item.disabled || item.label == "" {
-			continue
-		}
-		if menuLabelHasPrefix(item.label, prefix) {
-			scroll.revealAt(index)
-			return item.id, true
-		}
-	}
-	return gfx.ID{}, false
-}
-
 // menuTypeaheadCanCycle reports whether a repeated first letter may cycle
 // through matches. Base UI does not cycle when a row's first two letters are
 // the same ("Aaron", "llama"), because then a doubled letter is a real query.
 func menuTypeaheadCanCycle(scroll *MenuScroll) bool {
-	for _, item := range scroll.items {
-		if item.disabled || item.id.IsZero() {
+	for _, item := range scroll.Items {
+		if item.Disabled || item.ID.IsZero() {
 			continue
 		}
-		first, firstSize := utf8.DecodeRuneInString(item.label)
+		first, firstSize := utf8.DecodeRuneInString(item.Label)
 		if firstSize == 0 {
 			continue
 		}
-		second, secondSize := utf8.DecodeRuneInString(item.label[firstSize:])
+		second, secondSize := utf8.DecodeRuneInString(item.Label[firstSize:])
 		if secondSize > 0 && unicode.ToLower(first) == unicode.ToLower(second) {
 			return false
 		}
 	}
 	return true
 }
-
-// CanCycle reports whether a repeated first letter may cycle through matches:
-// no row's first two letters are the same, so a doubled letter is a real query.
-func (scroll *MenuScroll) CanCycle() bool { return menuTypeaheadCanCycle(scroll) }
 
 // menuLabelHasPrefix reports whether label starts with prefix, comparing one
 // rune at a time without lowercasing either string. Typeahead runs on a key
@@ -590,57 +333,6 @@ func menuLabelHasPrefix(label, prefix string) bool {
 		label = label[size:]
 	}
 	return true
-}
-
-// Dragging reports whether the thumb is held, so pointer events that follow it
-// out of the scrollbar still belong to Drag.
-func (scroll *MenuScroll) Dragging() bool { return scroll.dragging }
-
-// Drag drags the thumb of a list whose BarID is set: feed it the pointer events
-// whose Target is BarID, and, while Dragging, every pointer event. A press on the
-// thumb holds it where it was grabbed; a press on the track elsewhere centers the
-// thumb on the pointer. It reports whether the position changed, to repaint.
-func (scroll *MenuScroll) Drag(event gfx.PointerEvent) bool {
-	switch event.Kind {
-	case gfx.PointerDown:
-		if scroll.BarID.IsZero() || event.Target != scroll.BarID || scroll.max <= 0 {
-			return false
-		}
-		at := scroll.barTop + (scroll.view-scroll.thumb)*scroll.Offset/scroll.max
-		scroll.grab = scroll.thumb / 2
-		if event.Y >= at && event.Y < at+scroll.thumb {
-			scroll.grab = event.Y - at
-		}
-		scroll.dragging = true
-		return scroll.dragTo(event.Y)
-	case gfx.PointerMove:
-		return scroll.dragging && scroll.dragTo(event.Y)
-	default:
-		scroll.dragging = false
-		return false
-	}
-}
-
-func (scroll *MenuScroll) dragTo(y float32) bool {
-	travel := scroll.view - scroll.thumb
-	if travel <= 0 {
-		return false
-	}
-	before := scroll.Offset
-	scroll.Offset = max(min((y-scroll.grab-scroll.barTop)/travel*scroll.max, scroll.max), 0)
-	return scroll.Offset != before
-}
-
-// follow scrolls the item the keyboard has just moved to into view, before the
-// list is laid out. A wheel gesture that leaves the focus where it was is not
-// undone.
-func (scroll *MenuScroll) follow(canvas *gfx.Canvas) {
-	focus := canvas.FocusVisible()
-	if focus == scroll.followed {
-		return
-	}
-	scroll.followed = focus
-	scroll.Reveal(focus)
 }
 
 const (
@@ -757,24 +449,6 @@ type menuSurface struct {
 	viewport gfx.Rect
 }
 
-// pointerRow remembers which option row the pointer is over so a list can move
-// its keyboard cursor onto that row. It follows the pointer only when the
-// pointer crosses onto a different row: a pointer that rests where it already
-// was never takes the cursor back from the keyboard, so arrow keys keep
-// working while the pointer is parked over the list.
-type pointerRow struct{ row gfx.ID }
-
-// entered records row as the row under the pointer and reports whether the
-// pointer has just crossed onto it. Pass the zero ID, once per paint, to record
-// that no option is under the pointer.
-func (p *pointerRow) entered(row gfx.ID) bool {
-	if row == p.row {
-		return false
-	}
-	p.row = row
-	return !row.IsZero()
-}
-
 func beginMenuSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, minWidth float32, options menuSurfaceOptions) menuSurface {
 	bounds.Width = max(bounds.Width, minWidth)
 	if options.viewport.Width > 0 && options.viewport.Height > 0 {
@@ -836,15 +510,15 @@ func beginMenuSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, minW
 func (menu *menuSurface) beginScroll() {
 	if scroll := menu.options.scroll; scroll != nil {
 		if menu.canvas != nil {
-			scroll.follow(menu.canvas)
+			scroll.Follow(menu.canvas)
 		}
-		scroll.items = scroll.items[:0]
-		scroll.view = menu.viewHeight
-		if scroll.measured {
-			scroll.Offset = max(min(scroll.Offset, scroll.max), 0)
+		scroll.Items = scroll.Items[:0]
+		scroll.View = menu.viewHeight
+		if scroll.Measured {
+			scroll.Offset = max(min(scroll.Offset, scroll.MaxValue), 0)
 		}
 		menu.offset = max(scroll.Offset, 0)
-		if scroll.max > 0 && !scroll.BarID.IsZero() {
+		if scroll.MaxValue > 0 && !scroll.BarID.IsZero() {
 			menu.hitInset = menuBarInset
 		}
 	}
@@ -860,7 +534,7 @@ func (menu menuSurface) rowBounds(height float32) gfx.Rect {
 // one the keyboard can move to and match by label.
 func (menu *menuSurface) takeItem(row gfx.Rect, id gfx.ID, label string, disabled bool) bool {
 	if scroll := menu.options.scroll; scroll != nil && !id.IsZero() {
-		scroll.items = append(scroll.items, menuScrollItem{id: id, label: label, top: menu.used, height: row.Height, disabled: disabled})
+		scroll.Items = append(scroll.Items, style.MenuScrollItem{ID: id, Label: label, Top: menu.used, Height: row.Height, Disabled: disabled})
 	}
 	return menu.take(row)
 }
@@ -870,7 +544,7 @@ func (menu *menuSurface) take(row gfx.Rect) bool {
 	menu.y += row.Height
 	menu.used += row.Height
 	if scroll := menu.options.scroll; scroll != nil {
-		scroll.max, scroll.measured = max(menu.used-menu.viewHeight, 0), true
+		scroll.MaxValue, scroll.Measured = max(menu.used-menu.viewHeight, 0), true
 	}
 	return !menu.hidden && row.Height > 0 && row.Y < menu.bottom && row.Y+row.Height > menu.top
 }
@@ -1231,11 +905,11 @@ func (menu *menuSurface) end() {
 	if menu.hidden {
 		return
 	}
-	if scroll := menu.options.scroll; scroll != nil && scroll.max > 0 {
+	if scroll := menu.options.scroll; scroll != nil && scroll.MaxValue > 0 {
 		view := menu.viewHeight
-		thumb := max(view*view/(view+scroll.max), 18)
-		at := menu.top + (view-thumb)*scroll.Offset/scroll.max
-		scroll.barTop, scroll.thumb = menu.top, thumb
+		thumb := max(view*view/(view+scroll.MaxValue), 18)
+		at := menu.top + (view-thumb)*scroll.Offset/scroll.MaxValue
+		scroll.BarTop, scroll.Thumb = menu.top, thumb
 		menu.pushClip()
 		menu.pushOverlay()
 		if !menu.options.unpainted {
@@ -1343,3 +1017,13 @@ func menuItemRecipe(theme *gfx.Theme, state gfx.State) MenuItemLook {
 
 // Aliases into the style vocabulary, kept for callers of this component.
 type MenuItemPaint = style.MenuItemPaint
+
+// Aliases into the style vocabulary.
+type HierarchyMenuItem = style.HierarchyMenuItem
+type HierarchyMenuAction = style.HierarchyMenuAction
+type HierarchyMenuState = style.HierarchyMenuState
+type HierarchyMenuKeyResult = style.HierarchyMenuKeyResult
+type HierarchyMenuOptions = style.HierarchyMenuOptions
+type MenuScroll = style.MenuScroll
+type MenuScrollItem = style.MenuScrollItem
+type PointerRow = style.PointerRow

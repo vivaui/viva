@@ -5,8 +5,8 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // Combobox is a field over choices that filters them as the user types, *value the
@@ -46,7 +46,7 @@ type ComboboxOption struct {
 }
 
 // ComboboxPaint is room in an option's row and what paints it: see ComboboxOption.
-type ComboboxPaint = components.SingleSelectPaint
+type ComboboxPaint = style.SingleSelectPaint
 
 func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
 	p := c.page
@@ -140,14 +140,14 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 // comboState is what a Combobox keeps between paints: the list's state, the search
 // editor's platform input, and its options keyed by their index.
 type comboState struct {
-	list    components.SingleSelectState
+	list    style.SingleSelectState
 	input   app.TextInput
 	ids     comboIDs
 	labels  []string
 	descs   []ComboboxOption // what Describe last gave, to tell a change
 	scratch []ComboboxOption
 	keys    []string // keys[i] is the Value of option i: its index
-	opts    []components.SingleSelectOption
+	opts    []style.SingleSelectOption
 	synced  string // the chosen key as *value and the list last agreed on it
 	created string // what the user created in this paint, for Created
 	paint   func(*DrawContext)

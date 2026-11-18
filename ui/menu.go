@@ -4,7 +4,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
 	"github.com/vivaui/viva/style"
@@ -228,7 +227,7 @@ const (
 // between paints, where it is scrolled to.
 type MenuItems struct {
 	Items     []menuRow
-	Scroll    components.MenuScroll
+	Scroll    style.MenuScroll
 	typeahead style.MenuTypeahead // the letters typed to reach an item
 	paint     func(*DrawContext)
 	keys      [6]string // the keycaps of the row being measured or painted

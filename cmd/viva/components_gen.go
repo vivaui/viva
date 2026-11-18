@@ -133,7 +133,7 @@ var componentRequires = map[string][]string{
 	"dropdown-menu":      {"checkbox", "dialog", "hover-card", "kbd", "popover", "tree"},
 	"find-bar":           {"button", "dialog", "input", "toggle", "tree"},
 	"go-to-line":         {"button", "find-bar", "input"},
-	"hierarchy-menu":     {"checkbox", "dialog", "dropdown-menu", "hover-card", "menu-typeahead", "tree"},
+	"hierarchy-menu":     {"checkbox", "dialog", "dropdown-menu", "tree"},
 	"hover-card":         {"dialog", "popover"},
 	"input":              {"textarea"},
 	"input-group":        {"button", "input", "spinner", "textarea"},

@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/style"
 )
 
 // setOptions gives the list the labels when they are not the ones it has.
@@ -21,7 +22,7 @@ func (s *comboState) setOptions(labels []string) {
 	}
 	s.opts = s.opts[:0]
 	for i, label := range labels {
-		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: label})
+		s.opts = append(s.opts, style.SingleSelectOption{Value: s.keys[i], Label: label})
 	}
 	s.list.SetOptions(s.opts)
 }
@@ -30,7 +31,7 @@ func (s *comboState) setOptions(labels []string) {
 func (s *comboState) draw(d *DrawContext) {
 	n := &s.f.Nodes[s.node]
 	ids := &s.ids
-	options := components.SingleSelectOptions{
+	options := style.SingleSelectOptions{
 		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,
 		ScrollID: ids.Scroll, OptionIDs: ids.options,
 		Label: s.Label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
@@ -76,7 +77,7 @@ func (b Box) Describe(describe func(i int) ComboboxOption) Box {
 	s.descs = append(s.descs[:0], s.scratch...)
 	s.opts = s.opts[:0]
 	for i, d := range s.descs {
-		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content})
+		s.opts = append(s.opts, style.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content})
 	}
 	s.list.SetOptions(s.opts)
 	return b
