@@ -45,7 +45,7 @@ func (b Box) BesideLeftBox(anchor Box, Gap float32, align Align) Box {
 func (f *frame) placePopup(n *node, axis int) {
 	bounds := f.bounds
 	if n.Ext != 0 {
-		if w := f.exts[n.Ext].within; w.Width > 0 && w.Height > 0 {
+		if w := f.Exts[n.Ext].within; w.Width > 0 && w.Height > 0 {
 			bounds = w
 		}
 	}

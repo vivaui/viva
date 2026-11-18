@@ -314,7 +314,7 @@ func (f *frame) paintSplitter(n *node) {
 	// HitWith gives the splitter the application's own semantics: a split
 	// pane is a separator in the accessibility tree, and a caller that takes
 	// HitWith's options to say so keeps everything else a splitter's.
-	options := f.exts[n.Ext].hit
+	options := f.Exts[n.Ext].hit
 	if options.Role == 0 {
 		options.Role = gfx.RoleSlider
 	}

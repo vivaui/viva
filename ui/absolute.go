@@ -89,7 +89,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 		hasEnd := a.outOfFlow&(1<<(absEdgeBit+endEdge(axis))) != 0
 		var edgeStart, edgeEnd float32
 		if a.Ext != 0 {
-			edgeStart, edgeEnd = f.exts[a.Ext].edges[startEdge(axis)], f.exts[a.Ext].edges[endEdge(axis)]
+			edgeStart, edgeEnd = f.Exts[a.Ext].edges[startEdge(axis)], f.Exts[a.Ext].edges[endEdge(axis)]
 		}
 		var size float32
 		switch d := a.Size[axis]; {

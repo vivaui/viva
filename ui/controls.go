@@ -124,7 +124,7 @@ func (f *frame) paintSegmented(v ControlView) {
 func (f *frame) measureControls(n *node) {
 	switch n.Kind {
 	case kindButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.exts[n.Ext].icon)
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].icon)
 		if d := n.Size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
@@ -195,7 +195,7 @@ func (f *frame) measureControls(n *node) {
 
 func (f *frame) paintButton(n *node) {
 	r := n.rect
-	extra := &f.exts[n.Ext]
+	extra := &f.Exts[n.Ext]
 	button := components.BeginButton(f.canvas, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
@@ -393,7 +393,7 @@ func (f *frame) paintInput(n *node) {
 	if n.Flags&flagMono != 0 {
 		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.Face
 	}
-	if a := f.exts[n.Ext].addons; a != 0 {
+	if a := f.Exts[n.Ext].addons; a != 0 {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
 		return
 	}

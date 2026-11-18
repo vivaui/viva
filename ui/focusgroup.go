@@ -119,7 +119,7 @@ func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 		p.groupStops = map[gfx.ID]groupStop{}
 	}
 	p.groupStops[key] = groupStop{ID: stop, epoch: p.epoch}
-	order := f.exts[f.Nodes[i].Ext].focusOrder
+	order := f.Exts[f.Nodes[i].Ext].focusOrder
 	p.groups = append(p.groups, focusGroup{axis: axis, order: order, start: start, end: int32(len(ids))})
 }
 

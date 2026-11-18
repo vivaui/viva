@@ -62,10 +62,10 @@ func (b Box) Action(icon gfx.Icon, label string) Box {
 // keyboard goes back to the field then, so a clear or a reveal does not end the typing.
 func (b Box) ActionClicked() bool {
 	n := b.n()
-	if n.Kind != kindInput || n.Ext == 0 || b.f.exts[n.Ext].addons == 0 || b.f.canvas == nil {
+	if n.Kind != kindInput || n.Ext == 0 || b.f.Exts[n.Ext].addons == 0 || b.f.canvas == nil {
 		return false
 	}
-	end := b.f.addons[b.f.exts[n.Ext].addons-1].end
+	end := b.f.addons[b.f.Exts[n.Ext].addons-1].end
 	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
 		return false
 	}

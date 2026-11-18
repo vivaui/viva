@@ -132,7 +132,7 @@ func (c *LayoutContext) begin(f *frame, n *node, phase layoutPhase) {
 
 // measureCustom gives a CustomLayout container its preferred size on axis.
 func (f *frame) measureCustom(n *node, axis int) {
-	layout := f.exts[n.Ext].layout
+	layout := f.Exts[n.Ext].layout
 	if layout == nil {
 		panic("ui: a CustomLayout container has no Layout")
 	}
@@ -150,7 +150,7 @@ func (f *frame) measureCustom(n *node, axis int) {
 // solveCustom gives a CustomLayout's children their extent and origin on axis,
 // then lets the page lay out each child there.
 func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
-	layout := f.exts[n.Ext].layout
+	layout := f.Exts[n.Ext].layout
 	if layout == nil {
 		panic("ui: a CustomLayout container has no Layout")
 	}

@@ -908,7 +908,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	in := &state.list
 	in.n, in.area, in.pinned = n, area.i, -1
 	state.resize(n)
-	scroll := c.f.exts[c.f.Nodes[area.i].Ext].scrollState
+	scroll := c.f.Exts[c.f.Nodes[area.i].Ext].scrollState
 	in.Scroll = scroll
 	if state.applyScrollRequest(c.f) {
 		// The area was declared at the offset it had; the layout reads the node, so it

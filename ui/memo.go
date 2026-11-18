@@ -200,7 +200,7 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 
 // memoPaint is the frame's paint hook for a Memo's element.
 func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
-	box := &p.memoBoxes[f.exts[f.Nodes[i].Ext].memo-1]
+	box := &p.memoBoxes[f.Exts[f.Nodes[i].Ext].memo-1]
 	entry := box.entry
 	canvas := f.canvas
 	rect := f.Nodes[i].rect

@@ -412,7 +412,7 @@ func (s *DragState) hitRect(node int32) Rect {
 	if n.Ext == 0 {
 		return r
 	}
-	h := s.frame.exts[n.Ext].hitOut
+	h := s.frame.Exts[n.Ext].hitOut
 	return Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 }
 

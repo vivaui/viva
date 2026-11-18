@@ -323,8 +323,8 @@ const tableFrozenSeparator = float32(2)
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
 func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
-		if ext := f.Nodes[p].Ext; ext != 0 && f.exts[ext].scrollState != nil {
-			return f.exts[ext].scrollState, f.Nodes[p].rect
+		if ext := f.Nodes[p].Ext; ext != 0 && f.Exts[ext].scrollState != nil {
+			return f.Exts[ext].scrollState, f.Nodes[p].rect
 		}
 	}
 	return nil, Rect{}

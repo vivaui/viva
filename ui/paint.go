@@ -35,7 +35,7 @@ func (f *frame) paint(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
-	if memo := f.exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
+	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
 		if f.memoFn(f, i, true) {
 			return
 		}
@@ -43,7 +43,7 @@ func (f *frame) paint(i int32) {
 	}
 	r := n.rect
 	canvas := f.canvas
-	extra := &f.exts[n.Ext]
+	extra := &f.Exts[n.Ext]
 	style := f.resolve(n, extra)
 	// What the element is drawn with fades with it and with what it is inside; the
 	// controls inside it are painted with a theme faded the same way.
@@ -179,7 +179,7 @@ var controlPainter = (*frame).paintControls
 // background and border of its box are already down.
 func (f *frame) paintControl(n *node, r Rect) {
 	canvas := f.canvas
-	extra := &f.exts[n.Ext]
+	extra := &f.Exts[n.Ext]
 	switch n.Kind {
 	case kindText:
 		f.paintText(n)

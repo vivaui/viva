@@ -80,8 +80,8 @@ func (f *frame) tooltipState() *components.HoverTooltip {
 // tooltipSideOf is the side TooltipOn gave the element id, or below.
 func (f *frame) tooltipSideOf(ID gfx.ID) TooltipSide {
 	for i := range f.Nodes {
-		if n := &f.Nodes[i]; n.ID == ID && n.Ext != 0 && f.exts[n.Ext].tooltipSide != 0 {
-			return TooltipSide(f.exts[n.Ext].tooltipSide - 1)
+		if n := &f.Nodes[i]; n.ID == ID && n.Ext != 0 && f.Exts[n.Ext].tooltipSide != 0 {
+			return TooltipSide(f.Exts[n.Ext].tooltipSide - 1)
 		}
 	}
 	return TooltipBottom
@@ -96,7 +96,7 @@ func (f *frame) hasTooltip(ID gfx.ID) bool {
 	}
 	for i := range f.Nodes {
 		n := &f.Nodes[i]
-		if n.ID == ID && n.Ext != 0 && f.exts[n.Ext].tooltip != "" {
+		if n.ID == ID && n.Ext != 0 && f.Exts[n.Ext].tooltip != "" {
 			return true
 		}
 	}
