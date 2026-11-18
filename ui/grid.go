@@ -138,7 +138,7 @@ func (f *frame) measureGrid(n *node, axis int) {
 	if axis == axisX {
 		// As narrow as one cell: the grid takes the width it is given and fits
 		// as many columns as it can. An element spanning columns needs its share.
-		widest := n.gridMin
+		widest := n.GridMin
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
@@ -157,7 +157,7 @@ func (f *frame) measureGrid(n *node, axis int) {
 
 // solveGrid gives every child the cells it covers.
 func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
-	columns := gridColumns(n.rect.Width-n.padX(), n.gridMin, n.Gap)
+	columns := gridColumns(n.rect.Width-n.padX(), n.GridMin, n.Gap)
 	if axis == axisX {
 		cell := (avail - n.Gap*float32(columns-1)) / float32(columns)
 		f.placeGrid(n, columns)

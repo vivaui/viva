@@ -13,10 +13,10 @@ import "math"
 
 // lineGap is the space between the lines of a Flow: its LineGap, else its Gap.
 func (n *node) lineGap() float32 {
-	if n.gridMin < 0 {
+	if n.GridMin < 0 {
 		return n.Gap
 	}
-	return n.gridMin
+	return n.GridMin
 }
 
 // breakLines puts the children of Flow n on lines no wider than avail, as many on

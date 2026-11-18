@@ -241,7 +241,7 @@ func (b Box) Gap(v float32) Box { b.n().Gap = v; return b }
 // no effect on any other container.
 func (b Box) LineGap(v float32) Box {
 	if n := b.n(); n.Dir == flow {
-		n.gridMin = max(v, 0)
+		n.GridMin = max(v, 0)
 	}
 	return b
 }

@@ -142,7 +142,7 @@ type node struct {
 	LineFirst, LineCount int32     // its lines, in frame.lines
 	Scroll               float32   // how far a Scroll is scrolled
 	Content              float32   // the natural height of a Scroll's children
-	gridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
+	GridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	basis                float32   // Basis, when flagBasis is set
 	aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
 	natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
@@ -515,7 +515,7 @@ func (f *frame) Grid(minCell float32) Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.Dir = grid
-	n.gridMin = max(minCell, 1)
+	n.GridMin = max(minCell, 1)
 	return b
 }
 
@@ -531,7 +531,7 @@ func (f *frame) Flow() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
 	n.Dir = flow
-	n.gridMin = -1
+	n.GridMin = -1
 	return b
 }
 
