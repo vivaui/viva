@@ -1,6 +1,11 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type SelectLook = style.SelectLook
 
 // SelectSize selects the height of the trigger and, for the extra-small one, the
 // type step of its value.
@@ -423,16 +428,6 @@ func selectMax(a, b float32) float32 {
 }
 
 // SelectLook is the look of a select's trigger in one state.
-type SelectLook struct {
-	// Surface is the trigger's box: the text-entry recipe, which the select shares with the
-	// input, in the state the trigger is in (a hovered or pressed trigger takes the dark
-	// theme's hover fill).
-	Surface TextEntryLook
-	// Foreground is the color of the value, or of the placeholder while there is no value.
-	Foreground gfx.Color
-	// Chevron is the color of the arrow at the trigger's end.
-	Chevron gfx.Color
-}
 
 // SelectRecipe resolves the look of a select trigger. Hovered, Focused, Invalid and Disabled of
 // state are read; placeholder says the trigger shows its placeholder, which is muted. A pure

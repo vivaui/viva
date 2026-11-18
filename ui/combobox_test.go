@@ -8,11 +8,11 @@ import (
 )
 
 type zone struct {
-	id   int
-	name string
+	ID   int
+	Name string
 }
 
-func (z zone) String() string { return z.name }
+func (z zone) String() string { return z.Name }
 
 var zones = []zone{{1, "Asia/Shanghai"}, {2, "Asia/Tokyo"}, {3, "Europe/Berlin"}, {4, "Europe/London"}, {5, "America/New_York"}}
 
@@ -199,8 +199,8 @@ func TestComboboxPaintsWithoutAllocating(t *testing.T) {
 }
 
 type hostChoice struct {
-	id                int
-	name, addr, group string
+	ID                int
+	Name, addr, group string
 	blocked           bool
 }
 
@@ -213,16 +213,18 @@ var hostChoices = []hostChoice{
 func hostModelPage(chosen *hostChoice) func(ui.C) {
 	return func(c ui.C) {
 		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
-			ui.ComboboxWith(c, chosen, hostChoices, ui.ComboboxSpec[hostChoice]{Describe: func(h hostChoice) ui.ComboboxOption {
-				return ui.ComboboxOption{Label: h.name, Detail: h.addr, Search: h.group, Disabled: h.blocked}
-			}}, "Host").Width(320)
+			ui.Combobox(c, chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					h := hostChoices[i]
+					return ui.ComboboxOption{Detail: h.addr, Search: h.group, Disabled: h.blocked}
+				})
 		})
 	}
 }
 
 // A choice is found by its detail and by text it does not show, and a disabled choice stays in the
 // list but cannot be chosen.
-func TestComboboxWithSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
+func TestComboboxDescribeSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
 	var chosen hostChoice
 	d := openPage(t, hostModelPage(&chosen))
 	d.click("Host")
@@ -238,12 +240,12 @@ func TestComboboxWithSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testi
 		t.Fatalf("a search by hidden group text lists %v", got)
 	}
 	d.click("Legacy")
-	if chosen.name != "" {
+	if chosen.Name != "" {
 		t.Fatalf("a disabled choice was chosen: %v", chosen)
 	}
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyEnter)
-	if chosen.name != "" {
+	if chosen.Name != "" {
 		t.Fatalf("Enter chose a disabled choice: %v", chosen)
 	}
 	for range 3 {
@@ -251,12 +253,12 @@ func TestComboboxWithSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testi
 	}
 	d.typeText("team/prod")
 	d.click("Production")
-	if chosen.id != 1 {
+	if chosen.ID != 1 {
 		t.Fatalf("chose %v", chosen)
 	}
 }
 
-func TestComboboxWithShowsTheChosenDetail(t *testing.T) {
+func TestComboboxDescribeShowsTheChosenDetail(t *testing.T) {
 	chosen := hostChoices[0]
 	d := openPage(t, hostModelPage(&chosen))
 	found := false
@@ -265,5 +267,36 @@ func TestComboboxWithShowsTheChosenDetail(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("the field does not show the chosen option's detail")
+	}
+}
+
+// An option can reserve room at either end of its row and paint it, and paint its own text.
+func TestComboboxOptionPaintsLeadingTrailingAndContent(t *testing.T) {
+	var chosen hostChoice
+	leading, trailing, content := 0, 0, 0
+	dot := ui.ComboboxPaint{Width: 10, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { leading++ }}
+	tag := ui.ComboboxPaint{Width: 30, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { trailing++ }}
+	own := ui.ComboboxPaint{Width: 80, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { content++ }}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+			ui.Combobox(c, &chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					o := ui.ComboboxOption{Detail: hostChoices[i].addr, Leading: dot, Trailing: tag}
+					if i == 1 {
+						o.Content = own
+					}
+					return o
+				})
+		})
+	})
+	d.click("Host")
+	// Three rows have a dot and a tag; only the second paints its own text. The list is
+	// painted in more than one pass, so compare the counts with each other.
+	if content == 0 || leading != 3*content || trailing != 3*content {
+		t.Fatalf("painted leading %d, trailing %d, content %d; want 3, 3, 1 times the passes", leading, trailing, content)
+	}
+	d.click("Production")
+	if chosen.ID != 1 {
+		t.Fatalf("a press on an option with slots chose %v", chosen)
 	}
 }

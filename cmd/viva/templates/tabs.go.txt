@@ -2,35 +2,8 @@ package {{PACKAGE}}
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
-
-// TabsVariant selects a contained list or an indicator-only list.
-type TabsVariant uint8
-
-const (
-	TabsDefault TabsVariant = iota
-	TabsLine
-)
-
-// TabsOrientation selects a row or column list.
-type TabsOrientation uint8
-
-const (
-	TabsHorizontal TabsOrientation = iota
-	TabsVertical
-)
-
-// TabOption is one stable tab trigger.
-type TabOption struct {
-	ID       gfx.ID
-	Label    string
-	Disabled bool
-	// Icon is an optional leading icon. Icon and label form one centered group.
-	Icon gfx.Icon
-	// IconOnly hides the label while keeping it as the tab's accessible name.
-	// Set Label even when only the icon is painted.
-	IconOnly bool
-}
 
 // Tabs paints a compact Base UI-style tab list. The active tab and associated
 // panel remain application state. Canvas activation supports Enter and Space.
@@ -164,89 +137,6 @@ func (result TabsResult) Clicked() (int, bool) {
 func (tabs Tabs) Disabled() Tabs {
 	tabs.disabled = true
 	return tabs
-}
-
-// TabsKeyDown applies orientation-aware roving focus to current. Arrow keys on
-// the tab list's layout axis wrap through enabled non-zero options; Home and
-// End choose the first and last. Horizontal Left and Right reverse in RTL.
-func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
-	step := 0
-	switch key {
-	case gfx.KeyLeft:
-		if orientation != TabsHorizontal {
-			return current, false
-		}
-		step = -1
-		if direction.IsRTL() {
-			step = 1
-		}
-	case gfx.KeyRight:
-		if orientation != TabsHorizontal {
-			return current, false
-		}
-		step = 1
-		if direction.IsRTL() {
-			step = -1
-		}
-	case gfx.KeyUp:
-		if orientation != TabsVertical {
-			return current, false
-		}
-		step = -1
-	case gfx.KeyDown:
-		if orientation != TabsVertical {
-			return current, false
-		}
-		step = 1
-	case gfx.KeyHome:
-		return firstEnabledTab(current, options, 1), true
-	case gfx.KeyEnd:
-		return firstEnabledTab(current, options, -1), true
-	default:
-		return current, false
-	}
-	return nextEnabledTab(current, options, step), true
-}
-
-func firstEnabledTab(current gfx.ID, options []TabOption, step int) gfx.ID {
-	for index := 0; index < len(options); index++ {
-		candidate := index
-		if step < 0 {
-			candidate = len(options) - 1 - index
-		}
-		option := options[candidate]
-		if !option.ID.IsZero() && !option.Disabled {
-			return option.ID
-		}
-	}
-	return current
-}
-
-func nextEnabledTab(current gfx.ID, options []TabOption, step int) gfx.ID {
-	if len(options) == 0 {
-		return current
-	}
-	currentIndex := -1
-	for index := range options {
-		if options[index].ID == current {
-			currentIndex = index
-			break
-		}
-	}
-	if currentIndex < 0 {
-		return firstEnabledTab(current, options, step)
-	}
-	for offset := 1; offset <= len(options); offset++ {
-		index := (currentIndex + step*offset) % len(options)
-		if index < 0 {
-			index += len(options)
-		}
-		option := options[index]
-		if !option.ID.IsZero() && !option.Disabled {
-			return option.ID
-		}
-	}
-	return current
 }
 
 const (
@@ -502,3 +392,22 @@ func tabTriggerRecipe(theme *gfx.Theme, variant TabsVariant, state gfx.State) Ta
 	}
 	return look
 }
+
+type TabOption = style.TabOption
+
+type TabsOrientation = style.TabsOrientation
+
+type TabsVariant = style.TabsVariant
+
+func TabsKeyDown(current gfx.ID, options []TabOption, orientation TabsOrientation, direction Direction, key gfx.Key) (gfx.ID, bool) {
+	return style.TabsKeyDown(current, options, orientation, style.Direction(direction), key)
+}
+
+const (
+	TabsHorizontal = style.TabsHorizontal
+)
+const (
+	TabsVertical = style.TabsVertical
+	TabsDefault  = style.TabsDefault
+	TabsLine     = style.TabsLine
+)

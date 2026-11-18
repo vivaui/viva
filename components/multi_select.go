@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -54,7 +55,7 @@ type MultiSelectState struct {
 	focusInput, reveal bool
 	// hover is the row the pointer last crossed onto: hovering that row moves
 	// Active there, so the highlight and Enter name one row instead of two.
-	hover                                 pointerRow
+	hover                                 style.PointerRow
 	createText, createPrefix, createValue string
 	overflowText                          string
 	overflowCount                         int
@@ -154,7 +155,7 @@ func (s *MultiSelectState) Choices() []MultiSelectChoice {
 	s.reveal = true
 	// A rebuilt list is a new set of rows: let the pointer adopt the row it is
 	// over again, or a pointer parked on a row would lose it to the reset above.
-	s.hover = pointerRow{}
+	s.hover = style.PointerRow{}
 	return s.choices
 }
 
@@ -400,7 +401,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 	// Move the cursor before any row is painted: syncing it while the rows are
 	// drawn would tint the previous row and the new one in the same frame.
 	hovered := canvas.Hovered()
-	if s.hover.entered(hovered) && !hovered.IsZero() {
+	if s.hover.Entered(hovered) && !hovered.IsZero() {
 		for i := range choices {
 			if o.OptionIDs.At(i) == hovered && !choices[i].Disabled {
 				s.Active = i

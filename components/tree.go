@@ -1,6 +1,9 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // Tree paints a compact vertical hierarchy. Applications own the hierarchy,
 // expansion, selection, and scrolling; the component owns indentation,
@@ -12,23 +15,6 @@ type Tree struct {
 	cursorY   float32
 	rowHeight float32
 	indent    float32
-}
-
-// TreeItem describes one already-flattened visible tree row. Branches use a
-// distinct DisclosureID so expanding a branch never also activates its row.
-// Depth is clamped to 31 to keep malformed input from pushing content away.
-type TreeItem struct {
-	ID           gfx.ID
-	DisclosureID gfx.ID
-	Label        string
-	Depth        uint8
-	Branch       bool
-	Expanded     bool
-	Selected     bool
-	Disabled     bool
-	// Dragging marks the row being dragged: it keeps its chosen fill but gives
-	// up its focus ring, which otherwise reads as the drop target.
-	Dragging bool
 }
 
 // TreeRow is the geometry reserved for caller-owned row content.
@@ -158,3 +144,6 @@ func paintChevron(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, color gfx
 func paintChevronSized(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, size float32, color gfx.Color) {
 	canvas.DrawIcon(*icon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
 }
+
+// TreeItem describes one already-flattened visible tree row.
+type TreeItem = style.TreeItem

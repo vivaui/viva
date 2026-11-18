@@ -188,7 +188,6 @@ func (dialog AlertDialog) End() {
 const (
 	alertDialogMediaSize = float32(64)
 	// alertDialogTitleGap separates the title from the description (`gap-1.5`).
-	alertDialogTitleGap = float32(6)
 )
 
 // alertDialogPadding is the dialog's inner padding (`p-6`).
@@ -196,8 +195,6 @@ func alertDialogPadding(metrics gfx.Metrics) float32 { return metrics.PadSurface
 
 // alertDialogMediaGap is the space between media and text (`gap-x-6`).
 func alertDialogMediaGap(metrics gfx.Metrics) float32 { return metrics.PadSurface + metrics.GapItem }
-
-func alertDialogTitleHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 8 }
 
 // headerHeight is how tall the title, the description's lines and the media
 // make the header, and where the title starts inside it. A default-size media

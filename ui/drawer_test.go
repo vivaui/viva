@@ -14,7 +14,7 @@ type drawerModel struct {
 	title          string
 	side           ui.DrawerSide
 	saves, behind  int
-	name           string
+	Name           string
 }
 
 func (m *drawerModel) page(c ui.C) {
@@ -30,7 +30,7 @@ func (m *drawerModel) page(c ui.C) {
 		}
 	})
 	ui.Drawer(c, &m.open, m.title, ui.DrawerSpec{Side: m.side, Size: 300, NonModal: m.nonModal, Swipe: m.swipe}, func() {
-		ui.TextField(c, &m.name, "Name", "")
+		ui.TextField(c, &m.Name, "Name", "")
 	}, func() {
 		if ui.Button(c, "Done").Clicked() {
 			m.open = false
@@ -54,8 +54,8 @@ func TestDrawerOpensAndCloses(t *testing.T) {
 			if !d.page.Overlay() || name.X < 480-300 || name.X+name.Width > 480 {
 				t.Fatalf("overlay %v, the body at %v is not in the right 300 of the window", d.page.Overlay(), name)
 			}
-			if d.focused() != "Name" {
-				t.Fatalf("focus is on %q, not the first control", d.focused())
+			if d.Focused() != "Name" {
+				t.Fatalf("focus is on %q, not the first control", d.Focused())
 			}
 			if done := d.hit("Done").Bounds; done.Y < name.Y+name.Height {
 				t.Fatalf("the footer %v is not under the body %v", done, name)
@@ -99,8 +99,8 @@ func TestDrawerNonModal(t *testing.T) {
 	m := &drawerModel{title: "Assistant", nonModal: true}
 	d := openPage(t, m.page)
 	d.click("Open")
-	if d.page.Overlay() || d.focused() == "Name" {
-		t.Fatalf("overlay %v, focus %q", d.page.Overlay(), d.focused())
+	if d.page.Overlay() || d.Focused() == "Name" {
+		t.Fatalf("overlay %v, focus %q", d.page.Overlay(), d.Focused())
 	}
 	if _, err := d.driver.ShortcutChord(ui.Primary, 's'); err != nil {
 		t.Fatal(err)
