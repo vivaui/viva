@@ -52,6 +52,16 @@ type ColorPickerState struct {
 // Open reports whether the picker's panel is open.
 func (s *ColorPickerState) Open() bool { return s.open }
 
+// Draft is the color being staged while the panel is open, which follows the plane, the
+// hue bar and the hex field as they change and is not yet the application's: a preview
+// that tracks the drag reads it. It reports false when the panel is closed.
+func (s *ColorPickerState) Draft() (Color, bool) {
+	if !s.open {
+		return Color{}, false
+	}
+	return s.draft.Color(), true
+}
+
 // Applied reports whether the user applied (or cleared) a color since the last time it was
 // asked, so the application can save it; it reads true once.
 func (s *ColorPickerState) Applied() bool {

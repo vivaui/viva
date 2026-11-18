@@ -98,3 +98,24 @@ func TestColorPickerPlaneAndHueMoveTheStagedColor(t *testing.T) {
 		t.Fatal("a press on the plane and an arrow key did not change the staged color")
 	}
 }
+
+func TestColorPickerDraftFollowsTheDragBeforeApply(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(255, 0, 0)
+	d := pickerPage(t, &state, &color)
+	if _, ok := state.Draft(); ok {
+		t.Fatal("a closed picker has a draft")
+	}
+	d.click("Accent")
+	plane := d.hit("Saturation and brightness").Bounds
+	if err := d.driver.Click(plane.X+plane.Width*0.5, plane.Y+plane.Height*0.5); err != nil {
+		t.Fatal(err)
+	}
+	draft, ok := state.Draft()
+	if !ok || draft == gfx.RGB(255, 0, 0) {
+		t.Fatalf("draft = %v, %v after a press on the plane", draft, ok)
+	}
+	if color != gfx.RGB(255, 0, 0) {
+		t.Fatal("the application's color changed before Apply")
+	}
+}
