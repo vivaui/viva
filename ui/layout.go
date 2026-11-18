@@ -276,7 +276,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.alignOn(n) == Baseline {
-				line = max(line, child.Margin[0]+child.baseline)
+				line = max(line, child.Margin[0]+child.Baseline)
 			}
 		}
 	}
@@ -286,7 +286,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		ms, me := child.marginOn(axis)
 		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
 			*extent(&child.rect, axis) = clamp(child.pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
-			*origin(&child.rect, axis) = start + line - child.baseline
+			*origin(&child.rect, axis) = start + line - child.Baseline
 			continue
 		}
 		size := crossSize(child, axis, avail-ms-me, align, f.maxOn(child, axis, avail-ms-me))
@@ -529,31 +529,31 @@ func (f *frame) measureBaseline(n *node) {
 				row = mono
 			}
 		}
-		n.baseline = top + row
+		n.Baseline = top + row
 	case kindButton:
-		n.baseline = controlBaseline(f, n)
+		n.Baseline = controlBaseline(f, n)
 	case kindContainer:
-		n.baseline = n.pref[axisY]
+		n.Baseline = n.pref[axisY]
 		is, _ := n.inset(axisY)
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if n.Dir == flow && child.GridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
-			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.First < 0 {
+			if child.Kind == kindContainer && child.Baseline == child.pref[axisY] && child.First < 0 {
 				continue
 			}
-			value := is + child.Margin[0] + child.baseline
+			value := is + child.Margin[0] + child.Baseline
 			if n.Dir == row || n.Dir == flow {
 				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].GridRow == 0); k = f.nodes[k].Next {
 					other := &f.nodes[k]
-					value = max(value, is+other.Margin[0]+other.baseline)
+					value = max(value, is+other.Margin[0]+other.Baseline)
 				}
 			}
-			n.baseline = value
+			n.Baseline = value
 			break
 		}
 	default:
-		n.baseline = n.pref[axisY]
+		n.Baseline = n.pref[axisY]
 	}
 }

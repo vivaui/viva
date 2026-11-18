@@ -153,7 +153,7 @@ type node struct {
 	anchorRef            int32 // 1 + the index of the element a Popup hangs off, or 0 when it hangs off anchor
 	placeAlign           Align
 	placeShift           float32 // moves a popup along its anchor from where Align put it
-	baseline             float32 // distance from the top to the first line of text
+	Baseline             float32 // distance from the top to the first line of text
 
 	pref                [2]float32
 	raw                 [2]float32 // pref before Min/Max, the size growth starts from
