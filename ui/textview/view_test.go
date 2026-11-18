@@ -194,6 +194,73 @@ func TestALinkOpensOnAClickAndSelectsOnADrag(t *testing.T) {
 	}
 }
 
+// Each link and each Button trail is a node of its own for assistive technology, a part
+// of the view's control: no two nodes share an identity, and a press on a part still
+// reaches the view. The text shows the text cursor, a link the hand.
+func TestLinksAndTrailsAreNodesOfTheirOwn(t *testing.T) {
+	o := openOutput(t, "\tat demo.Main.run(Main.java:12)", "\tat demo.Main.main(Main.java:12)", "done")
+	o.link = "Main.java:12"
+	o.trail = 2
+	o.must(o.driver.Paint())
+	seen := map[gfx.ID]string{}
+	var view gfx.ID
+	roles := map[gfx.Role]int{}
+	for _, node := range o.driver.Accessibility() {
+		if node.ID.IsZero() {
+			continue
+		}
+		if other, ok := seen[node.ID]; ok {
+			t.Fatalf("%q and %q share the identity %v", other, node.Label, node.ID)
+		}
+		seen[node.ID] = node.Label
+		roles[node.Role]++
+		if node.Role == gfx.RoleGroup && node.Label == "Output" {
+			view = node.ID
+		}
+	}
+	if roles[gfx.RoleLink] != 2 || roles[gfx.RoleButton] != 1 || view.IsZero() {
+		t.Fatalf("the nodes are %v, want the view, two links and a button", seen)
+	}
+	x, y := o.at(1, strings.Index(o.lines[1], o.link)+2)
+	part, ok := o.driver.HitTest(x, y)
+	if !ok || part == view {
+		t.Fatalf("the link is hit as %v, want a part of the view %v", part, view)
+	}
+	o.must(o.driver.Move(x, y))
+	if got := o.driver.Snapshot().Cursor; got != app.CursorHand {
+		t.Fatalf("over the link the cursor is %v, want the hand", got)
+	}
+	x, y = o.at(2, 1)
+	o.must(o.driver.Move(x, y))
+	if got := o.driver.Snapshot().Cursor; got != app.CursorText {
+		t.Fatalf("over the text the cursor is %v, want the text cursor", got)
+	}
+}
+
+// A press on a link focuses the view, not the link, so the keys of the selection work
+// after it: Primary+C copies what a drag from the link selected, Escape clears it and
+// Primary+A selects everything.
+func TestTheKeysStayWithTheViewAfterAPressOnALink(t *testing.T) {
+	o := openOutput(t, "\tat demo.Main.run(Main.java:12)", "done")
+	o.link = "Main.java:12"
+	o.must(o.driver.Paint())
+	from := strings.Index(o.lines[0], o.link)
+	o.drag(0, from+2, 0, from+len("Main.java"))
+	if got, want := o.copyShortcut(), "in.java"; got != want {
+		t.Fatalf("after a drag from the link Primary+C copied %q, want %q", got, want)
+	}
+	o.must(o.driver.Key(gfx.KeyEscape, 0))
+	if o.view.Has() {
+		t.Fatalf("after a press on the link Escape kept %q selected", o.view.Text())
+	}
+	x, y := o.at(0, from+2)
+	o.must(o.driver.Click(x, y))
+	o.chord('a')
+	if got, want := o.copyShortcut(), "\tat demo.Main.run(Main.java:12)\ndone"; got != want {
+		t.Fatalf("after a click on the link Primary+A then Primary+C copied %q, want %q", got, want)
+	}
+}
+
 // A Button trail is pressed by a click, and is never part of what is selected or copied.
 func TestATrailIsPressedButNeverCopied(t *testing.T) {
 	o := openOutput(t, "Receiving objects", "done")
