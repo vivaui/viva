@@ -188,7 +188,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		count++
 	}
-	gaps := n.gap * float32(max(count-1, 0))
+	gaps := n.Gap * float32(max(count-1, 0))
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		bar := &f.nodes[c]
 		if bar.Kind != kindSplitter {

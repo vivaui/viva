@@ -235,7 +235,7 @@ func (b Box) MarginSides(top, right, bottom, left float32) Box {
 
 // Gap is the space between the children of a Row, a Column or a Flow, and between
 // the lines of a Flow unless LineGap sets them apart.
-func (b Box) Gap(v float32) Box { b.n().gap = v; return b }
+func (b Box) Gap(v float32) Box { b.n().Gap = v; return b }
 
 // LineGap is the space between the lines of a Flow, when it is not its Gap. It has
 // no effect on any other container.
@@ -468,24 +468,24 @@ func (b Box) At(x, y float32) Box {
 // Below places a Popup under anchor, gap pixels away, its left (Start), middle
 // (Center) or right (End) edge on the anchor's; if it does not fit under it and fits
 // above, it opens above. Above is the same the other way round.
-func (b Box) Below(anchor Rect, gap float32, align Align) Box {
+func (b Box) Below(anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBelow, anchor, gap, align
+	n.place, n.anchor, n.placeGap, n.placeAlign = placeBelow, anchor, Gap, align
 	return b
 }
 
-func (b Box) Above(anchor Rect, gap float32, align Align) Box {
+func (b Box) Above(anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeAbove, anchor, gap, align
+	n.place, n.anchor, n.placeGap, n.placeAlign = placeAbove, anchor, Gap, align
 	return b
 }
 
 // Beside places a Popup to the right of anchor, gap pixels away, its top (Start) or
 // bottom (End) edge on the anchor's; it opens on the anchor's left when there is no
 // room on the right. It is for a submenu that opens from a row.
-func (b Box) Beside(anchor Rect, gap float32, align Align) Box {
+func (b Box) Beside(anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBeside, anchor, gap, align
+	n.place, n.anchor, n.placeGap, n.placeAlign = placeBeside, anchor, Gap, align
 	return b
 }
 
@@ -559,23 +559,23 @@ func (b Box) Chosen() (gfx.ID, bool) {
 //
 //	filter := f.Button(filterID, "Filter").Outline()
 //	f.Popup().BelowBox(filter, 6, ui.End).Children(func() { ... })
-func (b Box) BelowBox(anchor Box, gap float32, align Align) Box {
+func (b Box) BelowBox(anchor Box, Gap float32, align Align) Box {
 	anchor.n()
-	b.Below(Rect{}, gap, align)
+	b.Below(Rect{}, Gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }
 
-func (b Box) AboveBox(anchor Box, gap float32, align Align) Box {
+func (b Box) AboveBox(anchor Box, Gap float32, align Align) Box {
 	anchor.n()
-	b.Above(Rect{}, gap, align)
+	b.Above(Rect{}, Gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }
 
-func (b Box) BesideBox(anchor Box, gap float32, align Align) Box {
+func (b Box) BesideBox(anchor Box, Gap float32, align Align) Box {
 	anchor.n()
-	b.Beside(Rect{}, gap, align)
+	b.Beside(Rect{}, Gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }

@@ -118,7 +118,7 @@ type node struct {
 	minS, maxS           [2]float32 // a max of zero is no max
 	grow, shrink         float32
 	pad, margin          [4]float32 // top, right, bottom, left
-	gap                  float32
+	Gap                  float32
 	items, self, justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color

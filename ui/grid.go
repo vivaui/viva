@@ -26,8 +26,8 @@ func (n *node) span() (cols, rows int) {
 }
 
 // gridColumns is how many cells of at least minCell fit in width.
-func gridColumns(width, minCell, gap float32) int {
-	return max(int((width+gap)/(minCell+gap)), 1)
+func gridColumns(width, minCell, Gap float32) int {
+	return max(int((width+Gap)/(minCell+Gap)), 1)
 }
 
 // placeGrid gives every child of the grid its column and row, and reports how many rows
@@ -112,7 +112,7 @@ func (f *frame) gridRows(n *node) int {
 			ms, me := child.marginOn(axisY)
 			need := child.pref[axisY] + ms + me
 			first := int(child.GridRow)
-			have := n.gap * float32(span-1)
+			have := n.Gap * float32(span-1)
 			for r := first; r < first+span; r++ {
 				have += s.rows[r]
 			}
@@ -128,7 +128,7 @@ func (f *frame) gridRows(n *node) int {
 	var y float32
 	for _, h := range s.rows {
 		s.rowAt = append(s.rowAt, y)
-		y += h + n.gap
+		y += h + n.Gap
 	}
 	return rows
 }
@@ -142,7 +142,7 @@ func (f *frame) measureGrid(n *node, axis int) {
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
-			widest = max(widest, (child.pref[axisX]-n.gap*float32(cs-1))/float32(cs))
+			widest = max(widest, (child.pref[axisX]-n.Gap*float32(cs-1))/float32(cs))
 		}
 		n.pref[axisX] = widest + is + ie
 		return
@@ -157,18 +157,18 @@ func (f *frame) measureGrid(n *node, axis int) {
 
 // solveGrid gives every child the cells it covers.
 func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
-	columns := gridColumns(n.rect.Width-n.padX(), n.gridMin, n.gap)
+	columns := gridColumns(n.rect.Width-n.padX(), n.gridMin, n.Gap)
 	if axis == axisX {
-		cell := (avail - n.gap*float32(columns-1)) / float32(columns)
+		cell := (avail - n.Gap*float32(columns-1)) / float32(columns)
 		f.placeGrid(n, columns)
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
 			cs = min(cs, columns)
 			ms, me := child.marginOn(axisX)
-			covered := float32(cs)*cell + float32(cs-1)*n.gap
+			covered := float32(cs)*cell + float32(cs-1)*n.Gap
 			child.rect.Width = clamp(covered-ms-me, child.minS[axisX], child.maxS[axisX])
-			child.rect.X = start + float32(child.GridCol)*(cell+n.gap) + ms
+			child.rect.X = start + float32(child.GridCol)*(cell+n.Gap) + ms
 		}
 		return
 	}

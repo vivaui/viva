@@ -14,7 +14,7 @@ import "math"
 // lineGap is the space between the lines of a Flow: its LineGap, else its Gap.
 func (n *node) lineGap() float32 {
 	if n.gridMin < 0 {
-		return n.gap
+		return n.Gap
 	}
 	return n.gridMin
 }
@@ -29,12 +29,12 @@ func (f *frame) breakLines(n *node, avail float32) {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axisX)
 		size := clamp(flexBasis(child, axisX, avail), child.minS[axisX], f.maxOn(child, axisX, avail)) + ms + me
-		if count > 0 && used+n.gap+size > avail && line < math.MaxUint16 {
+		if count > 0 && used+n.Gap+size > avail && line < math.MaxUint16 {
 			line++
 			used, count = 0, 0
 		}
 		if count > 0 {
-			used += n.gap
+			used += n.Gap
 		}
 		used += size
 		count++

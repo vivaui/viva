@@ -167,7 +167,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 		count++
 	}
 	if n.flows(axis) && count > 1 {
-		total += n.gap * float32(count-1)
+		total += n.Gap * float32(count-1)
 	}
 	is, ie := n.inset(axis)
 	n.pref[axis] = total + is + ie
@@ -371,7 +371,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		count++
 	}
 	if count > 1 {
-		fixed += n.gap * float32(count-1)
+		fixed += n.Gap * float32(count-1)
 	}
 	scrolls := axis == axisY && n.Flags&flagScroll != 0
 
@@ -451,7 +451,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		room = max(avail, used)
 	}
 	leftover := room - used
-	pos, between := float32(0), n.gap
+	pos, between := float32(0), n.Gap
 	switch n.justify {
 	case Center:
 		if leftover > 0 {

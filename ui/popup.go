@@ -27,16 +27,16 @@ func (b Box) Within(r Rect) Box {
 
 // BesideLeft is Beside for a popup that opens to the left of anchor and flips to its
 // right when there is no room on the left.
-func (b Box) BesideLeft(anchor Rect, gap float32, align Align) Box {
+func (b Box) BesideLeft(anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBesideLeft, anchor, gap, align
+	n.place, n.anchor, n.placeGap, n.placeAlign = placeBesideLeft, anchor, Gap, align
 	return b
 }
 
 // BesideLeftBox is BesideLeft for an anchor that is an element of the page, as BelowBox
 // is to Below.
-func (b Box) BesideLeftBox(anchor Box, gap float32, align Align) Box {
-	b.BesideLeft(Rect{}, gap, align)
+func (b Box) BesideLeftBox(anchor Box, Gap float32, align Align) Box {
+	b.BesideLeft(Rect{}, Gap, align)
 	b.n().anchorRef = anchor.i + 1
 	return b
 }
@@ -88,9 +88,9 @@ func (f *frame) placePopup(n *node, axis int) {
 // sideOf is where a popup size long starts when it hangs off the anchor
 // [start, end) on the far side (after) or the near one, gap away: on the requested
 // side if it fits there, else on the side with more room.
-func sideOf(start, end, gap, size, lo, hi float32, after bool) float32 {
-	atAfter, atBefore := end+gap, start-gap-size
-	roomAfter, roomBefore := hi-atAfter, start-gap-lo
+func sideOf(start, end, Gap, size, lo, hi float32, after bool) float32 {
+	atAfter, atBefore := end+Gap, start-Gap-size
+	roomAfter, roomBefore := hi-atAfter, start-Gap-lo
 	if after {
 		if size <= roomAfter || roomBefore <= roomAfter {
 			return atAfter
