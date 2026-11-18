@@ -124,13 +124,13 @@ func (f *frame) paintSegmented(v ControlView) {
 func (f *frame) measureControls(n *node) {
 	switch n.Kind {
 	case kindButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).WithIcon(f.exts[n.ext].icon)
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.exts[n.ext].icon)
 		if d := n.size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
 		button = button.SizeToFit(n.label)
 		n.pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
-		if n.buttonSize >= components.ButtonSizeIcon {
+		if n.ButtonSize >= components.ButtonSizeIcon {
 			n.pref[axisX] = n.pref[axisY]
 		}
 	case kindBadge:
@@ -140,7 +140,7 @@ func (f *frame) measureControls(n *node) {
 		w, h := components.PaginationExtent(f.canvas, f.theme, f.paginationItems(n))
 		n.pref = [2]float32{w, h}
 	case kindSplitButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).SizeToFit(n.label)
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
 		trigger := widgetsOf(f).splitButtons[n.aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
@@ -196,7 +196,7 @@ func (f *frame) measureControls(n *node) {
 func (f *frame) paintButton(n *node) {
 	r := n.rect
 	extra := &f.exts[n.ext]
-	button := components.BeginButton(f.canvas, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
+	button := components.BeginButton(f.canvas, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
@@ -419,7 +419,7 @@ var controlBaseline = func(f *frame, n *node) float32 {
 	if n.hasOwnTheme() {
 		theme = f.ownTheme(n)
 	}
-	button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.buttonSize)
+	button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
 	return f.canvas.LabelBaseline(
 		gfx.Rect{Height: n.pref[axisY]},
 		gfx.TextStyle{Size: button.LabelFontSize()},

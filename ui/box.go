@@ -399,15 +399,15 @@ func (b Box) DestructiveOutline() Box {
 	return b.variant(style.VariantDestructiveOutline)
 }
 func (b Box) variant(v style.Variant) Box { b.n().variant = v; return b }
-func (b Box) XSmall() Box                 { b.n().buttonSize = style.SizeXSmall; return b }
+func (b Box) XSmall() Box                 { b.n().ButtonSize = style.SizeXSmall; return b }
 func (b Box) Small() Box {
 	n := b.n()
-	n.buttonSize = style.SizeSmall
+	n.ButtonSize = style.SizeSmall
 	n.Flags |= flagSmall
 	return b
 }
-func (b Box) Large() Box    { b.n().buttonSize = style.SizeLarge; return b }
-func (b Box) IconOnly() Box { b.n().buttonSize = style.SizeIcon; return b }
+func (b Box) Large() Box    { b.n().ButtonSize = style.SizeLarge; return b }
+func (b Box) IconOnly() Box { b.n().ButtonSize = style.SizeIcon; return b }
 
 // SwitchRecipe gives one Switch its own look, as ButtonRecipe does a Button,
 // winning over the page's Styles.Switch. Start from components.SwitchRecipe.

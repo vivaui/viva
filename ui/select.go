@@ -641,7 +641,7 @@ func (f *frame) measureSelect(n *node) {
 	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
 	height := f.theme.Metrics.ControlHeight
 	switch {
-	case n.buttonSize == components.ButtonSizeXSmall:
+	case n.ButtonSize == components.ButtonSizeXSmall:
 		height -= 8
 	case n.Flags&flagSmall != 0:
 		height -= 4
@@ -665,7 +665,7 @@ func (f *frame) paintSelect(n *node) {
 		Layer:    d.layer, Scope: d.scope.At(count + 2), DismissID: d.scope.At(count + 1), Viewport: f.bounds,
 	}
 	switch {
-	case n.buttonSize == components.ButtonSizeXSmall:
+	case n.ButtonSize == components.ButtonSizeXSmall:
 		options.Size = components.SelectSizeXSmall
 	case n.Flags&flagSmall != 0:
 		options.Size = components.SelectSizeSmall

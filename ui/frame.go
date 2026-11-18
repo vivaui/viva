@@ -134,7 +134,7 @@ type node struct {
 	ID                   gfx.ID
 	label                string
 	variant              style.Variant
-	buttonSize           style.Size
+	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
 	outOfFlow            uint8 // absolute positioning: see absolute.go
 
