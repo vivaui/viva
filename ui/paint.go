@@ -173,6 +173,11 @@ func (f *frame) paint(i int32) {
 	}
 }
 
+// controlPainter paints a control's look. The engine paints text, icons, images
+// and slots itself; the controls are a seam a layer above can replace, which is
+// what lets the engine live below the styled controls.
+var controlPainter = (*frame).paintControls
+
 // paintControl paints what the element is: its text, icon, or control. The
 // background and border of its box are already down.
 func (f *frame) paintControl(n *node, r Rect) {
@@ -185,6 +190,25 @@ func (f *frame) paintControl(n *node, r Rect) {
 		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.pref[axisX], Height: n.pref[axisY]}, n.color, extra.iconTransform)
 	case kindImage:
 		canvas.DrawBitmap(f.images[n.aux], r)
+	case kindSlot:
+		if extra.swatch && f.paintSwatchFn != nil {
+			f.paintSwatchFn(f, n, r)
+		}
+		if extra.picker != nil && f.paintPickerFn != nil {
+			f.paintPickerFn(f, n)
+		}
+	default:
+		controlPainter(f, n, r)
+	}
+}
+
+// paintControls paints the controls: each kind's look, from package components
+// for the ones that ship with a theme, and from the caller's own painter for
+// the ones it declared.
+func (f *frame) paintControls(n *node, r Rect) {
+	canvas := f.canvas
+	extra := &f.exts[n.ext]
+	switch n.kind {
 	case kindButton:
 		f.paintButton(n)
 	case kindCheckbox:
@@ -214,13 +238,6 @@ func (f *frame) paintControl(n *node, r Rect) {
 		components.PaintInputGroup(canvas, f.theme, r, f.groups[n.aux])
 	case kindTextarea:
 		f.paintTextarea(n)
-	case kindSlot:
-		if extra.swatch && f.paintSwatchFn != nil {
-			f.paintSwatchFn(f, n, r)
-		}
-		if extra.picker != nil && f.paintPickerFn != nil {
-			f.paintPickerFn(f, n)
-		}
 	case kindSegmented:
 		choice := f.segmented[n.aux]
 		components.BeginSegmentedControl(canvas, f.theme, r, choice.options, choice.selected).Paint()
