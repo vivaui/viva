@@ -32,7 +32,7 @@ var (
 	SliderPointer        func(f *Frame, n *Node, s *SliderState)
 	BuildDialog          func(f *Frame, spec DialogSpec) Box
 	BuildPopover         func(f *Frame, anchor Box, spec PopoverSpec) Box
-	DrawerBoxes          func(spec *DrawerDeclaration, surface *gfx.Canvas, palette Theme, bounds Rect, layer uint16) DrawerRects
+	DrawerBoxes          func(spec DrawerDeclaration, surface *gfx.Canvas, palette Theme, bounds Rect, layer uint16) DrawerRects
 )
 
 // DrawerRects is where a drawer's parts go.
@@ -172,7 +172,7 @@ func (s *TreeState) draw(d *DrawContext) {
 
 func (d *DrawerDeclaration) Boxes(surface *gfx.Canvas, palette Theme, bounds Rect, layer uint16) DrawerRects {
 	if DrawerBoxes != nil {
-		return DrawerBoxes(d, surface, palette, bounds, layer)
+		return DrawerBoxes(*d, surface, palette, bounds, layer)
 	}
 	return DrawerRects{}
 }

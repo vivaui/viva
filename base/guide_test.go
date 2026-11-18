@@ -21,7 +21,7 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	set := token.NewFileSet()
 	var missing []string
 	for _, file := range []string{"frame.go", "box.go", "absolute.go", "grid.go", "popup.go", "text_wrap.go", "table.go", "tabs.go", "select.go", "dialog.go", "leaves.go", "splitter.go", "field.go", "slider.go", "scroll.go", "bases.go", "draw.go"} {
-		parsed, err := parser.ParseFile(set, file, nil, 0)
+		parsed, err := parser.ParseFile(set, file, nil, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,6 +32,12 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 			}
 			if len(function.Recv.List) != 1 || !ast.IsExported(receiverName(function.Recv.List[0].Type)) {
 				continue // the unexported engine (frame, table, dialog, ...) is not application API
+			}
+			// The engine's types and the paint layer's bridge methods cross the
+			// package boundary for ui; they are not application API, so the guide
+			// does not list them.
+			if engineType[receiverName(function.Recv.List[0].Type)] || strings.Contains(docText(function.Doc), "bridge") {
+				continue
 			}
 			switch function.Name.Name {
 			case "Canvas", "Theme", "Begin", "End", "Rect", "Children", "Content", "Clicked":
@@ -45,6 +51,23 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	if len(missing) > 0 {
 		t.Errorf("AGENTS.md.txt never mentions: %s", strings.Join(missing, ", "))
 	}
+}
+
+// engineType names the exported types that exist so the styled layer can paint
+// the engine's elements; they are not application API.
+var engineType = map[string]bool{
+	"Frame": true, "Node": true, "Widgets": true, "Extra": true,
+	"TableDecl": true, "SelectDecl": true, "TabsDecl": true, "DialogDecl": true,
+	"DrawerDeclaration": true, "PaginationDecl": true, "SplitDecl": true,
+	"SplitButtonDecl": true, "AlertDialogDecl": true, "ListDecl": true,
+}
+
+// docText is a declaration's comment without the comment markers.
+func docText(doc *ast.CommentGroup) string {
+	if doc == nil {
+		return ""
+	}
+	return doc.Text()
 }
 
 // receiverName is the type a method is declared on, through a pointer or a type

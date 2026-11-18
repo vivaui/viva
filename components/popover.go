@@ -462,3 +462,11 @@ const (
 	PopoverRight  = style.PopoverRight
 	PopoverTop    = style.PopoverTop
 )
+
+func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
+	return style.ClampOverlay(point, size, viewport, margin)
+}
+
+func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
+	return style.OverlayClamp(bounds, viewport, margin)
+}

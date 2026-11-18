@@ -37,7 +37,7 @@ type ControlView struct {
 }
 
 // viewOf is the view of element n a control painter is given.
-func viewOf(f *Frame, n *Node) ControlView {
+func ViewOf(f *Frame, n *Node) ControlView {
 	extra := &f.Exts[n.Ext]
 	return ControlView{
 		Kind: n.Kind, Rect: n.Rect, Aux: n.Aux, ID: n.ID, Label: n.Label, Text: n.Text,

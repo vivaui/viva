@@ -419,3 +419,19 @@ func (s *DragState) hitRect(Node int32) Rect {
 func pointInRect(x, y float32, r Rect) bool {
 	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
 }
+
+// Drag makes the state take the pointer's drag from c's page: declare it where
+// the drag begins, and the page routes the pointer events of that gesture to it.
+func Drag(c C, state *DragState) { drag(c, state) }
+
+// Pointer gives a pointer event to the drag while it is held, reporting whether
+// the drag owned it and whether it wants a repaint.
+func (s *DragState) Pointer(event gfx.PointerEvent) (gfx.EventResult, bool) {
+	return s.pointerEvent(event)
+}
+
+// Key gives a key event to the drag while it is held, reporting whether the
+// drag owned it.
+func (s *DragState) Key(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	return s.keyEvent(event)
+}

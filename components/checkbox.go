@@ -232,3 +232,4 @@ func PaintCheckboxMark(canvas *gfx.Canvas, bounds gfx.Rect, state gfx.State, col
 		paintCheck(canvas, bounds, bounds.Height*0.875, color)
 	}
 }
+func CheckboxExtent(theme gfx.Theme) float32 { return style.CheckboxExtent(theme) }

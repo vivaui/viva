@@ -119,7 +119,7 @@ func (f *Frame) MeasureWidget(n *Node) {
 }
 
 // paintWidget paints a Table, Tabs or Select with the component it declares.
-func (f *Frame) paintWidget(n *Node) {
+func (f *Frame) PaintWidget(n *Node) {
 	switch n.Kind {
 	case kindTable:
 		f.paintTable(n)

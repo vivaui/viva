@@ -212,3 +212,6 @@ func switchRecipe(theme *gfx.Theme, state gfx.State, progress float32) SwitchLoo
 	}
 	return look
 }
+func SwitchExtent(theme gfx.Theme, on bool) (width, height float32) {
+	return style.SwitchExtent(theme, on)
+}

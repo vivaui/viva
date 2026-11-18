@@ -52,7 +52,7 @@ func TestColorPickerAppliesATypedHex(t *testing.T) {
 		t.Fatal("the trigger did not open the panel")
 	}
 	d.click("Hex color")
-	state.TypeHexForTest("#FF0000")
+	state.SetHexText("#FF0000")
 	d.click("OK")
 	if state.Open() || !state.Applied() {
 		t.Fatalf("Apply left open=%v", state.Open())

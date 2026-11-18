@@ -367,3 +367,7 @@ const (
 	TextareaMoveTextStart        = style.TextareaMoveTextStart
 	TextareaMoveUp               = style.TextareaMoveUp
 )
+
+func TextareaMovementForKey(key gfx.Key, modifiers gfx.Modifiers) (TextareaMovement, bool) {
+	return style.TextareaMovementForKey(key, modifiers)
+}

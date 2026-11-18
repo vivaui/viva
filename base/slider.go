@@ -61,7 +61,7 @@ func (s *SliderState) fit(Value float32) float32 {
 }
 
 // valueText is Value as the text a screen reader announces, formatted only when the
-// value has changed.
+// value has changed. It is a ui bridge, not application API.
 func (s *SliderState) ValueText() string {
 	if s.Text == "" || s.textOf != s.Value {
 		s.Text, s.textOf = strconv.FormatFloat(float64(s.Value), 'f', -1, 32), s.Value

@@ -8,6 +8,12 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
+// SetHexText replaces the hex field's text, as typing the value does.
+func (s *ColorPickerState) SetHexText(value string) {
+	s.hexEditor = text.Editor{}
+	s.hexEditor.Insert(value)
+}
+
 // ColorSwatch adds a circular color choice, a radio button in a group of them: color is
 // what it shows (a transparent color is "no color", drawn as a slash), selected rings
 // it, and label names it for assistive technology. A click is Clicked; the application
@@ -142,7 +148,7 @@ func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string
 	// callback made for each paint would allocate one closure a paint.
 	extra := b.f.Extra(b.i)
 	extra.picker, extra.pickerLook = s, ColorPickerLook{Label: Label}
-	b.f.paintPickerFn = (*Frame).paintColorPicker
+	b.f.paintPickerFn = (*Frame).PaintColorPicker
 	return b
 }
 
@@ -191,7 +197,7 @@ func (b Box) pickerExtra() *Extra {
 }
 
 // paintColorPicker draws a ColorPicker's trigger, and its panel while it is open.
-func (f *Frame) paintColorPicker(n *Node) {
+func (f *Frame) PaintColorPicker(n *Node) {
 	extra := &f.Exts[n.Ext]
 	ctx := Ctx{page: f.page, f: f}
 	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.Rect, Label: n.Label}

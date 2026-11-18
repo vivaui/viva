@@ -157,14 +157,7 @@ const (
 	TooltipLayer       = base.TooltipLayer
 )
 
-var (
-	NewPage        = base.NewPage
-	OptionDisabled = base.OptionDisabled
-	Row            = base.Row
-	Text           = base.Text
-	WidgetsOf      = base.WidgetsOf
-	stack          = base.Stack
-)
+var stack = base.Stack
 
 type DrawerDecl = base.DrawerDeclaration
 
@@ -180,8 +173,3 @@ var (
 	PopoverFocusAskFor = base.PopoverFocusAskFor
 	ClockEpoch         = base.ClockEpoch
 )
-var (
-	NewDialogDecl  = base.NewDialogDecl
-	NewPopoverDecl = base.NewPopoverDecl
-)
-var NewTreeRow = base.NewTreeRow

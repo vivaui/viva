@@ -325,3 +325,40 @@ func (s *ComboState) setOptions(labels []string) {
 	}
 	s.list.SetOptions(s.opts)
 }
+
+// Describe gives a Combobox's choices more than a name: describe(i) is choice i's
+// ComboboxOption, whose Label, when set, replaces the name nameOf gave. It is called for
+// every choice in every paint, so keep it to reading fields. It goes by position, since a
+// method cannot take the choice type.
+//
+//	ui.Combobox(c, &m.host, hosts, Host.String, "Host").Describe(func(i int) ui.ComboboxOption {
+//		h := hosts[i]
+//		return ui.ComboboxOption{Detail: h.Address, Search: h.Group, Disabled: !h.Online}
+//	})
+func (b Box) Describe(describe func(i int) ComboboxOption) Box {
+	s := b.ComboState()
+	if s == nil || describe == nil {
+		return b
+	}
+	n := len(s.GetLabels())
+	same := n == len(s.GetDescs())
+	s.SetScratch(s.GetScratch()[:0])
+	for i := 0; i < n; i++ {
+		d := describe(i)
+		if d.Label == "" {
+			d.Label = s.GetLabels()[i]
+		}
+		s.SetScratch(append(s.GetScratch(), d))
+		same = same && s.GetDescs()[i].SameAs(d)
+	}
+	if same {
+		return b
+	}
+	s.SetDescs(append(s.GetDescs()[:0], s.GetScratch()...))
+	s.SetOpts(s.GetOpts()[:0])
+	for i, d := range s.GetDescs() {
+		s.SetOpts(append(s.GetOpts(), style.SingleSelectOption{Value: s.GetKeys()[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content}))
+	}
+	s.ListPtr().SetOptions(s.GetOpts())
+	return b
+}

@@ -240,7 +240,7 @@ func (f *Frame) reportSplitters() {
 	}
 }
 
-func (f *Frame) paintSplitter(n *Node) {
+func (f *Frame) PaintSplitter(n *Node) {
 	canvas := f.Surface
 	d := &WidgetsOf(f).splits[n.Aux]
 	s := d.state

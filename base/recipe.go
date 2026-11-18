@@ -39,8 +39,7 @@ func (f *Frame) applyRecipes() {
 		}
 		switch n.Kind {
 		case kindInput, kindTextarea:
-			var scratch Theme
-			theme := f.RecipeTheme(n, &scratch)
+			theme := f.RecipeTheme(n, &f.scratch.theme)
 			look := f.TextEntryLook(theme, gfx.State{})
 			if n.Flags&flagSetBorder == 0 {
 				n.BorderWidth = look.BorderWidth
@@ -73,8 +72,7 @@ func (f *Frame) themedDefaults(n *Node, Extra *Extra, s *resolved) {
 	default:
 		return
 	}
-	var scratch Theme
-	look := f.TextEntryLook(f.RecipeTheme(n, &scratch), state)
+	look := f.TextEntryLook(f.RecipeTheme(n, &f.scratch.theme), state)
 	if n.Flags&flagSetBackground == 0 {
 		s.Background = look.Fill
 	}
@@ -98,8 +96,7 @@ func (f *Frame) Focused(n *Node) bool {
 func (f *Frame) ContentRect(n *Node) Rect {
 	r := n.Rect
 	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
-		var scratch Theme
-		x, y := textEntryInsets(f.RecipeTheme(n, &scratch), n.Kind)
+		x, y := textEntryInsets(f.RecipeTheme(n, &f.scratch.theme), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
 	}
 	left, right := n.Inset(AxisX)

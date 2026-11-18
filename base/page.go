@@ -1207,3 +1207,7 @@ func stateIn[T any](p *Page, scope gfx.Scope, Name string) *T {
 
 // PageConfig returns the config the page was made with.
 func (p *Page) PageConfig() PageConfig { return p.config }
+
+// Overlay reports whether the last paint declared an overlay: an open Popover,
+// Modal, Menu, Select or Combobox list.
+func (p *Page) Overlay() bool { return p.overlay }

@@ -1013,3 +1013,14 @@ const (
 	TableAlignLeft   = style.TableAlignLeft
 	TableAlignRight  = style.TableAlignRight
 )
+
+func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
+	return style.TableCellBounds(columns, row, dst)
+}
+
+func tableColumnWidth(column TableColumn, last bool, remaining float32) float32 {
+	return style.TableColumnWidth(column, last, remaining)
+}
+func TableRowHeight(theme gfx.Theme) float32 { return style.TableRowHeight(theme) }
+
+func TableHeaderHeight(theme gfx.Theme) float32 { return style.TableHeaderHeight(theme) }

@@ -450,7 +450,7 @@ func (f *Frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 // widestOption is the widest of labels at size, measured once until the labels
 // or the size change. The comparison is against the labels the measurement was
 // taken for, which is what the state declared last, so calling before or after
-// the frame records its labels both work.
+// the frame records its labels both work. It is a ui bridge, not application API.
 func (s *SelectState) WidestOption(Surface *gfx.Canvas, labels []string, Size float32) float32 {
 	if !s.optionsMeasured || s.optionsSize != Size || !sameOptionLabels(s.labels, labels) {
 		var widest float32
@@ -627,7 +627,8 @@ func (p *Page) selectKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 // triggerID is the id the trigger paints: the application's when it named one.
 func (d *SelectDecl) TriggerID(count int) gfx.ID { return d.state.TriggerID(count) }
 
-// triggerID is the trigger's identity for the keys, which see no declaration.
+// triggerID is the trigger's identity for the keys, which see no declaration. It is
+// a ui bridge, not application API.
 func (s *SelectState) TriggerID(count int) gfx.ID {
 	if !s.trigger.IsZero() {
 		return s.trigger

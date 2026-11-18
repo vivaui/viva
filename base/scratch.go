@@ -3,6 +3,7 @@ package base
 // scratch is the memory the layout borrows beyond the node tree, reused from frame to
 // frame so a warm page allocates nothing.
 type scratch struct {
+	theme Theme     // the theme of the element a recipe is applied to
 	abs   []int32   // the absolute elements, in the order declared
 	rows  []float32 // the height of each row of the Grid being laid out
 	rowAt []float32 // the offset of each of its rows

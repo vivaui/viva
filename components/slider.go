@@ -1,6 +1,9 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // SliderThumbValue is one stable thumb in a range slider. Keep IDs and order
 // stable; each enabled thumb becomes its own focusable hit.
@@ -470,4 +473,7 @@ func RangeSliderKeyDown(values []float32, index int, minimum, maximum, step, lar
 	}
 	values[index] = target
 	return true
+}
+func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
+	return style.SliderKeyDown(value, minimum, maximum, step, style.Direction(direction), key, modifiers)
 }
