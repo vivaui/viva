@@ -69,19 +69,19 @@ func (c *LayoutContext) Count() int { return len(c.children) }
 
 // Width returns the preferred width of child i, before the container places it.
 func (c *LayoutContext) Width(i int) float32 {
-	return c.frame.nodes[c.child(i)].Pref[axisX]
+	return c.frame.Nodes[c.child(i)].Pref[axisX]
 }
 
 // Height returns the preferred height of child i: after PlaceWidth, at the width
 // that was given to it.
 func (c *LayoutContext) Height(i int) float32 {
-	return c.frame.nodes[c.child(i)].Pref[axisY]
+	return c.frame.Nodes[c.child(i)].Pref[axisY]
 }
 
 // SetWidth gives child i its width. It is a PlaceWidth call.
 func (c *LayoutContext) SetWidth(i int, v float32) {
 	c.must(c.phase == phasePlaceWidth, "SetWidth is for PlaceWidth")
-	c.frame.nodes[c.child(i)].rect.Width = max(v, 0)
+	c.frame.Nodes[c.child(i)].rect.Width = max(v, 0)
 }
 
 // SetX places the left edge of child i. It is a PlaceWidth call, or a PlaceHeight
@@ -89,19 +89,19 @@ func (c *LayoutContext) SetWidth(i int, v float32) {
 // the child's subtree with it, and places its popups again from the new anchor.
 func (c *LayoutContext) SetX(i int, v float32) {
 	c.must(c.phase == phasePlaceWidth || c.phase == phasePlaceHeight, "SetX is for PlaceWidth or PlaceHeight")
-	c.frame.nodes[c.child(i)].rect.X = v
+	c.frame.Nodes[c.child(i)].rect.X = v
 }
 
 // SetHeight gives child i its height. It is a PlaceHeight call.
 func (c *LayoutContext) SetHeight(i int, v float32) {
 	c.must(c.phase == phasePlaceHeight, "SetHeight is for PlaceHeight")
-	c.frame.nodes[c.child(i)].rect.Height = max(v, 0)
+	c.frame.Nodes[c.child(i)].rect.Height = max(v, 0)
 }
 
 // SetY places the top edge of child i. It is a PlaceHeight call.
 func (c *LayoutContext) SetY(i int, v float32) {
 	c.must(c.phase == phasePlaceHeight, "SetY is for PlaceHeight")
-	c.frame.nodes[c.child(i)].rect.Y = v
+	c.frame.Nodes[c.child(i)].rect.Y = v
 }
 
 // ContentWidth is the width the container was given, from PlaceWidth on; it is
@@ -125,7 +125,7 @@ func (c *LayoutContext) must(ok bool, message string) {
 func (c *LayoutContext) begin(f *frame, n *node, phase layoutPhase) {
 	c.frame, c.phase, c.width = f, phase, 0
 	c.children = c.children[:0]
-	for i := n.First; i >= 0; i = f.nodes[i].Next {
+	for i := n.First; i >= 0; i = f.Nodes[i].Next {
 		c.children = append(c.children, i)
 	}
 }
@@ -158,7 +158,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	if axis == axisX {
 		ctx.begin(f, n, phasePlaceWidth)
 		for _, i := range ctx.children {
-			child := &f.nodes[i]
+			child := &f.Nodes[i]
 			child.rect.Width = clamp(child.Pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
 			child.rect.X = start
 		}
@@ -169,7 +169,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	ctx.begin(f, n, phasePlaceHeight)
 	ctx.beforeX = ctx.beforeX[:0]
 	for _, i := range ctx.children {
-		child := &f.nodes[i]
+		child := &f.Nodes[i]
 		ctx.beforeX = append(ctx.beforeX, child.rect.X)
 		child.rect.Height = clamp(child.Pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
 		child.rect.Y = start
@@ -178,7 +178,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	ctx.width = max(n.rect.Width-n.padX(), 0)
 	layout.PlaceHeight(ctx, Rect{X: n.rect.X + is, Y: start, Width: ctx.width, Height: avail})
 	for index, i := range ctx.children {
-		if delta := f.nodes[i].rect.X - ctx.beforeX[index]; delta != 0 {
+		if delta := f.Nodes[i].rect.X - ctx.beforeX[index]; delta != 0 {
 			f.shiftSubtreeX(i, delta)
 		}
 	}
@@ -194,13 +194,13 @@ func (f *frame) shiftSubtreeX(i int32, delta float32) {
 	}
 	start := int(i) + 1
 	end := start
-	for end < len(f.nodes) {
-		p := f.nodes[end].Parent
+	for end < len(f.Nodes) {
+		p := f.Nodes[end].Parent
 		if p < 0 {
 			break
 		}
 		for p > i {
-			p = f.nodes[p].Parent
+			p = f.Nodes[p].Parent
 		}
 		if p != i {
 			break
@@ -208,7 +208,7 @@ func (f *frame) shiftSubtreeX(i int32, delta float32) {
 		end++
 	}
 	for j := start; j < end; j++ {
-		f.nodes[j].rect.X += delta
+		f.Nodes[j].rect.X += delta
 	}
 	f.shiftedX = true
 }

@@ -199,7 +199,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 		if menu.layer > f.popupLayer {
 			f.popupLayer = menu.layer
 		}
-		f.nodes[popup.i].FocusScope = menu.scope.At(menuFocus)
+		f.Nodes[popup.i].FocusScope = menu.scope.At(menuFocus)
 		popup.Children(func() { menu.declarePageRows(c, width, height) })
 	}
 	p.menus = append(p.menus, menu)
@@ -776,7 +776,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	} else {
 		side := components.OverlayRight // the edge the menu slides in from, its anchor's
 		if m.Parent == nil {
-			anchor := f.nodes[m.anchor].rect
+			anchor := f.Nodes[m.anchor].rect
 			switch {
 			case m.side == menuBeside:
 				if bounds.X+bounds.Width <= anchor.X+anchor.Width/2 {
@@ -863,7 +863,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		// anchor as it opens, and the first arrow goes into it.
 		var trigger gfx.ID
 		if m.anchor >= 0 {
-			trigger = m.f.nodes[m.anchor].ID
+			trigger = m.f.Nodes[m.anchor].ID
 		}
 		_, inside := event.Target.In(m.scope)
 		// A context menu is modal: its arrows move through it from wherever the focus is,
@@ -899,7 +899,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Key == gfx.KeyF10 && event.Modifiers == gfx.ModifierShift && !event.Release {
 		for _, target := range p.contexts {
 			if target.ID == event.Target && !target.menu.shown {
-				r := target.f.nodes[target.target].rect
+				r := target.f.Nodes[target.target].rect
 				target.menu.shown, target.menu.at = true, Rect{X: r.X, Y: r.Y + r.Height}
 				return gfx.EventResult{Handled: true, Repaint: true}, true
 			}

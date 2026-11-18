@@ -19,14 +19,14 @@ type Box struct {
 // Valid reports whether the Box names an element of its frame's current paint.
 // The zero value is not valid.
 func (b Box) Valid() bool {
-	return b.f != nil && b.gen == b.f.gen && b.i >= 0 && int(b.i) < len(b.f.nodes)
+	return b.f != nil && b.gen == b.f.gen && b.i >= 0 && int(b.i) < len(b.f.Nodes)
 }
 
 func (b Box) n() *node {
 	if b.f == nil || b.gen != b.f.gen {
 		panic("ui: a Box is used after its paint; a Box is valid until the next Begin: keep a gfx.ID or the *ui.Page's name across paints")
 	}
-	return &b.f.nodes[b.i]
+	return &b.f.Nodes[b.i]
 }
 
 // Children declares what is inside the element. fn runs at once, and is not kept.

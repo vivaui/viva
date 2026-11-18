@@ -35,8 +35,8 @@ func gridColumns(width, minCell, Gap float32) int {
 func (f *frame) placeGrid(n *node, columns int) int {
 	s := &f.scratch
 	total, tall := 0, false
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		_, rs := f.nodes[c].span()
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		_, rs := f.Nodes[c].span()
 		total += rs
 		tall = tall || rs > 1
 	}
@@ -49,8 +49,8 @@ func (f *frame) placeGrid(n *node, columns int) int {
 		clear(s.cells)
 	}
 	col, row, rows := 0, 0, 0
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		cs, rs := child.span()
 		cs = min(cs, columns)
 		for {
@@ -93,8 +93,8 @@ func (s *scratch) free(columns, col, row, cs, rs int) bool {
 func (f *frame) gridRows(n *node) int {
 	s := &f.scratch
 	rows, widest := 0, 1
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		_, rs := child.span()
 		rows = max(rows, int(child.GridRow)+rs)
 		widest = max(widest, rs)
@@ -104,8 +104,8 @@ func (f *frame) gridRows(n *node) int {
 		s.rows = append(s.rows, 0)
 	}
 	for span := 1; span <= widest; span++ {
-		for c := n.First; c >= 0; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := n.First; c >= 0; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if _, rs := child.span(); rs != span {
 				continue
 			}
@@ -139,8 +139,8 @@ func (f *frame) measureGrid(n *node, axis int) {
 		// As narrow as one cell: the grid takes the width it is given and fits
 		// as many columns as it can. An element spanning columns needs its share.
 		widest := n.GridMin
-		for c := n.First; c >= 0; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := n.First; c >= 0; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			cs, _ := child.span()
 			widest = max(widest, (child.Pref[axisX]-n.Gap*float32(cs-1))/float32(cs))
 		}
@@ -161,8 +161,8 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	if axis == axisX {
 		cell := (avail - n.Gap*float32(columns-1)) / float32(columns)
 		f.placeGrid(n, columns)
-		for c := n.First; c >= 0; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := n.First; c >= 0; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			cs, _ := child.span()
 			cs = min(cs, columns)
 			ms, me := child.marginOn(axisX)
@@ -174,8 +174,8 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 	}
 	f.gridRows(n)
 	s := &f.scratch
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		_, rs := child.span()
 		first := int(child.GridRow)
 		last := first + rs - 1

@@ -71,8 +71,8 @@ func (n *node) leading() float32 {
 // first and needs no recursion.
 func (f *frame) measure(axis int) {
 	f.wrapCursor = 0
-	for i := len(f.nodes) - 1; i >= 0; i-- {
-		n := &f.nodes[i]
+	for i := len(f.Nodes) - 1; i >= 0; i-- {
+		n := &f.Nodes[i]
 		if axis == axisX && n.Kind != kindContainer {
 			f.measureLeaf(n)
 		}
@@ -155,8 +155,8 @@ func (f *frame) measureContainer(n *node, axis int) {
 	}
 	var total float32
 	count := 0
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		ms, me := child.marginOn(axis)
 		size := child.Pref[axis] + ms + me
 		if n.flows(axis) {
@@ -227,7 +227,7 @@ func (n *node) stretches(axis int) bool {
 // solve sets the size and position along axis of the children of container i,
 // then of theirs. The container's own size and position on the axis are known.
 func (f *frame) solve(i int32, axis int) {
-	n := &f.nodes[i]
+	n := &f.Nodes[i]
 	if n.First < 0 {
 		if n.outOfFlow&absChildren != 0 {
 			f.solveAbsolute(i, axis)
@@ -250,7 +250,7 @@ func (f *frame) solve(i int32, axis int) {
 	default:
 		f.solveAcross(n, n.First, -1, axis, start, avail)
 	}
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.solve(c, axis)
 	}
 	if n.outOfFlow&absChildren != 0 {
@@ -273,15 +273,15 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 	}
 	var line float32 // the baseline children are lined up on, from the top
 	if axis == axisY && (n.Dir == row || n.Dir == flow) {
-		for c := First; c != stop; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := First; c != stop; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if child.alignOn(n) == Baseline {
 				line = max(line, child.Margin[0]+child.Baseline)
 			}
 		}
 	}
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
 		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
@@ -344,8 +344,8 @@ func offset(align Align, free float32) float32 {
 func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail float32) {
 	count := 0
 	var fixed float32
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		basis, grow := flexBasis(child, axis, avail), float32(0)
 		if child.Flags&flagGrowSet != 0 {
 			grow = child.Grow
@@ -379,15 +379,15 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	// base size, clamp, and freeze the children whose clamp went the way the total
 	// violation went (all minimums if the sum grew, all maximums if it shrank),
 	// then share again among the rest. Every pass starts from the base sizes.
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		child.base = *extent(&child.rect, axis)
 		child.Frozen = false
 	}
 	for pass := 0; pass <= count; pass++ {
 		var frozenSize, baseSum, growSum, shrinkSum float32
-		for c := First; c != stop; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := First; c != stop; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if child.Frozen {
 				frozenSize += *extent(&child.rect, axis)
 				continue
@@ -402,8 +402,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		}
 		free := room - frozenSize - baseSum - fixed
 		var violation float32
-		for c := First; c != stop; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := First; c != stop; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if child.Frozen {
 				continue
 			}
@@ -421,8 +421,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			child.Want = want
 		}
 		done := true
-		for c := First; c != stop; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := First; c != stop; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if child.Frozen {
 				continue
 			}
@@ -439,8 +439,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	}
 
 	var used float32
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		size := clamp(*extent(&child.rect, axis), child.MinS[axis], f.maxOn(child, axis, avail))
 		*extent(&child.rect, axis) = size
 		used += size
@@ -470,8 +470,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		}
 		pos -= snapScroll(n.Scroll)
 	}
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		ms, me := child.marginOn(axis)
 		pos += ms
 		*origin(&child.rect, axis) = start + pos
@@ -535,8 +535,8 @@ func (f *frame) measureBaseline(n *node) {
 	case kindContainer:
 		n.Baseline = n.Pref[axisY]
 		is, _ := n.inset(axisY)
-		for c := n.First; c >= 0; c = f.nodes[c].Next {
-			child := &f.nodes[c]
+		for c := n.First; c >= 0; c = f.Nodes[c].Next {
+			child := &f.Nodes[c]
 			if n.Dir == flow && child.GridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
@@ -545,8 +545,8 @@ func (f *frame) measureBaseline(n *node) {
 			}
 			value := is + child.Margin[0] + child.Baseline
 			if n.Dir == row || n.Dir == flow {
-				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].GridRow == 0); k = f.nodes[k].Next {
-					other := &f.nodes[k]
+				for k := n.First; k >= 0 && (n.Dir == row || f.Nodes[k].GridRow == 0); k = f.Nodes[k].Next {
+					other := &f.Nodes[k]
 					value = max(value, is+other.Margin[0]+other.Baseline)
 				}
 			}

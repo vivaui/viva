@@ -66,7 +66,7 @@ func (b Box) Shortcut(modifiers gfx.Modifiers, key string) bool {
 	if p == nil {
 		panic("ui: Box.Shortcut needs a page: declare it with a ui.C")
 	}
-	if int(b.i) < len(p.nodes) && p.nodes[b.i].named {
+	if int(b.i) < len(p.Nodes) && p.Nodes[b.i].named {
 		return p.shortcut(&p.ctx, modifiers, key, gfx.ID{}, p.resolve(b.i), p.listRowScope(b.i))
 	}
 	if id := b.n().ID; !id.IsZero() {

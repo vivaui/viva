@@ -105,7 +105,7 @@ type groupStop struct {
 // its members become one stop of Tab, and are kept for the arrow keys.
 func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 	p, canvas := f.page, f.canvas
-	if canvas == nil || int(i) >= len(p.nodes) {
+	if canvas == nil || int(i) >= len(p.Nodes) {
 		return
 	}
 	key := p.nodeID(i)
@@ -119,7 +119,7 @@ func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 		p.groupStops = map[gfx.ID]groupStop{}
 	}
 	p.groupStops[key] = groupStop{ID: stop, epoch: p.epoch}
-	order := f.exts[f.nodes[i].Ext].focusOrder
+	order := f.exts[f.Nodes[i].Ext].focusOrder
 	p.groups = append(p.groups, focusGroup{axis: axis, order: order, start: start, end: int32(len(ids))})
 }
 
@@ -134,7 +134,7 @@ func (p *Page) sweepGroups() {
 
 // nodeID is the identity of container i, named by its place.
 func (p *Page) nodeID(i int32) gfx.ID {
-	n := &p.nodes[i]
+	n := &p.Nodes[i]
 	return p.ID(place{node: n.parentNode, scope: n.parentScope, name: n.name})
 }
 

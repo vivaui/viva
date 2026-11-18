@@ -400,7 +400,7 @@ const (
 // slice is kept until End.
 func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.SelectBase(scope, state, labels, selected)
-	f.nodes[b.i].Flags |= flagThemed
+	f.Nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -421,7 +421,7 @@ func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, sel
 //	if i, ok := sel.Picked(); ok { m.size = i }
 func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.box(kindSelect)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).selects))
 	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
@@ -492,7 +492,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.state.listMaxWidth > 0 {
 		width = min(width, d.state.listMaxWidth)
 	}
-	f.nodes[d.popup].Size[axisX] = dimension{dimPx, width}
+	f.Nodes[d.popup].Size[axisX] = dimension{dimPx, width}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.
@@ -682,7 +682,7 @@ func (f *frame) paintSelect(n *node) {
 	}
 	open := d.popup >= 0
 	if open {
-		list := f.nodes[d.popup].rect
+		list := f.Nodes[d.popup].rect
 		list.Width = max(list.Width, trigger.Width)
 		options.Open, options.Content = true, list
 	}
@@ -694,7 +694,7 @@ func (f *frame) paintSelect(n *node) {
 	// that places it says so too, so what a caller draws on it (SelectBase) is the panel the
 	// options are laid in.
 	if panel := control.ContentBounds(); panel.Width > 0 {
-		f.nodes[d.popup].rect = panel
+		f.Nodes[d.popup].rect = panel
 	}
 	first, visible := d.state.First, d.visible
 	if visible < count {

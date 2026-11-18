@@ -276,7 +276,7 @@ var trimControls = func(f *frame) {
 // The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
 func (f *frame) Input(snapshot components.InputSnapshot) Box {
 	b := f.InputBase(snapshot)
-	f.nodes[b.i].Flags |= flagThemed
+	f.Nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -300,7 +300,7 @@ func (f *frame) Input(snapshot components.InputSnapshot) Box {
 //	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
 func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 	b := f.box(kindInput)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).inputs))
 	n.ID = snapshot.ID
 	widgetsOf(f).inputs = append(widgetsOf(f).inputs, snapshot)
@@ -311,7 +311,7 @@ func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 // it). Give it a Height when it has block slots; without one it is a control tall.
 func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 	b := f.box(kindInputGroup)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).groups))
 	widgetsOf(f).groups = append(widgetsOf(f).groups, snapshot)
 	return b
@@ -322,7 +322,7 @@ func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 // the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
 func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 	b := f.TextareaBase(snapshot)
-	f.nodes[b.i].Flags |= flagThemed
+	f.Nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -333,7 +333,7 @@ func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 // is one row tall plus its Pad and Border unless given a Height.
 func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 	b := f.box(kindTextarea)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).textareas))
 	n.ID = snapshot.ID
 	widgetsOf(f).textareas = append(widgetsOf(f).textareas, snapshot)
@@ -344,7 +344,7 @@ func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 // being the ID of the current one. The options slice is kept until End.
 func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
 	b := f.box(kindSegmented)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).segmented))
 	widgetsOf(f).segmented = append(widgetsOf(f).segmented, segmented{options: options, selected: selected})
 	return b

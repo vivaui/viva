@@ -245,7 +245,7 @@ type Page struct {
 	application   *app.Application   // what OpenWindow opened the page's window in, else nil
 
 	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
-	nodes       []protoNode   // each container of the frame, by node index
+	Nodes       []protoNode   // each container of the frame, by node index
 	keys        map[keyKey]keyEntry
 	intKeys     map[intKey]keyEntry
 	bound       map[boundKey]protoBound
@@ -605,8 +605,8 @@ func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
 func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 	best, bestArea := gfx.ID{}, float32(0)
 	if f := p.view.frame; f != nil {
-		for i := range f.nodes {
-			node := &f.nodes[i]
+		for i := range f.Nodes {
+			node := &f.Nodes[i]
 			if node.Ext == 0 {
 				continue
 			}
@@ -845,7 +845,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	f.styles = p.config.Styles
 	f.page = p
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
-	p.nodes = append(p.nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
+	p.Nodes = append(p.Nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	view(&p.ctx)
 	f.End()
 	if s := p.drag; s != nil && s.epoch != p.epoch {
@@ -861,8 +861,8 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 // current is the container being filled that the page named: a container the
 // frame made for itself (a Dialog's surface) is looked through.
 func (p *Page) current() int32 {
-	for i := p.ctx.f.Parent; i >= 0; i = p.ctx.f.nodes[i].Parent {
-		if int(i) < len(p.nodes) && p.nodes[i].named {
+	for i := p.ctx.f.Parent; i >= 0; i = p.ctx.f.Nodes[i].Parent {
+		if int(i) < len(p.Nodes) && p.Nodes[i].named {
 			return i
 		}
 	}
@@ -874,12 +874,12 @@ func (p *Page) scopeOf() gfx.Scope { return p.resolve(p.current()) }
 
 // resolve makes the scope of container i, and of the ones it is named in.
 func (p *Page) resolve(i int32) gfx.Scope {
-	node := &p.nodes[i]
+	node := &p.Nodes[i]
 	if node.scope == 0 {
 		parent := node.parentScope
 		if parent == 0 {
 			parent = p.resolve(node.parentNode)
-			node = &p.nodes[i]
+			node = &p.Nodes[i]
 		}
 		node.scope = p.tree.Sub(parent, node.name)
 	}
@@ -896,18 +896,18 @@ func (p *Page) ID(at place) gfx.ID {
 
 // setNode records element i as a container the page named at.
 func (p *Page) setNode(i int32, at place) {
-	for len(p.nodes) <= int(i) {
-		p.nodes = append(p.nodes, protoNode{})
+	for len(p.Nodes) <= int(i) {
+		p.Nodes = append(p.Nodes, protoNode{})
 	}
-	p.nodes[i] = protoNode{parentNode: at.node, parentScope: at.scope, name: at.name, named: true}
+	p.Nodes[i] = protoNode{parentNode: at.node, parentScope: at.scope, name: at.name, named: true}
 }
 
 // setScope records element i as a container with a scope of its own.
 func (p *Page) setScope(i int32, scope gfx.Scope) {
-	for len(p.nodes) <= int(i) {
-		p.nodes = append(p.nodes, protoNode{})
+	for len(p.Nodes) <= int(i) {
+		p.Nodes = append(p.Nodes, protoNode{})
 	}
-	p.nodes[i] = protoNode{scope: scope, named: true, parentNode: -1}
+	p.Nodes[i] = protoNode{scope: scope, named: true, parentNode: -1}
 }
 
 func (p *Page) record(scope gfx.Scope) *protoScope {
@@ -970,7 +970,7 @@ func (p *Page) name(Kind uint8) (at place, named bool) {
 			return place{node: node, scope: scope, name: p.tree.Name(c.Next.part)}, true
 		}
 	}
-	counts := &p.nodes[node].counts
+	counts := &p.Nodes[node].counts
 	n := counts[Kind]
 	counts[Kind]++
 	return place{node: node, name: gfx.Index(int(Kind)<<24 | int(n))}, false

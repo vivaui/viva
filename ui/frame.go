@@ -235,7 +235,7 @@ type frame struct {
 	canvas      *gfx.Canvas
 	theme       Theme
 	styles      *Styles // the page's recipe overrides; nil keeps the theme's
-	nodes       []node
+	Nodes       []node
 	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
 	images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	exts        []extra            // exts[0] is never written: an element without extras points at it
@@ -318,7 +318,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	}
 	f.gen++
 	f.canvas, f.theme, f.bounds, f.done = canvas, theme, bounds, false
-	f.nodes = f.nodes[:0]
+	f.Nodes = f.Nodes[:0]
 	f.lines = f.lines[:0]
 	f.exts = append(f.exts[:0], extra{})
 	f.images = f.images[:0]
@@ -343,7 +343,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.scrolls.epoch++
 	f.Parent = -1
 	root := f.add(kindContainer)
-	n := &f.nodes[root]
+	n := &f.Nodes[root]
 	n.Dir = column
 	n.Size = [2]dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
 	f.Parent = root
@@ -362,12 +362,12 @@ func (f *frame) End() {
 	f.done = true
 	f.checkHits()
 	f.applyRecipes()
-	root := &f.nodes[0]
+	root := &f.Nodes[0]
 	f.measure(axisX)
 	root.rect.X, root.rect.Width = f.bounds.X, f.bounds.Width
 	f.solve(0, axisX)
 	for _, index := range f.floats {
-		f.placePopup(&f.nodes[index], axisX)
+		f.placePopup(&f.Nodes[index], axisX)
 		f.solve(index, axisX)
 	}
 	f.measure(axisY)
@@ -378,13 +378,13 @@ func (f *frame) End() {
 		// Their subtrees moved with them, and a popup that hangs off one is placed
 		// again from the anchor's final rectangle before its height is placed.
 		for _, index := range f.floats {
-			f.placePopup(&f.nodes[index], axisX)
+			f.placePopup(&f.Nodes[index], axisX)
 			f.solve(index, axisX)
 		}
 		f.shiftedX = false
 	}
 	for _, index := range f.floats {
-		f.placePopup(&f.nodes[index], axisY)
+		f.placePopup(&f.Nodes[index], axisY)
 		f.solve(index, axisY)
 	}
 	f.reportScrolls()
@@ -423,7 +423,7 @@ func (f *frame) trim() {
 		f.ellipses = f.ellipses[:f.wrapCursor]
 	}
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
-	f.nodes = trimFlexCapacity(f.nodes)
+	f.Nodes = trimFlexCapacity(f.Nodes)
 	f.images = trimFlexCapacity(f.images)
 	f.exts = trimFlexCapacity(f.exts)
 	f.draws = trimFlexCapacity(f.draws)
@@ -453,16 +453,16 @@ func (f *frame) add(k Kind) int32 {
 	if f.done {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
-	index := int32(len(f.nodes))
-	f.nodes = append(f.nodes, node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, Items: Auto})
+	index := int32(len(f.Nodes))
+	f.Nodes = append(f.Nodes, node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, Items: Auto})
 	if f.Parent >= 0 {
-		parent := &f.nodes[f.Parent]
+		parent := &f.Nodes[f.Parent]
 		if parent.Last < 0 {
 			parent.First = index
 		} else {
-			f.nodes[parent.Last].Next = index
+			f.Nodes[parent.Last].Next = index
 		}
-		f.nodes[f.Parent].Last = index
+		f.Nodes[f.Parent].Last = index
 	}
 	return index
 }
@@ -472,7 +472,7 @@ func (f *frame) box(k Kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
 // Row opens a container that lays its children out left to right.
 func (f *frame) Row() Box {
 	b := f.box(kindContainer)
-	f.nodes[b.i].Dir = row
+	f.Nodes[b.i].Dir = row
 	return b
 }
 
@@ -483,7 +483,7 @@ func (f *frame) Column() Box { return f.box(kindContainer) }
 // whole content area unless it has a size of its own.
 func (f *frame) Stack() Box {
 	b := f.box(kindContainer)
-	f.nodes[b.i].Dir = stack
+	f.Nodes[b.i].Dir = stack
 	return b
 }
 
@@ -513,7 +513,7 @@ func (f *frame) PopupLayer(layer uint16) { f.popupLayer = layer }
 // space between cells both ways. A row is as tall as its tallest cell.
 func (f *frame) Grid(minCell float32) Box {
 	b := f.box(kindContainer)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Dir = grid
 	n.GridMin = max(minCell, 1)
 	return b
@@ -529,7 +529,7 @@ func (f *frame) Grid(minCell float32) Box {
 // decides how it fits.
 func (f *frame) Flow() Box {
 	b := f.box(kindContainer)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Dir = flow
 	n.GridMin = -1
 	return b
@@ -538,7 +538,7 @@ func (f *frame) Flow() Box {
 // customLayout declares a container whose children a Layout measures and places.
 func (f *frame) customLayout(layout Layout) Box {
 	b := f.box(kindContainer)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Dir = custom
 	f.extra(b.i).layout = layout
 	return b
@@ -552,7 +552,7 @@ func (f *frame) customLayout(layout Layout) Box {
 // children.
 func (f *frame) Scroll(offset float32) Box {
 	b := f.box(kindContainer)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Flags |= flagScroll | flagClip
 	n.Scroll = max(offset, 0)
 	return b
@@ -569,7 +569,7 @@ func (f *frame) Paragraph(value string, MaxLines int) Box {
 // Text adds one line of text, in the theme's body size and foreground color.
 func (f *frame) Text(value string) Box {
 	b := f.box(kindText)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.text = value
 	n.FontSize = f.theme.Metrics.FontSizeM
 	n.Color = f.theme.Foreground
@@ -580,8 +580,8 @@ func (f *frame) Text(value string) Box {
 // Spacer adds empty space that grows to take what the other children leave.
 func (f *frame) Spacer() Box {
 	b := f.box(kindSpacer)
-	f.nodes[b.i].Grow = 1
-	f.nodes[b.i].Flags |= flagGrowSet
+	f.Nodes[b.i].Grow = 1
+	f.Nodes[b.i].Flags |= flagGrowSet
 	return b
 }
 
@@ -589,9 +589,9 @@ func (f *frame) Spacer() Box {
 // container: horizontal in a column, vertical in a row or a flow.
 func (f *frame) Divider() Box {
 	b := f.box(kindContainer)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Background = f.theme.Border
-	if f.Parent >= 0 && (f.nodes[f.Parent].Dir == row || f.nodes[f.Parent].Dir == flow) {
+	if f.Parent >= 0 && (f.Nodes[f.Parent].Dir == row || f.Nodes[f.Parent].Dir == flow) {
 		n.Size[axisX] = dimension{dimPx, 1}
 	} else {
 		n.Size[axisY] = dimension{dimPx, 1}
@@ -603,7 +603,7 @@ func (f *frame) Divider() Box {
 // color unless given a Color.
 func (f *frame) Icon(icon gfx.Icon) Box {
 	b := f.box(kindIcon)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	f.extra(b.i).icon = icon
 	n.Color = f.theme.Foreground
 	return b
@@ -616,7 +616,7 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 // (see gfx.Bitmap). An empty or invalid bitmap leaves the room blank.
 func (f *frame) Image(bitmap gfx.Bitmap) Box {
 	b := f.box(kindImage)
-	f.nodes[b.i].Aux = int32(len(f.images))
+	f.Nodes[b.i].Aux = int32(len(f.images))
 	f.images = append(f.images, bitmap)
 	return b
 }
@@ -625,7 +625,7 @@ func (f *frame) Image(bitmap gfx.Bitmap) Box {
 // variants choose another. Clicked reports a click on it.
 func (f *frame) Button(ID gfx.ID, label string) Box {
 	b := f.box(kindButton)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.ID, n.label = ID, label
 	n.Flags |= flagHasHit
 	return b
@@ -634,7 +634,7 @@ func (f *frame) Button(ID gfx.ID, label string) Box {
 // Checkbox adds a checkbox in the given state; Clicked reports a click on it.
 func (f *frame) Checkbox(ID gfx.ID, checked bool) Box {
 	b := f.box(kindCheckbox)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.ID = ID
 	if checked {
 		n.Flags |= flagChecked
@@ -646,7 +646,7 @@ func (f *frame) Checkbox(ID gfx.ID, checked bool) Box {
 // Switch adds a two-state switch in the given state; Clicked reports a click.
 func (f *frame) Switch(ID gfx.ID, on bool) Box {
 	b := f.box(kindSwitch)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.ID = ID
 	if on {
 		n.Flags |= flagChecked
@@ -661,7 +661,7 @@ func (f *frame) Slot() Box { return f.box(kindSlot) }
 
 // extra returns the extras of element i, giving it a set of its own if it has none.
 func (f *frame) extra(i int32) *extra {
-	n := &f.nodes[i]
+	n := &f.Nodes[i]
 	if n.Ext == 0 {
 		n.Ext = int32(len(f.exts))
 		f.exts = append(f.exts, extra{})
@@ -677,8 +677,8 @@ func (f *frame) extra(i int32) *extra {
 // it does not draw its label. Declare the content inside Children before Clicked, or
 // give an empty target a size, a background or Absolute.
 func (f *frame) checkHits() {
-	for i := range f.nodes {
-		n := &f.nodes[i]
+	for i := range f.Nodes {
+		n := &f.Nodes[i]
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}

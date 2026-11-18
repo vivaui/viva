@@ -259,7 +259,7 @@ func (f *frame) paintDrawer(n *node) {
 		drawer = drawer.Disabled()
 	}
 	drawer.Begin(d.spec.title, d.spec.Description)
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.paint(c)
 	}
 	drawer.End()

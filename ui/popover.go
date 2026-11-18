@@ -127,7 +127,7 @@ func (f *frame) paintPopover(i int32, n *node) {
 			Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: pass, PassSecondary: pass,
 		})
 		if !spec.KeepOpenOnAnchor {
-			canvas.HitWithOptions(spec.DismissID, f.nodes[d.anchor].rect, "Dismiss popover", gfx.HitOptions{
+			canvas.HitWithOptions(spec.DismissID, f.Nodes[d.anchor].rect, "Dismiss popover", gfx.HitOptions{
 				Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: pass,
 			})
 		}
@@ -137,11 +137,11 @@ func (f *frame) paintPopover(i int32, n *node) {
 	savedLayer := widgetsOf(f).layer
 	widgetsOf(f).layer = layer
 	n.Flags &^= flagPopover
-	presence, pivot := components.PopupMotion(f.theme, n.rect, f.nodes[d.anchor].rect)
+	presence, pivot := components.PopupMotion(f.theme, n.rect, f.Nodes[d.anchor].rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
 	canvas.EndPresence()
-	f.nodes[i].Flags |= flagPopover
+	f.Nodes[i].Flags |= flagPopover
 	widgetsOf(f).layer = savedLayer
 	if !spec.DismissID.IsZero() {
 		canvas.SetEscapeTarget(spec.DismissID)

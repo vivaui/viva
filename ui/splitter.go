@@ -109,10 +109,10 @@ type splitDecl struct {
 func (f *frame) Splitter(ID gfx.ID, state *SplitterState) Box {
 	first := int32(-1)
 	if f.Parent >= 0 {
-		first = f.nodes[f.Parent].Last
+		first = f.Nodes[f.Parent].Last
 	}
 	b := f.box(kindSplitter)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.ID = ID
 	n.Aux = int32(len(widgetsOf(f).splits))
 	widgetsOf(f).splits = append(widgetsOf(f).splits, splitDecl{state: state, First: first, minFirst: splitterMin, minSecond: splitterMin})
@@ -142,7 +142,7 @@ func (b Box) Mins(First, second float32) Box {
 
 // splitsRow reports whether the splitter's container lays out left to right, so its
 // bar is vertical and its pointer coordinate is x.
-func (f *frame) splitsRow(n *node) bool { return n.Parent < 0 || f.nodes[n.Parent].Dir != column }
+func (f *frame) splitsRow(n *node) bool { return n.Parent < 0 || f.Nodes[n.Parent].Dir != column }
 
 func (f *frame) measureSplitter(n *node) {
 	thickness := widgetsOf(f).splits[n.Aux].thickness
@@ -169,7 +169,7 @@ func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
 	if f.splitsRow(n) {
 		axis = axisX
 	}
-	first, second := &f.nodes[d.First], &f.nodes[n.Next]
+	first, second := &f.Nodes[d.First], &f.Nodes[n.Next]
 	span = *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
 	gaps := span - *extent(&first.rect, axis) - *extent(&n.rect, axis) - *extent(&second.rect, axis)
 	hi = span - *extent(&n.rect, axis) - gaps - d.minSecond
@@ -185,12 +185,12 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		return
 	}
 	count := 0
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		count++
 	}
 	gaps := n.Gap * float32(max(count-1, 0))
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		bar := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		bar := &f.Nodes[c]
 		if bar.Kind != kindSplitter {
 			continue
 		}
@@ -206,7 +206,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		lo := d.minFirst
 		hi := max(avail-gaps-thickness-d.minSecond, lo)
 		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
-		first := &f.nodes[d.First]
+		first := &f.Nodes[d.First]
 		first.Raw[axis], first.Pref[axis] = pos, pos
 		state.Pos = pos
 		state.thickness = thickness
@@ -218,8 +218,8 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 // got smaller, a pane that was given a different size) and asks for one more frame when
 // it had to move one, so the panes follow.
 func (f *frame) reportSplitters() {
-	for i := range f.nodes {
-		n := &f.nodes[i]
+	for i := range f.Nodes {
+		n := &f.Nodes[i]
 		if n.Kind != kindSplitter {
 			continue
 		}

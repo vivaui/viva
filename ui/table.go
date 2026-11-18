@@ -223,7 +223,7 @@ type tableDecl struct {
 //	if col, ok := tbl.HeaderClicked(); ok { state.SortBy(col); data.Sort(state.Sort()) }
 func (f *frame) Table(state *TableState, spec TableSpec) Box {
 	b := f.box(kindTable)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).tables))
 	rows := 0
 	if spec.Source != nil {
@@ -322,9 +322,9 @@ const tableFrozenSeparator = float32(2)
 
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
 func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
-	for p := n.Parent; p >= 0; p = f.nodes[p].Parent {
-		if ext := f.nodes[p].Ext; ext != 0 && f.exts[ext].scrollState != nil {
-			return f.exts[ext].scrollState, f.nodes[p].rect
+	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
+		if ext := f.Nodes[p].Ext; ext != 0 && f.exts[ext].scrollState != nil {
+			return f.exts[ext].scrollState, f.Nodes[p].rect
 		}
 	}
 	return nil, Rect{}
@@ -417,9 +417,9 @@ func (f *frame) paintTable(n *node) {
 	top := body.Y - offset
 	lo, hi := body.Y, body.Y+body.Height
 	clipTop := f.bounds.Y
-	for p := n.Parent; p >= 0; p = f.nodes[p].Parent {
-		if f.nodes[p].Flags&flagClip != 0 {
-			clip := f.nodes[p].rect
+	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
+		if f.Nodes[p].Flags&flagClip != 0 {
+			clip := f.Nodes[p].rect
 			lo, hi = max(lo, clip.Y), min(hi, clip.Y+clip.Height)
 			clipTop = max(clipTop, clip.Y)
 		}

@@ -298,7 +298,7 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 	looks := &f.states[extra.states-1]
 	source := n.ID
 	if looks.follow != 0 {
-		source = f.nodes[looks.follow-1].ID
+		source = f.Nodes[looks.follow-1].ID
 	}
 	if source.IsZero() {
 		return s

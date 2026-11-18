@@ -25,8 +25,8 @@ func (n *node) lineGap() float32 {
 func (f *frame) breakLines(n *node, avail float32) {
 	var used float32
 	line, count := 0, 0
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		ms, me := child.marginOn(axisX)
 		size := clamp(flexBasis(child, axisX, avail), child.MinS[axisX], f.maxOn(child, axisX, avail)) + ms + me
 		if count > 0 && used+n.Gap+size > avail && line < math.MaxUint16 {
@@ -45,10 +45,10 @@ func (f *frame) breakLines(n *node, avail float32) {
 // lineEnd is the child after the last on the line child c is on, or -1 when that
 // line is the last.
 func (f *frame) lineEnd(c int32) int32 {
-	line := f.nodes[c].GridRow
-	c = f.nodes[c].Next
-	for c >= 0 && f.nodes[c].GridRow == line {
-		c = f.nodes[c].Next
+	line := f.Nodes[c].GridRow
+	c = f.Nodes[c].Next
+	for c >= 0 && f.Nodes[c].GridRow == line {
+		c = f.Nodes[c].Next
 	}
 	return c
 }
@@ -57,8 +57,8 @@ func (f *frame) lineEnd(c int32) int32 {
 // tallest child with its margins.
 func (f *frame) lineHeight(First, stop int32) float32 {
 	var height float32
-	for c := First; c != stop; c = f.nodes[c].Next {
-		child := &f.nodes[c]
+	for c := First; c != stop; c = f.Nodes[c].Next {
+		child := &f.Nodes[c]
 		ms, me := child.marginOn(axisY)
 		height = max(height, child.Pref[axisY]+ms+me)
 	}

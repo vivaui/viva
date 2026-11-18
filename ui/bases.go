@@ -53,7 +53,7 @@ func (f *frame) CheckboxBase(ID gfx.ID, checked bool) Box {
 	scale := theme.Metrics.ControlHeight / 32
 	b := f.Row().Center().Size(side, side).HitOutset(8*scale, 12*scale, 8*scale, 12*scale)
 	if checked {
-		f.nodes[b.i].Flags |= flagChecked
+		f.Nodes[b.i].Flags |= flagChecked
 	}
 	return b.HitWith(ID, "checkbox", gfx.HitOptions{Role: gfx.RoleCheckbox, Checked: checked})
 }
@@ -68,7 +68,7 @@ func (f *frame) SwitchBase(ID gfx.ID, on bool) Box {
 	width, height := components.SwitchExtent(f.theme, false)
 	b := f.Row().Center().Size(width, height).HitOutset(8, 12, 8, 12)
 	if on {
-		f.nodes[b.i].Flags |= flagChecked
+		f.Nodes[b.i].Flags |= flagChecked
 	}
 	return b.HitWith(ID, "switch", gfx.HitOptions{Role: gfx.RoleSwitch, Checked: on})
 }
@@ -78,7 +78,7 @@ func (f *frame) SwitchBase(ID gfx.ID, on bool) Box {
 func (f *frame) ToggleBase(ID gfx.ID, label string, pressed bool) Box {
 	b := f.Row().Center()
 	if pressed {
-		f.nodes[b.i].Flags |= flagChecked | flagSelected
+		f.Nodes[b.i].Flags |= flagChecked | flagSelected
 	}
 	return b.HitWith(ID, label, gfx.HitOptions{Role: gfx.RoleButton, Checked: pressed, Selected: pressed})
 }
@@ -89,7 +89,7 @@ func (f *frame) ToggleBase(ID gfx.ID, label string, pressed bool) Box {
 func (f *frame) TabBase(ID gfx.ID, label string, selected bool) Box {
 	b := f.Row().Center()
 	if selected {
-		f.nodes[b.i].Flags |= flagSelected
+		f.Nodes[b.i].Flags |= flagSelected
 	}
 	return b.HitWith(ID, label, gfx.HitOptions{Role: gfx.RoleTab, Value: label, Selected: selected})
 }
@@ -99,7 +99,7 @@ func (f *frame) TabBase(ID gfx.ID, label string, selected bool) Box {
 func (f *frame) RadioBase(ID gfx.ID, label string, chosen bool) Box {
 	b := f.Row().Center()
 	if chosen {
-		f.nodes[b.i].Flags |= flagChecked | flagSelected
+		f.Nodes[b.i].Flags |= flagChecked | flagSelected
 	}
 	return b.HitWith(ID, label, gfx.HitOptions{Role: gfx.RoleRadio, Value: label, Checked: chosen, Selected: chosen})
 }
@@ -110,7 +110,7 @@ func (f *frame) RadioBase(ID gfx.ID, label string, chosen bool) Box {
 func (f *frame) OptionBase(ID gfx.ID, label string, selected bool) Box {
 	b := f.Row()
 	if selected {
-		f.nodes[b.i].Flags |= flagSelected
+		f.Nodes[b.i].Flags |= flagSelected
 	}
 	return b.HitWith(ID, label, gfx.HitOptions{Role: gfx.RoleOption, Value: label, Selected: selected})
 }
@@ -121,7 +121,7 @@ func (f *frame) OptionBase(ID gfx.ID, label string, selected bool) Box {
 func (f *frame) ComboboxBase(ID gfx.ID, label, value string, open bool) Box {
 	b := f.Row().Center()
 	if open {
-		f.nodes[b.i].Flags |= flagOpen
+		f.Nodes[b.i].Flags |= flagOpen
 	}
 	return b.HitWith(ID, label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: value, Expanded: open, Expandable: true})
 }

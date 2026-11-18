@@ -175,7 +175,7 @@ func (b Box) Dismissed() bool {
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
 func (f *frame) paintDialog(n *node) {
 	d := &widgetsOf(f).dialogs[n.Aux]
-	surface := f.nodes[n.First].rect
+	surface := f.Nodes[n.First].rect
 	dialog := components.BeginDialog(f.canvas, f.theme, n.rect, components.DialogOptions{
 		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,
 		InitialFocusID: d.spec.InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
@@ -188,7 +188,7 @@ func (f *frame) paintDialog(n *node) {
 		dialog = dialog.Disabled()
 	}
 	dialog.Begin(d.spec.Title, d.spec.Description)
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.paint(c)
 	}
 	dialog.End()

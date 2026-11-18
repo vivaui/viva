@@ -908,12 +908,12 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	in := &state.list
 	in.n, in.area, in.pinned = n, area.i, -1
 	state.resize(n)
-	scroll := c.f.exts[c.f.nodes[area.i].Ext].scrollState
+	scroll := c.f.exts[c.f.Nodes[area.i].Ext].scrollState
 	in.Scroll = scroll
 	if state.applyScrollRequest(c.f) {
 		// The area was declared at the offset it had; the layout reads the node, so it
 		// takes the requested one too, which the rows are placed for below (as ScrollAt).
-		c.f.nodes[area.i].Scroll = scroll.Offset
+		c.f.Nodes[area.i].Scroll = scroll.Offset
 	}
 	viewport := scroll.Viewport
 	if viewport <= 0 {
@@ -928,7 +928,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	// The rows are placed and hit-tested on whole logical pixels, as the layout
 	// applies them, so a label's native texture survives a fractional scroll.
 	offset := snapScroll(scroll.Offset)
-	c.f.nodes[area.i].Scroll = offset
+	c.f.Nodes[area.i].Scroll = offset
 	first := max(state.rowAt(offset)-listOverscan, 0)
 	if in.n == 0 {
 		first = 0
@@ -1318,10 +1318,10 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 func (p *Page) measureLists() {
 	for _, list := range p.lists {
 		for k, node := range p.listRows[list.rows:list.until] {
-			list.state.measured(list.First+k, p.ctx.f.nodes[node].rect.Height)
+			list.state.measured(list.First+k, p.ctx.f.Nodes[node].rect.Height)
 		}
 		if list.pinned >= 0 {
-			list.state.measured(list.pinnedRow, p.ctx.f.nodes[list.pinned].rect.Height)
+			list.state.measured(list.pinnedRow, p.ctx.f.Nodes[list.pinned].rect.Height)
 		}
 		list.state.afterLayout() // the offset is the layout's now, not the request's
 	}

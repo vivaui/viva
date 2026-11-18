@@ -15,7 +15,7 @@ import (
 //	ui.Badge(c, tag+" ×").Secondary().Hit(tagID, tag)
 func (f *frame) Badge(label string) Box {
 	b := f.box(kindBadge)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.text, n.label = label, label
 	return b
 }

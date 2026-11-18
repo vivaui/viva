@@ -112,7 +112,7 @@ type sliderDecl struct {
 //	}
 func (f *frame) Slider(ID gfx.ID, state *SliderState) Box {
 	b := f.SliderBase(ID, state)
-	f.nodes[b.i].Flags |= flagThemed
+	f.Nodes[b.i].Flags |= flagThemed
 	return b
 }
 
@@ -130,7 +130,7 @@ func (f *frame) Slider(ID gfx.ID, state *SliderState) Box {
 //	})
 func (f *frame) SliderBase(ID gfx.ID, state *SliderState) Box {
 	b := f.box(kindSlider)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.ID = ID
 	n.Aux = int32(len(widgetsOf(f).sliders))
 	widgetsOf(f).sliders = append(widgetsOf(f).sliders, sliderDecl{state: state})

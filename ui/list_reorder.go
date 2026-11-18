@@ -129,10 +129,10 @@ func (in *listInternals) drawOver(d *DrawContext) {
 		return
 	}
 	f := d.frame
-	to, y := in.declared[0].index, f.nodes[in.declared[0].node].rect.Y
+	to, y := in.declared[0].index, f.Nodes[in.declared[0].node].rect.Y
 	for i := range in.declared {
 		row := &in.declared[i]
-		r := f.nodes[row.node].rect
+		r := f.Nodes[row.node].rect
 		if drag.at.Y < r.Y+r.Height/2 {
 			to, y = row.index, r.Y
 			break

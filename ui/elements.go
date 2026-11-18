@@ -504,8 +504,8 @@ func (f *frame) focusFirstControl(dialog Box) {
 // firstControl is the first element under i, in declaration order, with an identity
 // the keyboard can take: a control, or a container given Hit.
 func (f *frame) firstControl(i int32) gfx.ID {
-	for c := f.nodes[i].First; c >= 0; c = f.nodes[c].Next {
-		n := &f.nodes[c]
+	for c := f.Nodes[i].First; c >= 0; c = f.Nodes[c].Next {
+		n := &f.Nodes[c]
 		if n.Flags&flagDisabled == 0 && !n.ID.IsZero() {
 			switch n.Kind {
 			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:

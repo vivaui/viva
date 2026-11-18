@@ -211,7 +211,7 @@ func (s *comboState) setOptions(labels []string) {
 
 // draw paints the field, and its list while it is open.
 func (s *comboState) draw(d *DrawContext) {
-	n := &s.f.nodes[s.node]
+	n := &s.f.Nodes[s.node]
 	ids := &s.ids
 	options := components.SingleSelectOptions{
 		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,

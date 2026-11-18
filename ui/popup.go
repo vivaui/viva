@@ -62,7 +62,7 @@ func (f *frame) placePopup(n *node, axis int) {
 	size = min(clamp(size, n.MinS[axis], n.MaxS[axis]), max(span, 0))
 	anchor := n.anchor
 	if n.anchorRef > 0 {
-		anchor = f.nodes[n.anchorRef-1].rect // laid out on this axis already
+		anchor = f.Nodes[n.anchorRef-1].rect // laid out on this axis already
 	}
 	start := *origin(&anchor, axis)
 	length := *extent(&anchor, axis)

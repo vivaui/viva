@@ -32,15 +32,15 @@ func (b Box) Absolute() Box {
 	if n.outOfFlow&absSelf != 0 || n.Parent < 0 {
 		return b
 	}
-	parent := &f.nodes[n.Parent]
+	parent := &f.Nodes[n.Parent]
 	prev := int32(-1)
-	for c := parent.First; c >= 0 && c != b.i; c = f.nodes[c].Next {
+	for c := parent.First; c >= 0 && c != b.i; c = f.Nodes[c].Next {
 		prev = c
 	}
 	if prev < 0 {
 		parent.First = n.Next
 	} else {
-		f.nodes[prev].Next = n.Next
+		f.Nodes[prev].Next = n.Next
 	}
 	if parent.Last == b.i {
 		parent.Last = prev
@@ -72,7 +72,7 @@ func (b Box) edge(side int, v float32) Box {
 // solveAbsolute places the absolute children of container i on an axis, then lays out
 // what is inside them. The container's own rectangle on the axis is known.
 func (f *frame) solveAbsolute(i int32, axis int) {
-	p := &f.nodes[i]
+	p := &f.Nodes[i]
 	border := p.BorderWidth
 	if p.Flags&flagOutline != 0 {
 		border = 0
@@ -80,7 +80,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 	lo := *origin(&p.rect, axis) + border
 	span := max(*extent(&p.rect, axis)-2*border, 0)
 	for _, ai := range f.scratch.abs {
-		a := &f.nodes[ai]
+		a := &f.Nodes[ai]
 		if a.Parent != i {
 			continue
 		}
@@ -126,7 +126,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 // paintAbsolute paints the absolute children of container i, after its other children.
 func (f *frame) paintAbsolute(i int32) {
 	for _, ai := range f.scratch.abs {
-		if f.nodes[ai].Parent == i {
+		if f.Nodes[ai].Parent == i {
 			f.paint(ai)
 		}
 	}

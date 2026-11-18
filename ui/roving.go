@@ -54,7 +54,7 @@ func (p *Page) roveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		return gfx.EventResult{}, false
 	}
 	for _, r := range p.rovers {
-		n := &r.f.nodes[r.node]
+		n := &r.f.Nodes[r.node]
 		var next gfx.ID
 		var ok bool
 		if r.tabs {

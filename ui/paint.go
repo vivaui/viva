@@ -5,7 +5,7 @@ import (
 )
 
 func (f *frame) paint(i int32) {
-	n := &f.nodes[i]
+	n := &f.Nodes[i]
 	if !n.FocusScope.IsZero() {
 		// A menu's page controls paint in the menu's focus scope, so a press on
 		// them reaches them while the menu traps the pointer.
@@ -145,7 +145,7 @@ func (f *frame) paint(i int32) {
 	if hooks.under != nil {
 		f.runDraw(n, hooks.under)
 	}
-	for c := n.First; c >= 0; c = f.nodes[c].Next {
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.paint(c)
 	}
 	if n.outOfFlow&absChildren != 0 {

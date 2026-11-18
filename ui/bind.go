@@ -49,7 +49,7 @@ func (f *frame) bindDone(b Box, changed bool) {
 
 // bound returns the binding of element i, or nil.
 func (f *frame) bound(i int32) *bindDecl {
-	n := &f.nodes[i]
+	n := &f.Nodes[i]
 	if n.Ext == 0 || f.exts[n.Ext].bind == 0 {
 		return nil
 	}
@@ -64,7 +64,7 @@ func (f *frame) settle(i int32) *bindDecl {
 	}
 	d.settled = true
 	b := Box{f: f, i: i, gen: f.gen}
-	n := &f.nodes[i]
+	n := &f.Nodes[i]
 	switch {
 	case d.field != nil:
 		d.changed = d.field.changed
@@ -105,8 +105,8 @@ func (f *frame) settleAt(i int32) *bindDecl {
 
 // settleBinds writes every bound value not asked about yet.
 func (f *frame) settleBinds() {
-	for i := range f.nodes {
-		if n := &f.nodes[i]; n.Ext != 0 && f.exts[n.Ext].bind != 0 {
+	for i := range f.Nodes {
+		if n := &f.Nodes[i]; n.Ext != 0 && f.exts[n.Ext].bind != 0 {
 			f.settle(int32(i))
 		}
 	}

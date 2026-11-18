@@ -177,7 +177,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	state.ListState.list.f = c.f
 	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
-	state.Scroll = c.f.exts[c.f.nodes[area.i].Ext].scrollState
+	state.Scroll = c.f.exts[c.f.Nodes[area.i].Ext].scrollState
 	state.c, state.label, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
@@ -274,7 +274,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 func (s *TreeState) draw(d *DrawContext) {
 	for i := range s.declared {
 		row := &s.declared[i]
-		if row.gen != d.frame.gen || &d.frame.nodes[row.node] != d.node {
+		if row.gen != d.frame.gen || &d.frame.Nodes[row.node] != d.node {
 			continue
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.indent(d.Theme))

@@ -43,7 +43,7 @@ type paginationDecl struct {
 //	if id, ok := row.Chosen(); ok && id == nextID { ... }
 func (f *frame) Pagination(Items []PaginationItem) Box {
 	b := f.box(kindPagination)
-	n := &f.nodes[b.i]
+	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).paginations))
 	start := int32(len(widgetsOf(f).paginationItems))
 	for _, item := range Items {

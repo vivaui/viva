@@ -231,8 +231,8 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if f == nil {
 		return gfx.EventResult{}
 	}
-	for i := len(f.nodes) - 1; i >= 0; i-- {
-		n := &f.nodes[i]
+	for i := len(f.Nodes) - 1; i >= 0; i-- {
+		n := &f.Nodes[i]
 		if n.Ext == 0 || f.exts[n.Ext].scrollState == nil {
 			continue
 		}
@@ -254,8 +254,8 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // containsPoint says whether a point is inside element i and inside every clip around
 // it, which is to say, whether it is where the element can be seen.
 func (f *frame) containsPoint(i int, x, y float32) bool {
-	for p := int32(i); p >= 0; p = f.nodes[p].Parent {
-		n := &f.nodes[p]
+	for p := int32(i); p >= 0; p = f.Nodes[p].Parent {
+		n := &f.Nodes[p]
 		if p != int32(i) && n.Flags&flagClip == 0 {
 			continue
 		}
@@ -413,8 +413,8 @@ func (b Box) ScrollState() *ScrollState {
 // Sideways area's content was reported when it was measured, and the layout already
 // kept OffsetX in range of it.
 func (f *frame) reportScrolls() {
-	for i := range f.nodes {
-		n := &f.nodes[i]
+	for i := range f.Nodes {
+		n := &f.Nodes[i]
 		if n.Ext == 0 || f.exts[n.Ext].scrollState == nil {
 			continue
 		}

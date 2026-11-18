@@ -52,8 +52,8 @@ func (f *frame) textEntryLook(theme *Theme, state gfx.State) components.TextEntr
 // is laid out: the corners, the border and the padding of its text. Colors depend on the
 // state of the frame being painted, so they are filled in by themedDefaults at paint time.
 func (f *frame) applyRecipes() {
-	for i := range f.nodes {
-		n := &f.nodes[i]
+	for i := range f.Nodes {
+		n := &f.Nodes[i]
 		if n.Flags&flagThemed == 0 {
 			continue
 		}

@@ -29,9 +29,9 @@ const (
 //	f.Progress(0).Indeterminate()
 func (f *frame) Progress(fraction float32) Box {
 	b := f.box(kindProgress)
-	f.nodes[b.i].Natural = max(fraction, 0)
+	f.Nodes[b.i].Natural = max(fraction, 0)
 	if fraction != fraction {
-		f.nodes[b.i].Natural = 0
+		f.Nodes[b.i].Natural = 0
 	}
 	return b
 }
@@ -59,9 +59,9 @@ func (f *frame) Spinner() Box { return f.box(kindSpinner) }
 // in: the elements that animate ask for frames only then.
 func (f *frame) visible(n *node) bool {
 	r := intersect(n.rect, f.bounds)
-	for p := n.Parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.nodes[p].Parent {
-		if f.nodes[p].Flags&flagClip != 0 {
-			r = intersect(r, f.nodes[p].rect)
+	for p := n.Parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.Nodes[p].Parent {
+		if f.Nodes[p].Flags&flagClip != 0 {
+			r = intersect(r, f.Nodes[p].rect)
 		}
 	}
 	return r.Width > 0 && r.Height > 0

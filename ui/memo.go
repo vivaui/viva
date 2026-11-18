@@ -200,10 +200,10 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 
 // memoPaint is the frame's paint hook for a Memo's element.
 func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
-	box := &p.memoBoxes[f.exts[f.nodes[i].Ext].memo-1]
+	box := &p.memoBoxes[f.exts[f.Nodes[i].Ext].memo-1]
 	entry := box.entry
 	canvas := f.canvas
-	rect := f.nodes[i].rect
+	rect := f.Nodes[i].rect
 	if box.copy {
 		if entry.themeEpoch != p.themeEpoch || entry.opacity != f.opacity {
 			entry.stale = true
@@ -239,7 +239,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 		}
 	}
 	if box.check != 0 && !entry.held && !canvas.Delivering() && !canvas.Animating() && p.memoDiffers(entry.span, p.memoChecks[box.check-1], rect) {
-		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.nodes[i].ID) + ") differs from what it painted last time " +
+		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.Nodes[i].ID) + ") differs from what it painted last time " +
 			"with the same value: the value does not cover something its function reads")
 	}
 	return false

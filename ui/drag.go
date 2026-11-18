@@ -407,7 +407,7 @@ func (s *DragState) regionRect(region dragRegion) Rect {
 
 // hitRect is the rectangle the element can be pointed at, including HitOutset.
 func (s *DragState) hitRect(node int32) Rect {
-	n := &s.frame.nodes[node]
+	n := &s.frame.Nodes[node]
 	r := n.rect
 	if n.Ext == 0 {
 		return r

@@ -433,7 +433,7 @@ func TestEllipsisKeepsOneLineAndEndsItWithAnEllipsis(t *testing.T) {
 	if name.Rect().Height != 17 || after.Rect().Y != 17 {
 		t.Errorf("an ellipsized text is %v tall and the next element starts at %v, want one line, 17 and 17", name.Rect().Height, after.Rect().Y)
 	}
-	if got := f.lines[f.nodes[name.i].LineFirst]; got == "a file name that is far too long to fit" || got == "" {
+	if got := f.lines[f.Nodes[name.i].LineFirst]; got == "a file name that is far too long to fit" || got == "" {
 		t.Errorf("the line is %q, want it shortened", got)
 	}
 }
@@ -830,7 +830,7 @@ func TestViewTrimReleasesLargePageNodes(t *testing.T) {
 	view.Draw(canvas, theme, gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Text("one")
 	})
-	if got := cap(view.frame.nodes); got > 4096 {
+	if got := cap(view.frame.Nodes); got > 4096 {
 		t.Fatalf("nodes capacity after a large page = %d, want the spike released", got)
 	}
 }
