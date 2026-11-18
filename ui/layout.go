@@ -140,6 +140,13 @@ func (f *frame) measureLeafIn(n *node) {
 		if n.buttonSize >= components.ButtonSizeIcon {
 			n.pref[axisX] = n.pref[axisY]
 		}
+	case kindSplitButton:
+		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).SizeToFit(n.label)
+		trigger := f.widgets.splitButtons[n.aux].triggerWidth
+		if trigger <= 0 {
+			trigger = splitButtonTrigger
+		}
+		n.pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
 	case kindCheckbox:
 		w, h := components.CheckboxHitExtent(f.theme)
 		n.pref = [2]float32{w, h}

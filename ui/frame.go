@@ -48,6 +48,7 @@ const (
 	kindSplitter
 	kindSlider
 	kindImage
+	kindSplitButton
 )
 
 type direction uint8

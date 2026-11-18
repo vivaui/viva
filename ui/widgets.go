@@ -19,6 +19,7 @@ type widgets struct {
 	// the next Begin for the panels the last paint no longer declared.
 	popoverFocus []popoverFocusAsk
 	splits       []splitDecl
+	splitButtons []splitButtonDecl
 	sliders      []sliderDecl
 	cells        []string // one row's text, handed to components.Table
 	rects        []Rect   // one row's cells

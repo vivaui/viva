@@ -228,6 +228,8 @@ func (f *frame) paintControl(n *node, r Rect) {
 		f.paintSpinner(n)
 	case kindSplitter:
 		f.paintSplitter(n)
+	case kindSplitButton:
+		f.paintSplitButton(n)
 	case kindSlider:
 		f.paintSlider(n)
 	case kindSwitch:

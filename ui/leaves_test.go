@@ -299,6 +299,7 @@ func TestLeavesAndSplittersAllocateNothingOnceWarm(t *testing.T) {
 				f.Progress(0.3)
 				f.Progress(0).Indeterminate().Height(8)
 				f.Row().Gap(8).Items(Center).Children(func() { f.Spinner(); f.Text("Loading") })
+				f.SplitButton(SplitButtonSpec{PrimaryID: tree.ID(page, "save"), MenuID: tree.ID(page, "save-more"), Label: "Save", Open: true})
 				f.Row().Grow(1).Children(func() {
 					f.Column().Width(state.Pos)
 					f.Splitter(splitID, &state)
@@ -309,7 +310,7 @@ func TestLeavesAndSplittersAllocateNothingOnceWarm(t *testing.T) {
 	}
 	run()
 	if allocs := testing.AllocsPerRun(200, run); allocs != 0 {
-		t.Fatalf("a warm page with progress, spinner and splitter allocates %v times a frame, want 0", allocs)
+		t.Fatalf("a warm page with progress, spinner, split button and splitter allocates %v times a frame, want 0", allocs)
 	}
 }
 
