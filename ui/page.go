@@ -182,7 +182,7 @@ type PageConfig struct {
 	// View declares the page. It is what Paint draws.
 	View func(C)
 	// Tree is the identity tree the page names its elements in. Nil takes the one
-	// of the app.Config given to Config, or else one of the page's own. A window
+	// of the app.Config given to Configure, or else one of the page's own. A window
 	// that paints more than one Page gives each its Tree and a Root of its own.
 	Tree *gfx.Tree
 	// Root is the name of the page's top scope in Tree, "page" when empty.
@@ -207,7 +207,7 @@ type PageConfig struct {
 	// bars share.
 	ScrollbarSize float32
 	// Invalidator wakes the window the page is drawn in when an Effect of the page
-	// finishes. Config uses it instead of the app.Config's; a page the application
+	// finishes. Configure uses it instead of the app.Config's; a page the application
 	// draws into a window of its own (Draw, not Paint) needs it, since only Config
 	// would otherwise supply one. The interface lets a page depend on the window
 	// contract rather than on the platform loop.

@@ -7,7 +7,7 @@ group: guides
 
 ## 一个窗口还是多个
 
-`app.RunCanvas` 打开单个窗口，窗口关闭时返回。需要多个窗口，或者窗口隐藏后应用仍要继续运行时，使用 `app.RunApplication`。它的启动回调在原生事件循环线程上运行一次，用 `ui.OpenWindow(application, config, ui.PageConfig{View: ...})` 打开第一个窗口，它会创建页面和画布；页面通过 `c.Application()` 拿到所属的应用，用来打开更多窗口；之后的窗口从这个回调里，或者从别的窗口的回调里打开，那些回调运行在同一个线程上。
+`app.RunCanvas` 打开单个窗口，窗口关闭时返回。需要多个窗口，或者窗口隐藏后应用仍要继续运行时，使用 `app.RunApplication`。它的启动回调在原生事件循环线程上运行一次，用 `ui.OpenWindow(application, config, ui.PageConfig{View: ...})` 打开第一个窗口，它会创建页面和画布；页面通过 `ui.Application(c)` 拿到所属的应用，用来打开更多窗口；之后的窗口从这个回调里，或者从别的窗口的回调里打开，那些回调运行在同一个线程上。
 
 每个窗口都有自己的画布、绘制回调、焦点、输入状态和关闭处理。最后一个窗口关闭时，或有人调用 `Application.Quit` 时，事件循环结束；`Quit` 会关闭所有窗口，无论它们的关闭处理怎么说。
 
@@ -76,7 +76,7 @@ func (state *notes) page(c ui.C) {
 			if ui.Button(c, "Settings").Outline().Clicked() {
 				// Windows are opened from the start callback or from another
 				// window's callbacks, which run on the native event-loop thread.
-				_, _ = ui.OpenWindow(c.Application(), app.Config{Title: "Settings", Width: 420, Height: 320},
+				_, _ = ui.OpenWindow(ui.Application(c), app.Config{Title: "Settings", Width: 420, Height: 320},
 					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})

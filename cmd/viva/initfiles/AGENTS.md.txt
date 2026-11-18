@@ -48,7 +48,7 @@ The loop for every change:
 | Light/dark, a color picker, custom colors | The theme | `gfx.LightTheme()`, `gfx.DarkTheme()`, `PageConfig.Theme`, `c.Theme()` |
 | A split pane, a divider, drag and drop | Keys, drag and the mouse | `ui.Splitter`, `ui.DragState`, `.DragSource`, `.DropTarget` |
 | A chat or a log that follows its end | Lists, trees and scrolling | `ui.Scroll(...).Follow(true)`, `MaxWidthPercent`, `Justify` |
-| A second window, a tray window | Several windows | `app.RunApplication`, `ui.OpenWindow`, `c.Application()` |
+| A second window, a tray window | Several windows | `app.RunApplication`, `ui.OpenWindow`, `ui.Application(c)` |
 
 ## How a window works
 
@@ -479,7 +479,7 @@ func (m *model) page(c ui.C) {
   `ScrollbarGutter` keeps a strip beside the columns for it. An application painting its own vertical bar sets
   `HideHoverScrollbars: true` to omit the anonymous vertical hover thumb only; the horizontal overlay, gutter, wheel,
   and an explicitly identified draggable `Scrollbar` are unchanged. The page gives the wheel to a self-scrolling table under the pointer; give the `app.Config` passed to
-  `page.Config` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
+  `ui.Configure` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
   `m.table.Wheel` the wheel).
 
 ### Tabs and select
@@ -609,11 +609,11 @@ ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 `app.RunCanvas` runs one window. For more, `app.RunApplication(func(a *app.Application) error {...})` calls its
 function once on the event-loop thread; open windows there or from a click, each with its own page, config and canvas.
 Make every window a `ui.Page` and open it with `w, err := ui.OpenWindow(a, config, ui.PageConfig{View: m.inspector})`:
-it makes the page and the canvas, and a page reaches its application with `c.Application()`, so a click opens another
+it makes the page and the canvas, and a page reaches its application with `ui.Application(c)`, so a click opens another
 window without the model keeping `a`. `w.Close()` closes one (and `w.Closed()` says whether it is gone; it is true for a
 nil window); `a.Quit()` ends everything. Keep `newConfig(m)` for the main window so tests still drive it
 (`a.OpenWindow(config, new(gfx.Canvas))`); every other window is a `ui.OpenWindow`. To repaint another window after the shared model changed, give it an `app.Invalidator` (`config.Invalidator =
-inv`, declared as `&app.Invalidator{}`, the zero value works) and call `inv.Invalidate()`; `Page.Config` makes one when
+inv`, declared as `&app.Invalidator{}`, the zero value works) and call `inv.Invalidate()`; `Configure` makes one when
 neither the page nor the base config has it.
 
 ```go
@@ -699,7 +699,7 @@ the result into the model on the window's thread before the repaint.
 
 ## Testing
 
-`app.NewDriver(page.Config(config()), nil)` runs the real application with no window
+`app.NewDriver(ui.Configure(page, config()), nil)` runs the real application with no window
 (`ui.NewPage(ui.PageConfig{View: m.page})` makes the page):
 `driver.Click(x, y)`, `Type`, `Key`, `Move`, `Scroll`, `Resize`, then `driver.Snapshot()` for the
 labels, hits and rectangles painted. main_test.go clicks a control by its name and reads
