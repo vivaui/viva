@@ -95,7 +95,7 @@ func (f *frame) measure(axis int) {
 			n.pref[axis] = d.value
 		}
 		n.raw[axis] = n.pref[axis]
-		n.pref[axis] = clamp(n.pref[axis], n.MinS[axis], n.maxS[axis])
+		n.pref[axis] = clamp(n.pref[axis], n.MinS[axis], n.MaxS[axis])
 		// A baseline is measured on the clamped size, the one paint lays the
 		// line out in.
 		if axis == axisY {
@@ -185,7 +185,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	default:
 		return
 	}
-	if n.Size[axis].Kind == dimAuto && n.maxS[axis] == 0 {
+	if n.Size[axis].Kind == dimAuto && n.MaxS[axis] == 0 {
 		n.pref[axis] = is + ie
 	}
 }
@@ -314,7 +314,7 @@ func crossSize(child *node, axis int, avail float32, align Align, hi float32) fl
 // room for it: its MaxWidth or MaxHeight, or the share of avail MaxWidthPercent or
 // MaxHeightPercent gives, whichever is smaller. Zero is no limit.
 func (f *frame) maxOn(n *node, axis int, avail float32) float32 {
-	hi := n.maxS[axis]
+	hi := n.MaxS[axis]
 	if pct := f.exts[n.ext].maxPct[axis]; pct > 0 {
 		share := max(avail, 0) * pct / 100
 		if hi == 0 || share < hi {

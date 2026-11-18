@@ -167,7 +167,7 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 			cs = min(cs, columns)
 			ms, me := child.marginOn(axisX)
 			covered := float32(cs)*cell + float32(cs-1)*n.Gap
-			child.rect.Width = clamp(covered-ms-me, child.MinS[axisX], child.maxS[axisX])
+			child.rect.Width = clamp(covered-ms-me, child.MinS[axisX], child.MaxS[axisX])
 			child.rect.X = start + float32(child.GridCol)*(cell+n.Gap) + ms
 		}
 		return
@@ -182,6 +182,6 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 		ms, me := child.marginOn(axisY)
 		covered := s.rowAt[last] + s.rows[last] - s.rowAt[first]
 		child.rect.Y = start + s.rowAt[first] + ms
-		child.rect.Height = clamp(covered-ms-me, child.MinS[axisY], child.maxS[axisY])
+		child.rect.Height = clamp(covered-ms-me, child.MinS[axisY], child.MaxS[axisY])
 	}
 }

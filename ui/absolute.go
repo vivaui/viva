@@ -108,7 +108,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 		default:
 			size = a.pref[axis]
 		}
-		size = clamp(size, a.MinS[axis], a.maxS[axis])
+		size = clamp(size, a.MinS[axis], a.MaxS[axis])
 		at := lo + ms
 		switch {
 		case hasStart:

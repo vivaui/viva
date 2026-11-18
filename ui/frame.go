@@ -115,7 +115,7 @@ type node struct {
 	Parent, First, Last, Next int32
 
 	Size                 [2]dimension
-	MinS, maxS           [2]float32 // a max of zero is no max
+	MinS, MaxS           [2]float32 // a max of zero is no max
 	Grow, Shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
 	Gap                  float32

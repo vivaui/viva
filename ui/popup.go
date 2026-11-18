@@ -59,7 +59,7 @@ func (f *frame) placePopup(n *node, axis int) {
 	case dimPercent:
 		size = span * d.value / 100
 	}
-	size = min(clamp(size, n.MinS[axis], n.maxS[axis]), max(span, 0))
+	size = min(clamp(size, n.MinS[axis], n.MaxS[axis]), max(span, 0))
 	anchor := n.anchor
 	if n.anchorRef > 0 {
 		anchor = f.nodes[n.anchorRef-1].rect // laid out on this axis already

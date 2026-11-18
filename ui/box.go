@@ -129,9 +129,9 @@ func (b Box) Fill() Box       { return b.FillWidth().FillHeight() }
 
 // MinWidth, MaxWidth, MinHeight and MaxHeight bound the size the layout gives.
 func (b Box) MinWidth(v float32) Box  { b.n().MinS[axisX] = v; return b }
-func (b Box) MaxWidth(v float32) Box  { b.n().maxS[axisX] = v; return b }
+func (b Box) MaxWidth(v float32) Box  { b.n().MaxS[axisX] = v; return b }
 func (b Box) MinHeight(v float32) Box { b.n().MinS[axisY] = v; return b }
-func (b Box) MaxHeight(v float32) Box { b.n().maxS[axisY] = v; return b }
+func (b Box) MaxHeight(v float32) Box { b.n().MaxS[axisY] = v; return b }
 
 // MaxWidthPercent and MaxHeightPercent cap an element at a share of the room its
 // container has (its content box), whatever its content wants: a chat bubble that is at
