@@ -221,6 +221,38 @@ func TestASplitterInAColumnResizesVertically(t *testing.T) {
 	}
 }
 
+// A splitter given HitWith's options keeps them: a caller that declares the split
+// a separator, as native split panes are, gets that role and its own label while
+// the pointer keeps the resize shape.
+func TestASplitterKeepsTheHitOptionsItWasGiven(t *testing.T) {
+	var view View
+	state := SplitterState{Pos: 120}
+	canvas := testCanvas()
+	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 100}, func(f *Frame) {
+		f.Row().Fill().Children(func() {
+			f.Column().Width(state.Pos)
+			f.Splitter(splitID, &state).HitWith(splitID, "Between the panes", gfx.HitOptions{Role: gfx.RoleSeparator})
+			f.Column().Grow(1)
+		})
+	})
+	for _, hit := range canvas.Hits() {
+		if hit.ID != splitID {
+			continue
+		}
+		if hit.Role != gfx.RoleSeparator {
+			t.Errorf("role %v, want separator", hit.Role)
+		}
+		if hit.Label != "Between the panes" {
+			t.Errorf("label %q, want the one HitWith gave", hit.Label)
+		}
+		if hit.Cursor != gfx.PointerCursorResizeHorizontal {
+			t.Errorf("cursor %v, want the horizontal resize shape", hit.Cursor)
+		}
+		return
+	}
+	t.Fatal("no hit region for the splitter")
+}
+
 // A container given Hit and nothing that shows or sizes it is a mistake the guide
 // warns about: it fails at once with the fix in the message, while an empty target
 // that was given a size or a background is fine.

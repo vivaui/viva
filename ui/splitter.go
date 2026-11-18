@@ -311,5 +311,15 @@ func (f *frame) paintSplitter(n *node) {
 			hit.Y, hit.Height = hit.Y-pad, hit.Height+2*pad
 		}
 	}
-	canvas.HitWithOptions(n.id, hit, label, gfx.HitOptions{Role: gfx.RoleSlider, Cursor: cursor})
+	// HitWith gives the splitter the application's own semantics: a split
+	// pane is a separator in the accessibility tree, and a caller that takes
+	// HitWith's options to say so keeps everything else a splitter's.
+	options := f.exts[n.ext].hit
+	if options.Role == 0 {
+		options.Role = gfx.RoleSlider
+	}
+	if options.Cursor == 0 {
+		options.Cursor = cursor
+	}
+	canvas.HitWithOptions(n.id, hit, label, options)
 }
