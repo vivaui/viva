@@ -29,6 +29,7 @@ type SplitterState struct {
 	startPos     float32
 	lo, hi       float32 // the limits as of the last layout
 	span         float32 // the container's extent along the split
+	thickness    float32 // the room the divider took in that layout
 }
 
 // Dragging reports whether the splitter is being dragged.
@@ -64,10 +65,14 @@ func (s *SplitterState) Key(event gfx.KeyEvent) gfx.EventResult {
 // resize keeps the proportion the user chose. A state that holds Pos in pixels
 // (Ratio zero) is left alone.
 func (s *SplitterState) keepRatio() {
-	if s.Ratio <= 0 || s.span <= splitterThickness {
+	thickness := s.thickness
+	if thickness <= 0 {
+		thickness = splitterThickness
+	}
+	if s.Ratio <= 0 || s.span <= thickness {
 		return
 	}
-	s.Ratio = min(max(s.Pos/(s.span-splitterThickness), 0), 1)
+	s.Ratio = min(max(s.Pos/(s.span-thickness), 0), 1)
 }
 
 func (s *SplitterState) limit(pos float32) float32 {
@@ -81,6 +86,9 @@ type splitDecl struct {
 	state               *SplitterState
 	first               int32 // the pane before the splitter, or -1
 	minFirst, minSecond float32
+	// thickness is the room the divider takes in the layout; zero is the
+	// default strip. The pointer's strip is never narrower than that default.
+	thickness float32
 }
 
 // Splitter adds a draggable divider between two siblings of a Row (a vertical bar,
@@ -112,6 +120,17 @@ func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	return b
 }
 
+// SplitterThickness sets how much room the divider takes in the layout, for a
+// split whose panes should meet with a hairline between them. The pointer's strip
+// stays at least as wide as the default (8), centred on the line, so a one-pixel
+// divider is still easy to grab.
+func (b Box) SplitterThickness(thickness float32) Box {
+	if n := b.n(); n.kind == kindSplitter {
+		b.f.widgets.splits[n.aux].thickness = max(thickness, 0.5)
+	}
+	return b
+}
+
 // Mins sets the least size of the panes either side of a Splitter, along its container.
 func (b Box) Mins(first, second float32) Box {
 	if n := b.n(); n.kind == kindSplitter {
@@ -126,10 +145,14 @@ func (b Box) Mins(first, second float32) Box {
 func (f *frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
 
 func (f *frame) measureSplitter(n *node) {
+	thickness := f.widgets.splits[n.aux].thickness
+	if thickness <= 0 {
+		thickness = splitterThickness
+	}
 	if f.splitsRow(n) {
-		n.pref = [2]float32{splitterThickness, 0}
+		n.pref = [2]float32{thickness, 0}
 	} else {
-		n.pref = [2]float32{0, splitterThickness}
+		n.pref = [2]float32{0, thickness}
 	}
 }
 
@@ -186,6 +209,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		first := &f.nodes[d.first]
 		first.raw[axis], first.pref[axis] = pos, pos
 		state.Pos = pos
+		state.thickness = thickness
 		state.lo, state.hi, state.span = lo, hi, avail
 	}
 }
@@ -202,6 +226,11 @@ func (f *frame) reportSplitters() {
 		s := f.widgets.splits[n.aux].state
 		lo, hi, span := f.splitLimits(n)
 		s.lo, s.hi, s.span = lo, hi, span
+		axis := axisY
+		if f.splitsRow(n) {
+			axis = axisX
+		}
+		s.thickness = *extent(&n.rect, axis)
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
 			if f.canvas != nil {
@@ -270,5 +299,17 @@ func (f *frame) paintSplitter(n *node) {
 	if label == "" {
 		label = "Resize panes"
 	}
-	canvas.HitWithOptions(n.id, r, label, gfx.HitOptions{Role: gfx.RoleSlider, Cursor: cursor})
+	// The pointer's strip is never narrower than the default, so a hairline
+	// divider between the panes is still easy to grab.
+	hit := r
+	if row {
+		if pad := (max(d.thickness, splitterThickness) - r.Width) / 2; pad > 0 {
+			hit.X, hit.Width = hit.X-pad, hit.Width+2*pad
+		}
+	} else {
+		if pad := (max(d.thickness, splitterThickness) - r.Height) / 2; pad > 0 {
+			hit.Y, hit.Height = hit.Y-pad, hit.Height+2*pad
+		}
+	}
+	canvas.HitWithOptions(n.id, hit, label, gfx.HitOptions{Role: gfx.RoleSlider, Cursor: cursor})
 }
