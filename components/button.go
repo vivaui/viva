@@ -1,38 +1,37 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // ButtonVariant selects one of the shadcn Vega button treatments. Destructive is
 // Vega's quiet one: a danger-tinted surface with a danger label, not a solid red
 // block.
-type ButtonVariant uint8
+type ButtonVariant = style.Variant
 
 const (
-	ButtonDefault ButtonVariant = iota
-	ButtonDestructive
-	ButtonOutline
-	ButtonSecondary
-	ButtonGhost
-	ButtonLink
-	// ButtonDestructiveOutline is the bordered form of a dangerous action: a danger
-	// colored label on an outline button, tinted with the danger color only under
-	// the pointer. Viva's own variant (shadcn has none), for an action that sits
-	// among ordinary controls such as a settings row.
-	ButtonDestructiveOutline
+	ButtonDefault            = style.VariantDefault
+	ButtonDestructive        = style.VariantDestructive
+	ButtonOutline            = style.VariantOutline
+	ButtonSecondary          = style.VariantSecondary
+	ButtonGhost              = style.VariantGhost
+	ButtonLink               = style.VariantLink
+	ButtonDestructiveOutline = style.VariantDestructiveOutline
 )
 
 // ButtonSize selects one of the official shadcn button sizes.
-type ButtonSize uint8
+type ButtonSize = style.Size
 
 const (
-	ButtonSizeDefault ButtonSize = iota
-	ButtonSizeXSmall
-	ButtonSizeSmall
-	ButtonSizeLarge
-	ButtonSizeIcon
-	ButtonSizeIconXSmall
-	ButtonSizeIconSmall
-	ButtonSizeIconLarge
+	ButtonSizeDefault    = style.SizeDefault
+	ButtonSizeXSmall     = style.SizeXSmall
+	ButtonSizeSmall      = style.SizeSmall
+	ButtonSizeLarge      = style.SizeLarge
+	ButtonSizeIcon       = style.SizeIcon
+	ButtonSizeIconXSmall = style.SizeIconXSmall
+	ButtonSizeIconSmall  = style.SizeIconSmall
+	ButtonSizeIconLarge  = style.SizeIconLarge
 )
 
 // ButtonState carries transient pointer, focus, and validation state for

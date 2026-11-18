@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // Box is a handle to one element of the page being declared. It is two words
@@ -390,24 +391,24 @@ func (b Box) TextDirection(direction gfx.TextDirection) Box {
 }
 
 // Button variants and sizes.
-func (b Box) Secondary() Box   { return b.variant(components.ButtonSecondary) }
-func (b Box) Outline() Box     { return b.variant(components.ButtonOutline) }
-func (b Box) Ghost() Box       { return b.variant(components.ButtonGhost) }
-func (b Box) Link() Box        { return b.variant(components.ButtonLink) }
-func (b Box) Destructive() Box { return b.variant(components.ButtonDestructive) }
+func (b Box) Secondary() Box   { return b.variant(style.VariantSecondary) }
+func (b Box) Outline() Box     { return b.variant(style.VariantOutline) }
+func (b Box) Ghost() Box       { return b.variant(style.VariantGhost) }
+func (b Box) Link() Box        { return b.variant(style.VariantLink) }
+func (b Box) Destructive() Box { return b.variant(style.VariantDestructive) }
 func (b Box) DestructiveOutline() Box {
-	return b.variant(components.ButtonDestructiveOutline)
+	return b.variant(style.VariantDestructiveOutline)
 }
-func (b Box) variant(v components.ButtonVariant) Box { b.n().variant = v; return b }
-func (b Box) XSmall() Box                            { b.n().buttonSize = components.ButtonSizeXSmall; return b }
+func (b Box) variant(v style.Variant) Box { b.n().variant = v; return b }
+func (b Box) XSmall() Box                 { b.n().buttonSize = style.SizeXSmall; return b }
 func (b Box) Small() Box {
 	n := b.n()
-	n.buttonSize = components.ButtonSizeSmall
+	n.buttonSize = style.SizeSmall
 	n.flags |= flagSmall
 	return b
 }
-func (b Box) Large() Box    { b.n().buttonSize = components.ButtonSizeLarge; return b }
-func (b Box) IconOnly() Box { b.n().buttonSize = components.ButtonSizeIcon; return b }
+func (b Box) Large() Box    { b.n().buttonSize = style.SizeLarge; return b }
+func (b Box) IconOnly() Box { b.n().buttonSize = style.SizeIcon; return b }
 
 // SwitchRecipe gives one Switch its own look, as ButtonRecipe does a Button,
 // winning over the page's Styles.Switch. Start from components.SwitchRecipe.

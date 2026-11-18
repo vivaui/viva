@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // Align places children across a container (Align) or along it (Justify).
@@ -140,8 +141,8 @@ type node struct {
 	color                Color
 	id                   gfx.ID
 	label                string
-	variant              components.ButtonVariant
-	buttonSize           components.ButtonSize
+	variant              style.Variant
+	buttonSize           style.Size
 	rowSpan              uint8 // the rows a Grid child covers; zero is one
 	outOfFlow            uint8 // absolute positioning: see absolute.go
 
