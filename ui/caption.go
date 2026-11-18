@@ -53,6 +53,27 @@ func (f *frame) captionSize(n *node) float32 {
 
 // paintCaption paints a Checkbox's or Switch's Caption after the control's bounds and
 // makes it a label of the control, so a click on it is a click on the control.
+// paintCaptionView is paintCaption for a control painter that reads a
+// ControlView rather than the engine's element.
+func (f *frame) paintCaptionView(v ControlView, control Rect) {
+	size := v.Font
+	if size <= 0 {
+		size = f.theme.Metrics.FontSizeM
+	}
+	line := size + 7
+	x := control.X + control.Width + captionGap
+	r := Rect{X: x, Y: v.Rect.Y + (v.Rect.Height-line)/2, Width: max(v.Rect.X+v.Rect.Width-x, 0), Height: line}
+	color := fade(f.theme.Foreground, f.opacity)
+	if v.HasColor {
+		color = v.Color
+	}
+	if v.Disabled {
+		color.Alpha *= 0.5
+	}
+	f.canvas.Label(v.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	f.canvas.HitLabel(v.ID, r, v.Text, v.Disabled)
+}
+
 func (f *frame) paintCaption(n *node, control Rect) {
 	size := f.captionSize(n)
 	line := size + 7

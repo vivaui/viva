@@ -52,42 +52,46 @@ func (f *frame) paintSplitButtonControl(n *node, r Rect) { f.paintSplitButton(vi
 func (f *frame) paintBadgeControl(n *node, _ Rect)       { f.paintBadge(viewOf(f, n)) }
 func (f *frame) paintPaginationControl(n *node, _ Rect)  { f.paintPagination(viewOf(f, n)) }
 
-func (f *frame) paintCheckboxControl(n *node, r Rect) {
+func (f *frame) paintCheckboxControl(n *node, r Rect)   { f.paintCheckbox(viewOf(f, n)) }
+func (f *frame) paintSwitchControl(n *node, r Rect)     { f.paintSwitch(viewOf(f, n)) }
+func (f *frame) paintInputGroupControl(n *node, r Rect) { f.paintInputGroup(viewOf(f, n)) }
+func (f *frame) paintSegmentedControl(n *node, r Rect)  { f.paintSegmented(viewOf(f, n)) }
+
+func (f *frame) paintCheckbox(v ControlView) {
 	canvas := f.canvas
 	side := components.CheckboxExtent(f.theme)
-	bounds := Rect{X: r.X + (r.Width-side)/2, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
-	if n.text != "" {
-		bounds.X = r.X
-		f.captionFn(f, n, bounds)
+	bounds := Rect{X: v.Rect.X + (v.Rect.Width-side)/2, Y: v.Rect.Y + (v.Rect.Height-side)/2, Width: side, Height: side}
+	if v.Text != "" {
+		bounds.X = v.Rect.X
+		f.paintCaptionView(v, bounds)
 	}
-	checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
-	if n.flags&flagMixed != 0 {
+	checkbox := components.BeginCheckbox(canvas, f.theme, v.ID, bounds, v.Flags&flagChecked != 0)
+	if v.Flags&flagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
 	}
 	if f.styles != nil && f.styles.Checkbox != nil {
 		checkbox = checkbox.Recipe(f.styles.Checkbox)
 	}
-	if n.label != "" {
-		checkbox = checkbox.Label(n.label)
+	if v.Label != "" {
+		checkbox = checkbox.Label(v.Label)
 	}
-	if n.flags&flagDisabled != 0 {
+	if v.Disabled {
 		checkbox = checkbox.Disabled()
 	}
 	checkbox.Paint()
 }
 
-func (f *frame) paintSwitchControl(n *node, r Rect) {
+func (f *frame) paintSwitch(v ControlView) {
 	canvas := f.canvas
-	extra := &f.exts[n.ext]
-	small := n.flags&flagSmall != 0
+	small := v.Flags&flagSmall != 0
 	width, height := components.SwitchExtent(f.theme, small)
-	bounds := Rect{X: r.X + (r.Width-width)/2, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
-	if n.text != "" {
-		bounds.X = r.X
-		f.captionFn(f, n, bounds)
+	bounds := Rect{X: v.Rect.X + (v.Rect.Width-width)/2, Y: v.Rect.Y + (v.Rect.Height-height)/2, Width: width, Height: height}
+	if v.Text != "" {
+		bounds.X = v.Rect.X
+		f.paintCaptionView(v, bounds)
 	}
-	control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
-	if recipe := extra.switchRecipe; recipe != nil {
+	control := components.BeginSwitch(canvas, f.theme, v.ID, bounds, v.Flags&flagChecked != 0)
+	if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.styles != nil && f.styles.Switch != nil {
 		control = control.Recipe(f.styles.Switch)
@@ -95,22 +99,22 @@ func (f *frame) paintSwitchControl(n *node, r Rect) {
 	if small {
 		control = control.Small()
 	}
-	if n.label != "" {
-		control = control.Label(n.label)
+	if v.Label != "" {
+		control = control.Label(v.Label)
 	}
-	if n.flags&flagDisabled != 0 {
+	if v.Disabled {
 		control = control.Disabled()
 	}
 	control.Paint()
 }
 
-func (f *frame) paintInputGroupControl(n *node, r Rect) {
-	components.PaintInputGroup(f.canvas, f.theme, r, f.groups[n.aux])
+func (f *frame) paintInputGroup(v ControlView) {
+	components.PaintInputGroup(f.canvas, f.theme, v.Rect, f.groups[v.Aux])
 }
 
-func (f *frame) paintSegmentedControl(n *node, r Rect) {
-	choice := f.segmented[n.aux]
-	components.BeginSegmentedControl(f.canvas, f.theme, r, choice.options, choice.selected).Paint()
+func (f *frame) paintSegmented(v ControlView) {
+	choice := f.segmented[v.Aux]
+	components.BeginSegmentedControl(f.canvas, f.theme, v.Rect, choice.options, choice.selected).Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package

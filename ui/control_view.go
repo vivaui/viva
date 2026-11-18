@@ -27,8 +27,13 @@ type ControlView struct {
 	Hit      gfx.HitOptions
 	HasHit   bool
 	Disabled bool
+	// Color is the element's own text color, when HasColor says it has one.
+	Color    gfx.Color
+	HasColor bool
 	// Icon is the optional icon a button, input or control carries.
 	Icon gfx.Icon
+	// SwitchRecipe is a switch's own look, when the caller gave one.
+	SwitchRecipe func(gfx.Theme, gfx.State, float32) components.SwitchLook
 }
 
 // viewOf is the view of element n a control painter is given.
@@ -39,5 +44,7 @@ func viewOf(f *frame, n *node) ControlView {
 		Font: n.fontSize, Weight: n.weight, Variant: n.variant, Size: n.buttonSize,
 		Flags: n.flags, Hit: extra.hit, HasHit: n.flags&flagHasHit != 0,
 		Disabled: n.flags&flagDisabled != 0, Icon: extra.icon,
+		Color: n.color, HasColor: n.flags&flagHasColor != 0,
+		SwitchRecipe: extra.switchRecipe,
 	}
 }
