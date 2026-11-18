@@ -468,13 +468,14 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		selectionForeground.Alpha *= 0.5
 	}
 	paint := codePaint{
-		canvas: canvas, theme: theme, editor: editor, value: value, size: size,
+		canvas: canvas, editor: editor, value: value, size: size,
+		background: theme.Background, muted: theme.MutedForeground, emphasis: theme.Foreground,
 		cellWidth: cellWidth, cellHeight: cellHeight, lineHeight: lineHeight,
 		foreground: foreground, selectionBackground: selectionBackground, selectionForeground: selectionForeground,
 		selectionStart: selectionStart, selectionEnd: selectionEnd,
 		selectionRanges:  selectionRanges,
 		compositionStart: compositionStart, compositionEnd: compositionEnd,
-		caret: caret, caretRow: caretRow, caretColumn: caretColumn,
+		caretRow: caretRow, caretColumn: caretColumn,
 		showCaret:  showCaret,
 		caretWidth: editorCaretWidth(snapshot.CaretWidth), caretColor: caretColor(snapshot.CaretColor, foreground),
 		lineNumberPadding: lineNumberPadding,
@@ -755,17 +756,17 @@ func (editor *CodeEditor) Pointer(event gfx.PointerEvent) gfx.EventResult {
 // codePaint is what painting the rows of one frame shares.
 type codePaint struct {
 	canvas *gfx.Canvas
-	theme  gfx.Theme
 	editor *CodeEditor
 	value  string
 
 	size, cellWidth, cellHeight, lineHeight  float32
 	foreground                               gfx.Color
+	background, muted, emphasis              gfx.Color
 	selectionBackground, selectionForeground gfx.Color
 	selectionStart, selectionEnd             int
 	selectionRanges                          []text.Span
 	compositionStart, compositionEnd         int
-	caret, caretRow, caretColumn             int
+	caretRow, caretColumn                    int
 	caretCursor                              int
 	showCaret                                bool
 	caretWidth                               float32
@@ -812,9 +813,9 @@ func (paint *codePaint) firstMark(index int) int {
 
 func (paint *codePaint) lineNumber(row codeRow, y, left, gutter float32, current bool) {
 	number := paint.editor.numbers.text(int(row.line))
-	color := paint.theme.MutedForeground
+	color := paint.muted
 	if current {
-		color = paint.theme.Foreground
+		color = paint.emphasis
 	}
 	if paint.editor.disabled {
 		color.Alpha *= 0.5
@@ -950,7 +951,7 @@ func (paint *codePaint) row(index int, y float32) {
 		fill(&marks, start, end, 0, color)
 	}
 	if paint.bracketsOK {
-		outline := paint.theme.Foreground
+		outline := paint.emphasis
 		outline.Alpha *= 0.22
 		for _, at := range paint.brackets {
 			if at >= rowStart && at < rowEnd {
@@ -991,7 +992,7 @@ func (paint *codePaint) row(index int, y float32) {
 	spec := gridRunSpec{
 		tabWidth: editor.tabWidth, firstColumn: paint.firstColumn, lastColumn: paint.lastColumn,
 		representations: editor.reps, representationColor: paint.invisibleColor,
-		foreground: paint.foreground, background: paint.theme.Background, disabled: editor.disabled,
+		foreground: paint.foreground, background: paint.background, disabled: editor.disabled,
 		highlight: highlight, highlightBase: rowStart - int(row.lineStart),
 		selectionStart: paint.selectionStart - rowStart, selectionEnd: paint.selectionEnd - rowStart,
 		selectionRanges: paint.selectionRanges, selectionBase: rowStart,
