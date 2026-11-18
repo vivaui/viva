@@ -247,7 +247,7 @@ type frame struct {
 	tooltips    bool               // an element was given a Tooltip: End paints the one the pointer rests on
 	tooltip     any                // the tooltip state the layer above owns: see tooltipOf
 	drawContext DrawContext        // what a Draw callback is handed, reused for the frame
-	gradients   []gradient         // the gradients of the elements that have one
+	Gradients   []gradient         // the gradients of the elements that have one
 	stops       []gfx.GradientStop // their stops, in the order declared
 	paintStops  []gfx.GradientStop // the stops of the gradient being painted, faded
 	Opacity     float32            // the product of the opacities of the elements being painted
@@ -326,7 +326,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
-	f.States, f.gradients, f.stops = f.States[:0], f.gradients[:0], f.stops[:0]
+	f.States, f.Gradients, f.stops = f.States[:0], f.Gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
 	f.draws = f.draws[:0]
 	f.Opacity = 1
