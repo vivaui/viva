@@ -27,7 +27,7 @@ type widgets struct {
 	dialogs         []dialogDecl
 	alertDialogs    []alertDialogDecl
 	paginations     []paginationDecl
-	paginationItems []components.PaginationItem
+	PaginationItems []components.PaginationItem
 	drawers         []drawerDecl
 	popovers        []popoverDecl
 	// popoverFocus holds the panels whose InitialFocusID was already asked for.
@@ -61,7 +61,7 @@ func (w *widgets) reset() {
 	w.alertDialogs = w.alertDialogs[:0]
 	w.inputs, w.groups, w.textareas, w.segmented, w.choices = w.inputs[:0], w.groups[:0], w.textareas[:0], w.segmented[:0], w.choices[:0]
 	w.paginations = w.paginations[:0]
-	w.paginationItems = w.paginationItems[:0]
+	w.PaginationItems = w.PaginationItems[:0]
 	w.popovers, w.drawers = w.popovers[:0], w.drawers[:0]
 	w.splits, w.sliders, w.rows = w.splits[:0], w.sliders[:0], w.rows[:0]
 	w.layer = 0

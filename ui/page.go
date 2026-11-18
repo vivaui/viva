@@ -519,7 +519,7 @@ func (p *Page) RouteKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 // fieldKey gives a key to the handler Box.OnKey put on the focused field. Keys
 // that type text stay with the text system, so a handler cannot take typing away,
 // and a key it leaves unhandled goes on to the page's other routes.
-func (p *Page) fieldKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) FieldKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Release || event.Text != "" || event.Key == gfx.KeyUnknown ||
 		event.Key == gfx.KeySpace || event.Key.IsModifier() {
 		return gfx.EventResult{}, false

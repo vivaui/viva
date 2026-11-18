@@ -853,7 +853,7 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 		in.scope, in.rows = scope, p.tree.Sub(scope, gfx.Index(0))
 	}
 	state.reorderPointer(c.f.Surface)
-	area := p.listArea(c, state, n, true, func(i int, Box Box) {
+	area := p.ListArea(c, state, n, true, func(i int, Box Box) {
 		in.declareRow(c, state, i, Box, row)
 	})
 	area.Draw(in.paint)
@@ -862,13 +862,13 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	}
 	p.listStates = append(p.listStates, state)
 	if p.listRoute == nil {
-		p.keyRoute, p.listRoute = (*Page).RouteKey, (*Page).listKey
+		p.keyRoute, p.listRoute = (*Page).RouteKey, (*Page).ListKey
 	}
 	if p.typeRoute == nil {
-		p.typeRoute = (*Page).typeKey
+		p.typeRoute = (*Page).TypeKey
 	}
 	if state.RowWidth > 0 && p.wheelXRoute == nil {
-		p.wheelXRoute = (*Page).listWheelX
+		p.wheelXRoute = (*Page).ListWheelX
 	}
 	return area
 }
@@ -897,7 +897,7 @@ func blockBehind(d *DrawContext) { d.Canvas.Block(d.Rect) }
 // out at their offsets, with spacers for what is above and below them, and, for a List
 // with Header, the header of the section at the top pinned over them. row fills row
 // i's element.
-func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(i int, Box Box)) Box {
+func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(i int, Box Box)) Box {
 	at, _ := p.Name(pkContainer)
 	id := p.ID(at)
 	// Follow is declared on the area the List returns, after its rows: whether the area
@@ -1129,7 +1129,7 @@ func moveOf(event gfx.KeyEvent, multi bool) (listMove, bool) {
 // without choosing), Enter submits the row, and in a list that chooses several
 // Space is kept from activating the row, which would replace the choice; Control
 // with Space on Linux and Windows toggles it.
-func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) ListKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Release {
 		return gfx.EventResult{}, false
 	}
@@ -1229,7 +1229,7 @@ func (p *Page) listKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 // by the horizontal wheel or by the wheel with Shift. It reports whether it moved a
 // list, and whether the event was a sideways one alone, left with nothing to scroll
 // down.
-func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
+func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx, only := event.DeltaX, event.DeltaY == 0
 	if dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
 		dx, only = event.DeltaY, true
@@ -1261,17 +1261,17 @@ func listFocus(s *ListState, row int) gfx.EventResult {
 
 // typeKey is the OnShortcut handler for printable keys no field is typing in: an
 // open Menu's typeahead, then a Tree's, then a List's and its Primary+A.
-func (p *Page) typeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
-	if result, ok := p.treeType(event); ok {
+func (p *Page) TypeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if result, ok := p.TreeType(event); ok {
 		return result, true
 	}
-	return p.listType(event)
+	return p.ListType(event)
 }
 
 // listType moves to the row whose name begins with the letters typed, from the row
 // the keys are on, choosing it; and chooses every row on Primary+A in a list that
 // chooses several.
-func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) ListType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	text := event.Text
 	if text == "" && event.Key == gfx.KeySpace {
 		text = " "

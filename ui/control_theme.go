@@ -14,7 +14,7 @@ package ui
 
 // hasOwnTheme reports whether n is a control that asked for a radius or a font
 // size other than the theme's.
-func (n *node) hasOwnTheme() bool {
+func (n *node) HasOwnTheme() bool {
 	switch n.Kind {
 	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
 		return false
@@ -25,7 +25,7 @@ func (n *node) hasOwnTheme() bool {
 }
 
 // ownTheme is the frame's theme with the radius and font size n asked for.
-func (f *frame) ownTheme(n *node) Theme {
+func (f *frame) OwnTheme(n *node) Theme {
 	theme := f.Palette
 	if n.FontSize > 0 {
 		theme = theme.WithFontSize(n.FontSize)

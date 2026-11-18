@@ -51,7 +51,7 @@ func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	scope := p.BoundScope(pkMenu, unsafe.Pointer(open))
 	menu := stateIn[MenuItems](p, scope, "menu")
 	menu.context = false
-	p.declareMenu(c, menu, scope, open, Anchor.i, nil, body)
+	p.DeclareMenu(c, menu, scope, open, Anchor.i, nil, body)
 }
 
 // ContextMenu shows the items body declares at the pointer when target is pressed
@@ -103,7 +103,7 @@ func contextMenu(c C, target Box, Bound gfx.Scope, opened *menuOrigin, body func
 	menu.context = true
 	p.contexts = append(p.contexts, contextTarget{ID: id, menu: menu, f: c.f, target: target.i})
 	if p.menuRoute == nil {
-		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).menuKey
+		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).MenuKey
 		p.wheelRoute = (*Page).OverlayWheel
 	}
 	if canvas := c.f.Surface; canvas != nil && opened == nil {
@@ -130,7 +130,7 @@ func contextMenu(c C, target Box, Bound gfx.Scope, opened *menuOrigin, body func
 			// press on one of its parts.
 			scope = p.tree.Sub(scope, p.menuName)
 		}
-		p.declareMenu(c, menu, scope, open, -1, opened, body)
+		p.DeclareMenu(c, menu, scope, open, -1, opened, body)
 	}
 }
 
@@ -152,7 +152,7 @@ type contextTarget struct {
 
 // declareMenu declares an open menu: its rows, its size, and the popup that places
 // it, under the anchor element or, with anchor -1, at menu.at.
-func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, Anchor int32, opened *menuOrigin, body func(*MenuItems)) {
+func (p *Page) DeclareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, Anchor int32, opened *menuOrigin, body func(*MenuItems)) {
 	p.overlay = true
 	if menu.paint == nil {
 		menu.paint = menu.draw // made once: a method value made in each paint allocates
@@ -204,7 +204,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 	}
 	p.menus = append(p.menus, menu)
 	if p.menuRoute == nil {
-		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).menuKey
+		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).MenuKey
 		p.wheelRoute = (*Page).OverlayWheel
 	}
 }
@@ -856,7 +856,7 @@ func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 // menuKey moves between the items of an open Menu with the arrows and to the one
 // whose label begins with the letters typed, and closes a Menu on Tab, from its
 // items or from its anchor; Shift+F10 on the target of a ContextMenu opens it.
-func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) MenuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	for i, m := range p.menus {
 		// The keys are the menu's from its items, from its anchor, and, for the
 		// last one opened, from nowhere: its focus trap takes the focus from the
@@ -932,7 +932,7 @@ func (m *MenuItems) submenuKey(event gfx.KeyEvent, inside bool) (gfx.EventResult
 }
 
 // menuWheel scrolls an open Menu the wheel is over.
-func (p *Page) menuWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
+func (p *Page) MenuWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 	for _, m := range p.menus {
 		if _, inside := event.Target.In(m.scope); inside {
 			return gfx.EventResult{Handled: true, Repaint: m.Scroll.Wheel(event)}, true

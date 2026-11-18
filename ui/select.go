@@ -721,7 +721,7 @@ func (f *frame) paintSelect(n *node) {
 // (in the callbacks of Draw and DrawOver, and after End): the rectangle the caller paints the
 // row in. It is empty for a closed select, an option scrolled out of the list, and any other
 // element.
-func (b Box) Part(i int) Rect { return b.f.selectPart(b.n(), i) }
+func (b Box) Part(i int) Rect { return b.f.SelectPart(b.n(), i) }
 
 // Popup is the element that places the open list of a SelectBase, and false while the list is
 // closed. It is painted after the page, over it, so what is drawn on it with Draw is the panel.
@@ -737,7 +737,7 @@ func (b Box) Popup() (Box, bool) {
 	return Box{f: b.f, i: d.popup, gen: b.f.gen}, true
 }
 
-func (f *frame) selectPart(n *node, i int) Rect {
+func (f *frame) SelectPart(n *node, i int) Rect {
 	if n.Kind != kindSelect {
 		return Rect{}
 	}

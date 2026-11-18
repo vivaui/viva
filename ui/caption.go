@@ -44,7 +44,7 @@ func (b Box) Caption(Text string) Box {
 // captionGap is the room between a control and its Caption (`gap-2`).
 const captionGap = 8
 
-func (f *frame) captionSize(n *node) float32 {
+func (f *frame) CaptionSize(n *node) float32 {
 	if n.FontSize > 0 {
 		return n.FontSize
 	}
@@ -75,7 +75,7 @@ func (f *frame) paintCaptionView(v ControlView, control Rect) {
 }
 
 func (f *frame) paintCaption(n *node, control Rect) {
-	size := f.captionSize(n)
+	size := f.CaptionSize(n)
 	line := size + 7
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: n.Rect.Y + (n.Rect.Height-line)/2, Width: max(n.Rect.X+n.Rect.Width-x, 0), Height: line}

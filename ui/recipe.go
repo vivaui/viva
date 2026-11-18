@@ -20,9 +20,9 @@ import (
 // recipeTheme is the theme a themed control's recipe reads: the frame's, or one with the
 // element's own font size when it asked for one. It points into the frame, or at scratch the
 // caller owns, so reading it does not copy the theme.
-func (f *frame) recipeTheme(n *node, scratch *Theme) *Theme {
-	if n.hasOwnTheme() {
-		*scratch = f.ownTheme(n)
+func (f *frame) RecipeTheme(n *node, scratch *Theme) *Theme {
+	if n.HasOwnTheme() {
+		*scratch = f.OwnTheme(n)
 		return scratch
 	}
 	return &f.Palette
@@ -41,7 +41,7 @@ func textEntryInsets(Palette *Theme, k Kind) (x, y float32) {
 
 // textEntryLook is the recipe a themed Input or Textarea is dressed with: the
 // page's Styles.TextEntry when it set one, else the theme's.
-func (f *frame) textEntryLook(Palette *Theme, state gfx.State) components.TextEntryLook {
+func (f *frame) TextEntryLook(Palette *Theme, state gfx.State) components.TextEntryLook {
 	if f.styles != nil && f.styles.TextEntry != nil {
 		return f.styles.TextEntry(*Palette, state)
 	}
@@ -60,8 +60,8 @@ func (f *frame) applyRecipes() {
 		switch n.Kind {
 		case kindInput, kindTextarea:
 			var scratch Theme
-			theme := f.recipeTheme(n, &scratch)
-			look := f.textEntryLook(theme, gfx.State{})
+			theme := f.RecipeTheme(n, &scratch)
+			look := f.TextEntryLook(theme, gfx.State{})
 			if n.Flags&flagSetBorder == 0 {
 				n.BorderWidth = look.BorderWidth
 			}
@@ -94,7 +94,7 @@ func (f *frame) themedDefaults(n *node, Extra *Extra, s *resolved) {
 		return
 	}
 	var scratch Theme
-	look := f.textEntryLook(f.recipeTheme(n, &scratch), state)
+	look := f.TextEntryLook(f.RecipeTheme(n, &scratch), state)
 	if n.Flags&flagSetBackground == 0 {
 		s.Background = look.Fill
 	}
@@ -119,7 +119,7 @@ func (f *frame) ContentRect(n *node) Rect {
 	r := n.Rect
 	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
 		var scratch Theme
-		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.Kind)
+		x, y := textEntryInsets(f.RecipeTheme(n, &scratch), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
 	}
 	left, right := n.Inset(axisX)
@@ -131,7 +131,7 @@ func (f *frame) ContentRect(n *node) Rect {
 // LineHeight when it has one, and otherwise the size of the text plus the seven pixels a line of
 // text is given everywhere else. The size is the element's FontSize, or the snapshot's own text
 // size, or the theme's.
-func (f *frame) inputLine(n *node) float32 {
+func (f *frame) InputLine(n *node) float32 {
 	if n.LineH > 0 {
 		return n.LineH
 	}

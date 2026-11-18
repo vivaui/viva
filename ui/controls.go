@@ -137,7 +137,7 @@ func (f *frame) measureControls(n *node) {
 		w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
 		n.Pref = [2]float32{w, h}
 	case kindPagination:
-		w, h := components.PaginationExtent(f.Surface, f.Palette, f.paginationItems(n))
+		w, h := components.PaginationExtent(f.Surface, f.Palette, f.PaginationItems(n))
 		n.Pref = [2]float32{w, h}
 	case kindSplitButton:
 		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
@@ -150,14 +150,14 @@ func (f *frame) measureControls(n *node) {
 		w, h := components.CheckboxHitExtent(f.Palette)
 		n.Pref = [2]float32{w, h}
 		if n.Text != "" {
-			n.Pref[axisX] = components.CheckboxExtent(f.Palette) + captionGap + f.Surface.TextWidthWeight(n.Text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = components.CheckboxExtent(f.Palette) + captionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
 		w, h := components.SwitchHitExtent(f.Palette, n.Flags&flagSmall != 0)
 		n.Pref = [2]float32{w, h}
 		if n.Text != "" {
 			control, _ := components.SwitchExtent(f.Palette, n.Flags&flagSmall != 0)
-			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.Text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
 		var width float32 = 8
@@ -166,7 +166,7 @@ func (f *frame) measureControls(n *node) {
 		}
 		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
 	case kindInput:
-		n.Pref = [2]float32{n.PadX(), f.inputLine(n) + n.PadY()}
+		n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
 		if n.Flags&flagThemed != 0 {
 			n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
 		}
@@ -416,8 +416,8 @@ func (f *frame) paintTextarea(n *node) {
 // elements up by it. The engine asks the hook; the control layer answers.
 var controlBaseline = func(f *frame, n *node) float32 {
 	theme := f.Palette
-	if n.hasOwnTheme() {
-		theme = f.ownTheme(n)
+	if n.HasOwnTheme() {
+		theme = f.OwnTheme(n)
 	}
 	button := components.BeginButton(f.Surface, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
 	return f.Surface.LabelBaseline(

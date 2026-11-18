@@ -46,7 +46,7 @@ type DrawContext struct {
 
 // Part is the rectangle of part i of the element being drawn, for an element that has parts
 // the caller paints: the options of an open SelectBase. It is empty for any other element.
-func (d *DrawContext) Part(i int) Rect { return d.frame.selectPart(d.node, i) }
+func (d *DrawContext) Part(i int) Rect { return d.frame.SelectPart(d.node, i) }
 
 // Fade returns c with the opacity of the element, as the colors of the element itself
 // are. The color of State looks is already faded; other colors taken from Theme

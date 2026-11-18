@@ -168,7 +168,7 @@ func (b Box) Changed() bool {
 	if n.Kind != kindSlider {
 		return false
 	}
-	b.f.settleSlider(n)
+	b.f.SettleSlider(n)
 	return widgetsOf(b.f).sliders[n.Aux].changed
 }
 
@@ -183,7 +183,7 @@ func (f *frame) measureSlider(n *node) {
 // settleSlider takes the pointer event this paint delivers, once a frame, and keeps
 // the value inside its range. It runs when Changed asks, so the caller sees the new
 // value at once, or else when the slider is painted.
-func (f *frame) settleSlider(n *node) {
+func (f *frame) SettleSlider(n *node) {
 	d := &widgetsOf(f).sliders[n.Aux]
 	if d.settled {
 		return
@@ -242,7 +242,7 @@ func (f *frame) settleSlider(n *node) {
 }
 
 func (f *frame) paintSlider(n *node) {
-	f.settleSlider(n)
+	f.SettleSlider(n)
 	d := &widgetsOf(f).sliders[n.Aux]
 	s := d.state
 	s.area = n.Rect

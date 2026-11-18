@@ -17,7 +17,7 @@ type rover struct {
 func (p *Page) rove(f *frame, node Box, tabs bool) {
 	p.rovers = append(p.rovers, rover{f: f, node: node.i, tabs: tabs})
 	if p.roveRoute == nil {
-		p.keyRoute, p.roveRoute = (*Page).RouteKey, (*Page).roveKey
+		p.keyRoute, p.roveRoute = (*Page).RouteKey, (*Page).RoveKey
 	}
 }
 
@@ -26,13 +26,13 @@ func (p *Page) rove(f *frame, node Box, tabs bool) {
 func (p *Page) slides(state *SliderState) {
 	p.sliders = append(p.sliders, state)
 	if p.sliderRoute == nil {
-		p.keyRoute, p.sliderRoute = (*Page).RouteKey, (*Page).sliderKey
+		p.keyRoute, p.sliderRoute = (*Page).RouteKey, (*Page).SliderKey
 	}
 }
 
 // sliderKey gives a key to the Slider that has the focus: arrows by a step, Shift and
 // Page Up and Down by ten, Home and End to the ends of the range.
-func (p *Page) sliderKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) SliderKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Release {
 		return gfx.EventResult{}, false
 	}
@@ -49,7 +49,7 @@ func (p *Page) sliderKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 // End to the first and last. The focus moves and the option it moves to is chosen,
 // as for a radio group and for tabs that activate on focus; the choice is delivered as
 // a click on it, so Changed and the bound value follow.
-func (p *Page) roveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) RoveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Release || event.Modifiers != 0 {
 		return gfx.EventResult{}, false
 	}

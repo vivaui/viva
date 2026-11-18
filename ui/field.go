@@ -269,7 +269,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 		if p.fields[i].ID == n.ID {
 			p.fields[i].key = handler
 			if p.fieldKeyRoute == nil {
-				p.keyRoute, p.fieldKeyRoute = (*Page).RouteKey, (*Page).fieldKey
+				p.keyRoute, p.fieldKeyRoute = (*Page).RouteKey, (*Page).FieldKey
 			}
 			widgetsOf(b.f).inputs[n.Aux].NavigationKeys = true
 			return b

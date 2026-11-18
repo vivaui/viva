@@ -176,12 +176,12 @@ func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i
 	// List does: its rows sit in the tree's own row scope.
 	state.ListState.list.f = c.f
 	state.ListState.list.rows = state.rows
-	area := p.listArea(c, &state.ListState, n, false, state.declare)
+	area := p.ListArea(c, &state.ListState, n, false, state.declare)
 	state.Scroll = c.f.Exts[c.f.Nodes[area.i].Ext].scrollState
 	state.c, state.rowLabel, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
-		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).RouteKey, (*Page).treeKey, (*Page).typeKey
+		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).RouteKey, (*Page).TreeKey, (*Page).TypeKey
 	}
 	return area
 }
@@ -468,7 +468,7 @@ func (s *TreeState) indexOf(key int) int {
 // treeKey moves through a Tree from the focused row with the arrows: Up and Down to
 // the row above and below, Home and End, Page Up and Down by a screen, Right to open
 // a branch or go to its first child, Left to close it or go to the parent.
-func (p *Page) treeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) TreeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Release {
 		return gfx.EventResult{}, false
 	}
@@ -481,7 +481,7 @@ func (p *Page) treeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 	}
 	if event.Modifiers&^gfx.ModifierShift == 0 {
-		if result, ok := p.treeType(event); ok {
+		if result, ok := p.TreeType(event); ok {
 			return result, true
 		}
 	}
@@ -543,7 +543,7 @@ func (p *Page) treeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 
 // treeType moves to the next row whose name begins with the letters typed, from
 // the focused row of a Tree, as a file list does.
-func (p *Page) treeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) TreeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Modifiers&^gfx.ModifierShift != 0 {
 		return gfx.EventResult{}, false
 	}

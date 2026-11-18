@@ -105,12 +105,12 @@ func (f *frame) measure(axis int) {
 }
 
 func (f *frame) measureLeaf(n *node) {
-	if !n.hasOwnTheme() {
+	if !n.HasOwnTheme() {
 		f.measureLeafIn(n)
 		return
 	}
 	saved := f.Palette
-	f.Palette = f.ownTheme(n)
+	f.Palette = f.OwnTheme(n)
 	f.measureLeafIn(n)
 	f.Palette = saved
 }

@@ -128,9 +128,9 @@ func (f *frame) paint(i int32) {
 	// A Text and an Icon draw with their color, which is the one the looks give.
 	color := n.Color
 	n.Color = fade(style.Color, f.Opacity)
-	if n.hasOwnTheme() {
+	if n.HasOwnTheme() {
 		saved := f.Palette
-		f.Palette = f.ownTheme(n)
+		f.Palette = f.OwnTheme(n)
 		f.paintControl(n, r)
 		f.Palette = saved
 	} else {

@@ -197,7 +197,7 @@ func TestListScrollToLandsOnARowOfVaryingHeight(t *testing.T) {
 	if !d.has(label) {
 		t.Fatalf("row %d is not painted: Visible %v", target, visibleOf(&m.list))
 	}
-	area := d.listArea("Rows")
+	area := d.ListArea("Rows")
 	if top := d.hit(label).Bounds.Y - area.Y; top < -2 || top > 2 {
 		t.Fatalf("row %d is %v px from the top of the list, want it at the top", target, top)
 	}
@@ -252,7 +252,7 @@ func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
 	d.repaint()
 	m.list.ScrollTo(4000, ui.ListStart)
 	d.repaint()
-	d.wheel(d.listArea("Rows"), 0, -50000, 0) // the user scrolls far up while it settles
+	d.wheel(d.ListArea("Rows"), 0, -50000, 0) // the user scrolls far up while it settles
 	d.repaint()
 	d.repaint()
 	if d.has("row 4000") {

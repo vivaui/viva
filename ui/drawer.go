@@ -90,7 +90,7 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 			return true
 		}
 	}
-	drawer := c.f.drawer(d, footer != nil)
+	drawer := c.f.Drawer(d, footer != nil)
 	decl := &widgetsOf(c.f).drawers[drawer.n().Aux]
 	p.SetScope(decl.body, scope)
 	if decl.footer >= 0 {
@@ -107,7 +107,7 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 			if part < 0 {
 				continue
 			}
-			if id := c.f.firstControl(part); !id.IsZero() {
+			if id := c.f.FirstControl(part); !id.IsZero() {
 				decl.spec.InitialFocus = id
 				break
 			}
@@ -209,7 +209,7 @@ func (spec *drawerSpec) component(Surface *gfx.Canvas, Palette Theme, bounds Rec
 
 // drawer declares a Drawer's root: an element over the whole frame holding the
 // body and footer at the rectangles components.Drawer gives them.
-func (f *frame) drawer(spec drawerSpec, footer bool) Box {
+func (f *frame) Drawer(spec drawerSpec, footer bool) Box {
 	layer := f.WidgetLayer() + 2
 	layout := spec.component(f.Surface, f.Palette, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body

@@ -45,9 +45,9 @@ func (f *frame) Pagination(Items []PaginationItem) Box {
 	b := f.Box(kindPagination)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).paginations))
-	start := int32(len(widgetsOf(f).paginationItems))
+	start := int32(len(widgetsOf(f).PaginationItems))
 	for _, item := range Items {
-		widgetsOf(f).paginationItems = append(widgetsOf(f).paginationItems, components.PaginationItem{
+		widgetsOf(f).PaginationItems = append(widgetsOf(f).PaginationItems, components.PaginationItem{
 			ID: item.ID, Label: item.Label, Kind: components.PaginationKind(item.Kind),
 			Current: item.Current, Disabled: item.Disabled,
 		})
@@ -68,7 +68,7 @@ func Pagination(c C, Items []PaginationItem) Box {
 // component's layout keeps inside its bounds.
 func (f *frame) paintPagination(v ControlView) {
 	d := &widgetsOf(f).paginations[v.Aux]
-	items := widgetsOf(f).paginationItems[d.start : d.start+d.count]
+	items := widgetsOf(f).PaginationItems[d.start : d.start+d.count]
 	bar := components.BeginPagination(f.Surface, f.Palette, v.Rect)
 	for _, item := range items {
 		bar.Add(item)
@@ -77,7 +77,7 @@ func (f *frame) paintPagination(v ControlView) {
 
 // paginationItems is the converted items of element n (for the measure and the
 // click report).
-func (f *frame) paginationItems(n *node) []components.PaginationItem {
+func (f *frame) PaginationItems(n *node) []components.PaginationItem {
 	d := &widgetsOf(f).paginations[n.Aux]
-	return widgetsOf(f).paginationItems[d.start : d.start+d.count]
+	return widgetsOf(f).PaginationItems[d.start : d.start+d.count]
 }

@@ -56,19 +56,19 @@ func (f *frame) paintTooltip() {
 	if f.Surface == nil {
 		return
 	}
-	if !f.hasTooltip(f.Surface.Hovered()) {
+	if !f.HasTooltip(f.Surface.Hovered()) {
 		// The pointer is on another frame's element (a page in a pane of this one),
 		// whose frame paints its tip, or on none.
 		f.tooltip = nil
 		return
 	}
-	f.tooltipState().Paint(f.Surface, f.Palette, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
+	f.TooltipState().Paint(f.Surface, f.Palette, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.TooltipSideOf},
 		components.HoverTooltipDelay)
 }
 
 // tooltipState is the tooltip state the layer above owns; the engine only keeps
 // it between paints.
-func (f *frame) tooltipState() *components.HoverTooltip {
+func (f *frame) TooltipState() *components.HoverTooltip {
 	state, _ := f.tooltip.(*components.HoverTooltip)
 	if state == nil {
 		state = new(components.HoverTooltip)
@@ -78,7 +78,7 @@ func (f *frame) tooltipState() *components.HoverTooltip {
 }
 
 // tooltipSideOf is the side TooltipOn gave the element id, or below.
-func (f *frame) tooltipSideOf(ID gfx.ID) TooltipSide {
+func (f *frame) TooltipSideOf(ID gfx.ID) TooltipSide {
 	for i := range f.Nodes {
 		if n := &f.Nodes[i]; n.ID == ID && n.Ext != 0 && f.Exts[n.Ext].tooltipSide != 0 {
 			return TooltipSide(f.Exts[n.Ext].tooltipSide - 1)
@@ -90,7 +90,7 @@ func (f *frame) tooltipSideOf(ID gfx.ID) TooltipSide {
 // hasTooltip reports whether id names an element of this frame given a Tooltip.
 // A Memo declares what it holds again while the pointer is on it, so the element
 // under the pointer is always one the frame declared.
-func (f *frame) hasTooltip(ID gfx.ID) bool {
+func (f *frame) HasTooltip(ID gfx.ID) bool {
 	if ID.IsZero() {
 		return false
 	}

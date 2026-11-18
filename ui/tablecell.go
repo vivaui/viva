@@ -44,7 +44,7 @@ func (s *TableState) CellRect(row, column int) (gfx.Rect, bool) {
 // pass over its columns a frame and no per-cell allocation. A frozen column's
 // edge is taken from the body's unscrolled origin, where the band paints it;
 // the rest follow the offset the rows were painted at.
-func (f *frame) recordTableCells(t *tableDecl, body Rect, left, top, contentWidth, rowHeight float32, frozenColumns int, frozenWidth float32) {
+func (f *frame) RecordTableCells(t *tableDecl, body Rect, left, top, contentWidth, rowHeight float32, frozenColumns int, frozenWidth float32) {
 	state := t.state
 	state.cellLefts = state.cellLefts[:0]
 	state.cellTop, state.cellRowHeight = top, rowHeight

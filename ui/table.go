@@ -321,7 +321,7 @@ func frozenColumnsWidth(columns []components.TableColumn, count int) float32 {
 const tableFrozenSeparator = float32(2)
 
 // scrollAncestor is the state and viewport of the ScrollArea nearest around element n.
-func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
+func (f *frame) ScrollAncestor(n *node) (*ScrollState, Rect) {
 	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
 		if ext := f.Nodes[p].Ext; ext != 0 && f.Exts[ext].scrollState != nil {
 			return f.Exts[ext].scrollState, f.Nodes[p].Rect
@@ -350,7 +350,7 @@ func (f *frame) paintTable(n *node) {
 	declaredWidth := tableColumnsWidth(t.spec.Columns)
 	flexibleLast := len(t.spec.Columns) == 0 || t.spec.Columns[len(t.spec.Columns)-1].Width <= 0
 	selfContained := true
-	if ancestor, _ := f.scrollAncestor(n); ancestor != nil {
+	if ancestor, _ := f.ScrollAncestor(n); ancestor != nil {
 		selfContained = false
 	}
 	verticalGutter := float32(0)
@@ -388,7 +388,7 @@ func (f *frame) paintTable(n *node) {
 	}
 	t.state.rows, t.state.scope = int32(t.rows), t.spec.Rows
 	if t.state.reveal {
-		f.revealSelected(n, t, body, rowHeight, headerHeight, scrolls)
+		f.RevealSelected(n, t, body, rowHeight, headerHeight, scrolls)
 	}
 	s.Offset = min(max(s.Offset, 0), s.Max())
 	s.OffsetX = min(max(s.OffsetX, 0), s.MaxX())
@@ -441,7 +441,7 @@ func (f *frame) paintTable(n *node) {
 	t.state.rowFirst, t.state.rowEnd = int32(first), int32(last)
 	// The cells CellRect answers with, laid out once from the same columns and
 	// the same top the rows are painted from (see recordTableCells).
-	f.recordTableCells(t, body, left, top, contentWidth, rowHeight, frozenColumns, frozenWidth)
+	f.RecordTableCells(t, body, left, top, contentWidth, rowHeight, frozenColumns, frozenWidth)
 
 	if !scrolls && !sticky {
 		// Height: r.Height lets paintTableHeader keep its rule of the header's
@@ -573,17 +573,17 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 	geometry := area.Geometry()
 	area.EndContent()
 	if !t.spec.Scrollbar.IsZero() && geometry.MaxOffsetY > 0 {
-		f.dragScrollbar(&t.state.Scroll, t.spec.Scrollbar, geometry, axisY)
+		f.DragScrollbar(&t.state.Scroll, t.spec.Scrollbar, geometry, axisY)
 	}
 	if !t.spec.HorizontalScrollbar.IsZero() && geometry.MaxOffsetX > 0 {
-		f.dragScrollbar(&t.state.Scroll, t.spec.HorizontalScrollbar, geometry, axisX)
+		f.DragScrollbar(&t.state.Scroll, t.spec.HorizontalScrollbar, geometry, axisX)
 	}
 }
 
 // revealSelected scrolls the selected row into view after a key moved it: the table's
 // own position when it scrolls itself, otherwise the ScrollArea around it (which takes
 // effect at the next frame, so one is asked for).
-func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, Scrolls bool) {
+func (f *frame) RevealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, Scrolls bool) {
 	t.state.reveal = false
 	row := t.state.Selected()
 	if row < 0 || row >= t.rows {
@@ -600,7 +600,7 @@ func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, head
 		}
 		return
 	}
-	outer, view := f.scrollAncestor(n)
+	outer, view := f.ScrollAncestor(n)
 	if outer == nil {
 		return
 	}

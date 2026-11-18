@@ -493,7 +493,7 @@ func (p *Page) Describe(ID gfx.ID) string { return p.tree.Text(ID) }
 func (f *frame) focusFirstControl(dialog Box) {
 	d := &widgetsOf(f).dialogs[dialog.n().Aux]
 	for _, part := range [2]int32{d.body, d.footer} {
-		if id := f.firstControl(part); !id.IsZero() {
+		if id := f.FirstControl(part); !id.IsZero() {
 			d.spec.InitialFocusID = id
 			return
 		}
@@ -503,7 +503,7 @@ func (f *frame) focusFirstControl(dialog Box) {
 
 // firstControl is the first element under i, in declaration order, with an identity
 // the keyboard can take: a control, or a container given Hit.
-func (f *frame) firstControl(i int32) gfx.ID {
+func (f *frame) FirstControl(i int32) gfx.ID {
 	for c := f.Nodes[i].First; c >= 0; c = f.Nodes[c].Next {
 		n := &f.Nodes[c]
 		if n.Flags&flagDisabled == 0 && !n.ID.IsZero() {
@@ -516,7 +516,7 @@ func (f *frame) firstControl(i int32) gfx.ID {
 				}
 			}
 		}
-		if id := f.firstControl(c); !id.IsZero() {
+		if id := f.FirstControl(c); !id.IsZero() {
 			return id
 		}
 	}

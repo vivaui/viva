@@ -90,10 +90,10 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		HorizontalScrollbar(horizontal, horizontalLabel, "")
 	geometry := area.Geometry()
 	if geometry.MaxOffsetY > 0 {
-		f.dragScrollbar(s, vertical, geometry, axisY)
+		f.DragScrollbar(s, vertical, geometry, axisY)
 	}
 	if geometry.MaxOffsetX > 0 {
-		f.dragScrollbar(s, horizontal, geometry, axisX)
+		f.DragScrollbar(s, horizontal, geometry, axisX)
 	}
 	area.EndContent()
 }
@@ -103,7 +103,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 // a press beside it brings the middle of the thumb under the pointer, and the press
 // drags it until it is let go. The canvas captures the pointer for the press, so the
 // moves come to the bar wherever the pointer is.
-func (f *frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.ScrollAreaGeometry, axis int) {
+func (f *frame) DragScrollbar(s *ScrollState, bar gfx.ID, geometry components.ScrollAreaGeometry, axis int) {
 	event, ok := f.Surface.PointerOn(bar)
 	if !ok {
 		return

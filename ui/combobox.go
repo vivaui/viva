@@ -96,7 +96,7 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 	switch chosen := state.list.Value(); {
 	case chosen != state.synced: // the user chose
 		var zero T
-		switch i, isKey := comboKey(chosen); {
+		switch i, isKey := ComboKey(chosen); {
 		case chosen == "": // cleared
 			changed = *Value != zero
 			*Value, key = zero, ""
@@ -131,8 +131,8 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 	f.BindDone(b, changed)
 	p.combos = append(p.combos, state)
 	if p.comboRoute == nil {
-		p.keyRoute, p.comboRoute = (*Page).RouteKey, (*Page).comboKey
-		p.wheelRoute, p.textRoute = (*Page).OverlayWheel, (*Page).comboText
+		p.keyRoute, p.comboRoute = (*Page).RouteKey, (*Page).ComboKey
+		p.wheelRoute, p.textRoute = (*Page).OverlayWheel, (*Page).ComboText
 	}
 	return b
 }
@@ -168,7 +168,7 @@ const comboKeyPrefix = "\x00"
 
 // comboKey reads an option's index from a Value; isKey is false for a value the
 // user created.
-func comboKey(Value string) (index int, isKey bool) {
+func ComboKey(Value string) (index int, isKey bool) {
 	if len(Value) < 2 || Value[0] != 0 {
 		return 0, false
 	}
@@ -324,7 +324,7 @@ func (b Box) Created() (string, bool) {
 
 // comboKey gives the keys of a Combobox's field to its list: the arrows, Enter,
 // Escape, Tab and Backspace on an empty search.
-func (p *Page) comboKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) ComboKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	for _, s := range p.combos {
 		if event.Target != s.ids.input {
 			continue
@@ -337,7 +337,7 @@ func (p *Page) comboKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 }
 
 // comboText is the platform's editor of a Combobox's search, for TextInput.
-func (p *Page) comboText(ID gfx.ID) *app.TextInput {
+func (p *Page) ComboText(ID gfx.ID) *app.TextInput {
 	for _, s := range p.combos {
 		if s.ids.input == ID {
 			s.input.Editor = &s.list.Query
@@ -348,7 +348,7 @@ func (p *Page) comboText(ID gfx.ID) *app.TextInput {
 }
 
 // comboWheel scrolls the open list of a Combobox the wheel is over.
-func (p *Page) comboWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
+func (p *Page) ComboWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 	for _, s := range p.combos {
 		if _, inside := event.Target.In(s.ids.options); inside && s.list.Open {
 			return gfx.EventResult{Handled: true, Repaint: s.list.Wheel(event)}, true
@@ -360,12 +360,12 @@ func (p *Page) comboWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 // overlayWheel scrolls the open Menu or Combobox list the wheel is over.
 func (p *Page) OverlayWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 	if len(p.menus) > 0 {
-		if result, ok := p.menuWheel(event); ok {
+		if result, ok := p.MenuWheel(event); ok {
 			return result, true
 		}
 	}
 	if len(p.combos) > 0 {
-		return p.comboWheel(event)
+		return p.ComboWheel(event)
 	}
 	return gfx.EventResult{}, false
 }
