@@ -229,7 +229,7 @@ func (f *frame) paintText(n *node) {
 	}
 	height := max(n.pref[axisY]-top-bottom, 0)
 	bounds := Rect{X: r.X, Y: r.Y + max((r.Height-height)/2, 0), Width: r.Width, Height: height}
-	clipped := r.Width < n.natural
+	clipped := r.Width < n.Natural
 	if clipped {
 		f.canvas.Clip(r)
 	}

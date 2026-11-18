@@ -80,7 +80,7 @@ func (f *frame) measure(axis int) {
 			first := int32(len(f.lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
-			if n.text != "" && n.natural <= n.rect.Width-n.padX() && strings.IndexByte(n.text, '\n') < 0 {
+			if n.text != "" && n.Natural <= n.rect.Width-n.padX() && strings.IndexByte(n.text, '\n') < 0 {
 				f.lines = append(f.lines, n.text)
 			} else {
 				f.lines = f.wrapText(f.lines, n)
@@ -130,7 +130,7 @@ func (f *frame) measureLeafIn(n *node) {
 		} else {
 			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
 		}
-		n.natural = n.pref[axisX]
+		n.Natural = n.pref[axisX]
 		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
 		n.pref[axisY] += n.padY()
 	case kindIcon, kindImage:
@@ -215,7 +215,7 @@ func clamp(v, lo, hi float32) float32 {
 func (n *node) stretches(axis int) bool {
 	switch n.Kind {
 	case kindSlider:
-		return (n.natural > 0) == (axis == axisY) // as long as its container, never as thick
+		return (n.Natural > 0) == (axis == axisY) // as long as its container, never as thick
 	case kindProgress:
 		return axis == axisX // a bar is as wide as its column, but a row does not make it tall
 	case kindContainer, kindText, kindSpacer, kindSlot, kindInput, kindInputGroup, kindTextarea, kindSegmented, kindTable, kindTabs, kindSelect, kindSplitter:

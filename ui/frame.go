@@ -145,7 +145,7 @@ type node struct {
 	GridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	Basis                float32   // Basis, when flagBasis is set
 	Aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
-	natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
+	Natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
 	ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
 	place                placement // a Popup\'s position
 	anchor               Rect

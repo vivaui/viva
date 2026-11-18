@@ -173,7 +173,7 @@ func (b Box) Changed() bool {
 }
 
 func (f *frame) measureSlider(n *node) {
-	if n.natural > 0 {
+	if n.Natural > 0 {
 		n.pref = [2]float32{sliderThickness, sliderLength}
 	} else {
 		n.pref = [2]float32{sliderLength, sliderThickness}
@@ -206,7 +206,7 @@ func (f *frame) settleSlider(n *node) {
 	if !ok {
 		return
 	}
-	vertical := n.natural > 0
+	vertical := n.Natural > 0
 	pointer := event.X
 	if vertical {
 		pointer = event.Y
@@ -264,7 +264,7 @@ func (f *frame) paintSlider(n *node) {
 		return
 	}
 	slider := components.BeginSlider(f.canvas, f.theme, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
-	if n.natural > 0 {
+	if n.Natural > 0 {
 		slider = slider.Vertical()
 	}
 	if n.Flags&flagDisabled != 0 {

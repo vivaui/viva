@@ -29,9 +29,9 @@ const (
 //	f.Progress(0).Indeterminate()
 func (f *frame) Progress(fraction float32) Box {
 	b := f.box(kindProgress)
-	f.nodes[b.i].natural = max(fraction, 0)
+	f.nodes[b.i].Natural = max(fraction, 0)
 	if fraction != fraction {
-		f.nodes[b.i].natural = 0
+		f.nodes[b.i].Natural = 0
 	}
 	return b
 }
@@ -41,7 +41,7 @@ func (f *frame) Progress(fraction float32) Box {
 // for reduced motion.
 func (b Box) Indeterminate() Box {
 	if n := b.n(); n.Kind == kindProgress {
-		n.natural = -1
+		n.Natural = -1
 	}
 	return b
 }
@@ -74,8 +74,8 @@ func intersect(a, b Rect) Rect {
 
 func (f *frame) paintProgress(n *node) {
 	r := n.rect
-	if n.natural >= 0 {
-		components.Progress(f.canvas, f.theme, r, n.natural)
+	if n.Natural >= 0 {
+		components.Progress(f.canvas, f.theme, r, n.Natural)
 		return
 	}
 	canvas := f.canvas

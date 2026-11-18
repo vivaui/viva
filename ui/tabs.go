@@ -55,7 +55,7 @@ func (b Box) Vertical() Box {
 	case kindTabs:
 		widgetsOf(b.f).tabs[n.Aux].vertical = true
 	case kindSlider:
-		n.natural = 1 // a vertical Slider: its thumb moves up and down
+		n.Natural = 1 // a vertical Slider: its thumb moves up and down
 	}
 	return b
 }
