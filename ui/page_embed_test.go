@@ -204,13 +204,13 @@ func TestEmbeddedPageRoutesInput(t *testing.T) {
 
 type embeddedControlModel struct {
 	handlers                ui.Handlers
-	keys, pointers, scrolls int
+	keys, pointers, Scrolls int
 }
 
 func (m *embeddedControlModel) page(c ui.C) {
 	m.handlers.Key = func(gfx.KeyEvent) gfx.EventResult { m.keys++; return gfx.EventResult{Handled: true} }
 	m.handlers.Pointer = func(gfx.PointerEvent) gfx.EventResult { m.pointers++; return gfx.EventResult{Handled: true} }
-	m.handlers.Scroll = func(gfx.ScrollEvent) gfx.EventResult { m.scrolls++; return gfx.EventResult{Handled: true} }
+	m.handlers.Scroll = func(gfx.ScrollEvent) gfx.EventResult { m.Scrolls++; return gfx.EventResult{Handled: true} }
 	ui.Control(c, "Canvas", &m.handlers).Fill()
 }
 
@@ -226,7 +226,7 @@ func TestEmbeddedPageRoutesControls(t *testing.T) {
 	if result := page.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, Target: target}); !result.Handled || m.pointers != 1 {
 		t.Fatalf("pointer result = %+v, pointers = %d", result, m.pointers)
 	}
-	if result := page.Wheel(gfx.ScrollEvent{DeltaY: 1, Target: target}); !result.Handled || m.scrolls != 1 {
-		t.Fatalf("wheel result = %+v, scrolls = %d", result, m.scrolls)
+	if result := page.Wheel(gfx.ScrollEvent{DeltaY: 1, Target: target}); !result.Handled || m.Scrolls != 1 {
+		t.Fatalf("wheel result = %+v, scrolls = %d", result, m.Scrolls)
 	}
 }

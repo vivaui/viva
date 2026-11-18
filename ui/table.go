@@ -91,7 +91,7 @@ type TableSpec struct {
 type tableRoute struct {
 	state      *TableState
 	bounds     Rect
-	scrolls    bool
+	Scrolls    bool
 	sideways   bool
 	bar        gfx.ID
 	horizontal gfx.ID
@@ -371,7 +371,7 @@ func (f *frame) paintTable(n *node) {
 	}
 	if f.page != nil {
 		f.page.tables = append(f.page.tables, tableRoute{
-			state: t.state, bounds: r, scrolls: scrolls, sideways: sideways,
+			state: t.state, bounds: r, Scrolls: scrolls, sideways: sideways,
 			bar: t.spec.Scrollbar, horizontal: t.spec.HorizontalScrollbar,
 		})
 	}
@@ -583,14 +583,14 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 // revealSelected scrolls the selected row into view after a key moved it: the table's
 // own position when it scrolls itself, otherwise the ScrollArea around it (which takes
 // effect at the next frame, so one is asked for).
-func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, scrolls bool) {
+func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, headerHeight float32, Scrolls bool) {
 	t.state.reveal = false
 	row := t.state.Selected()
 	if row < 0 || row >= t.rows {
 		return
 	}
 	rowTop := float32(row) * rowHeight
-	if scrolls {
+	if Scrolls {
 		s := &t.state.Scroll
 		switch {
 		case rowTop < s.Offset:

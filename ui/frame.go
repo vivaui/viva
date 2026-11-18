@@ -277,7 +277,7 @@ type frame struct {
 	wrapCursor int
 	scratch    scratch       // memory the layout borrows, see scratch.go
 	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
-	scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
+	Scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
 	Parent     int32
 	bounds     Rect
 	gen        uint32 // the paint this frame is declaring; a Box names it
@@ -340,7 +340,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	}
 	f.scratch.reset()
 	resetControls(f)
-	f.scrolls.epoch++
+	f.Scrolls.epoch++
 	f.Parent = -1
 	root := f.add(kindContainer)
 	n := &f.Nodes[root]
@@ -388,7 +388,7 @@ func (f *frame) End() {
 		f.solve(index, axisY)
 	}
 	f.reportScrolls()
-	f.scrolls.sweep()
+	f.Scrolls.sweep()
 	f.reportSplitters()
 	f.paint(0)
 	f.raiseOverNativeViews()

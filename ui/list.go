@@ -902,7 +902,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 	id := p.ID(at)
 	// Follow is declared on the area the List returns, after its rows: whether the area
 	// keeps to its end is what the paint before left it, as ScrollState.Pinned says.
-	pinned := c.f.scrolls.get(id).pinned()
+	pinned := c.f.Scrolls.get(id).pinned()
 	area := c.f.ScrollArea(id)
 	p.setNode(area.i, at)
 	in := &state.list

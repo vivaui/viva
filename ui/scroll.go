@@ -111,7 +111,7 @@ func (view *view) ScrollState(ID gfx.ID) *ScrollState {
 	if view.frame == nil {
 		view.frame = new(frame) // a state may be set before the first paint
 	}
-	return view.frame.scrolls.get(ID)
+	return view.frame.Scrolls.get(ID)
 }
 
 // Max is how far the area can scroll.
@@ -280,7 +280,7 @@ func (f *frame) ScrollArea(ID gfx.ID) Box {
 	if ID.IsZero() {
 		panic("ui: ScrollArea needs an identity, for example f.ScrollArea(listID) with listID = tree.ID(page, \"list\")")
 	}
-	state := f.scrolls.get(ID)
+	state := f.Scrolls.get(ID)
 	state.ID, state.follow, state.sideways, state.bars, state.barSize = ID, false, false, false, 0
 	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
 	b := f.Scroll(state.Offset)

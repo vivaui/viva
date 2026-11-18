@@ -231,7 +231,7 @@ func TestAScrollAreaKeepsItsOffsetInTheViewAndDropsItWhenNotDeclared(t *testing.
 	for i := range 500 { // a page that makes up a new area every frame
 		draw(gfx.Item(i + 1))
 	}
-	if n := len(view.frame.scrolls.slots) + len(view.frame.scrolls.free); n > 4 {
+	if n := len(view.frame.Scrolls.slots) + len(view.frame.Scrolls.free); n > 4 {
 		t.Errorf("the view holds %d scroll slots after 500 frames of one area each, want the few it needs", n)
 	}
 }

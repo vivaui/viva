@@ -621,7 +621,7 @@ func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 	}
 	for i := range p.tables {
 		route := &p.tables[i]
-		if (!route.scrolls && !route.sideways) || (route.bar.IsZero() && route.horizontal.IsZero()) || !pointInRect(x, y, route.bounds) {
+		if (!route.Scrolls && !route.sideways) || (route.bar.IsZero() && route.horizontal.IsZero()) || !pointInRect(x, y, route.bounds) {
 			continue
 		}
 		if area := route.bounds.Width * route.bounds.Height; best.IsZero() || area < bestArea {
@@ -1201,7 +1201,7 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	for i := len(p.tables) - 1; i >= 0; i-- {
 		route := &p.tables[i]
-		if !route.scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) {
+		if !route.Scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) {
 			continue
 		}
 		state := &route.state.Scroll
