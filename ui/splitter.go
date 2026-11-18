@@ -170,9 +170,9 @@ func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
 		axis = axisX
 	}
 	first, second := &f.Nodes[d.First], &f.Nodes[n.Next]
-	span = *origin(&second.rect, axis) + *extent(&second.rect, axis) - *origin(&first.rect, axis)
-	gaps := span - *extent(&first.rect, axis) - *extent(&n.rect, axis) - *extent(&second.rect, axis)
-	hi = span - *extent(&n.rect, axis) - gaps - d.minSecond
+	span = *origin(&second.Rect, axis) + *extent(&second.Rect, axis) - *origin(&first.Rect, axis)
+	gaps := span - *extent(&first.Rect, axis) - *extent(&n.Rect, axis) - *extent(&second.Rect, axis)
+	hi = span - *extent(&n.Rect, axis) - gaps - d.minSecond
 	return lo, max(hi, lo), span
 }
 
@@ -230,7 +230,7 @@ func (f *frame) reportSplitters() {
 		if f.splitsRow(n) {
 			axis = axisX
 		}
-		s.thickness = *extent(&n.rect, axis)
+		s.thickness = *extent(&n.Rect, axis)
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
 			if f.Surface != nil {
@@ -245,7 +245,7 @@ func (f *frame) paintSplitter(n *node) {
 	d := &widgetsOf(f).splits[n.Aux]
 	s := d.state
 	row := f.splitsRow(n)
-	r := n.rect
+	r := n.Rect
 
 	if event, ok := canvas.PointerOn(n.ID); ok {
 		pointer := event.X

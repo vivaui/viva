@@ -81,7 +81,7 @@ func (c *LayoutContext) Height(i int) float32 {
 // SetWidth gives child i its width. It is a PlaceWidth call.
 func (c *LayoutContext) SetWidth(i int, v float32) {
 	c.must(c.phase == phasePlaceWidth, "SetWidth is for PlaceWidth")
-	c.frame.Nodes[c.child(i)].rect.Width = max(v, 0)
+	c.frame.Nodes[c.child(i)].Rect.Width = max(v, 0)
 }
 
 // SetX places the left edge of child i. It is a PlaceWidth call, or a PlaceHeight
@@ -89,19 +89,19 @@ func (c *LayoutContext) SetWidth(i int, v float32) {
 // the child's subtree with it, and places its popups again from the new anchor.
 func (c *LayoutContext) SetX(i int, v float32) {
 	c.must(c.phase == phasePlaceWidth || c.phase == phasePlaceHeight, "SetX is for PlaceWidth or PlaceHeight")
-	c.frame.Nodes[c.child(i)].rect.X = v
+	c.frame.Nodes[c.child(i)].Rect.X = v
 }
 
 // SetHeight gives child i its height. It is a PlaceHeight call.
 func (c *LayoutContext) SetHeight(i int, v float32) {
 	c.must(c.phase == phasePlaceHeight, "SetHeight is for PlaceHeight")
-	c.frame.Nodes[c.child(i)].rect.Height = max(v, 0)
+	c.frame.Nodes[c.child(i)].Rect.Height = max(v, 0)
 }
 
 // SetY places the top edge of child i. It is a PlaceHeight call.
 func (c *LayoutContext) SetY(i int, v float32) {
 	c.must(c.phase == phasePlaceHeight, "SetY is for PlaceHeight")
-	c.frame.Nodes[c.child(i)].rect.Y = v
+	c.frame.Nodes[c.child(i)].Rect.Y = v
 }
 
 // ContentWidth is the width the container was given, from PlaceWidth on; it is
@@ -143,7 +143,7 @@ func (f *frame) measureCustom(n *node, axis int) {
 		return
 	}
 	ctx.begin(f, n, phaseMeasureHeight)
-	ctx.width = max(n.rect.Width-n.padX(), 0)
+	ctx.width = max(n.Rect.Width-n.padX(), 0)
 	n.Pref[axisY] = max(layout.MeasureHeight(ctx), 0) + n.padY()
 }
 
@@ -159,8 +159,8 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 		ctx.begin(f, n, phasePlaceWidth)
 		for _, i := range ctx.children {
 			child := &f.Nodes[i]
-			child.rect.Width = clamp(child.Pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
-			child.rect.X = start
+			child.Rect.Width = clamp(child.Pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
+			child.Rect.X = start
 		}
 		ctx.width = avail
 		layout.PlaceWidth(ctx, Rect{X: start, Width: avail})
@@ -170,15 +170,15 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	ctx.beforeX = ctx.beforeX[:0]
 	for _, i := range ctx.children {
 		child := &f.Nodes[i]
-		ctx.beforeX = append(ctx.beforeX, child.rect.X)
-		child.rect.Height = clamp(child.Pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
-		child.rect.Y = start
+		ctx.beforeX = append(ctx.beforeX, child.Rect.X)
+		child.Rect.Height = clamp(child.Pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
+		child.Rect.Y = start
 	}
 	is, _ := n.inset(axisX)
-	ctx.width = max(n.rect.Width-n.padX(), 0)
-	layout.PlaceHeight(ctx, Rect{X: n.rect.X + is, Y: start, Width: ctx.width, Height: avail})
+	ctx.width = max(n.Rect.Width-n.padX(), 0)
+	layout.PlaceHeight(ctx, Rect{X: n.Rect.X + is, Y: start, Width: ctx.width, Height: avail})
 	for index, i := range ctx.children {
-		if delta := f.Nodes[i].rect.X - ctx.beforeX[index]; delta != 0 {
+		if delta := f.Nodes[i].Rect.X - ctx.beforeX[index]; delta != 0 {
 			f.shiftSubtreeX(i, delta)
 		}
 	}
@@ -208,7 +208,7 @@ func (f *frame) shiftSubtreeX(i int32, delta float32) {
 		end++
 	}
 	for j := start; j < end; j++ {
-		f.Nodes[j].rect.X += delta
+		f.Nodes[j].Rect.X += delta
 	}
 	f.shiftedX = true
 }

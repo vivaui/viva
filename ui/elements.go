@@ -233,13 +233,13 @@ func SelectIcon[T comparable](c C, value *T, choices []T, Label func(T) string, 
 // selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
 // control without the theme's look. icons, when SelectIcon's icon function gave
 // them, are indexed by option like the labels; nil is the select without icons.
-func selectOf[T comparable](c C, value *T, choices []T, Label func(T) string, icons []gfx.Icon, base bool, ID gfx.ID) Box {
+func selectOf[T comparable](c C, value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
 	labels, selected := options(p, value, choices, Label)
 	var b Box
-	if base {
+	if Base {
 		b = c.f.SelectBase(scope, state, labels, selected)
 	} else {
 		b = c.f.Select(scope, state, labels, selected)
@@ -295,11 +295,11 @@ func TextField[T TextValue](c C, value T, Label, placeholder string) Box {
 }
 
 // textFieldOf is TextField, or TextFieldBase when base is set.
-func textFieldOf[T TextValue](c C, value T, Label, placeholder string, base bool) Box {
+func textFieldOf[T TextValue](c C, value T, Label, placeholder string, Base bool) Box {
 	p := c.page
 	field, id := fieldOf(p, pkField, value)
 	var b Box
-	if base {
+	if Base {
 		b = c.f.FieldBase(field, id, Label, placeholder)
 	} else {
 		b = c.f.Field(field, id, Label, placeholder)
@@ -373,13 +373,13 @@ func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
 //	more := ui.Button(c, "More")
 //	if more.Clicked() { m.menu = !m.menu }
 //	ui.Popover(c, more, &m.menu, func() { ... })
-func Popover(c C, anchor Box, open *bool, body func()) bool {
-	return PopoverWith(c, anchor, PopoverSpec{Align: Start}, open, body)
+func Popover(c C, Anchor Box, open *bool, body func()) bool {
+	return PopoverWith(c, Anchor, PopoverSpec{Align: Start}, open, body)
 }
 
 // PopoverWith is Popover with a spec: the side, alignment, width and the rest of
 // PopoverSpec. The Scope and DismissID it leaves zero are made from open.
-func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) bool {
+func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
 	p := c.page
 	p.forbidInMemo("Popover")
 	if !*open {
@@ -393,7 +393,7 @@ func PopoverWith(c C, anchor Box, spec PopoverSpec, open *bool, body func()) boo
 	if spec.DismissID.IsZero() {
 		spec.DismissID = scope.At(1)
 	}
-	panel := c.f.Popover(anchor, spec)
+	panel := c.f.Popover(Anchor, spec)
 	p.setScope(panel.i, scope)
 	panel.Children(func() {
 		if spec.Title != "" || spec.Description != "" {

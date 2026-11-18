@@ -47,7 +47,7 @@ type PopoverSpec struct {
 
 type popoverDecl struct {
 	spec   PopoverSpec
-	anchor int32
+	Anchor int32
 	layer  uint16 // the layer the Popover was declared in
 }
 
@@ -65,7 +65,7 @@ type popoverDecl struct {
 //		p := f.Popover(filter, ui.PopoverSpec{Scope: popScope, DismissID: dismissID}).Children(func() { ... })
 //		if p.Dismissed() { m.open = false }
 //	}
-func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
+func (f *frame) Popover(Anchor Box, spec PopoverSpec) Box {
 	metrics := f.Palette.Metrics
 	look := components.PopoverRecipe(f.Palette)
 	width := spec.Width
@@ -83,15 +83,15 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	b := f.Popup()
 	switch spec.Side {
 	case components.PopoverTop:
-		b.AboveBox(anchor, offset, align)
+		b.AboveBox(Anchor, offset, align)
 	case components.PopoverRight:
-		b.BesideBox(anchor, offset, align)
+		b.BesideBox(Anchor, offset, align)
 	case components.PopoverLeft:
-		b.BesideLeftBox(anchor, offset, align)
+		b.BesideLeftBox(Anchor, offset, align)
 	default:
-		b.BelowBox(anchor, offset, align)
+		b.BelowBox(Anchor, offset, align)
 	}
-	b.n().placeShift = spec.AlignOffset
+	b.n().PlaceShift = spec.AlignOffset
 	b.Width(width).Pad(metrics.PadSurface).Gap(metrics.GapItem).
 		Background(look.Fill).Border(1, look.Border).Radius(look.Radius).Shadow(look.Shadow)
 	// Within the frame less the margin the components keep from its edges.
@@ -100,7 +100,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	n.Flags |= flagPopover
 	f.paintPopoverFn = (*frame).paintPopover
 	n.Aux = int32(len(widgetsOf(f).popovers))
-	widgetsOf(f).popovers = append(widgetsOf(f).popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: widgetsOf(f).layer})
+	widgetsOf(f).popovers = append(widgetsOf(f).popovers, popoverDecl{spec: spec, Anchor: Anchor.i, layer: widgetsOf(f).layer})
 	return b
 }
 
@@ -127,17 +127,17 @@ func (f *frame) paintPopover(i int32, n *node) {
 			Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassPrimary: pass, PassSecondary: pass,
 		})
 		if !spec.KeepOpenOnAnchor {
-			canvas.HitWithOptions(spec.DismissID, f.Nodes[d.anchor].rect, "Dismiss popover", gfx.HitOptions{
+			canvas.HitWithOptions(spec.DismissID, f.Nodes[d.Anchor].Rect, "Dismiss popover", gfx.HitOptions{
 				Role: gfx.RoleButton, SkipFocus: true, Backdrop: true, PassSecondary: pass,
 			})
 		}
 	}
 	// The panel is opaque to the pointer: a press on its padding does not reach the page.
-	canvas.Block(n.rect)
+	canvas.Block(n.Rect)
 	savedLayer := widgetsOf(f).layer
 	widgetsOf(f).layer = layer
 	n.Flags &^= flagPopover
-	presence, pivot := components.PopupMotion(f.Palette, n.rect, f.Nodes[d.anchor].rect)
+	presence, pivot := components.PopupMotion(f.Palette, n.Rect, f.Nodes[d.Anchor].Rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
 	canvas.EndPresence()

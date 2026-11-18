@@ -42,7 +42,7 @@ import (
 // rows under it.
 //
 // Not inside a Memo.
-func Menu(c C, anchor Box, open *bool, body func(*MenuItems)) {
+func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	p := c.page
 	p.forbidInMemo("Menu")
 	if !*open {
@@ -51,7 +51,7 @@ func Menu(c C, anchor Box, open *bool, body func(*MenuItems)) {
 	scope := p.boundScope(pkMenu, unsafe.Pointer(open))
 	menu := stateIn[MenuItems](p, scope, "menu")
 	menu.context = false
-	p.declareMenu(c, menu, scope, open, anchor.i, nil, body)
+	p.declareMenu(c, menu, scope, open, Anchor.i, nil, body)
 }
 
 // ContextMenu shows the items body declares at the pointer when target is pressed
@@ -152,7 +152,7 @@ type contextTarget struct {
 
 // declareMenu declares an open menu: its rows, its size, and the popup that places
 // it, under the anchor element or, with anchor -1, at menu.at.
-func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, anchor int32, opened *menuOrigin, body func(*MenuItems)) {
+func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, Anchor int32, opened *menuOrigin, body func(*MenuItems)) {
 	p.overlay = true
 	if menu.paint == nil {
 		menu.paint = menu.draw // made once: a method value made in each paint allocates
@@ -161,7 +161,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 		menu.itemPainter, menu.panelPainter = menu.paintItem, menu.paintPanel
 	}
 	f := c.f
-	menu.page, menu.f, menu.open, menu.anchor = p, f, open, anchor
+	menu.page, menu.f, menu.open, menu.Anchor = p, f, open, Anchor
 	menu.scope, menu.root, menu.Parent = scope, menu, nil
 	if opened != nil {
 		menu.at = opened.at
@@ -176,8 +176,8 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	}
 	width, height := menu.Size()
 	popup := f.Popup()
-	if anchor >= 0 {
-		anchorBox := Box{f: f, i: anchor, gen: f.gen}
+	if Anchor >= 0 {
+		anchorBox := Box{f: f, i: Anchor, gen: f.gen}
 		switch menu.side {
 		case menuAbove:
 			popup.AboveBox(anchorBox, 4, Start)
@@ -354,7 +354,7 @@ type MenuItems struct {
 	page      *Page
 	f         *frame
 	open      *bool
-	anchor    int32 // the element a Menu hangs off; -1 for a ContextMenu
+	Anchor    int32 // the element a Menu hangs off; -1 for a ContextMenu
 	scope     gfx.Scope
 	layer     uint16
 
@@ -538,7 +538,7 @@ func (m *MenuItems) Sub(Label string, body func(*MenuItems)) MenuItem {
 	}
 	p := m.page
 	child := stateIn[MenuItems](p, p.tree.Sub(m.scope, gfx.Index(item.i)), "sub")
-	child.page, child.f, child.open, child.anchor = p, m.f, m.open, -1
+	child.page, child.f, child.open, child.Anchor = p, m.f, m.open, -1
 	child.scope, child.root, child.Parent, child.context, child.rowSize = p.tree.Sub(m.scope, gfx.Index(item.i)), m.root, m, m.context, m.rowSize
 	child.fresh()
 	if m.focusSub {
@@ -776,7 +776,7 @@ func (m *MenuItems) paintAt(Surface *gfx.Canvas, Palette *Theme, bounds Rect, la
 	} else {
 		side := components.OverlayRight // the edge the menu slides in from, its anchor's
 		if m.Parent == nil {
-			anchor := f.Nodes[m.anchor].rect
+			anchor := f.Nodes[m.Anchor].Rect
 			switch {
 			case m.side == menuBeside:
 				if bounds.X+bounds.Width <= anchor.X+anchor.Width/2 {
@@ -862,8 +862,8 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		// last one opened, from nowhere: its focus trap takes the focus from the
 		// anchor as it opens, and the first arrow goes into it.
 		var trigger gfx.ID
-		if m.anchor >= 0 {
-			trigger = m.f.Nodes[m.anchor].ID
+		if m.Anchor >= 0 {
+			trigger = m.f.Nodes[m.Anchor].ID
 		}
 		_, inside := event.Target.In(m.scope)
 		// A context menu is modal: its arrows move through it from wherever the focus is,
@@ -899,7 +899,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if event.Key == gfx.KeyF10 && event.Modifiers == gfx.ModifierShift && !event.Release {
 		for _, target := range p.contexts {
 			if target.ID == event.Target && !target.menu.shown {
-				r := target.f.Nodes[target.target].rect
+				r := target.f.Nodes[target.target].Rect
 				target.menu.shown, target.menu.at = true, Rect{X: r.X, Y: r.Y + r.Height}
 				return gfx.EventResult{Handled: true, Repaint: true}, true
 			}

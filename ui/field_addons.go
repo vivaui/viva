@@ -87,8 +87,8 @@ func (b Box) actionID() gfx.ID {
 func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
 	canvas, theme := f.Surface, f.Palette
 	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
-	start, end, content := components.InputAddonsLayout(canvas, theme, n.rect, a.start, a.end)
+	start, end, content := components.InputAddonsLayout(canvas, theme, n.Rect, a.start, a.end)
 	components.PaintInputAddon(canvas, theme, start, a.start, true, disabled)
-	components.PaintInputContent(canvas, theme, n.rect, content, snapshot)
+	components.PaintInputContent(canvas, theme, n.Rect, content, snapshot)
 	components.PaintInputAddon(canvas, theme, end, a.end, false, disabled) // its hit over the field's
 }

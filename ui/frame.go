@@ -136,7 +136,7 @@ type node struct {
 	Variant              style.Variant
 	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
-	outOfFlow            uint8 // absolute positioning: see absolute.go
+	OutOfFlow            uint8 // absolute positioning: see absolute.go
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
@@ -147,20 +147,20 @@ type node struct {
 	Aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
 	Natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
 	Ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
-	place                placement // a Popup\'s position
-	anchor               Rect
-	placeGap             float32
-	anchorRef            int32 // 1 + the index of the element a Popup hangs off, or 0 when it hangs off anchor
-	placeAlign           Align
-	placeShift           float32 // moves a popup along its anchor from where Align put it
+	Place                placement // a Popup\'s position
+	Anchor               Rect
+	PlaceGap             float32
+	AnchorRef            int32 // 1 + the index of the element a Popup hangs off, or 0 when it hangs off anchor
+	PlaceAlign           Align
+	PlaceShift           float32 // moves a popup along its anchor from where Align put it
 	Baseline             float32 // distance from the top to the first line of text
 
 	Pref                [2]float32
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	GrowNow, ShrinkNow  float32
-	base, Want, Bounded float32 // while flexible lengths are resolved
+	Base, Want, Bounded float32 // while flexible lengths are resolved
 	Frozen              bool
-	rect                Rect
+	Rect                Rect
 	Band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
 	FocusScope          gfx.ID // the focus scope the subtree paints in, when it is not the page's
 }
@@ -364,14 +364,14 @@ func (f *frame) End() {
 	f.applyRecipes()
 	root := &f.Nodes[0]
 	f.measure(axisX)
-	root.rect.X, root.rect.Width = f.bounds.X, f.bounds.Width
+	root.Rect.X, root.Rect.Width = f.bounds.X, f.bounds.Width
 	f.solve(0, axisX)
 	for _, index := range f.Floats {
 		f.placePopup(&f.Nodes[index], axisX)
 		f.solve(index, axisX)
 	}
 	f.measure(axisY)
-	root.rect.Y, root.rect.Height = f.bounds.Y, f.bounds.Height
+	root.Rect.Y, root.Rect.Height = f.bounds.Y, f.bounds.Height
 	f.solve(0, axisY)
 	if f.shiftedX {
 		// A CustomLayout moved children horizontally after their width was solved.
@@ -682,7 +682,7 @@ func (f *frame) checkHits() {
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
-		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.MinS != [2]float32{} {
+		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.OutOfFlow != 0 || n.MinS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.Label + ") has no Children and no size, background or border, so it is empty: " +

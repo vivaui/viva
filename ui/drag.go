@@ -69,7 +69,7 @@ type dragTarget struct {
 // whose rectangle the frame lays out, or a rectangle drawn for a part.
 type dragRegion struct {
 	node int32 // a page element of the frame
-	rect Rect  // or where the part was drawn
+	Rect Rect  // or where the part was drawn
 	part bool  // rect, not node
 }
 
@@ -130,7 +130,7 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 // press reaches the state with the part as its identity, so the part must be a
 // hit or nothing can press it, and the rectangle it was drawn in is kept with it.
 // A DrawContext not owned by a Page panics: this is a page-only API.
-func (d *DrawContext) DragSource(state *DragState, ID gfx.ID, rect Rect) {
+func (d *DrawContext) DragSource(state *DragState, ID gfx.ID, Rect Rect) {
 	d.partDrag("DragSource")
 	if state == nil {
 		panic("ui: DrawContext.DragSource needs its DragState")
@@ -139,7 +139,7 @@ func (d *DrawContext) DragSource(state *DragState, ID gfx.ID, rect Rect) {
 		panic("ui: DrawContext.DragSource needs the part's identity")
 	}
 	state.begin(d.frame)
-	state.sources = append(state.sources, dragSource{ID: ID, region: dragRegion{rect: rect, part: true}})
+	state.sources = append(state.sources, dragSource{ID: ID, region: dragRegion{Rect: Rect, part: true}})
 }
 
 // DropTarget makes a part drawn for the page a target for state. accept and drop
@@ -149,7 +149,7 @@ func (d *DrawContext) DragSource(state *DragState, ID gfx.ID, rect Rect) {
 // still takes a drop.
 //
 //	d.DropTarget(&m.drag, part, r, m.canDrop, m.dropOn)
-func (d *DrawContext) DropTarget(state *DragState, ID gfx.ID, rect Rect, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) {
+func (d *DrawContext) DropTarget(state *DragState, ID gfx.ID, Rect Rect, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) {
 	d.partDrag("DropTarget")
 	if state == nil {
 		panic("ui: DrawContext.DropTarget needs its DragState")
@@ -161,7 +161,7 @@ func (d *DrawContext) DropTarget(state *DragState, ID gfx.ID, rect Rect, accept 
 		panic("ui: DrawContext.DropTarget needs its drop callback")
 	}
 	state.begin(d.frame)
-	state.targets = append(state.targets, dragTarget{ID: ID, region: dragRegion{rect: rect, part: true}, accept: accept, drop: drop})
+	state.targets = append(state.targets, dragTarget{ID: ID, region: dragRegion{Rect: Rect, part: true}, accept: accept, drop: drop})
 }
 
 // partDrag checks that a Draw callback is a page's, whose drag records the page
@@ -400,7 +400,7 @@ func (s *DragState) targetOf(ID gfx.ID) *dragTarget {
 // its page element, including HitOutset, or the part's drawn rectangle.
 func (s *DragState) regionRect(region dragRegion) Rect {
 	if region.part {
-		return region.rect
+		return region.Rect
 	}
 	return s.hitRect(region.node)
 }
@@ -408,7 +408,7 @@ func (s *DragState) regionRect(region dragRegion) Rect {
 // hitRect is the rectangle the element can be pointed at, including HitOutset.
 func (s *DragState) hitRect(node int32) Rect {
 	n := &s.frame.Nodes[node]
-	r := n.rect
+	r := n.Rect
 	if n.Ext == 0 {
 		return r
 	}

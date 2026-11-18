@@ -80,7 +80,7 @@ func (f *frame) measure(axis int) {
 			first := int32(len(f.Lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
-			if n.Text != "" && n.Natural <= n.rect.Width-n.padX() && strings.IndexByte(n.Text, '\n') < 0 {
+			if n.Text != "" && n.Natural <= n.Rect.Width-n.padX() && strings.IndexByte(n.Text, '\n') < 0 {
 				f.Lines = append(f.Lines, n.Text)
 			} else {
 				f.Lines = f.wrapText(f.Lines, n)
@@ -229,14 +229,14 @@ func (n *node) stretches(axis int) bool {
 func (f *frame) solve(i int32, axis int) {
 	n := &f.Nodes[i]
 	if n.First < 0 {
-		if n.outOfFlow&absChildren != 0 {
+		if n.OutOfFlow&absChildren != 0 {
 			f.solveAbsolute(i, axis)
 		}
 		return
 	}
 	is, ie := n.inset(axis)
-	start := *origin(&n.rect, axis) + is
-	avail := max(*extent(&n.rect, axis)-is-ie, 0)
+	start := *origin(&n.Rect, axis) + is
+	avail := max(*extent(&n.Rect, axis)-is-ie, 0)
 	switch {
 	case n.Dir == grid:
 		f.solveGrid(n, axis, start, avail)
@@ -253,7 +253,7 @@ func (f *frame) solve(i int32, axis int) {
 	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.solve(c, axis)
 	}
-	if n.outOfFlow&absChildren != 0 {
+	if n.OutOfFlow&absChildren != 0 {
 		f.solveAbsolute(i, axis)
 	}
 }
@@ -285,13 +285,13 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
 		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
-			*extent(&child.rect, axis) = clamp(child.Pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
-			*origin(&child.rect, axis) = start + line - child.Baseline
+			*extent(&child.Rect, axis) = clamp(child.Pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
+			*origin(&child.Rect, axis) = start + line - child.Baseline
 			continue
 		}
 		size := crossSize(child, axis, avail-ms-me, align, f.maxOn(child, axis, avail-ms-me))
-		*extent(&child.rect, axis) = size
-		*origin(&child.rect, axis) = start + ms + offset(align, avail-ms-me-size)
+		*extent(&child.Rect, axis) = size
+		*origin(&child.Rect, axis) = start + ms + offset(align, avail-ms-me-size)
 	}
 }
 
@@ -365,7 +365,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		default:
 			child.ShrinkNow = 0
 		}
-		*extent(&child.rect, axis) = basis
+		*extent(&child.Rect, axis) = basis
 		ms, me := child.marginOn(axis)
 		fixed += ms + me
 		count++
@@ -381,7 +381,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	// then share again among the rest. Every pass starts from the base sizes.
 	for c := First; c != stop; c = f.Nodes[c].Next {
 		child := &f.Nodes[c]
-		child.base = *extent(&child.rect, axis)
+		child.Base = *extent(&child.Rect, axis)
 		child.Frozen = false
 	}
 	for pass := 0; pass <= count; pass++ {
@@ -389,12 +389,12 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		for c := First; c != stop; c = f.Nodes[c].Next {
 			child := &f.Nodes[c]
 			if child.Frozen {
-				frozenSize += *extent(&child.rect, axis)
+				frozenSize += *extent(&child.Rect, axis)
 				continue
 			}
-			baseSum += child.base
+			baseSum += child.Base
 			growSum += child.GrowNow
-			shrinkSum += child.ShrinkNow * child.base
+			shrinkSum += child.ShrinkNow * child.Base
 		}
 		room := avail
 		if scrolls {
@@ -407,16 +407,16 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			if child.Frozen {
 				continue
 			}
-			want := child.base
+			want := child.Base
 			switch {
 			case free > 0 && growSum > 0:
 				want += free * child.GrowNow / growSum
 			case free < 0 && shrinkSum > 0:
-				want += free * child.ShrinkNow * child.base / shrinkSum
+				want += free * child.ShrinkNow * child.Base / shrinkSum
 			}
 			bounded := clamp(want, child.MinS[axis], f.maxOn(child, axis, avail))
 			violation += bounded - want
-			*extent(&child.rect, axis) = bounded
+			*extent(&child.Rect, axis) = bounded
 			child.Bounded = bounded
 			child.Want = want
 		}
@@ -441,8 +441,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	var used float32
 	for c := First; c != stop; c = f.Nodes[c].Next {
 		child := &f.Nodes[c]
-		size := clamp(*extent(&child.rect, axis), child.MinS[axis], f.maxOn(child, axis, avail))
-		*extent(&child.rect, axis) = size
+		size := clamp(*extent(&child.Rect, axis), child.MinS[axis], f.maxOn(child, axis, avail))
+		*extent(&child.Rect, axis) = size
 		used += size
 	}
 	used += fixed
@@ -474,8 +474,8 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		child := &f.Nodes[c]
 		ms, me := child.marginOn(axis)
 		pos += ms
-		*origin(&child.rect, axis) = start + pos
-		pos += *extent(&child.rect, axis) + me + between
+		*origin(&child.Rect, axis) = start + pos
+		pos += *extent(&child.Rect, axis) + me + between
 	}
 }
 

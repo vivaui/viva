@@ -63,7 +63,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		}
 		target := float32(0)
 		switch {
-		case s.barsAlways || s.dragging || f.page.pointerOver(n.rect):
+		case s.barsAlways || s.dragging || f.page.pointerOver(n.Rect):
 			target = 1
 		case s.barLit:
 			if remaining := scrollbarLinger - (now - s.barSince); remaining > 0 {
@@ -82,7 +82,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		theme.Border.Alpha *= revealed
 		theme.MutedForeground.Alpha *= revealed
 	}
-	area := components.BeginScrollArea(f.Surface, theme, n.rect, content).
+	area := components.BeginScrollArea(f.Surface, theme, n.Rect, content).
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
 		HoverScrollbars(revealed > 0.001).

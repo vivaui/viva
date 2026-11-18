@@ -194,7 +194,7 @@ func (f *frame) measureControls(n *node) {
 }
 
 func (f *frame) paintButton(n *node) {
-	r := n.rect
+	r := n.Rect
 	extra := &f.Exts[n.Ext]
 	button := components.BeginButton(f.Surface, f.Palette, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
@@ -397,7 +397,7 @@ func (f *frame) paintInput(n *node) {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
 		return
 	}
-	components.PaintInputContent(f.Surface, f.Palette, n.rect, f.contentRect(n), snapshot)
+	components.PaintInputContent(f.Surface, f.Palette, n.Rect, f.contentRect(n), snapshot)
 }
 
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
@@ -406,10 +406,10 @@ func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
 		theme := f.Palette
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.Surface, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.Palette, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 }
 
 // controlBaseline is the label's baseline of a button, for a row that lines

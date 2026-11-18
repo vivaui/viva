@@ -38,7 +38,7 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 	cache := &f.Ellipses[f.wrapCursor]
 	wrapped := &f.Wraps[f.wrapCursor]
 	f.wrapCursor++
-	width := max(n.rect.Width-n.padX(), 1)
+	width := max(n.Rect.Width-n.padX(), 1)
 	maxLines := int(n.MaxLines)
 	mono := n.Flags&flagMono != 0
 	face := gfx.MonoFace(0)

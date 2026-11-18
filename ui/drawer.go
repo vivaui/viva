@@ -254,7 +254,7 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 // body and footer inside the layer and focus scope it opens.
 func (f *frame) paintDrawer(n *node) {
 	d := &widgetsOf(f).drawers[n.Aux]
-	drawer := d.spec.component(f.Surface, f.Palette, n.rect, d.layer)
+	drawer := d.spec.component(f.Surface, f.Palette, n.Rect, d.layer)
 	if n.Flags&flagDisabled != 0 {
 		drawer = drawer.Disabled()
 	}

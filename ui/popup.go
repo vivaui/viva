@@ -27,17 +27,17 @@ func (b Box) Within(r Rect) Box {
 
 // BesideLeft is Beside for a popup that opens to the left of anchor and flips to its
 // right when there is no room on the left.
-func (b Box) BesideLeft(anchor Rect, Gap float32, align Align) Box {
+func (b Box) BesideLeft(Anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBesideLeft, anchor, Gap, align
+	n.Place, n.Anchor, n.PlaceGap, n.PlaceAlign = placeBesideLeft, Anchor, Gap, align
 	return b
 }
 
 // BesideLeftBox is BesideLeft for an anchor that is an element of the page, as BelowBox
 // is to Below.
-func (b Box) BesideLeftBox(anchor Box, Gap float32, align Align) Box {
+func (b Box) BesideLeftBox(Anchor Box, Gap float32, align Align) Box {
 	b.BesideLeft(Rect{}, Gap, align)
-	b.n().anchorRef = anchor.i + 1
+	b.n().AnchorRef = Anchor.i + 1
 	return b
 }
 
@@ -60,29 +60,29 @@ func (f *frame) placePopup(n *node, axis int) {
 		size = span * d.value / 100
 	}
 	size = min(clamp(size, n.MinS[axis], n.MaxS[axis]), max(span, 0))
-	anchor := n.anchor
-	if n.anchorRef > 0 {
-		anchor = f.Nodes[n.anchorRef-1].rect // laid out on this axis already
+	anchor := n.Anchor
+	if n.AnchorRef > 0 {
+		anchor = f.Nodes[n.AnchorRef-1].Rect // laid out on this axis already
 	}
 	start := *origin(&anchor, axis)
 	length := *extent(&anchor, axis)
 	at := start
 	switch {
-	case n.place == placeBelow || n.place == placeAbove:
+	case n.Place == placeBelow || n.Place == placeAbove:
 		if axis == axisY {
-			at = sideOf(start, start+length, n.placeGap, size, lo, lo+span, n.place == placeBelow)
+			at = sideOf(start, start+length, n.PlaceGap, size, lo, lo+span, n.Place == placeBelow)
 		} else {
-			at = alignedTo(start, length, size, n.placeAlign) + n.placeShift
+			at = alignedTo(start, length, size, n.PlaceAlign) + n.PlaceShift
 		}
-	case n.place == placeBeside || n.place == placeBesideLeft:
+	case n.Place == placeBeside || n.Place == placeBesideLeft:
 		if axis == axisX {
-			at = sideOf(start, start+length, n.placeGap, size, lo, lo+span, n.place == placeBeside)
+			at = sideOf(start, start+length, n.PlaceGap, size, lo, lo+span, n.Place == placeBeside)
 		} else {
-			at = alignedTo(start, length, size, n.placeAlign) + n.placeShift
+			at = alignedTo(start, length, size, n.PlaceAlign) + n.PlaceShift
 		}
 	}
 	at = max(min(at, lo+span-size), lo)
-	*extent(&n.rect, axis), *origin(&n.rect, axis) = size, at
+	*extent(&n.Rect, axis), *origin(&n.Rect, axis) = size, at
 }
 
 // sideOf is where a popup size long starts when it hangs off the anchor

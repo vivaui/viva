@@ -424,7 +424,7 @@ var baseSizes = tree.Sub(page, tree.Name("base-sizes"))
 func TestSelectBaseDeclaresTheSelectAndLeavesThePaintingToTheCaller(t *testing.T) {
 	labels := []string{"Small", "Medium", "Large"}
 	theme := gfx.LightTheme()
-	run := func(base, open bool) (*gfx.Canvas, Box, gfx.Rect, [3]gfx.Rect) {
+	run := func(Base, open bool) (*gfx.Canvas, Box, gfx.Rect, [3]gfx.Rect) {
 		var view View
 		canvas := testCanvas()
 		state := SelectState{Open: open}
@@ -433,7 +433,7 @@ func TestSelectBaseDeclaresTheSelectAndLeavesThePaintingToTheCaller(t *testing.T
 		var rows [3]gfx.Rect
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Pad(8).Children(func() {
-				if base {
+				if Base {
 					box = f.SelectBase(baseSizes, &state, labels, 1).Width(160)
 				} else {
 					box = f.Select(baseSizes, &state, labels, 1).Width(160)

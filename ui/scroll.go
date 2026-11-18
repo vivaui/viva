@@ -259,7 +259,7 @@ func (f *frame) containsPoint(i int, x, y float32) bool {
 		if p != int32(i) && n.Flags&flagClip == 0 {
 			continue
 		}
-		r := n.rect
+		r := n.Rect
 		if x < r.X || x >= r.X+r.Width || y < r.Y || y >= r.Y+r.Height {
 			return false
 		}
@@ -420,7 +420,7 @@ func (f *frame) reportScrolls() {
 		}
 		s := f.Exts[n.Ext].scrollState
 		is, ie := n.inset(axisY)
-		s.Content, s.Viewport = n.Content, max(n.rect.Height-is-ie, 0)
+		s.Content, s.Viewport = n.Content, max(n.Rect.Height-is-ie, 0)
 		if s.pinned() {
 			s.Offset = s.Max()
 			s.toEnd = false
@@ -428,7 +428,7 @@ func (f *frame) reportScrolls() {
 			s.Offset = min(max(s.Offset, 0), s.Max())
 		}
 		xs, xe := n.inset(axisX)
-		s.ViewportWidth = max(n.rect.Width-xs-xe, 0)
+		s.ViewportWidth = max(n.Rect.Width-xs-xe, 0)
 		if !s.sideways {
 			s.ContentWidth, s.OffsetX = s.ViewportWidth, 0
 		}

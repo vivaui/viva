@@ -324,7 +324,7 @@ const tableFrozenSeparator = float32(2)
 func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
 		if ext := f.Nodes[p].Ext; ext != 0 && f.Exts[ext].scrollState != nil {
-			return f.Exts[ext].scrollState, f.Nodes[p].rect
+			return f.Exts[ext].scrollState, f.Nodes[p].Rect
 		}
 	}
 	return nil, Rect{}
@@ -336,7 +336,7 @@ func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 // while its rows scroll under it.
 func (f *frame) paintTable(n *node) {
 	t := &widgetsOf(f).tables[n.Aux]
-	r := n.rect
+	r := n.Rect
 	rowHeight, headerHeight := t.rowHeight(f.Palette), t.headerHeight(f.Palette)
 	canvas := f.Surface
 	body := Rect{X: r.X, Y: r.Y + headerHeight, Width: r.Width, Height: max(r.Height-headerHeight, 0)}
@@ -419,7 +419,7 @@ func (f *frame) paintTable(n *node) {
 	clipTop := f.bounds.Y
 	for p := n.Parent; p >= 0; p = f.Nodes[p].Parent {
 		if f.Nodes[p].Flags&flagClip != 0 {
-			clip := f.Nodes[p].rect
+			clip := f.Nodes[p].Rect
 			lo, hi = max(lo, clip.Y), min(hi, clip.Y+clip.Height)
 			clipTop = max(clipTop, clip.Y)
 		}

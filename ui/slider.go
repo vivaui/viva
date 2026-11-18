@@ -245,7 +245,7 @@ func (f *frame) paintSlider(n *node) {
 	f.settleSlider(n)
 	d := &widgetsOf(f).sliders[n.Aux]
 	s := d.state
-	s.area = n.rect
+	s.area = n.Rect
 	if n.Flags&flagThemed == 0 {
 		// A SliderBase paints nothing of its own: it is the slider to the pointer, the
 		// keyboard and assistive technology, over the element's whole rectangle.
@@ -257,13 +257,13 @@ func (f *frame) paintSlider(n *node) {
 		if step <= 0 {
 			step = 1
 		}
-		f.Surface.HitWithOptions(n.ID, n.rect, label, gfx.HitOptions{
+		f.Surface.HitWithOptions(n.ID, n.Rect, label, gfx.HitOptions{
 			Role: gfx.RoleSlider, Value: s.valueText(), Disabled: n.Flags&flagDisabled != 0,
 			Range: gfx.ValueRange{Now: float64(s.Value), Min: float64(s.min), Max: float64(s.max), Step: float64(step), Set: true},
 		})
 		return
 	}
-	slider := components.BeginSlider(f.Surface, f.Palette, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
+	slider := components.BeginSlider(f.Surface, f.Palette, n.ID, n.Rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
 	if n.Natural > 0 {
 		slider = slider.Vertical()
 	}

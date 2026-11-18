@@ -205,7 +205,7 @@ func (b Box) pickerExtra() *extra {
 func (f *frame) paintColorPicker(n *node) {
 	extra := &f.Exts[n.Ext]
 	ctx := Ctx{page: f.page, f: f}
-	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.rect, Label: n.Label}
+	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.Rect, Label: n.Label}
 	extra.picker.paint(&d, &ctx, n.ID, extra.pickerLook)
 }
 

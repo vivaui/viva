@@ -54,7 +54,7 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 	same := cell.set && cell.v == value
 	f := c.f
 	if p.memoHit(entry, same) && !p.checkingMemos() {
-		b := f.Slot().Size(entry.rect.Width, entry.rect.Height).Shrink(0)
+		b := f.Slot().Size(entry.Rect.Width, entry.Rect.Height).Shrink(0)
 		f.extra(b.i).memo = p.memoBox(entry, true)
 		p.touchMemo(entry)
 		entry.epoch = p.epoch
@@ -71,7 +71,7 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 	var prev gfx.Span
 	var prevAt Rect
 	if p.checkingMemos() && entry.painted && entry.epoch+1 == p.epoch && same {
-		prev, prevAt = entry.span, entry.rect
+		prev, prevAt = entry.span, entry.Rect
 	}
 	entry.reset()
 	p.recording = append(p.recording, entry)
@@ -130,7 +130,7 @@ type memoEntry struct {
 	scale      float32  // the canvas's pixel scale then
 	fonts      uint32   // the canvas's font generation then
 	epoch      uint32   // the paint the part was last declared or copied in
-	rect       Rect     // where it was
+	Rect       Rect     // where it was
 	bounds     Rect     // the page's bounds then
 	span       gfx.Span // what it painted
 	painted    bool
@@ -203,15 +203,15 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	box := &p.memoBoxes[f.Exts[f.Nodes[i].Ext].memo-1]
 	entry := box.entry
 	canvas := f.Surface
-	rect := f.Nodes[i].rect
+	rect := f.Nodes[i].Rect
 	if box.copy {
 		if entry.themeEpoch != p.themeEpoch || entry.Opacity != f.Opacity {
 			entry.stale = true
 			p.retry = true
 			return true
 		}
-		dx, dy := rect.X-entry.rect.X, rect.Y-entry.rect.Y
-		sameSize := rect.Width == entry.rect.Width && rect.Height == entry.rect.Height
+		dx, dy := rect.X-entry.Rect.X, rect.Y-entry.Rect.Y
+		sameSize := rect.Width == entry.Rect.Width && rect.Height == entry.Rect.Height
 		span, ok := gfx.Span{}, entry.span.Empty() && sameSize
 		if sameSize && !entry.span.Empty() {
 			span, ok = canvas.ReplayAt(entry.span, dx, dy)
@@ -221,7 +221,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 			p.retry = true
 			return true
 		}
-		entry.span, entry.rect = span, rect
+		entry.span, entry.Rect = span, rect
 		return true
 	}
 	if before {
@@ -230,7 +230,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	}
 	entry.span = canvas.SpanSince(box.before)
 	entry.listens = len(canvas.HitsSince(box.before)) > 0
-	entry.rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
+	entry.Rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
 	entry.themeEpoch, entry.Opacity = p.themeEpoch, f.Opacity
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
 	for _, hit := range canvas.HitsSince(box.before) {
@@ -245,11 +245,11 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	return false
 }
 
-func (p *Page) memoDiffers(span gfx.Span, prev memoCheckOf, rect Rect) bool {
-	if prev.at.Width != rect.Width || prev.at.Height != rect.Height {
+func (p *Page) memoDiffers(span gfx.Span, prev memoCheckOf, Rect Rect) bool {
+	if prev.at.Width != Rect.Width || prev.at.Height != Rect.Height {
 		return false // laid out at another size: not a copy's place to compare
 	}
-	return !p.ctx.f.Surface.SameAsPrevious(span, prev.span, rect.X-prev.at.X, rect.Y-prev.at.Y)
+	return !p.ctx.f.Surface.SameAsPrevious(span, prev.span, Rect.X-prev.at.X, Rect.Y-prev.at.Y)
 }
 
 // touchMemo tells the page that what a copied part declared last time is still on

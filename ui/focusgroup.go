@@ -135,7 +135,7 @@ func (p *Page) sweepGroups() {
 // nodeID is the identity of container i, named by its place.
 func (p *Page) nodeID(i int32) gfx.ID {
 	n := &p.Nodes[i]
-	return p.ID(place{node: n.parentNode, scope: n.parentScope, name: n.name})
+	return p.ID(Place{node: n.parentNode, scope: n.parentScope, name: n.name})
 }
 
 // groupKey moves the focus between the members of the FocusGroup it is in.

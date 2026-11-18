@@ -656,9 +656,9 @@ func (f *frame) paintSelect(n *node) {
 	// which then sizes the trigger itself.
 	height := n.Pref[axisY]
 	if n.Size[axisY].Kind != dimAuto {
-		height = n.rect.Height
+		height = n.Rect.Height
 	}
-	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
+	trigger := Rect{X: n.Rect.X, Y: n.Rect.Y, Width: n.Rect.Width, Height: height}
 	options := components.SelectOptions{
 		TriggerID: d.triggerID(count), Label: n.Label, Placeholder: n.Text, Hint: d.hint,
 		Disabled: n.Flags&flagDisabled != 0,
@@ -682,7 +682,7 @@ func (f *frame) paintSelect(n *node) {
 	}
 	open := d.popup >= 0
 	if open {
-		list := f.Nodes[d.popup].rect
+		list := f.Nodes[d.popup].Rect
 		list.Width = max(list.Width, trigger.Width)
 		options.Open, options.Content = true, list
 	}
@@ -694,7 +694,7 @@ func (f *frame) paintSelect(n *node) {
 	// that places it says so too, so what a caller draws on it (SelectBase) is the panel the
 	// options are laid in.
 	if panel := control.ContentBounds(); panel.Width > 0 {
-		f.Nodes[d.popup].rect = panel
+		f.Nodes[d.popup].Rect = panel
 	}
 	first, visible := d.state.First, d.visible
 	if visible < count {

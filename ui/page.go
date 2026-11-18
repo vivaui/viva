@@ -331,7 +331,7 @@ type protoNode struct {
 }
 
 // place is where an element is named: in a container, by a name.
-type place struct {
+type Place struct {
 	node  int32
 	scope gfx.Scope // set when known: a keyed or named element's
 	name  gfx.Name
@@ -611,10 +611,10 @@ func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 				continue
 			}
 			state := f.Exts[node.Ext].scrollState
-			if state == nil || state.ID.IsZero() || !pointInRect(x, y, node.rect) {
+			if state == nil || state.ID.IsZero() || !pointInRect(x, y, node.Rect) {
 				continue
 			}
-			if area := node.rect.Width * node.rect.Height; best.IsZero() || area < bestArea {
+			if area := node.Rect.Width * node.Rect.Height; best.IsZero() || area < bestArea {
 				best, bestArea = state.ID, area
 			}
 		}
@@ -702,24 +702,24 @@ func (p *Page) currentTheme() Theme {
 // base has one, for the page's Effects and, with FollowSystemTheme, the appearance
 // watch. OnClosed cancels the page's effects and stops that watch before it runs
 // base's OnClosed. Nothing else is touched.
-func (p *Page) Config(base app.Config) app.Config {
+func (p *Page) Config(Base app.Config) app.Config {
 	if p.config.View == nil {
 		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
 	}
-	p.init(base.Tree)
-	if base.Tree != nil && base.Tree != p.tree {
+	p.init(Base.Tree)
+	if Base.Tree != nil && Base.Tree != p.tree {
 		panic("ui: Page.Config: the app.Config has another Tree than the page's; give NewPage the window's Tree")
 	}
-	config := base
+	config := Base
 	config.Tree, config.Paint = p.tree, p.Paint
-	p.baseText, config.TextInput = base.TextInput, p.TextInput
-	p.baseKey, config.OnKey = base.OnKey, p.onKey
-	p.basePointer, config.OnPointer = base.OnPointer, p.onPointer
-	p.baseShortcut, config.OnShortcut = base.OnShortcut, p.onShortcut
-	p.baseScroll, config.OnScroll = base.OnScroll, p.Wheel
+	p.baseText, config.TextInput = Base.TextInput, p.TextInput
+	p.baseKey, config.OnKey = Base.OnKey, p.onKey
+	p.basePointer, config.OnPointer = Base.OnPointer, p.onPointer
+	p.baseShortcut, config.OnShortcut = Base.OnShortcut, p.onShortcut
+	p.baseScroll, config.OnScroll = Base.OnScroll, p.Wheel
 	concrete, _ := p.config.Invalidator.(*app.Invalidator)
 	if concrete == nil {
-		concrete = base.Invalidator
+		concrete = Base.Invalidator
 	}
 	if concrete == nil {
 		concrete = new(app.Invalidator)
@@ -887,7 +887,7 @@ func (p *Page) resolve(i int32) gfx.Scope {
 }
 
 // id is the identity of an element at at.
-func (p *Page) ID(at place) gfx.ID {
+func (p *Page) ID(at Place) gfx.ID {
 	if at.scope == 0 {
 		at.scope = p.resolve(at.node)
 	}
@@ -895,7 +895,7 @@ func (p *Page) ID(at place) gfx.ID {
 }
 
 // setNode records element i as a container the page named at.
-func (p *Page) setNode(i int32, at place) {
+func (p *Page) setNode(i int32, at Place) {
 	for len(p.Nodes) <= int(i) {
 		p.Nodes = append(p.Nodes, protoNode{})
 	}
@@ -929,7 +929,7 @@ func (p *Page) record(scope gfx.Scope) *protoScope {
 
 // name gives the next element of kind its place in the container being filled: a
 // Key, a Part or its number among its kind. named reports a Key or a Part.
-func (p *Page) name(Kind uint8) (at place, named bool) {
+func (p *Page) name(Kind uint8) (at Place, named bool) {
 	node := p.current()
 	c := &p.ctx
 	if c.nextSet {
@@ -965,15 +965,15 @@ func (p *Page) name(Kind uint8) (at place, named bool) {
 			if s.keySub == 0 {
 				s.keySub = p.tree.Sub(scope, p.keyName)
 			}
-			return place{node: node, scope: s.keySub, name: gfx.Index(int(entry.slot))}, true
+			return Place{node: node, scope: s.keySub, name: gfx.Index(int(entry.slot))}, true
 		case 2:
-			return place{node: node, scope: scope, name: p.tree.Name(c.Next.part)}, true
+			return Place{node: node, scope: scope, name: p.tree.Name(c.Next.part)}, true
 		}
 	}
 	counts := &p.Nodes[node].counts
 	n := counts[Kind]
 	counts[Kind]++
-	return place{node: node, name: gfx.Index(int(Kind)<<24 | int(n))}, false
+	return Place{node: node, name: gfx.Index(int(Kind)<<24 | int(n))}, false
 }
 
 // container makes element i a container with a scope of its own, named in its parent.

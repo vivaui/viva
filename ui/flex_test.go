@@ -442,11 +442,11 @@ func TestPopupTakesNoRoomIsPlacedAndKeptInsideTheFrame(t *testing.T) {
 	var view View
 	var after, menu Box
 	anchor := gfx.Rect{X: 300, Y: 20, Width: 80, Height: 30}
-	draw := func(height float32, place func(Box) Box) {
+	draw := func(height float32, Place func(Box) Box) {
 		f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 400, Height: height})
 		f.Column().Fill().Gap(10).Children(func() {
 			f.Slot().Height(20)
-			menu = place(f.Popup().Width(120).Children(func() { f.Slot().Height(60) }))
+			menu = Place(f.Popup().Width(120).Children(func() { f.Slot().Height(60) }))
 			after = f.Slot().Height(20)
 		})
 		f.End()

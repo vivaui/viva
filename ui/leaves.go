@@ -58,10 +58,10 @@ func (f *frame) Spinner() Box { return f.box(kindSpinner) }
 // visible reports whether any of element n is inside the frame and every clip it sits
 // in: the elements that animate ask for frames only then.
 func (f *frame) visible(n *node) bool {
-	r := intersect(n.rect, f.bounds)
+	r := intersect(n.Rect, f.bounds)
 	for p := n.Parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.Nodes[p].Parent {
 		if f.Nodes[p].Flags&flagClip != 0 {
-			r = intersect(r, f.Nodes[p].rect)
+			r = intersect(r, f.Nodes[p].Rect)
 		}
 	}
 	return r.Width > 0 && r.Height > 0
@@ -73,7 +73,7 @@ func intersect(a, b Rect) Rect {
 }
 
 func (f *frame) paintProgress(n *node) {
-	r := n.rect
+	r := n.Rect
 	if n.Natural >= 0 {
 		components.Progress(f.Surface, f.Palette, r, n.Natural)
 		return
@@ -109,5 +109,5 @@ func (f *frame) paintSpinner(n *node) {
 			canvas.RequestFrameIn(spinnerStep)
 		}
 	}
-	components.PaintSpinner(canvas, f.Palette, n.rect, phase)
+	components.PaintSpinner(canvas, f.Palette, n.Rect, phase)
 }

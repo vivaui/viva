@@ -22,15 +22,15 @@ func openPage(t *testing.T, view func(ui.C)) *pageDriver {
 	return openPageWith(t, ui.PageConfig{View: view}, app.Config{})
 }
 
-func openPageWith(t *testing.T, config ui.PageConfig, base app.Config) *pageDriver {
+func openPageWith(t *testing.T, config ui.PageConfig, Base app.Config) *pageDriver {
 	t.Helper()
 	page := ui.NewPage(config)
 	invalidator := new(app.Invalidator)
-	base.Invalidator = invalidator
-	if base.Width == 0 {
-		base.Width, base.Height = 480, 480
+	Base.Invalidator = invalidator
+	if Base.Width == 0 {
+		Base.Width, Base.Height = 480, 480
 	}
-	driver, err := app.NewDriver(page.Config(base), nil)
+	driver, err := app.NewDriver(page.Config(Base), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

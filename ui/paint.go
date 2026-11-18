@@ -41,7 +41,7 @@ func (f *frame) paint(i int32) {
 		}
 		defer f.memoFn(f, i, false)
 	}
-	r := n.rect
+	r := n.Rect
 	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	style := f.resolve(n, extra)
@@ -85,7 +85,7 @@ func (f *frame) paint(i int32) {
 		}
 		if n.BorderWidth > 0 {
 			if style.dashed {
-				canvas.DashedRoundedOutline(n.rect, n.Radius, n.BorderWidth, border)
+				canvas.DashedRoundedOutline(n.Rect, n.Radius, n.BorderWidth, border)
 			} else {
 				canvas.RoundedOutline(r, n.Radius, n.BorderWidth, border)
 			}
@@ -148,7 +148,7 @@ func (f *frame) paint(i int32) {
 	for c := n.First; c >= 0; c = f.Nodes[c].Next {
 		f.paint(c)
 	}
-	if n.outOfFlow&absChildren != 0 {
+	if n.OutOfFlow&absChildren != 0 {
 		f.paintAbsolute(i)
 	}
 	if hooks.over != nil {
@@ -205,7 +205,7 @@ func (f *frame) paintText(n *node) {
 	}
 	left, right := n.inset(axisX)
 	top, bottom := n.inset(axisY)
-	r := Rect{X: n.rect.X + left, Y: n.rect.Y + top, Width: max(n.rect.Width-left-right, 0), Height: max(n.rect.Height-top-bottom, 0)}
+	r := Rect{X: n.Rect.X + left, Y: n.Rect.Y + top, Width: max(n.Rect.Width-left-right, 0), Height: max(n.Rect.Height-top-bottom, 0)}
 	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.Color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
 	alignment := gfx.AlignStart
 	switch {

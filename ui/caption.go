@@ -78,7 +78,7 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	size := f.captionSize(n)
 	line := size + 7
 	x := control.X + control.Width + captionGap
-	r := Rect{X: x, Y: n.rect.Y + (n.rect.Height-line)/2, Width: max(n.rect.X+n.rect.Width-x, 0), Height: line}
+	r := Rect{X: x, Y: n.Rect.Y + (n.Rect.Height-line)/2, Width: max(n.Rect.X+n.Rect.Width-x, 0), Height: line}
 	disabled := n.Flags&flagDisabled != 0
 	color := fade(f.Palette.Foreground, f.Opacity)
 	if n.Flags&flagHasColor != 0 {

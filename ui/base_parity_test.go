@@ -68,7 +68,7 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 		// gets; CheckboxBase and SwitchBase are given the same name.
 		pairs := []struct {
 			name         string
-			styled, base func(ui.C)
+			styled, Base func(ui.C)
 		}{
 			{"button",
 				func(c ui.C) { ui.Button(c, "Go").Disabled(disabled) },
@@ -82,7 +82,7 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 		}
 		for _, p := range pairs {
 			t.Run(p.name+"/"+state.name, func(t *testing.T) {
-				styled, base := declared(t, page(p.styled)), declared(t, page(p.base))
+				styled, base := declared(t, page(p.styled)), declared(t, page(p.Base))
 				if fmt.Sprint(styled) != fmt.Sprint(base) {
 					t.Fatalf("the control and its Base declare different semantics\n  styled: %+v\n  base:   %+v", styled, base)
 				}

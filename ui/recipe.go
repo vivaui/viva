@@ -116,7 +116,7 @@ func (f *frame) focused(n *node) bool {
 // inset from the control's edge by the recipe's own amounts: the border is drawn over the
 // control's edge, not taken out of the area the text is centered in.
 func (f *frame) contentRect(n *node) Rect {
-	r := n.rect
+	r := n.Rect
 	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
 		var scratch Theme
 		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.Kind)

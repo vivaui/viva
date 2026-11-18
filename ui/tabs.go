@@ -98,11 +98,11 @@ func (f *frame) paintTabs(n *node) {
 	// The strip is as tall as the element: an explicit height is the trigger's,
 	// and the line variant's measured height keeps the room for its indicator
 	// below the triggers.
-	height := n.rect.Height
+	height := n.Rect.Height
 	if t.line && !t.vertical {
 		height = max(height-tabIndicator, 0)
 	}
-	bounds := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}
+	bounds := Rect{X: n.Rect.X, Y: n.Rect.Y, Width: n.Rect.Width, Height: height}
 	if t.vertical {
 		if t.line {
 			bounds.Width = max(bounds.Width-tabIndicator-1, 0)

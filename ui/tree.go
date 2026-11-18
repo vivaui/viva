@@ -96,7 +96,7 @@ type treeDrag struct {
 	at              gfx.Point
 	target, Next    TreeMove // the drop the last paint found, and the one this paint finds
 	valid, nextOK   bool
-	rect            Rect          // the row the drop is at, as painted
+	Rect            Rect          // the row the drop is at, as painted
 	view            Rect          // the tree's visible area, as of the last paint
 	scrolled        time.Duration // the last step of the scroll at an edge
 }
@@ -351,7 +351,7 @@ func (s *TreeState) dragOver(row *treeRow, d *DrawContext) {
 	from := s.indexOf(drag.from)
 	if from >= 0 && drag.at.Y >= r.Y && drag.at.Y < r.Y+r.Height && from != row.index {
 		if where, ok := s.dropAt(from, row.index, (drag.at.Y-r.Y)/r.Height); ok {
-			drag.Next, drag.nextOK, drag.rect = TreeMove{From: from, To: row.index, Where: where}, true, r
+			drag.Next, drag.nextOK, drag.Rect = TreeMove{From: from, To: row.index, Where: where}, true, r
 		}
 	}
 	if !drag.valid || drag.target.To != row.index {

@@ -42,7 +42,7 @@ func (b Box) Children(fn func()) Box {
 
 // Rect is where the element ended up: valid once the page has been laid out
 // (inside a Draw, after End; or from a Begin/End pair).
-func (b Box) Rect() Rect { return b.n().rect }
+func (b Box) Rect() Rect { return b.n().Rect }
 
 // Content is the natural height of a Scroll's children, valid after End.
 func (b Box) Content() float32 { return b.n().Content }
@@ -461,31 +461,31 @@ func (b Box) Label(v string) Box { b.n().Label = v; return b }
 // inside the frame: where a context menu opens, at the pointer.
 func (b Box) At(x, y float32) Box {
 	n := b.n()
-	n.place, n.anchor = placeAt, Rect{X: x, Y: y}
+	n.Place, n.Anchor = placeAt, Rect{X: x, Y: y}
 	return b
 }
 
 // Below places a Popup under anchor, gap pixels away, its left (Start), middle
 // (Center) or right (End) edge on the anchor's; if it does not fit under it and fits
 // above, it opens above. Above is the same the other way round.
-func (b Box) Below(anchor Rect, Gap float32, align Align) Box {
+func (b Box) Below(Anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBelow, anchor, Gap, align
+	n.Place, n.Anchor, n.PlaceGap, n.PlaceAlign = placeBelow, Anchor, Gap, align
 	return b
 }
 
-func (b Box) Above(anchor Rect, Gap float32, align Align) Box {
+func (b Box) Above(Anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeAbove, anchor, Gap, align
+	n.Place, n.Anchor, n.PlaceGap, n.PlaceAlign = placeAbove, Anchor, Gap, align
 	return b
 }
 
 // Beside places a Popup to the right of anchor, gap pixels away, its top (Start) or
 // bottom (End) edge on the anchor's; it opens on the anchor's left when there is no
 // room on the right. It is for a submenu that opens from a row.
-func (b Box) Beside(anchor Rect, Gap float32, align Align) Box {
+func (b Box) Beside(Anchor Rect, Gap float32, align Align) Box {
 	n := b.n()
-	n.place, n.anchor, n.placeGap, n.placeAlign = placeBeside, anchor, Gap, align
+	n.Place, n.Anchor, n.PlaceGap, n.PlaceAlign = placeBeside, Anchor, Gap, align
 	return b
 }
 
@@ -559,24 +559,24 @@ func (b Box) Chosen() (gfx.ID, bool) {
 //
 //	filter := f.Button(filterID, "Filter").Outline()
 //	f.Popup().BelowBox(filter, 6, ui.End).Children(func() { ... })
-func (b Box) BelowBox(anchor Box, Gap float32, align Align) Box {
-	anchor.n()
+func (b Box) BelowBox(Anchor Box, Gap float32, align Align) Box {
+	Anchor.n()
 	b.Below(Rect{}, Gap, align)
-	b.n().anchorRef = anchor.i + 1
+	b.n().AnchorRef = Anchor.i + 1
 	return b
 }
 
-func (b Box) AboveBox(anchor Box, Gap float32, align Align) Box {
-	anchor.n()
+func (b Box) AboveBox(Anchor Box, Gap float32, align Align) Box {
+	Anchor.n()
 	b.Above(Rect{}, Gap, align)
-	b.n().anchorRef = anchor.i + 1
+	b.n().AnchorRef = Anchor.i + 1
 	return b
 }
 
-func (b Box) BesideBox(anchor Box, Gap float32, align Align) Box {
-	anchor.n()
+func (b Box) BesideBox(Anchor Box, Gap float32, align Align) Box {
+	Anchor.n()
 	b.Beside(Rect{}, Gap, align)
-	b.n().anchorRef = anchor.i + 1
+	b.n().AnchorRef = Anchor.i + 1
 	return b
 }
 

@@ -86,7 +86,7 @@ type listInternals struct {
 	scope        gfx.Scope // the list's place in the page
 	rows         gfx.Scope // the identities of its rows, rows.At(key)
 	selected     int32     // 1 + the row the keys are on, or 0
-	anchor       int32     // 1 + the row a Shift range starts at, or 0
+	Anchor       int32     // 1 + the row a Shift range starts at, or 0
 	span         int32     // where the last Shift range ended, from the anchor
 	changed      bool
 	changedAt    uint32 // the paint Changed is reported in
@@ -171,7 +171,7 @@ func (s *ListState) Selected() int { return int(s.list.selected) - 1 }
 func (s *ListState) Select(row int) {
 	row = min(max(row, -1), max(s.list.n-1, -1))
 	s.list.selected = int32(row + 1)
-	s.list.anchor, s.list.span = s.list.selected, 0
+	s.list.Anchor, s.list.span = s.list.selected, 0
 }
 
 // Chosen reports whether row is in the choice: in the Selection when the list has
@@ -293,7 +293,7 @@ func (s *ListState) chooseRow(row int, epoch uint32) {
 		s.list.selected = int32(row + 1)
 		s.markChanged(epoch)
 	}
-	s.list.anchor, s.list.span = int32(row+1), 0
+	s.list.Anchor, s.list.span = int32(row+1), 0
 	s.revealRow(row)
 }
 
@@ -302,7 +302,7 @@ func (s *ListState) toggleRow(row int, epoch uint32) {
 	s.Selection.set(s.key(row), !s.Selection.Has(s.key(row)))
 	s.markChanged(epoch)
 	s.list.selected = int32(row + 1)
-	s.list.anchor, s.list.span = int32(row+1), 0
+	s.list.Anchor, s.list.span = int32(row+1), 0
 	s.revealRow(row)
 }
 
@@ -310,7 +310,7 @@ func (s *ListState) toggleRow(row int, epoch uint32) {
 // place of those it chose last, elsewhere in place of all others unless keep.
 func (s *ListState) extendRow(row int, keep bool, epoch uint32) {
 	sel := s.Selection
-	pivot := int(s.list.anchor) - 1
+	pivot := int(s.list.Anchor) - 1
 	if pivot < 0 || pivot >= s.list.n {
 		s.chooseRow(row, epoch)
 		return
@@ -836,8 +836,8 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	if int(in.selected) > n {
 		in.selected = 0
 	}
-	if int(in.anchor) > n {
-		in.anchor = 0
+	if int(in.Anchor) > n {
+		in.Anchor = 0
 	}
 	if in.changedAt != p.epoch {
 		in.changed = false
@@ -1318,10 +1318,10 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 func (p *Page) measureLists() {
 	for _, list := range p.lists {
 		for k, node := range p.listRows[list.rows:list.until] {
-			list.state.measured(list.First+k, p.ctx.f.Nodes[node].rect.Height)
+			list.state.measured(list.First+k, p.ctx.f.Nodes[node].Rect.Height)
 		}
 		if list.pinned >= 0 {
-			list.state.measured(list.pinnedRow, p.ctx.f.Nodes[list.pinned].rect.Height)
+			list.state.measured(list.pinnedRow, p.ctx.f.Nodes[list.pinned].Rect.Height)
 		}
 		list.state.afterLayout() // the offset is the layout's now, not the request's
 	}

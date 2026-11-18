@@ -89,7 +89,7 @@ func TestFontSizeWidensASelectAndItsList(t *testing.T) {
 			})
 		})
 		n := box.n()
-		return n.rect.Width, box.f.Nodes[widgetsOf(box.f).selects[n.Aux].popup].Size[axisX].value
+		return n.Rect.Width, box.f.Nodes[widgetsOf(box.f).selects[n.Aux].popup].Size[axisX].value
 	}
 	plainTrigger, plainList := width(0)
 	bigTrigger, bigList := width(26)
@@ -122,7 +122,7 @@ func TestStyledControlsAllocateNothingOnceWarm(t *testing.T) {
 // it takes: the button fills it. Without one it is as tall as its size.
 func TestButtonHeightIsThePaintedHeight(t *testing.T) {
 	theme := gfx.LightTheme()
-	draw := func(declare func(f *Frame) Box) (rect gfx.Rect, painted gfx.Rect, hit gfx.Rect) {
+	draw := func(declare func(f *Frame) Box) (Rect gfx.Rect, painted gfx.Rect, hit gfx.Rect) {
 		var view View
 		canvas := testCanvas()
 		var box Box

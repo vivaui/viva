@@ -29,7 +29,7 @@ const (
 // the root, cannot be absolute.
 func (b Box) Absolute() Box {
 	f, n := b.f, b.n()
-	if n.outOfFlow&absSelf != 0 || n.Parent < 0 {
+	if n.OutOfFlow&absSelf != 0 || n.Parent < 0 {
 		return b
 	}
 	parent := &f.Nodes[n.Parent]
@@ -46,8 +46,8 @@ func (b Box) Absolute() Box {
 		parent.Last = prev
 	}
 	n.Next = -1
-	n.outOfFlow |= absSelf
-	parent.outOfFlow |= absChildren
+	n.OutOfFlow |= absSelf
+	parent.OutOfFlow |= absChildren
 	f.scratch.abs = append(f.scratch.abs, b.i)
 	return b
 }
@@ -64,7 +64,7 @@ func (b Box) Left(v float32) Box   { return b.edge(3, v) }
 func (b Box) Inset(v float32) Box { return b.Top(v).Right(v).Bottom(v).Left(v) }
 
 func (b Box) edge(side int, v float32) Box {
-	b.n().outOfFlow |= 1 << (absEdgeBit + side)
+	b.n().OutOfFlow |= 1 << (absEdgeBit + side)
 	b.f.extra(b.i).edges[side] = v
 	return b
 }
@@ -77,16 +77,16 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 	if p.Flags&flagOutline != 0 {
 		border = 0
 	}
-	lo := *origin(&p.rect, axis) + border
-	span := max(*extent(&p.rect, axis)-2*border, 0)
+	lo := *origin(&p.Rect, axis) + border
+	span := max(*extent(&p.Rect, axis)-2*border, 0)
 	for _, ai := range f.scratch.abs {
 		a := &f.Nodes[ai]
 		if a.Parent != i {
 			continue
 		}
 		ms, me := a.marginOn(axis)
-		hasStart := a.outOfFlow&(1<<(absEdgeBit+startEdge(axis))) != 0
-		hasEnd := a.outOfFlow&(1<<(absEdgeBit+endEdge(axis))) != 0
+		hasStart := a.OutOfFlow&(1<<(absEdgeBit+startEdge(axis))) != 0
+		hasEnd := a.OutOfFlow&(1<<(absEdgeBit+endEdge(axis))) != 0
 		var edgeStart, edgeEnd float32
 		if a.Ext != 0 {
 			edgeStart, edgeEnd = f.Exts[a.Ext].edges[startEdge(axis)], f.Exts[a.Ext].edges[endEdge(axis)]
@@ -118,7 +118,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 		default:
 			at += offset(a.alignOn(p), span-ms-me-size)
 		}
-		*extent(&a.rect, axis), *origin(&a.rect, axis) = size, at
+		*extent(&a.Rect, axis), *origin(&a.Rect, axis) = size, at
 		f.solve(ai, axis)
 	}
 }

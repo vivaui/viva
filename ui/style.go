@@ -388,5 +388,5 @@ func (f *frame) paintGradient(n *node, extra *extra) {
 			stops[i].Color = fade(stops[i].Color, f.Opacity)
 		}
 	}
-	f.Surface.FillGradient(n.rect, n.Radius, float32(g.angle), stops)
+	f.Surface.FillGradient(n.Rect, n.Radius, float32(g.angle), stops)
 }
