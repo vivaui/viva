@@ -94,7 +94,7 @@ func (m *model) row(r ui.ListRow) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{
+	return ui.Configure(page, app.Config{
 		Title: "Input", Width: 640, Height: 360,
 		// The page routes pointer, wheel, shortcut and text input to the controls
 		// it declares. A splitter keeps its arrow keys in its own state, so give
@@ -132,7 +132,7 @@ func main() {
 `ui.Splitter` 把键盘行为保存在自己的状态里：把 `SplitterState.Key` 交给窗口的按键回调，获得焦点的分隔条就能用方向键移动：
 
 ```go
-page.Config(app.Config{OnKey: m.split.Key /* ... */})
+ui.Configure(page, app.Config{OnKey: m.split.Key /* ... */})
 ```
 
 `OnKey` 收到页面没有拿走的按键事件，目标是当前持有焦点的控件。`Target` 说明是哪一个，所以处理函数在动手前要先检查它。`Key` 是导航键、编辑键和功能键的名字（`KeyDown`、`KeyEscape`、`KeyEnter`、`KeyTab`……）。对于 Ctrl+C 这样的组合，`Key` 是 `KeyUnknown`，`Text` 是不带修饰键的字符。自己的控件用 `ui.Handlers` 接收按键；`OnKey` 是页面之下的兜底。

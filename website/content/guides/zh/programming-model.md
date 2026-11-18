@@ -17,7 +17,7 @@ Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *
 
 ## 事件
 
-按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Page.Config` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
+按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Configure` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
 
 | 回调 | 收到什么 |
 | --- | --- |
@@ -41,6 +41,14 @@ config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 所有回调都在窗口线程上运行，不能阻塞。
 
 ## 后台任务
+
+有三种方式把工作交回窗口线程，按工作归属来选：
+
+| 工作 | 使用 |
+| --- | --- |
+| 属于某个页面，键变化或页面不再声明时应当停止 | `ui.Effect` |
+| 是后台 goroutine 完成后必须在窗口线程上执行的函数（应用的事件循环，任意窗口） | `Application.Post` |
+| 只归你自己所有，没有页面键：你用自己的锁发布结果 | `Invalidator.Invalidate` 加 `Config.OnWake` |
 
 其他 goroutine 从不直接操作窗口。goroutine 在你自己的同步保护下发布结果，然后调用 `Invalidator.Invalidate`。窗口线程被唤醒一次，运行 `OnWake`，再重绘。
 
@@ -93,7 +101,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
+	config := ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
 	// for: move what the goroutine published into state that the page reads.

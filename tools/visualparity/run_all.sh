@@ -31,7 +31,8 @@ for platform in "${platforms[@]}"; do
 #!/bin/bash
 chmod +x /home/user/$TAG
 rm -rf /tmp/$TAG-out; mkdir -p /tmp/$TAG-home /tmp/$TAG-run; cd /tmp/$TAG-run
-export HOME=/tmp/$TAG-home SHELL=/bin/bash DISPLAY=:1 XAUTHORITY=/home/user/.Xauthority
+export HOME=/tmp/$TAG-home SHELL=/bin/bash XDG_RUNTIME_DIR=$VIVA_LINUX_RUNTIME_DIR DISPLAY=$VIVA_LINUX_DISPLAY
+if [ -n "$VIVA_LINUX_XAUTHORITY" ]; then export XAUTHORITY=$VIVA_LINUX_XAUTHORITY; fi
 if [ -f /tmp/viva-vulkan/lvp-local.json ]; then export VK_ICD_FILENAMES=/tmp/viva-vulkan/lvp-local.json LD_LIBRARY_PATH=/tmp/viva-vulkan/root/usr/lib/x86_64-linux-gnu; fi
 timeout 600 /home/user/$TAG run -out /tmp/$TAG-out -scales 1,1.5,2 > /tmp/$TAG.log 2>&1
 echo exit=\$? >> /tmp/$TAG.log

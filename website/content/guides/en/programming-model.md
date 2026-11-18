@@ -17,7 +17,7 @@ A page names its elements by their place among their siblings, and a row by `c.K
 
 ## Events
 
-A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Page.Config`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
+A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Configure`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
 
 | Callback | Receives |
 | --- | --- |
@@ -41,6 +41,14 @@ config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 All callbacks run on the window thread and must not block.
 
 ## Background work
+
+Three tools hand work back to the window thread; pick by what the work belongs to:
+
+| The work | Use |
+| --- | --- |
+| Belongs to a page and should stop when its key changes or the page stops declaring it | `ui.Effect` |
+| Is a function a goroutine finished that must run on the window thread (the application's loop, any window) | `Application.Post` |
+| Is yours alone, with no page key: you publish under your own lock | `Invalidator.Invalidate` with `Config.OnWake` |
 
 Other goroutines never touch the window. A goroutine publishes its result under your own synchronization, then calls `Invalidator.Invalidate`. The window thread wakes once, runs `OnWake`, and repaints.
 
@@ -93,7 +101,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
+	config := ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
 	// for: move what the goroutine published into state that the page reads.

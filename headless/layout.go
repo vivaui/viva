@@ -96,6 +96,11 @@ func CheckLayout(snapshot app.Snapshot) []LayoutProblem {
 			if a.text.Layer != b.text.Layer {
 				continue
 			}
+			// A selected run is painted again inside its highlight: the same line at
+			// the same place, once under the selection and once over it.
+			if a.text.Value == b.text.Value && a.text.Bounds == b.text.Bounds && a.text.Style == b.text.Style && (a.text.HasClip || b.text.HasClip) {
+				continue
+			}
 			common := intersection(a.visible, b.visible)
 			if common.Width > layoutTolerance && common.Height > layoutTolerance {
 				problems = append(problems, LayoutProblem{LayoutOverlap, common, a.text.Value,

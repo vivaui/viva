@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/keymap"
 )
 
 // ErrNoWindows is returned when an application startup callback returns
@@ -87,6 +88,16 @@ type Window struct {
 	fullscreen atomic.Bool
 	topmostMu  sync.Mutex
 	topmost    atomic.Bool
+	// applyResult carries out a command's event result on this window. The
+	// native host sets it; a host without windows leaves it nil, and the result
+	// of a menu action has nowhere to go.
+	applyResult   func(gfx.EventResult) bool
+	requestRedraw func()
+	// runShortcut offers a menu entry's chord to the application's shortcut
+	// handler with the control that holds the keyboard, as pressing the chord
+	// does. The native host sets it; nil means no handler and the entry's
+	// OnSelect runs instead.
+	runShortcut func(keymap.Chord) (gfx.EventResult, bool)
 }
 
 // Close requests that the native window close. Closing the final window ends
@@ -196,9 +207,13 @@ func (window *Window) Closed() bool {
 // RunApplication call. OpenWindow must be called from the startup callback or
 // a window callback, both of which run on the native event-loop thread.
 type Application struct {
-	host      Host
-	mu        sync.Mutex
-	windows   map[*Window]struct{}
+	host    Host
+	mu      sync.Mutex
+	windows map[*Window]struct{}
+	// active is the window that last became the one the user works in, which is
+	// where the application menu bar's commands take effect, as a native menu's
+	// key equivalents do.
+	active    *Window
 	openedAny bool
 }
 
@@ -223,7 +238,15 @@ func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*
 	})
 	closed := func() {
 		window.closed.Store(true)
+		application.forgetActive(window)
 		forget()
+	}
+	onActivate := config.OnActivate
+	config.OnActivate = func() {
+		application.setActive(window)
+		if onActivate != nil {
+			onActivate()
+		}
 	}
 	// The runtime tracks the minimize state for every window, so Window.Minimized
 	// answers even when the application did not ask for OnMinimize. There is no
@@ -256,10 +279,51 @@ func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*
 		return nil, err
 	}
 	window.control = control
+	if applier, ok := control.(interface {
+		applyResult(gfx.EventResult) bool
+		requestRedraw()
+		runShortcut(keymap.Chord) (gfx.EventResult, bool)
+	}); ok {
+		window.applyResult, window.requestRedraw, window.runShortcut = applier.applyResult, applier.requestRedraw, applier.runShortcut
+	}
 	application.mu.Lock()
 	application.openedAny = true
 	application.mu.Unlock()
 	return window, nil
+}
+
+// setActive records the window the user is working in.
+func (application *Application) setActive(window *Window) {
+	application.mu.Lock()
+	application.active = window
+	application.mu.Unlock()
+}
+
+// forgetActive clears the active window as it closes, so a menu action after it
+// does not run against a window that no longer paints.
+func (application *Application) forgetActive(window *Window) {
+	application.mu.Lock()
+	if application.active == window {
+		application.active = nil
+	}
+	application.mu.Unlock()
+}
+
+// activeWindow is where the application menu's commands take effect: the
+// window that last became active, or the only window while no activation has
+// been reported. Nil when there is no such window.
+func (application *Application) activeWindow() *Window {
+	application.mu.Lock()
+	defer application.mu.Unlock()
+	if application.active != nil && !application.active.closed.Load() {
+		return application.active
+	}
+	if len(application.windows) == 1 {
+		for window := range application.windows {
+			return window
+		}
+	}
+	return nil
 }
 
 // AddStatusItem puts an icon in the system's status area. It is called from the

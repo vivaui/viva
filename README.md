@@ -119,11 +119,18 @@ WebView and no bundled rendering runtime.
   releasing it ends the request.
 - `Application.SetMenuBar` puts the application's own File, Edit and View menus
   between the system's application menu and Window menu on macOS, with key
-  equivalents, enablement, check marks, submenus and loop-thread callbacks; the
-  other desktop targets build their menus in the window with `components.Menubar`.
+  equivalents, enablement, check marks and submenus. An entry's action returns
+  the same `gfx.EventResult` a key handler does, and the runtime carries its
+  focus, clipboard and repaint out on the active window, so a command chosen
+  from the menu behaves as its shortcut does; the other desktop targets build
+  their menus in the window with `components.Menubar`.
 - `Application.Post` hands work a background goroutine finished to the window
   thread: accepted functions run there in order, with no goroutine, timer or
   blocking wait added, and no "call the loop and wait" form that could deadlock.
+- `audio.Open` plays interleaved 16-bit PCM on the system's default output
+  (AudioUnit on macOS, WASAPI shared mode on Windows, ALSA on Linux), with no
+  background work and no backend linked into an application that does not
+  import it. See [docs/audio.md](docs/audio.md).
 - `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
   CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
   static settings), and the environment on Linux. A policy the platform cannot

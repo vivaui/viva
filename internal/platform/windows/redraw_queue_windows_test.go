@@ -1,7 +1,6 @@
 package windows
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -78,7 +77,7 @@ func TestRedrawQueueRetriesConcurrentWakeAfterNativePostFails(t *testing.T) {
 	}
 }
 
-func TestNativeRedrawMessageRearmsBeforeCallingThePainter(t *testing.T) {
+func TestNativeRedrawMessageKeepsRequestsCoalescedUntilPaint(t *testing.T) {
 	// Exercise the message dispatch without creating an OS window or renderer.
 	state := &windowState{}
 	handle := ^uintptr(0)
@@ -88,14 +87,14 @@ func TestNativeRedrawMessageRearmsBeforeCallingThePainter(t *testing.T) {
 	posts := 0
 	post := func() bool { posts++; return true }
 	state.redraws.post(post)
-	stop := errors.New("stop before native rendering")
 	state.config.OnRedraw = func() (platform.Frame, error) {
-		state.redraws.post(post) // a worker updates the state during painting
-		return platform.Frame{}, stop
+		t.Fatal("posted redraw must yield to hardware input before painting")
+		return platform.Frame{}, nil
 	}
 	windowProc(handle, wmRedraw, 0, 0)
-	if posts != 2 || state.err != stop {
-		t.Fatalf("posts=%d err=%v", posts, state.err)
+	state.redraws.post(post)
+	if posts != 1 || !state.redrawRequested {
+		t.Fatalf("posts=%d requested=%v", posts, state.redrawRequested)
 	}
 }
 

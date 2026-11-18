@@ -27,8 +27,8 @@ func TestTextFieldIDEditsTheBoundEditorUnderItsExplicitName(t *testing.T) {
 		t.Fatal("NavigationKeys did not reach the field's hit")
 	}
 	d.click("Search")
-	if d.focused() != "Search" {
-		t.Fatalf("focus = %q", d.focused())
+	if d.Focused() != "Search" {
+		t.Fatalf("focus = %q", d.Focused())
 	}
 	d.typeText("hello")
 	if editor.String() != "hello" || field.Text() != "hello" {

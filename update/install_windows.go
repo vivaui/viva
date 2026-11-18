@@ -185,13 +185,40 @@ func installPayload(options InstallOptions, quit func()) error {
 	if err := checkWritable(installDir); err != nil {
 		return err
 	}
+	// The helper reads the payload only after this process has exited, and the
+	// caller may delete its payload as soon as quit is called, as it may on the
+	// other platforms. The helper reads a copy of its own instead and deletes
+	// it when it is done, whether the update worked or not.
+	options.report("staging")
+	staged, err := stagePayloadDir(payload)
+	if err != nil {
+		return fmt.Errorf("update: staging the payload: %w", err)
+	}
 	options.report("replacing")
-	if err := startPayloadHelper(os.Getpid(), payload, installDir, executable, options.Args); err != nil {
+	if err := startPayload(os.Getpid(), staged, installDir, executable, options.Args); err != nil {
+		_ = os.RemoveAll(staged)
 		return fmt.Errorf("update: start the update helper: %w", err)
 	}
 	quit()
 	return nil
 }
+
+// stagePayloadDir copies payload into a new temporary directory, which the update
+// helper owns from then on, and returns that directory.
+func stagePayloadDir(payload string) (string, error) {
+	staged, err := os.MkdirTemp("", "viva-update-payload-")
+	if err != nil {
+		return "", err
+	}
+	if err := copyTree(payload, staged); err != nil {
+		_ = os.RemoveAll(staged)
+		return "", err
+	}
+	return staged, nil
+}
+
+// startPayload starts the update helper; a test replaces it.
+var startPayload = startPayloadHelper
 
 // startPayloadHelper launches a detached PowerShell script that waits for this
 // process to exit, copies the staged files over the installation and starts
@@ -217,8 +244,6 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	fmt.Fprintf(&script, "$payload = %s\n", powerShellQuote(payload))
 	fmt.Fprintf(&script, "$dir = %s\n", powerShellQuote(installDir))
 	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
-	// Enumeration expands DOS aliases, so both substring roots need full names.
-	script.WriteString("$payload = (Get-Item -LiteralPath $payload).FullName\n")
 	script.WriteString("$backup = Join-Path $dir ('.viva-update-' + [guid]::NewGuid().ToString('N'))\n")
 	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
 	script.WriteString("$temps = New-Object System.Collections.ArrayList\n")
@@ -235,6 +260,9 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("  foreach ($rel in $created) { Remove-Item -LiteralPath (Join-Path $dir $rel) -Force -ErrorAction SilentlyContinue }\n")
 	script.WriteString("  foreach ($tmp in $temps) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }\n")
 	script.WriteString("}\n")
+	// The payload is the helper's own copy (stagePayloadDir): it is deleted on every
+	// way out, so a failed update leaves nothing behind either.
+	script.WriteString("function Discard { Remove-Item -LiteralPath $payload -Recurse -Force -ErrorAction SilentlyContinue }\n")
 	// The relaunch keeps the arguments the program was started with, so a test
 	// binary starts its own case again rather than a whole suite.
 	script.WriteString("function Launch {\n")
@@ -248,8 +276,12 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("  if (-not (Get-Process -Id $parent -ErrorAction SilentlyContinue)) { $alive = $false; break }\n")
 	script.WriteString("  Start-Sleep -Seconds 1\n")
 	script.WriteString("}\n")
-	script.WriteString("if ($alive) { exit 1 }\n")
+	script.WriteString("if ($alive) { Discard; exit 1 }\n")
 	script.WriteString("try {\n")
+	// Enumeration expands DOS aliases, so both substring roots need full names.
+	// Resolving it is inside the try: a payload that cannot be read must still
+	// start the old version again rather than leave no application running.
+	script.WriteString("  $payload = (Get-Item -LiteralPath $payload).FullName\n")
 	// A backup a previous update could not remove (its old executable was still
 	// held) would otherwise stay in the install directory for good: the name is
 	// a fresh GUID each time.
@@ -279,10 +311,10 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	}
 	script.WriteString("\n")
 	script.WriteString("  Start-Sleep -Seconds 2\n")
-	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; exit 1 }\n")
-	script.WriteString("} catch { Restore; Launch; exit 1 }\n")
+	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; Discard; exit 1 }\n")
+	script.WriteString("} catch { Restore; Launch; Discard; exit 1 }\n")
 	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
-	script.WriteString("Remove-Item -Recurse -Force $payload -ErrorAction SilentlyContinue\n")
+	script.WriteString("Discard\n")
 	script.WriteString("exit 0\n")
 	return script.String()
 }

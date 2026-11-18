@@ -7,6 +7,7 @@
 
 #include "system_darwin.h"
 #include "cursor_owner_darwin.h"
+#include "save_panel_darwin.h"
 
 static const size_t viva_max_clipboard_bytes = 64u << 20;
 
@@ -873,17 +874,7 @@ static int viva_system_save_file_internal(
             if (panelTitle.length > 0) {
                 panel.title = panelTitle;
             }
-            if (name.length > 0) {
-                panel.nameFieldStringValue = name;
-            }
-            if (allowed.count > 0) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-                panel.allowedFileTypes = allowed;
-#pragma clang diagnostic pop
-                panel.allowsOtherFileTypes = NO;
-                panel.extensionHidden = NO;
-            }
+            viva_configure_save_panel(panel, name, allowed);
             NSModalResponse response = viva_run_panel(panel);
             if (response == NSModalResponseCancel) {
                 status = 1;

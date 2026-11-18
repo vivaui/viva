@@ -9,9 +9,9 @@ import (
 
 // tooltipShown reports whether the frame shows text in a tooltip: a label with
 // that text and no control of that name.
-func tooltipShown(d *pageDriver, text string) bool {
+func tooltipShown(d *pageDriver, Text string) bool {
 	for _, label := range d.driver.Snapshot().Labels {
-		if label.Value == text {
+		if label.Value == Text {
 			return true
 		}
 	}
@@ -59,14 +59,14 @@ func TestTooltip(t *testing.T) {
 }
 
 // tooltipLabel is the label of the shown tooltip saying text.
-func tooltipLabel(t *testing.T, d *pageDriver, text string) gfx.Rect {
+func tooltipLabel(t *testing.T, d *pageDriver, Text string) gfx.Rect {
 	t.Helper()
 	for _, label := range d.driver.Snapshot().Labels {
-		if label.Value == text {
+		if label.Value == Text {
 			return label.Bounds
 		}
 	}
-	t.Fatalf("no tooltip says %q", text)
+	t.Fatalf("no tooltip says %q", Text)
 	return gfx.Rect{}
 }
 

@@ -1,11 +1,82 @@
 ---
 title: Drawing and layout
-summary: Coordinates, slicing space with rows, columns and grids, and painting rectangles, text, icons and paths.
+summary: Painting inside an element of a page, and the whole-window canvas, with coordinates, rows, columns and grids, rectangles, text, icons and paths.
 order: 6
 group: guides
 ---
 
-Everything on screen is painted into a `gfx.Canvas` from your `Paint` callback. There is no widget tree to build and no stylesheet: you compute rectangles and ask the canvas to fill them, draw text in them, or declare them interactive.
+Everything on screen is painted into a `gfx.Canvas`. Most applications do not call it directly for their controls: they declare a page with package `ui` ([Declarative layout](declarative-layout)), which lays out the elements and paints the controls, and they paint themselves only where `ui` has nothing that fits. There are two ways to do that.
+
+## Painting inside a page
+
+Give an element of the page a `Draw` (after its background and border, before its children) or a `DrawOver` (after its children). The page decides where the element goes and how big it is, and the callback paints inside `d.Rect` with the canvas, the theme, and the element's hover, press and focus state. Declare the element with `Hit` and a name, and the pointer and assistive technology reach it as they reach a control.
+
+<!-- example: paintinpage/main.go -->
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/ui"
+)
+
+type model struct {
+	samples []float32 // 0 to 1
+}
+
+// page declares a chart's frame and the button that feeds it. The page lays the
+// chart's element out; what is drawn inside it is the chart's own.
+func (m *model) page(c ui.C) {
+	theme := c.Theme()
+	ui.Column(c).Fill().Pad(24).Gap(16).Children(func() {
+		ui.Text(c, "Samples").FontSize(20).Bold()
+		ui.Row(c).FillWidth().Height(120).Radius(8).Background(theme.Card).Border(1, theme.Border).
+			Hit(ui.ID(c), "Samples chart").
+			Draw(m.bars).
+			DrawOver(func(d *ui.DrawContext) {
+				if d.State.Hovered {
+					d.Canvas.Fill(d.Rect, d.Fade(theme.Foreground.WithAlpha(0.06)))
+				}
+			})
+		if ui.Button(c, "Add a sample").Clicked() {
+			m.samples = append(m.samples, float32(len(m.samples)%7+1)/8)
+		}
+	})
+}
+
+// bars paints one bar for each sample in d.Rect, the room the page gave the element.
+// It only paints: it may run more than once a frame and declares no elements.
+func (m *model) bars(d *ui.DrawContext) {
+	const gap = 6
+	if len(m.samples) == 0 {
+		return
+	}
+	width := (d.Rect.Width - gap*float32(len(m.samples)+1)) / float32(len(m.samples))
+	for i, value := range m.samples {
+		height := d.Rect.Height * 0.8 * value
+		d.Canvas.Fill(ui.Rect{
+			X:     d.Rect.X + gap + float32(i)*(width+gap),
+			Y:     d.Rect.Y + d.Rect.Height - height - 8,
+			Width: width, Height: height,
+		}, d.Fade(d.Theme.Primary))
+	}
+}
+
+func main() {
+	m := &model{samples: []float32{0.3, 0.6, 0.45}}
+	if err := ui.Run(app.Config{Title: "Samples", Width: 480, Height: 300}, m.page); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+A callback only paints: it may run more than once a frame and declares no elements. When the area also takes keys, the pointer or text, use `ui.Control` with its `Handlers` instead of `Hit`; its `Parts` name the regions inside it that you declare while drawing.
+
+## Painting the whole window
+
+An application with no page paints everything from a `Paint` callback: there is no widget tree to build and no stylesheet, you compute rectangles and ask the canvas to fill them, draw text in them, or declare them interactive. You also slice the rectangles, name every hit and keep every control's state (an open menu, a scroll position) yourself, which `ui` does for the controls it has, so choose it only where nothing in `ui` fits. The sections below describe this route; what the canvas draws applies inside a page's `Draw` as well.
 
 ## Coordinates
 

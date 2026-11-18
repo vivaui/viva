@@ -7,6 +7,7 @@ var groupAComponents = []Component{
 	aspectRatioComponent,
 	attachmentComponent,
 	avatarComponent,
+	avatarEditorComponent,
 	breadcrumbComponent,
 	bubbleComponent,
 	buttonGroupComponent,

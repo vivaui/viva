@@ -43,7 +43,8 @@ type InstallOptions struct {
 	// name does not matter, so the one ApplyPatch returns can be passed as it
 	// is: the copy takes the running bundle's name. Install replaces the running
 	// application with it exactly as it would with an unpacked archive, running
-	// the same checks.
+	// the same checks. Install copies the payload before it calls quit, so the
+	// caller still owns it and may delete it once quit has been called.
 	Payload string
 	// Asset is the archive it came from. Its Format tells Install how to unpack
 	// it, and the format must suit the running platform.

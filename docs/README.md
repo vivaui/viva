@@ -31,12 +31,16 @@ mentions every exported method and theme field.
 
 ## What is here
 
+- [maintaining-controls.md](maintaining-controls.md) — how a control and its Base are kept the
+  same, and what adding a control touches.
 - [conformance.md](conformance.md) — the scenarios that need a real window on a
   real platform, and the ones that still need eyes.
 - [accessibility.md](accessibility.md) — the semantic tree and native
   accessibility.
 - [system-integrations.md](system-integrations.md) — tray, menus, notifications,
   file drops, and the rest of the native surface.
+- [audio.md](audio.md) — PCM output on the three native targets, what it does
+  not do, and its measured cost.
 - [web-deployment.md](web-deployment.md) — the browser build, its capability
   matrix, lifecycle mapping, static-hosting headers and security limits.
 - [diagnostics.md](diagnostics.md) — the structured event stream, its slog

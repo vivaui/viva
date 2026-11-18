@@ -1,6 +1,9 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // SliderThumbValue is one stable thumb in a range slider. Keep IDs and order
 // stable; each enabled thumb becomes its own focusable hit.
@@ -360,19 +363,6 @@ func snapSliderValue(value, minimum, maximum, step float32) float32 {
 	return value
 }
 
-// SliderKeyDown applies Base UI's slider keyboard pattern to value with Base
-// UI's default large step of 10 value units: the arrows move it by one step
-// (Right and Up up, Left and Down down; Left and Right swap in RTL), Shift with
-// an arrow and PageUp/PageDown by 10 units, Home and End to the minimum and
-// maximum. A zero or negative step moves by one unit. The result is clamped and
-// snapped like Slider.Step does; the returned bool reports whether key is owned
-// by the slider pattern, so the caller passes anything else on.
-//
-//	next, handled := components.SliderKeyDown(m.volume, 0, 100, 5, components.LTR, event.Key, event.Modifiers)
-func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
-	return SliderKeyDownLarge(value, minimum, maximum, step, 10, direction, key, modifiers)
-}
-
 // SliderKeyDownLarge is SliderKeyDown with Base UI's configurable largeStep: the
 // number of value units Shift+arrow and PageUp/PageDown move, not a number of
 // steps. Base UI's default is 10, which SliderKeyDown uses, so a step of 5
@@ -483,4 +473,7 @@ func RangeSliderKeyDown(values []float32, index int, minimum, maximum, step, lar
 	}
 	values[index] = target
 	return true
+}
+func SliderKeyDown(value, minimum, maximum, step float32, direction Direction, key gfx.Key, modifiers gfx.Modifiers) (float32, bool) {
+	return style.SliderKeyDown(value, minimum, maximum, step, style.Direction(direction), key, modifiers)
 }

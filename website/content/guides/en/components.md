@@ -11,7 +11,7 @@ The catalog is a statically typed Go translation of the pinned shadcn/ui compone
 
 ## Using a component
 
-Import `github.com/vivaui/viva/components` and declare the component while painting. This is the normal path, and it is what the [first window](/en/docs/getting-started/) does.
+A page is written with package `ui`, whose controls (`ui.Button`, `ui.Checkbox`, `ui.Select` and the rest) paint with these components, as the [first window](/en/docs/getting-started/) does. Import `github.com/vivaui/viva/components` yourself when you paint into a `gfx.Canvas` by hand, or install a component's source to change it.
 
 ```go
 components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
@@ -44,7 +44,7 @@ Two limits are deliberate. A chart draws every point it is given, so a very long
 
 ## Owning a copy
 
-If you want to change a component, copy it. `viva list` names the recipes the installer can copy, and `viva add` writes them into your project as ordinary Go files:
+If you want to change a component, copy it. `viva list` names the recipes the installer can copy, and `viva add` writes them into your project as ordinary Go files. A copy is a painting recipe: it draws into a `gfx.Canvas` in the rectangle you give it (`BeginButton(canvas, theme, id, bounds)`), so you use it from a `Draw` callback of a page's element or from a whole-window `Paint`, and its look is the code you edit. To change how every `ui.Button` looks without copying anything, give the page `PageConfig.Styles`; to build a control of your own look on the behavior `ui` ships, use `ui.ButtonBase` and the other Bases.
 
 ```sh
 # install viva once (see "Build and package"); in a project made by viva init, use go tool viva

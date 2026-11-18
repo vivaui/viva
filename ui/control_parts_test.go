@@ -11,7 +11,7 @@ import (
 // stars are parts it declares as it draws, with its own keys.
 type stars struct {
 	handlers ui.Handlers
-	value    int
+	Value    int
 	pressed  []int // the parts a pointer event was aimed at
 	typed    []string
 	drawFn   func(*ui.DrawContext) // s.draw, made once: a method value made in each paint allocates
@@ -46,7 +46,7 @@ func (s *stars) key(event gfx.KeyEvent) gfx.EventResult {
 		prev := max(i-1, 0)
 		return gfx.EventResult{Handled: true, Repaint: true, Focus: s.handlers.Parts().At(prev), FocusVisible: true}
 	case gfx.KeyEnter, gfx.KeySpace:
-		s.value = i + 1
+		s.Value = i + 1
 		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	return gfx.EventResult{}
@@ -55,7 +55,7 @@ func (s *stars) key(event gfx.KeyEvent) gfx.EventResult {
 func (s *stars) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if i, ok := s.part(event.Target); ok && event.Kind == gfx.PointerDown {
 		s.pressed = append(s.pressed, i)
-		s.value = i + 1
+		s.Value = i + 1
 		return gfx.EventResult{Handled: true, Repaint: true}
 	}
 	return gfx.EventResult{}
@@ -68,7 +68,7 @@ func (s *stars) draw(d *ui.DrawContext) {
 	for i := range 5 {
 		r := gfx.Rect{X: d.Rect.X + float32(i)*34, Y: d.Rect.Y, Width: 32, Height: 32}
 		color := d.Theme.Muted
-		if i < s.value {
+		if i < s.Value {
 			color = d.Theme.Primary
 		}
 		d.Canvas.Fill(r, color)
@@ -90,21 +90,21 @@ func TestControlPartsTakeThePointerAndTheKeys(t *testing.T) {
 	s := newStars()
 	d := openPage(t, s.page)
 	d.click("Star 4")
-	if s.value != 4 || len(s.pressed) == 0 || s.pressed[0] != 3 {
-		t.Fatalf("a press on star 4: value %d, parts pressed %v", s.value, s.pressed)
+	if s.Value != 4 || len(s.pressed) == 0 || s.pressed[0] != 3 {
+		t.Fatalf("a press on star 4: value %d, parts pressed %v", s.Value, s.pressed)
 	}
-	if d.focused() != "Star 4" {
-		t.Fatalf("the press focused %q", d.focused())
+	if d.Focused() != "Star 4" {
+		t.Fatalf("the press focused %q", d.Focused())
 	}
 	d.key(gfx.KeyRight)
-	if d.focused() != "Star 5" {
-		t.Fatalf("Right went to %q", d.focused())
+	if d.Focused() != "Star 5" {
+		t.Fatalf("Right went to %q", d.Focused())
 	}
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyEnter)
-	if d.focused() != "Star 3" || s.value != 3 {
-		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.focused(), s.value)
+	if d.Focused() != "Star 3" || s.Value != 3 {
+		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.Focused(), s.Value)
 	}
 }
 
@@ -140,8 +140,8 @@ func TestControlPartsAreItsOwn(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 'g'); err != nil {
 		t.Fatal(err)
 	}
-	if s.value != 0 || len(s.typed) != 0 {
-		t.Fatalf("value %d, typed %q from a key on a button", s.value, s.typed)
+	if s.Value != 0 || len(s.typed) != 0 {
+		t.Fatalf("value %d, typed %q from a key on a button", s.Value, s.typed)
 	}
 }
 
@@ -152,5 +152,57 @@ func TestControlPartsRepaintAllocates(t *testing.T) {
 	d.click("Star 2")
 	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
 		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}
+
+// A ContextMenu on a control with parts keeps its rows and its backdrop apart from
+// the parts: a click on any row chooses it, and the click that dismisses the menu
+// presses no part, rather than either reaching the control as a press on a part.
+func TestControlContextMenuIsNotItsParts(t *testing.T) {
+	s := newStars()
+	var chosen []string
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			rating := ui.Control(c, "Rating", &s.handlers).Size(240, 32).Draw(s.drawFn)
+			ui.ContextMenu(c, rating, func(menu *ui.MenuItems) {
+				for _, label := range [...]string{"Clear", "Half", "Full"} {
+					if menu.Item(label).Clicked() {
+						chosen = append(chosen, label)
+					}
+				}
+			})
+		})
+	})
+	// The control's own area, right of the stars, opens the menu.
+	rating := d.hit("Rating").Bounds
+	x, y := rating.X+rating.Width-10, rating.Y+rating.Height/2
+	openMenu := func() {
+		t.Helper()
+		if err := d.driver.ClickButton(x, y, gfx.PointerButtonSecondary); err != nil {
+			t.Fatal(err)
+		}
+		if !d.has("Clear") {
+			t.Fatal("a secondary press on the control did not open its menu")
+		}
+	}
+	for _, label := range [...]string{"Clear", "Half", "Full"} {
+		openMenu()
+		d.click(label)
+		if n := len(chosen); n == 0 || chosen[n-1] != label || d.has("Clear") {
+			t.Fatalf("a click on %s chose %q, menu shown %v", label, chosen, d.has("Clear"))
+		}
+	}
+	openMenu()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint with the menu open", allocs)
+	}
+	if err := d.driver.Click(rating.X+rating.Width/2, rating.Y+200); err != nil {
+		t.Fatal(err)
+	}
+	if d.has("Clear") {
+		t.Fatal("a click outside the menu left it open")
+	}
+	if len(s.pressed) != 0 || s.Value != 0 {
+		t.Fatalf("the menu pressed the parts %v, value %d", s.pressed, s.Value)
 	}
 }

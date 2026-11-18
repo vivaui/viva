@@ -203,6 +203,12 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnClosed:         normalized.OnClosed,
 		DynamicTextInput: normalized.TextInput != nil,
 	}
+	if normalized.TextInput != nil {
+		config.ReadOnlyTextFocused = func() bool {
+			context, _, _ := painter.focusedTextField()
+			return !context.ID.IsZero() && context.ReadOnly
+		}
+	}
 	config.WindowBorderColor = borderColorHandler(normalized.WindowBorderColor)
 	return config, frames
 }
@@ -210,13 +216,15 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 // prepareNativeWindow builds the native window for one application window. It
 // runs on the window loop's main thread, which the platform preferences it
 // reads require; a test owns the wiring through nativeWindowConfig instead.
-func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, func(), error) {
+// The painter is what carries out an event result the window did not receive
+// from an event handler, such as an application menu action.
+func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, *painter, func(), error) {
 	normalized, err := config.normalize()
 	if err != nil {
-		return platform.Config{}, nil, err
+		return platform.Config{}, nil, nil, err
 	}
 	if normalized.TextInput != nil && !nativeTextInputSupported {
-		return platform.Config{}, nil, fmt.Errorf("%w: native text input", ErrUnsupported)
+		return platform.Config{}, nil, nil, fmt.Errorf("%w: native text input", ErrUnsupported)
 	}
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
@@ -235,7 +243,7 @@ func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, fu
 	painter, err := newPainter(canvas, &normalized)
 	if err != nil {
 		cleanup()
-		return platform.Config{}, nil, err
+		return platform.Config{}, nil, nil, err
 	}
 	painter.setClipboardText = func(value string) { _ = nativeSetClipboardText(value) }
 	painter.setCursor = nativeSetCursor
@@ -243,5 +251,5 @@ func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, fu
 	native, timer := nativeWindowConfig(&normalized, painter)
 	frames = timer
 	stopWatchingDesktop := watchDesktopSettings(canvas, native.Waker)
-	return native, func() { stopWatchingDesktop(); cleanup() }, nil
+	return native, painter, func() { stopWatchingDesktop(); cleanup() }, nil
 }

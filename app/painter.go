@@ -18,6 +18,7 @@ import (
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/internal/semantic"
+	"github.com/vivaui/viva/keymap"
 	"github.com/vivaui/viva/text"
 )
 
@@ -571,6 +572,27 @@ func normalizeShortcutText(value string) string {
 		return letters[index : index+1]
 	}
 	return value
+}
+
+// menuShortcut offers a menu entry's chord to the window as the platform
+// delivers the same key: a character chord to the shortcut handler, a named key
+// to the key handler, both with the control that holds the keyboard as the
+// target. The application decides whether the chord is its command; the caller
+// carries out the result and asks for the repaint, unlike the platform's key
+// path here.
+func (painter *painter) menuShortcut(chord keymap.Chord) (gfx.EventResult, bool) {
+	event := gfx.KeyEvent{Key: chord.Key, Modifiers: chord.Modifiers, Target: painter.focus.Focused()}
+	handler := painter.onKey
+	if chord.Char != 0 {
+		event.Key = gfx.KeyUnknown
+		event.Text = normalizeShortcutText(string(chord.Char))
+		handler = painter.onShortcut
+	}
+	if handler == nil || !chord.Valid() {
+		return gfx.EventResult{}, false
+	}
+	response := handler(event)
+	return response, response.Handled
 }
 
 // keysWanted reports whether the focused terminal asked for presses and
@@ -1460,7 +1482,7 @@ func (painter *painter) applyTextEvent(event platform.TextEvent) (platform.TextS
 	}
 	var next TextState
 	if editor != nil {
-		accepted := appEvent.apply(editor)
+		accepted := appEvent.Apply(editor)
 		if painter.nativeText.Secure && accepted && !editor.TentativeCompositionActive() {
 			editor.ClearHistory()
 		}

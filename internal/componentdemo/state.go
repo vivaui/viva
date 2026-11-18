@@ -103,16 +103,17 @@ type State struct {
 	fieldID      gfx.ID
 	editing      bool
 	// textarea keeps the rows and scroll of the Textarea example.
-	textarea    *components.TextareaLayout
-	codeEditor  *components.CodeEditor
-	codeDiff    *codeDiffDemoState
-	codeMerge   *codeMergeDemoState
-	reorder     *reorderDemoState
-	reorderGrid *reorderGridDemoState
-	imageBitmap *gfx.Bitmap
-	dialog      dialogState
-	slider      sliderDemoState
-	picker      *colorPickerDemoState
+	textarea     *components.TextareaLayout
+	codeEditor   *components.CodeEditor
+	codeDiff     *codeDiffDemoState
+	codeMerge    *codeMergeDemoState
+	reorder      *reorderDemoState
+	reorderGrid  *reorderGridDemoState
+	imageBitmap  *gfx.Bitmap
+	avatarEditor *avatarEditorDemoState
+	dialog       dialogState
+	slider       sliderDemoState
+	picker       *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
 	// list is the page-layer List example: its rows, choice and page.

@@ -36,7 +36,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
+	return ui.Configure(page, app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {

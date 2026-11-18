@@ -1,5 +1,8 @@
-// Package components contains source-oriented UI recipes built from ui
-// primitives.
+// Package components contains source-oriented UI recipes that paint into a
+// gfx.Canvas. It imports gfx, text and field, not package ui: package ui paints
+// its own controls with these recipes, and a page is written with ui. Use a
+// recipe directly when painting into a canvas by hand, or install its source
+// with viva add to change it.
 //
 // Every recipe is a plain Go value: one component per file, no runtime
 // registry, no reflection, no package init, no hidden workers. Linkage is
@@ -22,9 +25,9 @@
 //	BeginButton(canvas, theme, id, bounds).Default("Save")
 //
 // Hit declaration, hover/press/focus feedback, focus rings, and semantic
-// labels are built into each recipe. Keep hit IDs as explicit literals in
-// disjoint ranges and stable across paints so retained scenes, focus, and
-// accessibility targets stay stable.
+// labels are built into each recipe. Keep each hit identity stable across
+// paints, named in a gfx.Tree rather than numbered by hand, so retained scenes,
+// focus, and accessibility targets stay stable.
 //
 // Editing components (input, textarea, OTP, combobox) render caller-owned
 // snapshots such as InputSnapshot: value, caret, selection, and IME
@@ -57,6 +60,15 @@
 //     its Query editor to the application's text-input provider.
 //
 // Actions:
+//   - Avatar editor: `BeginAvatarEditor` paints a crop surface inside
+//     caller-provided bounds. It owns drag-to-position, pointer-centered wheel
+//     zoom, a zoom slider and buttons, keyboard controls, an optional circular
+//     preview, and a caller-configurable aspect ratio. Titles, modal chrome,
+//     and confirm/cancel actions remain with the surrounding application.
+//     Start with a zero AvatarEditorState, keep the state returned from Paint
+//     and from the layout's Pointer, Scroll and Key handlers, and read Crop in
+//     source bitmap pixels only when Ready. Reset the state when the source
+//     changes.
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.
