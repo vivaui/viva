@@ -66,10 +66,10 @@ func Pagination(c C, items []PaginationItem) Box {
 
 // paintPagination paints the row's items into the element's rectangle, which the
 // component's layout keeps inside its bounds.
-func (f *frame) paintPagination(n *node) {
-	d := &widgetsOf(f).paginations[n.aux]
+func (f *frame) paintPagination(v ControlView) {
+	d := &widgetsOf(f).paginations[v.Aux]
 	items := widgetsOf(f).paginationItems[d.start : d.start+d.count]
-	bar := components.BeginPagination(f.canvas, f.theme, n.rect)
+	bar := components.BeginPagination(f.canvas, f.theme, v.Rect)
 	for _, item := range items {
 		bar.Add(item)
 	}

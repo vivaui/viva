@@ -48,9 +48,9 @@ func (f *frame) paintSpinnerControl(n *node, _ Rect)     { f.paintSpinner(n) }
 func (f *frame) paintSplitterControl(n *node, _ Rect)    { f.paintSplitter(n) }
 func (f *frame) paintSliderControl(n *node, _ Rect)      { f.paintSlider(n) }
 func (f *frame) paintWidgetControl(n *node, _ Rect)      { f.paintWidget(n) }
-func (f *frame) paintSplitButtonControl(n *node, r Rect) { f.paintSplitButton(n) }
-func (f *frame) paintBadgeControl(n *node, _ Rect)       { f.paintBadge(n) }
-func (f *frame) paintPaginationControl(n *node, _ Rect)  { f.paintPagination(n) }
+func (f *frame) paintSplitButtonControl(n *node, r Rect) { f.paintSplitButton(viewOf(f, n)) }
+func (f *frame) paintBadgeControl(n *node, _ Rect)       { f.paintBadge(viewOf(f, n)) }
+func (f *frame) paintPaginationControl(n *node, _ Rect)  { f.paintPagination(viewOf(f, n)) }
 
 func (f *frame) paintCheckboxControl(n *node, r Rect) {
 	canvas := f.canvas

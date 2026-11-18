@@ -120,15 +120,15 @@ func (b Box) MenuTriggerWidth(width float32) Box {
 
 // paintSplitButton paints both halves with the page's variant, size, name and
 // state, and leaves their hits to the component.
-func (f *frame) paintSplitButton(n *node) {
-	d := &widgetsOf(f).splitButtons[n.aux]
+func (f *frame) paintSplitButton(v ControlView) {
+	d := &widgetsOf(f).splitButtons[v.Aux]
 	options := components.SplitButtonOptions{
 		PrimaryID: d.primary, MenuID: d.menu,
-		Label: n.label, MenuLabel: d.menuLabel, Hint: d.hint, MenuHint: d.menuHint,
-		Icon: d.icon, Variant: n.variant, Size: n.buttonSize,
+		Label: v.Label, MenuLabel: d.menuLabel, Hint: d.hint, MenuHint: d.menuHint,
+		Icon: d.icon, Variant: v.Variant, Size: v.Size,
 		TriggerWidth: d.triggerWidth, Open: d.open,
-		Disabled: n.flags&flagDisabled != 0,
+		Disabled: v.Disabled,
 	}
-	r := n.rect
+	r := v.Rect
 	components.BeginSplitButton(f.canvas, f.theme, Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}, options).Paint()
 }

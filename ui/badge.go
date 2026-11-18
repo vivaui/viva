@@ -47,16 +47,16 @@ func badgeVariant(variant components.ButtonVariant) components.BadgeVariant {
 	return components.BadgeDefault
 }
 
-// paintBadge paints the chip the element measured, and its hit when one was
+// paintBadge paints the chip the view measured, and its hit when one was
 // declared.
-func (f *frame) paintBadge(n *node) {
-	rect := n.rect
-	components.PaintBadge(f.canvas, f.theme, Rect{X: rect.X, Y: rect.Y}, n.text, badgeVariant(n.variant))
-	if n.flags&flagHasHit != 0 && !n.id.IsZero() {
-		options := f.exts[n.ext].hit
+func (f *frame) paintBadge(v ControlView) {
+	rect := v.Rect
+	components.PaintBadge(f.canvas, f.theme, Rect{X: rect.X, Y: rect.Y}, v.Text, badgeVariant(v.Variant))
+	if v.HasHit && !v.ID.IsZero() {
+		options := v.Hit
 		if options.Role == 0 {
 			options.Role = gfx.RoleButton
 		}
-		f.canvas.HitWithOptions(n.id, rect, n.label, options)
+		f.canvas.HitWithOptions(v.ID, rect, v.Label, options)
 	}
 }
