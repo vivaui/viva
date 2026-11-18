@@ -62,7 +62,7 @@ func (f *frame) placeGrid(n *node, columns int) int {
 			}
 			col++
 		}
-		child.gridCol, child.gridRow = uint16(col), uint16(row)
+		child.GridCol, child.gridRow = uint16(col), uint16(row)
 		if tall {
 			for r := row; r < row+rs; r++ {
 				for k := col; k < col+cs; k++ {
@@ -168,7 +168,7 @@ func (f *frame) solveGrid(n *node, axis int, start, avail float32) {
 			ms, me := child.marginOn(axisX)
 			covered := float32(cs)*cell + float32(cs-1)*n.gap
 			child.rect.Width = clamp(covered-ms-me, child.minS[axisX], child.maxS[axisX])
-			child.rect.X = start + float32(child.gridCol)*(cell+n.gap) + ms
+			child.rect.X = start + float32(child.GridCol)*(cell+n.gap) + ms
 		}
 		return
 	}
