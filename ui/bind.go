@@ -50,10 +50,10 @@ func (f *frame) bindDone(b Box, changed bool) {
 // bound returns the binding of element i, or nil.
 func (f *frame) bound(i int32) *bindDecl {
 	n := &f.nodes[i]
-	if n.ext == 0 || f.exts[n.ext].bind == 0 {
+	if n.Ext == 0 || f.exts[n.Ext].bind == 0 {
 		return nil
 	}
-	return &f.binds[f.exts[n.ext].bind-1]
+	return &f.binds[f.exts[n.Ext].bind-1]
 }
 
 // settle writes what this paint delivers to element i into its bound value, once.
@@ -106,7 +106,7 @@ func (f *frame) settleAt(i int32) *bindDecl {
 // settleBinds writes every bound value not asked about yet.
 func (f *frame) settleBinds() {
 	for i := range f.nodes {
-		if n := &f.nodes[i]; n.ext != 0 && f.exts[n.ext].bind != 0 {
+		if n := &f.nodes[i]; n.Ext != 0 && f.exts[n.Ext].bind != 0 {
 			f.settle(int32(i))
 		}
 	}

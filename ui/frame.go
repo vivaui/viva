@@ -146,7 +146,7 @@ type node struct {
 	Basis                float32   // Basis, when flagBasis is set
 	Aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
 	Natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
-	ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
+	Ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
 	place                placement // a Popup\'s position
 	anchor               Rect
 	placeGap             float32
@@ -662,11 +662,11 @@ func (f *frame) Slot() Box { return f.box(kindSlot) }
 // extra returns the extras of element i, giving it a set of its own if it has none.
 func (f *frame) extra(i int32) *extra {
 	n := &f.nodes[i]
-	if n.ext == 0 {
-		n.ext = int32(len(f.exts))
+	if n.Ext == 0 {
+		n.Ext = int32(len(f.exts))
 		f.exts = append(f.exts, extra{})
 	}
-	return &f.exts[n.ext]
+	return &f.exts[n.Ext]
 }
 
 // checkHits stops a page that declared the one shape that cannot be what was meant: a

@@ -233,16 +233,16 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	for i := len(f.nodes) - 1; i >= 0; i-- {
 		n := &f.nodes[i]
-		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
+		if n.Ext == 0 || f.exts[n.Ext].scrollState == nil {
 			continue
 		}
 		if !f.containsPoint(i, event.X, event.Y) {
 			continue
 		}
-		if f.exts[n.ext].scrollManual {
+		if f.exts[n.Ext].scrollManual {
 			return gfx.EventResult{}
 		}
-		s := f.exts[n.ext].scrollState
+		s := f.exts[n.Ext].scrollState
 		if !s.canScroll(s.wheelSteps(event)) {
 			continue
 		}
@@ -292,8 +292,8 @@ func (f *frame) ScrollArea(ID gfx.ID) Box {
 // scrolls up, and again once they scroll back down to it: a log, a chat. It starts at
 // the end. Follow(false), the default, leaves the offset to the user and to ScrollTo.
 func (b Box) Follow(on bool) Box {
-	if n := b.n(); n.ext != 0 {
-		if s := b.f.exts[n.ext].scrollState; s != nil {
+	if n := b.n(); n.Ext != 0 {
+		if s := b.f.exts[n.Ext].scrollState; s != nil {
 			s.Follow(on)
 		}
 	}
@@ -378,8 +378,8 @@ func (b Box) ScrollbarSize(Size float32) Box {
 
 // areaState is the state of the ScrollArea b is, or nil for any other box.
 func (b Box) areaState() *ScrollState {
-	if n := b.n(); n.ext != 0 {
-		return b.f.exts[n.ext].scrollState
+	if n := b.n(); n.Ext != 0 {
+		return b.f.exts[n.Ext].scrollState
 	}
 	return nil
 }
@@ -399,10 +399,10 @@ func (b Box) areaState() *ScrollState {
 // comes back, as for a closed dialog or another tab.
 func (b Box) ScrollState() *ScrollState {
 	n := b.n()
-	if n.ext == 0 || b.f.exts[n.ext].scrollState == nil {
+	if n.Ext == 0 || b.f.exts[n.Ext].scrollState == nil {
 		panic("ui: ScrollState is for a scroll area: ui.Scroll, or the area of a List or a Tree")
 	}
-	return b.f.exts[n.ext].scrollState
+	return b.f.exts[n.Ext].scrollState
 }
 
 // reportScrolls tells each ScrollArea's state how tall its content and itself are, and
@@ -415,10 +415,10 @@ func (b Box) ScrollState() *ScrollState {
 func (f *frame) reportScrolls() {
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.ext == 0 || f.exts[n.ext].scrollState == nil {
+		if n.Ext == 0 || f.exts[n.Ext].scrollState == nil {
 			continue
 		}
-		s := f.exts[n.ext].scrollState
+		s := f.exts[n.Ext].scrollState
 		is, ie := n.inset(axisY)
 		s.Content, s.Viewport = n.Content, max(n.rect.Height-is-ie, 0)
 		if s.pinned() {
@@ -438,7 +438,7 @@ func (f *frame) reportScrolls() {
 
 // sidewaysState is the state of a scroll area that scrolls left and right too, or nil.
 func (f *frame) sidewaysState(n *node) *ScrollState {
-	if s := f.exts[n.ext].scrollState; s != nil && s.sideways {
+	if s := f.exts[n.Ext].scrollState; s != nil && s.sideways {
 		return s
 	}
 	return nil

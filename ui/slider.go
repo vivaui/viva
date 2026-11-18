@@ -162,7 +162,7 @@ func (b Box) Step(step float32) Box {
 // or for a Field that its text was edited since it was last declared.
 func (b Box) Changed() bool {
 	n := b.n()
-	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
+	if n.Ext != 0 && b.f.exts[n.Ext].bind != 0 {
 		return b.f.settleFn(b.f, b.i).changed
 	}
 	if n.Kind != kindSlider {

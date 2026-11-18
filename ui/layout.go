@@ -315,7 +315,7 @@ func crossSize(child *node, axis int, avail float32, align Align, hi float32) fl
 // MaxHeightPercent gives, whichever is smaller. Zero is no limit.
 func (f *frame) maxOn(n *node, axis int, avail float32) float32 {
 	hi := n.MaxS[axis]
-	if pct := f.exts[n.ext].maxPct[axis]; pct > 0 {
+	if pct := f.exts[n.Ext].maxPct[axis]; pct > 0 {
 		share := max(avail, 0) * pct / 100
 		if hi == 0 || share < hi {
 			hi = max(share, 0.001) // zero would mean no limit
@@ -465,7 +465,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		}
 	}
 	if scrolls {
-		if state := f.exts[n.ext].scrollState; state != nil && state.pinned() {
+		if state := f.exts[n.Ext].scrollState; state != nil && state.pinned() {
 			n.Scroll = max(used-avail, 0) // at the end of what is there now, not of last frame's
 		}
 		pos -= snapScroll(n.Scroll)

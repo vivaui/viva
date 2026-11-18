@@ -177,7 +177,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	state.ListState.list.f = c.f
 	state.ListState.list.rows = state.rows
 	area := p.listArea(c, &state.ListState, n, false, state.declare)
-	state.Scroll = c.f.exts[c.f.nodes[area.i].ext].scrollState
+	state.Scroll = c.f.exts[c.f.nodes[area.i].Ext].scrollState
 	state.c, state.label, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {

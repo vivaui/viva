@@ -409,10 +409,10 @@ func (s *DragState) regionRect(region dragRegion) Rect {
 func (s *DragState) hitRect(node int32) Rect {
 	n := &s.frame.nodes[node]
 	r := n.rect
-	if n.ext == 0 {
+	if n.Ext == 0 {
 		return r
 	}
-	h := s.frame.exts[n.ext].hitOut
+	h := s.frame.exts[n.Ext].hitOut
 	return Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 }
 

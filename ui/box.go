@@ -52,7 +52,7 @@ func (b Box) Content() float32 { return b.n().Content }
 // with Hit.
 func (b Box) Clicked() bool {
 	n := b.n()
-	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
+	if n.Ext != 0 && b.f.exts[n.Ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
 	return b.f.canvas != nil && n.Flags&flagVeto == 0 && b.f.canvas.Clicked(n.ID)

@@ -607,10 +607,10 @@ func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 	if f := p.view.frame; f != nil {
 		for i := range f.nodes {
 			node := &f.nodes[i]
-			if node.ext == 0 {
+			if node.Ext == 0 {
 				continue
 			}
-			state := f.exts[node.ext].scrollState
+			state := f.exts[node.Ext].scrollState
 			if state == nil || state.ID.IsZero() || !pointInRect(x, y, node.rect) {
 				continue
 			}
