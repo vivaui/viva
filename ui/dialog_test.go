@@ -51,6 +51,36 @@ func TestDialogIsPaintedLikeTheComponent(t *testing.T) {
 	}
 }
 
+// A dialog whose body the application paints itself gives the body a height, and
+// the surface fits it as components.Dialog's FitBody does: the same surface, header,
+// body rect and footer, with the body exactly as tall as it was told.
+func TestDialogBodyHeightFitsTheSurface(t *testing.T) {
+	theme := gfx.LightTheme()
+	viewport := gfx.Rect{Width: 640, Height: 400}
+	const bodyHeight = float32(120)
+	flexed, direct := testCanvas(), testCanvas()
+	var view View
+	view.Draw(flexed, theme, viewport, func(f *Frame) {
+		f.Column().Pad(12).Children(func() { f.Text("page behind") })
+		d := f.Dialog(DialogSpec{Title: "Delete host?", Width: 400, BodyHeight: bodyHeight, Scope: dlgScope.ID(tree.Name("scope")), DismissID: dlgNo, CloseID: dlgClose})
+		d.Body(func() { f.Text("Body text") })
+	})
+
+	direct.Label("page behind", gfx.Rect{X: 12, Y: 12, Width: viewport.Width - 24, Height: theme.Metrics.FontSizeM + 7}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	dialog := components.BeginDialog(direct, theme, viewport, components.DialogOptions{
+		Layer: 2, Scope: dlgScope.ID(tree.Name("scope")), DismissID: dlgNo, CloseID: dlgClose,
+		ContentSize: gfx.Size{Width: 400}, FitBody: true, BodyHeight: bodyHeight,
+	})
+	layout := dialog.Begin("Delete host?", "")
+	if layout.Body.Height != bodyHeight {
+		t.Fatalf("the component's body is %v tall, want %v", layout.Body.Height, bodyHeight)
+	}
+	direct.Label("Body text", gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: theme.Metrics.FontSizeM + 7}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
+	dialog.End()
+
+	sameCanvas(t, "body height", flexed, direct)
+}
+
 func TestDialogReportsDismissalAndTheButtonsAreClicked(t *testing.T) {
 	theme := gfx.LightTheme()
 	draw := func(canvas *gfx.Canvas) (dismissed, deleted bool) {

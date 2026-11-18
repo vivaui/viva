@@ -12,6 +12,12 @@ type DialogSpec struct {
 	// Width is the surface's width, 448 when zero (kept 32 pixels inside the frame).
 	// Height is its height; zero fits the body.
 	Width, Height float32
+	// BodyHeight is the height of a body the application paints rather than
+	// declares, such as a form whose own scrolling area sizes it; zero fits the
+	// body to the children declared in it. A dialog given a BodyHeight is as
+	// tall as components.Dialog's FitBody layout makes it, with its body
+	// exactly that tall between the header and the footer.
+	BodyHeight float32
 	// Layer is the compositing layer of the scrim and surface; zero is two above the
 	// layer the Dialog is declared in, so a Select opened inside a dialog is over it.
 	Layer uint16
@@ -57,7 +63,7 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 		width = 448
 	}
 	// The sizes of the header and footer, and the padding, are components.Dialog's.
-	geometry := components.BeginDialog(f.canvas, f.theme, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true}).Layout(spec.Description)
+	geometry := components.BeginDialog(f.canvas, f.theme, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight}).Layout(spec.Description)
 	padding := geometry.Header.X - geometry.Content.X
 	gap := f.theme.Metrics.GapItem
 	// The body sits as far under the header, and above the footer, as the dialog
@@ -73,8 +79,11 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 	d := dialogDecl{spec: spec, layer: layer}
 	root.Children(func() {
 		surface := f.Column().Width(width).MaxWidth(max(f.bounds.Width-32, 1)).MaxHeight(max(f.bounds.Height-32, 1)).Self(Center).Pad(padding)
-		if spec.Height > 0 {
+		switch {
+		case spec.Height > 0:
 			surface.Height(spec.Height)
+		case spec.BodyHeight > 0:
+			surface.Height(geometry.Content.Height)
 		}
 		surface.Children(func() {
 			d.header = f.Slot().Height(geometry.Header.Height).i
