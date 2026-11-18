@@ -3917,7 +3917,7 @@ static void viva_encode_scene(
     BOOL _dynamicTextInput;
     BOOL _caretVisible;
     NSTimer *_caretTimer;
-    NSUInteger _textSelectionAnchor;
+    NSRange _textSelectionAnchor;
     BOOL _textSelectionDragging;
     BOOL _pointerEventsEnabled;
     BOOL _resizeEventsEnabled;
@@ -4452,7 +4452,16 @@ static int viva_navigation_command(SEL selector) {
             return;
         }
         NSUInteger index = [self textIndexForEvent:event];
-        _textSelectionAnchor = index;
+        _textSelectionAnchor = NSMakeRange(index, 0);
+        if (event.clickCount >= 2 && _text.length > 0) {
+            if (_textSecure) {
+                _textSelectionAnchor = NSMakeRange(0, _text.length);
+            } else {
+                NSAttributedString *value = [[NSAttributedString alloc] initWithString:_text];
+                _textSelectionAnchor = [value doubleClickAtIndex:MIN(index, _text.length - 1)];
+                [value release];
+            }
+        }
         _textSelectionDragging = YES;
         [self selectTextToIndex:index];
     } else {
@@ -6011,8 +6020,9 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (void)selectTextToIndex:(NSUInteger)index {
-    NSUInteger start = MIN(_textSelectionAnchor, index);
-    NSUInteger end = MAX(_textSelectionAnchor, index);
+    // Keep the word under a double press selected through the release and drag.
+    NSUInteger start = MIN(_textSelectionAnchor.location, index);
+    NSUInteger end = MAX(NSMaxRange(_textSelectionAnchor), index);
     [self selectTextRange:NSMakeRange(start, end - start)];
 }
 
@@ -6042,7 +6052,6 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)selectAll:(id)sender {
     (void)sender;
-    _textSelectionAnchor = 0;
     _textSelectionDragging = NO;
     [self selectTextRange:NSMakeRange(0, _text.length)];
 }

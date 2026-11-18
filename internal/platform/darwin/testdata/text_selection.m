@@ -148,6 +148,7 @@ static NSUInteger copyRequests;
 }
 - (void)resetText:(NSString *)value;
 - (NSEvent *)mouseEvent:(NSEventType)type offset:(CGFloat)offset;
+- (NSEvent *)mouseEvent:(NSEventType)type offset:(CGFloat)offset clicks:(NSInteger)clicks;
 - (CGFloat)offsetForIndex:(NSUInteger)index;
 - (BOOL)dragging;
 - (void)enablePointerCallbacks;
@@ -238,10 +239,13 @@ static NSUInteger copyRequests;
     [self restartCaretBlink];
 }
 - (NSEvent *)mouseEvent:(NSEventType)type offset:(CGFloat)offset {
+    return [self mouseEvent:type offset:offset clicks:1];
+}
+- (NSEvent *)mouseEvent:(NSEventType)type offset:(CGFloat)offset clicks:(NSInteger)clicks {
     return [NSEvent mouseEventWithType:type
         location:NSMakePoint(_textFrame.origin.x + offset,
                              self.bounds.size.height - NSMidY(_textFrame))
-        modifierFlags:0 timestamp:0 windowNumber:0 context:nil eventNumber:0 clickCount:1 pressure:1];
+        modifierFlags:0 timestamp:0 windowNumber:0 context:nil eventNumber:0 clickCount:clicks pressure:1];
 }
 - (CGFloat)offsetForIndex:(NSUInteger)index {
     viva_editor_line line = [self newTextLine];
@@ -389,6 +393,26 @@ int main(void) {
         }
         assert(view->selectionEvents == events);
         assert(view->textureRebuilds == 0);
+
+        for (NSString *value in @[@"/data/bdss", @"😀 preview forward"]) {
+            [view resetText:value];
+            NSString *word = [value hasPrefix:@"/"] ? @"bdss" : @"preview";
+            NSRange expected = [value rangeOfString:word];
+            CGFloat inside = [view offsetForIndex:expected.location + 1];
+            [view mouseDown:[view mouseEvent:NSEventTypeLeftMouseDown offset:inside]];
+            [view mouseUp:[view mouseEvent:NSEventTypeLeftMouseUp offset:inside]];
+            [view mouseDown:[view mouseEvent:NSEventTypeLeftMouseDown offset:inside clicks:2]];
+            assert(NSEqualRanges(view.selectedRange, expected));
+            [view mouseUp:[view mouseEvent:NSEventTypeLeftMouseUp offset:inside clicks:2]];
+            assert(NSEqualRanges(view.selectedRange, expected));
+            assert(![view dragging]);
+
+            [view mouseDown:[view mouseEvent:NSEventTypeLeftMouseDown offset:inside clicks:2]];
+            [view mouseDragged:[view mouseEvent:NSEventTypeLeftMouseDragged offset:-100]];
+            assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, NSMaxRange(expected))));
+            [view mouseUp:[view mouseEvent:NSEventTypeLeftMouseUp offset:-100 clicks:2]];
+            assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, NSMaxRange(expected))));
+        }
 
         [view resetText:@"A中😀B"];
         assert([view performKeyEquivalent:keyEvent(@"a", NSEventModifierFlagCommand)]);
