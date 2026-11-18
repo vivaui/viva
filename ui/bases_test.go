@@ -195,7 +195,7 @@ func TestBasesAreAllocationFreeAfterWarmup(t *testing.T) {
 func TestItemBasesAreTheControlsTheyNameAndReportTheirState(t *testing.T) {
 	theme := gfx.LightTheme()
 	type item struct {
-		name  string
+		Name  string
 		role  gfx.Role
 		build func(f *Frame, ID gfx.ID) Box
 		check func(gfx.State) bool
@@ -214,7 +214,7 @@ func TestItemBasesAreTheControlsTheyNameAndReportTheirState(t *testing.T) {
 			func(s gfx.State) bool { return s.Open }, func(h gfx.Hit) bool { return h.Expanded && h.Expandable && h.Value == "Small" }},
 	}
 	for _, it := range items {
-		t.Run(it.name, func(t *testing.T) {
+		t.Run(it.Name, func(t *testing.T) {
 			var view View
 			canvas := testCanvas()
 			var seen gfx.State

@@ -28,20 +28,20 @@ func TestCaptionClicksTheSwitch(t *testing.T) {
 }
 
 type host struct {
-	name    string
+	Name    string
 	handled bool
 }
 
 // Filtering the list keeps each checkbox's name on its host: the focused one stays
 // with it, and the key that follows toggles the same host.
 func TestFilterKeepsFocusOnTheSameRow(t *testing.T) {
-	hosts := []host{{name: "a"}, {name: "b"}, {name: "c"}}
+	hosts := []host{{Name: "a"}, {Name: "b"}, {Name: "c"}}
 	hide := ""
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(4).Children(func() {
 			for i := range hosts {
-				if h := &hosts[i]; h.name != hide {
-					ui.Checkbox(c, &h.handled, h.name)
+				if h := &hosts[i]; h.Name != hide {
+					ui.Checkbox(c, &h.handled, h.Name)
 				}
 			}
 		})
@@ -49,8 +49,8 @@ func TestFilterKeepsFocusOnTheSameRow(t *testing.T) {
 	d.click("c")
 	hide = "a"
 	d.repaint()
-	if d.focused() != "c" {
-		t.Fatalf("after the filter the focus is on %q, want c", d.focused())
+	if d.Focused() != "c" {
+		t.Fatalf("after the filter the focus is on %q, want c", d.Focused())
 	}
 	d.key(gfx.KeySpace)
 	if hosts[2].handled || hosts[1].handled {
@@ -281,8 +281,8 @@ func TestPopoverClosesByEscapeAnchorAndOutside(t *testing.T) {
 	d.click("More")
 	d.click("Rename")
 	d.key(gfx.KeyEscape)
-	if open || d.focused() != "More" {
-		t.Fatalf("after Escape open=%v focus=%q, want closed with the trigger focused", open, d.focused())
+	if open || d.Focused() != "More" {
+		t.Fatalf("after Escape open=%v focus=%q, want closed with the trigger focused", open, d.Focused())
 	}
 	d.click("More")
 	d.click("More")

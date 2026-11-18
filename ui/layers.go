@@ -18,4 +18,4 @@ const widgetLayerBase = base.WidgetLayerBase
 
 // widgetLayer is the layer a widget's children paint on: the widget's own
 // layer when it is declared inside one, else the base above every app band.
-func (f *frame) widgetLayer() uint16 { return max(widgetsOf(f).layer, widgetLayerBase) }
+func (f *frame) WidgetLayer() uint16 { return max(widgetsOf(f).layer, widgetLayerBase) }

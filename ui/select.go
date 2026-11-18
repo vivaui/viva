@@ -27,7 +27,7 @@ type SelectState struct {
 	disabled []bool // DisabledOptions of the last declaration, for the keys
 	scope    gfx.Scope
 	selected int
-	visible  int
+	Visible  int
 	trigger  gfx.ID // the trigger's hit: the application's id when it named one
 	// chosen is 1 + the option a key chose, reported by the next Picked and
 	// cleared then; 0 when no key chose one.
@@ -97,7 +97,7 @@ func (s *SelectState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if !s.Open {
 		return gfx.EventResult{}
 	}
-	last := len(s.labels) - s.visible
+	last := len(s.labels) - s.Visible
 	step := event.DeltaY / selectItem
 	if !event.Precise {
 		switch {
@@ -161,11 +161,11 @@ func (s *SelectState) Key(event gfx.KeyEvent) gfx.EventResult {
 	}
 	if !s.Open {
 		s.Open = true
-		s.First = min(max(match-s.visible/2, 0), max(count-s.visible, 0))
+		s.First = min(max(match-s.Visible/2, 0), max(count-s.Visible, 0))
 	} else if match < s.First {
 		s.First = match
-	} else if match >= s.First+s.visible {
-		s.First = min(match-s.visible+1, max(count-s.visible, 0))
+	} else if match >= s.First+s.Visible {
+		s.First = min(match-s.Visible+1, max(count-s.Visible, 0))
 	}
 	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(match), FocusVisible: true}
 }
@@ -277,16 +277,16 @@ func (s *SelectState) focus(i int) gfx.EventResult {
 
 // reveal scrolls option i into the list's window.
 func (s *SelectState) reveal(i int) {
-	if s.visible <= 0 {
+	if s.Visible <= 0 {
 		return
 	}
 	if i < s.First {
 		s.First = i
 	}
-	if i >= s.First+s.visible {
-		s.First = i - s.visible + 1
+	if i >= s.First+s.Visible {
+		s.First = i - s.Visible + 1
 	}
-	s.First = min(max(s.First, 0), max(len(s.labels)-s.visible, 0))
+	s.First = min(max(s.First, 0), max(len(s.labels)-s.Visible, 0))
 }
 
 // nextFocus is the enabled option after from in direction step, or -1 at the end.
@@ -362,7 +362,7 @@ type selectDecl struct {
 	selected int
 	Surface  *gfx.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
-	visible  int   // how many options the list shows at once
+	Visible  int   // how many options the list shows at once
 	layer    uint16
 	rects    int32 // where the rows of this frame's list start in frame.widgets.rows
 	// asked, pick and picked keep what Picked found, so asking again in the same
@@ -420,21 +420,21 @@ func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, sel
 //	}
 //	if i, ok := sel.Picked(); ok { m.size = i }
 func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
-	b := f.box(kindSelect)
+	b := f.Box(kindSelect)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).selects))
-	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, Surface: f.Surface, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
-	d.visible = selectRows(len(labels), f.bounds.Height)
+	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, Surface: f.Surface, popup: -1, layer: f.WidgetLayer() + 1, rects: -1}
+	d.Visible = selectRows(len(labels), f.bounds.Height)
 	if state.listMaxHeight > 0 {
-		d.visible = min(d.visible, listRowsForHeight(len(labels), state.listMaxHeight))
+		d.Visible = min(d.Visible, listRowsForHeight(len(labels), state.listMaxHeight))
 	}
 	widest := state.widestOption(f.Surface, labels, f.Palette.Metrics.FontSizeM)
 	state.disabled = nil
-	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
+	state.labels, state.scope, state.selected, state.Visible = labels, scope, selected, d.Visible
 	if state.Open && len(labels) > 0 {
-		state.First = min(max(state.First, 0), len(labels)-d.visible)
-		height := float32(selectPad + selectItem*d.visible)
-		if d.visible < len(labels) {
+		state.First = min(max(state.First, 0), len(labels)-d.Visible)
+		height := float32(selectPad + selectItem*d.Visible)
+		if d.Visible < len(labels) {
 			height += 2 * selectArrow
 		}
 		width := selectListWidth(widest)
@@ -579,7 +579,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 	if trigger := d.state.trigger; !trigger.IsZero() && canvas.Clicked(trigger) {
 		d.state.Open = !d.state.Open
 		if d.state.Open {
-			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
+			d.state.First = min(max(d.selected-d.Visible/2, 0), max(count-d.Visible, 0))
 		}
 		return 0, false
 	}
@@ -594,14 +594,14 @@ func (d *selectDecl) pickIn() (int, bool) {
 	case index == count: // the trigger, when it is the page's own
 		d.state.Open = !d.state.Open
 		if d.state.Open {
-			d.state.First = min(max(d.selected-d.visible/2, 0), max(count-d.visible, 0))
+			d.state.First = min(max(d.selected-d.Visible/2, 0), max(count-d.Visible, 0))
 		}
 	case index == count+1: // a press outside, or Escape
 		d.state.Open = false
 	case index == count+3:
-		d.state.First = max(d.state.First-max(d.visible-1, 1), 0)
+		d.state.First = max(d.state.First-max(d.Visible-1, 1), 0)
 	case index == count+4:
-		d.state.First = min(d.state.First+max(d.visible-1, 1), max(count-d.visible, 0))
+		d.state.First = min(d.state.First+max(d.Visible-1, 1), max(count-d.Visible, 0))
 	}
 	return 0, false
 }
@@ -696,7 +696,7 @@ func (f *frame) paintSelect(n *node) {
 	if panel := control.ContentBounds(); panel.Width > 0 {
 		f.Nodes[d.popup].Rect = panel
 	}
-	first, visible := d.state.First, d.visible
+	first, visible := d.state.First, d.Visible
 	if visible < count {
 		control.AddScrollUp(d.scope.At(count+3), first == 0)
 	}

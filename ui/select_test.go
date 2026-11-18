@@ -375,12 +375,12 @@ func TestSelectTypeAheadScrollsALongListToTheMatch(t *testing.T) {
 	labels[50] = "zebra"
 	state := SelectState{Open: true}
 	drawFruit(&state, labels, 300)
-	if state.visible >= len(labels) || state.visible < 2 {
-		t.Fatalf("the window shows %d of %d options", state.visible, len(labels))
+	if state.Visible >= len(labels) || state.Visible < 2 {
+		t.Fatalf("the window shows %d of %d options", state.Visible, len(labels))
 	}
 	got := state.Key(gfx.KeyEvent{Text: "z", Target: selScope.At(0)})
-	if got.Focus != selScope.At(50) || state.First > 50 || state.First+state.visible <= 50 {
-		t.Errorf("z: focus %v, window starts at %d showing %d, want option 50 inside it", got.Focus, state.First, state.visible)
+	if got.Focus != selScope.At(50) || state.First > 50 || state.First+state.Visible <= 50 {
+		t.Errorf("z: focus %v, window starts at %d showing %d, want option 50 inside it", got.Focus, state.First, state.Visible)
 	}
 }
 
@@ -407,7 +407,7 @@ func TestSelectWheelScrollsTheOpenList(t *testing.T) {
 		t.Errorf("64 pixels of trackpad moved the window to %d, want two more rows (%d)", state.First, start+3)
 	}
 	state.Wheel(gfx.ScrollEvent{DeltaY: 1e6})
-	if want := len(labels) - state.visible; state.First != want {
+	if want := len(labels) - state.Visible; state.First != want {
 		t.Errorf("scrolled far down the window starts at %d, want the last full one %d", state.First, want)
 	}
 	state.Wheel(gfx.ScrollEvent{DeltaY: -1e6})

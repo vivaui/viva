@@ -236,7 +236,7 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil {
 			continue
 		}
-		if !f.containsPoint(i, event.X, event.Y) {
+		if !f.ContainsPoint(i, event.X, event.Y) {
 			continue
 		}
 		if f.Exts[n.Ext].scrollManual {
@@ -253,7 +253,7 @@ func (view *view) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 
 // containsPoint says whether a point is inside element i and inside every clip around
 // it, which is to say, whether it is where the element can be seen.
-func (f *frame) containsPoint(i int, x, y float32) bool {
+func (f *frame) ContainsPoint(i int, x, y float32) bool {
 	for p := int32(i); p >= 0; p = f.Nodes[p].Parent {
 		n := &f.Nodes[p]
 		if p != int32(i) && n.Flags&flagClip == 0 {
@@ -284,7 +284,7 @@ func (f *frame) ScrollArea(ID gfx.ID) Box {
 	state.ID, state.follow, state.sideways, state.bars, state.barSize = ID, false, false, false, 0
 	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
 	b := f.Scroll(state.Offset)
-	f.extra(b.i).scrollState = state
+	f.Extra(b.i).scrollState = state
 	return b
 }
 
@@ -419,7 +419,7 @@ func (f *frame) reportScrolls() {
 			continue
 		}
 		s := f.Exts[n.Ext].scrollState
-		is, ie := n.inset(axisY)
+		is, ie := n.Inset(axisY)
 		s.Content, s.Viewport = n.Content, max(n.Rect.Height-is-ie, 0)
 		if s.pinned() {
 			s.Offset = s.Max()
@@ -427,7 +427,7 @@ func (f *frame) reportScrolls() {
 		} else {
 			s.Offset = min(max(s.Offset, 0), s.Max())
 		}
-		xs, xe := n.inset(axisX)
+		xs, xe := n.Inset(axisX)
 		s.ViewportWidth = max(n.Rect.Width-xs-xe, 0)
 		if !s.sideways {
 			s.ContentWidth, s.OffsetX = s.ViewportWidth, 0

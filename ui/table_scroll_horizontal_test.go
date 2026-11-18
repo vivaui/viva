@@ -141,7 +141,7 @@ func TestTableThatFitsDoesNotScrollAcross(t *testing.T) {
 		rows[i] = []string{"aa", "bb", "cc"}
 	}
 	cases := []struct {
-		name    string
+		Name    string
 		columns []components.TableColumn
 	}{
 		{"flexible last", []components.TableColumn{{Width: 100}, {Width: 100}, {}}},
@@ -162,15 +162,15 @@ func TestTableThatFitsDoesNotScrollAcross(t *testing.T) {
 		}
 		paint()
 		if max := state.Scroll.MaxX(); max != 0 {
-			t.Errorf("%s: a fitting table scrolls across, MaxX %v", c.name, max)
+			t.Errorf("%s: a fitting table scrolls across, MaxX %v", c.Name, max)
 		}
 		state.Scroll.Wheel(gfx.ScrollEvent{DeltaX: 30, Precise: true})
 		paint()
 		if state.Scroll.OffsetX != 0 {
-			t.Errorf("%s: the wheel moved a fitting table to %v", c.name, state.Scroll.OffsetX)
+			t.Errorf("%s: the wheel moved a fitting table to %v", c.Name, state.Scroll.OffsetX)
 		}
 		if state.Scroll.ContentWidth != state.Scroll.ViewportWidth {
-			t.Errorf("%s: content is %v wide in a %v viewport, want them equal", c.name, state.Scroll.ContentWidth, state.Scroll.ViewportWidth)
+			t.Errorf("%s: content is %v wide in a %v viewport, want them equal", c.Name, state.Scroll.ContentWidth, state.Scroll.ViewportWidth)
 		}
 	}
 }

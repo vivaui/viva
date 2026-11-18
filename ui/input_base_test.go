@@ -43,11 +43,11 @@ func TestInputBaseHasTheLookOfItsElementAndNotShadcns(t *testing.T) {
 // move when it opens.
 func TestInputBaseTextSitsInsideThePadAndBorderAndTheHitIsTheWholeElement(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
+		Name   string
 		Pad    float32
 		border float32
 	}{{"bare", 0, 0}, {"padded", 8, 0}, {"framed", 8, 2}, {"wide", 12, 3}} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.Name, func(t *testing.T) {
 			var view View
 			canvas := testCanvas()
 			var box Box
@@ -296,10 +296,10 @@ func sameVisible(t *testing.T, got, Want *gfx.Canvas) {
 // its focus color unless the caller took it over.
 func TestInputKeepsTheRecipeForWhatTheCallerDidNotSet(t *testing.T) {
 	theme := gfx.LightTheme()
-	paint := func(focused bool, style func(Box) Box) *gfx.Canvas {
+	paint := func(Focused bool, style func(Box) Box) *gfx.Canvas {
 		var view View
 		canvas := testCanvas()
-		snapshot := components.InputSnapshot{ID: baseField, Label: "x", Value: "v", Focused: focused}
+		snapshot := components.InputSnapshot{ID: baseField, Label: "x", Value: "v", Focused: Focused}
 		view.Draw(canvas, theme, gfx.Rect{Width: 200, Height: 60}, func(f *Frame) { style(f.Input(snapshot)) })
 		return canvas
 	}

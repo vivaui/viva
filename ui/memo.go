@@ -36,7 +36,7 @@ import "github.com/vivaui/viva/gfx"
 // would have differed from it: run tests with it.
 func Memo[T comparable](c C, Value T, fn func()) Box {
 	p := c.page
-	at, _ := p.name(pkMemo)
+	at, _ := p.Name(pkMemo)
 	id := p.ID(at)
 	entry := p.memos[id]
 	if entry == nil {
@@ -55,7 +55,7 @@ func Memo[T comparable](c C, Value T, fn func()) Box {
 	f := c.f
 	if p.memoHit(entry, same) && !p.checkingMemos() {
 		b := f.Slot().Size(entry.Rect.Width, entry.Rect.Height).Shrink(0)
-		f.extra(b.i).memo = p.memoBox(entry, true)
+		f.Extra(b.i).memo = p.memoBox(entry, true)
 		p.touchMemo(entry)
 		entry.epoch = p.epoch
 		cell.v, cell.set = Value, true
@@ -71,7 +71,7 @@ func Memo[T comparable](c C, Value T, fn func()) Box {
 	var prev gfx.Span
 	var prevAt Rect
 	if p.checkingMemos() && entry.painted && entry.epoch+1 == p.epoch && same {
-		prev, prevAt = entry.span, entry.Rect
+		prev, prevAt = entry.Span, entry.Rect
 	}
 	entry.reset()
 	p.recording = append(p.recording, entry)
@@ -79,16 +79,16 @@ func Memo[T comparable](c C, Value T, fn func()) Box {
 	// The part is named by the Memo's own place, so what is in it keeps its names
 	// whether the parts around it were declared or copied.
 	b := f.Column()
-	p.setNode(b.i, at)
+	p.SetNode(b.i, at)
 	b.Children(fn)
 	p.recording = p.recording[:len(p.recording)-1]
 	c.f.memoDepth--
 	if parent := len(p.recording); parent > 0 {
 		p.recording[parent-1].memos = append(p.recording[parent-1].memos, entry)
 	}
-	f.extra(b.i).memo = p.memoBox(entry, false)
+	f.Extra(b.i).memo = p.memoBox(entry, false)
 	if !prev.Empty() {
-		p.memoChecks = append(p.memoChecks, memoCheckOf{span: prev, at: prevAt})
+		p.memoChecks = append(p.memoChecks, memoCheckOf{Span: prev, at: prevAt})
 		p.memoBoxes[len(p.memoBoxes)-1].check = int32(len(p.memoChecks))
 	}
 	cell.v, cell.set = Value, true
@@ -132,7 +132,7 @@ type memoEntry struct {
 	epoch      uint32   // the paint the part was last declared or copied in
 	Rect       Rect     // where it was
 	bounds     Rect     // the page's bounds then
-	span       gfx.Span // what it painted
+	Span       gfx.Span // what it painted
 	painted    bool
 	held       bool // one of its controls was hovered, pressed or focused
 	stale      bool // its copy failed: declare it in the next try
@@ -141,7 +141,7 @@ type memoEntry struct {
 	// What declaring the part told the page, so that a copy keeps it: the
 	// names of its bound values, its rows' keys, its State values and the Memos
 	// inside it.
-	bound   []boundKey
+	Bound   []boundKey
 	names   []gfx.ID
 	keys    []keyKey
 	intKeys []intKey
@@ -150,7 +150,7 @@ type memoEntry struct {
 }
 
 func (entry *memoEntry) reset() {
-	entry.bound, entry.names, entry.keys = entry.bound[:0], entry.names[:0], entry.keys[:0]
+	entry.Bound, entry.names, entry.keys = entry.Bound[:0], entry.names[:0], entry.keys[:0]
 	entry.intKeys, entry.States = entry.intKeys[:0], entry.States[:0]
 	clear(entry.memos)
 	entry.memos = entry.memos[:0]
@@ -167,7 +167,7 @@ type memoBox struct {
 
 // memoCheckOf is the last paint's span of a part MemoCheck declared again.
 type memoCheckOf struct {
-	span gfx.Span
+	Span gfx.Span
 	at   Rect
 }
 
@@ -190,12 +190,12 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 		return false
 	}
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
-	for _, hit := range canvas.PreviousHits(entry.span) {
+	for _, hit := range canvas.PreviousHits(entry.Span) {
 		if !hit.ID.IsZero() && (hit.ID == hovered || hit.ID == pressed || hit.ID == focused) {
 			return false
 		}
 	}
-	return canvas.CanReplay(entry.span) || entry.span.Empty()
+	return canvas.CanReplay(entry.Span) || entry.Span.Empty()
 }
 
 // memoPaint is the frame's paint hook for a Memo's element.
@@ -212,23 +212,23 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 		}
 		dx, dy := rect.X-entry.Rect.X, rect.Y-entry.Rect.Y
 		sameSize := rect.Width == entry.Rect.Width && rect.Height == entry.Rect.Height
-		span, ok := gfx.Span{}, entry.span.Empty() && sameSize
-		if sameSize && !entry.span.Empty() {
-			span, ok = canvas.ReplayAt(entry.span, dx, dy)
+		span, ok := gfx.Span{}, entry.Span.Empty() && sameSize
+		if sameSize && !entry.Span.Empty() {
+			span, ok = canvas.ReplayAt(entry.Span, dx, dy)
 		}
 		if !ok {
 			entry.stale = true
 			p.retry = true
 			return true
 		}
-		entry.span, entry.Rect = span, rect
+		entry.Span, entry.Rect = span, rect
 		return true
 	}
 	if before {
 		box.before = canvas.Mark()
 		return false
 	}
-	entry.span = canvas.SpanSince(box.before)
+	entry.Span = canvas.SpanSince(box.before)
 	entry.listens = len(canvas.HitsSince(box.before)) > 0
 	entry.Rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
 	entry.themeEpoch, entry.Opacity = p.themeEpoch, f.Opacity
@@ -238,27 +238,27 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 			entry.held = true
 		}
 	}
-	if box.check != 0 && !entry.held && !canvas.Delivering() && !canvas.Animating() && p.memoDiffers(entry.span, p.memoChecks[box.check-1], rect) {
+	if box.check != 0 && !entry.held && !canvas.Delivering() && !canvas.Animating() && p.memoDiffers(entry.Span, p.memoChecks[box.check-1], rect) {
 		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.Nodes[i].ID) + ") differs from what it painted last time " +
 			"with the same value: the value does not cover something its function reads")
 	}
 	return false
 }
 
-func (p *Page) memoDiffers(span gfx.Span, prev memoCheckOf, Rect Rect) bool {
+func (p *Page) memoDiffers(Span gfx.Span, prev memoCheckOf, Rect Rect) bool {
 	if prev.at.Width != Rect.Width || prev.at.Height != Rect.Height {
 		return false // laid out at another size: not a copy's place to compare
 	}
-	return !p.ctx.f.Surface.SameAsPrevious(span, prev.span, Rect.X-prev.at.X, Rect.Y-prev.at.Y)
+	return !p.ctx.f.Surface.SameAsPrevious(Span, prev.Span, Rect.X-prev.at.X, Rect.Y-prev.at.Y)
 }
 
 // touchMemo tells the page that what a copied part declared last time is still on
 // the page: its names, keys and states are kept, as if it had been declared.
 func (p *Page) touchMemo(entry *memoEntry) {
-	for _, key := range entry.bound {
-		if bound, ok := p.bound[key]; ok {
+	for _, key := range entry.Bound {
+		if bound, ok := p.Bound[key]; ok {
 			bound.epoch = p.epoch
-			p.bound[key] = bound
+			p.Bound[key] = bound
 		}
 	}
 	for _, id := range entry.names {
@@ -294,7 +294,7 @@ func (p *Page) touchMemo(entry *memoEntry) {
 // noteMemo records, in every Memo being declared, what one declaration told the page.
 func (p *Page) noteBound(key boundKey, ID gfx.ID) {
 	for _, entry := range p.recording {
-		entry.bound = append(entry.bound, key)
+		entry.Bound = append(entry.Bound, key)
 		entry.names = append(entry.names, ID)
 	}
 }
@@ -316,7 +316,7 @@ func (p *Page) noteState(key protoStateKey) {
 }
 
 // forbidInMemo stops an element a copy cannot keep from being declared in a Memo.
-func (p *Page) forbidInMemo(what string) {
+func (p *Page) ForbidInMemo(what string) {
 	if len(p.recording) > 0 {
 		panic("ui: a " + what + " in a Memo: its state is kept by being declared, so a copied part would lose it; declare it outside the Memo")
 	}

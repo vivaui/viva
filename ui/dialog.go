@@ -59,7 +59,7 @@ type dialogDecl struct {
 func (f *frame) Dialog(spec DialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
-		layer = f.widgetLayer() + 2
+		layer = f.WidgetLayer() + 2
 	}
 	width := spec.Width
 	if width <= 0 {
@@ -109,7 +109,7 @@ func Dialog(c C, spec DialogSpec) Box {
 		panic("ui: Dialog is for a page")
 	}
 	p := c.page
-	p.forbidInMemo("Dialog")
+	p.ForbidInMemo("Dialog")
 	p.overlay = true
 	return c.f.Dialog(spec)
 }

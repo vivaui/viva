@@ -21,7 +21,7 @@ package ui
 // that keeps a margin from the window's edge or stays in a pane.
 func (b Box) Within(r Rect) Box {
 	b.n()
-	b.f.extra(b.i).within = r
+	b.f.Extra(b.i).within = r
 	return b
 }
 

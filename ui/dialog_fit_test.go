@@ -18,7 +18,7 @@ func TestDialogWithoutAHeightFitsItsDescriptionAndBody(t *testing.T) {
 	short := "Delete this host?"
 	long := strings.Repeat("A description long enough that it wraps onto several lines in the dialog. ", 4)
 	for _, tc := range []struct {
-		name        string
+		Name        string
 		description string
 		width, body float32
 	}{
@@ -28,7 +28,7 @@ func TestDialogWithoutAHeightFitsItsDescriptionAndBody(t *testing.T) {
 		{"wrapped, narrow", long, 360, 200},
 		{"no body", long, 480, 0},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.Name, func(t *testing.T) {
 			var want float32
 			dialogHeight := func(explicit bool) float32 {
 				d := openPage(t, func(c ui.C) {

@@ -185,7 +185,7 @@ const (
 // extra holds what few elements need, so that the common element stays small: the
 // hit options of an interactive container, an icon, the border's color, the
 // shadow's level, the ring, and the indexes of its gradient and state looks.
-type extra struct {
+type Extra struct {
 	hit           gfx.HitOptions
 	icon          gfx.Icon
 	iconTransform gfx.IconTransform                                          // moves the icon inside its box without moving the box
@@ -238,7 +238,7 @@ type frame struct {
 	Nodes       []node
 	addons      []fieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
 	Images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
-	Exts        []extra            // exts[0] is never written: an element without extras points at it
+	Exts        []Extra            // exts[0] is never written: an element without extras points at it
 	Floats      []int32            // the Popups, which belong to no container
 	States      []stateLooks       // what Hover, Pressed and Focus declared, by element
 	Draws       []drawHooks        // what Draw and DrawOver declared, by element
@@ -320,7 +320,7 @@ func (view *view) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *frame 
 	f.Surface, f.Palette, f.bounds, f.done = Surface, Palette, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
-	f.Exts = append(f.Exts[:0], extra{})
+	f.Exts = append(f.Exts[:0], Extra{})
 	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
@@ -342,7 +342,7 @@ func (view *view) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *frame 
 	resetControls(f)
 	f.Scrolls.epoch++
 	f.Parent = -1
-	root := f.add(kindContainer)
+	root := f.Add(kindContainer)
 	n := &f.Nodes[root]
 	n.Dir = column
 	n.Size = [2]Dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
@@ -449,7 +449,7 @@ func (f *frame) Theme() Theme        { return f.Palette }
 // child's rectangle.
 func (f *frame) Bounds() Rect { return f.bounds }
 
-func (f *frame) add(k Kind) int32 {
+func (f *frame) Add(k Kind) int32 {
 	if f.done {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
@@ -467,22 +467,22 @@ func (f *frame) add(k Kind) int32 {
 	return index
 }
 
-func (f *frame) box(k Kind) Box { return Box{f: f, i: f.add(k), gen: f.gen} }
+func (f *frame) Box(k Kind) Box { return Box{f: f, i: f.Add(k), gen: f.gen} }
 
 // Row opens a container that lays its children out left to right.
 func (f *frame) Row() Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	f.Nodes[b.i].Dir = row
 	return b
 }
 
 // Column opens a container that lays its children out top to bottom.
-func (f *frame) Column() Box { return f.box(kindContainer) }
+func (f *frame) Column() Box { return f.Box(kindContainer) }
 
 // Stack opens a container that lays its children over one another, each in the
 // whole content area unless it has a size of its own.
 func (f *frame) Stack() Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	f.Nodes[b.i].Dir = stack
 	return b
 }
@@ -497,7 +497,7 @@ func (f *frame) Stack() Box {
 func (f *frame) Popup() Box {
 	saved := f.Parent
 	f.Parent = -1
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	f.Parent = saved
 	f.Floats = append(f.Floats, b.i)
 	return b
@@ -512,7 +512,7 @@ func (f *frame) PopupLayer(layer uint16) { f.popupLayer = layer }
 // as fit when each is at least minCell wide, wrapping onto new rows; Gap is the
 // space between cells both ways. A row is as tall as its tallest cell.
 func (f *frame) Grid(minCell float32) Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	n := &f.Nodes[b.i]
 	n.Dir = grid
 	n.GridMin = max(minCell, 1)
@@ -528,7 +528,7 @@ func (f *frame) Grid(minCell float32) Box {
 // containers give way to it as they do in a Row, so a text's Ellipsis or Wrap
 // decides how it fits.
 func (f *frame) Flow() Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	n := &f.Nodes[b.i]
 	n.Dir = flow
 	n.GridMin = -1
@@ -537,10 +537,10 @@ func (f *frame) Flow() Box {
 
 // customLayout declares a container whose children a Layout measures and places.
 func (f *frame) customLayout(layout Layout) Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	n := &f.Nodes[b.i]
 	n.Dir = custom
-	f.extra(b.i).layout = layout
+	f.Extra(b.i).layout = layout
 	return b
 }
 
@@ -551,7 +551,7 @@ func (f *frame) customLayout(layout Layout) Box {
 // Content - Rect().Height. Give it a size, Fill or Grow, or it is as tall as its
 // children.
 func (f *frame) Scroll(offset float32) Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	n := &f.Nodes[b.i]
 	n.Flags |= flagScroll | flagClip
 	n.Scroll = max(offset, 0)
@@ -568,7 +568,7 @@ func (f *frame) Paragraph(Value string, MaxLines int) Box {
 
 // Text adds one line of text, in the theme's body size and foreground color.
 func (f *frame) Text(Value string) Box {
-	b := f.box(kindText)
+	b := f.Box(kindText)
 	n := &f.Nodes[b.i]
 	n.Text = Value
 	n.FontSize = f.Palette.Metrics.FontSizeM
@@ -579,7 +579,7 @@ func (f *frame) Text(Value string) Box {
 
 // Spacer adds empty space that grows to take what the other children leave.
 func (f *frame) Spacer() Box {
-	b := f.box(kindSpacer)
+	b := f.Box(kindSpacer)
 	f.Nodes[b.i].Grow = 1
 	f.Nodes[b.i].Flags |= flagGrowSet
 	return b
@@ -588,7 +588,7 @@ func (f *frame) Spacer() Box {
 // Divider adds a one pixel line in the theme's border color across the
 // container: horizontal in a column, vertical in a row or a flow.
 func (f *frame) Divider() Box {
-	b := f.box(kindContainer)
+	b := f.Box(kindContainer)
 	n := &f.Nodes[b.i]
 	n.Background = f.Palette.Border
 	if f.Parent >= 0 && (f.Nodes[f.Parent].Dir == row || f.Nodes[f.Parent].Dir == flow) {
@@ -602,9 +602,9 @@ func (f *frame) Divider() Box {
 // Icon adds an icon, 16 pixels square unless given a size, in the foreground
 // color unless given a Color.
 func (f *frame) Icon(icon gfx.Icon) Box {
-	b := f.box(kindIcon)
+	b := f.Box(kindIcon)
 	n := &f.Nodes[b.i]
-	f.extra(b.i).icon = icon
+	f.Extra(b.i).icon = icon
 	n.Color = f.Palette.Foreground
 	return b
 }
@@ -615,7 +615,7 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 // is not copied, so its pixels must stay unchanged while the page is on screen
 // (see gfx.Bitmap). An empty or invalid bitmap leaves the room blank.
 func (f *frame) Image(bitmap gfx.Bitmap) Box {
-	b := f.box(kindImage)
+	b := f.Box(kindImage)
 	f.Nodes[b.i].Aux = int32(len(f.Images))
 	f.Images = append(f.Images, bitmap)
 	return b
@@ -624,7 +624,7 @@ func (f *frame) Image(bitmap gfx.Bitmap) Box {
 // Button adds a button with the official look; Outline, Ghost and the other
 // variants choose another. Clicked reports a click on it.
 func (f *frame) Button(ID gfx.ID, Label string) Box {
-	b := f.box(kindButton)
+	b := f.Box(kindButton)
 	n := &f.Nodes[b.i]
 	n.ID, n.Label = ID, Label
 	n.Flags |= flagHasHit
@@ -633,7 +633,7 @@ func (f *frame) Button(ID gfx.ID, Label string) Box {
 
 // Checkbox adds a checkbox in the given state; Clicked reports a click on it.
 func (f *frame) Checkbox(ID gfx.ID, checked bool) Box {
-	b := f.box(kindCheckbox)
+	b := f.Box(kindCheckbox)
 	n := &f.Nodes[b.i]
 	n.ID = ID
 	if checked {
@@ -645,7 +645,7 @@ func (f *frame) Checkbox(ID gfx.ID, checked bool) Box {
 
 // Switch adds a two-state switch in the given state; Clicked reports a click.
 func (f *frame) Switch(ID gfx.ID, on bool) Box {
-	b := f.box(kindSwitch)
+	b := f.Box(kindSwitch)
 	n := &f.Nodes[b.i]
 	n.ID = ID
 	if on {
@@ -657,14 +657,14 @@ func (f *frame) Switch(ID gfx.ID, on bool) Box {
 
 // Slot reserves room for something the caller paints itself: Rect gives where
 // once End has laid the page out. Give it a size, or let it grow.
-func (f *frame) Slot() Box { return f.box(kindSlot) }
+func (f *frame) Slot() Box { return f.Box(kindSlot) }
 
 // extra returns the extras of element i, giving it a set of its own if it has none.
-func (f *frame) extra(i int32) *extra {
+func (f *frame) Extra(i int32) *Extra {
 	n := &f.Nodes[i]
 	if n.Ext == 0 {
 		n.Ext = int32(len(f.Exts))
-		f.Exts = append(f.Exts, extra{})
+		f.Exts = append(f.Exts, Extra{})
 	}
 	return &f.Exts[n.Ext]
 }

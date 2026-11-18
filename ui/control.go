@@ -68,11 +68,11 @@ type controlEntry struct {
 // Not inside a Memo: a copied part is not declared, and its control would take no input.
 func Control(c C, Label string, h *Handlers) Box {
 	p := c.page
-	p.forbidInMemo("Control")
+	p.ForbidInMemo("Control")
 	if h == nil {
 		panic("ui: Control needs its Handlers")
 	}
-	id := p.controlID(pkControl)
+	id := p.ControlID(pkControl)
 	role := h.Role
 	if role == 0 {
 		role = gfx.RoleGroup
@@ -80,7 +80,7 @@ func Control(c C, Label string, h *Handlers) Box {
 	h.parts = p.tree.Sub(id.Scope(), id.Name())
 	p.controls = append(p.controls, controlEntry{ID: id, handlers: h})
 	if p.pointerRoute == nil {
-		p.keyRoute, p.pointerRoute = (*Page).routeKey, (*Page).routePointer
+		p.keyRoute, p.pointerRoute = (*Page).RouteKey, (*Page).routePointer
 	}
 	theme := &c.f.Palette
 	// What the text service is given when Text leaves it unset: the page's body text.

@@ -76,15 +76,15 @@ func (b Box) Shortcut(modifiers gfx.Modifiers, key string) bool {
 }
 
 func (p *Page) shortcut(c C, modifiers gfx.Modifiers, key string, focus gfx.ID, scope, rows gfx.Scope) bool {
-	p.forbidInMemo("Shortcut")
+	p.ForbidInMemo("Shortcut")
 	chord, ok := keymap.Parse(modifiers, key)
 	if !ok {
 		panic("ui: Shortcut " + key + ": not a key keymap.Parse names, nor one character")
 	}
-	id := p.controlID(pkShortcut)
+	id := p.ControlID(pkShortcut)
 	p.shortcuts = append(p.shortcuts, shortcutEntry{modifiers: chord.Modifiers, char: chord.Char, key: chord.Key, ID: id, focus: focus, scope: scope, rows: rows})
 	if p.shortcutRoute == nil {
-		p.keyRoute, p.shortcutRoute = (*Page).routeKey, (*Page).matchShortcut
+		p.keyRoute, p.shortcutRoute = (*Page).RouteKey, (*Page).matchShortcut
 	}
 	return c.f.Surface != nil && c.f.Surface.Clicked(id)
 }

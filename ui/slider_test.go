@@ -14,7 +14,7 @@ type sliderPage struct {
 	view     View
 	state    SliderState
 	declare  func(Box) Box
-	box      Box
+	Box      Box
 	changed  int
 	vertical bool
 }
@@ -29,7 +29,7 @@ func (p *sliderPage) paint(Surface *gfx.Canvas, Size gfx.Size) {
 			if p.declare != nil {
 				b = p.declare(b)
 			}
-			p.box = b
+			p.Box = b
 			if b.Changed() {
 				p.changed++
 			}
@@ -50,7 +50,7 @@ func TestSliderDragMovesTheValueAndStaysInRange(t *testing.T) {
 	p.state.Value = 20
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	y := p.box.Rect().Y + 8
+	y := p.Box.Rect().Y + 8
 	thumb := trackFrom + (trackTo-trackFrom)*0.2
 
 	// Taking the thumb where it is changes nothing; moving drags it by the distance moved.
@@ -87,7 +87,7 @@ func TestSliderClickOnTheTrackJumpsThereAndSnapsToTheStep(t *testing.T) {
 	p := &sliderPage{declare: func(b Box) Box { return b.Range(0, 1).Step(0.25) }}
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	y := p.box.Rect().Y + 8
+	y := p.Box.Rect().Y + 8
 	click := func(fraction float32) {
 		t.Helper()
 		x := trackFrom + (trackTo-trackFrom)*fraction
@@ -151,7 +151,7 @@ func TestADisabledSliderIgnoresThePointerAndTheKeyboard(t *testing.T) {
 	p.state.Value = 40
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	y := p.box.Rect().Y + 8
+	y := p.Box.Rect().Y + 8
 	p.pointer(t, canvas, gfx.PointerDown, trackTo, y)
 	p.pointer(t, canvas, gfx.PointerMove, trackFrom, y)
 	p.state.Key(gfx.KeyEvent{Key: gfx.KeyEnd, Target: volumeID})
@@ -200,7 +200,7 @@ func TestAVerticalSliderRaisesTheValueUpwardsAndSizesItself(t *testing.T) {
 	p := &sliderPage{vertical: true}
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	r := p.box.Rect()
+	r := p.Box.Rect()
 	near(t, "vertical slider", r, gfx.Rect{Width: 16, Height: 160})
 	bottom, top := r.Y+r.Height-8, r.Y+8
 	x := r.X + 8
@@ -276,14 +276,14 @@ func BenchmarkSlider(b *testing.B) {
 type sliderBasePage struct {
 	view  View
 	state SliderState
-	box   Box
+	Box   Box
 	thumb gfx.Rect
 }
 
 func (p *sliderBasePage) paint(Surface *gfx.Canvas, Size gfx.Size) {
 	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
-			p.box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {
+			p.Box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {
 				x := d.Rect.X + 8 + p.state.Fraction()*(d.Rect.Width-16)
 				p.thumb = gfx.Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}
 				d.Canvas.Rounded(p.thumb, 8, gfx.Color{Alpha: 1})
@@ -307,11 +307,11 @@ func TestSliderBaseDragsAndReportsLikeASliderAndDrawsNothingOfItsOwn(t *testing.
 		!hits[0].Range.Set || hits[0].Range.Now != 20 || hits[0].Range.Max != 100 {
 		t.Fatalf("hits = %+v", hits)
 	}
-	if got, want := p.thumb.X+8, p.box.Rect().X+8+0.2*(p.box.Rect().Width-16); got != want {
+	if got, want := p.thumb.X+8, p.Box.Rect().X+8+0.2*(p.Box.Rect().Width-16); got != want {
 		t.Errorf("the thumb is centered at %v, want %v", got, want)
 	}
 	press := func(Kind gfx.PointerEventKind, x float32) {
-		canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: p.box.Rect().Y + 8, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
+		canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: p.Box.Rect().Y + 8, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
 	}
 	press(gfx.PointerDown, trackFrom+(trackTo-trackFrom)*0.2)
 	press(gfx.PointerMove, trackFrom+(trackTo-trackFrom)*0.5)

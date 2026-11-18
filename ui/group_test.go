@@ -13,13 +13,13 @@ var (
 
 // groupBorder paints an input group (a Row with an InputBase and addons in it) with the focus
 // where focus says and returns the color of the frame's line.
-func groupBorder(t *testing.T, focus gfx.ID, visible bool) gfx.Color {
+func groupBorder(t *testing.T, focus gfx.ID, Visible bool) gfx.Color {
 	t.Helper()
 	theme := gfx.LightTheme()
 	var field Field
 	var view View
 	canvas := testCanvas()
-	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, focus, visible)
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, focus, Visible)
 	var frame Box
 	view.Draw(canvas, theme, gfx.Rect{Width: 360, Height: 100}, func(f *Frame) {
 		f.Column().Pad(12).Children(func() {
@@ -71,13 +71,13 @@ func TestAnInputGroupIsARowAroundAnInputBaseThatFollowsItsFocus(t *testing.T) {
 func TestFocusLookIsKeyboardOnlyAndFocusedLookIsAnyFocus(t *testing.T) {
 	theme := gfx.LightTheme()
 	on := gfx.Color{Red: .9, Alpha: 1}
-	run := func(focused, focusVisible Look, visible bool) gfx.Color {
+	run := func(Focused, focusVisible Look, Visible bool) gfx.Color {
 		var view View
 		canvas := testCanvas()
-		canvas.SetInteraction(gfx.ID{}, gfx.ID{}, groupField, visible)
+		canvas.SetInteraction(gfx.ID{}, gfx.ID{}, groupField, Visible)
 		var box Box
 		view.Draw(canvas, theme, gfx.Rect{Width: 100, Height: 60}, func(f *Frame) {
-			box = f.Row().Size(60, 30).Hit(groupField, "x").Focused(focused).Focus(focusVisible).Children(func() { f.Text("x") }).Background(gfx.Color{Alpha: 1})
+			box = f.Row().Size(60, 30).Hit(groupField, "x").Focused(Focused).Focus(focusVisible).Children(func() { f.Text("x") }).Background(gfx.Color{Alpha: 1})
 		})
 		for _, r := range canvas.Rectangles() {
 			if r.Bounds == box.Rect() {

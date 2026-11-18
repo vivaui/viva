@@ -37,12 +37,12 @@ func TestFocusGroupIsOneTabStopWithArrows(t *testing.T) {
 	d := openPage(t, m.page)
 	d.click("before")
 	d.key(gfx.KeyTab)
-	if d.focused() != "cut" {
-		t.Fatalf("Tab into the group reached %q", d.focused())
+	if d.Focused() != "cut" {
+		t.Fatalf("Tab into the group reached %q", d.Focused())
 	}
 	d.key(gfx.KeyTab)
-	if d.focused() != "Find" {
-		t.Fatalf("Tab from the group's stop reached %q, not the field that keeps its own", d.focused())
+	if d.Focused() != "Find" {
+		t.Fatalf("Tab from the group's stop reached %q, not the field that keeps its own", d.Focused())
 	}
 
 	d.click("copy")
@@ -55,8 +55,8 @@ func TestFocusGroupIsOneTabStopWithArrows(t *testing.T) {
 		{gfx.KeyLeft, "undo"}, {gfx.KeyHome, "cut"}, {gfx.KeyEnd, "undo"},
 	} {
 		d.key(step.key)
-		if d.focused() != step.Want {
-			t.Fatalf("key %v: focused %q, want %q", step.key, d.focused(), step.Want)
+		if d.Focused() != step.Want {
+			t.Fatalf("key %v: focused %q, want %q", step.key, d.Focused(), step.Want)
 		}
 	}
 	// Arrows move the focus, not the choice: nothing was activated.
@@ -80,15 +80,15 @@ func TestFocusGroupRemembersItsStop(t *testing.T) {
 	if err := d.driver.Key(gfx.KeyTab, gfx.ModifierShift); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "Find" {
+	if d.Focused() != "Find" {
 		// undo is a member of the group, so Tab passes over it: the field is before after.
-		t.Fatalf("Shift+Tab from after reached %q", d.focused())
+		t.Fatalf("Shift+Tab from after reached %q", d.Focused())
 	}
 	if err := d.driver.Key(gfx.KeyTab, gfx.ModifierShift); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "paste" {
-		t.Fatalf("Shift+Tab back into the group reached %q, not the stop it had, paste", d.focused())
+	if d.Focused() != "paste" {
+		t.Fatalf("Shift+Tab back into the group reached %q, not the stop it had, paste", d.Focused())
 	}
 }
 
@@ -99,26 +99,26 @@ func TestFocusGroupLeavesWhatIsNotItsAxis(t *testing.T) {
 	d.click("Find")
 	d.typeText("ab")
 	d.key(gfx.KeyLeft)
-	if d.focused() != "Find" {
-		t.Fatalf("Left in the field moved the focus to %q", d.focused())
+	if d.Focused() != "Find" {
+		t.Fatalf("Left in the field moved the focus to %q", d.Focused())
 	}
 
 	d.click("copy")
 	d.key(gfx.KeyDown)
-	if d.focused() != "copy" {
-		t.Fatalf("Down in a horizontal group moved to %q", d.focused())
+	if d.Focused() != "copy" {
+		t.Fatalf("Down in a horizontal group moved to %q", d.Focused())
 	}
 	v := &focusGroupModel{axis: ui.FocusVertical}
 	dv := openPage(t, v.page)
 	dv.click("copy")
 	dv.key(gfx.KeyRight)
 	dv.key(gfx.KeyLeft)
-	if dv.focused() != "copy" {
-		t.Fatalf("Left or Right in a vertical group moved to %q", dv.focused())
+	if dv.Focused() != "copy" {
+		t.Fatalf("Left or Right in a vertical group moved to %q", dv.Focused())
 	}
 	dv.key(gfx.KeyDown)
-	if dv.focused() != "paste" {
-		t.Fatalf("Down in a vertical group reached %q", dv.focused())
+	if dv.Focused() != "paste" {
+		t.Fatalf("Down in a vertical group reached %q", dv.Focused())
 	}
 }
 
@@ -161,12 +161,12 @@ func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
 	d := openPage(t, m.view)
 	d.click("tab 0")
 	d.key(gfx.KeyRight)
-	if d.focused() != "tab 1" || m.selected != 1 {
-		t.Fatalf("Right: focused %q, selected %d; want tab 1 and 1", d.focused(), m.selected)
+	if d.Focused() != "tab 1" || m.selected != 1 {
+		t.Fatalf("Right: focused %q, selected %d; want tab 1 and 1", d.Focused(), m.selected)
 	}
 	d.key(gfx.KeyEnd)
-	if d.focused() != "tab 2" || m.selected != 2 {
-		t.Fatalf("End: focused %q, selected %d; want tab 2 and 2", d.focused(), m.selected)
+	if d.Focused() != "tab 2" || m.selected != 2 {
+		t.Fatalf("End: focused %q, selected %d; want tab 2 and 2", d.Focused(), m.selected)
 	}
 }
 
@@ -215,28 +215,28 @@ func TestFocusOrderMovesAGridByRowsAndColumns(t *testing.T) {
 	d := openPage(t, m.view)
 	d.click("cell 0")
 	d.key(gfx.KeyRight)
-	if d.focused() != "cell 1" {
-		t.Fatalf("Right focused %q", d.focused())
+	if d.Focused() != "cell 1" {
+		t.Fatalf("Right focused %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
-	if d.focused() != "cell 4" {
-		t.Fatalf("Down from cell 1 focused %q, want cell 4", d.focused())
+	if d.Focused() != "cell 4" {
+		t.Fatalf("Down from cell 1 focused %q, want cell 4", d.Focused())
 	}
 	d.key(gfx.KeyLeft)
-	if d.focused() != "cell 3" {
-		t.Fatalf("Left focused %q", d.focused())
+	if d.Focused() != "cell 3" {
+		t.Fatalf("Left focused %q", d.Focused())
 	}
 	d.key(gfx.KeyUp)
-	if d.focused() != "cell 0" {
-		t.Fatalf("Up focused %q", d.focused())
+	if d.Focused() != "cell 0" {
+		t.Fatalf("Up focused %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyDown)
-	if d.focused() != "cell 5" {
-		t.Fatalf("Down twice focused %q", d.focused())
+	if d.Focused() != "cell 5" {
+		t.Fatalf("Down twice focused %q", d.Focused())
 	}
 	d.key(gfx.KeyEnd) // not handled by the order: the group's axis goes to the end
-	if d.focused() != "cell 5" {
-		t.Fatalf("End focused %q", d.focused())
+	if d.Focused() != "cell 5" {
+		t.Fatalf("End focused %q", d.Focused())
 	}
 }

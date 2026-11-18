@@ -47,7 +47,7 @@ const splitButtonTrigger = float32(32)
 
 // SplitButton adds a split button. Chosen reports which half a click is on.
 func (f *frame) SplitButton(spec SplitButtonSpec) Box {
-	b := f.box(kindSplitButton)
+	b := f.Box(kindSplitButton)
 	n := &f.Nodes[b.i]
 	n.ID, n.Label = spec.PrimaryID, spec.Label
 	n.Flags |= flagHasHit
@@ -67,13 +67,13 @@ func SplitButton(c C, spec SplitButtonSpec) Box {
 		panic("ui: SplitButton is for a page")
 	}
 	if spec.PrimaryID.IsZero() {
-		spec.PrimaryID = c.page.controlID(pkButton)
+		spec.PrimaryID = c.page.ControlID(pkButton)
 	}
 	if spec.MenuID.IsZero() {
-		spec.MenuID = c.page.controlID(pkButton)
+		spec.MenuID = c.page.ControlID(pkButton)
 	}
 	b := c.f.SplitButton(spec)
-	c.page.guard(b, spec.PrimaryID, spec.Label)
+	c.page.Guard(b, spec.PrimaryID, spec.Label)
 	return b
 }
 

@@ -93,18 +93,18 @@ func TestControlPartsTakeThePointerAndTheKeys(t *testing.T) {
 	if s.Value != 4 || len(s.pressed) == 0 || s.pressed[0] != 3 {
 		t.Fatalf("a press on star 4: value %d, parts pressed %v", s.Value, s.pressed)
 	}
-	if d.focused() != "Star 4" {
-		t.Fatalf("the press focused %q", d.focused())
+	if d.Focused() != "Star 4" {
+		t.Fatalf("the press focused %q", d.Focused())
 	}
 	d.key(gfx.KeyRight)
-	if d.focused() != "Star 5" {
-		t.Fatalf("Right went to %q", d.focused())
+	if d.Focused() != "Star 5" {
+		t.Fatalf("Right went to %q", d.Focused())
 	}
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyLeft)
 	d.key(gfx.KeyEnter)
-	if d.focused() != "Star 3" || s.Value != 3 {
-		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.focused(), s.Value)
+	if d.Focused() != "Star 3" || s.Value != 3 {
+		t.Fatalf("focused %q, value %d after Left, Left, Enter", d.Focused(), s.Value)
 	}
 }
 

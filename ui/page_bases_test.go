@@ -124,8 +124,8 @@ func TestPageBasesComposeWithAFocusGroup(t *testing.T) {
 	d := openPage(t, m.page)
 	d.click("radio one")
 	d.key(gfx.KeyRight)
-	if d.focused() != "radio two" {
-		t.Fatalf("Right in the group focused %q", d.focused())
+	if d.Focused() != "radio two" {
+		t.Fatalf("Right in the group focused %q", d.Focused())
 	}
 	d.key(gfx.KeySpace) // a radio button is chosen with Space
 	if m.radio != "two" {

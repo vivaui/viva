@@ -15,7 +15,7 @@ import (
 //
 //	if ui.ColorSwatch(c.Key(name), color, m.color == color, name).Clicked() { m.color = color }
 func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
-	return colorSwatch(c, c.page.controlID(pkRadio), Color, selected, Label)
+	return colorSwatch(c, c.page.ControlID(pkRadio), Color, selected, Label)
 }
 
 func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, Label string) Box {
@@ -24,7 +24,7 @@ func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, Label string) Box {
 	n.ID, n.Label = ID, Label
 	// The swatch paints from what the element carries rather than from a Draw
 	// callback: a closure made in each paint allocates in a hot path.
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	extra.swatch, extra.swatchValue, extra.swatchChosen = true, Color, selected
 	b.f.paintSwatchFn = (*frame).paintSwatch
 	return b
@@ -46,7 +46,7 @@ func (f *frame) paintSwatch(n *node, r Rect) {
 // would otherwise read as faded. Other elements ignore it.
 func (b Box) Flush() Box {
 	b.n()
-	b.f.extra(b.i).swatchFlush = true
+	b.f.Extra(b.i).swatchFlush = true
 	return b
 }
 
@@ -55,7 +55,7 @@ func (b Box) Flush() Box {
 // elements ignore it.
 func (b Box) TabStop(on bool) Box {
 	b.n()
-	b.f.extra(b.i).swatchSkipTab = !on
+	b.f.Extra(b.i).swatchSkipTab = !on
 	return b
 }
 
@@ -72,7 +72,7 @@ type ColorPickerState struct {
 	handlers                    Handlers
 	layout                      components.ColorPickerLayout
 	target                      *Color
-	bound                       bool
+	Bound                       bool
 }
 
 // Open reports whether the picker's panel is open.
@@ -128,15 +128,15 @@ func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label 
 
 func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string) Box {
 	p := c.page
-	p.forbidInMemo("ColorPicker")
+	p.ForbidInMemo("ColorPicker")
 	if ID.IsZero() {
-		ID = p.controlID(pkControl)
+		ID = p.ControlID(pkControl)
 	}
 	s.target = Color
-	if !s.bound {
+	if !s.Bound {
 		s.hex.Bind(&s.hexEditor)
 		s.handlers.Key, s.handlers.Pointer = s.key, s.pointer
-		s.bound = true
+		s.Bound = true
 	}
 	if s.open {
 		p.overlay = true
@@ -151,7 +151,7 @@ func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string
 	n.ID, n.Label = ID, Label
 	// Like the swatch, the picker paints from what the element carries: a Draw
 	// callback made for each paint would allocate one closure a paint.
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	extra.picker, extra.pickerLook = s, colorPickerLook{Label: Label}
 	b.f.paintPickerFn = (*frame).paintColorPicker
 	return b
@@ -193,7 +193,7 @@ func (b Box) PanelLabels(labels components.ColorPickerLabels) Box {
 	return b
 }
 
-func (b Box) pickerExtra() *extra {
+func (b Box) pickerExtra() *Extra {
 	n := b.n()
 	if n.Ext == 0 || b.f.Exts[n.Ext].picker == nil {
 		return nil
@@ -246,7 +246,7 @@ func (s *ColorPickerState) paint(d *DrawContext, c C, ID gfx.ID, look colorPicke
 	options := components.ColorPickerOptions{
 		IDs: ids, Labels: labels, Value: value, Open: s.open, Empty: empty,
 		RoundTrigger: look.round, TriggerIcon: look.icon, SaturationText: s.summary,
-		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: c.f.widgetLayer() + 2,
+		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: c.f.WidgetLayer() + 2,
 	}
 	if s.open {
 		options.Scope = s.handlers.parts.At(8)

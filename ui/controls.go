@@ -166,7 +166,7 @@ func (f *frame) measureControls(n *node) {
 		}
 		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
 	case kindInput:
-		n.Pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
+		n.Pref = [2]float32{n.PadX(), f.inputLine(n) + n.PadY()}
 		if n.Flags&flagThemed != 0 {
 			n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
 		}
@@ -176,7 +176,7 @@ func (f *frame) measureControls(n *node) {
 			n.Pref[axisY] = 64
 		}
 	case kindTextarea:
-		n.Pref = [2]float32{n.padX(), f.Palette.Metrics.FontSizeM + 7 + n.padY()}
+		n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
 		if n.Flags&flagThemed != 0 {
 			n.Pref = [2]float32{0, 64}
 		}
@@ -299,7 +299,7 @@ func (f *frame) Input(snapshot components.InputSnapshot) Box {
 //
 //	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
 func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
-	b := f.box(kindInput)
+	b := f.Box(kindInput)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).inputs))
 	n.ID = snapshot.ID
@@ -310,7 +310,7 @@ func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 // InputGroup adds a components.PaintInputGroup (a field with slots beside or above
 // it). Give it a Height when it has block slots; without one it is a control tall.
 func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
-	b := f.box(kindInputGroup)
+	b := f.Box(kindInputGroup)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).groups))
 	widgetsOf(f).groups = append(widgetsOf(f).groups, snapshot)
@@ -332,7 +332,7 @@ func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 // InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
 // is one row tall plus its Pad and Border unless given a Height.
 func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
-	b := f.box(kindTextarea)
+	b := f.Box(kindTextarea)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).textareas))
 	n.ID = snapshot.ID
@@ -343,7 +343,7 @@ func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 // Segmented adds a components.SegmentedControl choosing among options, selected
 // being the ID of the current one. The options slice is kept until End.
 func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
-	b := f.box(kindSegmented)
+	b := f.Box(kindSegmented)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).segmented))
 	widgetsOf(f).segmented = append(widgetsOf(f).segmented, segmented{options: options, selected: selected})
@@ -397,7 +397,7 @@ func (f *frame) paintInput(n *node) {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
 		return
 	}
-	components.PaintInputContent(f.Surface, f.Palette, n.Rect, f.contentRect(n), snapshot)
+	components.PaintInputContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), snapshot)
 }
 
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
@@ -406,10 +406,10 @@ func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
 		theme := f.Palette
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), widgetsOf(f).textareas[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), widgetsOf(f).textareas[n.Aux])
 }
 
 // controlBaseline is the label's baseline of a button, for a row that lines

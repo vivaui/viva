@@ -112,7 +112,7 @@ func (l Look) Opacity(v float32) Look {
 // stateLooks is what Hover, Pressed, Focus, StateFrom and Transition declared on
 // one element.
 type stateLooks struct {
-	hover, pressed, focus, focused Look
+	hover, pressed, focus, Focused Look
 	follow                         int32 // 1 + the element whose state is followed, or 0 for its own
 	motion                         gfx.Motion
 	animated                       bool
@@ -130,7 +130,7 @@ const (
 
 func (b Box) States() *stateLooks {
 	b.n()
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	if extra.States == 0 {
 		b.f.States = append(b.f.States, stateLooks{})
 		extra.States = int32(len(b.f.States))
@@ -184,7 +184,7 @@ func (b Box) AutoFocus() Box {
 // A container that takes its look from the field inside it follows that field with StateFrom.
 // Focused applies first, so a Focus look, which is the stronger statement, wins over it where
 // both say something about the same field.
-func (b Box) Focused(look Look) Box { b.States().focused = look; return b }
+func (b Box) Focused(look Look) Box { b.States().Focused = look; return b }
 
 // StateFrom makes the element take its Hover, Pressed and Focus looks, and the
 // timeline of its Transition, from the state of container instead of its own, so
@@ -213,7 +213,7 @@ func (b Box) TransitionWith(motion gfx.Motion) Box {
 // invisible and clickable. An Image is not faded.
 func (b Box) Opacity(v float32) Box {
 	b.n()
-	b.f.extra(b.i).fade = 1 - min(max(v, 0), 1)
+	b.f.Extra(b.i).fade = 1 - min(max(v, 0), 1)
 	return b
 }
 
@@ -224,7 +224,7 @@ func (b Box) Opacity(v float32) Box {
 // inside it as Stroke is.
 func (b Box) Ring(width float32, c Color) Box {
 	b.n()
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	extra.ringWidth, extra.ring = width, c
 	return b
 }
@@ -271,7 +271,7 @@ func (b Box) GradientStops(angle Angle, Stops ...gfx.GradientStop) Box {
 	f := b.f
 	f.Gradients = append(f.Gradients, gradient{angle: angle, First: int32(len(f.Stops)), count: int32(len(Stops))})
 	f.Stops = append(f.Stops, Stops...)
-	f.extra(b.i).gradient = int32(len(f.Gradients))
+	f.Extra(b.i).gradient = int32(len(f.Gradients))
 	return b
 }
 
@@ -284,18 +284,18 @@ type resolved struct {
 	dashed                          bool
 }
 
-func (f *frame) resolve(n *node, extra *extra) resolved {
+func (f *frame) resolve(n *node, Extra *Extra) resolved {
 	s := resolved{
-		Background: n.Background, border: extra.border, Color: n.Color, ring: extra.ring,
-		ringWidth: extra.ringWidth, Opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
+		Background: n.Background, border: Extra.border, Color: n.Color, ring: Extra.ring,
+		ringWidth: Extra.ringWidth, Opacity: 1 - Extra.fade, shadow: Extra.shadow, dashed: Extra.borderDashed,
 	}
 	if n.Flags&flagThemed != 0 {
-		f.themedDefaults(n, extra, &s)
+		f.themedDefaults(n, Extra, &s)
 	}
-	if extra.States == 0 {
+	if Extra.States == 0 {
 		return s
 	}
-	looks := &f.States[extra.States-1]
+	looks := &f.States[Extra.States-1]
 	source := n.ID
 	if looks.follow != 0 {
 		source = f.Nodes[looks.follow-1].ID
@@ -312,7 +312,7 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 		hover = canvas.Animate(source, slotHover, hover, looks.motion)
 		pressed = canvas.Animate(source, slotPressed, pressed, looks.motion)
 	}
-	s.apply(&looks.focused, focused)
+	s.apply(&looks.Focused, focused)
 	s.apply(&looks.focus, focus)
 	s.apply(&looks.hover, hover)
 	s.apply(&looks.pressed, pressed)
@@ -378,8 +378,8 @@ func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
 }
 
 // paintGradient draws the gradient of an element over its whole rectangle.
-func (f *frame) paintGradient(n *node, extra *extra) {
-	g := f.Gradients[extra.gradient-1]
+func (f *frame) paintGradient(n *node, Extra *Extra) {
+	g := f.Gradients[Extra.gradient-1]
 	stops := f.Stops[g.First : g.First+g.count]
 	if f.Opacity < 1 {
 		stops = append(f.paintStops[:0], stops...)

@@ -20,35 +20,35 @@ type bindDecl struct {
 
 // bindBool makes the Checkbox or Switch b flip value when it is clicked.
 func (f *frame) bindBool(b Box, Value *bool) {
-	f.extra(b.i).bind = int32(len(f.Binds)) + 1
+	f.Extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.settleFn = (*frame).settleAt
 	f.Binds = append(f.Binds, bindDecl{flag: Value})
 }
 
 // bindIndex makes the Choice, Tabs or Select b set value to the option chosen.
 func (f *frame) bindIndex(b Box, Value *int) {
-	f.extra(b.i).bind = int32(len(f.Binds)) + 1
+	f.Extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.settleFn = (*frame).settleAt
 	f.Binds = append(f.Binds, bindDecl{index: Value})
 }
 
 // bindField makes Changed on the Field b report an edit of field.
 func (f *frame) bindField(b Box, field *Field) {
-	f.extra(b.i).bind = int32(len(f.Binds)) + 1
+	f.Extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.settleFn = (*frame).settleAt
 	f.Binds = append(f.Binds, bindDecl{field: field})
 }
 
 // bindDone records that element b wrote its value where it was declared, and
 // whether it changed it, for Changed.
-func (f *frame) bindDone(b Box, changed bool) {
-	f.extra(b.i).bind = int32(len(f.Binds)) + 1
+func (f *frame) BindDone(b Box, changed bool) {
+	f.Extra(b.i).bind = int32(len(f.Binds)) + 1
 	f.Binds = append(f.Binds, bindDecl{settled: true, changed: changed})
 	f.settleFn = (*frame).settleAt
 }
 
 // bound returns the binding of element i, or nil.
-func (f *frame) bound(i int32) *bindDecl {
+func (f *frame) Bound(i int32) *bindDecl {
 	n := &f.Nodes[i]
 	if n.Ext == 0 || f.Exts[n.Ext].bind == 0 {
 		return nil
@@ -58,7 +58,7 @@ func (f *frame) bound(i int32) *bindDecl {
 
 // settle writes what this paint delivers to element i into its bound value, once.
 func (f *frame) settle(i int32) *bindDecl {
-	d := f.bound(i)
+	d := f.Bound(i)
 	if d == nil || d.settled {
 		return d
 	}

@@ -14,7 +14,7 @@ func TestEveryRemainingBaseIsItsControlWithoutALook(t *testing.T) {
 	theme := gfx.LightTheme()
 	scope := tree.Sub(page, tree.Name("base-contract"))
 	type base struct {
-		name  string
+		Name  string
 		role  gfx.Role
 		build func(f *Frame, ID gfx.ID) Box
 		state func(gfx.Hit) bool
@@ -32,11 +32,11 @@ func TestEveryRemainingBaseIsItsControlWithoutALook(t *testing.T) {
 		}, func(h gfx.Hit) bool { return h.Value == "Small" && !h.Expanded }},
 	}
 	for _, b := range bases {
-		t.Run(b.name, func(t *testing.T) {
+		t.Run(b.Name, func(t *testing.T) {
 			var view View
 			canvas := testCanvas()
 			view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 100}, func(f *Frame) {
-				b.build(f, tree.ID(page, "base-contract-"+b.name))
+				b.build(f, tree.ID(page, "base-contract-"+b.Name))
 			})
 			if len(canvas.Rectangles()) != 0 || len(canvas.Shadows()) != 0 {
 				t.Errorf("a Base painted a look: %d rectangles, %d shadows", len(canvas.Rectangles()), len(canvas.Shadows()))

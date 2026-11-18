@@ -87,7 +87,7 @@ type listInternals struct {
 	rows         gfx.Scope // the identities of its rows, rows.At(key)
 	selected     int32     // 1 + the row the keys are on, or 0
 	Anchor       int32     // 1 + the row a Shift range starts at, or 0
-	span         int32     // where the last Shift range ended, from the anchor
+	Span         int32     // where the last Shift range ended, from the anchor
 	changed      bool
 	changedAt    uint32 // the paint Changed is reported in
 	submitted    bool
@@ -171,7 +171,7 @@ func (s *ListState) Selected() int { return int(s.list.selected) - 1 }
 func (s *ListState) Select(row int) {
 	row = min(max(row, -1), max(s.list.n-1, -1))
 	s.list.selected = int32(row + 1)
-	s.list.Anchor, s.list.span = s.list.selected, 0
+	s.list.Anchor, s.list.Span = s.list.selected, 0
 }
 
 // Chosen reports whether row is in the choice: in the Selection when the list has
@@ -293,7 +293,7 @@ func (s *ListState) chooseRow(row int, epoch uint32) {
 		s.list.selected = int32(row + 1)
 		s.markChanged(epoch)
 	}
-	s.list.Anchor, s.list.span = int32(row+1), 0
+	s.list.Anchor, s.list.Span = int32(row+1), 0
 	s.revealRow(row)
 }
 
@@ -302,7 +302,7 @@ func (s *ListState) toggleRow(row int, epoch uint32) {
 	s.Selection.set(s.key(row), !s.Selection.Has(s.key(row)))
 	s.markChanged(epoch)
 	s.list.selected = int32(row + 1)
-	s.list.Anchor, s.list.span = int32(row+1), 0
+	s.list.Anchor, s.list.Span = int32(row+1), 0
 	s.revealRow(row)
 }
 
@@ -318,7 +318,7 @@ func (s *ListState) extendRow(row int, keep bool, epoch uint32) {
 	lo, hi := min(pivot, row), max(pivot, row)
 	changed := false
 	if runtime.GOOS == "darwin" {
-		last := min(max(pivot+int(s.list.span), 0), s.list.n-1)
+		last := min(max(pivot+int(s.list.Span), 0), s.list.n-1)
 		for j := min(pivot, last); j <= max(pivot, last); j++ {
 			if (j < lo || j > hi) && !s.isHeader(j) && sel.set(s.key(j), false) {
 				changed = true
@@ -344,7 +344,7 @@ func (s *ListState) extendRow(row int, keep bool, epoch uint32) {
 	if changed {
 		s.markChanged(epoch)
 	}
-	s.list.span = int32(row - pivot)
+	s.list.Span = int32(row - pivot)
 	s.leadRow(row, epoch)
 }
 
@@ -670,7 +670,7 @@ func (s *ListState) measured(i int, h float32) {
 		known, s.count = 1, s.count+1
 	}
 	s.total += float64(h - old)
-	s.tree.add(i, float64(h-old), known)
+	s.tree.Add(i, float64(h-old), known)
 }
 
 // top is where row i starts.
@@ -692,7 +692,7 @@ type listTree struct {
 	known []int32
 }
 
-func (t *listTree) add(i int, dh float64, dk int32) {
+func (t *listTree) Add(i int, dh float64, dk int32) {
 	for j := i + 1; j < len(t.sum); j += j & -j {
 		t.sum[j] += dh
 		t.known[j] += dk
@@ -829,7 +829,7 @@ func (r ListRow) Focused() bool {
 //	if row, ok := m.files.Submitted(); ok { m.open(row) }
 func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	p := c.page
-	p.forbidInMemo("List")
+	p.ForbidInMemo("List")
 	in := &state.list
 	in.n, in.f = n, c.f
 	in.declared = in.declared[:0]
@@ -848,13 +848,13 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	if in.paint == nil {
 		in.paint, in.over, in.block = in.draw, in.drawOver, blockBehind // made once: a method value made in each paint allocates
 	}
-	scope := p.boundScope(pkList, unsafe.Pointer(state))
+	scope := p.BoundScope(pkList, unsafe.Pointer(state))
 	if scope != in.scope {
 		in.scope, in.rows = scope, p.tree.Sub(scope, gfx.Index(0))
 	}
 	state.reorderPointer(c.f.Surface)
-	area := p.listArea(c, state, n, true, func(i int, box Box) {
-		in.declareRow(c, state, i, box, row)
+	area := p.listArea(c, state, n, true, func(i int, Box Box) {
+		in.declareRow(c, state, i, Box, row)
 	})
 	area.Draw(in.paint)
 	if state.Reorder != nil {
@@ -862,7 +862,7 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	}
 	p.listStates = append(p.listStates, state)
 	if p.listRoute == nil {
-		p.keyRoute, p.listRoute = (*Page).routeKey, (*Page).listKey
+		p.keyRoute, p.listRoute = (*Page).RouteKey, (*Page).listKey
 	}
 	if p.typeRoute == nil {
 		p.typeRoute = (*Page).typeKey
@@ -897,14 +897,14 @@ func blockBehind(d *DrawContext) { d.Canvas.Block(d.Rect) }
 // out at their offsets, with spacers for what is above and below them, and, for a List
 // with Header, the header of the section at the top pinned over them. row fills row
 // i's element.
-func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(i int, box Box)) Box {
-	at, _ := p.name(pkContainer)
+func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(i int, Box Box)) Box {
+	at, _ := p.Name(pkContainer)
 	id := p.ID(at)
 	// Follow is declared on the area the List returns, after its rows: whether the area
 	// keeps to its end is what the paint before left it, as ScrollState.Pinned says.
 	pinned := c.f.Scrolls.get(id).pinned()
 	area := c.f.ScrollArea(id)
-	p.setNode(area.i, at)
+	p.SetNode(area.i, at)
 	in := &state.list
 	in.n, in.area, in.pinned = n, area.i, -1
 	state.resize(n)
@@ -1048,14 +1048,14 @@ func (s *ListState) rowName(i int) string {
 // declareRow declares row i of a List: its whole rectangle is a pointer target and a
 // stop of the keyboard, and a click delivered to it chooses, extends or toggles the
 // choice before the row shows it. A header is none of that.
-func (in *listInternals) declareRow(c C, s *ListState, i int, box Box, row func(ListRow)) {
+func (in *listInternals) declareRow(c C, s *ListState, i int, Box Box, row func(ListRow)) {
 	key := s.key(i)
 	if s.isHeader(i) {
-		box.Children(func() {
-			row(ListRow{Index: i, Key: key, C: c, Element: box, Header: true, state: s})
+		Box.Children(func() {
+			row(ListRow{Index: i, Key: key, C: c, Element: Box, Header: true, state: s})
 		})
 		if !in.pinning {
-			in.declared = append(in.declared, listDeclRow{index: i, key: key, node: box.i})
+			in.declared = append(in.declared, listDeclRow{index: i, key: key, node: Box.i})
 		}
 		return
 	}
@@ -1070,14 +1070,14 @@ func (in *listInternals) declareRow(c C, s *ListState, i int, box Box, row func(
 		options.PosInSet, options.SetSize = int32(i+1), int32(in.n)
 	}
 	options.SkipTab = i != in.tab
-	box.HitWith(id, label, options)
+	Box.HitWith(id, label, options)
 	if in.drag.active && in.drag.carries(i) {
-		box.Opacity(0.4) // where the rows were, as they move with the pointer
+		Box.Opacity(0.4) // where the rows were, as they move with the pointer
 	}
-	box.Children(func() {
-		row(ListRow{Index: i, Key: key, ID: id, C: c, Element: box, state: s})
+	Box.Children(func() {
+		row(ListRow{Index: i, Key: key, ID: id, C: c, Element: Box, state: s})
 	})
-	in.declared = append(in.declared, listDeclRow{index: i, key: key, ID: id, node: box.i})
+	in.declared = append(in.declared, listDeclRow{index: i, key: key, ID: id, node: Box.i})
 }
 
 // clickRow chooses row as a click with info does.
@@ -1240,7 +1240,7 @@ func (p *Page) listWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
-		if s.RowWidth <= 0 || in.f == nil || !in.f.containsPoint(int(in.area), event.X, event.Y) {
+		if s.RowWidth <= 0 || in.f == nil || !in.f.ContainsPoint(int(in.area), event.X, event.Y) {
 			continue
 		}
 		room := s.RowWidth - in.view.Width

@@ -39,7 +39,7 @@ func origin(r *Rect, axis int) *float32 {
 }
 
 // inset is the padding and border on both sides of an axis.
-func (n *node) inset(axis int) (start, end float32) {
+func (n *node) Inset(axis int) (start, end float32) {
 	border := n.BorderWidth
 	if n.Flags&flagOutline != 0 {
 		border = 0 // an outline is drawn, it does not take room
@@ -80,13 +80,13 @@ func (f *frame) measure(axis int) {
 			first := int32(len(f.Lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
-			if n.Text != "" && n.Natural <= n.Rect.Width-n.padX() && strings.IndexByte(n.Text, '\n') < 0 {
+			if n.Text != "" && n.Natural <= n.Rect.Width-n.PadX() && strings.IndexByte(n.Text, '\n') < 0 {
 				f.Lines = append(f.Lines, n.Text)
 			} else {
 				f.Lines = f.wrapText(f.Lines, n)
 			}
 			n.LineFirst, n.LineCount = first, int32(len(f.Lines))-first
-			n.Pref[axisY] = float32(n.LineCount)*n.leading() + n.padY()
+			n.Pref[axisY] = float32(n.LineCount)*n.leading() + n.PadY()
 		}
 		if n.Kind == kindContainer {
 			f.measureContainer(n, axis)
@@ -131,8 +131,8 @@ func (f *frame) measureLeafIn(n *node) {
 			n.Pref = [2]float32{f.Surface.TextWidthWeight(n.Text, n.FontSize, n.Weight), n.leading()}
 		}
 		n.Natural = n.Pref[axisX]
-		n.Pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
-		n.Pref[axisY] += n.padY()
+		n.Pref[axisX] += n.PadX() // a Text takes its Pad and Border like a container
+		n.Pref[axisY] += n.PadY()
 	case kindIcon, kindImage:
 		n.Pref = [2]float32{16, 16}
 	default:
@@ -169,7 +169,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	if n.flows(axis) && count > 1 {
 		total += n.Gap * float32(count-1)
 	}
-	is, ie := n.inset(axis)
+	is, ie := n.Inset(axis)
 	n.Pref[axis] = total + is + ie
 	if n.Flags&flagScroll == 0 {
 		return
@@ -190,13 +190,13 @@ func (f *frame) measureContainer(n *node, axis int) {
 	}
 }
 
-func (n *node) padX() float32 {
-	s, e := n.inset(axisX)
+func (n *node) PadX() float32 {
+	s, e := n.Inset(axisX)
 	return s + e
 }
 
-func (n *node) padY() float32 {
-	s, e := n.inset(axisY)
+func (n *node) PadY() float32 {
+	s, e := n.Inset(axisY)
 	return s + e
 }
 
@@ -234,7 +234,7 @@ func (f *frame) solve(i int32, axis int) {
 		}
 		return
 	}
-	is, ie := n.inset(axis)
+	is, ie := n.Inset(axis)
 	start := *origin(&n.Rect, axis) + is
 	avail := max(*extent(&n.Rect, axis)-is-ie, 0)
 	switch {
@@ -516,7 +516,7 @@ func (n *node) alignOn(Parent *node) Align {
 func (f *frame) measureBaseline(n *node) {
 	switch n.Kind {
 	case kindText:
-		top, bottom := n.inset(axisY)
+		top, bottom := n.Inset(axisY)
 		height := n.leading()
 		if n.Flags&flagWrap == 0 {
 			height = max(n.Pref[axisY]-top-bottom, 0)
@@ -534,7 +534,7 @@ func (f *frame) measureBaseline(n *node) {
 		n.Baseline = controlBaseline(f, n)
 	case kindContainer:
 		n.Baseline = n.Pref[axisY]
-		is, _ := n.inset(axisY)
+		is, _ := n.Inset(axisY)
 		for c := n.First; c >= 0; c = f.Nodes[c].Next {
 			child := &f.Nodes[c]
 			if n.Dir == flow && child.GridRow != 0 {

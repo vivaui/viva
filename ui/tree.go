@@ -56,7 +56,7 @@ type TreeState struct {
 	Scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
 	n               int
 	declared        []treeRow // the rows of the last paint
-	declare         func(i int, box Box)
+	declare         func(i int, Box Box)
 	paint           func(*DrawContext)
 	c               C
 	rowLabel        func(int) string
@@ -151,14 +151,14 @@ func (s *TreeState) Chosen() (int, bool) { return s.chosen, s.chosen >= 0 }
 // Not inside a Memo.
 func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i int)) Box {
 	p := c.page
-	p.forbidInMemo("Tree")
+	p.ForbidInMemo("Tree")
 	if state.Node == nil {
 		panic("ui: Tree needs TreeState.Node, which describes each visible row")
 	}
 	if state.declare == nil {
 		state.declare, state.paint = state.row, state.draw // made once: method values made in each paint allocate
 	}
-	scope := p.boundScope(pkTree, unsafe.Pointer(state))
+	scope := p.BoundScope(pkTree, unsafe.Pointer(state))
 	if scope != state.scope {
 		state.scope, state.rows, state.chevrons = scope, p.tree.Sub(scope, gfx.Index(0)), p.tree.Sub(scope, gfx.Index(1))
 	}
@@ -181,7 +181,7 @@ func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i
 	state.c, state.rowLabel, state.Content = nil, nil, nil // the model's functions: not kept past the paint
 	p.trees = append(p.trees, state)
 	if p.treeRoute == nil {
-		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).routeKey, (*Page).treeKey, (*Page).typeKey
+		p.keyRoute, p.treeRoute, p.typeRoute = (*Page).RouteKey, (*Page).treeKey, (*Page).typeKey
 	}
 	return area
 }

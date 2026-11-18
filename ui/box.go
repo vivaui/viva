@@ -73,14 +73,14 @@ func (b Box) Hit(ID gfx.ID, Label string) Box {
 // own presses. Declare it on the row that is the window's top bar.
 func (b Box) MovesWindow() Box {
 	b.n()
-	b.f.extra(b.i).moves = true
+	b.f.Extra(b.i).moves = true
 	return b
 }
 
 // HitWith is Hit with the role, cursor and other options of gfx.HitOptions.
 func (b Box) HitWith(ID gfx.ID, Label string, options gfx.HitOptions) Box {
 	b.n()
-	b.f.extra(b.i).hit = options
+	b.f.Extra(b.i).hit = options
 	return b.Hit(ID, Label)
 }
 
@@ -140,12 +140,12 @@ func (b Box) MaxHeight(v float32) Box { b.n().MaxS[axisY] = v; return b }
 // Row, Column or Stack.
 func (b Box) MaxWidthPercent(p float32) Box {
 	b.n()
-	b.f.extra(b.i).maxPct[axisX] = p
+	b.f.Extra(b.i).maxPct[axisX] = p
 	return b
 }
 func (b Box) MaxHeightPercent(p float32) Box {
 	b.n()
-	b.f.extra(b.i).maxPct[axisY] = p
+	b.f.Extra(b.i).maxPct[axisY] = p
 	return b
 }
 
@@ -281,7 +281,7 @@ func (b Box) Radius(v float32) Box {
 func (b Box) Border(width float32, c Color) Box {
 	n := b.n()
 	n.BorderWidth, n.Flags = width, n.Flags|flagSetBorder
-	b.f.extra(b.i).border = c
+	b.f.Extra(b.i).border = c
 	return b
 }
 
@@ -290,7 +290,7 @@ func (b Box) Border(width float32, c Color) Box {
 // calling it again switches back to a solid line.
 func (b Box) Dashed() Box {
 	b.n()
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	extra.borderDashed = !extra.borderDashed
 	return b
 }
@@ -298,7 +298,7 @@ func (b Box) Dashed() Box {
 // Shadow casts the shadow of that level of the elevation scale (gfx.ShadowXS to
 // gfx.ShadowLG) around the element's rounded rectangle, under its fill.
 func (b Box) Shadow(level gfx.ShadowLevel) Box {
-	b.f.extra(b.i).shadow = level
+	b.f.Extra(b.i).shadow = level
 	b.n().Flags |= flagSetShadow
 	return b
 }
@@ -342,7 +342,7 @@ func (b Box) Mono() Box { b.n().Flags |= flagMono; return b }
 // an icon off the pixel grid.
 func (b Box) IconTransform(transform gfx.IconTransform) Box {
 	b.n()
-	b.f.extra(b.i).iconTransform = transform
+	b.f.Extra(b.i).iconTransform = transform
 	return b
 }
 
@@ -416,7 +416,7 @@ func (b Box) IconOnly() Box { b.n().ButtonSize = style.SizeIcon; return b }
 //	ui.Switch(c, &m.on, "Running").SwitchRecipe(components.SwitchRecipe)
 func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.SwitchLook) Box {
 	if n := b.n(); n.Kind == kindSwitch {
-		b.f.extra(b.i).switchRecipe = recipe
+		b.f.Extra(b.i).switchRecipe = recipe
 	}
 	return b
 }
@@ -436,7 +436,7 @@ func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) style.Switc
 // allocates. Other elements ignore it.
 func (b Box) ButtonRecipe(recipe func(gfx.Theme, style.Variant, gfx.State) style.ButtonLook) Box {
 	if n := b.n(); n.Kind == kindButton {
-		b.f.extra(b.i).buttonRecipe = recipe
+		b.f.Extra(b.i).buttonRecipe = recipe
 	}
 	return b
 }
@@ -496,7 +496,7 @@ func (b Box) Stroke(width float32, c Color) Box {
 	n := b.n()
 	n.BorderWidth = width
 	n.Flags |= flagOutline
-	b.f.extra(b.i).border = c
+	b.f.Extra(b.i).border = c
 	return b
 }
 
@@ -505,7 +505,7 @@ func (b Box) Stroke(width float32, c Color) Box {
 // inset rounded fill can still be clicked all the way across.
 func (b Box) HitOutset(top, right, bottom, left float32) Box {
 	b.n()
-	b.f.extra(b.i).hitOut = [4]float32{top, right, bottom, left}
+	b.f.Extra(b.i).hitOut = [4]float32{top, right, bottom, left}
 	return b
 }
 

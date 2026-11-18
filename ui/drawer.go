@@ -63,14 +63,14 @@ type DrawerSpec struct {
 // Not inside a Memo.
 func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func()) bool {
 	p := c.page
-	p.forbidInMemo("Drawer")
+	p.ForbidInMemo("Drawer")
 	if !*open {
 		return false
 	}
 	if !spec.NonModal {
 		p.overlay = true
 	}
-	scope := p.boundScope(pkDrawer, unsafe.Pointer(open))
+	scope := p.BoundScope(pkDrawer, unsafe.Pointer(open))
 	d := drawerSpec{DrawerSpec: spec, title: title, scope: scope.At(0), dismiss: scope.At(1), close: scope.At(2)}
 	if title == "" || spec.NoClose {
 		d.close = gfx.ID{}
@@ -92,9 +92,9 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 	}
 	drawer := c.f.drawer(d, footer != nil)
 	decl := &widgetsOf(c.f).drawers[drawer.n().Aux]
-	p.setScope(decl.body, scope)
+	p.SetScope(decl.body, scope)
 	if decl.footer >= 0 {
-		p.setScope(decl.footer, scope)
+		p.SetScope(decl.footer, scope)
 	}
 	if body != nil {
 		Box{f: c.f, i: decl.body, gen: c.f.gen}.drawerPart(body, decl.layer)
@@ -210,7 +210,7 @@ func (spec *drawerSpec) component(Surface *gfx.Canvas, Palette Theme, bounds Rec
 // drawer declares a Drawer's root: an element over the whole frame holding the
 // body and footer at the rectangles components.Drawer gives them.
 func (f *frame) drawer(spec drawerSpec, footer bool) Box {
-	layer := f.widgetLayer() + 2
+	layer := f.WidgetLayer() + 2
 	layout := spec.component(f.Surface, f.Palette, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body
 	switch {

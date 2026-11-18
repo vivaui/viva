@@ -19,7 +19,7 @@ type console struct {
 	presses int
 	drags   int
 	Scroll  float32
-	focused bool
+	Focused bool
 	Text    app.TextInput
 	asked   gfx.ID
 }
@@ -58,7 +58,7 @@ func newConsole() *console {
 		},
 	}
 	t.draw = func(d *ui.DrawContext) {
-		t.focused = d.State.Focused
+		t.Focused = d.State.Focused
 		d.Canvas.Fill(d.Rect, d.Theme.Card)
 	}
 	return t
@@ -95,8 +95,8 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	if term.presses != 1 || term.drags == 0 {
 		t.Fatalf("presses=%d drags=%d", term.presses, term.drags)
 	}
-	if d.focused() != "Console" || !term.focused {
-		t.Fatalf("a press on the control did not focus it: %q, drawn focused %v", d.focused(), term.focused)
+	if d.Focused() != "Console" || !term.Focused {
+		t.Fatalf("a press on the control did not focus it: %q, drawn focused %v", d.Focused(), term.Focused)
 	}
 	d.key(gfx.KeyUp)
 	d.key(gfx.KeyEnter)
@@ -114,8 +114,8 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 		t.Fatalf("scroll = %v", term.Scroll)
 	}
 	d.key(gfx.KeyTab)
-	if d.focused() != "After" {
-		t.Fatalf("Tab left unhandled did not move the focus on: %q", d.focused())
+	if d.Focused() != "After" {
+		t.Fatalf("Tab left unhandled did not move the focus on: %q", d.Focused())
 	}
 }
 

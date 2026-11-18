@@ -139,12 +139,12 @@ func (f *frame) measureCustom(n *node, axis int) {
 	ctx := &f.layoutCtx
 	if axis == axisX {
 		ctx.begin(f, n, phaseMeasureWidth)
-		n.Pref[axisX] = max(layout.MeasureWidth(ctx), 0) + n.padX()
+		n.Pref[axisX] = max(layout.MeasureWidth(ctx), 0) + n.PadX()
 		return
 	}
 	ctx.begin(f, n, phaseMeasureHeight)
-	ctx.width = max(n.Rect.Width-n.padX(), 0)
-	n.Pref[axisY] = max(layout.MeasureHeight(ctx), 0) + n.padY()
+	ctx.width = max(n.Rect.Width-n.PadX(), 0)
+	n.Pref[axisY] = max(layout.MeasureHeight(ctx), 0) + n.PadY()
 }
 
 // solveCustom gives a CustomLayout's children their extent and origin on axis,
@@ -174,8 +174,8 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 		child.Rect.Height = clamp(child.Pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
 		child.Rect.Y = start
 	}
-	is, _ := n.inset(axisX)
-	ctx.width = max(n.Rect.Width-n.padX(), 0)
+	is, _ := n.Inset(axisX)
+	ctx.width = max(n.Rect.Width-n.PadX(), 0)
 	layout.PlaceHeight(ctx, Rect{X: n.Rect.X + is, Y: start, Width: ctx.width, Height: avail})
 	for index, i := range ctx.children {
 		if delta := f.Nodes[i].Rect.X - ctx.beforeX[index]; delta != 0 {

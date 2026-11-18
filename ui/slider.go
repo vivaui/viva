@@ -129,7 +129,7 @@ func (f *frame) Slider(ID gfx.ID, state *SliderState) Box {
 //		d.Canvas.Rounded(Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}, 8, thumbColor)
 //	})
 func (f *frame) SliderBase(ID gfx.ID, state *SliderState) Box {
-	b := f.box(kindSlider)
+	b := f.Box(kindSlider)
 	n := &f.Nodes[b.i]
 	n.ID = ID
 	n.Aux = int32(len(widgetsOf(f).sliders))

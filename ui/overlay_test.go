@@ -54,11 +54,11 @@ func TestOverlayPaintsAndTabsOnItsBand(t *testing.T) {
 
 	d := openPage(t, m.view)
 	d.key(gfx.KeyTab)
-	if got := d.focused(); got != "Content" {
+	if got := d.Focused(); got != "Content" {
 		t.Fatalf("first Tab focuses %q, want the page's Content", got)
 	}
 	d.key(gfx.KeyTab)
-	if got := d.focused(); got != "Overlay" {
+	if got := d.Focused(); got != "Overlay" {
 		t.Fatalf("second Tab focuses %q, want the overlay's Overlay", got)
 	}
 }

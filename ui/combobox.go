@@ -50,11 +50,11 @@ type ComboboxPaint = components.SingleSelectPaint
 
 func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
 	p := c.page
-	p.forbidInMemo("Combobox")
+	p.ForbidInMemo("Combobox")
 	if Label == "" {
 		panic("ui: Combobox needs a label: it is the field's name for assistive technology")
 	}
-	scope := p.boundScope(pkCombobox, unsafe.Pointer(Value))
+	scope := p.BoundScope(pkCombobox, unsafe.Pointer(Value))
 	state := stateIn[comboState](p, scope, "combobox")
 	if state.paint == nil {
 		state.paint = state.draw // made once: a method value made in each paint allocates
@@ -121,18 +121,18 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 	// Clearable, Empty and Creatable say these again for this paint, after the clicks
 	// were taken with what the last paint showed.
 	state.clearable, state.empty, state.list.AllowCreate, state.createPrefix = false, "", false, ""
-	state.layer = f.widgetLayer() + 1
+	state.layer = f.WidgetLayer() + 1
 	// The field declares its own hits as it paints; the element only places it, as
 	// wide as its container, a control tall.
 	b := f.Slot().Height(f.Palette.Metrics.ControlHeight)
 	b.n().ID = ids.input // what Tooltip, Shortcut and AutoFocus name
 	state.node, state.gen = b.i, b.gen
 	b.Draw(state.paint)
-	f.bindDone(b, changed)
+	f.BindDone(b, changed)
 	p.combos = append(p.combos, state)
 	if p.comboRoute == nil {
-		p.keyRoute, p.comboRoute = (*Page).routeKey, (*Page).comboKey
-		p.wheelRoute, p.textRoute = (*Page).overlayWheel, (*Page).comboText
+		p.keyRoute, p.comboRoute = (*Page).RouteKey, (*Page).comboKey
+		p.wheelRoute, p.textRoute = (*Page).OverlayWheel, (*Page).comboText
 	}
 	return b
 }
@@ -358,7 +358,7 @@ func (p *Page) comboWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 }
 
 // overlayWheel scrolls the open Menu or Combobox list the wheel is over.
-func (p *Page) overlayWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
+func (p *Page) OverlayWheel(event gfx.ScrollEvent) (gfx.EventResult, bool) {
 	if len(p.menus) > 0 {
 		if result, ok := p.menuWheel(event); ok {
 			return result, true

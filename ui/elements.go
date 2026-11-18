@@ -17,10 +17,10 @@ func Stack(c C) Box  { return c.page.container(c.f.Stack()) }
 // Scroll is a scroll area whose offset is kept by the area's own name.
 func Scroll(c C) Box {
 	p := c.page
-	p.forbidInMemo("Scroll")
-	at, _ := p.name(pkContainer)
+	p.ForbidInMemo("Scroll")
+	at, _ := p.Name(pkContainer)
 	b := c.f.ScrollArea(p.ID(at))
-	p.setNode(b.i, at)
+	p.SetNode(b.i, at)
 	return b
 }
 
@@ -34,7 +34,7 @@ func ScrollAt(c C, offset float32) Box {
 	b := Scroll(c)
 	offset = max(offset, 0)
 	b.ScrollState().Offset = offset
-	b.f.extra(b.i).scrollManual = true
+	b.f.Extra(b.i).scrollManual = true
 	b.n().Scroll = offset // the layout reads the node; ScrollArea set it from the old state
 	return b
 }
@@ -85,7 +85,7 @@ func Flow(c C) Box { return c.page.container(c.f.Flow()) }
 //	})
 func CustomLayout(c C, layout Layout) Box {
 	p := c.page
-	p.forbidInMemo("CustomLayout")
+	p.ForbidInMemo("CustomLayout")
 	if layout == nil {
 		panic("ui: CustomLayout needs a Layout")
 	}
@@ -96,9 +96,9 @@ func CustomLayout(c C, layout Layout) Box {
 
 // Button adds a button; Clicked reports a click on it.
 func Button(c C, Label string) Box {
-	id := c.page.controlID(pkButton)
+	id := c.page.ControlID(pkButton)
 	b := c.f.Button(id, Label)
-	c.page.guard(b, id, Label)
+	c.page.Guard(b, id, Label)
 	return b
 }
 
@@ -173,7 +173,7 @@ func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
 	if changed {
 		*Value = options[index]
 	}
-	c.f.bindDone(b, changed)
+	c.f.BindDone(b, changed)
 }
 
 // Choice is a segmented control over options, *value the chosen one; a click sets
@@ -184,7 +184,7 @@ func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
 //	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil)
 func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	p := c.page
-	scope := p.boundScope(pkChoice, unsafe.Pointer(Value))
+	scope := p.BoundScope(pkChoice, unsafe.Pointer(Value))
 	labels, selected := options(p, Value, choices, Label)
 	b := c.f.Choice(scope, labels, selected)
 	p.rove(c.f, b, false)
@@ -197,7 +197,7 @@ func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box 
 // what the active tab shows after it.
 func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 	p := c.page
-	scope := p.boundScope(pkTabs, unsafe.Pointer(Value))
+	scope := p.BoundScope(pkTabs, unsafe.Pointer(Value))
 	labels, selected := options(p, Value, tabs, Label)
 	b := c.f.Tabs(scope, labels, selected)
 	p.rove(c.f, b, true)
@@ -235,7 +235,7 @@ func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, 
 // them, are indexed by option like the labels; nil is the select without icons.
 func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
 	p := c.page
-	scope := p.boundScope(pkSelect, unsafe.Pointer(Value))
+	scope := p.BoundScope(pkSelect, unsafe.Pointer(Value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
 	labels, selected := options(p, Value, choices, Label)
 	var b Box
@@ -248,7 +248,7 @@ func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, ic
 	state.trigger = ID
 	p.selects = append(p.selects, state)
 	if p.keyRoute == nil {
-		p.keyRoute, p.selectRoute = (*Page).routeKey, (*Page).selectKey
+		p.keyRoute, p.selectRoute = (*Page).RouteKey, (*Page).selectKey
 	}
 	index, ok := b.Picked()
 	pick(c, b, Value, choices, index, ok)
@@ -274,7 +274,7 @@ func Splitter(c C, state *SplitterState) Box {
 func Table(c C, state *TableState, spec TableSpec) Box {
 	p := c.page
 	if spec.Rows == 0 || spec.Header == 0 {
-		scope := p.boundScope(pkTable, unsafe.Pointer(state))
+		scope := p.BoundScope(pkTable, unsafe.Pointer(state))
 		if spec.Rows == 0 {
 			spec.Rows = p.tree.Sub(scope, gfx.Index(0))
 		}
@@ -338,7 +338,7 @@ func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
 	b := c.f.FieldArea(field, id, Label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {
-		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
+		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
 	}
 	p.fields = append(p.fields, fieldEntry{ID: id, field: field})
 	return b
@@ -358,7 +358,7 @@ func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
 	b := c.f.FieldArea(field, ID, Label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {
-		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
+		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
 	}
 	p.fields = append(p.fields, fieldEntry{ID: ID, field: field})
 	return b
@@ -381,12 +381,12 @@ func Popover(c C, Anchor Box, open *bool, body func()) bool {
 // PopoverSpec. The Scope and DismissID it leaves zero are made from open.
 func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
 	p := c.page
-	p.forbidInMemo("Popover")
+	p.ForbidInMemo("Popover")
 	if !*open {
 		return false
 	}
 	p.overlay = true
-	scope := p.boundScope(pkPopover, unsafe.Pointer(open))
+	scope := p.BoundScope(pkPopover, unsafe.Pointer(open))
 	if spec.Scope.IsZero() {
 		spec.Scope = scope.At(0)
 	}
@@ -394,7 +394,7 @@ func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) boo
 		spec.DismissID = scope.At(1)
 	}
 	panel := c.f.Popover(Anchor, spec)
-	p.setScope(panel.i, scope)
+	p.SetScope(panel.i, scope)
 	panel.Children(func() {
 		if spec.Title != "" || spec.Description != "" {
 			popoverHeader(c, spec)
@@ -452,7 +452,7 @@ func Modal(c C, open *bool, title string, body, footer func()) bool {
 // ModalWith is Modal with a description, a size, no close button or an initial focus.
 func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
 	p := c.page
-	p.forbidInMemo("Modal")
+	p.ForbidInMemo("Modal")
 	if !*open {
 		return false
 	}
@@ -460,14 +460,14 @@ func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func(
 	if title == "" {
 		panic("ui: Modal needs a title: it is the dialog's name for assistive technology")
 	}
-	scope := p.boundScope(pkModal, unsafe.Pointer(open))
+	scope := p.BoundScope(pkModal, unsafe.Pointer(open))
 	dialog := c.f.Dialog(DialogSpec{
 		Title: title, Description: spec.Description, Width: spec.Width, Height: spec.Height, NoClose: spec.NoClose,
 		Scope: scope.At(0), DismissID: scope.At(1), CloseID: scope.At(2), InitialFocusID: spec.InitialFocus,
 	})
 	d := &widgetsOf(c.f).dialogs[dialog.n().Aux]
-	p.setScope(d.body, scope)
-	p.setScope(d.footer, scope)
+	p.SetScope(d.body, scope)
+	p.SetScope(d.footer, scope)
 	if body != nil {
 		dialog.Body(body)
 	}

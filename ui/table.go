@@ -222,7 +222,7 @@ type tableDecl struct {
 //	if row, ok := tbl.RowClicked(); ok { state.Select(row) }
 //	if col, ok := tbl.HeaderClicked(); ok { state.SortBy(col); data.Sort(state.Sort()) }
 func (f *frame) Table(state *TableState, spec TableSpec) Box {
-	b := f.box(kindTable)
+	b := f.Box(kindTable)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).tables))
 	rows := 0
@@ -530,7 +530,7 @@ func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, co
 // They share the body's content extents and offsets; a bar sits in the gutter the
 // spec asked for and over the body's edge when it did not.
 func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Size, offsetX, offsetY, frozenWidth float32) {
-	revealed := f.page == nil || f.page.pointerOver(r) || t.state.Scroll.dragging
+	revealed := f.page == nil || f.page.PointerOver(r) || t.state.Scroll.dragging
 	label := t.spec.ScrollbarLabel
 	if label == "" {
 		label = "Table rows"

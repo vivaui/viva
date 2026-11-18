@@ -28,7 +28,7 @@ const (
 //	f.Progress(m.done / m.total).Height(8)
 //	f.Progress(0).Indeterminate()
 func (f *frame) Progress(fraction float32) Box {
-	b := f.box(kindProgress)
+	b := f.Box(kindProgress)
 	f.Nodes[b.i].Natural = max(fraction, 0)
 	if fraction != fraction {
 		f.Nodes[b.i].Natural = 0
@@ -53,11 +53,11 @@ func (b Box) Indeterminate() Box {
 // Declare it only while the work runs.
 //
 //	if m.loading { f.Spinner() }
-func (f *frame) Spinner() Box { return f.box(kindSpinner) }
+func (f *frame) Spinner() Box { return f.Box(kindSpinner) }
 
 // visible reports whether any of element n is inside the frame and every clip it sits
 // in: the elements that animate ask for frames only then.
-func (f *frame) visible(n *node) bool {
+func (f *frame) Visible(n *node) bool {
 	r := intersect(n.Rect, f.bounds)
 	for p := n.Parent; p >= 0 && r.Width > 0 && r.Height > 0; p = f.Nodes[p].Parent {
 		if f.Nodes[p].Flags&flagClip != 0 {
@@ -91,7 +91,7 @@ func (f *frame) paintProgress(n *node) {
 	if !canvas.ReduceMotion() {
 		phase := float32(canvas.Now()%indeterminatePeriod) / float32(indeterminatePeriod)
 		x = r.X - segment + phase*(r.Width+segment)
-		if f.visible(n) {
+		if f.Visible(n) {
 			canvas.RequestFrame()
 		}
 	}
@@ -105,7 +105,7 @@ func (f *frame) paintSpinner(n *node) {
 	phase := components.SpinnerPhase(0)
 	if !canvas.ReduceMotion() {
 		phase = components.SpinnerPhase(canvas.Now() / spinnerStep % 8)
-		if f.visible(n) {
+		if f.Visible(n) {
 			canvas.RequestFrameIn(spinnerStep)
 		}
 	}

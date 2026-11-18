@@ -13,10 +13,10 @@ func TestColorSwatchChoosesByClick(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Row(c).Gap(4).Children(func() {
 			for _, s := range []struct {
-				name string
+				Name string
 				col  gfx.Color
 			}{{"Red", red}, {"Blue", blue}} {
-				if ui.ColorSwatch(c.Key(s.name), s.col, chosen == s.col, s.name).Clicked() {
+				if ui.ColorSwatch(c.Key(s.Name), s.col, chosen == s.col, s.Name).Clicked() {
 					chosen = s.col
 				}
 			}
@@ -161,10 +161,10 @@ func TestColorSwatchPaintsWithoutAllocating(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Row(c).Gap(4).Children(func() {
 			for _, s := range []struct {
-				name string
+				Name string
 				col  gfx.Color
 			}{{"Red", red}, {"Blue", blue}, {"Blue2", blue}, {"Red2", red}, {"Red3", red}, {"Blue3", blue}, {"Red4", red}} {
-				ui.ColorSwatch(c.Key(s.name), s.col, chosen == s.col, s.name)
+				ui.ColorSwatch(c.Key(s.Name), s.col, chosen == s.col, s.Name)
 			}
 		})
 	})

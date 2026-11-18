@@ -37,17 +37,17 @@ func TestChoiceArrowKeysMoveAndChoose(t *testing.T) {
 	}
 	for _, step := range steps {
 		d.key(step.key)
-		if d.focused() != step.Want || m.mode != step.Want {
-			t.Fatalf("key %v: focused %q, chosen %q, want %q", step.key, d.focused(), m.mode, step.Want)
+		if d.Focused() != step.Want || m.mode != step.Want {
+			t.Fatalf("key %v: focused %q, chosen %q, want %q", step.key, d.Focused(), m.mode, step.Want)
 		}
 	}
 	if m.changed != 6 {
 		t.Fatalf("Changed reported %d times for 6 moves", m.changed)
 	}
 	d.key(gfx.KeyTab) // the Choice is one tab stop: Tab leaves it
-	switch d.focused() {
+	switch d.Focused() {
 	case "light", "dark", "auto":
-		t.Fatalf("Tab stayed in the Choice, on %q", d.focused())
+		t.Fatalf("Tab stayed in the Choice, on %q", d.Focused())
 	}
 }
 
@@ -57,16 +57,16 @@ func TestTabsArrowKeysMoveAndChoose(t *testing.T) {
 	d := openPage(t, m.page)
 	d.click("general")
 	d.key(gfx.KeyRight)
-	if d.focused() != "network" || m.tab != "network" {
-		t.Fatalf("Right: focused %q, tab %q", d.focused(), m.tab)
+	if d.Focused() != "network" || m.tab != "network" {
+		t.Fatalf("Right: focused %q, tab %q", d.Focused(), m.tab)
 	}
 	d.key(gfx.KeyDown)
 	if m.tab != "network" {
 		t.Fatalf("Down changed the tab to %q", m.tab)
 	}
 	d.key(gfx.KeyEnd)
-	if d.focused() != "about" || m.tab != "about" {
-		t.Fatalf("End: focused %q, tab %q", d.focused(), m.tab)
+	if d.Focused() != "about" || m.tab != "about" {
+		t.Fatalf("End: focused %q, tab %q", d.Focused(), m.tab)
 	}
 }
 

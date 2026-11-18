@@ -44,11 +44,11 @@ import (
 // Not inside a Memo.
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	p := c.page
-	p.forbidInMemo("Menu")
+	p.ForbidInMemo("Menu")
 	if !*open {
 		return
 	}
-	scope := p.boundScope(pkMenu, unsafe.Pointer(open))
+	scope := p.BoundScope(pkMenu, unsafe.Pointer(open))
 	menu := stateIn[MenuItems](p, scope, "menu")
 	menu.context = false
 	p.declareMenu(c, menu, scope, open, Anchor.i, nil, body)
@@ -83,28 +83,28 @@ func ContextMenuAt(c C, target Box, open *bool, at gfx.Point, body func(*MenuIte
 	if !*open {
 		return
 	}
-	contextMenu(c, target, c.page.boundScope(pkMenu, unsafe.Pointer(open)), &menuOrigin{open: open, at: Rect{X: at.X, Y: at.Y}}, body)
+	contextMenu(c, target, c.page.BoundScope(pkMenu, unsafe.Pointer(open)), &menuOrigin{open: open, at: Rect{X: at.X, Y: at.Y}}, body)
 }
 
 func (m *MenuItems) RowHeight(height float32) { m.rowSize = height }
 
-func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func(*MenuItems)) {
+func contextMenu(c C, target Box, Bound gfx.Scope, opened *menuOrigin, body func(*MenuItems)) {
 	p := c.page
-	p.forbidInMemo("ContextMenu")
+	p.ForbidInMemo("ContextMenu")
 	id := target.n().ID
 	if id.IsZero() {
 		panic("ui: ContextMenu needs a target with an identity: a control, or a container given Hit")
 	}
 	scope := p.tree.Sub(id.Scope(), id.Name()) // the target's own: a ContextMenu per target
-	if !bound.IsZero() {
-		scope = bound
+	if !Bound.IsZero() {
+		scope = Bound
 	}
 	menu := stateIn[MenuItems](p, scope, "context")
 	menu.context = true
 	p.contexts = append(p.contexts, contextTarget{ID: id, menu: menu, f: c.f, target: target.i})
 	if p.menuRoute == nil {
-		p.keyRoute, p.menuRoute = (*Page).routeKey, (*Page).menuKey
-		p.wheelRoute = (*Page).overlayWheel
+		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).menuKey
+		p.wheelRoute = (*Page).OverlayWheel
 	}
 	if canvas := c.f.Surface; canvas != nil && opened == nil {
 		if event, ok := canvas.PointerOn(id); ok && event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary {
@@ -122,7 +122,7 @@ func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func
 			// pointer opened it, and the chosen row (or a dismissal) closes it.
 			open = &menu.shown
 		}
-		if bound.IsZero() {
+		if Bound.IsZero() {
 			// The target's scope holds the identities inside it: the parts of a
 			// Control (Handlers.Parts) and the children of a container. The rows, the
 			// backdrop, the scroll bar and the focus trap of the menu take a place of
@@ -166,7 +166,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 	if opened != nil {
 		menu.at = opened.at
 	}
-	menu.layer = f.widgetLayer() + 2 // over the page, and over a dialog it is declared in
+	menu.layer = f.WidgetLayer() + 2 // over the page, and over a dialog it is declared in
 	menu.side = menuBelow            // unless body says otherwise again in this paint
 	menu.fresh()
 	menu.declare(body)
@@ -204,8 +204,8 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 	}
 	p.menus = append(p.menus, menu)
 	if p.menuRoute == nil {
-		p.keyRoute, p.menuRoute = (*Page).routeKey, (*Page).menuKey
-		p.wheelRoute = (*Page).overlayWheel
+		p.keyRoute, p.menuRoute = (*Page).RouteKey, (*Page).menuKey
+		p.wheelRoute = (*Page).OverlayWheel
 	}
 }
 

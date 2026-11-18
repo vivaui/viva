@@ -65,7 +65,7 @@ func (b Box) Inset(v float32) Box { return b.Top(v).Right(v).Bottom(v).Left(v) }
 
 func (b Box) edge(side int, v float32) Box {
 	b.n().OutOfFlow |= 1 << (absEdgeBit + side)
-	b.f.extra(b.i).edges[side] = v
+	b.f.Extra(b.i).edges[side] = v
 	return b
 }
 

@@ -77,7 +77,7 @@ func (b Box) DrawOver(fn func(*DrawContext)) Box { b.hooks().over = fn; return b
 
 func (b Box) hooks() *drawHooks {
 	b.n()
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	if extra.Draws == 0 {
 		b.f.Draws = append(b.f.Draws, drawHooks{})
 		extra.Draws = int32(len(b.f.Draws))
@@ -88,9 +88,9 @@ func (b Box) hooks() *drawHooks {
 // State is the element's state as the canvas and the declaration have it now: what its
 // looks (Hover, Pressed, Focus) are chosen by, available to a declaration that decides
 // what to build from it. Disabled, Checked, Selected and Open are the ones the element was declared with.
-func (b Box) State() gfx.State { return b.f.stateOf(b.n()) }
+func (b Box) State() gfx.State { return b.f.StateOf(b.n()) }
 
-func (f *frame) stateOf(n *node) gfx.State {
+func (f *frame) StateOf(n *node) gfx.State {
 	state := f.Surface.StateOf(n.ID)
 	state.Disabled = n.Flags&flagDisabled != 0
 	state.Checked = n.Flags&flagChecked != 0
@@ -102,7 +102,7 @@ func (f *frame) stateOf(n *node) gfx.State {
 // runDraw calls fn for n with the context reused for the frame.
 func (f *frame) runDraw(n *node, fn func(*DrawContext)) {
 	d := &f.drawContext
-	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.Surface, &f.Palette, n.Rect, f.stateOf(n), f.Opacity, n.Label
+	d.Canvas, d.Theme, d.Rect, d.State, d.Opacity, d.Label = f.Surface, &f.Palette, n.Rect, f.StateOf(n), f.Opacity, n.Label
 	d.frame, d.node = f, n
 	fn(d)
 }

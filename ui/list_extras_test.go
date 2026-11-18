@@ -157,28 +157,28 @@ func TestListHeaderIsNotARow(t *testing.T) {
 
 	d.click("croissant")
 	d.key(gfx.KeyDown)
-	if d.focused() != "butter" {
-		t.Fatalf("Down from the last row of a section went to %q, not past the heading to butter", d.focused())
+	if d.Focused() != "butter" {
+		t.Fatalf("Down from the last row of a section went to %q, not past the heading to butter", d.Focused())
 	}
 	d.key(gfx.KeyUp)
-	if d.focused() != "croissant" {
-		t.Fatalf("Up went to %q", d.focused())
+	if d.Focused() != "croissant" {
+		t.Fatalf("Up went to %q", d.Focused())
 	}
 	d.key(gfx.KeyHome)
-	if d.focused() != "bagel" || m.list.Selected() != 1 {
-		t.Fatalf("Home went to %q (row %d), not the first row", d.focused(), m.list.Selected())
+	if d.Focused() != "bagel" || m.list.Selected() != 1 {
+		t.Fatalf("Home went to %q (row %d), not the first row", d.Focused(), m.list.Selected())
 	}
 	d.key(gfx.KeyUp)
-	if d.focused() != "bagel" {
-		t.Fatalf("Up from the first row went to %q", d.focused())
+	if d.Focused() != "bagel" {
+		t.Fatalf("Up from the first row went to %q", d.Focused())
 	}
 	d.key(gfx.KeyEnd)
-	if d.focused() != "cheese" {
-		t.Fatalf("End went to %q", d.focused())
+	if d.Focused() != "cheese" {
+		t.Fatalf("End went to %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
-	if d.focused() != "cheese" {
-		t.Fatalf("Down from the last row went to %q", d.focused())
+	if d.Focused() != "cheese" {
+		t.Fatalf("Down from the last row went to %q", d.Focused())
 	}
 
 	// Typing goes round past a heading whose name begins with the letter.
@@ -186,8 +186,8 @@ func TestListHeaderIsNotARow(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 'b'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "bagel" {
-		t.Fatalf("typing b from butter went to %q, not round to bagel", d.focused())
+	if d.Focused() != "bagel" {
+		t.Fatalf("typing b from butter went to %q, not round to bagel", d.Focused())
 	}
 
 	// Primary+A and a Shift range choose rows, not headings.
@@ -216,8 +216,8 @@ func TestListHeaderDoesNotCoverTheRowYouMoveTo(t *testing.T) {
 	for range 4 {
 		d.key(gfx.KeyUp)
 	}
-	if d.focused() != "2-0" {
-		t.Fatalf("Up four times from 2-4 went to %q", d.focused())
+	if d.Focused() != "2-0" {
+		t.Fatalf("Up four times from 2-4 went to %q", d.Focused())
 	}
 	d.repaint()
 	heading := d.textsNamed("Section 2")

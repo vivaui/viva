@@ -11,7 +11,7 @@ import (
 func TestButtonBaselineMatchesItsLabelRow(t *testing.T) {
 	theme := gfx.LightTheme()
 	cases := []struct {
-		name      string
+		Name      string
 		declare   func(*frame) Box
 		labelSize float32
 	}{
@@ -21,7 +21,7 @@ func TestButtonBaselineMatchesItsLabelRow(t *testing.T) {
 		{"height", func(f *Frame) Box { return f.Button(save, "Save").Height(48) }, theme.Metrics.FontSizeM},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.Name, func(t *testing.T) {
 			var view View
 			var text, button Box
 			canvas := testCanvas()

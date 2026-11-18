@@ -53,7 +53,7 @@ type FormFieldState struct {
 // in a paint is a mistake, as it is for a ListState.
 func FormField(c C, state *FormFieldState, Label string) Box {
 	p := c.page
-	p.forbidInMemo("FormField")
+	p.ForbidInMemo("FormField")
 	if state == nil {
 		panic("ui: FormField needs its FormFieldState")
 	}

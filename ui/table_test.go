@@ -19,32 +19,32 @@ var (
 	tableColumns = []components.TableColumn{{Width: 120}, {Width: 90, Alignment: components.TableAlignCenter}, {Alignment: components.TableAlignRight}}
 )
 
-func sameCanvas(t *testing.T, name string, flexed, direct *gfx.Canvas) {
+func sameCanvas(t *testing.T, Name string, flexed, direct *gfx.Canvas) {
 	t.Helper()
 	if a, b := flexed.Rectangles(), direct.Rectangles(); len(a) != len(b) {
-		t.Fatalf("%s: ui painted %d rectangles, the component %d", name, len(a), len(b))
+		t.Fatalf("%s: ui painted %d rectangles, the component %d", Name, len(a), len(b))
 	} else {
 		for i := range a {
 			if a[i].Bounds != b[i].Bounds || a[i].Color != b[i].Color {
-				t.Errorf("%s: rectangle %d is %+v, the component's %+v", name, i, a[i], b[i])
+				t.Errorf("%s: rectangle %d is %+v, the component's %+v", Name, i, a[i], b[i])
 			}
 		}
 	}
 	if a, b := flexed.Texts(), direct.Texts(); len(a) != len(b) {
-		t.Fatalf("%s: ui painted %d texts, the component %d", name, len(a), len(b))
+		t.Fatalf("%s: ui painted %d texts, the component %d", Name, len(a), len(b))
 	} else {
 		for i := range a {
 			if a[i].Value != b[i].Value || a[i].Bounds != b[i].Bounds || a[i].Style != b[i].Style || a[i].ClipOf != b[i].ClipOf {
-				t.Errorf("%s: text %d is %+v, the component's %+v", name, i, a[i], b[i])
+				t.Errorf("%s: text %d is %+v, the component's %+v", Name, i, a[i], b[i])
 			}
 		}
 	}
 	if a, b := flexed.Hits(), direct.Hits(); len(a) != len(b) {
-		t.Fatalf("%s: ui declared %d hits, the component %d", name, len(a), len(b))
+		t.Fatalf("%s: ui declared %d hits, the component %d", Name, len(a), len(b))
 	} else {
 		for i := range a {
 			if a[i].ID != b[i].ID || a[i].Bounds != b[i].Bounds || a[i].Label != b[i].Label {
-				t.Errorf("%s: hit %d is %+v, the component's %+v", name, i, a[i], b[i])
+				t.Errorf("%s: hit %d is %+v, the component's %+v", Name, i, a[i], b[i])
 			}
 		}
 	}
@@ -52,13 +52,13 @@ func sameCanvas(t *testing.T, name string, flexed, direct *gfx.Canvas) {
 	// the layer a component paints its overlay on (ui raises a select's list one
 	// above the page's widget layer; a direct call names its own).
 	if a, b := flexed.Triangles(), direct.Triangles(); len(a) != len(b) {
-		t.Fatalf("%s: ui painted %d triangles, the component %d", name, len(a), len(b))
+		t.Fatalf("%s: ui painted %d triangles, the component %d", Name, len(a), len(b))
 	} else {
 		for i := range a {
 			x, y := a[i], b[i]
 			if x.Points != y.Points || x.Color != y.Color || x.Shaded != y.Shaded || x.Shade != y.Shade ||
 				x.EdgeMask != y.EdgeMask || x.ClipOf != y.ClipOf || x.HasClip != y.HasClip || x.Order != y.Order {
-				t.Errorf("%s: triangle %d is %+v, the component's %+v", name, i, x, y)
+				t.Errorf("%s: triangle %d is %+v, the component's %+v", Name, i, x, y)
 			}
 		}
 	}
@@ -384,9 +384,9 @@ func TestTableKeysMoveTheSelectionAndScrollItIntoView(t *testing.T) {
 		return canvas
 	}
 	draw()
-	press := func(key gfx.Key, focused int) gfx.EventResult {
+	press := func(key gfx.Key, Focused int) gfx.EventResult {
 		t.Helper()
-		result := state.Key(gfx.KeyEvent{Key: key, Target: tableScope.At(focused)})
+		result := state.Key(gfx.KeyEvent{Key: key, Target: tableScope.At(Focused)})
 		draw()
 		return result
 	}

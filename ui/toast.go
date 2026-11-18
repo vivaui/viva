@@ -158,8 +158,8 @@ var clockEpoch = time.Unix(0, 0)
 // next is due and none while there is nothing up. Declare it once, last in the page.
 func Toasts(c C, t *Toaster) {
 	p := c.page
-	p.forbidInMemo("Toasts")
-	t.scope = p.boundScope(pkToaster, unsafe.Pointer(t))
+	p.ForbidInMemo("Toasts")
+	t.scope = p.BoundScope(pkToaster, unsafe.Pointer(t))
 	canvas := c.f.Surface
 	t.acted = 0
 	if canvas == nil || len(t.toasts) == 0 {

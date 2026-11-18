@@ -11,7 +11,7 @@ import "github.com/vivaui/viva/gfx"
 //
 //	ui.Radio(c, &m.plan, Monthly, "Monthly")
 func Radio[T comparable](c C, Value *T, option T, Label string) Box {
-	return radio(c, c.page.controlID(pkRadio), Value, option, Label)
+	return radio(c, c.page.ControlID(pkRadio), Value, option, Label)
 }
 
 // RadioID is Radio for an option the application already names, as TextFieldID is for

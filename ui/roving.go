@@ -17,7 +17,7 @@ type rover struct {
 func (p *Page) rove(f *frame, node Box, tabs bool) {
 	p.rovers = append(p.rovers, rover{f: f, node: node.i, tabs: tabs})
 	if p.roveRoute == nil {
-		p.keyRoute, p.roveRoute = (*Page).routeKey, (*Page).roveKey
+		p.keyRoute, p.roveRoute = (*Page).RouteKey, (*Page).roveKey
 	}
 }
 
@@ -26,7 +26,7 @@ func (p *Page) rove(f *frame, node Box, tabs bool) {
 func (p *Page) slides(state *SliderState) {
 	p.sliders = append(p.sliders, state)
 	if p.sliderRoute == nil {
-		p.keyRoute, p.sliderRoute = (*Page).routeKey, (*Page).sliderKey
+		p.keyRoute, p.sliderRoute = (*Page).RouteKey, (*Page).sliderKey
 	}
 }
 

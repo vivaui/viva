@@ -89,9 +89,9 @@ func (key keyKey) describe() string {
 }
 
 // checkName stops a name the application gives from taking the page's own.
-func checkName(call, name string) {
-	if strings.HasPrefix(name, "~") {
-		panic("ui: " + call + "(" + name + "): names that start with '~' are the page's own")
+func checkName(call, Name string) {
+	if strings.HasPrefix(Name, "~") {
+		panic("ui: " + call + "(" + Name + "): names that start with '~' are the page's own")
 	}
 }
 

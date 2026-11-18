@@ -153,7 +153,7 @@ func TestPopupFlipsOnEachAxisAndStaysInsideTheFrame(t *testing.T) {
 	}
 	anchor := gfx.Rect{X: 150, Y: 130, Width: 100, Height: 30}
 	cases := []struct {
-		name string
+		Name string
 		got  gfx.Rect
 		x, y float32
 	}{
@@ -171,7 +171,7 @@ func TestPopupFlipsOnEachAxisAndStaysInsideTheFrame(t *testing.T) {
 	}
 	for _, c := range cases {
 		if c.got.X != c.x || c.got.Y != c.y {
-			t.Errorf("%s: at (%v, %v), want (%v, %v)", c.name, c.got.X, c.got.Y, c.x, c.y)
+			t.Errorf("%s: at (%v, %v), want (%v, %v)", c.Name, c.got.X, c.got.Y, c.x, c.y)
 		}
 	}
 }

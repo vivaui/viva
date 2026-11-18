@@ -22,8 +22,8 @@ const slotScrollbarFade uint8 = 200
 // drag on them. The bars measure the area with its padding: the content and the
 // viewport each with the area's insets, so the thumb travels the area's Max and MaxX.
 func (f *frame) paintScrollbars(n *node, s *ScrollState) {
-	xs, xe := n.inset(axisX)
-	ys, ye := n.inset(axisY)
+	xs, xe := n.Inset(axisX)
+	ys, ye := n.Inset(axisY)
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
 	parts := f.Surface.Tree().Sub(s.ID.Scope(), s.ID.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
@@ -63,7 +63,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		}
 		target := float32(0)
 		switch {
-		case s.barsAlways || s.dragging || f.page.pointerOver(n.Rect):
+		case s.barsAlways || s.dragging || f.page.PointerOver(n.Rect):
 			target = 1
 		case s.barLit:
 			if remaining := scrollbarLinger - (now - s.barSince); remaining > 0 {

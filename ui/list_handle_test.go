@@ -60,8 +60,8 @@ func TestListReorderHandleOnly(t *testing.T) {
 
 	// Plain arrows reorder from the focused handle, without Alt.
 	d.click("grip b")
-	if d.focused() != "grip b" {
-		t.Fatalf("the handle took %q's focus", d.focused())
+	if d.Focused() != "grip b" {
+		t.Fatalf("the handle took %q's focus", d.Focused())
 	}
 	if err := d.driver.Key(gfx.KeyUp, 0); err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestListReorderHandleOnly(t *testing.T) {
 	if got := fmt.Sprint(m.moves); got != "[[1] 0]" || m.order() != "bacd" {
 		t.Fatalf("Up on the handle moved %v, order %q", m.moves, m.order())
 	}
-	if got := d.focused(); got != "grip b" {
+	if got := d.Focused(); got != "grip b" {
 		t.Fatalf("the handle left the keyboard for %q", got)
 	}
 
@@ -103,7 +103,7 @@ func TestListReorderHandleOnly(t *testing.T) {
 	if got := fmt.Sprint(m.moves); got != "[[1] 0 [1] 4]" || m.order() != "bcda" {
 		t.Fatalf("a drag from the handle moved %v, order %q", m.moves, m.order())
 	}
-	if got := d.focused(); got != "grip a" {
+	if got := d.Focused(); got != "grip a" {
 		t.Fatalf("after the drop the keyboard is on %q, want the moved row's handle", got)
 	}
 }

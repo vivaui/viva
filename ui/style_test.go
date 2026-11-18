@@ -18,9 +18,9 @@ var (
 )
 
 // styleCanvas is a canvas whose pointer and focus are as the test says.
-func styleCanvas(hovered, pressed, focused gfx.ID, focusVisible bool) *gfx.Canvas {
+func styleCanvas(hovered, pressed, Focused gfx.ID, focusVisible bool) *gfx.Canvas {
 	canvas := testCanvas()
-	canvas.SetInteraction(hovered, pressed, focused, focusVisible)
+	canvas.SetInteraction(hovered, pressed, Focused, focusVisible)
 	return canvas
 }
 
@@ -72,8 +72,8 @@ func ringTriangles(Surface *gfx.Canvas) (count int, left, top float32) {
 func TestLooksApplyWhileTheirStateHolds(t *testing.T) {
 	none := gfx.ID{}
 	for _, test := range []struct {
-		name                      string
-		hovered, pressed, focused gfx.ID
+		Name                      string
+		hovered, pressed, Focused gfx.ID
 		focusVisible              bool
 		fill                      gfx.Color
 		ring                      bool
@@ -86,8 +86,8 @@ func TestLooksApplyWhileTheirStateHolds(t *testing.T) {
 		{"a click's focus does not", none, none, styleRow, false, colorRest, false},
 		{"focus and hover combine", styleRow, none, styleRow, true, colorHover, true},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			canvas := styleCanvas(test.hovered, test.pressed, test.focused, test.focusVisible)
+		t.Run(test.Name, func(t *testing.T) {
+			canvas := styleCanvas(test.hovered, test.pressed, test.Focused, test.focusVisible)
 			row := drawRow(canvas, nil)
 			if got := fillOf(t, canvas, row); got != test.fill {
 				t.Errorf("fill is %+v, want %+v", got, test.fill)

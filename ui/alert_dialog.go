@@ -48,7 +48,7 @@ type alertDialogDecl struct {
 func (f *frame) AlertDialog(spec AlertDialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
-		layer = f.widgetLayer() + 2
+		layer = f.WidgetLayer() + 2
 	}
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
@@ -66,7 +66,7 @@ func AlertDialog(c C, spec AlertDialogSpec) Box {
 		panic("ui: AlertDialog is for a page")
 	}
 	p := c.page
-	p.forbidInMemo("AlertDialog")
+	p.ForbidInMemo("AlertDialog")
 	p.overlay = true
 	return c.f.AlertDialog(spec)
 }

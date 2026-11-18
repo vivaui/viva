@@ -85,7 +85,7 @@ func (b Box) DragSource(state *DragState) Box {
 	}
 	p := b.f.page
 	if p != nil {
-		p.forbidInMemo("DragSource")
+		p.ForbidInMemo("DragSource")
 	}
 	state.begin(b.f)
 	state.sources = append(state.sources, dragSource{ID: n.ID, region: dragRegion{node: b.i}})
@@ -111,7 +111,7 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 	}
 	p := b.f.page
 	if p != nil {
-		p.forbidInMemo("DropTarget")
+		p.ForbidInMemo("DropTarget")
 	}
 	state.begin(b.f)
 	state.targets = append(state.targets, dragTarget{ID: n.ID, region: dragRegion{node: b.i}, accept: accept, drop: drop})
@@ -183,7 +183,7 @@ func drag(c C, state *DragState) {
 		panic("ui: Drag needs its DragState")
 	}
 	p := c.page
-	p.forbidInMemo("Drag")
+	p.ForbidInMemo("Drag")
 	if state.frame != nil && state.frame.page == p {
 		return // the page's own boxes registered it
 	}

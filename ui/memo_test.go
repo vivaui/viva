@@ -13,7 +13,7 @@ import (
 
 type memoRow struct {
 	ID      int
-	name    string
+	Name    string
 	done    bool
 	version uint64
 }
@@ -27,7 +27,7 @@ type memoModel struct {
 func newMemoModel(n int) *memoModel {
 	m := &memoModel{}
 	for i := range n {
-		m.rows = append(m.rows, memoRow{ID: i, name: "host " + strconv.Itoa(i), version: 1})
+		m.rows = append(m.rows, memoRow{ID: i, Name: "host " + strconv.Itoa(i), version: 1})
 	}
 	return m
 }
@@ -35,7 +35,7 @@ func newMemoModel(n int) *memoModel {
 func (m *memoModel) row(c ui.C, r *memoRow) {
 	m.calls++
 	ui.Row(c).Pad(8).Gap(8).Children(func() {
-		ui.Text(c, r.name)
+		ui.Text(c, r.Name)
 		ui.Checkbox(c, &r.done, "")
 		ui.Button(c, "Open")
 	})
@@ -122,7 +122,7 @@ func TestMemoDeclaresAgainWhenTheVersionChanges(t *testing.T) {
 	mp := newMemoPage()
 	mp.draw(m.view)
 	mp.draw(m.view)
-	m.rows[2].name, m.rows[2].version = "renamed", 2
+	m.rows[2].Name, m.rows[2].version = "renamed", 2
 	m.calls = 0
 	mp.draw(m.view)
 	if m.calls != 1 {
@@ -179,8 +179,8 @@ func TestMemoRowsStayInteractive(t *testing.T) {
 				r := &m.rows[i]
 				ui.Memo(c.KeyInt(r.ID), r.version, func() {
 					ui.Row(c).Gap(8).Children(func() {
-						ui.Checkbox(c, &r.done, r.name)
-						if ui.Button(c, "Open "+r.name).Clicked() {
+						ui.Checkbox(c, &r.done, r.Name)
+						if ui.Button(c, "Open "+r.Name).Clicked() {
 							opened = r.ID
 						}
 					})
@@ -219,7 +219,7 @@ func TestMemoCheckCatchesAValueThatMissesAChange(t *testing.T) {
 	m := newMemoModel(3)
 	mp := newMemoPageWith(ui.PageConfig{MemoCheck: true})
 	mp.draw(m.view)
-	m.rows[1].name = "changed without a new value"
+	m.rows[1].Name = "changed without a new value"
 	defer func() {
 		if r := recover(); r == nil || !strings.Contains(r.(string), "MemoCheck") {
 			t.Fatalf("recover() = %v, want MemoCheck to report the row", r)
@@ -241,7 +241,7 @@ func TestMemoValueSnapshotDeclaresAgainOnChange(t *testing.T) {
 	}
 	mp.draw(view)
 	mp.draw(view)
-	m.rows[2].name = "renamed"
+	m.rows[2].Name = "renamed"
 	m.calls = 0
 	mp.draw(view)
 	if m.calls != 1 {

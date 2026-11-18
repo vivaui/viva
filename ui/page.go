@@ -83,9 +83,9 @@ func (c *Ctx) KeyInt(key int) C {
 
 // Part names the next element by a word of the program: the parts of a component
 // (its trigger, its list), which a test can address by that word.
-func (c *Ctx) Part(name string) C {
-	checkName("Part", name)
-	c.Next, c.nextSet = protoName{part: name, kindOf: 2}, true
+func (c *Ctx) Part(Name string) C {
+	checkName("Part", Name)
+	c.Next, c.nextSet = protoName{part: Name, kindOf: 2}, true
 	return c
 }
 
@@ -101,7 +101,7 @@ func (c *Ctx) After(fn func()) {
 // ID is the identity of a control of the application's own declared next (one
 // made with the frame, or a recipe taking an ID): named by its number among such
 // controls in the container being filled, or by the Key or Part set before it.
-func ID(c C) gfx.ID { return c.page.controlID(pkCustom) }
+func ID(c C) gfx.ID { return c.page.ControlID(pkCustom) }
 
 // Application is the application whose window the page was opened in by
 // OpenWindow, so a handler can open more windows. It is nil for a page run by
@@ -248,7 +248,7 @@ type Page struct {
 	Nodes       []protoNode   // each container of the frame, by node index
 	keys        map[keyKey]keyEntry
 	intKeys     map[intKey]keyEntry
-	bound       map[boundKey]protoBound
+	Bound       map[boundKey]protoBound
 	names       map[gfx.ID]nameUse // the names bound values were given
 	fresh       slotPool
 	freshAt     gfx.Scope
@@ -324,7 +324,7 @@ type Page struct {
 type protoNode struct {
 	parentNode  int32
 	parentScope gfx.Scope
-	name        gfx.Name
+	Name        gfx.Name
 	scope       gfx.Scope
 	counts      [pkKinds]uint32
 	named       bool
@@ -334,7 +334,7 @@ type protoNode struct {
 type Place struct {
 	node  int32
 	scope gfx.Scope // set when known: a keyed or named element's
-	name  gfx.Name
+	Name  gfx.Name
 }
 
 // intKey is a KeyInt row: compared without a string.
@@ -347,7 +347,7 @@ type intKey struct {
 // is, for a component declared twice in one container.
 type stateName struct {
 	scope gfx.Scope
-	name  string
+	Name  string
 }
 
 type protoStateKey struct {
@@ -431,7 +431,7 @@ func (p *Page) init(tree *gfx.Tree) {
 	p.freshAt = p.tree.Sub(p.root, p.tree.Name("~new"))
 	p.keys = map[keyKey]keyEntry{}
 	p.intKeys = map[intKey]keyEntry{}
-	p.bound = map[boundKey]protoBound{}
+	p.Bound = map[boundKey]protoBound{}
 	p.names = map[gfx.ID]nameUse{}
 	p.memos = map[gfx.ID]*memoEntry{}
 	p.States = map[protoStateKey]protoState{}
@@ -449,7 +449,7 @@ func (p *Page) owns(ID gfx.ID) bool {
 // routeKey gives a key to the focused field's OnKey handler, then to the Combobox
 // it is typed in or the open Menu it moves in, else the Shortcut it presses, else
 // the Control or TextArea it is for.
-func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+func (p *Page) RouteKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if p.fieldKeyRoute != nil {
 		if result, ok := p.fieldKeyRoute(p, event); ok {
 			return result, true
@@ -881,7 +881,7 @@ func (p *Page) resolve(i int32) gfx.Scope {
 			parent = p.resolve(node.parentNode)
 			node = &p.Nodes[i]
 		}
-		node.scope = p.tree.Sub(parent, node.name)
+		node.scope = p.tree.Sub(parent, node.Name)
 	}
 	return node.scope
 }
@@ -891,19 +891,19 @@ func (p *Page) ID(at Place) gfx.ID {
 	if at.scope == 0 {
 		at.scope = p.resolve(at.node)
 	}
-	return at.scope.ID(at.name)
+	return at.scope.ID(at.Name)
 }
 
 // setNode records element i as a container the page named at.
-func (p *Page) setNode(i int32, at Place) {
+func (p *Page) SetNode(i int32, at Place) {
 	for len(p.Nodes) <= int(i) {
 		p.Nodes = append(p.Nodes, protoNode{})
 	}
-	p.Nodes[i] = protoNode{parentNode: at.node, parentScope: at.scope, name: at.name, named: true}
+	p.Nodes[i] = protoNode{parentNode: at.node, parentScope: at.scope, Name: at.Name, named: true}
 }
 
 // setScope records element i as a container with a scope of its own.
-func (p *Page) setScope(i int32, scope gfx.Scope) {
+func (p *Page) SetScope(i int32, scope gfx.Scope) {
 	for len(p.Nodes) <= int(i) {
 		p.Nodes = append(p.Nodes, protoNode{})
 	}
@@ -929,7 +929,7 @@ func (p *Page) record(scope gfx.Scope) *protoScope {
 
 // name gives the next element of kind its place in the container being filled: a
 // Key, a Part or its number among its kind. named reports a Key or a Part.
-func (p *Page) name(Kind uint8) (at Place, named bool) {
+func (p *Page) Name(Kind uint8) (at Place, named bool) {
 	node := p.current()
 	c := &p.ctx
 	if c.nextSet {
@@ -965,33 +965,33 @@ func (p *Page) name(Kind uint8) (at Place, named bool) {
 			if s.keySub == 0 {
 				s.keySub = p.tree.Sub(scope, p.keyName)
 			}
-			return Place{node: node, scope: s.keySub, name: gfx.Index(int(entry.slot))}, true
+			return Place{node: node, scope: s.keySub, Name: gfx.Index(int(entry.slot))}, true
 		case 2:
-			return Place{node: node, scope: scope, name: p.tree.Name(c.Next.part)}, true
+			return Place{node: node, scope: scope, Name: p.tree.Name(c.Next.part)}, true
 		}
 	}
 	counts := &p.Nodes[node].counts
 	n := counts[Kind]
 	counts[Kind]++
-	return Place{node: node, name: gfx.Index(int(Kind)<<24 | int(n))}, false
+	return Place{node: node, Name: gfx.Index(int(Kind)<<24 | int(n))}, false
 }
 
 // container makes element i a container with a scope of its own, named in its parent.
 func (p *Page) container(b Box) Box {
-	at, _ := p.name(pkContainer)
-	p.setNode(b.i, at)
+	at, _ := p.Name(pkContainer)
+	p.SetNode(b.i, at)
 	return b
 }
 
 // controlID names an element bound to nothing: its place, a Key or a Part.
-func (p *Page) controlID(Kind uint8) gfx.ID {
-	at, _ := p.name(Kind)
+func (p *Page) ControlID(Kind uint8) gfx.ID {
+	at, _ := p.Name(Kind)
 	return p.ID(at)
 }
 
 // boundScope is the scope of a control that numbers its own parts (the options of
 // a Choice, the tabs of Tabs): the scope its bound name makes.
-func (p *Page) boundScope(Kind uint8, Value unsafe.Pointer) gfx.Scope {
+func (p *Page) BoundScope(Kind uint8, Value unsafe.Pointer) gfx.Scope {
 	id := p.boundID(Kind, Value)
 	return p.tree.Sub(id.Scope(), id.Name())
 }
@@ -1002,17 +1002,17 @@ func (p *Page) boundScope(Kind uint8, Value unsafe.Pointer) gfx.Scope {
 // earlier paint than the last still holds it; a value that is new in every paint (a
 // copy) is given the name the last paint's copy had, so a copy works as its place.
 func (p *Page) boundID(Kind uint8, Value unsafe.Pointer) gfx.ID {
-	at, named := p.name(Kind)
+	at, named := p.Name(Kind)
 	key := boundKey{Value: Value, Kind: Kind}
 	for {
-		entry, ok := p.bound[key]
+		entry, ok := p.Bound[key]
 		if ok && entry.epoch == p.epoch {
 			key.n++
 			continue
 		}
 		if ok && p.names[entry.ID].seen != p.epoch {
 			entry.epoch = p.epoch
-			p.bound[key] = entry
+			p.Bound[key] = entry
 			p.claim(entry.ID, entry.born)
 			p.noteBound(key, entry.ID)
 			return entry.ID
@@ -1029,7 +1029,7 @@ func (p *Page) boundID(Kind uint8, Value unsafe.Pointer) gfx.ID {
 		} else if held && owner.seen == p.epoch {
 			id = p.freshAt.At(int(p.fresh.take(p.epoch)))
 		}
-		p.bound[key] = protoBound{ID: id, born: p.epoch, epoch: p.epoch, positional: id == place}
+		p.Bound[key] = protoBound{ID: id, born: p.epoch, epoch: p.epoch, positional: id == place}
 		p.claim(id, p.epoch)
 		p.noteBound(key, id)
 		return id
@@ -1054,9 +1054,9 @@ func (p *Page) sweep() {
 			p.record(key.Parent).keys.give(entry.slot, p.epoch)
 		}
 	}
-	for key, entry := range p.bound {
+	for key, entry := range p.Bound {
 		if entry.epoch != p.epoch {
-			delete(p.bound, key)
+			delete(p.Bound, key)
 			if entry.ID.Scope() == p.freshAt {
 				slot, _ := entry.ID.Name().Index()
 				p.fresh.give(uint32(slot), p.epoch)
@@ -1076,7 +1076,7 @@ func (p *Page) sweep() {
 }
 
 // guard is Screen's protection of a held button whose place now names another.
-func (p *Page) guard(b Box, ID gfx.ID, Label string) {
+func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 	canvas := p.ctx.f.Surface
 	if canvas == nil {
 		return
@@ -1158,7 +1158,7 @@ func (p *Page) Pointer(event gfx.PointerEvent) gfx.EventResult { return p.onPoin
 // application routes itself may never see a pointer event, so callers that paint
 // hover bars pass the page's verdict and a view without one keeps its bars
 // revealed.
-func (p *Page) pointerOver(r Rect) bool {
+func (p *Page) PointerOver(r Rect) bool {
 	return p != nil && p.pointerIn && pointInRect(p.pointer.X, p.pointer.Y, r)
 }
 
@@ -1235,15 +1235,15 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // container asks for the same name twice: those are told apart by their order, as
 // two Buttons are, so give each its own container or a Key when one of them comes
 // and goes.
-func State[T any](c C, name string) *T {
-	return stateIn[T](c.page, c.page.scopeOf(), name)
+func State[T any](c C, Name string) *T {
+	return stateIn[T](c.page, c.page.scopeOf(), Name)
 }
 
 // stateIn is State in scope: a control's own scope, for state that follows the
 // value it is bound to rather than its place.
-func stateIn[T any](p *Page, scope gfx.Scope, name string) *T {
+func stateIn[T any](p *Page, scope gfx.Scope, Name string) *T {
 	c := &p.ctx
-	at := stateName{scope: scope, name: name}
+	at := stateName{scope: scope, Name: Name}
 	n := c.stateSeq[at]
 	c.stateSeq[at] = n + 1
 	key := protoStateKey{stateName: at, n: n}

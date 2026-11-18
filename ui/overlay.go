@@ -37,7 +37,7 @@ type OverlaySpec struct {
 // container it is declared in does not lay it out or clip it. Not inside a Memo.
 func Overlay(c C, spec OverlaySpec) Box {
 	p := c.page
-	p.forbidInMemo("Overlay")
+	p.ForbidInMemo("Overlay")
 	b := c.f.Popup().
 		At(spec.Bounds.X, spec.Bounds.Y).
 		Size(max(spec.Bounds.Width, 0), max(spec.Bounds.Height, 0))

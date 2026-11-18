@@ -16,7 +16,7 @@ func (b Box) addons() *fieldAddons {
 	if n.Kind != kindInput {
 		panic("ui: Icon is for a Button or a TextField, Action for a TextField")
 	}
-	extra := b.f.extra(b.i)
+	extra := b.f.Extra(b.i)
 	if extra.addons == 0 {
 		b.f.addons = append(b.f.addons, fieldAddons{})
 		extra.addons = int32(len(b.f.addons))
@@ -34,7 +34,7 @@ func (b Box) addons() *fieldAddons {
 //	ui.TextField(c, &m.query, "Search", "Search hosts").Icon(search)
 func (b Box) Icon(icon gfx.Icon) Box {
 	if b.n().Kind == kindButton {
-		b.f.extra(b.i).icon = icon
+		b.f.Extra(b.i).icon = icon
 		return b
 	}
 	b.addons().start = components.InputGroupSlot{Kind: components.InputGroupSlotIcon, Icon: icon}

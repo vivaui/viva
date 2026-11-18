@@ -57,12 +57,12 @@ func TestMenuChoosesAnItem(t *testing.T) {
 
 	d.click("More")
 	d.key(gfx.KeyDown) // the first item
-	if d.focused() != "Rename" {
-		t.Fatalf("Down from the anchor focused %q", d.focused())
+	if d.Focused() != "Rename" {
+		t.Fatalf("Down from the anchor focused %q", d.Focused())
 	}
 	d.key(gfx.KeyUp) // loops to the last
-	if d.focused() != "Delete" {
-		t.Fatalf("Up from the first focused %q", d.focused())
+	if d.Focused() != "Delete" {
+		t.Fatalf("Up from the first focused %q", d.Focused())
 	}
 	d.key(gfx.KeyUp)
 	d.key(gfx.KeyEnter)
@@ -72,8 +72,8 @@ func TestMenuChoosesAnItem(t *testing.T) {
 	if err := d.driver.Advance(300 * time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "More" {
-		t.Fatalf("the focus went to %q, not back to the anchor", d.focused())
+	if d.Focused() != "More" {
+		t.Fatalf("the focus went to %q, not back to the anchor", d.Focused())
 	}
 }
 
@@ -89,8 +89,8 @@ func TestMenuTypeahead(t *testing.T) {
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != Want {
-			t.Fatalf("%q went to %q, not %q", letter, d.focused(), Want)
+		if d.Focused() != Want {
+			t.Fatalf("%q went to %q, not %q", letter, d.Focused(), Want)
 		}
 	}
 	typed('d', "Delete")
@@ -117,8 +117,8 @@ func TestMenuDisabledItem(t *testing.T) {
 	d.click("More")
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyDown)
-	if d.focused() != "Delete" {
-		t.Fatalf("Down from Rename went to %q, not past the disabled Copy", d.focused())
+	if d.Focused() != "Delete" {
+		t.Fatalf("Down from Rename went to %q, not past the disabled Copy", d.Focused())
 	}
 	d.click("Copy")
 	if m.copied != 0 {
@@ -329,24 +329,24 @@ func TestSubmenuKeyboard(t *testing.T) {
 	d.click("More")
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyDown)
-	if d.focused() != "Move to" {
-		t.Fatalf("on %q", d.focused())
+	if d.Focused() != "Move to" {
+		t.Fatalf("on %q", d.Focused())
 	}
 	d.key(gfx.KeyRight)
-	if d.focused() != "Production" {
-		t.Fatalf("Right went to %q", d.focused())
+	if d.Focused() != "Production" {
+		t.Fatalf("Right went to %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
-	if d.focused() != "Staging" {
-		t.Fatalf("Down in the submenu went to %q", d.focused())
+	if d.Focused() != "Staging" {
+		t.Fatalf("Down in the submenu went to %q", d.Focused())
 	}
 	d.key(gfx.KeyLeft)
-	if d.focused() != "Move to" || d.has("Production") {
-		t.Fatalf("Left went to %q, submenu shown %v", d.focused(), d.has("Production"))
+	if d.Focused() != "Move to" || d.has("Production") {
+		t.Fatalf("Left went to %q, submenu shown %v", d.Focused(), d.has("Production"))
 	}
 	d.key(gfx.KeyEnter)
-	if d.focused() != "Production" {
-		t.Fatalf("Enter went to %q", d.focused())
+	if d.Focused() != "Production" {
+		t.Fatalf("Enter went to %q", d.Focused())
 	}
 	d.key(gfx.KeyEscape)
 	if m.open || d.has("Rename") || d.has("Production") {

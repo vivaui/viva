@@ -93,7 +93,7 @@ func (d *pageDriver) typeText(Value string) {
 	}
 }
 
-func (d *pageDriver) focused() string {
+func (d *pageDriver) Focused() string {
 	snapshot := d.driver.Snapshot()
 	for _, hit := range snapshot.Hits {
 		if hit.ID == snapshot.Focused && !hit.IsLabel && !hit.Backdrop {
@@ -117,7 +117,7 @@ func drawPage(page *ui.Page, Surface *gfx.Canvas, view func(ui.C)) {
 }
 
 type fleetHost struct {
-	name, addr string
+	Name, addr string
 	handled    bool
 }
 
@@ -132,7 +132,7 @@ type fleetModel struct {
 func newFleetModel() *fleetModel {
 	m := &fleetModel{labels: []string{"All", "Open", "Handled"}, summary: "8 hosts"}
 	for i := range 8 {
-		m.hosts = append(m.hosts, fleetHost{name: "host-" + string(rune('a'+i)), addr: "10.0.0.1", handled: i%2 == 0})
+		m.hosts = append(m.hosts, fleetHost{Name: "host-" + string(rune('a'+i)), addr: "10.0.0.1", handled: i%2 == 0})
 	}
 	return m
 }
@@ -158,7 +158,7 @@ func (m *fleetModel) frame(f *ui.Frame) {
 			for i := range m.hosts {
 				h := &m.hosts[i]
 				f.Row().FillWidth().Pad(12).Gap(12).Children(func() {
-					f.Text(h.name).Bold()
+					f.Text(h.Name).Bold()
 					f.Text(h.addr).Muted()
 					if f.Checkbox(benchRows.At(i), h.handled).Clicked() {
 						h.handled = !h.handled

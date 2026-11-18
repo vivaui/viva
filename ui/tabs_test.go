@@ -16,7 +16,7 @@ var (
 func TestTabsArePaintedLikeTheComponent(t *testing.T) {
 	theme := gfx.LightTheme()
 	for _, test := range []struct {
-		name     string
+		Name     string
 		declare  func(Box) Box
 		direct   func(components.Tabs) components.Tabs
 		bounds   gfx.Rect
@@ -40,7 +40,7 @@ func TestTabsArePaintedLikeTheComponent(t *testing.T) {
 			f.Column().Children(func() { test.declare(f.Tabs(tabsScope, tabLabels, 1)) })
 		})
 		test.direct(components.BeginTabList(direct, theme, test.bounds, tabsScope, tabLabels, 1)).Paint()
-		sameCanvas(t, test.name, flexed, direct)
+		sameCanvas(t, test.Name, flexed, direct)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestTabsArePaintedLikeTheComponent(t *testing.T) {
 func TestTabsTakeTheirDeclaredHeight(t *testing.T) {
 	theme := gfx.LightTheme()
 	for _, test := range []struct {
-		name    string
+		Name    string
 		declare func(Box) Box
 		line    bool
 		height  float32
@@ -74,7 +74,7 @@ func TestTabsTakeTheirDeclaredHeight(t *testing.T) {
 			strip = strip.Line()
 		}
 		strip.Paint()
-		sameCanvas(t, test.name, flexed, direct)
+		sameCanvas(t, test.Name, flexed, direct)
 	}
 }
 

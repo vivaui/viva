@@ -158,7 +158,7 @@ func TestTreeShortcutActsWhileARowHasFocus(t *testing.T) {
 		})
 	})
 	d.click("alpha")
-	if got := d.focused(); got != "alpha" {
+	if got := d.Focused(); got != "alpha" {
 		t.Fatalf("focus = %q, want the row under the pointer", got)
 	}
 	d.key(gfx.KeyF4)
@@ -185,7 +185,7 @@ func TestListShortcutActsWhileARowHasFocus(t *testing.T) {
 		})
 	})
 	d.click("alpha")
-	if got := d.focused(); got != "alpha" {
+	if got := d.Focused(); got != "alpha" {
 		t.Fatalf("focus = %q, want the row under the pointer", got)
 	}
 	d.key(gfx.KeyDelete)

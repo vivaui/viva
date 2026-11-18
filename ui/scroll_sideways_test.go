@@ -127,7 +127,7 @@ func TestTheWheelMovesASidewaysAreaAcross(t *testing.T) {
 	p.paint(canvas, gfx.Size{})
 	state := p.view.ScrollState(listID)
 	steps := []struct {
-		name       string
+		Name       string
 		event      gfx.ScrollEvent
 		x, y       float32
 		repainting bool
@@ -143,7 +143,7 @@ func TestTheWheelMovesASidewaysAreaAcross(t *testing.T) {
 		result := state.Wheel(step.event)
 		if state.OffsetX != step.x || state.Offset != step.y || result.Repaint != step.repainting {
 			t.Errorf("%s: offset %v across, %v down, repaint %v; want %v, %v, %v",
-				step.name, state.OffsetX, state.Offset, result.Repaint, step.x, step.y, step.repainting)
+				step.Name, state.OffsetX, state.Offset, result.Repaint, step.x, step.y, step.repainting)
 		}
 	}
 }
@@ -175,7 +175,7 @@ func TestAViewGivesASidewaysWheelToTheAreaUnderThePointer(t *testing.T) {
 	across := func() float32 { return view.ScrollState(strip).OffsetX }
 	down := func() float32 { return view.ScrollState(page).Offset }
 	steps := []struct {
-		name    string
+		Name    string
 		event   gfx.ScrollEvent
 		x, y    float32
 		handled bool
@@ -190,7 +190,7 @@ func TestAViewGivesASidewaysWheelToTheAreaUnderThePointer(t *testing.T) {
 		draw()
 		if across() != step.x || down() != step.y || result.Handled != step.handled {
 			t.Errorf("%s: strip at %v, page at %v, handled %v; want %v, %v, %v",
-				step.name, across(), down(), result.Handled, step.x, step.y, step.handled)
+				step.Name, across(), down(), result.Handled, step.x, step.y, step.handled)
 		}
 	}
 }

@@ -80,7 +80,7 @@ func (f *frame) measureFlowLines(n *node) {
 	if lines > 1 {
 		total += n.lineGap() * float32(lines-1)
 	}
-	is, ie := n.inset(axisY)
+	is, ie := n.Inset(axisY)
 	n.Pref[axisY] = total + is + ie
 }
 

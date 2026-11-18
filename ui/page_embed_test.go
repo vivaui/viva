@@ -21,7 +21,7 @@ type paneModel struct {
 	clicks     int
 	on         bool
 	tab        string
-	name       ui.Field
+	Name       ui.Field
 	menu       bool
 	Size       string
 	rows       []string
@@ -41,7 +41,7 @@ func (m *paneModel) pane(c ui.C) {
 			m.clicks++
 		}
 		ui.Switch(c, &m.on, "Toggle")
-		ui.TextField(c, &m.name, "Name", "")
+		ui.TextField(c, &m.Name, "Name", "")
 		more := ui.Button(c, "More")
 		if more.Clicked() {
 			m.menu = !m.menu
@@ -127,8 +127,8 @@ func TestFramePageIsAPaneThatTakesInput(t *testing.T) {
 	}
 	d.click("Name")
 	d.typeText("go")
-	if m.name.Text() != "go" {
-		t.Fatalf("typing reached %q", m.name.Text())
+	if m.Name.Text() != "go" {
+		t.Fatalf("typing reached %q", m.Name.Text())
 	}
 	d.click("More")
 	if !m.menu || !m.page.Overlay() {

@@ -19,7 +19,7 @@ func (b Box) Tooltip(Text string) Box {
 	if b.n().ID.IsZero() {
 		panic("ui: Tooltip needs an element with an identity: a control, or a container given Hit")
 	}
-	b.f.extra(b.i).tooltip = Text
+	b.f.Extra(b.i).tooltip = Text
 	b.f.tooltips = true
 	b.f.paintTooltipFn = (*frame).paintTooltip
 	return b
@@ -46,7 +46,7 @@ func (b Box) TooltipOn(side TooltipSide) Box {
 	if b.n().ID.IsZero() {
 		panic("ui: TooltipOn needs an element with an identity: a control, or a container given Hit")
 	}
-	b.f.extra(b.i).tooltipSide = uint8(side) + 1
+	b.f.Extra(b.i).tooltipSide = uint8(side) + 1
 	return b
 }
 

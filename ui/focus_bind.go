@@ -24,9 +24,9 @@ import "github.com/vivaui/viva/gfx"
 //
 // Not inside a Memo, whose copies are not declared. Use FocusedValue to read the
 // focus that is committed, rather than the request.
-func FocusBind[T comparable](box Box, field *T, Value T) Box {
-	n := box.n()
-	if box.f.memoDepth > 0 {
+func FocusBind[T comparable](Box Box, field *T, Value T) Box {
+	n := Box.n()
+	if Box.f.memoDepth > 0 {
 		panic("ui: FocusBind in a Memo: a copied part is not declared, so its binding would disappear; declare it outside the Memo")
 	}
 	if field == nil {
@@ -35,7 +35,7 @@ func FocusBind[T comparable](box Box, field *T, Value T) Box {
 	if n.ID.IsZero() {
 		panic("ui: FocusBind needs an element with an identity: a control, or a container given Hit before FocusBind")
 	}
-	p := box.f.page
+	p := Box.f.page
 	if p == nil {
 		panic("ui: FocusBind is for a page, not a frame of the application's")
 	}
@@ -59,7 +59,7 @@ func FocusBind[T comparable](box Box, field *T, Value T) Box {
 		p.focusPaint = append(p.focusPaint, state)
 	}
 	state.bindings = append(state.bindings, focusBinding[T]{ID: n.ID, Value: Value})
-	return box
+	return Box
 }
 
 // FocusedValue returns the value bound to the element that has the keyboard
@@ -91,7 +91,7 @@ func FocusedValue[T comparable](c C, field *T) T {
 // focusState is a field's bindings without the value type, so the page can
 // settle them after a paint.
 type focusState interface {
-	settle(Surface *gfx.Canvas, focused gfx.ID)
+	settle(Surface *gfx.Canvas, Focused gfx.ID)
 	seen() uint32
 }
 
@@ -116,15 +116,15 @@ func (s *focusBindings[T]) seen() uint32 { return s.epoch }
 
 // settle moves the focus to the value the application asked for, or writes the
 // focus the user moved to back into the field.
-func (s *focusBindings[T]) settle(Surface *gfx.Canvas, focused gfx.ID) {
+func (s *focusBindings[T]) settle(Surface *gfx.Canvas, Focused gfx.ID) {
 	desired := *s.field
-	focusChanged := !s.actualSet || focused != s.actual
-	s.actual, s.actualSet = focused, true
+	focusChanged := !s.actualSet || Focused != s.actual
+	s.actual, s.actualSet = Focused, true
 
 	var focusedValue T
 	focusedBound := false
 	for i := range s.bindings {
-		if s.bindings[i].ID == focused {
+		if s.bindings[i].ID == Focused {
 			focusedValue, focusedBound = s.bindings[i].Value, true
 			break
 		}
@@ -141,14 +141,14 @@ func (s *focusBindings[T]) settle(Surface *gfx.Canvas, focused gfx.ID) {
 	if !s.set || desired != s.Last {
 		s.Last, s.set = desired, true
 		s.pending, s.missing = !desiredBound, false
-		if desiredBound && focused != desiredID {
+		if desiredBound && Focused != desiredID {
 			Surface.RequestFocus(desiredID)
 		}
 		return
 	}
 	if desiredBound && (s.pending || s.missing) {
 		s.pending, s.missing = false, false
-		if focused != desiredID {
+		if Focused != desiredID {
 			Surface.RequestFocus(desiredID)
 		}
 		return

@@ -81,15 +81,15 @@ func (f *frame) applyRecipes() {
 
 // themedDefaults fills in, for the state the element is in now, the colors of the resolved
 // look the element did not set itself.
-func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
+func (f *frame) themedDefaults(n *node, Extra *Extra, s *resolved) {
 	var state gfx.State
 	switch n.Kind {
 	case kindInput:
 		snapshot := &widgetsOf(f).inputs[n.Aux]
-		state = gfx.State{Focused: snapshot.Focused || f.focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
+		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
 	case kindTextarea:
 		snapshot := &widgetsOf(f).textareas[n.Aux]
-		state = gfx.State{Focused: snapshot.Focused || f.focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
+		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
 	default:
 		return
 	}
@@ -107,7 +107,7 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 }
 
 // focused reports whether the keyboard is on the element.
-func (f *frame) focused(n *node) bool {
+func (f *frame) Focused(n *node) bool {
 	return f.Surface != nil && !n.ID.IsZero() && f.Surface.Focused() == n.ID
 }
 
@@ -115,15 +115,15 @@ func (f *frame) focused(n *node) bool {
 // control whose Pad is the recipe's keeps the text area the shadcn control has, which is
 // inset from the control's edge by the recipe's own amounts: the border is drawn over the
 // control's edge, not taken out of the area the text is centered in.
-func (f *frame) contentRect(n *node) Rect {
+func (f *frame) ContentRect(n *node) Rect {
 	r := n.Rect
 	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
 		var scratch Theme
 		x, y := textEntryInsets(f.recipeTheme(n, &scratch), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
 	}
-	left, right := n.inset(axisX)
-	top, bottom := n.inset(axisY)
+	left, right := n.Inset(axisX)
+	top, bottom := n.Inset(axisY)
 	return Rect{X: r.X + left, Y: r.Y + top, Width: max(r.Width-left-right, 0), Height: max(r.Height-top-bottom, 0)}
 }
 

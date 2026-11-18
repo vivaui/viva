@@ -63,10 +63,10 @@ func (b Box) FocusGroup(axis FocusAxis) Box {
 	if axis != FocusHorizontal && axis != FocusVertical && axis != FocusBoth {
 		panic("ui: FocusGroup needs FocusHorizontal, FocusVertical or FocusBoth")
 	}
-	b.f.extra(b.i).focusGroup = axis
+	b.f.Extra(b.i).focusGroup = axis
 	b.f.groupFn = (*frame).endFocusGroup
 	if p.groupRoute == nil {
-		p.keyRoute, p.groupRoute = (*Page).routeKey, (*Page).groupKey
+		p.keyRoute, p.groupRoute = (*Page).RouteKey, (*Page).groupKey
 	}
 	return b
 }
@@ -80,10 +80,10 @@ func (b Box) FocusOrder(order FocusOrder) Box {
 	if order == nil {
 		panic("ui: FocusOrder needs a function")
 	}
-	if b.f.extra(b.i).focusGroup == 0 {
+	if b.f.Extra(b.i).focusGroup == 0 {
 		panic("ui: FocusOrder is for a FocusGroup: call FocusGroup first")
 	}
-	b.f.extra(b.i).focusOrder = order
+	b.f.Extra(b.i).focusOrder = order
 	return b
 }
 
@@ -135,7 +135,7 @@ func (p *Page) sweepGroups() {
 // nodeID is the identity of container i, named by its place.
 func (p *Page) nodeID(i int32) gfx.ID {
 	n := &p.Nodes[i]
-	return p.ID(Place{node: n.parentNode, scope: n.parentScope, name: n.name})
+	return p.ID(Place{node: n.parentNode, scope: n.parentScope, Name: n.Name})
 }
 
 // groupKey moves the focus between the members of the FocusGroup it is in.

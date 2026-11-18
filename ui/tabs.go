@@ -32,7 +32,7 @@ const (
 //
 // The labels slice is kept until End. Arrow keys between tabs are components.TabsKeyDown's.
 func (f *frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
-	b := f.box(kindTabs)
+	b := f.Box(kindTabs)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).tabs))
 	widgetsOf(f).tabs = append(widgetsOf(f).tabs, tabsDecl{scope: scope, labels: labels, selected: selected})

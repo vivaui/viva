@@ -9,10 +9,10 @@ import (
 
 type zone struct {
 	ID   int
-	name string
+	Name string
 }
 
-func (z zone) String() string { return z.name }
+func (z zone) String() string { return z.Name }
 
 var zones = []zone{{1, "Asia/Shanghai"}, {2, "Asia/Tokyo"}, {3, "Europe/Berlin"}, {4, "Europe/London"}, {5, "America/New_York"}}
 
@@ -200,7 +200,7 @@ func TestComboboxPaintsWithoutAllocating(t *testing.T) {
 
 type hostChoice struct {
 	ID                int
-	name, addr, group string
+	Name, addr, group string
 	blocked           bool
 }
 
@@ -213,7 +213,7 @@ var hostChoices = []hostChoice{
 func hostModelPage(chosen *hostChoice) func(ui.C) {
 	return func(c ui.C) {
 		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
-			ui.Combobox(c, chosen, hostChoices, func(h hostChoice) string { return h.name }, "Host").Width(320).
+			ui.Combobox(c, chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
 				Describe(func(i int) ui.ComboboxOption {
 					h := hostChoices[i]
 					return ui.ComboboxOption{Detail: h.addr, Search: h.group, Disabled: h.blocked}
@@ -240,12 +240,12 @@ func TestComboboxDescribeSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *t
 		t.Fatalf("a search by hidden group text lists %v", got)
 	}
 	d.click("Legacy")
-	if chosen.name != "" {
+	if chosen.Name != "" {
 		t.Fatalf("a disabled choice was chosen: %v", chosen)
 	}
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyEnter)
-	if chosen.name != "" {
+	if chosen.Name != "" {
 		t.Fatalf("Enter chose a disabled choice: %v", chosen)
 	}
 	for range 3 {
@@ -279,7 +279,7 @@ func TestComboboxOptionPaintsLeadingTrailingAndContent(t *testing.T) {
 	own := ui.ComboboxPaint{Width: 80, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { content++ }}
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
-			ui.Combobox(c, &chosen, hostChoices, func(h hostChoice) string { return h.name }, "Host").Width(320).
+			ui.Combobox(c, &chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
 				Describe(func(i int) ui.ComboboxOption {
 					o := ui.ComboboxOption{Detail: hostChoices[i].addr, Leading: dot, Trailing: tag}
 					if i == 1 {

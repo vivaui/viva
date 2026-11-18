@@ -203,8 +203,8 @@ func (f *frame) paintText(n *node) {
 	if n.Text == "" {
 		return
 	}
-	left, right := n.inset(axisX)
-	top, bottom := n.inset(axisY)
+	left, right := n.Inset(axisX)
+	top, bottom := n.Inset(axisY)
 	r := Rect{X: n.Rect.X + left, Y: n.Rect.Y + top, Width: max(n.Rect.Width-left-right, 0), Height: max(n.Rect.Height-top-bottom, 0)}
 	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.Color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
 	alignment := gfx.AlignStart

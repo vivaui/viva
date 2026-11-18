@@ -26,9 +26,9 @@ import (
 // ButtonBase is Button without a look: a row centering its children that is clicked by
 // the pointer, Enter and Space. label is its accessible name.
 func ButtonBase(c C, Label string) Box {
-	id := c.page.controlID(pkButton)
+	id := c.page.ControlID(pkButton)
 	b := c.f.ButtonBase(id, Label)
-	c.page.guard(b, id, Label)
+	c.page.Guard(b, id, Label)
 	return b
 }
 
@@ -66,7 +66,7 @@ func ToggleBase(c C, Value *bool, Label string) Box {
 // sets *value to option, and it is a radio button that is chosen while *value is option.
 // Name it with c.Key when the options are reordered.
 func RadioBase[T comparable](c C, Value *T, option T, Label string) Box {
-	id := c.page.controlID(pkRadio)
+	id := c.page.ControlID(pkRadio)
 	b := c.f.RadioBase(id, Label, *Value == option)
 	choose(c, b, Value, option)
 	return b
@@ -76,7 +76,7 @@ func RadioBase[T comparable](c C, Value *T, option T, Label string) Box {
 // tab that is selected while *value is tab. Between tabs the arrow keys are a
 // FocusGroup's (FocusHorizontal), or components.TabsKeyDown's.
 func TabBase[T comparable](c C, Value *T, tab T, Label string) Box {
-	id := c.page.controlID(pkTab)
+	id := c.page.ControlID(pkTab)
 	b := c.f.TabBase(id, Label, *Value == tab)
 	choose(c, b, Value, tab)
 	return b
@@ -88,7 +88,7 @@ func choose[T comparable](c C, b Box, Value *T, option T) {
 	if changed {
 		*Value = option
 	}
-	c.f.bindDone(b, changed)
+	c.f.BindDone(b, changed)
 }
 
 // SliderBase is Slider without a look: it sets state.Value from the pointer across it

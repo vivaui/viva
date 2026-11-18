@@ -36,8 +36,8 @@ func (hover IconHover) Dwell(dwell time.Duration) IconHover {
 }
 
 // Span replaces the gesture's duration.
-func (hover IconHover) Span(span time.Duration) IconHover {
-	hover.span = span
+func (hover IconHover) Span(d time.Duration) IconHover {
+	hover.span = d
 	return hover
 }
 

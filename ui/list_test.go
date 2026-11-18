@@ -267,7 +267,7 @@ func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
 type focusRows struct {
 	list    ui.ListState
 	names   []string
-	focused bool
+	Focused bool
 }
 
 func newFocusRows(names ...string) *focusRows {
@@ -283,7 +283,7 @@ func (m *focusRows) page(c ui.C) {
 			row.Element.Height(24).Children(func() { ui.Text(row.C, m.names[row.Index]) })
 		}).Label("Rows").Grow(1)
 		ui.Button(c, "after")
-		m.focused = m.list.HasFocus()
+		m.Focused = m.list.HasFocus()
 	})
 }
 
@@ -292,18 +292,18 @@ func TestListHasFocus(t *testing.T) {
 	m := newFocusRows("alpha", "beta", "gamma")
 	d := openPage(t, m.page)
 	d.repaint()
-	if m.focused || m.list.HasFocus() {
+	if m.Focused || m.list.HasFocus() {
 		t.Fatal("a list nothing has focused reports focus")
 	}
 	d.click("beta")
-	if d.focused() != "beta" {
-		t.Fatalf("clicking beta focused %q", d.focused())
+	if d.Focused() != "beta" {
+		t.Fatalf("clicking beta focused %q", d.Focused())
 	}
-	if !m.focused || !m.list.HasFocus() {
+	if !m.Focused || !m.list.HasFocus() {
 		t.Fatal("the list whose row has the keyboard does not report focus")
 	}
 	d.click("after")
-	if m.focused || m.list.HasFocus() {
+	if m.Focused || m.list.HasFocus() {
 		t.Fatal("the list reports focus with the focus on the button after it")
 	}
 }
@@ -351,8 +351,8 @@ func TestListNameAndNoTypeahead(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != m.names[2] || m.list.Selected() != 2 {
-		t.Fatalf("typing s went to %q (row %d): Label is no longer the text type-ahead matches", d.focused(), m.list.Selected())
+	if d.Focused() != m.names[2] || m.list.Selected() != 2 {
+		t.Fatalf("typing s went to %q (row %d): Label is no longer the text type-ahead matches", d.Focused(), m.list.Selected())
 	}
 
 	m.list.NoTypeahead = true
@@ -360,8 +360,8 @@ func TestListNameAndNoTypeahead(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != m.names[0] || m.list.Selected() != 0 {
-		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.focused(), m.list.Selected())
+	if d.Focused() != m.names[0] || m.list.Selected() != 0 {
+		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.Focused(), m.list.Selected())
 	}
 }
 
