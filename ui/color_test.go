@@ -189,3 +189,23 @@ func TestColorPickerLookMethodsApplyToThePickerAndNotToOtherElements(t *testing.
 		t.Fatal("a picker given look methods did not open")
 	}
 }
+
+// A swatch is named by the application with Hit, and declares one hit, not two.
+func TestColorSwatchTakesTheApplicationsIDWithHit(t *testing.T) {
+	id := gfx.Item(77)
+	d := openPage(t, func(c ui.C) {
+		ui.ColorSwatch(c, gfx.RGB(1, 2, 3), true, "Teal").Hit(id, "Teal")
+	})
+	n := 0
+	for _, h := range d.driver.Snapshot().Hits {
+		if h.ID == id {
+			n++
+			if h.Role != gfx.RoleRadio {
+				t.Fatalf("the named swatch is a %v, want a radio", h.Role)
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("the swatch declares %d hits under its id, want 1", n)
+	}
+}

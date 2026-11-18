@@ -18,11 +18,6 @@ func ColorSwatch(c C, color Color, selected bool, label string) Box {
 	return colorSwatch(c, c.page.controlID(pkRadio), color, selected, label)
 }
 
-// ColorSwatchID is ColorSwatch for a choice the application already names.
-func ColorSwatchID(c C, id gfx.ID, color Color, selected bool, label string) Box {
-	return colorSwatch(c, id, color, selected, label)
-}
-
 func colorSwatch(c C, id gfx.ID, color Color, selected bool, label string) Box {
 	b := Slot(c).Size(28, 28).Shrink(0)
 	n := b.n()
@@ -123,9 +118,10 @@ func ColorPicker(c C, state *ColorPickerState, color *Color, label string) Box {
 	return colorPicker(c, gfx.ID{}, state, color, label)
 }
 
-// ColorPickerID is ColorPicker for a trigger the application already names, as
-// ColorSwatchID is for a swatch; a row's words can then be its LabelFor, as for any
-// control the application names.
+// ColorPickerID is ColorPicker for a trigger the application already names: the picker
+// keeps its state by identity, so it takes the id when it is made. A row's words can then
+// be its LabelFor, as for any control the application names. A ColorSwatch, which keeps
+// none, is named with Hit instead.
 func ColorPickerID(c C, id gfx.ID, state *ColorPickerState, color *Color, label string) Box {
 	return colorPicker(c, id, state, color, label)
 }

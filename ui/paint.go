@@ -104,7 +104,8 @@ func (f *frame) paint(i int32) {
 	if extra.focusGroup != 0 && canvas != nil {
 		group = canvas.Mark()
 	}
-	if hasHit && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
+	// A ColorSwatch declares its own hit, as a radio, under whatever id Hit gave it.
+	if hasHit && !extra.swatch && (n.kind == kindContainer || n.kind == kindText || n.kind == kindIcon || n.kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.flags&flagLabelFor != 0 {
