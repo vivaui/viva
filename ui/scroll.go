@@ -37,7 +37,7 @@ type ScrollState struct {
 	ContentWidth  float32 // the width of everything inside, as of the last layout
 	ViewportWidth float32 // the width of the area itself, less its padding
 
-	id         gfx.ID  // the area's identity, which its scrollbars are named under
+	ID         gfx.ID  // the area's identity, which its scrollbars are named under
 	grab       float32 // where along the thumb being dragged the pointer holds it
 	follow     bool    // Box.Follow: keep the area at its end while the user has not left it
 	detached   bool    // follow is set and the user scrolled up
@@ -75,8 +75,8 @@ type scrollSlot struct {
 	seen  uint32
 }
 
-func (s *scrollStore) get(id gfx.ID) *ScrollState {
-	slot := s.slots[id]
+func (s *scrollStore) get(ID gfx.ID) *ScrollState {
+	slot := s.slots[ID]
 	if slot == nil {
 		if last := len(s.free) - 1; last >= 0 {
 			slot, s.free = s.free[last], s.free[:last]
@@ -86,7 +86,7 @@ func (s *scrollStore) get(id gfx.ID) *ScrollState {
 		if s.slots == nil {
 			s.slots = make(map[gfx.ID]*scrollSlot)
 		}
-		s.slots[id] = slot
+		s.slots[ID] = slot
 	}
 	slot.seen = s.epoch
 	return &slot.state
@@ -107,11 +107,11 @@ func (s *scrollStore) sweep() {
 // ScrollToEnd, Offset and AtEnd. The state is the view's: ask again each time instead
 // of keeping the pointer, and ask only for areas the page declares. An area that was
 // not declared in a frame loses its state at the end of it.
-func (view *view) ScrollState(id gfx.ID) *ScrollState {
+func (view *view) ScrollState(ID gfx.ID) *ScrollState {
 	if view.frame == nil {
 		view.frame = new(frame) // a state may be set before the first paint
 	}
-	return view.frame.scrolls.get(id)
+	return view.frame.scrolls.get(ID)
 }
 
 // Max is how far the area can scroll.
@@ -276,12 +276,12 @@ func (f *frame) containsPoint(i int, x, y float32) bool {
 //	f.ScrollArea(listID).Grow(1).Gap(4).Children(func() { ... })
 //	f.ScrollArea(logID).Grow(1).Follow(true).Children(func() { ... }) // a log that stays at its end
 //	f.ScrollArea(codeID).Grow(1).Sideways().Scrollbars().Children(func() { ... }) // both ways, with bars
-func (f *frame) ScrollArea(id gfx.ID) Box {
-	if id.IsZero() {
+func (f *frame) ScrollArea(ID gfx.ID) Box {
+	if ID.IsZero() {
 		panic("ui: ScrollArea needs an identity, for example f.ScrollArea(listID) with listID = tree.ID(page, \"list\")")
 	}
-	state := f.scrolls.get(id)
-	state.id, state.follow, state.sideways, state.bars, state.barSize = id, false, false, false, 0
+	state := f.scrolls.get(ID)
+	state.ID, state.follow, state.sideways, state.bars, state.barSize = ID, false, false, false, 0
 	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
 	b := f.Scroll(state.Offset)
 	f.extra(b.i).scrollState = state

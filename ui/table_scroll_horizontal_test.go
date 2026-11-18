@@ -273,10 +273,10 @@ func TestTableHorizontalScrollbarDrags(t *testing.T) {
 	}
 }
 
-func hitByID(canvas *gfx.Canvas, id gfx.ID) gfx.Hit {
+func hitByID(canvas *gfx.Canvas, ID gfx.ID) gfx.Hit {
 	var hit gfx.Hit
 	for _, h := range canvas.Hits() {
-		if h.ID == id {
+		if h.ID == ID {
 			return h
 		}
 	}

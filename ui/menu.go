@@ -91,7 +91,7 @@ func (m *MenuItems) RowHeight(height float32) { m.rowSize = height }
 func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func(*MenuItems)) {
 	p := c.page
 	p.forbidInMemo("ContextMenu")
-	id := target.n().id
+	id := target.n().ID
 	if id.IsZero() {
 		panic("ui: ContextMenu needs a target with an identity: a control, or a container given Hit")
 	}
@@ -101,7 +101,7 @@ func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func
 	}
 	menu := stateIn[MenuItems](p, scope, "context")
 	menu.context = true
-	p.contexts = append(p.contexts, contextTarget{id: id, menu: menu, f: c.f, target: target.i})
+	p.contexts = append(p.contexts, contextTarget{ID: id, menu: menu, f: c.f, target: target.i})
 	if p.menuRoute == nil {
 		p.keyRoute, p.menuRoute = (*Page).routeKey, (*Page).menuKey
 		p.wheelRoute = (*Page).overlayWheel
@@ -144,7 +144,7 @@ type menuOrigin struct {
 // contextTarget is a ContextMenu declared in the last paint, which Shift+F10 on its
 // target opens.
 type contextTarget struct {
-	id     gfx.ID
+	ID     gfx.ID
 	menu   *MenuItems
 	f      *frame
 	target int32
@@ -863,7 +863,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		// anchor as it opens, and the first arrow goes into it.
 		var trigger gfx.ID
 		if m.anchor >= 0 {
-			trigger = m.f.nodes[m.anchor].id
+			trigger = m.f.nodes[m.anchor].ID
 		}
 		_, inside := event.Target.In(m.scope)
 		// A context menu is modal: its arrows move through it from wherever the focus is,
@@ -898,7 +898,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if event.Key == gfx.KeyF10 && event.Modifiers == gfx.ModifierShift && !event.Release {
 		for _, target := range p.contexts {
-			if target.id == event.Target && !target.menu.shown {
+			if target.ID == event.Target && !target.menu.shown {
 				r := target.f.nodes[target.target].rect
 				target.menu.shown, target.menu.at = true, Rect{X: r.X, Y: r.Y + r.Height}
 				return gfx.EventResult{Handled: true, Repaint: true}, true

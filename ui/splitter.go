@@ -23,7 +23,7 @@ type SplitterState struct {
 	// proportion. A drag or an arrow key updates Ratio from the new position;
 	// set Ratio to zero to hold Pos as pixels instead.
 	Ratio        float32
-	id           gfx.ID
+	ID           gfx.ID
 	dragging     bool
 	startPointer float32
 	startPos     float32
@@ -40,7 +40,7 @@ func (s *SplitterState) Dragging() bool { return s.dragging }
 // Config.OnKey (or call it from yours); it ignores every other key and every other
 // focus.
 func (s *SplitterState) Key(event gfx.KeyEvent) gfx.EventResult {
-	if s.id.IsZero() || event.Target != s.id {
+	if s.ID.IsZero() || event.Target != s.ID {
 		return gfx.EventResult{}
 	}
 	pos := s.Pos
@@ -106,17 +106,17 @@ type splitDecl struct {
 // shows the resize shape over it; with the keyboard, SplitterState.Key moves it. Mins
 // sets the least size of the first and the second pane (48 each by default). The
 // divider is 8 pixels thick, as long as the container is across.
-func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
+func (f *frame) Splitter(ID gfx.ID, state *SplitterState) Box {
 	first := int32(-1)
 	if f.Parent >= 0 {
 		first = f.nodes[f.Parent].Last
 	}
 	b := f.box(kindSplitter)
 	n := &f.nodes[b.i]
-	n.id = id
+	n.ID = ID
 	n.aux = int32(len(widgetsOf(f).splits))
 	widgetsOf(f).splits = append(widgetsOf(f).splits, splitDecl{state: state, First: first, minFirst: splitterMin, minSecond: splitterMin})
-	state.id = id
+	state.ID = ID
 	return b
 }
 
@@ -247,7 +247,7 @@ func (f *frame) paintSplitter(n *node) {
 	row := f.splitsRow(n)
 	r := n.rect
 
-	if event, ok := canvas.PointerOn(n.id); ok {
+	if event, ok := canvas.PointerOn(n.ID); ok {
 		pointer := event.X
 		if !row {
 			pointer = event.Y
@@ -268,8 +268,8 @@ func (f *frame) paintSplitter(n *node) {
 	}
 
 	theme := f.theme
-	pressed := canvas.Pressed() == n.id
-	hovered := canvas.Hovered() == n.id
+	pressed := canvas.Pressed() == n.ID
+	hovered := canvas.Hovered() == n.ID
 	line, thickness := theme.Border, float32(1)
 	switch {
 	case pressed:
@@ -285,7 +285,7 @@ func (f *frame) paintSplitter(n *node) {
 	} else {
 		bar = Rect{X: r.X, Y: r.Y + (r.Height-thickness)/2, Width: r.Width, Height: thickness}
 	}
-	if canvas.FocusVisible() == n.id {
+	if canvas.FocusVisible() == n.ID {
 		ring := theme.Ring
 		ring.Alpha *= 0.5
 		canvas.Rounded(Rect{X: bar.X - 1, Y: bar.Y - 1, Width: bar.Width + 2, Height: bar.Height + 2}, 2, ring)
@@ -321,5 +321,5 @@ func (f *frame) paintSplitter(n *node) {
 	if options.Cursor == 0 {
 		options.Cursor = cursor
 	}
-	canvas.HitWithOptions(n.id, hit, label, options)
+	canvas.HitWithOptions(n.ID, hit, label, options)
 }

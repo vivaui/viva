@@ -19,7 +19,7 @@ func Scroll(c C) Box {
 	p := c.page
 	p.forbidInMemo("Scroll")
 	at, _ := p.name(pkContainer)
-	b := c.f.ScrollArea(p.id(at))
+	b := c.f.ScrollArea(p.ID(at))
 	p.setNode(b.i, at)
 	return b
 }
@@ -216,8 +216,8 @@ func Select[T comparable](c C, value *T, choices []T, label func(T) string) Box 
 // SelectID is Select for a control the application already names: the trigger's
 // hit is id, so a row's words can be its LabelFor and the application's key and
 // focus routing can target it. The list's options keep the page's own identities.
-func SelectID[T comparable](c C, id gfx.ID, value *T, choices []T, label func(T) string) Box {
-	return selectOf(c, value, choices, label, nil, false, id)
+func SelectID[T comparable](c C, ID gfx.ID, value *T, choices []T, label func(T) string) Box {
+	return selectOf(c, value, choices, label, nil, false, ID)
 }
 
 // SelectIcon is Select with an icon before every option: icon names each option's
@@ -233,7 +233,7 @@ func SelectIcon[T comparable](c C, value *T, choices []T, label func(T) string, 
 // selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
 // control without the theme's look. icons, when SelectIcon's icon function gave
 // them, are indexed by option like the labels; nil is the select without icons.
-func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, icons []gfx.Icon, base bool, id gfx.ID) Box {
+func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, icons []gfx.Icon, base bool, ID gfx.ID) Box {
 	p := c.page
 	scope := p.boundScope(pkSelect, unsafe.Pointer(value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
@@ -245,7 +245,7 @@ func selectOf[T comparable](c C, value *T, choices []T, label func(T) string, ic
 		b = c.f.Select(scope, state, labels, selected)
 	}
 	b.Icons(icons)
-	state.trigger = id
+	state.trigger = ID
 	p.selects = append(p.selects, state)
 	if p.keyRoute == nil {
 		p.keyRoute, p.selectRoute = (*Page).routeKey, (*Page).selectKey
@@ -305,7 +305,7 @@ func textFieldOf[T TextValue](c C, value T, label, placeholder string, base bool
 		b = c.f.Field(field, id, label, placeholder)
 	}
 	c.f.bindField(b, field)
-	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: id, field: field})
 	return b
 }
 
@@ -316,14 +316,14 @@ func textFieldOf[T TextValue](c C, value T, label, placeholder string, base bool
 // and reads itself.
 //
 //	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
-func TextFieldID(c C, id gfx.ID, field *Field, label, placeholder string) Box {
+func TextFieldID(c C, ID gfx.ID, field *Field, label, placeholder string) Box {
 	if field == nil {
 		panic("ui: TextFieldID needs a Field")
 	}
 	p := c.page
-	b := c.f.Field(field, id, label, placeholder)
+	b := c.f.Field(field, ID, label, placeholder)
 	c.f.bindField(b, field)
-	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: ID, field: field})
 	return b
 }
 
@@ -340,7 +340,7 @@ func TextArea[T TextValue](c C, value T, label, placeholder string) Box {
 	if p.areaKey == nil {
 		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
 	}
-	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: id, field: field})
 	return b
 }
 
@@ -350,17 +350,17 @@ func TextArea[T TextValue](c C, value T, label, placeholder string) Box {
 // application keeps and reads itself.
 //
 //	ui.TextAreaID(c, m.commandID, &m.commandField, "Command", "").Height(120)
-func TextAreaID(c C, id gfx.ID, field *Field, label, placeholder string) Box {
+func TextAreaID(c C, ID gfx.ID, field *Field, label, placeholder string) Box {
 	if field == nil {
 		panic("ui: TextAreaID needs a Field")
 	}
 	p := c.page
-	b := c.f.FieldArea(field, id, label, placeholder)
+	b := c.f.FieldArea(field, ID, label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {
 		p.keyRoute, p.areaKey = (*Page).routeKey, (*Field).Key // Up and Down by row
 	}
-	p.fields = append(p.fields, fieldEntry{id: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: ID, field: field})
 	return b
 }
 
@@ -485,7 +485,7 @@ func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func(
 }
 
 // Describe writes an identity of the page as its path, for test failures.
-func (p *Page) Describe(id gfx.ID) string { return p.tree.Text(id) }
+func (p *Page) Describe(ID gfx.ID) string { return p.tree.Text(ID) }
 
 // focusFirstControl makes the first control declared in a Dialog's body, or its
 // footer, the one that takes the keyboard as it opens; the close button when it has
@@ -506,13 +506,13 @@ func (f *frame) focusFirstControl(dialog Box) {
 func (f *frame) firstControl(i int32) gfx.ID {
 	for c := f.nodes[i].First; c >= 0; c = f.nodes[c].Next {
 		n := &f.nodes[c]
-		if n.Flags&flagDisabled == 0 && !n.id.IsZero() {
+		if n.Flags&flagDisabled == 0 && !n.ID.IsZero() {
 			switch n.Kind {
 			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
-				return n.id
+				return n.ID
 			case kindContainer:
 				if n.Flags&flagHasHit != 0 && n.Flags&flagLabelFor == 0 {
-					return n.id
+					return n.ID
 				}
 			}
 		}

@@ -55,14 +55,14 @@ func (b Box) Clicked() bool {
 	if n.ext != 0 && b.f.exts[n.ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
-	return b.f.canvas != nil && n.Flags&flagVeto == 0 && b.f.canvas.Clicked(n.id)
+	return b.f.canvas != nil && n.Flags&flagVeto == 0 && b.f.canvas.Clicked(n.ID)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
 // accessibility label given, so a row or a card can be clicked or hovered.
-func (b Box) Hit(id gfx.ID, label string) Box {
+func (b Box) Hit(ID gfx.ID, label string) Box {
 	n := b.n()
-	n.id, n.label = id, label
+	n.ID, n.label = ID, label
 	n.Flags = n.Flags&^flagLabelFor | flagHasHit
 	return b
 }
@@ -78,10 +78,10 @@ func (b Box) MovesWindow() Box {
 }
 
 // HitWith is Hit with the role, cursor and other options of gfx.HitOptions.
-func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
+func (b Box) HitWith(ID gfx.ID, label string, options gfx.HitOptions) Box {
 	b.n()
 	b.f.extra(b.i).hit = options
-	return b.Hit(id, label)
+	return b.Hit(ID, label)
 }
 
 // LabelFor makes the element's rectangle a label of the control named id, as HTML's
@@ -97,9 +97,9 @@ func (b Box) HitWith(id gfx.ID, label string, options gfx.HitOptions) Box {
 //
 //	name := ui.Text(c, file.Name).LabelFor(m.files.RowID(i))
 //	ui.ContextMenu(c, name, func(menu *ui.MenuItems) { ... })
-func (b Box) LabelFor(id gfx.ID) Box {
+func (b Box) LabelFor(ID gfx.ID) Box {
 	n := b.n()
-	n.id = id
+	n.ID = ID
 	n.Flags |= flagHasHit | flagLabelFor
 	return b
 }
@@ -616,7 +616,7 @@ func (b Box) DoubleClicked() bool {
 }
 
 func (b Box) clickInfo() (gfx.ClickInfo, bool) {
-	if b.f.canvas == nil || !b.f.canvas.Clicked(b.n().id) {
+	if b.f.canvas == nil || !b.f.canvas.Clicked(b.n().ID) {
 		return gfx.ClickInfo{}, false
 	}
 	return b.f.canvas.ClickInfo()

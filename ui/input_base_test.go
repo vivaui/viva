@@ -13,8 +13,8 @@ var (
 	baseOther = tree.ID(page, "base-other")
 )
 
-func baseSnapshot(id gfx.ID) components.InputSnapshot {
-	return components.InputSnapshot{ID: id, Label: "Cell", Value: "Gopher", Invalid: true}
+func baseSnapshot(ID gfx.ID) components.InputSnapshot {
+	return components.InputSnapshot{ID: ID, Label: "Cell", Value: "Gopher", Invalid: true}
 }
 
 // An InputBase is dressed by its element and by nothing else: the shadcn surface, with

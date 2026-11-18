@@ -88,5 +88,5 @@ func (f *frame) paintCaption(n *node, control Rect) {
 		color.Alpha *= 0.5
 	}
 	f.canvas.Label(n.text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
-	f.canvas.HitLabel(n.id, r, n.text, disabled)
+	f.canvas.HitLabel(n.ID, r, n.text, disabled)
 }

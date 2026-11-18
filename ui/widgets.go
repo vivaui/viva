@@ -72,13 +72,13 @@ func (w *widgets) reset() {
 // target, and a panel that changes its InitialFocusID while it stays open, as
 // a bulk action appearing over a list does, asks once more for the new target.
 func popoverFocusAskFor(spec *PopoverSpec) popoverFocusAsk {
-	return popoverFocusAsk{scope: spec.Scope, id: spec.InitialFocusID}
+	return popoverFocusAsk{scope: spec.Scope, ID: spec.InitialFocusID}
 }
 
 // popoverFocusAsk is the panel and target of one already-made request.
 type popoverFocusAsk struct {
 	scope gfx.ID
-	id    gfx.ID
+	ID    gfx.ID
 }
 
 // sweepPopoverFocus forgets the panels the last paint no longer declared, so a

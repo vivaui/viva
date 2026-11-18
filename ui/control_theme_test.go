@@ -18,8 +18,8 @@ var (
 // overrides, and the control beside it keeps the theme's.
 func TestRadiusAndFontSizeStyleTheControlTheyAreCalledOn(t *testing.T) {
 	theme := gfx.LightTheme()
-	snapshot := func(id gfx.ID) components.InputSnapshot {
-		return components.InputSnapshot{ID: id, Label: "Name", Value: "Gopher", Focused: id == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
+	snapshot := func(ID gfx.ID) components.InputSnapshot {
+		return components.InputSnapshot{ID: ID, Label: "Name", Value: "Gopher", Focused: ID == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
 	}
 	var view View
 	flexed := testCanvas()

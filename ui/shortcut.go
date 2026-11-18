@@ -24,7 +24,7 @@ type shortcutEntry struct {
 	modifiers gfx.Modifiers
 	char      byte
 	key       gfx.Key
-	id        gfx.ID
+	ID        gfx.ID
 	focus     gfx.ID
 	scope     gfx.Scope
 	rows      gfx.Scope // a List's or a Tree's rows, which its box's Shortcut also covers
@@ -69,7 +69,7 @@ func (b Box) Shortcut(modifiers gfx.Modifiers, key string) bool {
 	if int(b.i) < len(p.nodes) && p.nodes[b.i].named {
 		return p.shortcut(&p.ctx, modifiers, key, gfx.ID{}, p.resolve(b.i), p.listRowScope(b.i))
 	}
-	if id := b.n().id; !id.IsZero() {
+	if id := b.n().ID; !id.IsZero() {
 		return p.shortcut(&p.ctx, modifiers, key, id, 0, 0)
 	}
 	panic("ui: Box.Shortcut is for a control or a container: the element must be able to hold the focus or have it inside")
@@ -82,7 +82,7 @@ func (p *Page) shortcut(c C, modifiers gfx.Modifiers, key string, focus gfx.ID, 
 		panic("ui: Shortcut " + key + ": not a key keymap.Parse names, nor one character")
 	}
 	id := p.controlID(pkShortcut)
-	p.shortcuts = append(p.shortcuts, shortcutEntry{modifiers: chord.Modifiers, char: chord.Char, key: chord.Key, id: id, focus: focus, scope: scope, rows: rows})
+	p.shortcuts = append(p.shortcuts, shortcutEntry{modifiers: chord.Modifiers, char: chord.Char, key: chord.Key, ID: id, focus: focus, scope: scope, rows: rows})
 	if p.shortcutRoute == nil {
 		p.keyRoute, p.shortcutRoute = (*Page).routeKey, (*Page).matchShortcut
 	}
@@ -131,7 +131,7 @@ func (p *Page) matchShortcut(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	if best < 0 {
 		return gfx.EventResult{}, false
 	}
-	return gfx.EventResult{Handled: true, Activate: p.shortcuts[best].id}, true
+	return gfx.EventResult{Handled: true, Activate: p.shortcuts[best].ID}, true
 }
 
 // narrower reports whether a is nearer the focus than b, both matching it: an
@@ -166,21 +166,21 @@ func (p *Page) shortcutCovers(entry *shortcutEntry, scope gfx.Scope) bool {
 
 // typing reports whether the control named id takes typing: a text field, a
 // Combobox, or a Control that is a text field or a terminal.
-func (p *Page) typing(id gfx.ID) bool {
-	if id.IsZero() {
+func (p *Page) typing(ID gfx.ID) bool {
+	if ID.IsZero() {
 		return false
 	}
 	for _, entry := range p.fields {
-		if entry.id == id {
+		if entry.ID == ID {
 			return true
 		}
 	}
 	for _, s := range p.combos {
-		if s.ids.input == id {
+		if s.ids.input == ID {
 			return true
 		}
 	}
-	h := p.control(id)
+	h := p.control(ID)
 	return h != nil && (h.Role == gfx.RoleTextField || h.Role == gfx.RoleTerminal)
 }
 

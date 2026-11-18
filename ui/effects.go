@@ -214,12 +214,12 @@ func (s *EffectState[T, K]) beginLocked(p *Page, key K) (uint64, context.Context
 	return s.runID, ctx, s.run, key
 }
 
-func (s *EffectState[T, K]) finish(id uint64, result T, err error) {
+func (s *EffectState[T, K]) finish(ID uint64, result T, err error) {
 	s.mu.Lock()
 	if s.sequential {
 		s.inflight = false
 	}
-	if s.runID != id {
+	if s.runID != ID {
 		// A cancelled run returned: its result is dropped. Sequential starts
 		// the run that queued behind it now, after this goroutine's run returned.
 		if s.sequential && s.pending {

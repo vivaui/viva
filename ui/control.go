@@ -54,7 +54,7 @@ func (h *Handlers) Parts() gfx.Scope { return h.parts }
 
 // controlEntry is a Control declared in the last paint.
 type controlEntry struct {
-	id       gfx.ID
+	ID       gfx.ID
 	handlers *Handlers
 }
 
@@ -78,7 +78,7 @@ func Control(c C, label string, h *Handlers) Box {
 		role = gfx.RoleGroup
 	}
 	h.parts = p.tree.Sub(id.Scope(), id.Name())
-	p.controls = append(p.controls, controlEntry{id: id, handlers: h})
+	p.controls = append(p.controls, controlEntry{ID: id, handlers: h})
 	if p.pointerRoute == nil {
 		p.keyRoute, p.pointerRoute = (*Page).routeKey, (*Page).routePointer
 	}
@@ -89,12 +89,12 @@ func Control(c C, label string, h *Handlers) Box {
 }
 
 // control returns the Handlers of the control named id in the last paint, or nil.
-func (p *Page) control(id gfx.ID) *Handlers {
-	if id.IsZero() {
+func (p *Page) control(ID gfx.ID) *Handlers {
+	if ID.IsZero() {
 		return nil
 	}
 	for i := range p.controls {
-		if p.controls[i].id == id {
+		if p.controls[i].ID == ID {
 			return p.controls[i].handlers
 		}
 	}
@@ -103,15 +103,15 @@ func (p *Page) control(id gfx.ID) *Handlers {
 
 // controlOf is control for the control that owns id: the one named id, or the one
 // id is a part of (see Handlers.Parts).
-func (p *Page) controlOf(id gfx.ID) *Handlers {
-	if h := p.control(id); h != nil {
+func (p *Page) controlOf(ID gfx.ID) *Handlers {
+	if h := p.control(ID); h != nil {
 		return h
 	}
-	if id.IsZero() || id.Scope() == 0 {
+	if ID.IsZero() || ID.Scope() == 0 {
 		return nil
 	}
 	for i := range p.controls {
-		if h := p.controls[i].handlers; h.parts == id.Scope() {
+		if h := p.controls[i].handlers; h.parts == ID.Scope() {
 			return h
 		}
 	}

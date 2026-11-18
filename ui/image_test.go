@@ -6,8 +6,8 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-func imageBitmap(id uint64) gfx.Bitmap {
-	return gfx.Bitmap{Pix: make([]byte, 32*32*4), Width: 32, Height: 32, Stride: 32 * 4, ID: id}
+func imageBitmap(ID uint64) gfx.Bitmap {
+	return gfx.Bitmap{Pix: make([]byte, 32*32*4), Width: 32, Height: 32, Stride: 32 * 4, ID: ID}
 }
 
 // An Image is drawn into the rectangle the layout gives it, 16 pixels square

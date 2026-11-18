@@ -196,7 +196,7 @@ func (f *frame) measureControls(n *node) {
 func (f *frame) paintButton(n *node) {
 	r := n.rect
 	extra := &f.exts[n.ext]
-	button := components.BeginButton(f.canvas, f.theme, n.id, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
+	button := components.BeginButton(f.canvas, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
@@ -302,7 +302,7 @@ func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 	b := f.box(kindInput)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(widgetsOf(f).inputs))
-	n.id = snapshot.ID
+	n.ID = snapshot.ID
 	widgetsOf(f).inputs = append(widgetsOf(f).inputs, snapshot)
 	return b
 }
@@ -335,7 +335,7 @@ func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 	b := f.box(kindTextarea)
 	n := &f.nodes[b.i]
 	n.aux = int32(len(widgetsOf(f).textareas))
-	n.id = snapshot.ID
+	n.ID = snapshot.ID
 	widgetsOf(f).textareas = append(widgetsOf(f).textareas, snapshot)
 	return b
 }

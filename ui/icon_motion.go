@@ -18,15 +18,15 @@ import (
 // page or the hit region.
 type IconHover struct {
 	state *components.IconHover
-	id    gfx.ID
+	ID    gfx.ID
 	slot  uint8
 	dwell time.Duration
 	span  time.Duration
 }
 
 // Bind creates the binding for one icon element.
-func BindIconHover(state *components.IconHover, id gfx.ID) IconHover {
-	return IconHover{state: state, id: id, dwell: 130 * time.Millisecond, span: 180 * time.Millisecond}
+func BindIconHover(state *components.IconHover, ID gfx.ID) IconHover {
+	return IconHover{state: state, ID: ID, dwell: 130 * time.Millisecond, span: 180 * time.Millisecond}
 }
 
 // Dwell replaces how long the pointer must rest before the gesture starts.
@@ -50,10 +50,10 @@ func (hover IconHover) Slot(slot uint8) IconHover {
 // Paint advances the gesture inside f's paint pass and returns its transform.
 // The zero hover (no state) leaves the icon still.
 func (hover IconHover) Transform(f *frame) gfx.IconTransform {
-	if hover.state == nil || f == nil || hover.id.IsZero() {
+	if hover.state == nil || f == nil || hover.ID.IsZero() {
 		return gfx.IconTransform{}
 	}
-	progress, _ := hover.state.Progress(f.canvas, hover.id, hover.slot, hover.dwell, hover.span)
+	progress, _ := hover.state.Progress(f.canvas, hover.ID, hover.slot, hover.dwell, hover.span)
 	if progress >= 1 {
 		return gfx.IconTransform{}
 	}

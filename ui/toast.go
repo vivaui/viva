@@ -90,7 +90,7 @@ func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action s
 		if item := &t.toasts[i]; item.title == title && item.description == description {
 			item.Kind, item.action = Kind, action
 			if item.shown {
-				t.queue.Remove(t.id(item.n))
+				t.queue.Remove(t.ID(item.n))
 				item.shown = false // the next paint queues it again, with a fresh time
 			}
 			return ToastID(item.n)
@@ -103,12 +103,12 @@ func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action s
 
 // Done replaces toast id, a ToastLoading one, with what it ended in: its title,
 // description and kind now, and its time running from now.
-func (t *Toaster) Done(id ToastID, title, description string, Kind ToastKind) {
+func (t *Toaster) Done(ID ToastID, title, description string, Kind ToastKind) {
 	for i := range t.toasts {
-		if item := &t.toasts[i]; item.n == uint32(id) {
+		if item := &t.toasts[i]; item.n == uint32(ID) {
 			item.title, item.description, item.Kind = title, description, Kind
 			if item.shown {
-				t.queue.Remove(t.id(item.n))
+				t.queue.Remove(t.ID(item.n))
 				item.shown = false
 			}
 			return
@@ -121,10 +121,10 @@ func (t *Toaster) Done(id ToastID, title, description string, Kind ToastKind) {
 func (t *Toaster) Acted() (ToastID, bool) { return t.acted, t.acted != 0 }
 
 // Close takes a toast down before its time.
-func (t *Toaster) Close(id ToastID) {
+func (t *Toaster) Close(ID ToastID) {
 	for i := range t.toasts {
-		if t.toasts[i].n == uint32(id) {
-			t.queue.Remove(t.id(t.toasts[i].n))
+		if t.toasts[i].n == uint32(ID) {
+			t.queue.Remove(t.ID(t.toasts[i].n))
 			t.toasts = append(t.toasts[:i], t.toasts[i+1:]...)
 			return
 		}
@@ -135,7 +135,7 @@ func (t *Toaster) Close(id ToastID) {
 func (t *Toaster) Len() int { return len(t.toasts) }
 
 // id is the identity of toast n; zero before the Toaster was first painted.
-func (t *Toaster) id(n uint32) gfx.ID {
+func (t *Toaster) ID(n uint32) gfx.ID {
 	if t.scope == 0 {
 		return gfx.ID{}
 	}
@@ -188,7 +188,7 @@ func Toasts(c C, t *Toaster) {
 		if item.shown {
 			continue
 		}
-		evicted, ok := t.queue.Add(t.id(item.n), now, item.Kind == ToastLoading)
+		evicted, ok := t.queue.Add(t.ID(item.n), now, item.Kind == ToastLoading)
 		item.shown = ok
 		if at, inside := evicted.In(t.scope); inside {
 			// The queue was full: the oldest goes, which is ahead of this one.
@@ -208,13 +208,13 @@ func Toasts(c C, t *Toaster) {
 	for i := len(t.toasts) - 1; i >= 0; i-- {
 		item := &t.toasts[i]
 		if held {
-			t.queue.Pause(t.id(item.n), now)
+			t.queue.Pause(t.ID(item.n), now)
 		} else {
-			t.queue.Resume(t.id(item.n), now)
+			t.queue.Resume(t.ID(item.n), now)
 		}
 		toast := components.SonnerToast{
 			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: item.Kind.component()},
-			Scope:    t.id(item.n), DismissID: t.scope.At(int(item.n)*3 + toastClose),
+			Scope:    t.ID(item.n), DismissID: t.scope.At(int(item.n)*3 + toastClose),
 		}
 		if item.action != "" {
 			toast.ActionID, toast.ActionLabel = t.scope.At(int(item.n)*3+toastAction), item.action

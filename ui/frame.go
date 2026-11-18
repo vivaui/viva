@@ -131,7 +131,7 @@ type node struct {
 	TextDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
 	TextEnd              bool              // a Text aligned to the end of its direction
 	color                Color
-	id                   gfx.ID
+	ID                   gfx.ID
 	label                string
 	variant              style.Variant
 	buttonSize           style.Size
@@ -623,19 +623,19 @@ func (f *frame) Image(bitmap gfx.Bitmap) Box {
 
 // Button adds a button with the official look; Outline, Ghost and the other
 // variants choose another. Clicked reports a click on it.
-func (f *frame) Button(id gfx.ID, label string) Box {
+func (f *frame) Button(ID gfx.ID, label string) Box {
 	b := f.box(kindButton)
 	n := &f.nodes[b.i]
-	n.id, n.label = id, label
+	n.ID, n.label = ID, label
 	n.Flags |= flagHasHit
 	return b
 }
 
 // Checkbox adds a checkbox in the given state; Clicked reports a click on it.
-func (f *frame) Checkbox(id gfx.ID, checked bool) Box {
+func (f *frame) Checkbox(ID gfx.ID, checked bool) Box {
 	b := f.box(kindCheckbox)
 	n := &f.nodes[b.i]
-	n.id = id
+	n.ID = ID
 	if checked {
 		n.Flags |= flagChecked
 	}
@@ -644,10 +644,10 @@ func (f *frame) Checkbox(id gfx.ID, checked bool) Box {
 }
 
 // Switch adds a two-state switch in the given state; Clicked reports a click.
-func (f *frame) Switch(id gfx.ID, on bool) Box {
+func (f *frame) Switch(ID gfx.ID, on bool) Box {
 	b := f.box(kindSwitch)
 	n := &f.nodes[b.i]
-	n.id = id
+	n.ID = ID
 	if on {
 		n.Flags |= flagChecked
 	}

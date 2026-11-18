@@ -59,7 +59,7 @@ func (f *frame) paint(i int32) {
 		defer canvas.Unclip()
 	}
 
-	hasHit := n.Flags&flagHasHit != 0 && !n.id.IsZero()
+	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
 	background, border := fade(style.background, f.opacity), fade(style.border, f.opacity)
 	if style.shadow != gfx.ShadowNone {
 		canvas.ElevateFaded(r, n.radius, style.shadow, f.opacity)
@@ -114,14 +114,14 @@ func (f *frame) paint(i int32) {
 			if text == "" && n.Kind == kindText {
 				text = n.text
 			}
-			canvas.HitLabel(n.id, hit, text, n.Flags&flagDisabled != 0)
+			canvas.HitLabel(n.ID, hit, text, n.Flags&flagDisabled != 0)
 		} else {
 			options := extra.hit
 			// Disabled on the element is the control's own: a Base that was told it is
 			// unavailable says so to assistive technology and leaves the Tab order,
 			// as the control with a look does.
 			options.Disabled = options.Disabled || n.Flags&flagDisabled != 0
-			canvas.HitWithOptions(n.id, hit, n.label, options)
+			canvas.HitWithOptions(n.ID, hit, n.label, options)
 		}
 	}
 
@@ -162,7 +162,7 @@ func (f *frame) paint(i int32) {
 	}
 	if extra.tooltip != "" {
 		// The element's hit, which a container, a control or its Draw declared.
-		f.canvas.HintSince(hits, n.id, extra.tooltip)
+		f.canvas.HintSince(hits, n.ID, extra.tooltip)
 	}
 	f.opacity = parentOpacity
 	if style.opacity < 1 {

@@ -37,7 +37,7 @@ import "github.com/vivaui/viva/gfx"
 func Memo[T comparable](c C, value T, fn func()) Box {
 	p := c.page
 	at, _ := p.name(pkMemo)
-	id := p.id(at)
+	id := p.ID(at)
 	entry := p.memos[id]
 	if entry == nil {
 		entry = &memoEntry{}
@@ -239,7 +239,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 		}
 	}
 	if box.check != 0 && !entry.held && !canvas.Delivering() && !canvas.Animating() && p.memoDiffers(entry.span, p.memoChecks[box.check-1], rect) {
-		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.nodes[i].id) + ") differs from what it painted last time " +
+		panic("ui: MemoCheck: the part a Memo declared (" + p.tree.Text(f.nodes[i].ID) + ") differs from what it painted last time " +
 			"with the same value: the value does not cover something its function reads")
 	}
 	return false
@@ -292,10 +292,10 @@ func (p *Page) touchMemo(entry *memoEntry) {
 }
 
 // noteMemo records, in every Memo being declared, what one declaration told the page.
-func (p *Page) noteBound(key boundKey, id gfx.ID) {
+func (p *Page) noteBound(key boundKey, ID gfx.ID) {
 	for _, entry := range p.recording {
 		entry.bound = append(entry.bound, key)
-		entry.names = append(entry.names, id)
+		entry.names = append(entry.names, ID)
 	}
 }
 

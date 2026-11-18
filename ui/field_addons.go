@@ -75,7 +75,7 @@ func (b Box) ActionClicked() bool {
 
 // actionID names a field's Action in the field's own scope.
 func (b Box) actionID() gfx.ID {
-	id := b.n().id
+	id := b.n().ID
 	if id.IsZero() || b.f.canvas == nil {
 		return gfx.ID{}
 	}

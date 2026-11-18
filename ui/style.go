@@ -168,7 +168,7 @@ func (b Box) AutoFocus() Box {
 	if b.f.memoDepth > 0 {
 		panic("ui: AutoFocus in a Memo: a copied part is not declared, so it would take the focus again when it is; declare it outside the Memo")
 	}
-	id := b.n().id
+	id := b.n().ID
 	if id.IsZero() {
 		panic("ui: AutoFocus needs an element with an identity: a control, or a container given Hit before AutoFocus")
 	}
@@ -296,9 +296,9 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 		return s
 	}
 	looks := &f.states[extra.states-1]
-	source := n.id
+	source := n.ID
 	if looks.follow != 0 {
-		source = f.nodes[looks.follow-1].id
+		source = f.nodes[looks.follow-1].ID
 	}
 	if source.IsZero() {
 		return s

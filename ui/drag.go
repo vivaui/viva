@@ -54,12 +54,12 @@ type DragState struct {
 }
 
 type dragSource struct {
-	id     gfx.ID
+	ID     gfx.ID
 	region dragRegion
 }
 
 type dragTarget struct {
-	id     gfx.ID
+	ID     gfx.ID
 	region dragRegion
 	accept func(source, target gfx.ID) bool
 	drop   func(source, target gfx.ID)
@@ -77,7 +77,7 @@ type dragRegion struct {
 // identity, and the press must land on the element itself.
 func (b Box) DragSource(state *DragState) Box {
 	n := b.n()
-	if n.id.IsZero() {
+	if n.ID.IsZero() {
 		panic("ui: DragSource needs a Hit identity")
 	}
 	if state == nil {
@@ -88,7 +88,7 @@ func (b Box) DragSource(state *DragState) Box {
 		p.forbidInMemo("DragSource")
 	}
 	state.begin(b.f)
-	state.sources = append(state.sources, dragSource{id: n.id, region: dragRegion{node: b.i}})
+	state.sources = append(state.sources, dragSource{ID: n.ID, region: dragRegion{node: b.i}})
 	return b
 }
 
@@ -100,7 +100,7 @@ func (b Box) DragSource(state *DragState) Box {
 // The target needs a Hit identity.
 func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) Box {
 	n := b.n()
-	if n.id.IsZero() {
+	if n.ID.IsZero() {
 		panic("ui: DropTarget needs a Hit identity")
 	}
 	if state == nil {
@@ -114,7 +114,7 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 		p.forbidInMemo("DropTarget")
 	}
 	state.begin(b.f)
-	state.targets = append(state.targets, dragTarget{id: n.id, region: dragRegion{node: b.i}, accept: accept, drop: drop})
+	state.targets = append(state.targets, dragTarget{ID: n.ID, region: dragRegion{node: b.i}, accept: accept, drop: drop})
 	return b
 }
 
@@ -130,16 +130,16 @@ func (b Box) DropTarget(state *DragState, accept func(source, target gfx.ID) boo
 // press reaches the state with the part as its identity, so the part must be a
 // hit or nothing can press it, and the rectangle it was drawn in is kept with it.
 // A DrawContext not owned by a Page panics: this is a page-only API.
-func (d *DrawContext) DragSource(state *DragState, id gfx.ID, rect Rect) {
+func (d *DrawContext) DragSource(state *DragState, ID gfx.ID, rect Rect) {
 	d.partDrag("DragSource")
 	if state == nil {
 		panic("ui: DrawContext.DragSource needs its DragState")
 	}
-	if id.IsZero() {
+	if ID.IsZero() {
 		panic("ui: DrawContext.DragSource needs the part's identity")
 	}
 	state.begin(d.frame)
-	state.sources = append(state.sources, dragSource{id: id, region: dragRegion{rect: rect, part: true}})
+	state.sources = append(state.sources, dragSource{ID: ID, region: dragRegion{rect: rect, part: true}})
 }
 
 // DropTarget makes a part drawn for the page a target for state. accept and drop
@@ -149,19 +149,19 @@ func (d *DrawContext) DragSource(state *DragState, id gfx.ID, rect Rect) {
 // still takes a drop.
 //
 //	d.DropTarget(&m.drag, part, r, m.canDrop, m.dropOn)
-func (d *DrawContext) DropTarget(state *DragState, id gfx.ID, rect Rect, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) {
+func (d *DrawContext) DropTarget(state *DragState, ID gfx.ID, rect Rect, accept func(source, target gfx.ID) bool, drop func(source, target gfx.ID)) {
 	d.partDrag("DropTarget")
 	if state == nil {
 		panic("ui: DrawContext.DropTarget needs its DragState")
 	}
-	if id.IsZero() {
+	if ID.IsZero() {
 		panic("ui: DrawContext.DropTarget needs the part's identity")
 	}
 	if drop == nil {
 		panic("ui: DrawContext.DropTarget needs its drop callback")
 	}
 	state.begin(d.frame)
-	state.targets = append(state.targets, dragTarget{id: id, region: dragRegion{rect: rect, part: true}, accept: accept, drop: drop})
+	state.targets = append(state.targets, dragTarget{ID: ID, region: dragRegion{rect: rect, part: true}, accept: accept, drop: drop})
 }
 
 // partDrag checks that a Draw callback is a page's, whose drag records the page
@@ -300,7 +300,7 @@ func (s *DragState) press(event gfx.PointerEvent) bool {
 		return false
 	}
 	for i := len(s.sources) - 1; i >= 0; i-- {
-		if s.sources[i].id != event.Target {
+		if s.sources[i].ID != event.Target {
 			continue
 		}
 		s.pressed, s.candidate = true, event.Target
@@ -379,17 +379,17 @@ func (s *DragState) targetAt(point gfx.Point, source gfx.ID) gfx.ID {
 		if !pointInRect(point.X, point.Y, s.regionRect(target.region)) {
 			continue
 		}
-		if target.accept != nil && !target.accept(source, target.id) {
+		if target.accept != nil && !target.accept(source, target.ID) {
 			continue
 		}
-		return target.id
+		return target.ID
 	}
 	return gfx.ID{}
 }
 
-func (s *DragState) targetOf(id gfx.ID) *dragTarget {
+func (s *DragState) targetOf(ID gfx.ID) *dragTarget {
 	for i := len(s.targets) - 1; i >= 0; i-- {
-		if s.targets[i].id == id {
+		if s.targets[i].ID == ID {
 			return &s.targets[i]
 		}
 	}

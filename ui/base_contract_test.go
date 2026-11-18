@@ -16,18 +16,18 @@ func TestEveryRemainingBaseIsItsControlWithoutALook(t *testing.T) {
 	type base struct {
 		name  string
 		role  gfx.Role
-		build func(f *Frame, id gfx.ID) Box
+		build func(f *Frame, ID gfx.ID) Box
 		state func(gfx.Hit) bool
 	}
 	bases := []base{
-		{"checkbox", gfx.RoleCheckbox, func(f *Frame, id gfx.ID) Box { return f.CheckboxBase(id, true) },
+		{"checkbox", gfx.RoleCheckbox, func(f *Frame, ID gfx.ID) Box { return f.CheckboxBase(ID, true) },
 			func(h gfx.Hit) bool { return h.Checked }},
-		{"switch", gfx.RoleSwitch, func(f *Frame, id gfx.ID) Box { return f.SwitchBase(id, true) },
+		{"switch", gfx.RoleSwitch, func(f *Frame, ID gfx.ID) Box { return f.SwitchBase(ID, true) },
 			func(h gfx.Hit) bool { return h.Checked }},
-		{"slider", gfx.RoleSlider, func(f *Frame, id gfx.ID) Box {
-			return f.SliderBase(id, &SliderState{}).Size(120, 16)
+		{"slider", gfx.RoleSlider, func(f *Frame, ID gfx.ID) Box {
+			return f.SliderBase(ID, &SliderState{}).Size(120, 16)
 		}, func(h gfx.Hit) bool { return h.Range.Set }},
-		{"select", gfx.RoleCombobox, func(f *Frame, id gfx.ID) Box {
+		{"select", gfx.RoleCombobox, func(f *Frame, ID gfx.ID) Box {
 			return f.SelectBase(scope, &SelectState{}, []string{"Small", "Large"}, 0).Size(120, 32)
 		}, func(h gfx.Hit) bool { return h.Value == "Small" && !h.Expanded }},
 	}

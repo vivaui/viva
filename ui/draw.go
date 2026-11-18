@@ -91,7 +91,7 @@ func (b Box) hooks() *drawHooks {
 func (b Box) State() gfx.State { return b.f.stateOf(b.n()) }
 
 func (f *frame) stateOf(n *node) gfx.State {
-	state := f.canvas.StateOf(n.id)
+	state := f.canvas.StateOf(n.ID)
 	state.Disabled = n.Flags&flagDisabled != 0
 	state.Checked = n.Flags&flagChecked != 0
 	state.Selected = n.Flags&flagSelected != 0

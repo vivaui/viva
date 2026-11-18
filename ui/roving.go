@@ -86,9 +86,9 @@ func (p *Page) roveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-func hasOption(options []components.SegmentOption, id gfx.ID) bool {
+func hasOption(options []components.SegmentOption, ID gfx.ID) bool {
 	for i := range options {
-		if options[i].ID == id {
+		if options[i].ID == ID {
 			return true
 		}
 	}

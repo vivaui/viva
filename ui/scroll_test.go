@@ -85,7 +85,7 @@ func TestPinnedReportsTheEndBeforeTheFrameIsLaidOut(t *testing.T) {
 func TestAViewGivesTheWheelToTheAreaUnderThePointer(t *testing.T) {
 	var view View
 	left, right, inner, outer := tree.ID(page, "left"), tree.ID(page, "right"), tree.ID(page, "inner"), tree.ID(page, "outer")
-	offset := func(id gfx.ID) float32 { return view.ScrollState(id).Offset }
+	offset := func(ID gfx.ID) float32 { return view.ScrollState(ID).Offset }
 	draw := func() {
 		f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 400, Height: 100})
 		f.Row().Fill().Children(func() {

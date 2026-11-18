@@ -15,12 +15,12 @@ func TestPopoverRequestsInitialFocusOnce(t *testing.T) {
 	bounds := gfx.Rect{Width: 300, Height: 200}
 	anchorID, scope, focusID := gfx.Item(2), gfx.Item(3), gfx.Item(4)
 	otherID := gfx.Item(5)
-	draw := func(open bool, id gfx.ID) {
+	draw := func(open bool, ID gfx.ID) {
 		canvas.Reset()
 		view.Draw(canvas, theme, bounds, func(f *Frame) {
 			anchor := f.Button(anchorID, "More")
 			if open {
-				f.Popover(anchor, PopoverSpec{Scope: scope, InitialFocusID: id})
+				f.Popover(anchor, PopoverSpec{Scope: scope, InitialFocusID: ID})
 			}
 		})
 	}

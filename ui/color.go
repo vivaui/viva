@@ -18,10 +18,10 @@ func ColorSwatch(c C, color Color, selected bool, label string) Box {
 	return colorSwatch(c, c.page.controlID(pkRadio), color, selected, label)
 }
 
-func colorSwatch(c C, id gfx.ID, color Color, selected bool, label string) Box {
+func colorSwatch(c C, ID gfx.ID, color Color, selected bool, label string) Box {
 	b := Slot(c).Size(28, 28).Shrink(0)
 	n := b.n()
-	n.id, n.label = id, label
+	n.ID, n.label = ID, label
 	// The swatch paints from what the element carries rather than from a Draw
 	// callback: a closure made in each paint allocates in a hot path.
 	extra := b.f.extra(b.i)
@@ -33,7 +33,7 @@ func colorSwatch(c C, id gfx.ID, color Color, selected bool, label string) Box {
 // paintSwatch draws a ColorSwatch element.
 func (f *frame) paintSwatch(n *node, r Rect) {
 	extra := &f.exts[n.ext]
-	swatch := components.BeginColorSwatch(f.canvas, f.theme, n.id, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
+	swatch := components.BeginColorSwatch(f.canvas, f.theme, n.ID, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
 		TabStop(!extra.swatchSkipTab)
 	if extra.swatchFlush {
 		swatch = swatch.Flush()
@@ -122,15 +122,15 @@ func ColorPicker(c C, state *ColorPickerState, color *Color, label string) Box {
 // keeps its state by identity, so it takes the id when it is made. A row's words can then
 // be its LabelFor, as for any control the application names. A ColorSwatch, which keeps
 // none, is named with Hit instead.
-func ColorPickerID(c C, id gfx.ID, state *ColorPickerState, color *Color, label string) Box {
-	return colorPicker(c, id, state, color, label)
+func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, color *Color, label string) Box {
+	return colorPicker(c, ID, state, color, label)
 }
 
-func colorPicker(c C, id gfx.ID, s *ColorPickerState, color *Color, label string) Box {
+func colorPicker(c C, ID gfx.ID, s *ColorPickerState, color *Color, label string) Box {
 	p := c.page
 	p.forbidInMemo("ColorPicker")
-	if id.IsZero() {
-		id = p.controlID(pkControl)
+	if ID.IsZero() {
+		ID = p.controlID(pkControl)
 	}
 	s.target = color
 	if !s.bound {
@@ -142,13 +142,13 @@ func colorPicker(c C, id gfx.ID, s *ColorPickerState, color *Color, label string
 		p.overlay = true
 		control := Control(c, label, &s.handlers).Absolute().Left(0).Top(0).Size(0, 0)
 		control.HitWith(s.handlers.parts.At(8), label, gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true, SkipFocus: true})
-		p.fields = append(p.fields, fieldEntry{id: s.handlers.parts.At(3), field: &s.hex})
-		s.hex.id = s.handlers.parts.At(3)
+		p.fields = append(p.fields, fieldEntry{ID: s.handlers.parts.At(3), field: &s.hex})
+		s.hex.ID = s.handlers.parts.At(3)
 		s.syncHex()
 	}
 	b := Slot(c).Size(32, 32).Shrink(0)
 	n := b.n()
-	n.id, n.label = id, label
+	n.ID, n.label = ID, label
 	// Like the swatch, the picker paints from what the element carries: a Draw
 	// callback made for each paint would allocate one closure a paint.
 	extra := b.f.extra(b.i)
@@ -206,7 +206,7 @@ func (f *frame) paintColorPicker(n *node) {
 	extra := &f.exts[n.ext]
 	ctx := Ctx{page: f.page, f: f}
 	d := DrawContext{Canvas: f.canvas, Theme: &f.theme, Rect: n.rect, Label: n.label}
-	extra.picker.paint(&d, &ctx, n.id, extra.pickerLook)
+	extra.picker.paint(&d, &ctx, n.ID, extra.pickerLook)
 }
 
 // parts are the identities the panel's regions take.
@@ -218,10 +218,10 @@ func (s *ColorPickerState) ids(trigger gfx.ID) components.ColorPickerIDs {
 	return components.ColorPickerIDs{Trigger: trigger, Saturation: at(0), Hue: at(1), Hex: at(3), Clear: at(4), Cancel: at(5), Apply: at(6), Dismiss: at(7)}
 }
 
-func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, look colorPickerLook) {
+func (s *ColorPickerState) paint(d *DrawContext, c C, ID gfx.ID, look colorPickerLook) {
 	canvas := d.Canvas
-	ids := s.ids(id)
-	if canvas.Clicked(id) {
+	ids := s.ids(ID)
+	if canvas.Clicked(ID) {
 		if s.open {
 			s.close()
 		} else {
@@ -230,7 +230,7 @@ func (s *ColorPickerState) paint(d *DrawContext, c C, id gfx.ID, look colorPicke
 		return
 	}
 	if s.restoreFocus {
-		canvas.RequestFocus(id)
+		canvas.RequestFocus(ID)
 		s.restoreFocus = false
 	}
 	labels := look.labels

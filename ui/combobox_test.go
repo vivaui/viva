@@ -8,7 +8,7 @@ import (
 )
 
 type zone struct {
-	id   int
+	ID   int
 	name string
 }
 
@@ -199,7 +199,7 @@ func TestComboboxPaintsWithoutAllocating(t *testing.T) {
 }
 
 type hostChoice struct {
-	id                int
+	ID                int
 	name, addr, group string
 	blocked           bool
 }
@@ -253,7 +253,7 @@ func TestComboboxDescribeSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *t
 	}
 	d.typeText("team/prod")
 	d.click("Production")
-	if chosen.id != 1 {
+	if chosen.ID != 1 {
 		t.Fatalf("chose %v", chosen)
 	}
 }
@@ -296,7 +296,7 @@ func TestComboboxOptionPaintsLeadingTrailingAndContent(t *testing.T) {
 		t.Fatalf("painted leading %d, trailing %d, content %d; want 3, 3, 1 times the passes", leading, trailing, content)
 	}
 	d.click("Production")
-	if chosen.id != 1 {
+	if chosen.ID != 1 {
 		t.Fatalf("a press on an option with slots chose %v", chosen)
 	}
 }

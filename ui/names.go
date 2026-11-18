@@ -57,7 +57,7 @@ type boundKey struct {
 
 // armedButton is an unbound button the user holds (pressed or focused) and its label.
 type armedButton struct {
-	id    gfx.ID
+	ID    gfx.ID
 	label string
 	moved bool // the number moved to another button: nothing it holds is delivered
 }
@@ -106,7 +106,7 @@ func movedFrom(prev []string, label string, number int) bool {
 }
 
 type fieldEntry struct {
-	id    gfx.ID
+	ID    gfx.ID
 	field *Field
 	key   func(gfx.KeyEvent) gfx.EventResult // Box.OnKey, while this field has the keyboard
 }

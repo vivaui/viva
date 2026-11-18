@@ -25,7 +25,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	xs, xe := n.inset(axisX)
 	ys, ye := n.inset(axisY)
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
-	parts := f.canvas.Tree().Sub(s.id.Scope(), s.id.Name())
+	parts := f.canvas.Tree().Sub(s.ID.Scope(), s.ID.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
 	if !s.verticalID.IsZero() {
 		vertical = s.verticalID

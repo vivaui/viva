@@ -32,7 +32,7 @@ func FocusBind[T comparable](box Box, field *T, value T) Box {
 	if field == nil {
 		panic("ui: FocusBind needs a non-nil field")
 	}
-	if n.id.IsZero() {
+	if n.ID.IsZero() {
 		panic("ui: FocusBind needs an element with an identity: a control, or a container given Hit before FocusBind")
 	}
 	p := box.f.page
@@ -58,7 +58,7 @@ func FocusBind[T comparable](box Box, field *T, value T) Box {
 		state.bindings = state.bindings[:0]
 		p.focusPaint = append(p.focusPaint, state)
 	}
-	state.bindings = append(state.bindings, focusBinding[T]{id: n.id, value: value})
+	state.bindings = append(state.bindings, focusBinding[T]{ID: n.ID, value: value})
 	return box
 }
 
@@ -81,7 +81,7 @@ func FocusedValue[T comparable](c C, field *T) T {
 	}
 	focused := canvas.Focused()
 	for i := range state.bindings {
-		if state.bindings[i].id == focused {
+		if state.bindings[i].ID == focused {
 			return state.bindings[i].value
 		}
 	}
@@ -96,7 +96,7 @@ type focusState interface {
 }
 
 type focusBinding[T comparable] struct {
-	id    gfx.ID
+	ID    gfx.ID
 	value T
 }
 
@@ -124,7 +124,7 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 	var focusedValue T
 	focusedBound := false
 	for i := range s.bindings {
-		if s.bindings[i].id == focused {
+		if s.bindings[i].ID == focused {
 			focusedValue, focusedBound = s.bindings[i].value, true
 			break
 		}
@@ -133,7 +133,7 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 	desiredBound := false
 	for i := range s.bindings {
 		if s.bindings[i].value == desired {
-			desiredID, desiredBound = s.bindings[i].id, true
+			desiredID, desiredBound = s.bindings[i].ID, true
 			break
 		}
 	}

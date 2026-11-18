@@ -35,16 +35,16 @@ func TestFieldsTakeTypedTextThroughTheDriver(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer driver.Close()
-	click := func(id gfx.ID) {
+	click := func(ID gfx.ID) {
 		for _, hit := range driver.Snapshot().Hits {
-			if hit.ID == id {
+			if hit.ID == ID {
 				if err := driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2); err != nil {
 					t.Fatal(err)
 				}
 				return
 			}
 		}
-		t.Fatalf("no field %v on screen", id)
+		t.Fatalf("no field %v on screen", ID)
 	}
 	click(nameID)
 	if err := driver.Type("Ada"); err != nil {
@@ -96,17 +96,17 @@ func TestEnterInAFieldIsSubmittedOnceAndAClickIsNot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer driver.Close()
-	click := func(id gfx.ID) {
+	click := func(ID gfx.ID) {
 		t.Helper()
 		for _, hit := range driver.Snapshot().Hits {
-			if hit.ID == id {
+			if hit.ID == ID {
 				if err := driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2); err != nil {
 					t.Fatal(err)
 				}
 				return
 			}
 		}
-		t.Fatalf("no field %v on screen", id)
+		t.Fatalf("no field %v on screen", ID)
 	}
 	click(draftID)
 	if len(sent) != 0 {

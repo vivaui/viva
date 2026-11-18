@@ -97,7 +97,7 @@ type focusGroup struct {
 
 // groupStop is the Tab stop of a group: the member it was on last.
 type groupStop struct {
-	id    gfx.ID
+	ID    gfx.ID
 	epoch uint32
 }
 
@@ -110,7 +110,7 @@ func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 	}
 	key := p.nodeID(i)
 	start := int32(len(p.groupIDs))
-	stop, ids := canvas.OneTabStop(from, p.groupStops[key].id, p.groupIDs)
+	stop, ids := canvas.OneTabStop(from, p.groupStops[key].ID, p.groupIDs)
 	p.groupIDs = ids
 	if stop.IsZero() {
 		return
@@ -118,7 +118,7 @@ func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
 	if p.groupStops == nil {
 		p.groupStops = map[gfx.ID]groupStop{}
 	}
-	p.groupStops[key] = groupStop{id: stop, epoch: p.epoch}
+	p.groupStops[key] = groupStop{ID: stop, epoch: p.epoch}
 	order := f.exts[f.nodes[i].ext].focusOrder
 	p.groups = append(p.groups, focusGroup{axis: axis, order: order, start: start, end: int32(len(ids))})
 }
@@ -135,7 +135,7 @@ func (p *Page) sweepGroups() {
 // nodeID is the identity of container i, named by its place.
 func (p *Page) nodeID(i int32) gfx.ID {
 	n := &p.nodes[i]
-	return p.id(place{node: n.parentNode, scope: n.parentScope, name: n.name})
+	return p.ID(place{node: n.parentNode, scope: n.parentScope, name: n.name})
 }
 
 // groupKey moves the focus between the members of the FocusGroup it is in.

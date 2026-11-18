@@ -122,7 +122,7 @@ type listInternals struct {
 type listDeclRow struct {
 	index int
 	key   int
-	id    gfx.ID
+	ID    gfx.ID
 	node  int32
 }
 
@@ -468,8 +468,8 @@ func (s *ListState) clampX(x float32) float32 {
 }
 
 // indexOf is the row a row identity names in the last paint, or -1.
-func (s *ListState) indexOf(id gfx.ID) int {
-	key, ok := id.In(s.list.rows)
+func (s *ListState) indexOf(ID gfx.ID) int {
+	key, ok := ID.In(s.list.rows)
 	if !ok {
 		return -1
 	}
@@ -899,7 +899,7 @@ func blockBehind(d *DrawContext) { d.Canvas.Block(d.Rect) }
 // i's element.
 func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(i int, box Box)) Box {
 	at, _ := p.name(pkContainer)
-	id := p.id(at)
+	id := p.ID(at)
 	// Follow is declared on the area the List returns, after its rows: whether the area
 	// keeps to its end is what the paint before left it, as ScrollState.Pinned says.
 	pinned := c.f.scrolls.get(id).pinned()
@@ -1077,7 +1077,7 @@ func (in *listInternals) declareRow(c C, s *ListState, i int, box Box, row func(
 	box.Children(func() {
 		row(ListRow{Index: i, Key: key, ID: id, C: c, Element: box, state: s})
 	})
-	in.declared = append(in.declared, listDeclRow{index: i, key: key, id: id, node: box.i})
+	in.declared = append(in.declared, listDeclRow{index: i, key: key, ID: id, node: box.i})
 }
 
 // clickRow chooses row as a click with info does.

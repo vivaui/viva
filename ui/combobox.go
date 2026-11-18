@@ -125,7 +125,7 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	// The field declares its own hits as it paints; the element only places it, as
 	// wide as its container, a control tall.
 	b := f.Slot().Height(f.theme.Metrics.ControlHeight)
-	b.n().id = ids.input // what Tooltip, Shortcut and AutoFocus name
+	b.n().ID = ids.input // what Tooltip, Shortcut and AutoFocus name
 	state.node, state.gen = b.i, b.gen
 	b.Draw(state.paint)
 	f.bindDone(b, changed)
@@ -337,9 +337,9 @@ func (p *Page) comboKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 }
 
 // comboText is the platform's editor of a Combobox's search, for TextInput.
-func (p *Page) comboText(id gfx.ID) *app.TextInput {
+func (p *Page) comboText(ID gfx.ID) *app.TextInput {
 	for _, s := range p.combos {
-		if s.ids.input == id {
+		if s.ids.input == ID {
 			s.input.Editor = &s.list.Query
 			return &s.input
 		}

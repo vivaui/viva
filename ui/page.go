@@ -173,7 +173,7 @@ type protoScope struct {
 type nameUse struct{ seen, born uint32 }
 
 type protoBound struct {
-	id          gfx.ID
+	ID          gfx.ID
 	born, epoch uint32
 	positional  bool
 }
@@ -442,8 +442,8 @@ func (p *Page) init(tree *gfx.Tree) {
 
 // owns reports whether id is one the page named: one of its controls, or what
 // its Popovers and Modals report a dismissal with.
-func (p *Page) owns(id gfx.ID) bool {
-	return p.tree != nil && !id.IsZero() && p.tree.Within(id.Scope(), p.root)
+func (p *Page) owns(ID gfx.ID) bool {
+	return p.tree != nil && !ID.IsZero() && p.tree.Within(ID.Scope(), p.root)
 }
 
 // routeKey gives a key to the focused field's OnKey handler, then to the Combobox
@@ -500,7 +500,7 @@ func (p *Page) routeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.areaKey != nil {
 		for _, entry := range p.fields {
-			if entry.id == event.Target {
+			if entry.ID == event.Target {
 				if result := p.areaKey(entry.field, event); result.Handled {
 					return result, true
 				}
@@ -526,7 +526,7 @@ func (p *Page) fieldKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	for i := range p.fields {
 		entry := &p.fields[i]
-		if entry.key == nil || entry.id != event.Target {
+		if entry.key == nil || entry.ID != event.Target {
 			continue
 		}
 		if result := entry.key(event); result.Handled {
@@ -611,11 +611,11 @@ func (p *Page) hoverPlaceAt(x, y float32) gfx.ID {
 				continue
 			}
 			state := f.exts[node.ext].scrollState
-			if state == nil || state.id.IsZero() || !pointInRect(x, y, node.rect) {
+			if state == nil || state.ID.IsZero() || !pointInRect(x, y, node.rect) {
 				continue
 			}
 			if area := node.rect.Width * node.rect.Height; best.IsZero() || area < bestArea {
-				best, bestArea = state.id, area
+				best, bestArea = state.ID, area
 			}
 		}
 	}
@@ -837,7 +837,7 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.icons = p.icons[:0]
 	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
-		if id := p.held[i].id; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {
+		if id := p.held[i].ID; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {
 			p.held[i] = armedButton{}
 		}
 	}
@@ -887,7 +887,7 @@ func (p *Page) resolve(i int32) gfx.Scope {
 }
 
 // id is the identity of an element at at.
-func (p *Page) id(at place) gfx.ID {
+func (p *Page) ID(at place) gfx.ID {
 	if at.scope == 0 {
 		at.scope = p.resolve(at.node)
 	}
@@ -986,7 +986,7 @@ func (p *Page) container(b Box) Box {
 // controlID names an element bound to nothing: its place, a Key or a Part.
 func (p *Page) controlID(Kind uint8) gfx.ID {
 	at, _ := p.name(Kind)
-	return p.id(at)
+	return p.ID(at)
 }
 
 // boundScope is the scope of a control that numbers its own parts (the options of
@@ -1010,14 +1010,14 @@ func (p *Page) boundID(Kind uint8, value unsafe.Pointer) gfx.ID {
 			key.n++
 			continue
 		}
-		if ok && p.names[entry.id].seen != p.epoch {
+		if ok && p.names[entry.ID].seen != p.epoch {
 			entry.epoch = p.epoch
 			p.bound[key] = entry
-			p.claim(entry.id, entry.born)
-			p.noteBound(key, entry.id)
-			return entry.id
+			p.claim(entry.ID, entry.born)
+			p.noteBound(key, entry.ID)
+			return entry.ID
 		}
-		place := p.id(at)
+		place := p.ID(at)
 		id := place
 		owner, held := p.names[place]
 		if !named {
@@ -1029,15 +1029,15 @@ func (p *Page) boundID(Kind uint8, value unsafe.Pointer) gfx.ID {
 		} else if held && owner.seen == p.epoch {
 			id = p.freshAt.At(int(p.fresh.take(p.epoch)))
 		}
-		p.bound[key] = protoBound{id: id, born: p.epoch, epoch: p.epoch, positional: id == place}
+		p.bound[key] = protoBound{ID: id, born: p.epoch, epoch: p.epoch, positional: id == place}
 		p.claim(id, p.epoch)
 		p.noteBound(key, id)
 		return id
 	}
 }
 
-func (p *Page) claim(id gfx.ID, born uint32) {
-	p.names[id] = nameUse{seen: p.epoch, born: born}
+func (p *Page) claim(ID gfx.ID, born uint32) {
+	p.names[ID] = nameUse{seen: p.epoch, born: born}
 }
 
 // sweep forgets what the paint did not declare.
@@ -1057,8 +1057,8 @@ func (p *Page) sweep() {
 	for key, entry := range p.bound {
 		if entry.epoch != p.epoch {
 			delete(p.bound, key)
-			if entry.id.Scope() == p.freshAt {
-				slot, _ := entry.id.Name().Index()
+			if entry.ID.Scope() == p.freshAt {
+				slot, _ := entry.ID.Name().Index()
 				p.fresh.give(uint32(slot), p.epoch)
 			}
 		}
@@ -1076,33 +1076,33 @@ func (p *Page) sweep() {
 }
 
 // guard is Screen's protection of a held button whose place now names another.
-func (p *Page) guard(b Box, id gfx.ID, label string) {
+func (p *Page) guard(b Box, ID gfx.ID, label string) {
 	canvas := p.ctx.f.canvas
 	if canvas == nil {
 		return
 	}
-	s := p.record(id.Scope())
+	s := p.record(ID.Scope())
 	number := len(s.labels)
 	s.labels = append(s.labels, label)
-	focused := canvas.Focused() == id
-	if !focused && canvas.Pressed() != id {
+	focused := canvas.Focused() == ID
+	if !focused && canvas.Pressed() != ID {
 		return
 	}
 	var held *armedButton
 	for i := range p.held {
-		if p.held[i].id == id {
+		if p.held[i].ID == ID {
 			held = &p.held[i]
 		}
 	}
 	switch {
 	case held == nil:
 		for i := range p.held {
-			if p.held[i].id.IsZero() {
-				p.held[i] = armedButton{id: id, label: label}
+			if p.held[i].ID.IsZero() {
+				p.held[i] = armedButton{ID: ID, label: label}
 				return
 			}
 		}
-		p.held[0] = armedButton{id: id, label: label}
+		p.held[0] = armedButton{ID: ID, label: label}
 	case held.moved:
 		b.n().Flags |= flagVeto
 	case held.label == label:
@@ -1110,7 +1110,7 @@ func (p *Page) guard(b Box, id gfx.ID, label string) {
 		held.moved = true
 		b.n().Flags |= flagVeto
 		if focused {
-			canvas.ReleaseFocus(id)
+			canvas.ReleaseFocus(ID)
 		}
 	default:
 		held.label = label
@@ -1120,7 +1120,7 @@ func (p *Page) guard(b Box, id gfx.ID, label string) {
 // TextInput gives the platform the editor of the focused TextField.
 func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
 	for _, entry := range p.fields {
-		if entry.id == context.ID && !context.ID.IsZero() {
+		if entry.ID == context.ID && !context.ID.IsZero() {
 			entry.field.input.Alignment = context.Alignment
 			entry.field.input.Editor = entry.field.ensure()
 			return &entry.field.input

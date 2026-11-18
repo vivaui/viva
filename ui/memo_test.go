@@ -12,7 +12,7 @@ import (
 )
 
 type memoRow struct {
-	id      int
+	ID      int
 	name    string
 	done    bool
 	version uint64
@@ -27,7 +27,7 @@ type memoModel struct {
 func newMemoModel(n int) *memoModel {
 	m := &memoModel{}
 	for i := range n {
-		m.rows = append(m.rows, memoRow{id: i, name: "host " + strconv.Itoa(i), version: 1})
+		m.rows = append(m.rows, memoRow{ID: i, name: "host " + strconv.Itoa(i), version: 1})
 	}
 	return m
 }
@@ -48,7 +48,7 @@ func (m *memoModel) view(c ui.C) {
 		}
 		for i := range m.rows {
 			r := &m.rows[i]
-			ui.Memo(c.KeyInt(r.id), r.version, func() { m.row(c, r) })
+			ui.Memo(c.KeyInt(r.ID), r.version, func() { m.row(c, r) })
 		}
 	})
 }
@@ -177,11 +177,11 @@ func TestMemoRowsStayInteractive(t *testing.T) {
 		ui.Column(c).Fill().Gap(4).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Memo(c.KeyInt(r.id), r.version, func() {
+				ui.Memo(c.KeyInt(r.ID), r.version, func() {
 					ui.Row(c).Gap(8).Children(func() {
 						ui.Checkbox(c, &r.done, r.name)
 						if ui.Button(c, "Open "+r.name).Clicked() {
-							opened = r.id
+							opened = r.ID
 						}
 					})
 				})
@@ -235,7 +235,7 @@ func TestMemoValueSnapshotDeclaresAgainOnChange(t *testing.T) {
 		ui.Column(c).Fill().Gap(4).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+				ui.Memo(c.KeyInt(r.ID), *r, func() { m.row(c, r) })
 			}
 		})
 	}
@@ -259,7 +259,7 @@ func TestMemoValueSnapshotSteadyPaintAllocatesNothing(t *testing.T) {
 		ui.Column(c).Fill().Gap(4).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+				ui.Memo(c.KeyInt(r.ID), *r, func() { m.row(c, r) })
 			}
 		})
 	}
@@ -306,7 +306,7 @@ func TestMemoDeclaresAgainWhenTheInheritedOpacityChanges(t *testing.T) {
 		ui.Column(c).Opacity(opacity).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Memo(c.KeyInt(r.id), r.version, func() { m.row(c, r) })
+				ui.Memo(c.KeyInt(r.ID), r.version, func() { m.row(c, r) })
 			}
 		})
 	}
@@ -415,7 +415,7 @@ func BenchmarkRows200Declared(b *testing.B) {
 		ui.Column(c).Fill().Gap(4).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Row(c.KeyInt(r.id)).Children(func() { m.row(c, r) })
+				ui.Row(c.KeyInt(r.ID)).Children(func() { m.row(c, r) })
 			}
 		})
 	}
@@ -443,7 +443,7 @@ func BenchmarkRows200MemoValue(b *testing.B) {
 		ui.Column(c).Fill().Gap(4).Children(func() {
 			for i := range m.rows {
 				r := &m.rows[i]
-				ui.Memo(c.KeyInt(r.id), *r, func() { m.row(c, r) })
+				ui.Memo(c.KeyInt(r.ID), *r, func() { m.row(c, r) })
 			}
 		})
 	}

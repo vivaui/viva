@@ -46,7 +46,7 @@ type Field struct {
 	Alignment gfx.Alignment
 
 	editor *text.Editor
-	id     gfx.ID
+	ID     gfx.ID
 	// input is the stable TextInput the platform provider hands out. Returning
 	// a fresh one on every repaint allocated once per focused frame.
 	input app.TextInput
@@ -108,8 +108,8 @@ func (field *Field) SetText(value string) {
 // Field adds a text field for field, named id (a stable identity from your Tree),
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
-func (f *frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
-	return f.Input(field.snapshot(f, id, label, placeholder))
+func (f *frame) Field(field *Field, ID gfx.ID, label, placeholder string) Box {
+	return f.Input(field.snapshot(f, ID, label, placeholder))
 }
 
 // FieldBase is Field without a look, as InputBase is Input without one: the same editor,
@@ -118,8 +118,8 @@ func (f *frame) Field(field *Field, id gfx.ID, label, placeholder string) Box {
 // from, such as the editor of a table cell.
 //
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
-func (f *frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Box {
-	return f.InputBase(field.snapshot(f, id, label, placeholder))
+func (f *frame) FieldBase(field *Field, ID gfx.ID, label, placeholder string) Box {
+	return f.InputBase(field.snapshot(f, ID, label, placeholder))
 }
 
 // FieldArea is Field in several rows, with the shadcn textarea look: the same
@@ -128,8 +128,8 @@ func (f *frame) FieldBase(field *Field, id gfx.ID, label, placeholder string) Bo
 // otherwise). It has no Submitted: Enter is a new line.
 //
 //	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
-func (f *frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Box {
-	input := field.snapshot(f, id, label, placeholder)
+func (f *frame) FieldArea(field *Field, ID gfx.ID, label, placeholder string) Box {
+	input := field.snapshot(f, ID, label, placeholder)
 	if field.area == nil {
 		field.area = new(components.TextareaLayout)
 	}
@@ -152,7 +152,7 @@ func (f *frame) FieldArea(field *Field, id gfx.ID, label, placeholder string) Bo
 //
 //	if result := m.notes.Key(event); result.Handled { return result }
 func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
-	if !field.rows || event.Target != field.id || field.id.IsZero() {
+	if !field.rows || event.Target != field.ID || field.ID.IsZero() {
 		return gfx.EventResult{}
 	}
 	movement, extend := components.TextareaMovementForKey(event.Key, event.Modifiers)
@@ -168,17 +168,17 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) components.InputSnapshot {
+func (field *Field) snapshot(f *frame, ID gfx.ID, label, placeholder string) components.InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
-	field.id = id
+	field.ID = ID
 	value := editor.String()
 	field.changed = value != field.seen
 	field.seen = value
-	focused := f.canvas != nil && f.canvas.Focused() == id
+	focused := f.canvas != nil && f.canvas.Focused() == ID
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
-		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
+		ID: ID, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the
@@ -266,7 +266,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 		panic("ui: OnKey is for a TextField of a page")
 	}
 	for i := len(p.fields) - 1; i >= 0; i-- {
-		if p.fields[i].id == n.id {
+		if p.fields[i].ID == n.ID {
 			p.fields[i].key = handler
 			if p.fieldKeyRoute == nil {
 				p.keyRoute, p.fieldKeyRoute = (*Page).routeKey, (*Page).fieldKey
@@ -284,7 +284,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 func Fields(fields ...*Field) func(app.TextInputContext) *app.TextInput {
 	return func(context app.TextInputContext) *app.TextInput {
 		for _, field := range fields {
-			if field.id == context.ID && !context.ID.IsZero() {
+			if field.ID == context.ID && !context.ID.IsZero() {
 				field.input.Alignment = context.Alignment
 				field.input.Editor = field.ensure()
 				return &field.input

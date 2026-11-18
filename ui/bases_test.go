@@ -197,20 +197,20 @@ func TestItemBasesAreTheControlsTheyNameAndReportTheirState(t *testing.T) {
 	type item struct {
 		name  string
 		role  gfx.Role
-		build func(f *Frame, id gfx.ID) Box
+		build func(f *Frame, ID gfx.ID) Box
 		check func(gfx.State) bool
 		hit   func(gfx.Hit) bool
 	}
 	items := []item{
-		{"toggle", gfx.RoleButton, func(f *Frame, id gfx.ID) Box { return f.ToggleBase(id, "Bold", true) },
+		{"toggle", gfx.RoleButton, func(f *Frame, ID gfx.ID) Box { return f.ToggleBase(ID, "Bold", true) },
 			func(s gfx.State) bool { return s.Checked && s.Selected }, func(h gfx.Hit) bool { return h.Checked && h.Selected }},
-		{"tab", gfx.RoleTab, func(f *Frame, id gfx.ID) Box { return f.TabBase(id, "General", true) },
+		{"tab", gfx.RoleTab, func(f *Frame, ID gfx.ID) Box { return f.TabBase(ID, "General", true) },
 			func(s gfx.State) bool { return s.Selected && !s.Checked }, func(h gfx.Hit) bool { return h.Selected }},
-		{"radio", gfx.RoleRadio, func(f *Frame, id gfx.ID) Box { return f.RadioBase(id, "List", true) },
+		{"radio", gfx.RoleRadio, func(f *Frame, ID gfx.ID) Box { return f.RadioBase(ID, "List", true) },
 			func(s gfx.State) bool { return s.Checked && s.Selected }, func(h gfx.Hit) bool { return h.Checked && h.Selected }},
-		{"option", gfx.RoleOption, func(f *Frame, id gfx.ID) Box { return f.OptionBase(id, "Small", true) },
+		{"option", gfx.RoleOption, func(f *Frame, ID gfx.ID) Box { return f.OptionBase(ID, "Small", true) },
 			func(s gfx.State) bool { return s.Selected }, func(h gfx.Hit) bool { return h.Selected }},
-		{"combobox", gfx.RoleCombobox, func(f *Frame, id gfx.ID) Box { return f.ComboboxBase(id, "Size", "Small", true) },
+		{"combobox", gfx.RoleCombobox, func(f *Frame, ID gfx.ID) Box { return f.ComboboxBase(ID, "Size", "Small", true) },
 			func(s gfx.State) bool { return s.Open }, func(h gfx.Hit) bool { return h.Expanded && h.Expandable && h.Value == "Small" }},
 	}
 	for _, it := range items {

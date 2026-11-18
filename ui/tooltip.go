@@ -16,7 +16,7 @@ const TooltipLayer = 1000
 //
 //	ui.Button(c, "").Icon(trash).Tooltip("Delete")
 func (b Box) Tooltip(text string) Box {
-	if b.n().id.IsZero() {
+	if b.n().ID.IsZero() {
 		panic("ui: Tooltip needs an element with an identity: a control, or a container given Hit")
 	}
 	b.f.extra(b.i).tooltip = text
@@ -43,7 +43,7 @@ const (
 //
 //	ui.Button(c, "").Icon(info).Tooltip("Applies to new terminals").TooltipOn(ui.TooltipRight)
 func (b Box) TooltipOn(side TooltipSide) Box {
-	if b.n().id.IsZero() {
+	if b.n().ID.IsZero() {
 		panic("ui: TooltipOn needs an element with an identity: a control, or a container given Hit")
 	}
 	b.f.extra(b.i).tooltipSide = uint8(side) + 1
@@ -78,9 +78,9 @@ func (f *frame) tooltipState() *components.HoverTooltip {
 }
 
 // tooltipSideOf is the side TooltipOn gave the element id, or below.
-func (f *frame) tooltipSideOf(id gfx.ID) TooltipSide {
+func (f *frame) tooltipSideOf(ID gfx.ID) TooltipSide {
 	for i := range f.nodes {
-		if n := &f.nodes[i]; n.id == id && n.ext != 0 && f.exts[n.ext].tooltipSide != 0 {
+		if n := &f.nodes[i]; n.ID == ID && n.ext != 0 && f.exts[n.ext].tooltipSide != 0 {
 			return TooltipSide(f.exts[n.ext].tooltipSide - 1)
 		}
 	}
@@ -90,13 +90,13 @@ func (f *frame) tooltipSideOf(id gfx.ID) TooltipSide {
 // hasTooltip reports whether id names an element of this frame given a Tooltip.
 // A Memo declares what it holds again while the pointer is on it, so the element
 // under the pointer is always one the frame declared.
-func (f *frame) hasTooltip(id gfx.ID) bool {
-	if id.IsZero() {
+func (f *frame) hasTooltip(ID gfx.ID) bool {
+	if ID.IsZero() {
 		return false
 	}
 	for i := range f.nodes {
 		n := &f.nodes[i]
-		if n.id == id && n.ext != 0 && f.exts[n.ext].tooltip != "" {
+		if n.ID == ID && n.ext != 0 && f.exts[n.ext].tooltip != "" {
 			return true
 		}
 	}

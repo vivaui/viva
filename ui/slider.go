@@ -24,7 +24,7 @@ const (
 type SliderState struct {
 	Value float32
 
-	id       gfx.ID
+	ID       gfx.ID
 	min, max float32 // the range as of the last declaration, for Key
 	step     float32
 	area     Rect // where the slider was in the last layout, for the pointer
@@ -54,7 +54,7 @@ func (s *SliderState) Dragging() bool { return s.dragging }
 // call it from yours); it ignores every other key and every other focus. The next
 // declaration's Changed reports it.
 func (s *SliderState) Key(event gfx.KeyEvent) gfx.EventResult {
-	if s.id.IsZero() || event.Target != s.id || s.off {
+	if s.ID.IsZero() || event.Target != s.ID || s.off {
 		return gfx.EventResult{}
 	}
 	unit := s.step
@@ -110,8 +110,8 @@ type sliderDecl struct {
 //	if f.Slider(volumeID, &m.volume).Range(0, 1).Step(0.05).Label("Volume").Changed() {
 //		m.player.SetVolume(m.volume.Value)
 //	}
-func (f *frame) Slider(id gfx.ID, state *SliderState) Box {
-	b := f.SliderBase(id, state)
+func (f *frame) Slider(ID gfx.ID, state *SliderState) Box {
+	b := f.SliderBase(ID, state)
 	f.nodes[b.i].Flags |= flagThemed
 	return b
 }
@@ -128,13 +128,13 @@ func (f *frame) Slider(id gfx.ID, state *SliderState) Box {
 //		d.Canvas.Rounded(d.Rect, 3, trackColor)
 //		d.Canvas.Rounded(Rect{X: x - 8, Y: d.Rect.Y, Width: 16, Height: 16}, 8, thumbColor)
 //	})
-func (f *frame) SliderBase(id gfx.ID, state *SliderState) Box {
+func (f *frame) SliderBase(ID gfx.ID, state *SliderState) Box {
 	b := f.box(kindSlider)
 	n := &f.nodes[b.i]
-	n.id = id
+	n.ID = ID
 	n.aux = int32(len(widgetsOf(f).sliders))
 	widgetsOf(f).sliders = append(widgetsOf(f).sliders, sliderDecl{state: state})
-	state.id, state.min, state.max, state.step = id, 0, sliderDefaultTo, 0
+	state.ID, state.min, state.max, state.step = ID, 0, sliderDefaultTo, 0
 	return b
 }
 
@@ -202,7 +202,7 @@ func (f *frame) settleSlider(n *node) {
 		s.dragging = false
 		return
 	}
-	event, ok := f.canvas.PointerOn(n.id)
+	event, ok := f.canvas.PointerOn(n.ID)
 	if !ok {
 		return
 	}
@@ -211,7 +211,7 @@ func (f *frame) settleSlider(n *node) {
 	if vertical {
 		pointer = event.Y
 	}
-	track := components.BeginSlider(nil, f.theme, n.id, s.area, s.Value).Range(s.min, s.max).Step(s.step)
+	track := components.BeginSlider(nil, f.theme, n.ID, s.area, s.Value).Range(s.min, s.max).Step(s.step)
 	if vertical {
 		track = track.Vertical()
 	}
@@ -257,13 +257,13 @@ func (f *frame) paintSlider(n *node) {
 		if step <= 0 {
 			step = 1
 		}
-		f.canvas.HitWithOptions(n.id, n.rect, label, gfx.HitOptions{
+		f.canvas.HitWithOptions(n.ID, n.rect, label, gfx.HitOptions{
 			Role: gfx.RoleSlider, Value: s.valueText(), Disabled: n.Flags&flagDisabled != 0,
 			Range: gfx.ValueRange{Now: float64(s.Value), Min: float64(s.min), Max: float64(s.max), Step: float64(step), Set: true},
 		})
 		return
 	}
-	slider := components.BeginSlider(f.canvas, f.theme, n.id, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
+	slider := components.BeginSlider(f.canvas, f.theme, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
 	if n.natural > 0 {
 		slider = slider.Vertical()
 	}
