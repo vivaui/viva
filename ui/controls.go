@@ -148,7 +148,7 @@ func (f *frame) InputGroup(snapshot style.InputGroupSnapshot) Box {
 // Textarea adds a multi-line text field with the shadcn look, at least 64 pixels tall. It
 // is TextareaBase with that look, dressed by components.TextEntryRecipe as Input is: what
 // the element sets itself (Background, Border, Radius, Shadow, Pad) replaces the recipe's.
-func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
+func (f *frame) Textarea(snapshot style.TextareaSnapshot) Box {
 	b := f.TextareaBase(snapshot)
 	f.Nodes[b.i].Flags |= flagThemed
 	return b
@@ -159,7 +159,7 @@ func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 // and the fill, border, corners, shadow and padding are the element's. The snapshot's
 // InsetTop, InsetBottom and InsetRight still reserve room inside the padded rectangle. It
 // is one row tall plus its Pad and Border unless given a Height.
-func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
+func (f *frame) TextareaBase(snapshot style.TextareaSnapshot) Box {
 	b := f.Box(kindTextarea)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).textareas))

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
@@ -62,7 +61,7 @@ type Field struct {
 	// area lays a field out in rows when it is declared as a FieldArea; nil until it
 	// is. rows is whether the last declaration was one: a field declared as a
 	// FieldArea once and as a Field since keeps its layout but moves by its line.
-	area *components.TextareaLayout
+	area *style.TextareaLayout
 	rows bool
 }
 

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -23,7 +22,7 @@ import (
 // page-wide case.
 type Styles struct {
 	// Button dresses Button, and the buttons a component paints.
-	Button func(Palette gfx.Theme, Variant components.ButtonVariant, state gfx.State) style.ButtonLook
+	Button func(Palette gfx.Theme, Variant style.ButtonVariant, state gfx.State) style.ButtonLook
 	// Checkbox dresses Checkbox.
 	Checkbox func(Palette gfx.Theme, state gfx.State) style.CheckboxLook
 	// Switch dresses Switch, progress being how far the thumb has travelled.

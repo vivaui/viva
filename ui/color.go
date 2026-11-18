@@ -3,8 +3,8 @@ package ui
 import (
 	"strconv"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -53,13 +53,13 @@ func (b Box) TabStop(on bool) Box {
 // closed.
 type ColorPickerState struct {
 	open, restoreFocus, applied bool
-	draft                       components.ColorPickerValue
+	draft                       style.ColorPickerValue
 	hexEditor                   text.Editor
 	hex                         Field
 	seen, summary               string
 	invalid                     bool
 	handlers                    Handlers
-	layout                      components.ColorPickerLayout
+	layout                      style.ColorPickerLayout
 	target                      *Color
 	Bound                       bool
 }
@@ -91,7 +91,7 @@ type colorPickerLook struct {
 	round  bool
 	icon   *gfx.Icon
 	empty  bool
-	labels components.ColorPickerLabels
+	labels style.ColorPickerLabels
 }
 
 // ColorPicker adds a color trigger over *color that opens a panel to pick one: a plane for
@@ -175,7 +175,7 @@ func (b Box) NoColor(empty bool) Box {
 // PanelLabels overrides the words of a ColorPicker's panel: its title, the plane, the hue
 // bar, the hex field and the buttons. A label left empty keeps its default. Other
 // elements ignore it.
-func (b Box) PanelLabels(labels components.ColorPickerLabels) Box {
+func (b Box) PanelLabels(labels style.ColorPickerLabels) Box {
 	if extra := b.pickerExtra(); extra != nil {
 		extra.pickerLook.labels = labels
 	}
@@ -209,7 +209,7 @@ func (s *ColorPickerState) apply() {
 	s.close()
 }
 
-func (s *ColorPickerState) setValue(v components.ColorPickerValue) {
+func (s *ColorPickerState) setValue(v style.ColorPickerValue) {
 	s.draft = v
 	var buf [9]byte
 	value := string(v.AppendHex(buf[:0], false))
@@ -221,7 +221,7 @@ func (s *ColorPickerState) setValue(v components.ColorPickerValue) {
 	s.summary = summary(v)
 }
 
-func summary(v components.ColorPickerValue) string {
+func summary(v style.ColorPickerValue) string {
 	return strconv.Itoa(int(v.Saturation*100+.5)) + "% / " + strconv.Itoa(int(v.Brightness*100+.5)) + "%"
 }
 

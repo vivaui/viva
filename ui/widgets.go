@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -46,7 +45,7 @@ type widgets struct {
 	// options Choice builds. The engine keeps them opaque.
 	inputs    []style.InputSnapshot
 	groups    []style.InputGroupSnapshot
-	textareas []components.TextareaSnapshot
+	textareas []style.TextareaSnapshot
 	segmented []segmented
 	choices   []style.SegmentOption
 }

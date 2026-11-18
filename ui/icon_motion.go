@@ -3,11 +3,11 @@ package ui
 import (
 	"time"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
-// IconHover is the declarative form of components.IconHover: it binds the
+// IconHover is the declarative form of style.IconHover: it binds the
 // caller-owned hover state to an icon element's hit ID. Keep one value in the
 // page's state and call Bind on the element that declares the hover region.
 //
@@ -17,7 +17,7 @@ import (
 // painted inside the icon's layout box, so it moves the glyph without moving the
 // page or the hit region.
 type IconHover struct {
-	state *components.IconHover
+	state *style.IconHover
 	ID    gfx.ID
 	slot  uint8
 	dwell time.Duration
@@ -25,7 +25,7 @@ type IconHover struct {
 }
 
 // Bind creates the binding for one icon element.
-func BindIconHover(state *components.IconHover, ID gfx.ID) IconHover {
+func BindIconHover(state *style.IconHover, ID gfx.ID) IconHover {
 	return IconHover{state: state, ID: ID, dwell: 130 * time.Millisecond, span: 180 * time.Millisecond}
 }
 
