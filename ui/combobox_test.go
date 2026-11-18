@@ -213,16 +213,18 @@ var hostChoices = []hostChoice{
 func hostModelPage(chosen *hostChoice) func(ui.C) {
 	return func(c ui.C) {
 		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
-			ui.ComboboxWith(c, chosen, hostChoices, ui.ComboboxSpec[hostChoice]{Describe: func(h hostChoice) ui.ComboboxOption {
-				return ui.ComboboxOption{Label: h.name, Detail: h.addr, Search: h.group, Disabled: h.blocked}
-			}}, "Host").Width(320)
+			ui.Combobox(c, chosen, hostChoices, func(h hostChoice) string { return h.name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					h := hostChoices[i]
+					return ui.ComboboxOption{Detail: h.addr, Search: h.group, Disabled: h.blocked}
+				})
 		})
 	}
 }
 
 // A choice is found by its detail and by text it does not show, and a disabled choice stays in the
 // list but cannot be chosen.
-func TestComboboxWithSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
+func TestComboboxDescribeSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
 	var chosen hostChoice
 	d := openPage(t, hostModelPage(&chosen))
 	d.click("Host")
@@ -256,7 +258,7 @@ func TestComboboxWithSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testi
 	}
 }
 
-func TestComboboxWithShowsTheChosenDetail(t *testing.T) {
+func TestComboboxDescribeShowsTheChosenDetail(t *testing.T) {
 	chosen := hostChoices[0]
 	d := openPage(t, hostModelPage(&chosen))
 	found := false

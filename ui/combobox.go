@@ -21,18 +21,15 @@ import (
 //
 // Clearable adds a button that clears the choice, Empty says what the list shows
 // when nothing matches, and Creatable offers what was typed as a new choice, which
-// Created reports for the application to add.
-//
-// Clearable adds a button that clears the choice, Empty says what the list shows
-// when nothing matches, and Creatable offers what was typed as a new choice, which
-// Created reports for the application to add.
+// Created reports for the application to add. Describe gives choices a detail, text to
+// search by and a disabled state.
 //
 // Not inside a Memo.
 func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
-	return combobox(c, value, choices, nameOf, nil, label)
+	return combobox(c, value, choices, nameOf, label)
 }
 
-// ComboboxOption describes one choice of a Combobox made with ComboboxWith: Label is its
+// ComboboxOption describes one choice of a Combobox, as Describe gives it: Label is its
 // name; Detail is shown after it in a muted face (an address, an account) and, with Search
 // (extra text that is never shown, such as a group or an alias), is matched by what the
 // user types; Disabled keeps the choice in the list, dimmed and not chosen by a click or
@@ -42,29 +39,7 @@ type ComboboxOption struct {
 	Disabled              bool
 }
 
-// ComboboxSpec is what ComboboxWith knows of its choices beyond a name. Describe gives
-// each choice's ComboboxOption; it is called for every choice in every paint, so keep it
-// to reading fields.
-type ComboboxSpec[T comparable] struct {
-	Describe func(T) ComboboxOption
-}
-
-// ComboboxWith is Combobox for choices that carry more than a name, as spec describes
-// them. Everything else, Clearable, Empty, Creatable and Created included, is Combobox's.
-//
-//	ui.ComboboxWith(c, &m.host, hosts, ui.ComboboxSpec[Host]{
-//		Describe: func(h Host) ui.ComboboxOption {
-//			return ui.ComboboxOption{Label: h.Name, Detail: h.Address, Search: h.Group, Disabled: !h.Online}
-//		},
-//	}, "Host")
-func ComboboxWith[T comparable](c C, value *T, choices []T, spec ComboboxSpec[T], label string) Box {
-	if spec.Describe == nil {
-		panic("ui: ComboboxWith needs a Describe")
-	}
-	return combobox(c, value, choices, nil, spec.Describe, label)
-}
-
-func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, describe func(T) ComboboxOption, label string) Box {
+func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
 	p := c.page
 	p.forbidInMemo("Combobox")
 	if label == "" {
@@ -77,14 +52,8 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, d
 		state.list.LabelsOnly, state.list.MatchCaseInsensitive = true, true
 	}
 	f := c.f
-	var selected int
-	if describe != nil {
-		selected = setDescribed(state, value, choices, describe)
-	} else {
-		var labels []string
-		labels, selected = options(p, value, choices, nameOf)
-		state.setOptions(labels)
-	}
+	labels, selected := options(p, value, choices, nameOf)
+	state.setOptions(labels)
 	key := ""
 	if selected >= 0 {
 		key = state.keys[selected]
@@ -166,7 +135,7 @@ type comboState struct {
 	input   app.TextInput
 	ids     comboIDs
 	labels  []string
-	descs   []ComboboxOption // what ComboboxWith last described, to tell a change
+	descs   []ComboboxOption // what Describe last gave, to tell a change
 	scratch []ComboboxOption
 	keys    []string // keys[i] is the Value of option i: its index
 	opts    []components.SingleSelectOption
@@ -231,39 +200,6 @@ func (s *comboState) setOptions(labels []string) {
 	s.list.SetOptions(s.opts)
 }
 
-// setDescribed gives the list the options describe makes of choices when they are not the
-// ones it has, and returns the index of *value among them (-1 when it is none).
-func setDescribed[T comparable](s *comboState, value *T, choices []T, describe func(T) ComboboxOption) int {
-	selected, same := -1, len(choices) == len(s.descs)
-	for i, choice := range choices {
-		d := describe(choice)
-		if i < len(s.scratch) {
-			s.scratch[i] = d
-		} else {
-			s.scratch = append(s.scratch, d)
-		}
-		same = same && s.descs[i] == d
-		if choice == *value {
-			selected = i
-		}
-	}
-	if same {
-		return selected
-	}
-	s.descs = append(s.descs[:0], s.scratch[:len(choices)]...)
-	s.labels = s.labels[:0]
-	for len(s.keys) < len(choices) {
-		s.keys = append(s.keys, comboKeyPrefix+strconv.Itoa(len(s.keys)))
-	}
-	s.opts = s.opts[:0]
-	for i, d := range s.descs {
-		s.labels = append(s.labels, d.Label)
-		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled})
-	}
-	s.list.SetOptions(s.opts)
-	return selected
-}
-
 // draw paints the field, and its list while it is open.
 func (s *comboState) draw(d *DrawContext) {
 	n := &s.f.nodes[s.node]
@@ -302,6 +238,43 @@ func (b Box) Clearable() Box {
 	if s := b.combo(); s != nil {
 		s.clearable = true
 	}
+	return b
+}
+
+// Describe gives a Combobox's choices more than a name: describe(i) is choice i's
+// ComboboxOption, whose Label, when set, replaces the name nameOf gave. It is called for
+// every choice in every paint, so keep it to reading fields. It goes by position, since a
+// method cannot take the choice type.
+//
+//	ui.Combobox(c, &m.host, hosts, Host.String, "Host").Describe(func(i int) ui.ComboboxOption {
+//		h := hosts[i]
+//		return ui.ComboboxOption{Detail: h.Address, Search: h.Group, Disabled: !h.Online}
+//	})
+func (b Box) Describe(describe func(i int) ComboboxOption) Box {
+	s := b.combo()
+	if s == nil || describe == nil {
+		return b
+	}
+	n := len(s.labels)
+	same := n == len(s.descs)
+	s.scratch = s.scratch[:0]
+	for i := 0; i < n; i++ {
+		d := describe(i)
+		if d.Label == "" {
+			d.Label = s.labels[i]
+		}
+		s.scratch = append(s.scratch, d)
+		same = same && s.descs[i] == d
+	}
+	if same {
+		return b
+	}
+	s.descs = append(s.descs[:0], s.scratch...)
+	s.opts = s.opts[:0]
+	for i, d := range s.descs {
+		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled})
+	}
+	s.list.SetOptions(s.opts)
 	return b
 }
 
