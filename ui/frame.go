@@ -273,7 +273,7 @@ type frame struct {
 	Lines      []string
 	controls   any                 // the layer above's control declarations: see widgetsOf
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
+	Wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor int
 	scratch    scratch       // memory the layout borrows, see scratch.go
 	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
@@ -416,8 +416,8 @@ func (f *frame) trim() {
 	// Cache entries past the wrapped texts this frame declared belong to a
 	// larger page that is gone. Drop them before trimming the outer slices so
 	// their strings do not stay reachable.
-	if f.wrapCursor < len(f.wraps) {
-		f.wraps = f.wraps[:f.wrapCursor]
+	if f.wrapCursor < len(f.Wraps) {
+		f.Wraps = f.Wraps[:f.wrapCursor]
 	}
 	if f.wrapCursor < len(f.ellipses) {
 		f.ellipses = f.ellipses[:f.wrapCursor]
@@ -431,7 +431,7 @@ func (f *frame) trim() {
 	f.Floats = trimFlexCapacity(f.Floats)
 	f.Lines = trimFlexCapacity(f.Lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
-	f.wraps = trimFlexCapacity(f.wraps)
+	f.Wraps = trimFlexCapacity(f.Wraps)
 	trimControls(f)
 	f.scratch.abs = trimFlexCapacity(f.scratch.abs)
 	f.scratch.rows = trimFlexCapacity(f.scratch.rows)

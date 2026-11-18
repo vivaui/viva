@@ -32,11 +32,11 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 	if f.wrapCursor == len(f.ellipses) {
 		f.ellipses = append(f.ellipses, gfx.EllipsisCache{})
 	}
-	if f.wrapCursor == len(f.wraps) {
-		f.wraps = append(f.wraps, wrapCache{})
+	if f.wrapCursor == len(f.Wraps) {
+		f.Wraps = append(f.Wraps, wrapCache{})
 	}
 	cache := &f.ellipses[f.wrapCursor]
-	wrapped := &f.wraps[f.wrapCursor]
+	wrapped := &f.Wraps[f.wrapCursor]
 	f.wrapCursor++
 	width := max(n.rect.Width-n.padX(), 1)
 	maxLines := int(n.MaxLines)
