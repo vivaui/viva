@@ -106,7 +106,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 				size -= edgeEnd
 			}
 		default:
-			size = a.pref[axis]
+			size = a.Pref[axis]
 		}
 		size = clamp(size, a.MinS[axis], a.MaxS[axis])
 		at := lo + ms

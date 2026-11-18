@@ -155,7 +155,7 @@ type node struct {
 	placeShift           float32 // moves a popup along its anchor from where Align put it
 	Baseline             float32 // distance from the top to the first line of text
 
-	pref                [2]float32
+	Pref                [2]float32
 	raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	growNow, shrinkNow  float32
 	base, want, bounded float32 // while flexible lengths are resolved

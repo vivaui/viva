@@ -174,9 +174,9 @@ func (b Box) Changed() bool {
 
 func (f *frame) measureSlider(n *node) {
 	if n.Natural > 0 {
-		n.pref = [2]float32{sliderThickness, sliderLength}
+		n.Pref = [2]float32{sliderThickness, sliderLength}
 	} else {
-		n.pref = [2]float32{sliderLength, sliderThickness}
+		n.Pref = [2]float32{sliderLength, sliderThickness}
 	}
 }
 

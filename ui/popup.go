@@ -50,7 +50,7 @@ func (f *frame) placePopup(n *node, axis int) {
 		}
 	}
 	lo, span := *origin(&bounds, axis), *extent(&bounds, axis)
-	size := n.pref[axis]
+	size := n.Pref[axis]
 	switch d := n.Size[axis]; d.Kind {
 	case dimPx:
 		size = d.value

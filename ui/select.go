@@ -646,7 +646,7 @@ func (f *frame) measureSelect(n *node) {
 	case n.Flags&flagSmall != 0:
 		height -= 4
 	}
-	n.pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
+	n.Pref = [2]float32{widest + f.theme.Metrics.PadControlX + 36, height}
 }
 
 func (f *frame) paintSelect(n *node) {
@@ -654,7 +654,7 @@ func (f *frame) paintSelect(n *node) {
 	count := len(d.labels)
 	// A Select is as tall as it measures unless the application gave it a height,
 	// which then sizes the trigger itself.
-	height := n.pref[axisY]
+	height := n.Pref[axisY]
 	if n.Size[axisY].Kind != dimAuto {
 		height = n.rect.Height
 	}

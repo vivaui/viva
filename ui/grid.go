@@ -110,7 +110,7 @@ func (f *frame) gridRows(n *node) int {
 				continue
 			}
 			ms, me := child.marginOn(axisY)
-			need := child.pref[axisY] + ms + me
+			need := child.Pref[axisY] + ms + me
 			first := int(child.GridRow)
 			have := n.Gap * float32(span-1)
 			for r := first; r < first+span; r++ {
@@ -142,9 +142,9 @@ func (f *frame) measureGrid(n *node, axis int) {
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			cs, _ := child.span()
-			widest = max(widest, (child.pref[axisX]-n.Gap*float32(cs-1))/float32(cs))
+			widest = max(widest, (child.Pref[axisX]-n.Gap*float32(cs-1))/float32(cs))
 		}
-		n.pref[axisX] = widest + is + ie
+		n.Pref[axisX] = widest + is + ie
 		return
 	}
 	rows := f.gridRows(n)
@@ -152,7 +152,7 @@ func (f *frame) measureGrid(n *node, axis int) {
 	if rows > 0 {
 		total = f.scratch.rowAt[rows-1] + f.scratch.rows[rows-1]
 	}
-	n.pref[axisY] = total + is + ie
+	n.Pref[axisY] = total + is + ie
 }
 
 // solveGrid gives every child the cells it covers.

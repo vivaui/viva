@@ -276,7 +276,7 @@ func (f *frame) measureTable(n *node) {
 	for _, column := range t.spec.Columns {
 		width += max(column.Width, 0)
 	}
-	n.pref = [2]float32{width, t.headerHeight(f.theme) + float32(t.rows)*t.rowHeight(f.theme)}
+	n.Pref = [2]float32{width, t.headerHeight(f.theme) + float32(t.rows)*t.rowHeight(f.theme)}
 }
 
 // tableColumnsWidth is the total width a table's columns declare: the fixed

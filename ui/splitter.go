@@ -150,9 +150,9 @@ func (f *frame) measureSplitter(n *node) {
 		thickness = splitterThickness
 	}
 	if f.splitsRow(n) {
-		n.pref = [2]float32{thickness, 0}
+		n.Pref = [2]float32{thickness, 0}
 	} else {
-		n.pref = [2]float32{0, thickness}
+		n.Pref = [2]float32{0, thickness}
 	}
 }
 
@@ -199,7 +199,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		if state.Ratio <= 0 || d.First < 0 {
 			continue
 		}
-		thickness := bar.pref[axis]
+		thickness := bar.Pref[axis]
 		if thickness <= 0 {
 			thickness = splitterThickness
 		}
@@ -207,7 +207,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		hi := max(avail-gaps-thickness-d.minSecond, lo)
 		pos := min(max(state.Ratio*(avail-gaps-thickness), lo), hi)
 		first := &f.nodes[d.First]
-		first.raw[axis], first.pref[axis] = pos, pos
+		first.raw[axis], first.Pref[axis] = pos, pos
 		state.Pos = pos
 		state.thickness = thickness
 		state.lo, state.hi, state.span = lo, hi, avail

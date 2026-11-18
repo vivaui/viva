@@ -69,13 +69,13 @@ func (c *LayoutContext) Count() int { return len(c.children) }
 
 // Width returns the preferred width of child i, before the container places it.
 func (c *LayoutContext) Width(i int) float32 {
-	return c.frame.nodes[c.child(i)].pref[axisX]
+	return c.frame.nodes[c.child(i)].Pref[axisX]
 }
 
 // Height returns the preferred height of child i: after PlaceWidth, at the width
 // that was given to it.
 func (c *LayoutContext) Height(i int) float32 {
-	return c.frame.nodes[c.child(i)].pref[axisY]
+	return c.frame.nodes[c.child(i)].Pref[axisY]
 }
 
 // SetWidth gives child i its width. It is a PlaceWidth call.
@@ -139,12 +139,12 @@ func (f *frame) measureCustom(n *node, axis int) {
 	ctx := &f.layoutCtx
 	if axis == axisX {
 		ctx.begin(f, n, phaseMeasureWidth)
-		n.pref[axisX] = max(layout.MeasureWidth(ctx), 0) + n.padX()
+		n.Pref[axisX] = max(layout.MeasureWidth(ctx), 0) + n.padX()
 		return
 	}
 	ctx.begin(f, n, phaseMeasureHeight)
 	ctx.width = max(n.rect.Width-n.padX(), 0)
-	n.pref[axisY] = max(layout.MeasureHeight(ctx), 0) + n.padY()
+	n.Pref[axisY] = max(layout.MeasureHeight(ctx), 0) + n.padY()
 }
 
 // solveCustom gives a CustomLayout's children their extent and origin on axis,
@@ -159,7 +159,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 		ctx.begin(f, n, phasePlaceWidth)
 		for _, i := range ctx.children {
 			child := &f.nodes[i]
-			child.rect.Width = clamp(child.pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
+			child.rect.Width = clamp(child.Pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
 			child.rect.X = start
 		}
 		ctx.width = avail
@@ -171,7 +171,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	for _, i := range ctx.children {
 		child := &f.nodes[i]
 		ctx.beforeX = append(ctx.beforeX, child.rect.X)
-		child.rect.Height = clamp(child.pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
+		child.rect.Height = clamp(child.Pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
 		child.rect.Y = start
 	}
 	is, _ := n.inset(axisX)

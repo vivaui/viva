@@ -184,7 +184,7 @@ func (f *frame) paintControl(n *node, r Rect) {
 	case kindText:
 		f.paintText(n)
 	case kindIcon:
-		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.pref[axisX], Height: n.pref[axisY]}, n.Color, extra.iconTransform)
+		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.Pref[axisX], Height: n.Pref[axisY]}, n.Color, extra.iconTransform)
 	case kindImage:
 		canvas.DrawBitmap(f.images[n.Aux], r)
 	case kindSlot:
@@ -227,7 +227,7 @@ func (f *frame) paintText(n *node) {
 		}
 		return
 	}
-	height := max(n.pref[axisY]-top-bottom, 0)
+	height := max(n.Pref[axisY]-top-bottom, 0)
 	bounds := Rect{X: r.X, Y: r.Y + max((r.Height-height)/2, 0), Width: r.Width, Height: height}
 	clipped := r.Width < n.Natural
 	if clipped {

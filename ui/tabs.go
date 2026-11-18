@@ -83,13 +83,13 @@ func (f *frame) measureTabs(n *node) {
 	between := gap * max(count-1, 0)
 	switch {
 	case t.vertical && t.line:
-		n.pref = [2]float32{widest + 16 + tabIndicator + 1, tabHeight*count + between}
+		n.Pref = [2]float32{widest + 16 + tabIndicator + 1, tabHeight*count + between}
 	case t.vertical:
-		n.pref = [2]float32{widest + 16, tabHeight*count + between}
+		n.Pref = [2]float32{widest + 16, tabHeight*count + between}
 	case t.line:
-		n.pref = [2]float32{(widest+24)*count + between, tabHeight + tabIndicator}
+		n.Pref = [2]float32{(widest+24)*count + between, tabHeight + tabIndicator}
 	default:
-		n.pref = [2]float32{(widest + 24) * count, tabHeight}
+		n.Pref = [2]float32{(widest + 24) * count, tabHeight}
 	}
 }
 

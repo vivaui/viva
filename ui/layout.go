@@ -86,16 +86,16 @@ func (f *frame) measure(axis int) {
 				f.lines = f.wrapText(f.lines, n)
 			}
 			n.LineFirst, n.LineCount = first, int32(len(f.lines))-first
-			n.pref[axisY] = float32(n.LineCount)*n.leading() + n.padY()
+			n.Pref[axisY] = float32(n.LineCount)*n.leading() + n.padY()
 		}
 		if n.Kind == kindContainer {
 			f.measureContainer(n, axis)
 		}
 		if d := n.Size[axis]; d.Kind == dimPx {
-			n.pref[axis] = d.value
+			n.Pref[axis] = d.value
 		}
-		n.raw[axis] = n.pref[axis]
-		n.pref[axis] = clamp(n.pref[axis], n.MinS[axis], n.MaxS[axis])
+		n.raw[axis] = n.Pref[axis]
+		n.Pref[axis] = clamp(n.Pref[axis], n.MinS[axis], n.MaxS[axis])
 		// A baseline is measured on the clamped size, the one paint lays the
 		// line out in.
 		if axis == axisY {
@@ -126,15 +126,15 @@ func (f *frame) measureLeafIn(n *node) {
 			// A Mono text is as wide as its cells: a wide character takes two, a combining
 			// mark none, as the canvas measures and draws it.
 			_, ch := f.canvas.MonoCellSize(n.FontSize, n.Face)
-			n.pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
+			n.Pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
 		} else {
-			n.pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
+			n.Pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
 		}
-		n.Natural = n.pref[axisX]
-		n.pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
-		n.pref[axisY] += n.padY()
+		n.Natural = n.Pref[axisX]
+		n.Pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
+		n.Pref[axisY] += n.padY()
 	case kindIcon, kindImage:
-		n.pref = [2]float32{16, 16}
+		n.Pref = [2]float32{16, 16}
 	default:
 		controlMeasurer(f, n)
 	}
@@ -158,7 +158,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axis)
-		size := child.pref[axis] + ms + me
+		size := child.Pref[axis] + ms + me
 		if n.flows(axis) {
 			total += size
 		} else {
@@ -170,7 +170,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 		total += n.Gap * float32(count-1)
 	}
 	is, ie := n.inset(axis)
-	n.pref[axis] = total + is + ie
+	n.Pref[axis] = total + is + ie
 	if n.Flags&flagScroll == 0 {
 		return
 	}
@@ -186,7 +186,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 		return
 	}
 	if n.Size[axis].Kind == dimAuto && n.MaxS[axis] == 0 {
-		n.pref[axis] = is + ie
+		n.Pref[axis] = is + ie
 	}
 }
 
@@ -285,7 +285,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
 		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
-			*extent(&child.rect, axis) = clamp(child.pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
+			*extent(&child.rect, axis) = clamp(child.Pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
 			*origin(&child.rect, axis) = start + line - child.Baseline
 			continue
 		}
@@ -307,7 +307,7 @@ func crossSize(child *node, axis int, avail float32, align Align, hi float32) fl
 	case d.Kind == dimFill, d.Kind == dimAuto && (align == Stretch || align == Auto && child.stretches(axis)):
 		return clamp(max(avail, 0), lo, hi)
 	}
-	return clamp(child.pref[axis], lo, hi)
+	return clamp(child.Pref[axis], lo, hi)
 }
 
 // maxOn is the largest size an element may have along axis in a container with avail
@@ -519,7 +519,7 @@ func (f *frame) measureBaseline(n *node) {
 		top, bottom := n.inset(axisY)
 		height := n.leading()
 		if n.Flags&flagWrap == 0 {
-			height = max(n.pref[axisY]-top-bottom, 0)
+			height = max(n.Pref[axisY]-top-bottom, 0)
 		}
 		row := f.canvas.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.FontSize})
 		if n.Flags&flagMono != 0 {
@@ -533,14 +533,14 @@ func (f *frame) measureBaseline(n *node) {
 	case kindButton:
 		n.Baseline = controlBaseline(f, n)
 	case kindContainer:
-		n.Baseline = n.pref[axisY]
+		n.Baseline = n.Pref[axisY]
 		is, _ := n.inset(axisY)
 		for c := n.First; c >= 0; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if n.Dir == flow && child.GridRow != 0 {
 				break // a Flow's baseline is its first line's
 			}
-			if child.Kind == kindContainer && child.Baseline == child.pref[axisY] && child.First < 0 {
+			if child.Kind == kindContainer && child.Baseline == child.Pref[axisY] && child.First < 0 {
 				continue
 			}
 			value := is + child.Margin[0] + child.Baseline
@@ -554,6 +554,6 @@ func (f *frame) measureBaseline(n *node) {
 			break
 		}
 	default:
-		n.Baseline = n.pref[axisY]
+		n.Baseline = n.Pref[axisY]
 	}
 }

@@ -129,63 +129,63 @@ func (f *frame) measureControls(n *node) {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
 		button = button.SizeToFit(n.label)
-		n.pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
+		n.Pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
 		if n.ButtonSize >= components.ButtonSizeIcon {
-			n.pref[axisX] = n.pref[axisY]
+			n.Pref[axisX] = n.Pref[axisY]
 		}
 	case kindBadge:
 		w, h := components.BadgeExtent(f.canvas, f.theme, n.text)
-		n.pref = [2]float32{w, h}
+		n.Pref = [2]float32{w, h}
 	case kindPagination:
 		w, h := components.PaginationExtent(f.canvas, f.theme, f.paginationItems(n))
-		n.pref = [2]float32{w, h}
+		n.Pref = [2]float32{w, h}
 	case kindSplitButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
 		trigger := widgetsOf(f).splitButtons[n.Aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
 		}
-		n.pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
+		n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
 	case kindCheckbox:
 		w, h := components.CheckboxHitExtent(f.theme)
-		n.pref = [2]float32{w, h}
+		n.Pref = [2]float32{w, h}
 		if n.text != "" {
-			n.pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
 		w, h := components.SwitchHitExtent(f.theme, n.Flags&flagSmall != 0)
-		n.pref = [2]float32{w, h}
+		n.Pref = [2]float32{w, h}
 		if n.text != "" {
 			control, _ := components.SwitchExtent(f.theme, n.Flags&flagSmall != 0)
-			n.pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
 		var width float32 = 8
 		for _, option := range widgetsOf(f).segmented[n.Aux].options {
 			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
-		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
+		n.Pref = [2]float32{width, f.theme.Metrics.ControlHeight}
 	case kindInput:
-		n.pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
+		n.Pref = [2]float32{n.padX(), f.inputLine(n) + n.padY()}
 		if n.Flags&flagThemed != 0 {
-			n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+			n.Pref = [2]float32{0, f.theme.Metrics.ControlHeight}
 		}
 	case kindInputGroup:
-		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
+		n.Pref = [2]float32{0, f.theme.Metrics.ControlHeight}
 		if n.Kind == kindInputGroup && widgetsOf(f).groups[n.Aux].Multiline {
-			n.pref[axisY] = 64
+			n.Pref[axisY] = 64
 		}
 	case kindTextarea:
-		n.pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
+		n.Pref = [2]float32{n.padX(), f.theme.Metrics.FontSizeM + 7 + n.padY()}
 		if n.Flags&flagThemed != 0 {
-			n.pref = [2]float32{0, 64}
+			n.Pref = [2]float32{0, 64}
 		}
 	case kindTable, kindTabs, kindSelect:
 		f.measureWidget(n)
 	case kindProgress:
-		n.pref = [2]float32{progressWidth, progressHeight}
+		n.Pref = [2]float32{progressWidth, progressHeight}
 	case kindSpinner:
-		n.pref = [2]float32{16, 16}
+		n.Pref = [2]float32{16, 16}
 	case kindSplitter:
 		f.measureSplitter(n)
 	case kindSlider:
@@ -421,7 +421,7 @@ var controlBaseline = func(f *frame, n *node) float32 {
 	}
 	button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
 	return f.canvas.LabelBaseline(
-		gfx.Rect{Height: n.pref[axisY]},
+		gfx.Rect{Height: n.Pref[axisY]},
 		gfx.TextStyle{Size: button.LabelFontSize()},
 	)
 }

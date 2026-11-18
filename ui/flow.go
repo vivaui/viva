@@ -60,7 +60,7 @@ func (f *frame) lineHeight(First, stop int32) float32 {
 	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axisY)
-		height = max(height, child.pref[axisY]+ms+me)
+		height = max(height, child.Pref[axisY]+ms+me)
 	}
 	return height
 }
@@ -81,7 +81,7 @@ func (f *frame) measureFlowLines(n *node) {
 		total += n.lineGap() * float32(lines-1)
 	}
 	is, ie := n.inset(axisY)
-	n.pref[axisY] = total + is + ie
+	n.Pref[axisY] = total + is + ie
 }
 
 // solveFlowLines places the children of Flow n along axis: across, it breaks them
