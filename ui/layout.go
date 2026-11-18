@@ -487,7 +487,7 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 	case d.Kind == dimFill:
 		return 0
 	case child.Flags&flagBasis != 0:
-		return child.basis
+		return child.Basis
 	case d.Kind == dimPercent:
 		return avail * d.value / 100
 	}

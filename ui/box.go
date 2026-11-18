@@ -119,7 +119,7 @@ func (b Box) WidthPercent(p float32) Box  { b.n().Size[axisX] = dimension{dimPer
 func (b Box) HeightPercent(p float32) Box { b.n().Size[axisY] = dimension{dimPercent, p}; return b }
 func (b Box) Basis(v float32) Box {
 	n := b.n()
-	n.basis = v
+	n.Basis = v
 	n.Flags |= flagBasis
 	return b
 }
