@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // DropdownMenuItemVariant selects the standard or destructive treatment.
@@ -693,29 +694,6 @@ type menuItem struct {
 	Icon          gfx.Icon
 }
 
-// MenuItemPaint is one row of a menu declared Unpainted: the caller draws it,
-// and the menu keeps the row's hit, focus and keyboard behavior. Separator and
-// GroupLabel say the row is not an action. Active is the row the pointer or
-// the keyboard is on, and Foreground is the color the menu's own row would
-// give its label.
-type MenuItemPaint struct {
-	Canvas      *gfx.Canvas
-	Theme       gfx.Theme
-	Bounds      gfx.Rect
-	Label       string
-	Description string
-	Shortcut    string
-	Checked     bool
-	Selected    bool
-	Expanded    bool
-	Disabled    bool
-	Active      bool
-	Destructive bool
-	Separator   bool
-	GroupLabel  bool
-	Foreground  gfx.Color
-}
-
 type menuSurfaceOptions struct {
 	layer     uint16
 	scope     gfx.ID
@@ -1362,3 +1340,6 @@ func menuItemRecipe(theme *gfx.Theme, state gfx.State) MenuItemLook {
 	}
 	return look
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type MenuItemPaint = style.MenuItemPaint

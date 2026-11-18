@@ -1,6 +1,9 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // Tree paints a compact vertical hierarchy. Applications own the hierarchy,
 // expansion, selection, and scrolling; the component owns indentation,
@@ -141,3 +144,6 @@ func paintChevron(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, color gfx
 func paintChevronSized(canvas *gfx.Canvas, icon *gfx.Icon, bounds gfx.Rect, size float32, color gfx.Color) {
 	canvas.DrawIcon(*icon, gfx.Rect{X: bounds.X + (bounds.Width-size)/2, Y: bounds.Y + (bounds.Height-size)/2, Width: size, Height: size}, color)
 }
+
+// TreeItem describes one already-flattened visible tree row.
+type TreeItem = style.TreeItem

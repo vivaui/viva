@@ -613,7 +613,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 	}
 	opens := n != 0 && m.nodes[n].count > 0 && level+1 < hierarchyMaxLevels && !(m.depth > level && m.trail[level] == n)
 	closes := (n != 0 && m.nodes[n].count == 0 || onAction) && m.depth > level
-	if !m.compact && (opens || closes) && (entered || m.intent.target == hovered) {
+	if !m.compact && (opens || closes) && (entered || m.intent.Target == hovered) {
 		now, delay := time.Time{}.Add(canvas.Now()), time.Duration(0)
 		if m.depth > level {
 			delay = hierarchySwitchDelay

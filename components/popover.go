@@ -4,16 +4,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-)
-
-// PopoverSide selects the edge of the anchor used by a popover.
-type PopoverSide uint8
-
-const (
-	PopoverBottom PopoverSide = iota
-	PopoverTop
-	PopoverRight
-	PopoverLeft
+	"github.com/vivaui/viva/style"
 )
 
 // PopoverAlign selects placement along the anchor's cross axis.
@@ -481,3 +472,13 @@ func popupSideOf(content, anchor gfx.Rect) OverlaySide {
 	}
 	return OverlayBottom
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type PopoverSide = style.PopoverSide
+
+const (
+	PopoverBottom = style.PopoverBottom
+	PopoverLeft   = style.PopoverLeft
+	PopoverRight  = style.PopoverRight
+	PopoverTop    = style.PopoverTop
+)
