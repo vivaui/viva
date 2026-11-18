@@ -2,16 +2,14 @@ package {{PACKAGE}}
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
+
+type SegmentOption = style.SegmentOption
 
 // SegmentOption is one stable choice in a SegmentedControl. ID is returned by
 // the normal canvas pointer and keyboard activation path; callers should keep
 // both ID and order stable between paints.
-type SegmentOption struct {
-	ID       gfx.ID
-	Label    string
-	Disabled bool
-}
 
 // SegmentedControl paints a compact, neutral choice group. It retains no
 // state: selection belongs to the application and every paint reads transient

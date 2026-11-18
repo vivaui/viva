@@ -1,6 +1,11 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type SwitchLook = style.SwitchLook
 
 // SwitchSize selects the official default or small switch geometry.
 type SwitchSize uint8
@@ -181,18 +186,6 @@ func (switchControl Switch) Paint() SwitchResult {
 }
 
 // SwitchLook is the look of a switch in one state and at one point of its travel.
-type SwitchLook struct {
-	// Track and Thumb are the colors of the track and the knob at that point of the
-	// travel; Border is the track's line, drawn only when Bordered.
-	Track, Thumb, Border gfx.Color
-	Bordered             bool
-	// Ring is the halo of a focused or invalid switch, transparent when there is none;
-	// RingWidth is how far it reaches beyond the track.
-	Ring      gfx.Color
-	RingWidth float32
-	// Shadow is the elevation under the track.
-	Shadow gfx.ShadowLevel
-}
 
 // SwitchRecipe resolves the look of a switch. progress is how far the thumb has travelled
 // toward on, 0 to 1 (see gfx.Canvas.Animate), which the track and the thumb colors follow.

@@ -6,29 +6,8 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
-
-// TableAlignment selects text placement within a table column.
-type TableAlignment uint8
-
-const (
-	TableAlignLeft TableAlignment = iota
-	TableAlignCenter
-	TableAlignRight
-)
-
-// TableColumn is a statically typed column declaration. Width is measured in
-// logical pixels; the final non-positive width consumes the remaining space.
-type TableColumn struct {
-	Width     float32
-	Alignment TableAlignment
-	// Inset reserves leading content space inside a left-aligned cell, for
-	// example an application-painted file icon.
-	Inset float32
-	// EndInset reserves trailing content space inside a left-aligned cell, for
-	// example an application-painted expander.
-	EndInset float32
-}
 
 // TableSelection is an optional text selection for a Table. Anchor and Focus
 // are UTF-8 byte offsets into the serialized table text. Cells are represented
@@ -1059,3 +1038,13 @@ var tableDescendingIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Jo
 	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 12, Y: 5}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}},
 	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 7, Y: 14}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 17, Y: 14}},
 }}
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type TableColumn = style.TableColumn
+type TableAlignment = style.TableAlignment
+
+const (
+	TableAlignCenter = style.TableAlignCenter
+	TableAlignLeft   = style.TableAlignLeft
+	TableAlignRight  = style.TableAlignRight
+)

@@ -1,27 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
-
-// PaginationKind is what one item of a pagination row is: a page number, the
-// previous or next control, or an omission marker.
-type PaginationKind uint8
-
-const (
-	PaginationPage PaginationKind = iota
-	PaginationPrevious
-	PaginationNext
-	PaginationEllipsis
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
-
-// PaginationItem is one item a Pagination paints. An item with no identity and
-// not an ellipsis paints inert, as a current page does.
-type PaginationItem struct {
-	ID       gfx.ID
-	Label    string
-	Kind     PaginationKind
-	Current  bool
-	Disabled bool
-}
 
 // Pagination incrementally paints a compact page chooser. Each Add call emits
 // commands immediately, so callers do not need a registry or collected model.
@@ -177,3 +159,14 @@ func (pagination *Pagination) add(id gfx.ID, label string, kind PaginationKind, 
 	}
 	pagination.x += width + metrics.GapItem/2
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type PaginationItem = style.PaginationItem
+type PaginationKind = style.PaginationKind
+
+const (
+	PaginationEllipsis = style.PaginationEllipsis
+	PaginationNext     = style.PaginationNext
+	PaginationPage     = style.PaginationPage
+	PaginationPrevious = style.PaginationPrevious
+)

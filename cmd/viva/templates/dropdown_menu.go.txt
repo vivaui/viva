@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // DropdownMenuItemVariant selects the standard or destructive treatment.
@@ -553,6 +554,30 @@ func (scroll *MenuScroll) Match(prefix string, from gfx.ID) (gfx.ID, bool) {
 	return gfx.ID{}, false
 }
 
+// menuTypeaheadCanCycle reports whether a repeated first letter may cycle
+// through matches. Base UI does not cycle when a row's first two letters are
+// the same ("Aaron", "llama"), because then a doubled letter is a real query.
+func menuTypeaheadCanCycle(scroll *MenuScroll) bool {
+	for _, item := range scroll.items {
+		if item.disabled || item.id.IsZero() {
+			continue
+		}
+		first, firstSize := utf8.DecodeRuneInString(item.label)
+		if firstSize == 0 {
+			continue
+		}
+		second, secondSize := utf8.DecodeRuneInString(item.label[firstSize:])
+		if secondSize > 0 && unicode.ToLower(first) == unicode.ToLower(second) {
+			return false
+		}
+	}
+	return true
+}
+
+// CanCycle reports whether a repeated first letter may cycle through matches:
+// no row's first two letters are the same, so a doubled letter is a real query.
+func (scroll *MenuScroll) CanCycle() bool { return menuTypeaheadCanCycle(scroll) }
+
 // menuLabelHasPrefix reports whether label starts with prefix, comparing one
 // rune at a time without lowercasing either string. Typeahead runs on a key
 // press, so it should not allocate.
@@ -667,29 +692,6 @@ type menuItem struct {
 	Inset         bool
 	Expanded      bool
 	Icon          gfx.Icon
-}
-
-// MenuItemPaint is one row of a menu declared Unpainted: the caller draws it,
-// and the menu keeps the row's hit, focus and keyboard behavior. Separator and
-// GroupLabel say the row is not an action. Active is the row the pointer or
-// the keyboard is on, and Foreground is the color the menu's own row would
-// give its label.
-type MenuItemPaint struct {
-	Canvas      *gfx.Canvas
-	Theme       gfx.Theme
-	Bounds      gfx.Rect
-	Label       string
-	Description string
-	Shortcut    string
-	Checked     bool
-	Selected    bool
-	Expanded    bool
-	Disabled    bool
-	Active      bool
-	Destructive bool
-	Separator   bool
-	GroupLabel  bool
-	Foreground  gfx.Color
 }
 
 type menuSurfaceOptions struct {
@@ -1338,3 +1340,6 @@ func menuItemRecipe(theme *gfx.Theme, state gfx.State) MenuItemLook {
 	}
 	return look
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type MenuItemPaint = style.MenuItemPaint
