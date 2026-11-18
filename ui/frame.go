@@ -270,7 +270,7 @@ type frame struct {
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
 	memoFn     func(f *frame, i int32, before bool) bool
-	lines      []string
+	Lines      []string
 	controls   any                 // the layer above's control declarations: see widgetsOf
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
@@ -319,7 +319,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.gen++
 	f.canvas, f.theme, f.bounds, f.done = canvas, theme, bounds, false
 	f.Nodes = f.Nodes[:0]
-	f.lines = f.lines[:0]
+	f.Lines = f.Lines[:0]
 	f.Exts = append(f.Exts[:0], extra{})
 	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]
@@ -429,7 +429,7 @@ func (f *frame) trim() {
 	f.Draws = trimFlexCapacity(f.Draws)
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
-	f.lines = trimFlexCapacity(f.lines)
+	f.Lines = trimFlexCapacity(f.Lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
 	f.wraps = trimFlexCapacity(f.wraps)
 	trimControls(f)

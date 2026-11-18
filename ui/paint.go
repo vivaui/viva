@@ -223,7 +223,7 @@ func (f *frame) paintText(n *node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.canvas.LabelAligned(f.lines[n.LineFirst+k], bounds, style, alignment)
+			f.canvas.LabelAligned(f.Lines[n.LineFirst+k], bounds, style, alignment)
 		}
 		return
 	}

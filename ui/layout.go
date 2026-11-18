@@ -77,15 +77,15 @@ func (f *frame) measure(axis int) {
 			f.measureLeaf(n)
 		}
 		if n.Kind == kindText && n.Flags&flagWrap != 0 && axis == axisY {
-			first := int32(len(f.lines))
+			first := int32(len(f.Lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.
 			if n.text != "" && n.Natural <= n.rect.Width-n.padX() && strings.IndexByte(n.text, '\n') < 0 {
-				f.lines = append(f.lines, n.text)
+				f.Lines = append(f.Lines, n.text)
 			} else {
-				f.lines = f.wrapText(f.lines, n)
+				f.Lines = f.wrapText(f.Lines, n)
 			}
-			n.LineFirst, n.LineCount = first, int32(len(f.lines))-first
+			n.LineFirst, n.LineCount = first, int32(len(f.Lines))-first
 			n.Pref[axisY] = float32(n.LineCount)*n.leading() + n.padY()
 		}
 		if n.Kind == kindContainer {

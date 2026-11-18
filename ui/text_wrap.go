@@ -18,7 +18,7 @@ type wrapCache struct {
 	Face     gfx.MonoFace
 	width    float32
 	MaxLines int
-	lines    []string
+	Lines    []string
 	filled   bool
 }
 
@@ -46,12 +46,12 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 		face = n.Face
 	}
 	if wrapped.filled && wrapped.text == n.text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight && wrapped.mono == mono && wrapped.Face == face && wrapped.width == width && wrapped.MaxLines == maxLines {
-		return append(dst, wrapped.lines...)
+		return append(dst, wrapped.Lines...)
 	}
 	start := len(dst)
 	dst = f.canvas.WrapLinesStyle(dst, n.text, n.textStyle(), width, maxLines, cache)
 	wrapped.text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.text, n.FontSize, n.Weight, mono, face, width, maxLines
-	wrapped.lines = append(wrapped.lines[:0], dst[start:]...)
+	wrapped.Lines = append(wrapped.Lines[:0], dst[start:]...)
 	wrapped.filled = true
 	return dst
 }
