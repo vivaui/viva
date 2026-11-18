@@ -974,7 +974,7 @@ func (p *Page) listArea(c C, state *ListState, n int, horizontal bool, row func(
 			row(i, box)
 			if state.RowWidth > 0 {
 				box.MinWidth(state.RowWidth)
-				box.n().margin[3] = -scrollX
+				box.n().Margin[3] = -scrollX
 			}
 			p.listRows = append(p.listRows, box.i)
 		}

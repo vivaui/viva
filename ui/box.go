@@ -205,22 +205,22 @@ func (b Box) PadLeft(v float32) Box {
 	return b
 }
 func (b Box) Margin(v float32) Box  { return b.MarginSides(v, v, v, v) }
-func (b Box) MarginX(v float32) Box { n := b.n(); n.margin[1], n.margin[3] = v, v; return b }
-func (b Box) MarginY(v float32) Box { n := b.n(); n.margin[0], n.margin[2] = v, v; return b }
+func (b Box) MarginX(v float32) Box { n := b.n(); n.Margin[1], n.Margin[3] = v, v; return b }
+func (b Box) MarginY(v float32) Box { n := b.n(); n.Margin[0], n.Margin[2] = v, v; return b }
 func (b Box) MarginTop(v float32) Box {
-	b.n().margin[0] = v
+	b.n().Margin[0] = v
 	return b
 }
 func (b Box) MarginRight(v float32) Box {
-	b.n().margin[1] = v
+	b.n().Margin[1] = v
 	return b
 }
 func (b Box) MarginBottom(v float32) Box {
-	b.n().margin[2] = v
+	b.n().Margin[2] = v
 	return b
 }
 func (b Box) MarginLeft(v float32) Box {
-	b.n().margin[3] = v
+	b.n().Margin[3] = v
 	return b
 }
 func (b Box) PadSides(top, right, bottom, left float32) Box {
@@ -229,7 +229,7 @@ func (b Box) PadSides(top, right, bottom, left float32) Box {
 	return b
 }
 func (b Box) MarginSides(top, right, bottom, left float32) Box {
-	b.n().margin = [4]float32{top, right, bottom, left}
+	b.n().Margin = [4]float32{top, right, bottom, left}
 	return b
 }
 

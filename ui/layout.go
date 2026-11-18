@@ -48,7 +48,7 @@ func (n *node) inset(axis int) (start, end float32) {
 }
 
 func (n *node) marginOn(axis int) (start, end float32) {
-	return n.margin[startEdge(axis)], n.margin[endEdge(axis)]
+	return n.Margin[startEdge(axis)], n.Margin[endEdge(axis)]
 }
 
 // flows reports whether a container lays its children out along axis. A Flow does
@@ -276,7 +276,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
 			if child.alignOn(n) == Baseline {
-				line = max(line, child.margin[0]+child.baseline)
+				line = max(line, child.Margin[0]+child.baseline)
 			}
 		}
 	}
@@ -543,11 +543,11 @@ func (f *frame) measureBaseline(n *node) {
 			if child.Kind == kindContainer && child.baseline == child.pref[axisY] && child.First < 0 {
 				continue
 			}
-			value := is + child.margin[0] + child.baseline
+			value := is + child.Margin[0] + child.baseline
 			if n.Dir == row || n.Dir == flow {
 				for k := n.First; k >= 0 && (n.Dir == row || f.nodes[k].GridRow == 0); k = f.nodes[k].Next {
 					other := &f.nodes[k]
-					value = max(value, is+other.margin[0]+other.baseline)
+					value = max(value, is+other.Margin[0]+other.baseline)
 				}
 			}
 			n.baseline = value
