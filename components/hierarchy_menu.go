@@ -511,13 +511,13 @@ func (m *HierarchyMenuState) Pointer(event gfx.PointerEvent) gfx.EventResult {
 
 // measureWidths visits the tree only after its values or font size change.
 // Per-depth widths keep every ancestor in place when another branch opens.
-func (m *HierarchyMenuState) measureWidths(canvas *gfx.Canvas, size float32, parent int32, level int) {
+func measureWidths(m *HierarchyMenuState, canvas *gfx.Canvas, size float32, parent int32, level int) {
 	m.widest.levels = max(m.widest.levels, level+1)
 	for n := m.nodes[parent].first; n != 0; n = m.nodes[n].next {
 		width := float32(math.Ceil(float64(canvas.TextWidthWeight(m.nodes[n].name, size, gfx.WeightRegular)))) + 47
 		m.widest.widths[level] = max(m.widest.widths[level], width)
 		if m.nodes[n].count > 0 {
-			m.measureWidths(canvas, size, n, level+1)
+			measureWidths(m, canvas, size, n, level+1)
 		}
 	}
 }
@@ -572,7 +572,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 		}
 		m.initial = false
 	}
-	widths, left, reverse := m.panelWidths(canvas, theme, anchor, o)
+	widths, left, reverse := panelWidths(m, canvas, theme, anchor, o)
 	if m.compact {
 		m.level = m.depth
 	}
@@ -708,7 +708,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 		menu.beginScroll()
 		if l == 0 {
 			for _, action := range o.Leading {
-				m.paintAction(&menu, action)
+				paintAction(m, &menu, action)
 			}
 		}
 		i := 0
@@ -761,7 +761,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 				menu.addSeparator()
 			}
 			for _, action := range o.Trailing {
-				m.paintAction(&menu, action)
+				paintAction(m, &menu, action)
 			}
 			if !m.action.IsZero() && !m.actionEnabled(m.action) {
 				m.action = gfx.ID{}
@@ -784,7 +784,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 	return union
 }
 
-func (m *HierarchyMenuState) paintAction(menu *menuSurface, action HierarchyMenuAction) {
+func paintAction(m *HierarchyMenuState, menu *menuSurface, action HierarchyMenuAction) {
 	row := menu.rowBounds(32)
 	if !menu.takeItem(row, action.ID, action.Label, action.Disabled) {
 		return
@@ -807,10 +807,10 @@ func (m *HierarchyMenuState) paintAction(menu *menuSurface, action HierarchyMenu
 // at most hierarchyMaxLevels columns. A common width cap gives long labels the
 // room left by short ones. Below a readable column width it uses one panel with
 // explicit navigation; shrinking eight columns to blank slivers is not useful.
-func (m *HierarchyMenuState) panelWidths(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, o HierarchyMenuOptions) (widths [hierarchyMaxLevels]float32, left float32, reverse bool) {
+func panelWidths(m *HierarchyMenuState, canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, o HierarchyMenuOptions) (widths [hierarchyMaxLevels]float32, left float32, reverse bool) {
 	if m.widest.rebuilt != m.rebuilt || m.widest.size != theme.Metrics.FontSizeM {
 		m.widest.widths, m.widest.levels = [hierarchyMaxLevels]float32{}, 0
-		m.measureWidths(canvas, theme.Metrics.FontSizeM, 0, 0)
+		measureWidths(m, canvas, theme.Metrics.FontSizeM, 0, 0)
 		m.widest.rebuilt, m.widest.size = m.rebuilt, theme.Metrics.FontSizeM
 	}
 	count := max(m.widest.levels, 1)

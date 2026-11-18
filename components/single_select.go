@@ -395,7 +395,7 @@ type SingleSelectOptions struct {
 const singleSelectDetailGap = 8
 
 // popupWidth is the width that shows every label of choices untruncated.
-func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
+func popupWidth(s *SingleSelectState, canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
 	size := theme.Metrics.FontSizeM
 	if s.widestRebuilt != s.rebuilt || s.widestSize != size {
 		s.widest = 0
@@ -547,7 +547,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	// Like Radix's popper content, the list is at least as wide as the field and
 	// grows to its longest label so options that share a long prefix stay
 	// distinguishable, until the viewport stops it.
-	if want := s.popupWidth(canvas, theme, choices, o); want > layout.Popup.Width {
+	if want := popupWidth(s, canvas, theme, choices, o); want > layout.Popup.Width {
 		layout.Popup.Width = want
 		if o.Viewport.Width > 0 {
 			layout.Popup.Width = min(want, max(o.Viewport.Width-2, bounds.Width))
