@@ -197,3 +197,73 @@ func TestComboboxPaintsWithoutAllocating(t *testing.T) {
 		t.Fatalf("a warm combobox paints with %v allocations, want 0", allocs)
 	}
 }
+
+type hostChoice struct {
+	id                int
+	name, addr, group string
+	blocked           bool
+}
+
+var hostChoices = []hostChoice{
+	{1, "Production", "10.0.0.5", "Team/Prod", false},
+	{2, "Staging", "10.0.1.9", "Team/Stage", false},
+	{3, "Legacy", "10.0.2.1", "Old", true},
+}
+
+func hostModelPage(chosen *hostChoice) func(ui.C) {
+	return func(c ui.C) {
+		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+			ui.ComboboxItems(c, chosen, hostChoices, func(h hostChoice) ui.ComboboxOption {
+				return ui.ComboboxOption{Label: h.name, Detail: h.addr, Search: h.group, Disabled: h.blocked}
+			}, "Host").Width(320)
+		})
+	}
+}
+
+// A choice is found by its detail and by text it does not show, and a disabled choice stays in the
+// list but cannot be chosen.
+func TestComboboxItemsSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
+	var chosen hostChoice
+	d := openPage(t, hostModelPage(&chosen))
+	d.click("Host")
+	d.typeText("10.0.1")
+	if got := options(d); len(got) != 1 || got[0] != "Staging" {
+		t.Fatalf("a search by address lists %v", got)
+	}
+	for range 6 {
+		d.key(gfx.KeyBackspace)
+	}
+	d.typeText("old")
+	if got := options(d); len(got) != 1 || got[0] != "Legacy" {
+		t.Fatalf("a search by hidden group text lists %v", got)
+	}
+	d.click("Legacy")
+	if chosen.name != "" {
+		t.Fatalf("a disabled choice was chosen: %v", chosen)
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if chosen.name != "" {
+		t.Fatalf("Enter chose a disabled choice: %v", chosen)
+	}
+	for range 3 {
+		d.key(gfx.KeyBackspace)
+	}
+	d.typeText("team/prod")
+	d.click("Production")
+	if chosen.id != 1 {
+		t.Fatalf("chose %v", chosen)
+	}
+}
+
+func TestComboboxItemsShowsTheChosenDetail(t *testing.T) {
+	chosen := hostChoices[0]
+	d := openPage(t, hostModelPage(&chosen))
+	found := false
+	for _, text := range d.driver.Snapshot().Texts {
+		found = found || text.Value == "10.0.0.5"
+	}
+	if !found {
+		t.Fatal("the field does not show the chosen option's detail")
+	}
+}

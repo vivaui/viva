@@ -22,6 +22,10 @@ type SingleSelectOption struct {
 	// for what the row does not show, such as an address or a group. It is never
 	// painted.
 	Search string
+	// Detail is secondary text shown after the label in a muted, smaller face, such as a
+	// host's address, in the list and while the option is the field's value. The query
+	// matches it too, as it matches Search.
+	Detail string
 }
 
 // singleSelectIcon reports whether an icon has anything to paint.
@@ -127,6 +131,16 @@ func (s *SingleSelectState) label(value string) string {
 	return value
 }
 
+// detail is the detail of the option with value, or "".
+func (s *SingleSelectState) detail(value string) string {
+	for _, option := range s.options {
+		if s.equal(option.Value, value) {
+			return option.Detail
+		}
+	}
+	return ""
+}
+
 // selectedIcon is the icon of the chosen option, when it has one.
 func (s *SingleSelectState) selectedIcon() gfx.Icon {
 	for _, option := range s.options {
@@ -161,7 +175,8 @@ func (s *SingleSelectState) Choices() []SingleSelectChoice {
 		haveValue = haveValue || s.equal(s.value, option.Value)
 		if query != "" && !strings.Contains(strings.ToLower(label), match) &&
 			(s.LabelsOnly || !strings.Contains(strings.ToLower(option.Value), match)) &&
-			!strings.Contains(strings.ToLower(option.Search), match) {
+			!strings.Contains(strings.ToLower(option.Search), match) &&
+			!strings.Contains(strings.ToLower(option.Detail), match) {
 			return
 		}
 		option.Label = label
@@ -363,6 +378,9 @@ type SingleSelectOptions struct {
 	MaxRows           int
 }
 
+// singleSelectDetailGap is the space between an option's label and its detail.
+const singleSelectDetailGap = 8
+
 // popupWidth is the width that shows every label of choices untruncated.
 func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choices []SingleSelectChoice, o SingleSelectOptions) float32 {
 	size := theme.Metrics.FontSizeM
@@ -373,6 +391,9 @@ func (s *SingleSelectState) popupWidth(canvas *gfx.Canvas, theme gfx.Theme, choi
 				continue
 			}
 			width := canvas.TextWidthWeight(choice.Label, size, gfx.WeightRegular)
+			if choice.Detail != "" {
+				width += singleSelectDetailGap + canvas.TextWidthWeight(choice.Detail, theme.Metrics.FontSizeS, gfx.WeightRegular)
+			}
 			if singleSelectIcon(choice.Icon) {
 				width += menuIconSize + menuIconGap
 			}
@@ -469,7 +490,11 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 		layout.Input.Width = max(1, layout.Input.Width-(menuIconSize+menuIconGap))
 	}
 	if canvas.Focused() != o.InputID || query == "" {
-		canvas.Label(canvas.FitLine(display, theme.Metrics.FontSizeM, gfx.WeightRegular, layout.Input.Width), layout.Input, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		detail := ""
+		if query == "" && !open {
+			detail = s.detail(s.value)
+		}
+		paintLabelAndDetail(canvas, theme, layout.Input.X, layout.Input.Y, layout.Input.Width, layout.Input.Height, display, detail, color, o.Disabled)
 	}
 	accessibleValue := query
 	if accessibleValue == "" {
@@ -556,7 +581,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 				left += menuIconSize + menuIconGap
 			}
 			labelWidth := max(row.Width-(left-row.X)-38, 0)
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: left, Y: row.Y, Width: labelWidth, Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			paintLabelAndDetail(canvas, theme, left, row.Y, labelWidth, row.Height, label, choice.Detail, color, choice.Disabled)
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}
@@ -579,4 +604,24 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 func (s *SingleSelectState) treeActive() bool {
 	s.Choices()
 	return s.treeOK && s.Separator != "" && s.lastQuery == ""
+}
+
+// paintLabelAndDetail paints a label in the width it has and, after it, the muted detail in
+// what is left, as Combobox rows did: the label keeps what it needs up to all but 40 pixels.
+func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, height float32, label, detail string, color gfx.Color, disabled bool) {
+	sizeM, sizeS := theme.Metrics.FontSizeM, theme.Metrics.FontSizeS
+	if detail == "" {
+		canvas.Label(canvas.FitLine(label, sizeM, gfx.WeightRegular, width), gfx.Rect{X: x, Y: y, Width: width, Height: height}, gfx.TextStyle{Size: sizeM, Color: color})
+		return
+	}
+	labelWidth := min(canvas.TextWidthWeight(label, sizeM, gfx.WeightRegular), max(width-40, 0))
+	canvas.Label(canvas.FitLine(label, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: x, Y: y, Width: labelWidth, Height: height}, gfx.TextStyle{Size: sizeM, Color: color})
+	detailX := x + labelWidth + singleSelectDetailGap
+	if detailWidth := max(x+width-detailX, 0); detailWidth > 0 {
+		muted := theme.MutedForeground
+		if disabled {
+			muted.Alpha *= .5
+		}
+		canvas.Label(canvas.FitLine(detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted})
+	}
 }

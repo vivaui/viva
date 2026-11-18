@@ -29,6 +29,34 @@ import (
 //
 // Not inside a Memo.
 func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, label string) Box {
+	return combobox(c, value, choices, nameOf, nil, label)
+}
+
+// ComboboxOption describes one choice of a ComboboxItems: Label is its name; Detail is shown
+// after it in a muted face (an address, an account) and, with Search (extra text that is
+// never shown, such as a group or an alias), is matched by what the user types; Disabled
+// keeps the choice in the list, dimmed and not chosen by a click or the keys, so a search
+// can still explain why it cannot be had.
+type ComboboxOption struct {
+	Label, Detail, Search string
+	Disabled              bool
+}
+
+// ComboboxItems is Combobox for choices that carry more than a name: describe gives each
+// choice's ComboboxOption. Everything else, Clearable, Empty, Creatable and Created
+// included, is Combobox's.
+//
+//	ui.ComboboxItems(c, &m.host, hosts, func(h Host) ui.ComboboxOption {
+//		return ui.ComboboxOption{Label: h.Name, Detail: h.Address, Search: h.Group, Disabled: !h.Online}
+//	}, "Host")
+func ComboboxItems[T comparable](c C, value *T, choices []T, describe func(T) ComboboxOption, label string) Box {
+	if describe == nil {
+		panic("ui: ComboboxItems needs describe")
+	}
+	return combobox(c, value, choices, nil, describe, label)
+}
+
+func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, describe func(T) ComboboxOption, label string) Box {
 	p := c.page
 	p.forbidInMemo("Combobox")
 	if label == "" {
@@ -41,8 +69,14 @@ func Combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 		state.list.LabelsOnly, state.list.MatchCaseInsensitive = true, true
 	}
 	f := c.f
-	labels, selected := options(p, value, choices, nameOf)
-	state.setOptions(labels)
+	var selected int
+	if describe != nil {
+		selected = setDescribed(state, value, choices, describe)
+	} else {
+		var labels []string
+		labels, selected = options(p, value, choices, nameOf)
+		state.setOptions(labels)
+	}
 	key := ""
 	if selected >= 0 {
 		key = state.keys[selected]
@@ -124,6 +158,8 @@ type comboState struct {
 	input   app.TextInput
 	ids     comboIDs
 	labels  []string
+	descs   []ComboboxOption // what ComboboxItems last described, to tell a change
+	scratch []ComboboxOption
 	keys    []string // keys[i] is the Value of option i: its index
 	opts    []components.SingleSelectOption
 	synced  string // the chosen key as *value and the list last agreed on it
@@ -185,6 +221,39 @@ func (s *comboState) setOptions(labels []string) {
 		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: label})
 	}
 	s.list.SetOptions(s.opts)
+}
+
+// setDescribed gives the list the options describe makes of choices when they are not the
+// ones it has, and returns the index of *value among them (-1 when it is none).
+func setDescribed[T comparable](s *comboState, value *T, choices []T, describe func(T) ComboboxOption) int {
+	selected, same := -1, len(choices) == len(s.descs)
+	for i, choice := range choices {
+		d := describe(choice)
+		if i < len(s.scratch) {
+			s.scratch[i] = d
+		} else {
+			s.scratch = append(s.scratch, d)
+		}
+		same = same && s.descs[i] == d
+		if choice == *value {
+			selected = i
+		}
+	}
+	if same {
+		return selected
+	}
+	s.descs = append(s.descs[:0], s.scratch[:len(choices)]...)
+	s.labels = s.labels[:0]
+	for len(s.keys) < len(choices) {
+		s.keys = append(s.keys, comboKeyPrefix+strconv.Itoa(len(s.keys)))
+	}
+	s.opts = s.opts[:0]
+	for i, d := range s.descs {
+		s.labels = append(s.labels, d.Label)
+		s.opts = append(s.opts, components.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled})
+	}
+	s.list.SetOptions(s.opts)
+	return selected
 }
 
 // draw paints the field, and its list while it is open.
