@@ -42,6 +42,6 @@ func Overlay(c C, spec OverlaySpec) Box {
 		At(spec.Bounds.X, spec.Bounds.Y).
 		Size(max(spec.Bounds.Width, 0), max(spec.Bounds.Height, 0))
 	b = p.container(b)
-	b.n().band = uint16(spec.Band)
+	b.n().Band = uint16(spec.Band)
 	return b
 }

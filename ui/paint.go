@@ -12,11 +12,11 @@ func (f *frame) paint(i int32) {
 		f.canvas.PushFocusScope(n.focusScope)
 		defer f.canvas.PopFocusScope()
 	}
-	if n.band != 0 {
+	if n.Band != 0 {
 		// An application overlay's subtree paints on its band, over the page and
 		// under Viva's widgets. Hits declared in it capture the same layer, so the
 		// band orders Tab and pointer routing with paint.
-		f.canvas.PushLayer(n.band)
+		f.canvas.PushLayer(n.Band)
 		defer f.canvas.PopLayer()
 	}
 	if n.Flags&flagDialog != 0 {

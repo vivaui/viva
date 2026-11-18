@@ -412,15 +412,15 @@ func (s *TreeState) edgeScroll(canvas *gfx.Canvas) {
 // dragEdgeScroll scrolls scroll while a drag at the point at rests within band of the
 // top or bottom edge of view, in steps timed by the frame clock: since is when the
 // last step was taken, and a frame is asked for only while the drag stays there.
-func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.Point, band float32, since *time.Duration) {
+func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.Point, Band float32, since *time.Duration) {
 	if canvas == nil || Scroll == nil || view.Height <= 0 {
 		return
 	}
 	direction := float32(0)
 	switch {
-	case at.Y < view.Y+band && Scroll.Offset > 0:
+	case at.Y < view.Y+Band && Scroll.Offset > 0:
 		direction = -1
-	case at.Y > view.Y+view.Height-band && Scroll.Offset+Scroll.Viewport < Scroll.Content:
+	case at.Y > view.Y+view.Height-Band && Scroll.Offset+Scroll.Viewport < Scroll.Content:
 		direction = 1
 	}
 	now := canvas.Now()
