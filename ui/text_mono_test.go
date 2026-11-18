@@ -11,7 +11,7 @@ import (
 // a count of cells and differs from the proportional one wherever a wide character sits.
 func cellCanvas() *gfx.Canvas {
 	canvas := runeCanvas()
-	canvas.SetCellMeasurer(func(size float32, _ gfx.MonoFace) (float32, float32) { return size / 2, size * 1.2 })
+	canvas.SetCellMeasurer(func(Size float32, _ gfx.MonoFace) (float32, float32) { return Size / 2, Size * 1.2 })
 	return canvas
 }
 

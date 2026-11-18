@@ -125,7 +125,7 @@ func (f *frame) measureControls(n *node) {
 	switch n.Kind {
 	case kindButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.exts[n.ext].icon)
-		if d := n.size[axisY]; d.Kind == dimPx {
+		if d := n.Size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
 		button = button.SizeToFit(n.label)

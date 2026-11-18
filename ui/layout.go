@@ -91,7 +91,7 @@ func (f *frame) measure(axis int) {
 		if n.Kind == kindContainer {
 			f.measureContainer(n, axis)
 		}
-		if d := n.size[axis]; d.Kind == dimPx {
+		if d := n.Size[axis]; d.Kind == dimPx {
 			n.pref[axis] = d.value
 		}
 		n.raw[axis] = n.pref[axis]
@@ -185,7 +185,7 @@ func (f *frame) measureContainer(n *node, axis int) {
 	default:
 		return
 	}
-	if n.size[axis].Kind == dimAuto && n.maxS[axis] == 0 {
+	if n.Size[axis].Kind == dimAuto && n.maxS[axis] == 0 {
 		n.pref[axis] = is + ie
 	}
 }
@@ -297,7 +297,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 
 // crossSize is the size of a child on an axis its container does not flow along.
 func crossSize(child *node, axis int, avail float32, align Align, hi float32) float32 {
-	d := child.size[axis]
+	d := child.Size[axis]
 	lo := child.minS[axis]
 	switch {
 	case d.Kind == dimPx:
@@ -349,7 +349,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		basis, grow := flexBasis(child, axis, avail), float32(0)
 		if child.Flags&flagGrowSet != 0 {
 			grow = child.Grow
-		} else if child.size[axis].Kind == dimFill {
+		} else if child.Size[axis].Kind == dimFill {
 			grow = 1
 		}
 		child.growNow = grow
@@ -482,7 +482,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 // flexBasis is the size a child starts from along axis before the room is shared: none
 // when it fills, else its Basis, its percentage of avail, or its preferred size.
 func flexBasis(child *node, axis int, avail float32) float32 {
-	d := child.size[axis]
+	d := child.Size[axis]
 	switch {
 	case d.Kind == dimFill:
 		return 0

@@ -19,7 +19,7 @@ type sliderPage struct {
 	vertical bool
 }
 
-func (p *sliderPage) paint(canvas *gfx.Canvas, size gfx.Size) {
+func (p *sliderPage) paint(canvas *gfx.Canvas, Size gfx.Size) {
 	p.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			b := f.Slider(volumeID, &p.state).Label("Volume")
@@ -280,7 +280,7 @@ type sliderBasePage struct {
 	thumb gfx.Rect
 }
 
-func (p *sliderBasePage) paint(canvas *gfx.Canvas, size gfx.Size) {
+func (p *sliderBasePage) paint(canvas *gfx.Canvas, Size gfx.Size) {
 	p.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			p.box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {

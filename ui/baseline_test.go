@@ -73,26 +73,26 @@ func TestBaselineAlignmentMixesMonoAndProportionalText(t *testing.T) {
 // only the mono cell.
 type cellEngine struct{}
 
-func (cellEngine) Width(value string, size, Weight float32) float32 {
-	return float32(len(value)) * size / 2
+func (cellEngine) Width(value string, Size, Weight float32) float32 {
+	return float32(len(value)) * Size / 2
 }
 
-func (cellEngine) Caret(value string, size, Weight float32, offset int) float32 {
-	return float32(min(max(offset, 0), len(value))) * size / 2
+func (cellEngine) Caret(value string, Size, Weight float32, offset int) float32 {
+	return float32(min(max(offset, 0), len(value))) * Size / 2
 }
 
-func (cellEngine) Selection(dst []gfx.TextSpan, value string, size, Weight float32, start, end int) []gfx.TextSpan {
+func (cellEngine) Selection(dst []gfx.TextSpan, value string, Size, Weight float32, start, end int) []gfx.TextSpan {
 	start, end = min(max(start, 0), len(value)), min(max(end, 0), len(value))
 	if start >= end {
 		return dst
 	}
-	return append(dst, gfx.TextSpan{X: float32(start) * size / 2, Width: float32(end-start) * size / 2})
+	return append(dst, gfx.TextSpan{X: float32(start) * Size / 2, Width: float32(end-start) * Size / 2})
 }
 
-func (cellEngine) OffsetAt(value string, size, Weight, x float32) int {
-	return min(max(int(x/(size/2)+0.5), 0), len(value))
+func (cellEngine) OffsetAt(value string, Size, Weight, x float32) int {
+	return min(max(int(x/(Size/2)+0.5), 0), len(value))
 }
 
-func (cellEngine) MonoCell(size float32, Face gfx.MonoFace) gfx.MonoCellMetrics {
-	return gfx.MonoCellMetrics{Advance: 0.55 * size, Ascent: 0.80 * size, Descent: 0.25 * size, LineGap: 0.08 * size}
+func (cellEngine) MonoCell(Size float32, Face gfx.MonoFace) gfx.MonoCellMetrics {
+	return gfx.MonoCellMetrics{Advance: 0.55 * Size, Ascent: 0.80 * Size, Descent: 0.25 * Size, LineGap: 0.08 * Size}
 }

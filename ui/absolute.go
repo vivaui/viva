@@ -92,7 +92,7 @@ func (f *frame) solveAbsolute(i int32, axis int) {
 			edgeStart, edgeEnd = f.exts[a.ext].edges[startEdge(axis)], f.exts[a.ext].edges[endEdge(axis)]
 		}
 		var size float32
-		switch d := a.size[axis]; {
+		switch d := a.Size[axis]; {
 		case d.Kind == dimPx:
 			size = d.value
 		case d.Kind == dimPercent:

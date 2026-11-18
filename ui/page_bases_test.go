@@ -12,7 +12,7 @@ type basesModel struct {
 	on, toggled, s bool
 	radio, tab     string
 	slider         ui.SliderState
-	size           string
+	Size           string
 	text           string
 	changed        int
 	paintFn        func(*ui.DrawContext)

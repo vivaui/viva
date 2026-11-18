@@ -51,7 +51,7 @@ func (f *frame) placePopup(n *node, axis int) {
 	}
 	lo, span := *origin(&bounds, axis), *extent(&bounds, axis)
 	size := n.pref[axis]
-	switch d := n.size[axis]; d.Kind {
+	switch d := n.Size[axis]; d.Kind {
 	case dimPx:
 		size = d.value
 	case dimFill:
@@ -88,16 +88,16 @@ func (f *frame) placePopup(n *node, axis int) {
 // sideOf is where a popup size long starts when it hangs off the anchor
 // [start, end) on the far side (after) or the near one, gap away: on the requested
 // side if it fits there, else on the side with more room.
-func sideOf(start, end, Gap, size, lo, hi float32, after bool) float32 {
-	atAfter, atBefore := end+Gap, start-Gap-size
+func sideOf(start, end, Gap, Size, lo, hi float32, after bool) float32 {
+	atAfter, atBefore := end+Gap, start-Gap-Size
 	roomAfter, roomBefore := hi-atAfter, start-Gap-lo
 	if after {
-		if size <= roomAfter || roomBefore <= roomAfter {
+		if Size <= roomAfter || roomBefore <= roomAfter {
 			return atAfter
 		}
 		return atBefore
 	}
-	if size <= roomBefore || roomAfter <= roomBefore {
+	if Size <= roomBefore || roomAfter <= roomBefore {
 		return atBefore
 	}
 	return atAfter
@@ -105,12 +105,12 @@ func sideOf(start, end, Gap, size, lo, hi float32, after bool) float32 {
 
 // alignedTo is where a popup size long starts to line its start, middle or end up with
 // the anchor's.
-func alignedTo(start, length, size float32, align Align) float32 {
+func alignedTo(start, length, Size float32, align Align) float32 {
 	switch align {
 	case End:
-		return start + length - size
+		return start + length - Size
 	case Center:
-		return start + (length-size)/2
+		return start + (length-Size)/2
 	}
 	return start
 }

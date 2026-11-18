@@ -751,13 +751,13 @@ func (p *Page) Config(base app.Config) app.Config {
 
 // Paint fills the window with the background and declares the view over it. It
 // is the Config's Paint.
-func (p *Page) Paint(canvas *gfx.Canvas, size Size) {
+func (p *Page) Paint(canvas *gfx.Canvas, Size Size) {
 	if p.config.View == nil {
 		panic("ui: Page.Paint needs PageConfig.View, the function that declares the page")
 	}
 	p.init(nil)
 	p.window = true
-	bounds := Rect{Width: size.Width, Height: size.Height}
+	bounds := Rect{Width: Size.Width, Height: Size.Height}
 	theme := p.currentTheme()
 	background := theme.Background
 	if p.config.Background != nil {

@@ -76,7 +76,7 @@ func TestProgressIsFilledToItsFractionAndSizedLikeABar(t *testing.T) {
 
 // splitPage is two panes either side of a splitter, in a row 400 wide.
 func splitPage(view *View, state *SplitterState, width float32) func(*gfx.Canvas, gfx.Size) {
-	return func(canvas *gfx.Canvas, size gfx.Size) {
+	return func(canvas *gfx.Canvas, Size gfx.Size) {
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
 			f.Row().Fill().Children(func() {
 				f.Column().Width(state.Pos).Children(func() { f.Text("left") })
@@ -363,8 +363,8 @@ func TestSplitterThicknessKeepsTheLineThinAndTheGrabWide(t *testing.T) {
 	var view View
 	state := SplitterState{Pos: 200}
 	var second Box
-	draw := func(c *gfx.Canvas, size gfx.Size) {
-		view.Draw(c, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *Frame) {
+	draw := func(c *gfx.Canvas, Size gfx.Size) {
+		view.Draw(c, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 			f.Row().Fill().Children(func() {
 				f.Column().Width(state.Pos).Children(func() {})
 				f.Splitter(splitID, &state).SplitterThickness(1)

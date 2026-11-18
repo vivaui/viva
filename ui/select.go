@@ -452,13 +452,13 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 // or the size change. The comparison is against the labels the measurement was
 // taken for, which is what the state declared last, so calling before or after
 // the frame records its labels both work.
-func (s *SelectState) widestOption(canvas *gfx.Canvas, labels []string, size float32) float32 {
-	if !s.optionsMeasured || s.optionsSize != size || !sameOptionLabels(s.labels, labels) {
+func (s *SelectState) widestOption(canvas *gfx.Canvas, labels []string, Size float32) float32 {
+	if !s.optionsMeasured || s.optionsSize != Size || !sameOptionLabels(s.labels, labels) {
 		var widest float32
 		for _, label := range labels {
-			widest = max(widest, canvas.TextWidthWeight(label, size, gfx.WeightRegular))
+			widest = max(widest, canvas.TextWidthWeight(label, Size, gfx.WeightRegular))
 		}
-		s.optionsMeasured, s.optionsWidest, s.optionsSize = true, widest, size
+		s.optionsMeasured, s.optionsWidest, s.optionsSize = true, widest, Size
 	}
 	return s.optionsWidest
 }
@@ -492,7 +492,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.state.listMaxWidth > 0 {
 		width = min(width, d.state.listMaxWidth)
 	}
-	f.nodes[d.popup].size[axisX] = dimension{dimPx, width}
+	f.nodes[d.popup].Size[axisX] = dimension{dimPx, width}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.
@@ -655,7 +655,7 @@ func (f *frame) paintSelect(n *node) {
 	// A Select is as tall as it measures unless the application gave it a height,
 	// which then sizes the trigger itself.
 	height := n.pref[axisY]
-	if n.size[axisY].Kind != dimAuto {
+	if n.Size[axisY].Kind != dimAuto {
 		height = n.rect.Height
 	}
 	trigger := Rect{X: n.rect.X, Y: n.rect.Y, Width: n.rect.Width, Height: height}

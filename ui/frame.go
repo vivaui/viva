@@ -114,7 +114,7 @@ type node struct {
 
 	Parent, First, Last, Next int32
 
-	size                 [2]dimension
+	Size                 [2]dimension
 	minS, maxS           [2]float32 // a max of zero is no max
 	Grow, Shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
@@ -345,7 +345,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	root := f.add(kindContainer)
 	n := &f.nodes[root]
 	n.Dir = column
-	n.size = [2]dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
+	n.Size = [2]dimension{{dimPx, bounds.Width}, {dimPx, bounds.Height}}
 	f.Parent = root
 	return f
 }
@@ -592,9 +592,9 @@ func (f *frame) Divider() Box {
 	n := &f.nodes[b.i]
 	n.Background = f.theme.Border
 	if f.Parent >= 0 && (f.nodes[f.Parent].Dir == row || f.nodes[f.Parent].Dir == flow) {
-		n.size[axisX] = dimension{dimPx, 1}
+		n.Size[axisX] = dimension{dimPx, 1}
 	} else {
-		n.size[axisY] = dimension{dimPx, 1}
+		n.Size[axisY] = dimension{dimPx, 1}
 	}
 	return b
 }
@@ -682,7 +682,7 @@ func (f *frame) checkHits() {
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
-		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
+		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +

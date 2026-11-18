@@ -272,8 +272,8 @@ func TestDragStateInAFrameView(t *testing.T) {
 	sourceID, targetID := tree.ID(feature, "source"), tree.ID(feature, "target")
 	m := newDragModel(true)
 	var view ui.View
-	paint := func(canvas *gfx.Canvas, size gfx.Size) {
-		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
+	paint := func(canvas *gfx.Canvas, Size gfx.Size) {
+		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
 			f.Column().Fill().Pad(16).Gap(8).Children(func() {
 				f.Row().Height(30).FillWidth().Hit(sourceID, "Source").DragSource(&m.state)
 				f.Row().Height(30).FillWidth().Hit(targetID, "Target").DropTarget(&m.state, m.accept, m.drop)

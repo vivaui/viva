@@ -27,9 +27,9 @@ func newCellTable(rows int, spec TableSpec) *cellTable {
 	return t
 }
 
-func (t *cellTable) paint(size gfx.Rect) *gfx.Canvas {
+func (t *cellTable) paint(Size gfx.Rect) *gfx.Canvas {
 	canvas := testCanvas()
-	t.view.Draw(canvas, gfx.LightTheme(), size, func(f *Frame) {
+	t.view.Draw(canvas, gfx.LightTheme(), Size, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			f.Table(&t.state, t.spec).Fill()
 		})

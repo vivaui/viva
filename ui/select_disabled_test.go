@@ -9,11 +9,11 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-func openSelect(t *testing.T, size *string, disabled []bool, options ...func(ui.Box) ui.Box) *pageDriver {
+func openSelect(t *testing.T, Size *string, disabled []bool, options ...func(ui.Box) ui.Box) *pageDriver {
 	t.Helper()
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(8).Children(func() {
-			b := ui.Select(c, size, []string{"S", "M", "L"}, nil).Placeholder("Size").DisabledOptions(disabled)
+			b := ui.Select(c, Size, []string{"S", "M", "L"}, nil).Placeholder("Size").DisabledOptions(disabled)
 			for _, option := range options {
 				b = option(b)
 			}

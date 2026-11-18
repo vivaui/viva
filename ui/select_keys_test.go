@@ -9,11 +9,11 @@ import (
 
 // selectPage opens a page with one Select and puts the keyboard on its trigger,
 // as Tab does.
-func selectPage(t *testing.T, size *string) *pageDriver {
+func selectPage(t *testing.T, Size *string) *pageDriver {
 	t.Helper()
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
-			ui.Select(c, size, []string{"S", "M", "L"}, nil).Placeholder("Size")
+			ui.Select(c, Size, []string{"S", "M", "L"}, nil).Placeholder("Size")
 		})
 	})
 	d.key(gfx.KeyTab)

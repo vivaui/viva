@@ -75,7 +75,7 @@ func TestFontSizeSizesAControlToItsText(t *testing.T) {
 // A Select's open list is as wide as its labels at the Select's own size.
 func TestFontSizeWidensASelectAndItsList(t *testing.T) {
 	theme := gfx.LightTheme()
-	width := func(size float32) (trigger, list float32) {
+	width := func(Size float32) (trigger, list float32) {
 		state := SelectState{Open: true}
 		var view View
 		canvas := testCanvas()
@@ -83,13 +83,13 @@ func TestFontSizeWidensASelectAndItsList(t *testing.T) {
 		view.Draw(canvas, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 			f.Row().Items(Start).Children(func() {
 				box = f.Select(ctlScope, &state, []string{"A fairly long option label", "Short"}, 0)
-				if size > 0 {
-					box.FontSize(size)
+				if Size > 0 {
+					box.FontSize(Size)
 				}
 			})
 		})
 		n := box.n()
-		return n.rect.Width, box.f.nodes[widgetsOf(box.f).selects[n.aux].popup].size[axisX].value
+		return n.rect.Width, box.f.nodes[widgetsOf(box.f).selects[n.aux].popup].Size[axisX].value
 	}
 	plainTrigger, plainList := width(0)
 	bigTrigger, bigList := width(26)

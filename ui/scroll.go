@@ -369,9 +369,9 @@ func (b Box) ScrollbarLabels(vertical, horizontal string) Box {
 // ScrollbarSize sets the thickness of the scrollbars Scrollbars draws: a vertical
 // bar's width or a horizontal bar's height. Zero keeps the thin hover default.
 // Like Scrollbars, it has no effect on a box that is not a ScrollArea.
-func (b Box) ScrollbarSize(size float32) Box {
+func (b Box) ScrollbarSize(Size float32) Box {
 	if s := b.areaState(); s != nil {
-		s.barSize = size
+		s.barSize = Size
 	}
 	return b
 }

@@ -106,8 +106,8 @@ func (b Box) LabelFor(ID gfx.ID) Box {
 
 // Width, Height and Size fix a size in pixels. FillWidth, FillHeight and Fill take
 // all the room the container has across, or share what is left along it.
-func (b Box) Width(v float32) Box  { b.n().size[axisX] = dimension{dimPx, v}; return b }
-func (b Box) Height(v float32) Box { b.n().size[axisY] = dimension{dimPx, v}; return b }
+func (b Box) Width(v float32) Box  { b.n().Size[axisX] = dimension{dimPx, v}; return b }
+func (b Box) Height(v float32) Box { b.n().Size[axisY] = dimension{dimPx, v}; return b }
 func (b Box) Size(w, h float32) Box {
 	return b.Width(w).Height(h)
 }
@@ -115,16 +115,16 @@ func (b Box) Size(w, h float32) Box {
 // WidthPercent and HeightPercent size an element as a percentage of the room its
 // container has (its content box). Basis is the size an element starts from before
 // free room is shared, instead of its content's: with Grow it is how proportions are set.
-func (b Box) WidthPercent(p float32) Box  { b.n().size[axisX] = dimension{dimPercent, p}; return b }
-func (b Box) HeightPercent(p float32) Box { b.n().size[axisY] = dimension{dimPercent, p}; return b }
+func (b Box) WidthPercent(p float32) Box  { b.n().Size[axisX] = dimension{dimPercent, p}; return b }
+func (b Box) HeightPercent(p float32) Box { b.n().Size[axisY] = dimension{dimPercent, p}; return b }
 func (b Box) Basis(v float32) Box {
 	n := b.n()
 	n.basis = v
 	n.Flags |= flagBasis
 	return b
 }
-func (b Box) FillWidth() Box  { b.n().size[axisX] = dimension{Kind: dimFill}; return b }
-func (b Box) FillHeight() Box { b.n().size[axisY] = dimension{Kind: dimFill}; return b }
+func (b Box) FillWidth() Box  { b.n().Size[axisX] = dimension{Kind: dimFill}; return b }
+func (b Box) FillHeight() Box { b.n().Size[axisY] = dimension{Kind: dimFill}; return b }
 func (b Box) Fill() Box       { return b.FillWidth().FillHeight() }
 
 // MinWidth, MaxWidth, MinHeight and MaxHeight bound the size the layout gives.

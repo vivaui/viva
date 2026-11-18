@@ -174,7 +174,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 		*open = false
 		return
 	}
-	width, height := menu.size()
+	width, height := menu.Size()
 	popup := f.Popup()
 	if anchor >= 0 {
 		anchorBox := Box{f: f, i: anchor, gen: f.gen}
@@ -293,7 +293,7 @@ func (m *MenuItems) hover() {
 }
 
 // size is the menu's: as wide as its widest row and as tall as its rows.
-func (m *MenuItems) size() (width, height float32) {
+func (m *MenuItems) Size() (width, height float32) {
 	f := m.f
 	theme := &f.theme
 	width, height = m.minWidth(), 2*components.DropdownMenuPadding
@@ -827,7 +827,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		}
 	}
 	if child := m.subMenu; child != nil && trigger.Width > 0 { // a row scrolled out of sight shows none
-		width, height := child.size()
+		width, height := child.Size()
 		placed := components.SubmenuPlacement(trigger, gfx.Size{Width: width, Height: height}, f.bounds.Inset(gfx.All(components.DropdownMenuPadding)))
 		child.paintAt(canvas, theme, placed, layer+1)
 	}

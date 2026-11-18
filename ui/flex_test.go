@@ -19,7 +19,7 @@ var (
 func testCanvas() *gfx.Canvas {
 	canvas := &gfx.Canvas{}
 	canvas.SetTree(&tree)
-	canvas.SetMeasurer(func(value string, size, Weight float32) float32 { return float32(len(value)) * size / 2 })
+	canvas.SetMeasurer(func(value string, Size, Weight float32) float32 { return float32(len(value)) * Size / 2 })
 	return canvas
 }
 
@@ -368,8 +368,8 @@ func TestBaselineAlignmentLinesUpDifferentSizes(t *testing.T) {
 	var view View
 	var big, small Box
 	canvas := testCanvas()
-	baseline := func(b Box, size float32) float32 {
-		return canvas.LabelBaseline(b.Rect(), gfx.TextStyle{Size: size})
+	baseline := func(b Box, Size float32) float32 {
+		return canvas.LabelBaseline(b.Rect(), gfx.TextStyle{Size: Size})
 	}
 	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 60})
 	f.Row().Height(60).Items(Baseline).Children(func() {

@@ -19,8 +19,8 @@ func TestFieldsTakeTypedTextThroughTheDriver(t *testing.T) {
 	nameID, passwordID := tree.ID(page, "name"), tree.ID(page, "password")
 	config := app.Config{
 		Tree: &tree, Title: "form", Width: 300, Height: 200,
-		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
-			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *Frame) {
+		Paint: func(canvas *gfx.Canvas, Size gfx.Size) {
+			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 				f.Column().Fill().Pad(12).Gap(8).Children(func() {
 					f.Field(&name, nameID, "Name", "Your name")
 					f.Field(&password, passwordID, "Password", "")
@@ -77,8 +77,8 @@ func TestEnterInAFieldIsSubmittedOnceAndAClickIsNot(t *testing.T) {
 	var sent []string
 	config := app.Config{
 		Tree: &tree, Title: "chat", Width: 300, Height: 200,
-		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
-			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: size.Width, Height: size.Height}, func(f *Frame) {
+		Paint: func(canvas *gfx.Canvas, Size gfx.Size) {
+			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 				f.Column().Fill().Pad(12).Gap(8).Children(func() {
 					if f.Field(&draft, draftID, "Message", "Type").Submitted() {
 						sent = append(sent, draft.Text())

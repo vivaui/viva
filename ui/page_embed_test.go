@@ -23,7 +23,7 @@ type paneModel struct {
 	tab        string
 	name       ui.Field
 	menu       bool
-	size       string
+	Size       string
 	rows       []string
 }
 
@@ -47,7 +47,7 @@ func (m *paneModel) pane(c ui.C) {
 			m.menu = !m.menu
 		}
 		ui.Popover(c, more, &m.menu, func() { ui.Text(c, "Menu item") })
-		ui.Select(c, &m.size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
+		ui.Select(c, &m.Size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
 		ui.Tabs(c, &m.tab, []string{"General", "Keys"}, nil)
 		for _, row := range m.rows {
 			ui.Row(c.Key(row)).Gap(8).Children(func() {
@@ -78,8 +78,8 @@ func pageSlot(f *ui.Frame, page *ui.Page, view func(ui.C)) ui.Box {
 	})
 }
 
-func (m *paneModel) paint(canvas *gfx.Canvas, size gfx.Size) {
-	m.view.Draw(canvas, pageTheme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
+func (m *paneModel) paint(canvas *gfx.Canvas, Size gfx.Size) {
+	m.view.Draw(canvas, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Children(func() {
 			// The sidebar is as tall as the window, under where an unplaced page would go.
 			f.Column().Width(200).FillHeight().Children(func() {
