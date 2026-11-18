@@ -53,6 +53,10 @@ type ScrollState struct {
 	barOffset, barOffsetX float32
 	barSince              time.Duration
 	barLit                bool
+	// The names and accessible names of the bars, as ScrollbarIDs and
+	// ScrollbarLabels gave them; zero and empty keep the area's own.
+	verticalID, horizontalID       gfx.ID
+	verticalLabel, horizontalLabel string
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -277,6 +281,7 @@ func (f *frame) ScrollArea(id gfx.ID) Box {
 	}
 	state := f.scrolls.get(id)
 	state.id, state.follow, state.sideways, state.bars, state.barSize = id, false, false, false, 0
+	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
 	b := f.Scroll(state.Offset)
 	f.extra(b.i).scrollState = state
 	return b
@@ -334,6 +339,28 @@ func (b Box) AlwaysScrollbars() Box {
 	if s := b.areaState(); s != nil {
 		s.bars, s.barsAlways = true, true
 		b.f.paintBarsFn = (*frame).paintScrollbars
+	}
+	return b
+}
+
+// ScrollbarIDs names a ScrollArea's bars with the application's own identities, so a
+// handler or a test watches the bar it means rather than the one the area derives
+// under its name. Zero keeps the derived name. Like Scrollbars, it has no effect on
+// a box that is not a ScrollArea.
+func (b Box) ScrollbarIDs(vertical, horizontal gfx.ID) Box {
+	if s := b.areaState(); s != nil {
+		s.verticalID, s.horizontalID = vertical, horizontal
+	}
+	return b
+}
+
+// ScrollbarLabels names a ScrollArea's bars to assistive technology: a vertical
+// bar is "Vertical scrollbar" and a horizontal one "Horizontal scrollbar" unless
+// given another name. Like Scrollbars, it has no effect on a box that is not a
+// ScrollArea.
+func (b Box) ScrollbarLabels(vertical, horizontal string) Box {
+	if s := b.areaState(); s != nil {
+		s.verticalLabel, s.horizontalLabel = vertical, horizontal
 	}
 	return b
 }

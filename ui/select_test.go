@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -675,5 +676,67 @@ func TestSelectTakesItsDeclaredHeight(t *testing.T) {
 		if trigger.Bounds.Height != size {
 			t.Fatalf("a Select given %v painted %v tall", size, trigger.Bounds.Height)
 		}
+	}
+}
+
+// A Select's open list obeys ListMaxWidth and ListMaxHeight: the width does not
+// grow past the cap (and never narrows below the trigger), and the height counts
+// its padding and scroll arrows, so the list shows as many rows as fit and
+// scrolls for the rest.
+func TestSelectListObeysItsWidthAndHeightCaps(t *testing.T) {
+	theme := gfx.LightTheme()
+	labels := make([]string, 10)
+	for i := range labels {
+		labels[i] = fmt.Sprintf("%s %d", strings.Repeat("wide label ", 12), i)
+	}
+	state := SelectState{Open: true}
+	draw := func(canvas *gfx.Canvas, capWidth, capHeight float32) (options []gfx.Hit, arrows int) {
+		var view View
+		view.Draw(canvas, theme, gfx.Rect{Width: 900, Height: 700}, func(f *Frame) {
+			f.Column().Pad(10).Children(func() {
+				sel := f.Select(selScope, &state, labels, 0).Width(120)
+				if capWidth > 0 {
+					sel = sel.ListMaxWidth(capWidth)
+				}
+				if capHeight > 0 {
+					sel = sel.ListMaxHeight(capHeight)
+				}
+				sel.Picked()
+			})
+		})
+		for _, hit := range canvas.Hits() {
+			if i, ok := hit.ID.In(selScope); ok {
+				switch {
+				case i < len(labels):
+					options = append(options, hit)
+				case i == len(labels)+3 || i == len(labels)+4:
+					arrows++
+				}
+			}
+		}
+		return options, arrows
+	}
+	uncapped, _ := draw(testCanvas(), 0, 0)
+	if len(uncapped) != len(labels) {
+		t.Fatalf("an uncapped list shows %d of %d options", len(uncapped), len(labels))
+	}
+	if uncapped[0].Bounds.Width <= 354 {
+		t.Fatalf("the uncapped list is %v wide; the test needs labels wider than the cap", uncapped[0].Bounds.Width)
+	}
+
+	// The caps are read when the list is declared, so the second paint shows them.
+	draw(testCanvas(), 354, 200)
+	options, arrows := draw(testCanvas(), 354, 200)
+	if len(options) != 4 || arrows != 2 {
+		t.Fatalf("a list capped at 200 shows %d options and %d arrows, want 4 and 2", len(options), arrows)
+	}
+	// The option rows sit inside the capped list's padding.
+	if got := options[0].Bounds.Width; got < 340 || got > 354 {
+		t.Errorf("an option in the capped list is %v wide, want within the 354 cap", got)
+	} else if got >= uncapped[0].Bounds.Width {
+		t.Errorf("the capped list is %v wide, not narrower than the uncapped %v", got, uncapped[0].Bounds.Width)
+	}
+	if top, bottom := options[0].Bounds.Y, options[3].Bounds.Y+options[3].Bounds.Height; bottom-top > 200 {
+		t.Errorf("the rows span %v..%v, more than the 200 cap", top, bottom)
 	}
 }

@@ -143,10 +143,13 @@ func (m *model) page(c ui.C) {
   up (and again when they scroll back down; `.Follow(m.autoScroll)` makes it a switch); `Pinned()` says the next
   layout puts it at its end before `Offset` has caught up. `.Sideways()` scrolls left and right too (`OffsetX`,
   `ContentWidth`, `ViewportWidth`, `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the
-  overflowing edges. The bars are the hover style: they appear while the pointer is over the area, and
-  `.ScrollbarSize(px)` sets their thickness (a right `Pad` leaves the gutter they sit in instead of covering the
-  content), and `.AlwaysScrollbars()` keeps them drawn at rest instead of revealing them on hover.
-  `PageConfig.ScrollbarSize` sets the page's default thickness for every bar that does not set its own.
+  overflowing edges. The bars are the hover style: they appear while the pointer is over the area or the view
+  moves, stay a moment after the pointer leaves, and fade out; `.AlwaysScrollbars()` keeps them drawn at rest
+  instead of revealing them on hover. `.ScrollbarSize(px)` sets their thickness (a right `Pad` leaves the gutter
+  they sit in instead of covering the content). `PageConfig.ScrollbarSize` sets the page's default thickness for
+  every bar that does not set its own. `.ScrollbarIDs(vertical, horizontal)` names the two bars with your own
+  identities (by default they are named under the area's), and `.ScrollbarLabels(vertical, horizontal)` names
+  them to assistive technology.
   An area a paint does not declare forgets its offset (a closed dialog, another tab).
 
 ### Menus, dialogs and popups
@@ -489,7 +492,9 @@ func (m *model) page(c ui.C) {
 - A drop-down select: keep the value in the model; whether the list is open is the Select's own state:
   `if ui.Select(c, &m.size, sizes, nil).Placeholder("Size").Changed() { m.load(m.size) }`. The list is placed under the
   trigger (above it when there is no room), painted over everything, and scrolls when it is taller than the window; the page
-  routes the wheel to it while it is open. `.DisabledOptions(flags)` takes a `[]bool` you keep, indexed like the options: a true
+  routes the wheel to it while it is open. `.ListMaxWidth(px)` and `.ListMaxHeight(px)` cap the open list: its width
+  never grows past the cap (nor shrinks below the trigger), and its height counts the padding and the scroll arrows, so
+  the list shows the rows that fit and scrolls for the rest. `.DisabledOptions(flags)` takes a `[]bool` you keep, indexed like the options: a true
   entry is dimmed, takes no click or focus and is skipped by type-ahead. `.ButtonRecipe(fn)` gives one Button its own look (colors, radius, ring) where `PageConfig.Styles.Button` dresses them all, and `.SwitchRecipe(fn)` does the same for one Switch against `Styles.Switch`; declare `fn` once, not as a closure per paint. `.XSmall()` makes the trigger shorter, and `.Hint(text)` gives it a description for assistive technology. `ui.Combobox` takes the same arguments plus a label and filters as the user types.
 
 ### Slots, grids and absolute placement

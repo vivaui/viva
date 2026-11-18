@@ -91,10 +91,11 @@ const (
 	flagScroll
 	flagBasis
 	flagOutline
-	flagDialog    // a Dialog's root: painted by components.Dialog around its children
-	flagChildren  // Children was called on the element, even if it declared nothing
-	flagHasRadius // Radius was called: on a control, its corners are its own, not the theme's
-	flagThemed    // a control with the theme's look: what the caller did not set, the recipe does
+	flagDialog      // a Dialog's root: painted by components.Dialog around its children
+	flagAlertDialog // an AlertDialog's root: painted by components.AlertDialog
+	flagChildren    // Children was called on the element, even if it declared nothing
+	flagHasRadius   // Radius was called: on a control, its corners are its own, not the theme's
+	flagThemed      // a control with the theme's look: what the caller did not set, the recipe does
 	flagSetBackground
 	flagSetBorder
 	flagSetShadow

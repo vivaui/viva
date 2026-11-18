@@ -44,6 +44,44 @@ type SelectState struct {
 	optionsMeasured bool
 	optionsWidest   float32
 	optionsSize     float32
+
+	// The limits ListMaxWidth and ListMaxHeight put on the open list; zero is
+	// no limit. They are read when the list is declared, so they apply to the
+	// frame the list opens in.
+	listMaxWidth  float32
+	listMaxHeight float32
+}
+
+// ListMaxWidth caps the width of an open Select's list: zero keeps the list's
+// measured width (the longest option and its padding), never narrower than the
+// trigger. It has no effect on a box that is not a Select.
+func (b Box) ListMaxWidth(width float32) Box {
+	if n := b.n(); n.kind == kindSelect {
+		b.f.widgets.selects[n.aux].state.listMaxWidth = max(width, 0)
+	}
+	return b
+}
+
+// ListMaxHeight caps the total height of an open Select's list, its padding and
+// the scroll arrows included; zero keeps the room the window leaves. The list
+// shows as many options as fit and scrolls for the rest. It has no effect on a
+// box that is not a Select.
+func (b Box) ListMaxHeight(height float32) Box {
+	if n := b.n(); n.kind == kindSelect {
+		b.f.widgets.selects[n.aux].state.listMaxHeight = max(height, 0)
+	}
+	return b
+}
+
+// listRowsForHeight is how many of count options a list shows within height
+// pixels: its padding and, when it scrolls, its two arrows count against the
+// height.
+func listRowsForHeight(count int, height float32) int {
+	rows := int((height - selectPad) / selectItem)
+	if rows < count {
+		rows = int((height - selectPad - 2*selectArrow) / selectItem)
+	}
+	return max(rows, 1)
 }
 
 // Wheel scrolls the open list by what the wheel or trackpad reports: a mouse notch
@@ -387,6 +425,9 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	n.aux = int32(len(f.widgets.selects))
 	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
+	if state.listMaxHeight > 0 {
+		d.visible = min(d.visible, listRowsForHeight(len(labels), state.listMaxHeight))
+	}
 	widest := state.widestOption(f.canvas, labels, f.theme.Metrics.FontSizeM)
 	state.disabled = nil
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
@@ -396,7 +437,11 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 		if d.visible < len(labels) {
 			height += 2 * selectArrow
 		}
-		popup := f.Popup().BelowBox(b, selectGap, Start).Size(selectListWidth(widest), height)
+		width := selectListWidth(widest)
+		if state.listMaxWidth > 0 {
+			width = min(width, state.listMaxWidth)
+		}
+		popup := f.Popup().BelowBox(b, selectGap, Start).Size(width, height)
 		d.popup = popup.i
 	}
 	f.widgets.selects = append(f.widgets.selects, d)
@@ -443,7 +488,11 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.popup < 0 {
 		return
 	}
-	f.nodes[d.popup].size[axisX] = dimension{dimPx, selectListWidth(d.state.widestOption(f.canvas, d.labels, n.fontSize))}
+	width := selectListWidth(d.state.widestOption(f.canvas, d.labels, n.fontSize))
+	if d.state.listMaxWidth > 0 {
+		width = min(width, d.state.listMaxWidth)
+	}
+	f.nodes[d.popup].size[axisX] = dimension{dimPx, width}
 }
 
 // selectRows is how many of count options a list shows in a frame height tall.

@@ -26,6 +26,10 @@ func (f *frame) paint(i int32) {
 		f.paintDialog(n)
 		return
 	}
+	if n.flags&flagAlertDialog != 0 {
+		f.paintAlertDialog(n)
+		return
+	}
 	if n.flags&flagDrawer != 0 {
 		f.paintDrawerFn(f, n)
 		return
