@@ -184,3 +184,16 @@ func TestComboboxEmpty(t *testing.T) {
 		t.Fatalf("rows %v, the empty text shown %v", options(d), tooltipShown(d, "No zone matches"))
 	}
 }
+
+// A clearable Combobox paints without allocating once it is warm: the clear
+// action's name is kept rather than joined in each paint.
+func TestComboboxPaintsWithoutAllocating(t *testing.T) {
+	choice := "beta"
+	d := openPage(t, func(c ui.C) {
+		ui.Combobox(c, &choice, []string{"alpha", "beta", "gamma"}, nil, "Choice").Clearable()
+	})
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("a warm combobox paints with %v allocations, want 0", allocs)
+	}
+}

@@ -152,3 +152,24 @@ func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 		t.Fatal("a click on the named trigger did not open the panel")
 	}
 }
+
+// A swatch paints from what its element carries, so a warm paint allocates
+// nothing: a Draw callback made for each swatch would make one closure a paint.
+func TestColorSwatchPaintsWithoutAllocating(t *testing.T) {
+	red, blue := gfx.RGB(220, 38, 38), gfx.RGB(37, 99, 235)
+	chosen := red
+	d := openPage(t, func(c ui.C) {
+		ui.Row(c).Gap(4).Children(func() {
+			for _, s := range []struct {
+				name string
+				col  gfx.Color
+			}{{"Red", red}, {"Blue", blue}, {"Blue2", blue}, {"Red2", red}, {"Red3", red}, {"Blue3", blue}, {"Red4", red}} {
+				ui.ColorSwatch(c.Key(s.name), s.col, chosen == s.col, s.name)
+			}
+		})
+	})
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("a warm swatch row paints with %v allocations, want 0", allocs)
+	}
+}

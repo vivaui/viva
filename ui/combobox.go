@@ -134,6 +134,7 @@ type comboState struct {
 	node                      int32
 	gen                       uint32
 	label, placeholder, empty string
+	clearLabel, clearLabelOf  string // "Clear <label>", made once per label
 	createPrefix              string
 	clearable                 bool
 	layer                     uint16
@@ -197,7 +198,10 @@ func (s *comboState) draw(d *DrawContext) {
 		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.flags&flagDisabled != 0,
 	}
 	if s.clearable {
-		options.ClearID, options.ClearLabel = ids.clear, "Clear "+s.label
+		if s.clearLabelOf != s.label {
+			s.clearLabel, s.clearLabelOf = "Clear "+s.label, s.label
+		}
+		options.ClearID, options.ClearLabel = ids.clear, s.clearLabel
 	}
 	components.PaintSingleSelect(d.Canvas, *d.Theme, d.Rect, &s.list, options)
 }

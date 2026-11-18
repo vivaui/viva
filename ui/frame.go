@@ -219,6 +219,11 @@ type extra struct {
 	layout        Layout           // CustomLayout: who measures and places the children
 	swatchFlush   bool             // a ColorSwatch fills its border with its color
 	swatchSkipTab bool             // a ColorSwatch takes no Tab stop (TabStop)
+	swatch        bool             // the element is a ColorSwatch, painted by paintSwatch
+	swatchValue   Color            // its color and whether it is the chosen one of its set
+	swatchChosen  bool
+	picker        *ColorPickerState // a ColorPicker's state, painted by paintColorPicker
+	pickerSpec    ColorPickerSpec   // how it looks
 }
 
 // frame is one page being declared. It is handed to the function given to
@@ -264,6 +269,8 @@ type frame struct {
 	paintAddonsFn  func(f *frame, n *node, snapshot components.InputSnapshot, a *fieldAddons) // set by the first field Icon or Action
 	paintTooltipFn func(f *frame)                                                             // set by the first Tooltip, so a frame without one does not link it
 	paintBarsFn    func(f *frame, n *node, s *ScrollState)                                    // set by the first Scrollbars, so a frame without one does not link them
+	paintSwatchFn  func(f *frame, n *node, r Rect)                                            // set by the first ColorSwatch, so one closure is not made for each paint
+	paintPickerFn  func(f *frame, n *node)                                                    // set by the first ColorPicker, for the same reason
 	settleFn       func(f *frame, i int32) *bindDecl                                          // i < 0 settles them all
 	captionFn      func(f *frame, n *node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache

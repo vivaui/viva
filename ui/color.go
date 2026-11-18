@@ -27,16 +27,23 @@ func colorSwatch(c C, id gfx.ID, color Color, selected bool, label string) Box {
 	b := Slot(c).Size(28, 28).Shrink(0)
 	n := b.n()
 	n.id, n.label = id, label
-	b.Draw(func(d *DrawContext) {
-		extra := b.f.extra(b.i)
-		swatch := components.BeginColorSwatch(d.Canvas, *d.Theme, id, d.Rect, color).Label(label).Selected(selected).
-			TabStop(!extra.swatchSkipTab)
-		if extra.swatchFlush {
-			swatch = swatch.Flush()
-		}
-		swatch.Paint()
-	})
+	// The swatch paints from what the element carries rather than from a Draw
+	// callback: a closure made in each paint allocates in a hot path.
+	extra := b.f.extra(b.i)
+	extra.swatch, extra.swatchValue, extra.swatchChosen = true, color, selected
+	b.f.paintSwatchFn = (*frame).paintSwatch
 	return b
+}
+
+// paintSwatch draws a ColorSwatch element.
+func (f *frame) paintSwatch(n *node, r Rect) {
+	extra := &f.exts[n.ext]
+	swatch := components.BeginColorSwatch(f.canvas, f.theme, n.id, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
+		TabStop(!extra.swatchSkipTab)
+	if extra.swatchFlush {
+		swatch = swatch.Flush()
+	}
+	swatch.Paint()
 }
 
 // Flush makes a ColorSwatch fill its hairline border with its color instead of
@@ -148,8 +155,20 @@ func ColorPickerWith(c C, s *ColorPickerState, spec ColorPickerSpec, color *Colo
 	b := Slot(c).Size(32, 32).Shrink(0)
 	n := b.n()
 	n.id, n.label = id, spec.Label
-	b.DrawOver(func(d *DrawContext) { s.paint(d, c, id, spec) })
+	// Like the swatch, the picker paints from what the element carries: a Draw
+	// callback made for each paint would allocate one closure a paint.
+	extra := b.f.extra(b.i)
+	extra.picker, extra.pickerSpec = s, spec
+	b.f.paintPickerFn = (*frame).paintColorPicker
 	return b
+}
+
+// paintColorPicker draws a ColorPicker's trigger, and its panel while it is open.
+func (f *frame) paintColorPicker(n *node) {
+	extra := &f.exts[n.ext]
+	ctx := Ctx{page: f.page, f: f}
+	d := DrawContext{Canvas: f.canvas, Theme: &f.theme, Rect: n.rect, Label: n.label}
+	extra.picker.paint(&d, &ctx, n.id, extra.pickerSpec)
 }
 
 // parts are the identities the panel's regions take.

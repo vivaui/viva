@@ -209,6 +209,13 @@ func (f *frame) paintControl(n *node, r Rect) {
 		components.PaintInputGroup(canvas, f.theme, r, f.groups[n.aux])
 	case kindTextarea:
 		f.paintTextarea(n)
+	case kindSlot:
+		if extra.swatch && f.paintSwatchFn != nil {
+			f.paintSwatchFn(f, n, r)
+		}
+		if extra.picker != nil && f.paintPickerFn != nil {
+			f.paintPickerFn(f, n)
+		}
 	case kindSegmented:
 		choice := f.segmented[n.aux]
 		components.BeginSegmentedControl(canvas, f.theme, r, choice.options, choice.selected).Paint()
