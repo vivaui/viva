@@ -58,7 +58,7 @@ func (p *Page) roveKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		var next gfx.ID
 		var ok bool
 		if r.tabs {
-			d := &r.f.widgets.tabs[n.aux]
+			d := &widgetsOf(r.f).tabs[n.aux]
 			if _, inside := event.Target.In(d.scope); !inside {
 				continue
 			}

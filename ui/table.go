@@ -224,12 +224,12 @@ type tableDecl struct {
 func (f *frame) Table(state *TableState, spec TableSpec) Box {
 	b := f.box(kindTable)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(f.widgets.tables))
+	n.aux = int32(len(widgetsOf(f).tables))
 	rows := 0
 	if spec.Source != nil {
 		rows = max(spec.Source.Len(), 0)
 	}
-	f.widgets.tables = append(f.widgets.tables, tableDecl{spec: spec, state: state, rows: rows})
+	widgetsOf(f).tables = append(widgetsOf(f).tables, tableDecl{spec: spec, state: state, rows: rows})
 	return b
 }
 
@@ -239,7 +239,7 @@ func (b Box) RowClicked() (int, bool) {
 	if n.kind != kindTable || b.f.canvas == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(b.f.widgets.tables[n.aux].spec.Rows)
+	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.aux].spec.Rows)
 }
 
 // HeaderClicked reports which column header of a Table this paint is delivering a
@@ -249,7 +249,7 @@ func (b Box) HeaderClicked() (int, bool) {
 	if n.kind != kindTable || b.f.canvas == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(b.f.widgets.tables[n.aux].spec.Header)
+	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.aux].spec.Header)
 }
 
 func (t *tableDecl) rowHeight(theme Theme) float32 {
@@ -271,7 +271,7 @@ func (t *tableDecl) headerHeight(theme Theme) float32 {
 
 // measureTable: as wide as its fixed columns, as tall as its header and rows.
 func (f *frame) measureTable(n *node) {
-	t := &f.widgets.tables[n.aux]
+	t := &widgetsOf(f).tables[n.aux]
 	var width float32
 	for _, column := range t.spec.Columns {
 		width += max(column.Width, 0)
@@ -335,7 +335,7 @@ func (f *frame) scrollAncestor(n *node) (*ScrollState, Rect) {
 // rows inside a clip (a ScrollArea) keeps its header at the top of what is visible
 // while its rows scroll under it.
 func (f *frame) paintTable(n *node) {
-	t := &f.widgets.tables[n.aux]
+	t := &widgetsOf(f).tables[n.aux]
 	r := n.rect
 	rowHeight, headerHeight := t.rowHeight(f.theme), t.headerHeight(f.theme)
 	canvas := f.canvas
@@ -502,7 +502,7 @@ func (f *frame) paintTableRows(t *tableDecl, rows Rect, first, last int, top, co
 	canvas := f.canvas
 	table := components.BeginTable(canvas, f.theme, rows, t.spec.Columns).
 		RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
-	w := &f.widgets
+	w := widgetsOf(f)
 	if cap(w.cells) < len(t.spec.Columns) {
 		w.cells = make([]string, len(t.spec.Columns))
 	}
@@ -657,8 +657,8 @@ func (f *frame) paintTableHeader(t *tableDecl, r, viewport Rect, headerHeight, r
 func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
 	canvas := f.canvas
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
-	cells := components.TableCellBounds(t.spec.Columns, bounds, f.widgets.rects[:0])
-	f.widgets.rects = cells[:0]
+	cells := components.TableCellBounds(t.spec.Columns, bounds, widgetsOf(f).rects[:0])
+	widgetsOf(f).rects = cells[:0]
 	hover := f.theme.Hover
 	for column, cell := range cells {
 		if column < len(t.spec.Sortable) && t.spec.Sortable[column] && !t.spec.Header.IsZero() && canvas.Hovered() == t.spec.Header.At(column) {

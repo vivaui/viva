@@ -99,27 +99,27 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	n := b.n()
 	n.flags |= flagPopover
 	f.paintPopoverFn = (*frame).paintPopover
-	n.aux = int32(len(f.widgets.popovers))
-	f.widgets.popovers = append(f.widgets.popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: f.widgets.layer})
+	n.aux = int32(len(widgetsOf(f).popovers))
+	widgetsOf(f).popovers = append(widgetsOf(f).popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: widgetsOf(f).layer})
 	return b
 }
 
 // paintPopover paints a Popover's root inside the layer and focus scope it opens: the
 // press outside, the anchor's press and Escape go to its DismissID.
 func (f *frame) paintPopover(i int32, n *node) {
-	d := &f.widgets.popovers[n.aux]
+	d := &widgetsOf(f).popovers[n.aux]
 	spec := &d.spec
 	canvas := f.canvas
 	layer := max(d.layer, f.popupLayer, widgetLayerBase) + 2
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)
 	canvas.ReturnFocus(spec.Scope)
-	if !spec.InitialFocusID.IsZero() && !f.widgets.popoverAsked(popoverFocusAskFor(spec)) {
+	if !spec.InitialFocusID.IsZero() && !widgetsOf(f).popoverAsked(popoverFocusAskFor(spec)) {
 		// As AutoFocus is: the keyboard is asked for as the panel opens, not on
 		// every paint, so moving the focus inside the panel stays where the user
 		// put it.
 		canvas.RequestFocus(spec.InitialFocusID)
-		f.widgets.popoverFocus = append(f.widgets.popoverFocus, popoverFocusAskFor(spec))
+		widgetsOf(f).popoverFocus = append(widgetsOf(f).popoverFocus, popoverFocusAskFor(spec))
 	}
 	if !spec.DismissID.IsZero() {
 		pass := !spec.ConsumeOutsidePress
@@ -134,15 +134,15 @@ func (f *frame) paintPopover(i int32, n *node) {
 	}
 	// The panel is opaque to the pointer: a press on its padding does not reach the page.
 	canvas.Block(n.rect)
-	savedLayer := f.widgets.layer
-	f.widgets.layer = layer
+	savedLayer := widgetsOf(f).layer
+	widgetsOf(f).layer = layer
 	n.flags &^= flagPopover
 	presence, pivot := components.PopupMotion(f.theme, n.rect, f.nodes[d.anchor].rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.paint(i)
 	canvas.EndPresence()
 	f.nodes[i].flags |= flagPopover
-	f.widgets.layer = savedLayer
+	widgetsOf(f).layer = savedLayer
 	if !spec.DismissID.IsZero() {
 		canvas.SetEscapeTarget(spec.DismissID)
 	}

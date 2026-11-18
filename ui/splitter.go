@@ -114,8 +114,8 @@ func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 	b := f.box(kindSplitter)
 	n := &f.nodes[b.i]
 	n.id = id
-	n.aux = int32(len(f.widgets.splits))
-	f.widgets.splits = append(f.widgets.splits, splitDecl{state: state, first: first, minFirst: splitterMin, minSecond: splitterMin})
+	n.aux = int32(len(widgetsOf(f).splits))
+	widgetsOf(f).splits = append(widgetsOf(f).splits, splitDecl{state: state, first: first, minFirst: splitterMin, minSecond: splitterMin})
 	state.id = id
 	return b
 }
@@ -126,7 +126,7 @@ func (f *frame) Splitter(id gfx.ID, state *SplitterState) Box {
 // divider is still easy to grab.
 func (b Box) SplitterThickness(thickness float32) Box {
 	if n := b.n(); n.kind == kindSplitter {
-		b.f.widgets.splits[n.aux].thickness = max(thickness, 0.5)
+		widgetsOf(b.f).splits[n.aux].thickness = max(thickness, 0.5)
 	}
 	return b
 }
@@ -134,7 +134,7 @@ func (b Box) SplitterThickness(thickness float32) Box {
 // Mins sets the least size of the panes either side of a Splitter, along its container.
 func (b Box) Mins(first, second float32) Box {
 	if n := b.n(); n.kind == kindSplitter {
-		d := &b.f.widgets.splits[n.aux]
+		d := &widgetsOf(b.f).splits[n.aux]
 		d.minFirst, d.minSecond = max(first, 0), max(second, 0)
 	}
 	return b
@@ -145,7 +145,7 @@ func (b Box) Mins(first, second float32) Box {
 func (f *frame) splitsRow(n *node) bool { return n.parent < 0 || f.nodes[n.parent].dir != column }
 
 func (f *frame) measureSplitter(n *node) {
-	thickness := f.widgets.splits[n.aux].thickness
+	thickness := widgetsOf(f).splits[n.aux].thickness
 	if thickness <= 0 {
 		thickness = splitterThickness
 	}
@@ -160,7 +160,7 @@ func (f *frame) measureSplitter(n *node) {
 // everything the two panes (and the gaps) have between them, less the bar and the
 // second pane's minimum.
 func (f *frame) splitLimits(n *node) (lo, hi, span float32) {
-	d := &f.widgets.splits[n.aux]
+	d := &widgetsOf(f).splits[n.aux]
 	lo = d.minFirst
 	if d.first < 0 || n.next < 0 {
 		return lo, lo, 0
@@ -194,7 +194,7 @@ func (f *frame) placeSplitRatios(n *node, axis int, avail float32) {
 		if bar.kind != kindSplitter {
 			continue
 		}
-		d := &f.widgets.splits[bar.aux]
+		d := &widgetsOf(f).splits[bar.aux]
 		state := d.state
 		if state.Ratio <= 0 || d.first < 0 {
 			continue
@@ -223,7 +223,7 @@ func (f *frame) reportSplitters() {
 		if n.kind != kindSplitter {
 			continue
 		}
-		s := f.widgets.splits[n.aux].state
+		s := widgetsOf(f).splits[n.aux].state
 		lo, hi, span := f.splitLimits(n)
 		s.lo, s.hi, s.span = lo, hi, span
 		axis := axisY
@@ -242,7 +242,7 @@ func (f *frame) reportSplitters() {
 
 func (f *frame) paintSplitter(n *node) {
 	canvas := f.canvas
-	d := &f.widgets.splits[n.aux]
+	d := &widgetsOf(f).splits[n.aux]
 	s := d.state
 	row := f.splitsRow(n)
 	r := n.rect

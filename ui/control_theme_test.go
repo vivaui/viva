@@ -89,7 +89,7 @@ func TestFontSizeWidensASelectAndItsList(t *testing.T) {
 			})
 		})
 		n := box.n()
-		return n.rect.Width, box.f.nodes[box.f.widgets.selects[n.aux].popup].size[axisX].value
+		return n.rect.Width, box.f.nodes[widgetsOf(box.f).selects[n.aux].popup].size[axisX].value
 	}
 	plainTrigger, plainList := width(0)
 	bigTrigger, bigList := width(26)

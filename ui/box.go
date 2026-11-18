@@ -521,7 +521,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 		return gfx.ID{}, false
 	}
 	if n.flags&flagAlertDialog != 0 {
-		spec := &b.f.widgets.alertDialogs[n.aux].spec
+		spec := &widgetsOf(b.f).alertDialogs[n.aux].spec
 		for _, id := range [2]gfx.ID{spec.ActionID, spec.CancelID} {
 			if !id.IsZero() && b.f.canvas.Clicked(id) {
 				return id, true
@@ -543,7 +543,7 @@ func (b Box) Chosen() (gfx.ID, bool) {
 			}
 		}
 	case kindSplitButton:
-		d := &b.f.widgets.splitButtons[n.aux]
+		d := &widgetsOf(b.f).splitButtons[n.aux]
 		for _, id := range [2]gfx.ID{d.primary, d.menu} {
 			if !id.IsZero() && b.f.canvas.Clicked(id) {
 				return id, true

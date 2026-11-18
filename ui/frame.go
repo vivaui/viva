@@ -283,7 +283,7 @@ type frame struct {
 	// declared; it reports whether the element is painted and its paint is done.
 	memoFn     func(f *frame, i int32, before bool) bool
 	lines      []string
-	widgets    widgets             // Table, Tabs, Select, Dialog and Splitter declarations
+	controls   any                 // the layer above's control declarations: see widgetsOf
 	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor int
@@ -352,8 +352,8 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 		f.nativeMark = len(canvas.NativeViews())
 	}
 	f.scratch.reset()
-	f.widgets.sweepPopoverFocus()
-	f.widgets.reset()
+	widgetsOf(f).sweepPopoverFocus()
+	widgetsOf(f).reset()
 	f.scrolls.epoch++
 	f.parent = -1
 	root := f.add(kindContainer)
@@ -451,17 +451,17 @@ func (f *frame) trim() {
 	f.lines = trimFlexCapacity(f.lines)
 	f.ellipses = trimFlexCapacity(f.ellipses)
 	f.wraps = trimFlexCapacity(f.wraps)
-	f.widgets.tables = trimFlexCapacity(f.widgets.tables)
-	f.widgets.tabs = trimFlexCapacity(f.widgets.tabs)
-	f.widgets.selects = trimFlexCapacity(f.widgets.selects)
-	f.widgets.rows = trimFlexCapacity(f.widgets.rows)
-	f.widgets.dialogs = trimFlexCapacity(f.widgets.dialogs)
-	f.widgets.popovers = trimFlexCapacity(f.widgets.popovers)
-	f.widgets.popoverFocus = trimFlexCapacity(f.widgets.popoverFocus)
-	f.widgets.splits = trimFlexCapacity(f.widgets.splits)
-	f.widgets.sliders = trimFlexCapacity(f.widgets.sliders)
-	f.widgets.cells = trimFlexCapacity(f.widgets.cells)
-	f.widgets.rects = trimFlexCapacity(f.widgets.rects)
+	widgetsOf(f).tables = trimFlexCapacity(widgetsOf(f).tables)
+	widgetsOf(f).tabs = trimFlexCapacity(widgetsOf(f).tabs)
+	widgetsOf(f).selects = trimFlexCapacity(widgetsOf(f).selects)
+	widgetsOf(f).rows = trimFlexCapacity(widgetsOf(f).rows)
+	widgetsOf(f).dialogs = trimFlexCapacity(widgetsOf(f).dialogs)
+	widgetsOf(f).popovers = trimFlexCapacity(widgetsOf(f).popovers)
+	widgetsOf(f).popoverFocus = trimFlexCapacity(widgetsOf(f).popoverFocus)
+	widgetsOf(f).splits = trimFlexCapacity(widgetsOf(f).splits)
+	widgetsOf(f).sliders = trimFlexCapacity(widgetsOf(f).sliders)
+	widgetsOf(f).cells = trimFlexCapacity(widgetsOf(f).cells)
+	widgetsOf(f).rects = trimFlexCapacity(widgetsOf(f).rects)
 	f.scratch.abs = trimFlexCapacity(f.scratch.abs)
 	f.scratch.rows = trimFlexCapacity(f.scratch.rows)
 	f.scratch.rowAt = trimFlexCapacity(f.scratch.rowAt)

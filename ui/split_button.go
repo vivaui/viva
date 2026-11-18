@@ -51,8 +51,8 @@ func (f *frame) SplitButton(spec SplitButtonSpec) Box {
 	n := &f.nodes[b.i]
 	n.id, n.label = spec.PrimaryID, spec.Label
 	n.flags |= flagHasHit
-	n.aux = int32(len(f.widgets.splitButtons))
-	f.widgets.splitButtons = append(f.widgets.splitButtons, splitButtonDecl{
+	n.aux = int32(len(widgetsOf(f).splitButtons))
+	widgetsOf(f).splitButtons = append(widgetsOf(f).splitButtons, splitButtonDecl{
 		primary: spec.PrimaryID, menu: spec.MenuID,
 		menuLabel: spec.MenuLabel, hint: spec.Hint, menuHint: spec.MenuHint,
 		icon: spec.Icon, triggerWidth: spec.TriggerWidth, open: spec.Open,
@@ -81,7 +81,7 @@ func SplitButton(c C, spec SplitButtonSpec) Box {
 // while open and tells assistive technology it is expanded.
 func (b Box) Open(open bool) Box {
 	if n := b.n(); n.kind == kindSplitButton {
-		b.f.widgets.splitButtons[n.aux].open = open
+		widgetsOf(b.f).splitButtons[n.aux].open = open
 	}
 	return b
 }
@@ -89,7 +89,7 @@ func (b Box) Open(open bool) Box {
 // MenuLabel names a SplitButton's trigger to assistive technology.
 func (b Box) MenuLabel(label string) Box {
 	if n := b.n(); n.kind == kindSplitButton {
-		b.f.widgets.splitButtons[n.aux].menuLabel = label
+		widgetsOf(b.f).splitButtons[n.aux].menuLabel = label
 	}
 	return b
 }
@@ -97,7 +97,7 @@ func (b Box) MenuLabel(label string) Box {
 // MenuHint is the description read after a SplitButton trigger's name.
 func (b Box) MenuHint(text string) Box {
 	if n := b.n(); n.kind == kindSplitButton {
-		b.f.widgets.splitButtons[n.aux].menuHint = text
+		widgetsOf(b.f).splitButtons[n.aux].menuHint = text
 	}
 	return b
 }
@@ -105,7 +105,7 @@ func (b Box) MenuHint(text string) Box {
 // MenuIcon sets the icon a SplitButton's trigger draws: a downward chevron when none.
 func (b Box) MenuIcon(icon gfx.Icon) Box {
 	if n := b.n(); n.kind == kindSplitButton {
-		b.f.widgets.splitButtons[n.aux].icon = icon
+		widgetsOf(b.f).splitButtons[n.aux].icon = icon
 	}
 	return b
 }
@@ -113,7 +113,7 @@ func (b Box) MenuIcon(icon gfx.Icon) Box {
 // MenuTriggerWidth sets the width of a SplitButton's trigger half, 32 when zero.
 func (b Box) MenuTriggerWidth(width float32) Box {
 	if n := b.n(); n.kind == kindSplitButton {
-		b.f.widgets.splitButtons[n.aux].triggerWidth = width
+		widgetsOf(b.f).splitButtons[n.aux].triggerWidth = width
 	}
 	return b
 }
@@ -121,7 +121,7 @@ func (b Box) MenuTriggerWidth(width float32) Box {
 // paintSplitButton paints both halves with the page's variant, size, name and
 // state, and leaves their hits to the component.
 func (f *frame) paintSplitButton(n *node) {
-	d := &f.widgets.splitButtons[n.aux]
+	d := &widgetsOf(f).splitButtons[n.aux]
 	options := components.SplitButtonOptions{
 		PrimaryID: d.primary, MenuID: d.menu,
 		Label: n.label, MenuLabel: d.menuLabel, Hint: d.hint, MenuHint: d.menuHint,

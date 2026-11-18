@@ -163,7 +163,7 @@ func (f *frame) measureControls(n *node) {
 		n.pref = [2]float32{w, h}
 	case kindSplitButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.buttonSize).SizeToFit(n.label)
-		trigger := f.widgets.splitButtons[n.aux].triggerWidth
+		trigger := widgetsOf(f).splitButtons[n.aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
 		}

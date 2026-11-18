@@ -51,8 +51,8 @@ func (f *frame) recordTableCells(t *tableDecl, body Rect, left, top, contentWidt
 	if len(t.spec.Columns) == 0 || rowHeight <= 0 {
 		return
 	}
-	cells := components.TableCellBounds(t.spec.Columns, Rect{Width: contentWidth, Height: rowHeight}, f.widgets.rects[:0])
-	f.widgets.rects = cells[:0]
+	cells := components.TableCellBounds(t.spec.Columns, Rect{Width: contentWidth, Height: rowHeight}, widgetsOf(f).rects[:0])
+	widgetsOf(f).rects = cells[:0]
 	for index, cell := range cells {
 		x := left + cell.X
 		if frozenWidth > 0 && index < frozenColumns {

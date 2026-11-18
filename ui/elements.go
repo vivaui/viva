@@ -465,7 +465,7 @@ func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func(
 		Title: title, Description: spec.Description, Width: spec.Width, Height: spec.Height, NoClose: spec.NoClose,
 		Scope: scope.At(0), DismissID: scope.At(1), CloseID: scope.At(2), InitialFocusID: spec.InitialFocus,
 	})
-	d := &c.f.widgets.dialogs[dialog.n().aux]
+	d := &widgetsOf(c.f).dialogs[dialog.n().aux]
 	p.setScope(d.body, scope)
 	p.setScope(d.footer, scope)
 	if body != nil {
@@ -491,7 +491,7 @@ func (p *Page) Describe(id gfx.ID) string { return p.tree.Text(id) }
 // footer, the one that takes the keyboard as it opens; the close button when it has
 // none.
 func (f *frame) focusFirstControl(dialog Box) {
-	d := &f.widgets.dialogs[dialog.n().aux]
+	d := &widgetsOf(f).dialogs[dialog.n().aux]
 	for _, part := range [2]int32{d.body, d.footer} {
 		if id := f.firstControl(part); !id.IsZero() {
 			d.spec.InitialFocusID = id

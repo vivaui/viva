@@ -5,6 +5,16 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
+// widgetsOf is the control declarations the layer above owns: a Table, a Tabs
+// strip, a Select, a Dialog. The engine keeps them opaque, so it can sit below
+// the styled controls; widgets is ui's.
+func widgetsOf(f *frame) *widgets {
+	if f.controls == nil {
+		f.controls = new(widgets)
+	}
+	return f.controls.(*widgets)
+}
+
 // widgets holds the declarations of the components that are painted by package
 // components at paint time, rather than built from containers and text: a
 // Table, a Tabs strip, a Select and a Dialog. Each is a slice reused every frame,
