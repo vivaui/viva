@@ -122,7 +122,7 @@ type node struct {
 	items, self, justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
 	background           Color
-	borderWidth, radius  float32
+	BorderWidth, radius  float32
 	gridCol, gridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
 	FontSize, Weight     float32
@@ -682,7 +682,7 @@ func (f *frame) checkHits() {
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
-		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.background.Alpha > 0 || n.borderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
+		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +

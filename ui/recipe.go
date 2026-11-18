@@ -63,14 +63,14 @@ func (f *frame) applyRecipes() {
 			theme := f.recipeTheme(n, &scratch)
 			look := f.textEntryLook(theme, gfx.State{})
 			if n.Flags&flagSetBorder == 0 {
-				n.borderWidth = look.BorderWidth
+				n.BorderWidth = look.BorderWidth
 			}
 			if n.Flags&flagHasRadius == 0 {
 				n.radius = look.Radius
 			}
 			if n.Flags&flagSetPad == 0 {
 				x, y := textEntryInsets(theme, n.Kind)
-				n.pad = [4]float32{max(y-n.borderWidth, 0), max(x-n.borderWidth, 0), max(y-n.borderWidth, 0), max(x-n.borderWidth, 0)}
+				n.pad = [4]float32{max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0), max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0)}
 			}
 			if n.Kind == kindTextarea && n.minS[axisY] == 0 {
 				n.minS[axisY] = 64 // the official minimum height

@@ -40,7 +40,7 @@ func origin(r *Rect, axis int) *float32 {
 
 // inset is the padding and border on both sides of an axis.
 func (n *node) inset(axis int) (start, end float32) {
-	border := n.borderWidth
+	border := n.BorderWidth
 	if n.Flags&flagOutline != 0 {
 		border = 0 // an outline is drawn, it does not take room
 	}

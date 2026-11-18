@@ -73,7 +73,7 @@ func (b Box) edge(side int, v float32) Box {
 // what is inside them. The container's own rectangle on the axis is known.
 func (f *frame) solveAbsolute(i int32, axis int) {
 	p := &f.nodes[i]
-	border := p.borderWidth
+	border := p.BorderWidth
 	if p.Flags&flagOutline != 0 {
 		border = 0
 	}

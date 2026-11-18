@@ -280,7 +280,7 @@ func (b Box) Radius(v float32) Box {
 }
 func (b Box) Border(width float32, c Color) Box {
 	n := b.n()
-	n.borderWidth, n.Flags = width, n.Flags|flagSetBorder
+	n.BorderWidth, n.Flags = width, n.Flags|flagSetBorder
 	b.f.extra(b.i).border = c
 	return b
 }
@@ -494,7 +494,7 @@ func (b Box) Beside(anchor Rect, gap float32, align Align) Box {
 // content is laid out as if there were no line.
 func (b Box) Stroke(width float32, c Color) Box {
 	n := b.n()
-	n.borderWidth = width
+	n.BorderWidth = width
 	n.Flags |= flagOutline
 	b.f.extra(b.i).border = c
 	return b
