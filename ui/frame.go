@@ -115,7 +115,7 @@ type node struct {
 	Parent, First, Last, Next int32
 
 	Size                 [2]dimension
-	minS, maxS           [2]float32 // a max of zero is no max
+	MinS, maxS           [2]float32 // a max of zero is no max
 	Grow, Shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
 	Gap                  float32
@@ -682,7 +682,7 @@ func (f *frame) checkHits() {
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
-		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
+		if n.Size[axisX].Kind != dimAuto || n.Size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.MinS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +

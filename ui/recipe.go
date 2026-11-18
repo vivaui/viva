@@ -72,8 +72,8 @@ func (f *frame) applyRecipes() {
 				x, y := textEntryInsets(theme, n.Kind)
 				n.Pad = [4]float32{max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0), max(y-n.BorderWidth, 0), max(x-n.BorderWidth, 0)}
 			}
-			if n.Kind == kindTextarea && n.minS[axisY] == 0 {
-				n.minS[axisY] = 64 // the official minimum height
+			if n.Kind == kindTextarea && n.MinS[axisY] == 0 {
+				n.MinS[axisY] = 64 // the official minimum height
 			}
 		}
 	}

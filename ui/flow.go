@@ -28,7 +28,7 @@ func (f *frame) breakLines(n *node, avail float32) {
 	for c := n.First; c >= 0; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		ms, me := child.marginOn(axisX)
-		size := clamp(flexBasis(child, axisX, avail), child.minS[axisX], f.maxOn(child, axisX, avail)) + ms + me
+		size := clamp(flexBasis(child, axisX, avail), child.MinS[axisX], f.maxOn(child, axisX, avail)) + ms + me
 		if count > 0 && used+n.Gap+size > avail && line < math.MaxUint16 {
 			line++
 			used, count = 0, 0

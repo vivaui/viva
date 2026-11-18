@@ -159,7 +159,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 		ctx.begin(f, n, phasePlaceWidth)
 		for _, i := range ctx.children {
 			child := &f.nodes[i]
-			child.rect.Width = clamp(child.pref[axisX], child.minS[axisX], f.maxOn(child, axisX, avail))
+			child.rect.Width = clamp(child.pref[axisX], child.MinS[axisX], f.maxOn(child, axisX, avail))
 			child.rect.X = start
 		}
 		ctx.width = avail
@@ -171,7 +171,7 @@ func (f *frame) solveCustom(n *node, axis int, start, avail float32) {
 	for _, i := range ctx.children {
 		child := &f.nodes[i]
 		ctx.beforeX = append(ctx.beforeX, child.rect.X)
-		child.rect.Height = clamp(child.pref[axisY], child.minS[axisY], f.maxOn(child, axisY, avail))
+		child.rect.Height = clamp(child.pref[axisY], child.MinS[axisY], f.maxOn(child, axisY, avail))
 		child.rect.Y = start
 	}
 	is, _ := n.inset(axisX)

@@ -95,7 +95,7 @@ func (f *frame) measure(axis int) {
 			n.pref[axis] = d.value
 		}
 		n.raw[axis] = n.pref[axis]
-		n.pref[axis] = clamp(n.pref[axis], n.minS[axis], n.maxS[axis])
+		n.pref[axis] = clamp(n.pref[axis], n.MinS[axis], n.maxS[axis])
 		// A baseline is measured on the clamped size, the one paint lays the
 		// line out in.
 		if axis == axisY {
@@ -285,7 +285,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 		align := child.alignOn(n)
 		ms, me := child.marginOn(axis)
 		if align == Baseline && axis == axisY && (n.Dir == row || n.Dir == flow) {
-			*extent(&child.rect, axis) = clamp(child.pref[axis], child.minS[axis], f.maxOn(child, axis, avail))
+			*extent(&child.rect, axis) = clamp(child.pref[axis], child.MinS[axis], f.maxOn(child, axis, avail))
 			*origin(&child.rect, axis) = start + line - child.baseline
 			continue
 		}
@@ -298,7 +298,7 @@ func (f *frame) solveAcross(n *node, First, stop int32, axis int, start, avail f
 // crossSize is the size of a child on an axis its container does not flow along.
 func crossSize(child *node, axis int, avail float32, align Align, hi float32) float32 {
 	d := child.Size[axis]
-	lo := child.minS[axis]
+	lo := child.MinS[axis]
 	switch {
 	case d.Kind == dimPx:
 		return clamp(d.value, lo, hi)
@@ -414,7 +414,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			case free < 0 && shrinkSum > 0:
 				want += free * child.shrinkNow * child.base / shrinkSum
 			}
-			bounded := clamp(want, child.minS[axis], f.maxOn(child, axis, avail))
+			bounded := clamp(want, child.MinS[axis], f.maxOn(child, axis, avail))
 			violation += bounded - want
 			*extent(&child.rect, axis) = bounded
 			child.bounded = bounded
@@ -441,7 +441,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	var used float32
 	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
-		size := clamp(*extent(&child.rect, axis), child.minS[axis], f.maxOn(child, axis, avail))
+		size := clamp(*extent(&child.rect, axis), child.MinS[axis], f.maxOn(child, axis, avail))
 		*extent(&child.rect, axis) = size
 		used += size
 	}
