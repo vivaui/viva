@@ -85,6 +85,21 @@ var _ interface {
 	runShortcut(keymap.Chord) (gfx.EventResult, bool)
 } = resultWindow{}
 
+// Forward fullscreen explicitly because WindowControl embeds only the basic
+// window operations.
+func (window resultWindow) SetFullscreen(fullscreen bool) error {
+	control, ok := window.WindowControl.(fullscreenControl)
+	if !ok {
+		return platform.ErrFullscreenUnsupported
+	}
+	return control.SetFullscreen(fullscreen)
+}
+
+func (window resultWindow) Fullscreen() bool {
+	control, ok := window.WindowControl.(fullscreenControl)
+	return ok && control.Fullscreen()
+}
+
 func (window resultWindow) applyResult(result gfx.EventResult) bool {
 	return window.painter.applyEventResult(result)
 }
