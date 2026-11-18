@@ -40,6 +40,10 @@ type Field struct {
 	// Hint is the description assistive technology reads after the field's name and value, for
 	// what they do not say. It is the application's to set and clear, as Secure is.
 	Hint string
+	// Alignment places the value inside the field, as components.Input's
+	// Alignment: gfx.AlignCenter for a value centred in it, gfx.AlignRight (or
+	// AlignEnd) for one against its end. The zero value starts the text.
+	Alignment gfx.Alignment
 
 	editor *text.Editor
 	id     gfx.ID
@@ -175,7 +179,8 @@ func (field *Field) snapshot(f *frame, id gfx.ID, label, placeholder string) com
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
 		ID: id, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
-		Focused: focused,
+		Alignment: field.Alignment,
+		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the
 		// platform's editor is only where input arrives. A platform that lays text out
 		// with its own metrics can put the line a fraction of a pixel away from the
