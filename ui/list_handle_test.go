@@ -103,4 +103,7 @@ func TestListReorderHandleOnly(t *testing.T) {
 	if got := fmt.Sprint(m.moves); got != "[[1] 0 [1] 4]" || m.order() != "bcda" {
 		t.Fatalf("a drag from the handle moved %v, order %q", m.moves, m.order())
 	}
+	if got := d.focused(); got != "grip a" {
+		t.Fatalf("after the drop the keyboard is on %q, want the moved row's handle", got)
+	}
 }

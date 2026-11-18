@@ -39,7 +39,8 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 			return
 		}
 		row := -1
-		if !s.Handle.IsZero() {
+		fromHandle := !s.Handle.IsZero()
+		if fromHandle {
 			if at, inside := event.Target.In(s.Handle); inside {
 				row = at
 			}
@@ -49,6 +50,7 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		if row >= 0 && !s.isHeader(row) {
 			// Not consumed: a press that does not move is still the row's click.
 			drag.pressed, drag.from, drag.start, drag.at = true, row, point, point
+			drag.handle = fromHandle
 		}
 	case gfx.PointerMove:
 		if !drag.pressed {
@@ -75,6 +77,15 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		// which already says so, and so does its release.
 		canvas.Consume()
 		if valid && !movesNothing(rows, to) {
+			if drag.handle {
+				// The keyboard stays on the grip of what was dragged, where the
+				// next paint names it.
+				newRow := to
+				if to > rows[0] {
+					newRow = to - len(rows)
+				}
+				canvas.RequestFocus(s.Handle.At(newRow))
+			}
 			moved := append([]int(nil), rows...) // the drag's own rows are reused
 			reorder := s.Reorder
 			canvas.AfterPaint(func() { reorder(moved, to) })

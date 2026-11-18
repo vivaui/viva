@@ -135,6 +135,7 @@ type listDrag struct {
 	start, at       gfx.Point
 	to, next        int // where the rows would go as of the last promoted paint, and the one this paint finds
 	valid, nextOK   bool
+	handle          bool          // the drag started on the row's handle
 	scrolled        time.Duration // the last step of the scroll at an edge
 }
 
