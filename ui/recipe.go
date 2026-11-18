@@ -96,7 +96,7 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 	var scratch Theme
 	look := f.textEntryLook(f.recipeTheme(n, &scratch), state)
 	if n.Flags&flagSetBackground == 0 {
-		s.background = look.Fill
+		s.Background = look.Fill
 	}
 	if n.Flags&flagSetBorder == 0 {
 		s.border = look.Border

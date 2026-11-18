@@ -60,7 +60,7 @@ func (f *frame) paint(i int32) {
 	}
 
 	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
-	background, border := fade(style.background, f.opacity), fade(style.border, f.opacity)
+	background, border := fade(style.Background, f.opacity), fade(style.border, f.opacity)
 	if style.shadow != gfx.ShadowNone {
 		canvas.ElevateFaded(r, n.Radius, style.shadow, f.opacity)
 	}

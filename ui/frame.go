@@ -121,7 +121,7 @@ type node struct {
 	Gap                  float32
 	Items, Self, Justify Align
 	ColSpan              uint8 // the columns a Grid child covers; zero is one
-	background           Color
+	Background           Color
 	BorderWidth, Radius  float32
 	GridCol, GridRow     uint16 // where a Grid placed the element; gridRow is also the line a Flow put it on
 	text                 string
@@ -590,7 +590,7 @@ func (f *frame) Spacer() Box {
 func (f *frame) Divider() Box {
 	b := f.box(kindContainer)
 	n := &f.nodes[b.i]
-	n.background = f.theme.Border
+	n.Background = f.theme.Border
 	if f.Parent >= 0 && (f.nodes[f.Parent].Dir == row || f.nodes[f.Parent].Dir == flow) {
 		n.size[axisX] = dimension{dimPx, 1}
 	} else {
@@ -682,7 +682,7 @@ func (f *frame) checkHits() {
 		if n.Kind != kindContainer || n.Flags&flagHasHit == 0 || n.Flags&flagChildren != 0 || n.First >= 0 {
 			continue
 		}
-		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
+		if n.size[axisX].Kind != dimAuto || n.size[axisY].Kind != dimAuto || n.Background.Alpha > 0 || n.BorderWidth > 0 || n.outOfFlow != 0 || n.minS != [2]float32{} {
 			continue
 		}
 		panic("ui: a Row, Column or Stack given Hit(" + n.label + ") has no Children and no size, background or border, so it is empty: " +

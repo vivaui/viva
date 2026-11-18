@@ -270,7 +270,7 @@ func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
 // package components (ButtonRecipe, CheckboxRecipe...) give the theme's values to start from.
 func (b Box) Background(c Color) Box {
 	n := b.n()
-	n.background, n.Flags = c, n.Flags|flagSetBackground
+	n.Background, n.Flags = c, n.Flags|flagSetBackground
 	return b
 }
 func (b Box) Radius(v float32) Box {
