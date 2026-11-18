@@ -59,11 +59,22 @@ func (f *frame) paintTooltip() {
 	if !f.hasTooltip(f.canvas.Hovered()) {
 		// The pointer is on another frame's element (a page in a pane of this one),
 		// whose frame paints its tip, or on none.
-		f.tooltip = components.HoverTooltip{}
+		f.tooltip = nil
 		return
 	}
-	f.tooltip.Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
+	f.tooltipState().Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
 		components.HoverTooltipDelay)
+}
+
+// tooltipState is the tooltip state the layer above owns; the engine only keeps
+// it between paints.
+func (f *frame) tooltipState() *components.HoverTooltip {
+	state, _ := f.tooltip.(*components.HoverTooltip)
+	if state == nil {
+		state = new(components.HoverTooltip)
+		f.tooltip = state
+	}
+	return state
 }
 
 // tooltipSideOf is the side TooltipOn gave the element id, or below.

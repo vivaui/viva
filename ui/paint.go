@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"math"
-
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -242,47 +240,6 @@ func (f *frame) paintText(n *node) {
 	}
 }
 
-func (f *frame) paintButton(n *node) {
-	r := n.rect
-	extra := &f.exts[n.ext]
-	button := components.BeginButton(f.canvas, f.theme, n.id, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.buttonSize).
-		WithIcon(extra.icon).IconTransform(extra.iconTransform)
-	if f.styles != nil && f.styles.Button != nil {
-		button = button.Recipe(f.styles.Button)
-	}
-	if extra.buttonRecipe != nil {
-		button = button.Recipe(extra.buttonRecipe)
-	}
-	// A button is as tall as its size says unless the element was given more or less
-	// room: a Height, or a Grow along a column. It then fills that room.
-	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {
-		button = button.Height(h)
-	}
-	if n.flags&flagDisabled != 0 {
-		button = button.Disabled()
-	}
-	switch n.variant {
-	case components.ButtonSecondary:
-		button.Secondary(n.label)
-	case components.ButtonOutline:
-		button.Outline(n.label)
-	case components.ButtonGhost:
-		button.Ghost(n.label)
-	case components.ButtonLink:
-		button.Link(n.label)
-	case components.ButtonDestructive:
-		button.Destructive(n.label)
-	case components.ButtonDestructiveOutline:
-		button.DestructiveOutline(n.label)
-	default:
-		button.Default(n.label)
-	}
-}
-
-// paintInput paints the text of an Input or InputBase inside the element's Pad and Border.
-// The element's box is already down, so only the content and the hit are left. The hit
-// is the whole element, whose looks follow the same identity, while the platform is told
-// the text sits in the padded rectangle.
 func (f *frame) paintInput(n *node) {
 	// What the element says of its text (FontSize, Weight, Color) is the field's text style,
 	// over the snapshot's own: the one value the glyphs, the caret and the platform follow.

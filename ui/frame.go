@@ -258,7 +258,7 @@ type frame struct {
 	memoDepth   int                        // how many Memos of a page are recording what is declared now
 	page        *Page                      // the page declaring this frame; nil for a frame of the application's
 	tooltips    bool                       // an element was given a Tooltip: End paints the one the pointer rests on
-	tooltip     components.HoverTooltip    // the Tooltip the pointer rests on, kept between paints
+	tooltip     any                        // the tooltip state the layer above owns: see tooltipOf
 	drawContext DrawContext                // what a Draw callback is handed, reused for the frame
 	gradients   []gradient                 // the gradients of the elements that have one
 	stops       []gfx.GradientStop         // their stops, in the order declared
@@ -419,7 +419,7 @@ func (f *frame) End() {
 	if f.tooltips {
 		f.paintTooltipFn(f)
 	} else if f.paintTooltipFn != nil {
-		f.tooltip = components.HoverTooltip{}
+		f.tooltip = nil
 	}
 	f.trim()
 }
