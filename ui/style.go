@@ -40,12 +40,12 @@ import "github.com/vivaui/viva/gfx"
 // changes nothing; each method sets one thing, and what was not set is left as it
 // is. A Look is a small value to build where it is used.
 type Look struct {
-	set                lookFields
-	background, border Color
-	color, ring        Color
-	ringWidth, opacity float32
-	shadow             gfx.ShadowLevel
-	dashed             bool
+	set                        lookFields
+	lookBackground, lookBorder Color
+	lookColor, lookRing        Color
+	lookRingWidth, lookOpacity float32
+	lookShadow                 gfx.ShadowLevel
+	lookDashed                 bool
 }
 
 type lookFields uint8
@@ -64,14 +64,14 @@ const (
 // so a Look that changes the fill of an element that has one changes only what
 // shows through the gradient.
 func (l Look) Background(c Color) Look {
-	l.set, l.background = l.set|lookBackground, c
+	l.set, l.lookBackground = l.set|lookBackground, c
 	return l
 }
 
 // Border replaces the color of the element's border, which must have been given a
 // width by Border; a border of Color{} at rest is one that appears.
 func (l Look) Border(c Color) Look {
-	l.set, l.border = l.set|lookBorder, c
+	l.set, l.lookBorder = l.set|lookBorder, c
 	return l
 }
 
@@ -79,33 +79,33 @@ func (l Look) Border(c Color) Look {
 // Unlike colors and opacity, a pattern does not blend part way through a transition;
 // it changes when the transition is half done.
 func (l Look) Dashed(dashed bool) Look {
-	l.set, l.dashed = l.set|lookDashed, dashed
+	l.set, l.lookDashed = l.set|lookDashed, dashed
 	return l
 }
 
 // Color replaces the color of a Text or the tint of an Icon.
 func (l Look) Color(c Color) Look {
-	l.set, l.color = l.set|lookColor, c
+	l.set, l.lookColor = l.set|lookColor, c
 	return l
 }
 
 // Ring draws a line of the given width around the outside of the element, as Ring
 // does for the element at rest. Over an element with no ring it fades in.
 func (l Look) Ring(width float32, c Color) Look {
-	l.set, l.ringWidth, l.ring = l.set|lookRing, width, c
+	l.set, l.lookRingWidth, l.lookRing = l.set|lookRing, width, c
 	return l
 }
 
 // Shadow replaces the element's shadow with that level of the elevation scale.
 // Shadows do not blend: during a Transition the new one appears halfway.
 func (l Look) Shadow(level gfx.ShadowLevel) Look {
-	l.set, l.shadow = l.set|lookShadow, level
+	l.set, l.lookShadow = l.set|lookShadow, level
 	return l
 }
 
 // Opacity replaces the element's opacity, 0 to 1, as Box.Opacity does.
 func (l Look) Opacity(v float32) Look {
-	l.set, l.opacity = l.set|lookOpacity, min(max(v, 0), 1)
+	l.set, l.lookOpacity = l.set|lookOpacity, min(max(v, 0), 1)
 	return l
 }
 
@@ -332,29 +332,29 @@ func (s *resolved) apply(look *Look, progress float32) {
 		return
 	}
 	if look.set&lookBackground != 0 {
-		s.background = s.background.Mix(look.background, progress)
+		s.background = s.background.Mix(look.lookBackground, progress)
 	}
 	if look.set&lookBorder != 0 {
-		s.border = s.border.Mix(look.border, progress)
+		s.border = s.border.Mix(look.lookBorder, progress)
 	}
 	if look.set&lookDashed != 0 && progress >= 0.5 {
-		s.dashed = look.dashed
+		s.dashed = look.lookDashed
 	}
 	if look.set&lookColor != 0 {
-		s.color = s.color.Mix(look.color, progress)
+		s.color = s.color.Mix(look.lookColor, progress)
 	}
 	if look.set&lookRing != 0 {
 		if s.ringWidth <= 0 {
-			s.ring, s.ringWidth = Color{}, look.ringWidth // a ring that was not there fades in at its width
+			s.ring, s.ringWidth = Color{}, look.lookRingWidth // a ring that was not there fades in at its width
 		}
-		s.ring = s.ring.Mix(look.ring, progress)
-		s.ringWidth = gfx.Lerp(s.ringWidth, look.ringWidth, progress)
+		s.ring = s.ring.Mix(look.lookRing, progress)
+		s.ringWidth = gfx.Lerp(s.ringWidth, look.lookRingWidth, progress)
 	}
 	if look.set&lookShadow != 0 && progress >= 0.5 {
-		s.shadow = look.shadow
+		s.shadow = look.lookShadow
 	}
 	if look.set&lookOpacity != 0 {
-		s.opacity = gfx.Lerp(s.opacity, look.opacity, progress)
+		s.opacity = gfx.Lerp(s.opacity, look.lookOpacity, progress)
 	}
 }
 
