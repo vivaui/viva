@@ -2,6 +2,7 @@ package ui
 
 import (
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/style"
 )
 
 // Pagination adds a row of page items painted by components.Pagination: page
@@ -21,7 +22,7 @@ func (f *frame) Pagination(Items []PaginationItem) Box {
 	n.Aux = int32(len(widgetsOf(f).paginations))
 	start := int32(len(widgetsOf(f).PaginationItems))
 	for _, item := range Items {
-		widgetsOf(f).PaginationItems = append(widgetsOf(f).PaginationItems, components.PaginationItem{
+		widgetsOf(f).PaginationItems = append(widgetsOf(f).PaginationItems, style.PaginationItem{
 			ID: item.ID, Label: item.Label, Kind: components.PaginationKind(item.Kind),
 			Current: item.Current, Disabled: item.Disabled,
 		})

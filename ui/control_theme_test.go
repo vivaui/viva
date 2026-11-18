@@ -5,6 +5,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 var (
@@ -18,8 +19,8 @@ var (
 // overrides, and the control beside it keeps the theme's.
 func TestRadiusAndFontSizeStyleTheControlTheyAreCalledOn(t *testing.T) {
 	theme := gfx.LightTheme()
-	snapshot := func(ID gfx.ID) components.InputSnapshot {
-		return components.InputSnapshot{ID: ID, Label: "Name", Value: "Gopher", Focused: ID == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
+	snapshot := func(ID gfx.ID) style.InputSnapshot {
+		return style.InputSnapshot{ID: ID, Label: "Name", Value: "Gopher", Focused: ID == ctlFirst, ShowCaret: true, Caret: 2, SelectionStart: 0, SelectionEnd: 1}
 	}
 	var view View
 	flexed := testCanvas()
@@ -44,7 +45,7 @@ func TestRadiusZeroSquaresAControl(t *testing.T) {
 	var view View
 	canvas := testCanvas()
 	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 60}, func(f *Frame) {
-		f.Input(components.InputSnapshot{ID: ctlFirst, Label: "x"}).Radius(0)
+		f.Input(style.InputSnapshot{ID: ctlFirst, Label: "x"}).Radius(0)
 	})
 	if got := canvas.Rectangles()[0].Radius; got != 0 {
 		t.Fatalf("radius = %v, want a square corner", got)
@@ -102,7 +103,7 @@ func TestStyledControlsAllocateNothingOnceWarm(t *testing.T) {
 	var view View
 	canvas := testCanvas()
 	theme := gfx.LightTheme()
-	snapshot := components.InputSnapshot{ID: ctlFirst, Label: "Name", Value: "Gopher"}
+	snapshot := style.InputSnapshot{ID: ctlFirst, Label: "Name", Value: "Gopher"}
 	run := func() {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {

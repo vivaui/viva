@@ -5,6 +5,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // FieldArea is Field in several rows, with the shadcn textarea look: the same
@@ -53,7 +54,7 @@ func (field *Field) Key(event gfx.KeyEvent) gfx.EventResult {
 
 // snapshot is what the field is painted from: focus, platform editing and the caret are
 // filled in for the frame being declared.
-func (field *Field) snapshot(f *frame, ID gfx.ID, Label, placeholder string) components.InputSnapshot {
+func (field *Field) snapshot(f *frame, ID gfx.ID, Label, placeholder string) style.InputSnapshot {
 	field.rows = false // FieldArea sets it again after
 	editor := field.ensure()
 	field.ID = ID
@@ -62,7 +63,7 @@ func (field *Field) snapshot(f *frame, ID gfx.ID, Label, placeholder string) com
 	field.seen = value
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
-	snapshot := components.InputSnapshot{
+	snapshot := style.InputSnapshot{
 		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,

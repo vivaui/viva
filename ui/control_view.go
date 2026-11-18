@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -20,8 +19,8 @@ type ControlView struct {
 	Font   float32
 	Weight float32
 	// Variant and Size are the button recipe's choices.
-	Variant components.ButtonVariant
-	Size    components.ButtonSize
+	Variant style.ButtonVariant
+	Size    style.Size
 	// Flags are the element's state: the checked, mixed, small, disabled,
 	// has-hit and themed bits.
 	Flags    uint32

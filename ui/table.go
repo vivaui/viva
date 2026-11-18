@@ -3,8 +3,8 @@ package ui
 import (
 	"math"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // TableSource is where a Table reads its rows from, a row at a time and only the
@@ -36,7 +36,7 @@ type TableSpec struct {
 	Rows, Header gfx.Scope
 	// Columns are the widths and alignments, as for components.Table: a column
 	// without a width (the last) takes what is left.
-	Columns []components.TableColumn
+	Columns []style.TableColumn
 	// Headers are the column titles; none means no header row.
 	Headers []string
 	// Sortable says which columns can be sorted by clicking their header (a nil
@@ -264,7 +264,7 @@ func (f *frame) measureTable(n *node) {
 
 // tableColumnsWidth is the total width a table's columns declare: the fixed
 // widths of every column, zero for the flexible one that takes what is left.
-func tableColumnsWidth(columns []components.TableColumn) float32 {
+func tableColumnsWidth(columns []style.TableColumn) float32 {
 	width := float32(0)
 	for _, column := range columns {
 		width += max(column.Width, 0)
@@ -275,7 +275,7 @@ func tableColumnsWidth(columns []components.TableColumn) float32 {
 // frozenColumnCount is how many leading columns a table with FrozenColumns
 // count pins: the count itself, cut at the first column without a width of
 // its own, which takes what is left and pins nothing after it.
-func frozenColumnCount(columns []components.TableColumn, count int) int {
+func frozenColumnCount(columns []style.TableColumn, count int) int {
 	if count <= 0 {
 		return 0
 	}
@@ -292,7 +292,7 @@ func frozenColumnCount(columns []components.TableColumn, count int) int {
 // Every one of them must declare an explicit width, so a flexible column ends
 // the frozen band: it takes what is left and pins nothing. The count was cut
 // at it already. Zero when the table pins nothing.
-func frozenColumnsWidth(columns []components.TableColumn, count int) float32 {
+func frozenColumnsWidth(columns []style.TableColumn, count int) float32 {
 	width := float32(0)
 	for index := 0; index < count && index < len(columns); index++ {
 		width += columns[index].Width

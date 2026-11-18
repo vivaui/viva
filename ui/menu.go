@@ -252,7 +252,7 @@ type MenuItems struct {
 	root, Parent *MenuItems
 	sub          int        // the row whose submenu is open, or -1
 	subMenu      *MenuItems // that submenu, once declared in this paint
-	intent       components.HoverIntent
+	intent       style.HoverIntent
 	seen         uint32 // the page's epoch the menu was last declared in
 	focusSub     bool   // the keyboard opened the submenu: its first row takes the focus
 	focusFirst   bool   // this submenu's first row takes the focus as it paints
@@ -264,7 +264,7 @@ type MenuItems struct {
 	drawPanel    func(*gfx.Canvas, gfx.Rect, gfx.Theme)
 	drawItem     func(MenuItemParts)
 	panelPainter func(*gfx.Canvas, gfx.Rect, gfx.Theme)
-	itemPainter  func(components.MenuItemPaint)
+	itemPainter  func(style.MenuItemPaint)
 }
 
 // MenuItemParts is one row of a menu declared Unpainted. The application paints
@@ -319,7 +319,7 @@ func (m *MenuItems) DrawItem(draw func(MenuItemParts)) *MenuItems {
 
 // paintItem is the unpainted menu's row painter; it is a method value so
 // painting a menu allocates nothing.
-func (m *MenuItems) paintItem(parts components.MenuItemPaint) {
+func (m *MenuItems) paintItem(parts style.MenuItemPaint) {
 	if m.drawItem == nil {
 		return
 	}

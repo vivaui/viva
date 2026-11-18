@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // PopoverSpec declares a Popover: its identities, which are the application's, and
@@ -21,7 +21,7 @@ type PopoverSpec struct {
 	// flips to the opposite edge when there is no room. Align lines the panel up with
 	// the anchor along that edge (Auto is Center). Offset is the gap to the anchor,
 	// 4 when zero.
-	Side   components.PopoverSide
+	Side   style.PopoverSide
 	Align  Align
 	Offset float32
 	// AlignOffset moves the panel along the anchor from where Align put it, as

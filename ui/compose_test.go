@@ -8,6 +8,7 @@ import (
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 var composeScope = tree.Sub(page, tree.Name("compose-strip"))
@@ -22,14 +23,14 @@ type composedStrip struct {
 	selected int
 	segments bool
 	options  []components.TabOption
-	choices  []components.SegmentOption
+	choices  []style.SegmentOption
 }
 
 func newComposedStrip(segments bool, labels ...string) *composedStrip {
 	s := &composedStrip{labels: labels, segments: segments}
 	for i, label := range labels {
 		s.options = append(s.options, components.TabOption{ID: composeScope.At(i), Label: label})
-		s.choices = append(s.choices, components.SegmentOption{ID: composeScope.At(i), Label: label})
+		s.choices = append(s.choices, style.SegmentOption{ID: composeScope.At(i), Label: label})
 	}
 	return s
 }

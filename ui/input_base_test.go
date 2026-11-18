@@ -6,6 +6,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 var (
@@ -13,8 +14,8 @@ var (
 	baseOther = tree.ID(page, "base-other")
 )
 
-func baseSnapshot(ID gfx.ID) components.InputSnapshot {
-	return components.InputSnapshot{ID: ID, Label: "Cell", Value: "Gopher", Invalid: true}
+func baseSnapshot(ID gfx.ID) style.InputSnapshot {
+	return style.InputSnapshot{ID: ID, Label: "Cell", Value: "Gopher", Invalid: true}
 }
 
 // An InputBase is dressed by its element and by nothing else: the shadcn surface, with
@@ -205,7 +206,7 @@ func TestInputIsTheBaseDressedByTheRecipeAndPaintsAsTheComponentDoes(t *testing.
 	translucent := gfx.LightTheme()
 	translucent.Background.Alpha = .1
 	themes["translucent"] = translucent
-	snapshots := map[string]components.InputSnapshot{
+	snapshots := map[string]style.InputSnapshot{
 		"rest":        {ID: baseField, Label: "Name", Value: "Gopher"},
 		"empty":       {ID: baseField, Label: "Name", Placeholder: "Your name"},
 		"focused":     {ID: baseField, Label: "Name", Value: "Gopher", Focused: true, ShowCaret: true, Caret: 3, SelectionStart: 1, SelectionEnd: 3},
@@ -296,11 +297,11 @@ func sameVisible(t *testing.T, got, Want *gfx.Canvas) {
 // its focus color unless the caller took it over.
 func TestInputKeepsTheRecipeForWhatTheCallerDidNotSet(t *testing.T) {
 	theme := gfx.LightTheme()
-	paint := func(Focused bool, style func(Box) Box) *gfx.Canvas {
+	paint := func(Focused bool, dress func(Box) Box) *gfx.Canvas {
 		var view View
 		canvas := testCanvas()
-		snapshot := components.InputSnapshot{ID: baseField, Label: "x", Value: "v", Focused: Focused}
-		view.Draw(canvas, theme, gfx.Rect{Width: 200, Height: 60}, func(f *Frame) { style(f.Input(snapshot)) })
+		snapshot := style.InputSnapshot{ID: baseField, Label: "x", Value: "v", Focused: Focused}
+		view.Draw(canvas, theme, gfx.Rect{Width: 200, Height: 60}, func(f *Frame) { dress(f.Input(snapshot)) })
 		return canvas
 	}
 	square := paint(false, func(b Box) Box { return b.Radius(0) })
@@ -428,7 +429,7 @@ func TestFieldBaseCanBeACellEditorWhoseTextDoesNotMove(t *testing.T) {
 func BenchmarkInputPage(b *testing.B) {
 	var view View
 	canvas := testCanvas()
-	snapshot := components.InputSnapshot{ID: baseField, Label: "n", Value: "Gopher", Focused: true, ShowCaret: true, Caret: 3}
+	snapshot := style.InputSnapshot{ID: baseField, Label: "n", Value: "Gopher", Focused: true, ShowCaret: true, Caret: 3}
 	b.ReportAllocs()
 	for range b.N {
 		canvas.Reset()
@@ -453,7 +454,7 @@ func TestInputBaseTakesItsTextStyleFromTheElement(t *testing.T) {
 	var box Box
 	view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {
 		f.Row().Items(Start).Children(func() {
-			box = f.InputBase(components.InputSnapshot{ID: baseField, Label: "Type", Value: "text", Focused: true, ShowCaret: true, Caret: 2}).
+			box = f.InputBase(style.InputSnapshot{ID: baseField, Label: "Type", Value: "text", Focused: true, ShowCaret: true, Caret: 2}).
 				Width(120).FontSize(11).Weight(gfx.WeightMedium).Color(ink)
 		})
 	})
@@ -477,7 +478,7 @@ func TestInputBaseTakesItsTextStyleFromTheElement(t *testing.T) {
 // nothing: a model that carries the style with the value needs no calls on the element.
 func TestInputBaseElementStyleOverridesTheSnapshotsAndTheSnapshotsStandsAlone(t *testing.T) {
 	theme := gfx.LightTheme()
-	snapshot := components.InputSnapshot{ID: baseField, Label: "x", Value: "v", Text: components.InputTextStyle{Size: 12, Weight: gfx.WeightBold}}
+	snapshot := style.InputSnapshot{ID: baseField, Label: "x", Value: "v", Text: components.InputTextStyle{Size: 12, Weight: gfx.WeightBold}}
 	textOf := func(style func(Box) Box) gfx.HitText {
 		var view View
 		canvas := testCanvas()
@@ -494,12 +495,12 @@ func TestInputBaseElementStyleOverridesTheSnapshotsAndTheSnapshotsStandsAlone(t 
 }
 
 func TestInputBaseLineHeightIsTheElementsAndThePadComesOnTop(t *testing.T) {
-	height := func(style func(Box) Box) float32 {
+	height := func(dress func(Box) Box) float32 {
 		var view View
 		var box Box
 		view.Draw(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 240, Height: 200}, func(f *Frame) {
 			f.Row().Items(Start).Children(func() {
-				box = style(f.InputBase(components.InputSnapshot{ID: baseField, Label: "x"}).Width(100))
+				box = dress(f.InputBase(style.InputSnapshot{ID: baseField, Label: "x"}).Width(100))
 			})
 		})
 		return box.Rect().Height
@@ -520,7 +521,7 @@ func TestInputBaseLineHeightIsTheElementsAndThePadComesOnTop(t *testing.T) {
 // declared itself is not written over.
 func TestInputTextEndRightAlignsTheValueAndTheEditorGeometry(t *testing.T) {
 	theme := gfx.LightTheme()
-	snapshot := components.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Text: components.InputTextStyle{Size: 14}}
+	snapshot := style.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Text: components.InputTextStyle{Size: 14}}
 	paint := func(style func(Box) Box) *gfx.Canvas {
 		var view View
 		canvas := testCanvas()
@@ -556,7 +557,7 @@ func TestInputTextEndRightAlignsTheValueAndTheEditorGeometry(t *testing.T) {
 		t.Errorf("the platform is told alignment %v, want AlignEnd", text.Alignment)
 	}
 	// The element does not write over a snapshot that declared its own.
-	own := components.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Alignment: gfx.AlignCenter}
+	own := style.InputSnapshot{ID: baseField, Label: "Amount", Value: "42", Alignment: gfx.AlignCenter}
 	var view View
 	centered := testCanvas()
 	view.Draw(centered, theme, gfx.Rect{Width: 240, Height: 80}, func(f *Frame) {

@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // PaginationKind is what one item of a Pagination is: a page number, the
@@ -40,7 +40,7 @@ func Pagination(c C, Items []PaginationItem) Box {
 
 // paginationItems is the converted items of element n (for the measure and the
 // click report).
-func (f *frame) PaginationItems(n *node) []components.PaginationItem {
+func (f *frame) PaginationItems(n *node) []style.PaginationItem {
 	d := &widgetsOf(f).paginations[n.Aux]
 	return widgetsOf(f).PaginationItems[d.start : d.start+d.count]
 }

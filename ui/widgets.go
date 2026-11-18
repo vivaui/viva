@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // widgetsOf is the control declarations the layer above owns: a Table, a Tabs
@@ -27,7 +28,7 @@ type widgets struct {
 	dialogs         []dialogDecl
 	alertDialogs    []alertDialogDecl
 	paginations     []paginationDecl
-	PaginationItems []components.PaginationItem
+	PaginationItems []style.PaginationItem
 	drawers         []drawerDecl
 	popovers        []popoverDecl
 	// popoverFocus holds the panels whose InitialFocusID was already asked for.
@@ -43,16 +44,16 @@ type widgets struct {
 	layer        uint16   // the layer the declaration is in: a Dialog raises it for its body
 	// The control tables: inputs, groups, textareas, segmented choices and the
 	// options Choice builds. The engine keeps them opaque.
-	inputs    []components.InputSnapshot
-	groups    []components.InputGroupSnapshot
+	inputs    []style.InputSnapshot
+	groups    []style.InputGroupSnapshot
 	textareas []components.TextareaSnapshot
 	segmented []segmented
-	choices   []components.SegmentOption
+	choices   []style.SegmentOption
 }
 
 // segmented is what a Segmented control is painted from.
 type segmented struct {
-	options  []components.SegmentOption
+	options  []style.SegmentOption
 	selected gfx.ID
 }
 

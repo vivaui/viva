@@ -1,14 +1,14 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // fieldAddons is what sits inside a field beside its text: an icon at the start,
 // and a button at the end.
 type fieldAddons struct {
-	start, end components.InputGroupSlot
+	start, end style.InputGroupSlot
 }
 
 func (b Box) addons() *fieldAddons {

@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // AlertDialogSpec declares a confirmation painted by components.AlertDialog: a
@@ -25,7 +25,7 @@ type AlertDialogSpec struct {
 	// ActionLabel and CancelLabel are the two buttons' labels. ActionVariant
 	// dresses the confirming action; the cancel action is outline.
 	ActionLabel, CancelLabel string
-	ActionVariant            components.ButtonVariant
+	ActionVariant            style.ButtonVariant
 	// Small uses the alert dialog's compact layout.
 	Small bool
 	// Disabled makes both actions visible, semantic and inert.

@@ -4,8 +4,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // DrawerSide is the edge of the window a Drawer comes in from; the zero value is
@@ -120,7 +120,7 @@ type drawerSpec struct {
 // drawerSwipe is a swipe on a Drawer's handle: the component's, and where and when
 // the pointer last was, which the speed it is let go at comes from.
 type drawerSwipe struct {
-	components.DrawerSwipe
+	style.DrawerSwipe
 	at   float32
 	when time.Duration
 	pace float32 // pixels a second toward the edge, over the last move

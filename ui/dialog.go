@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // DialogSpec declares a Dialog. The identities are the application's, as with
@@ -30,7 +30,7 @@ type DialogSpec struct {
 	NoClose bool
 	// Header is the title's metrics; zero keeps the overlay dialog's.
 	// components.AlertDialogHeader gives a confirmation the alert dialog's.
-	Header components.DialogHeader
+	Header style.DialogHeader
 }
 
 type dialogDecl struct {

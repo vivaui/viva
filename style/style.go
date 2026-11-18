@@ -37,3 +37,6 @@ const (
 	SizeIconSmall
 	SizeIconLarge
 )
+
+// ButtonVariant is Variant under the name a button's looks use.
+type ButtonVariant = Variant

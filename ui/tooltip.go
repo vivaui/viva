@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // TooltipLayer is the canvas layer tooltips are painted on: over the page, its
@@ -26,14 +26,14 @@ func (b Box) Tooltip(Text string) Box {
 }
 
 // TooltipSide is the edge of its element a Tooltip opens beside.
-type TooltipSide = components.TooltipSide
+type TooltipSide = style.TooltipSide
 
 // The sides TooltipOn opens a Tooltip on.
 const (
-	TooltipTop    = components.TooltipTop
-	TooltipRight  = components.TooltipRight
-	TooltipBottom = components.TooltipBottom
-	TooltipLeft   = components.TooltipLeft
+	TooltipTop    = style.TooltipTop
+	TooltipRight  = style.TooltipRight
+	TooltipBottom = style.TooltipBottom
+	TooltipLeft   = style.TooltipLeft
 )
 
 // TooltipOn opens the element's Tooltip beside side rather than below it: an

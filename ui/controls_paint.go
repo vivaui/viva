@@ -5,6 +5,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 func (f *frame) paintCheckbox(v ControlView) {
@@ -187,7 +188,7 @@ func (f *frame) paintButton(n *node) {
 func (f *frame) Choice(scope gfx.Scope, labels []string, selected int) Box {
 	first := len(widgetsOf(f).choices)
 	for index, label := range labels {
-		widgetsOf(f).choices = append(widgetsOf(f).choices, components.SegmentOption{ID: scope.At(index), Label: label})
+		widgetsOf(f).choices = append(widgetsOf(f).choices, style.SegmentOption{ID: scope.At(index), Label: label})
 	}
 	options := widgetsOf(f).choices[first:len(widgetsOf(f).choices):len(widgetsOf(f).choices)]
 	chosen := gfx.ID{}

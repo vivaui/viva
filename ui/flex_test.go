@@ -5,6 +5,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 var (
@@ -506,11 +507,11 @@ func TestFieldsAreLaidOutAndPaintedInTreeOrder(t *testing.T) {
 	var view View
 	canvas := testCanvas()
 	theme := gfx.LightTheme()
-	options := []components.SegmentOption{{ID: save, Label: "A"}, {ID: omit, Label: "B"}}
+	options := []style.SegmentOption{{ID: save, Label: "A"}, {ID: omit, Label: "B"}}
 	var input, segment, area Box
 	f := view.Begin(canvas, theme, gfx.Rect{Width: 300, Height: 300})
 	f.Column().Fill().Gap(8).Children(func() {
-		input = f.Input(components.InputSnapshot{ID: rowID, Label: "Name", Value: "x"})
+		input = f.Input(style.InputSnapshot{ID: rowID, Label: "Name", Value: "x"})
 		segment = f.Segmented(options, save)
 		area = f.Textarea(components.TextareaSnapshot{Label: "Notes"})
 	})
@@ -526,10 +527,10 @@ func TestFieldsAreLaidOutAndPaintedInTreeOrder(t *testing.T) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Gap(8).Children(func() {
-				f.Input(components.InputSnapshot{ID: rowID, Value: "x"})
+				f.Input(style.InputSnapshot{ID: rowID, Value: "x"})
 				f.Segmented(options, save)
 				f.Textarea(components.TextareaSnapshot{})
-				f.InputGroup(components.InputGroupSnapshot{})
+				f.InputGroup(style.InputGroupSnapshot{})
 			})
 		})
 	}
@@ -610,7 +611,7 @@ func TestScrollAreaKeepsItsOffsetInRangeAndHandlesTheWheel(t *testing.T) {
 
 func TestChosenReportsTheClickedSegment(t *testing.T) {
 	var view View
-	options := []components.SegmentOption{{ID: save, Label: "A"}, {ID: omit, Label: "B"}}
+	options := []style.SegmentOption{{ID: save, Label: "A"}, {ID: omit, Label: "B"}}
 	var got gfx.ID
 	canvas := testCanvas()
 	draw := func() {
@@ -675,7 +676,7 @@ func TestASegmentedControlInARowHasItsOwnWidth(t *testing.T) {
 	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 600, Height: 60})
 	f.Row().Height(40).Children(func() {
 		f.Text("Theme").Grow(1)
-		seg = f.Segmented([]components.SegmentOption{{ID: save, Label: "System"}, {ID: omit, Label: "Dark"}}, save)
+		seg = f.Segmented([]style.SegmentOption{{ID: save, Label: "System"}, {ID: omit, Label: "Dark"}}, save)
 	})
 	f.End()
 	if seg.Rect().Width < 80 || seg.Rect().Width > 300 {

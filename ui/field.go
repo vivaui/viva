@@ -4,6 +4,7 @@ import (
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
 )
 
@@ -50,7 +51,7 @@ type Field struct {
 	input app.TextInput
 	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
 	// field does (see Box.Mono): the platform draws the caret of the others.
-	blink components.CaretBlink
+	blink style.CaretBlink
 	// seen is the text as the field was last declared, and changed whether that
 	// declaration found it edited since the one before (Box.Changed).
 	seen    string

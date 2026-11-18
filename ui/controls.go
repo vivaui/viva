@@ -7,6 +7,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // paintControls paints the controls: each kind's look, from package components
@@ -101,7 +102,7 @@ var trimControls = func(f *frame) {
 //	f.Input(snapshot).Radius(0).Border(2, theme.Primary)
 //
 // The snapshot is copied, so the caller may reuse it; its strings must stay valid until End.
-func (f *frame) Input(snapshot components.InputSnapshot) Box {
+func (f *frame) Input(snapshot style.InputSnapshot) Box {
 	b := f.InputBase(snapshot)
 	f.Nodes[b.i].Flags |= flagThemed
 	return b
@@ -125,7 +126,7 @@ func (f *frame) Input(snapshot components.InputSnapshot) Box {
 // it, from the snapshot it passed.
 //
 //	f.InputBase(snapshot).Pad(8).Border(2, theme.Primary).Radius(0).Background(theme.Background)
-func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
+func (f *frame) InputBase(snapshot style.InputSnapshot) Box {
 	b := f.Box(kindInput)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).inputs))
@@ -136,7 +137,7 @@ func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 
 // InputGroup adds a components.PaintInputGroup (a field with slots beside or above
 // it). Give it a Height when it has block slots; without one it is a control tall.
-func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
+func (f *frame) InputGroup(snapshot style.InputGroupSnapshot) Box {
 	b := f.Box(kindInputGroup)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).groups))
@@ -169,7 +170,7 @@ func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 
 // Segmented adds a components.SegmentedControl choosing among options, selected
 // being the ID of the current one. The options slice is kept until End.
-func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
+func (f *frame) Segmented(options []style.SegmentOption, selected gfx.ID) Box {
 	b := f.Box(kindSegmented)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).segmented))

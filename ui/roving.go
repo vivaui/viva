@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // rover is a Choice or a Tabs strip declared in the last paint, whose arrow keys
@@ -44,7 +44,7 @@ func (p *Page) SliderKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-func hasOption(options []components.SegmentOption, ID gfx.ID) bool {
+func hasOption(options []style.SegmentOption, ID gfx.ID) bool {
 	for i := range options {
 		if options[i].ID == ID {
 			return true

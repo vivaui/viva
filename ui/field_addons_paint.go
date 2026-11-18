@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // Icon puts icon on a Button before its label, or alone on an IconOnly one, whose
@@ -17,7 +18,7 @@ func (b Box) Icon(icon gfx.Icon) Box {
 		b.f.Extra(b.i).icon = icon
 		return b
 	}
-	b.addons().start = components.InputGroupSlot{Kind: components.InputGroupSlotIcon, Icon: icon}
+	b.addons().start = style.InputGroupSlot{Kind: style.InputGroupSlotIcon, Icon: icon}
 	return b
 }
 
@@ -31,8 +32,8 @@ func (b Box) Icon(icon gfx.Icon) Box {
 //	}
 func (b Box) Action(icon gfx.Icon, Label string) Box {
 	a := b.addons()
-	a.end = components.InputGroupSlot{
-		Kind: components.InputGroupSlotButton, ID: b.actionID(), Icon: icon, Label: Label,
+	a.end = style.InputGroupSlot{
+		Kind: style.InputGroupSlotButton, ID: b.actionID(), Icon: icon, Label: Label,
 		ButtonSize: components.InputGroupButtonIconXS,
 	}
 	return b
@@ -46,7 +47,7 @@ func (b Box) ActionClicked() bool {
 		return false
 	}
 	end := b.f.addons[b.f.Exts[n.Ext].addons-1].end
-	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.Surface.Clicked(end.ID) {
+	if end.Kind != style.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.Surface.Clicked(end.ID) {
 		return false
 	}
 	b.f.Surface.RequestFocus(widgetsOf(b.f).inputs[n.Aux].ID)
@@ -55,7 +56,7 @@ func (b Box) ActionClicked() bool {
 
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
-func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
+func (f *frame) paintAddons(n *node, snapshot style.InputSnapshot, a *fieldAddons) {
 	canvas, theme := f.Surface, f.Palette
 	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.Rect, a.start, a.end)
