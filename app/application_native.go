@@ -86,6 +86,7 @@ var _ platform.WindowSizer = resultWindow{}
 var _ fullscreenControl = resultWindow{}
 var _ alwaysOnTopControl = resultWindow{}
 var _ shortcutCapturer = resultWindow{}
+var _ platform.WindowMover = resultWindow{}
 
 // What OpenWindow looks for in a host's window control.
 var _ interface {
@@ -121,6 +122,16 @@ func (window resultWindow) SetAlwaysOnTop(enabled bool) error {
 		return platform.ErrAlwaysOnTopUnsupported
 	}
 	return control.SetAlwaysOnTop(enabled)
+}
+
+func (window resultWindow) MoveTo(origin gfx.Point) {
+	if control, ok := window.WindowControl.(platform.WindowMover); ok {
+		control.MoveTo(origin)
+	}
+}
+
+func (window resultWindow) unwrapWindowControl() WindowControl {
+	return window.WindowControl
 }
 
 func (window resultWindow) CaptureSystemShortcuts(capture bool) error {
