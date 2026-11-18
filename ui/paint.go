@@ -9,6 +9,12 @@ import (
 
 func (f *frame) paint(i int32) {
 	n := &f.nodes[i]
+	if !n.focusScope.IsZero() {
+		// A menu's page controls paint in the menu's focus scope, so a press on
+		// them reaches them while the menu traps the pointer.
+		f.canvas.PushFocusScope(n.focusScope)
+		defer f.canvas.PopFocusScope()
+	}
 	if n.band != 0 {
 		// An application overlay's subtree paints on its band, over the page and
 		// under Viva's widgets. Hits declared in it capture the same layer, so the

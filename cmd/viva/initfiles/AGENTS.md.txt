@@ -156,6 +156,9 @@ func (m *model) page(c ui.C) {
   (opens as the pointer rests on it, on a click, or on Right/Enter/Space; Left goes back), in a ContextMenu too.
 - A right-click menu: `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` (Shift+F10 opens it too); items
   take `.Icon(icon)`, `.Keys(ui.Primary, "c")` (shown, not bound), `.Checked(on)` and `.Chosen(on)`.
+- A row a menu cannot say: `menu.ContentPage(40, func(c ui.C) { ui.ColorSwatch(c, ...) })` declares page controls
+  in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
+  the page cannot declare.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
   handle that a drag toward the edge closes it by (past half its size, or thrown).
