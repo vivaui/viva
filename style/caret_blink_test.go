@@ -1,4 +1,4 @@
-package components
+package style
 
 import (
 	"testing"

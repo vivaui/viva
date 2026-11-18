@@ -68,40 +68,7 @@ type InputSnapshot struct {
 // the selection and the composition underline, the ellipsis a long placeholder ends in, the
 // height of the caret, and the text geometry (size, weight and color) declared to the
 // platform's text service.
-type InputTextStyle struct {
-	// Size is the font size in points; zero is the theme's body size.
-	Size float32
-	// Weight is the font weight, 100 to 900 as in gfx.TextStyle; zero is regular.
-	Weight float32
-	// Color is the color of the text; the zero color, which is transparent, is the theme's
-	// foreground.
-	Color gfx.Color
-	// Mono sets the text in a fixed-pitch face, MonoFace choosing which (gfx.TextStyle's own).
-	// The platform's text service draws one proportional face, so a mono field is painted
-	// by the component: its glyphs, selection, composition underline and caret are drawn in
-	// the field, and the platform is kept for what only it does (typing, the input method
-	// and the clipboard) with its own text and overlays hidden. The snapshot must then say
-	// where the caret, the selection and the composition are (Caret, SelectionStart and so
-	// on), and may give the caret's blink phase in Blink.
-	Mono     bool
-	MonoFace gfx.MonoFace
-}
-
-// style is the gfx.TextStyle the field's text is drawn and measured in under a theme: the zero
-// size, weight and color are the theme's body size, regular weight and foreground.
-func (s InputTextStyle) style(theme *gfx.Theme) gfx.TextStyle {
-	style := gfx.TextStyle{Size: s.Size, Weight: s.Weight, Color: s.Color, Mono: s.Mono, MonoFace: s.MonoFace}
-	if style.Size <= 0 {
-		style.Size = theme.Metrics.FontSizeM
-	}
-	if style.Weight <= 0 {
-		style.Weight = gfx.WeightRegular
-	}
-	if style.Color == (gfx.Color{}) {
-		style.Color = theme.Foreground
-	}
-	return style
-}
+type InputTextStyle = style.InputTextStyle
 
 // PaintInput paints the official Vega input recipe and returns its normalized
 // geometry. Byte offsets describe DisplayValue (or Value when DisplayValue is
@@ -152,7 +119,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 	if snapshot.Alignment == gfx.AlignLeft {
 		snapshot.Alignment = gfx.AlignStart
 	}
-	style := snapshot.Text.style(&theme)
+	style := snapshot.Text.TextStyle(&theme)
 	// A mono field is painted by the component whatever the snapshot says of the platform: the
 	// platform's text service cannot draw its face, so its text and overlays are hidden. A
 	// field that asked to hide the editor's text is painted by the component too, and the
@@ -219,7 +186,7 @@ func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snaps
 }
 
 func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) {
-	textStyle := snapshot.Text.style(&theme)
+	textStyle := snapshot.Text.TextStyle(&theme)
 	fontSize, ink := textStyle.Size, textStyle.Color
 	color := ink
 	if value == "" {
