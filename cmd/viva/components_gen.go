@@ -128,7 +128,7 @@ var componentRequires = map[string][]string{
 	"combobox":           {"checkbox", "dialog", "dropdown-menu", "input", "popover", "tree"},
 	"command":            {"checkbox", "dialog", "dropdown-menu"},
 	"context-menu":       {"dialog", "dropdown-menu", "popover"},
-	"dialog":             {"button"},
+	"dialog":             {"alert-dialog", "button"},
 	"drawer":             {"button", "dialog"},
 	"dropdown-menu":      {"checkbox", "dialog", "hover-card", "kbd", "popover", "tree"},
 	"find-bar":           {"button", "dialog", "input", "toggle", "tree"},
