@@ -272,7 +272,7 @@ type frame struct {
 	memoFn     func(f *frame, i int32, before bool) bool
 	Lines      []string
 	controls   any                 // the layer above's control declarations: see widgetsOf
-	ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	Ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	Wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor int
 	scratch    scratch       // memory the layout borrows, see scratch.go
@@ -419,8 +419,8 @@ func (f *frame) trim() {
 	if f.wrapCursor < len(f.Wraps) {
 		f.Wraps = f.Wraps[:f.wrapCursor]
 	}
-	if f.wrapCursor < len(f.ellipses) {
-		f.ellipses = f.ellipses[:f.wrapCursor]
+	if f.wrapCursor < len(f.Ellipses) {
+		f.Ellipses = f.Ellipses[:f.wrapCursor]
 	}
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.Nodes = trimFlexCapacity(f.Nodes)
@@ -430,7 +430,7 @@ func (f *frame) trim() {
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
 	f.Lines = trimFlexCapacity(f.Lines)
-	f.ellipses = trimFlexCapacity(f.ellipses)
+	f.Ellipses = trimFlexCapacity(f.Ellipses)
 	f.Wraps = trimFlexCapacity(f.Wraps)
 	trimControls(f)
 	f.scratch.abs = trimFlexCapacity(f.scratch.abs)

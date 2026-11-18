@@ -29,13 +29,13 @@ type wrapCache struct {
 // the full line set and the ellipsized last line are kept for the life of the view,
 // so a page that does not change does no wrapping or string building.
 func (f *frame) wrapText(dst []string, n *node) []string {
-	if f.wrapCursor == len(f.ellipses) {
-		f.ellipses = append(f.ellipses, gfx.EllipsisCache{})
+	if f.wrapCursor == len(f.Ellipses) {
+		f.Ellipses = append(f.Ellipses, gfx.EllipsisCache{})
 	}
 	if f.wrapCursor == len(f.Wraps) {
 		f.Wraps = append(f.Wraps, wrapCache{})
 	}
-	cache := &f.ellipses[f.wrapCursor]
+	cache := &f.Ellipses[f.wrapCursor]
 	wrapped := &f.Wraps[f.wrapCursor]
 	f.wrapCursor++
 	width := max(n.rect.Width-n.padX(), 1)
