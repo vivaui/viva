@@ -382,13 +382,13 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 	for c := First; c != stop; c = f.nodes[c].Next {
 		child := &f.nodes[c]
 		child.base = *extent(&child.rect, axis)
-		child.frozen = false
+		child.Frozen = false
 	}
 	for pass := 0; pass <= count; pass++ {
 		var frozenSize, baseSum, growSum, shrinkSum float32
 		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
-			if child.frozen {
+			if child.Frozen {
 				frozenSize += *extent(&child.rect, axis)
 				continue
 			}
@@ -404,7 +404,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		var violation float32
 		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
-			if child.frozen {
+			if child.Frozen {
 				continue
 			}
 			want := child.base
@@ -423,12 +423,12 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		done := true
 		for c := First; c != stop; c = f.nodes[c].Next {
 			child := &f.nodes[c]
-			if child.frozen {
+			if child.Frozen {
 				continue
 			}
 			clampedUp, clampedDown := child.Bounded > child.Want, child.Bounded < child.Want
 			if violation == 0 || violation > 0 && clampedUp || violation < 0 && clampedDown {
-				child.frozen = true
+				child.Frozen = true
 			} else {
 				done = false
 			}

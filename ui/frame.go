@@ -159,7 +159,7 @@ type node struct {
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	GrowNow, ShrinkNow  float32
 	base, Want, Bounded float32 // while flexible lengths are resolved
-	frozen              bool
+	Frozen              bool
 	rect                Rect
 	band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
 	focusScope          gfx.ID // the focus scope the subtree paints in, when it is not the page's

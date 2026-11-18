@@ -139,14 +139,14 @@ func TestFrozenTableScrollbarDragsWhatScrolls(t *testing.T) {
 // unfrozen: every row hit has its source row, and RowID answers for them.
 func TestFrozenTableKeepsRowIdentities(t *testing.T) {
 	rows := make(TableRows, 100)
-	paint := func(frozen int) (*TableState, []gfx.Hit) {
+	paint := func(Frozen int) (*TableState, []gfx.Hit) {
 		var state TableState
 		canvas := testCanvas()
 		var view View
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				spec := frozenSpec(&state, &rows)
-				spec.FrozenColumns = frozen
+				spec.FrozenColumns = Frozen
 				f.Table(&state, spec).Fill()
 			})
 		})
