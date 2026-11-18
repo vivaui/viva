@@ -20,11 +20,12 @@ func TestSplitButtonJoinsTwoNamedActions(t *testing.T) {
 			Hint: "Save the file", MenuHint: "More ways to save",
 			Open: true,
 		})
-		if b.PrimaryClicked() {
-			model.primary++
-		}
-		if b.MenuClicked() {
-			model.menu++
+		if id, ok := b.Chosen(); ok {
+			if id == gfx.Item(1) {
+				model.primary++
+			} else if id == gfx.Item(2) {
+				model.menu++
+			}
 		}
 	}
 	d := openPage(t, view)
@@ -59,16 +60,12 @@ func TestSplitButtonJoinsTwoNamedActions(t *testing.T) {
 }
 
 // A split button declared without identities is named by the page, as a Button is,
-// and still reports its two halves.
+// and still reports the half a click chose.
 func TestSplitButtonNamesItsHalvesWhenGivenNoIdentity(t *testing.T) {
-	model := struct{ primary, menu int }{}
+	var chosen gfx.ID
 	view := func(c ui.C) {
-		b := ui.SplitButton(c, ui.SplitButtonSpec{Label: "Save", MenuLabel: "Save as"})
-		if b.PrimaryClicked() {
-			model.primary++
-		}
-		if b.MenuClicked() {
-			model.menu++
+		if id, ok := ui.SplitButton(c, ui.SplitButtonSpec{Label: "Save", MenuLabel: "Save as"}).Chosen(); ok {
+			chosen = id
 		}
 	}
 	d := openPage(t, view)
@@ -76,9 +73,14 @@ func TestSplitButtonNamesItsHalvesWhenGivenNoIdentity(t *testing.T) {
 	if primary.ID.IsZero() || menu.ID.IsZero() || primary.ID == menu.ID {
 		t.Errorf("page-named halves are %v and %v, want two distinct identities", primary.ID, menu.ID)
 	}
+	chosen = gfx.ID{}
 	d.click("Save")
+	if chosen != primary.ID {
+		t.Errorf("a click on the primary reported %v, want %v", chosen, primary.ID)
+	}
+	chosen = gfx.ID{}
 	d.click("Save as")
-	if model.primary != 1 || model.menu != 1 {
-		t.Errorf("clicks reported primary=%d menu=%d, want 1 and 1", model.primary, model.menu)
+	if chosen != menu.ID {
+		t.Errorf("a click on the trigger reported %v, want %v", chosen, menu.ID)
 	}
 }

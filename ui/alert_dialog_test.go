@@ -71,28 +71,30 @@ func TestAlertDialogReportsItsTwoActions(t *testing.T) {
 	viewport := gfx.Rect{Width: 640, Height: 400}
 	spec := AlertDialogSpec{
 		Title: "Delete host?", Description: "This cannot be undone.",
-		Scope: dlgScope.ID(tree.Name("scope")),
+		Scope:    dlgScope.ID(tree.Name("scope")),
 		ActionID: dlgYes, CancelID: dlgNo, ActionLabel: "Delete", CancelLabel: "Cancel",
 	}
-	confirmed, cancelled := false, false
+	chosen := gfx.ID{}
 	var view View
 	draw := func(canvas *gfx.Canvas, action gfx.ID) {
 		canvas.BeginEventPass(action, gfx.ClickInfo{})
+		chosen = gfx.ID{}
 		view.Draw(canvas, theme, viewport, func(f *Frame) {
-			d := f.AlertDialog(spec)
-			confirmed, cancelled = d.Confirmed(), d.Cancelled()
+			if id, ok := f.AlertDialog(spec).Chosen(); ok {
+				chosen = id
+			}
 		})
 	}
 	draw(testCanvas(), dlgYes)
-	if !confirmed || cancelled {
-		t.Errorf("a click on the action reported confirmed=%v cancelled=%v, want true and false", confirmed, cancelled)
+	if chosen != spec.ActionID {
+		t.Errorf("a click on the action reported %v, want %v", chosen, spec.ActionID)
 	}
 	draw(testCanvas(), dlgNo)
-	if confirmed || !cancelled {
-		t.Errorf("a click on the cancel reported confirmed=%v cancelled=%v, want false and true", confirmed, cancelled)
+	if chosen != spec.CancelID {
+		t.Errorf("a click on the cancel reported %v, want %v", chosen, spec.CancelID)
 	}
 	draw(testCanvas(), gfx.ID{})
-	if confirmed || cancelled {
-		t.Error("a paint without a click reported an action")
+	if !chosen.IsZero() {
+		t.Errorf("a paint without a click reported %v", chosen)
 	}
 }

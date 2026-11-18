@@ -14,8 +14,7 @@ import (
 //		PrimaryID: saveID, MenuID: saveMenuID, Label: "Save",
 //		MenuLabel: "Save as", MenuHint: "Compare and save",
 //	})
-//	if d.PrimaryClicked() { save() }
-//	if d.MenuClicked() { openMenu() }
+//	if id, ok := d.Chosen(); ok && id == saveID { save() }
 type SplitButtonSpec struct {
 	PrimaryID, MenuID gfx.ID
 	// Label names the primary action on screen and to assistive technology.
@@ -46,8 +45,7 @@ type splitButtonDecl struct {
 // was said, as components.SplitButton's default.
 const splitButtonTrigger = float32(32)
 
-// SplitButton adds a split button. PrimaryClicked and MenuClicked report which
-// half a click is on.
+// SplitButton adds a split button. Chosen reports which half a click is on.
 func (f *frame) SplitButton(spec SplitButtonSpec) Box {
 	b := f.box(kindSplitButton)
 	n := &f.nodes[b.i]
@@ -118,26 +116,6 @@ func (b Box) MenuTriggerWidth(width float32) Box {
 		b.f.widgets.splitButtons[n.aux].triggerWidth = width
 	}
 	return b
-}
-
-// PrimaryClicked reports whether this paint is delivering a click on a
-// SplitButton's primary action.
-func (b Box) PrimaryClicked() bool {
-	n := b.n()
-	if n.kind != kindSplitButton || b.f.canvas == nil {
-		return false
-	}
-	return b.f.canvas.Clicked(b.f.widgets.splitButtons[n.aux].primary)
-}
-
-// MenuClicked reports whether this paint is delivering a click on a
-// SplitButton's trigger.
-func (b Box) MenuClicked() bool {
-	n := b.n()
-	if n.kind != kindSplitButton || b.f.canvas == nil {
-		return false
-	}
-	return b.f.canvas.Clicked(b.f.widgets.splitButtons[n.aux].menu)
 }
 
 // paintSplitButton paints both halves with the page's variant, size, name and

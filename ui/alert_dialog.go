@@ -38,13 +38,13 @@ type alertDialogDecl struct {
 }
 
 // AlertDialog adds a confirmation dialog painted by components.AlertDialog, the
-// alert dialog's title metrics and geometry included. ActionClicked and
-// CancelClicked report which action a paint is delivering:
+// alert dialog's title metrics and geometry included. Chosen reports the action a
+// paint is delivering a click on:
 //
 //	d := f.AlertDialog(AlertDialogSpec{Title: "Discard changes?", Description: "This cannot be undone.",
 //		Scope: dlgScope, ActionID: discardID, CancelID: cancelID,
 //		ActionLabel: "Discard", CancelLabel: "Cancel", ActionVariant: components.ButtonDestructive})
-//	if d.Confirmed() { discard() }
+//	if id, ok := d.Chosen(); ok && id == discardID { discard() }
 func (f *frame) AlertDialog(spec AlertDialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
@@ -69,26 +69,6 @@ func AlertDialog(c C, spec AlertDialogSpec) Box {
 	p.forbidInMemo("AlertDialog")
 	p.overlay = true
 	return c.f.AlertDialog(spec)
-}
-
-// Confirmed reports whether this paint is delivering a click on the confirming
-// action.
-func (b Box) Confirmed() bool {
-	n := b.n()
-	if n.flags&flagAlertDialog == 0 || b.f.canvas == nil {
-		return false
-	}
-	return b.f.canvas.Clicked(b.f.widgets.alertDialogs[n.aux].spec.ActionID)
-}
-
-// Cancelled reports whether this paint is delivering a click on the cancel
-// action.
-func (b Box) Cancelled() bool {
-	n := b.n()
-	if n.flags&flagAlertDialog == 0 || b.f.canvas == nil {
-		return false
-	}
-	return b.f.canvas.Clicked(b.f.widgets.alertDialogs[n.aux].spec.CancelID)
 }
 
 // paintAlertDialog paints a confirmation: components.AlertDialog owns its scrim,
