@@ -206,82 +206,104 @@ func (f *frame) paintControl(n *node, r Rect) {
 // for the ones that ship with a theme, and from the caller's own painter for
 // the ones it declared.
 func (f *frame) paintControls(n *node, r Rect) {
+	if painter := controlPainters[n.kind]; painter != nil {
+		painter(f, n, r)
+	}
+}
+
+// controlPainters paints one control kind. It is an array, not a map: the kind
+// is a small number and the lookup must not hash on the frame's path.
+var controlPainters = [...]func(f *frame, n *node, r Rect){
+	kindButton:      (*frame).paintButtonControl,
+	kindCheckbox:    (*frame).paintCheckboxControl,
+	kindSwitch:      (*frame).paintSwitchControl,
+	kindInput:       (*frame).paintInputControl,
+	kindInputGroup:  (*frame).paintInputGroupControl,
+	kindTextarea:    (*frame).paintTextareaControl,
+	kindSegmented:   (*frame).paintSegmentedControl,
+	kindTable:       (*frame).paintWidgetControl,
+	kindTabs:        (*frame).paintWidgetControl,
+	kindSelect:      (*frame).paintWidgetControl,
+	kindProgress:    (*frame).paintProgressControl,
+	kindSpinner:     (*frame).paintSpinnerControl,
+	kindSplitter:    (*frame).paintSplitterControl,
+	kindSplitButton: (*frame).paintSplitButtonControl,
+	kindBadge:       (*frame).paintBadgeControl,
+	kindPagination:  (*frame).paintPaginationControl,
+	kindSlider:      (*frame).paintSliderControl,
+}
+
+func (f *frame) paintButtonControl(n *node, _ Rect)      { f.paintButton(n) }
+func (f *frame) paintInputControl(n *node, _ Rect)       { f.paintInput(n) }
+func (f *frame) paintTextareaControl(n *node, _ Rect)    { f.paintTextarea(n) }
+func (f *frame) paintProgressControl(n *node, _ Rect)    { f.paintProgress(n) }
+func (f *frame) paintSpinnerControl(n *node, _ Rect)     { f.paintSpinner(n) }
+func (f *frame) paintSplitterControl(n *node, _ Rect)    { f.paintSplitter(n) }
+func (f *frame) paintSliderControl(n *node, _ Rect)      { f.paintSlider(n) }
+func (f *frame) paintWidgetControl(n *node, _ Rect)      { f.paintWidget(n) }
+func (f *frame) paintSplitButtonControl(n *node, r Rect) { f.paintSplitButton(n) }
+func (f *frame) paintBadgeControl(n *node, _ Rect)       { f.paintBadge(n) }
+func (f *frame) paintPaginationControl(n *node, _ Rect)  { f.paintPagination(n) }
+
+func (f *frame) paintCheckboxControl(n *node, r Rect) {
+	canvas := f.canvas
+	side := components.CheckboxExtent(f.theme)
+	bounds := Rect{X: r.X + (r.Width-side)/2, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
+	if n.text != "" {
+		bounds.X = r.X
+		f.captionFn(f, n, bounds)
+	}
+	checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
+	if n.flags&flagMixed != 0 {
+		checkbox = checkbox.Indeterminate()
+	}
+	if f.styles != nil && f.styles.Checkbox != nil {
+		checkbox = checkbox.Recipe(f.styles.Checkbox)
+	}
+	if n.label != "" {
+		checkbox = checkbox.Label(n.label)
+	}
+	if n.flags&flagDisabled != 0 {
+		checkbox = checkbox.Disabled()
+	}
+	checkbox.Paint()
+}
+
+func (f *frame) paintSwitchControl(n *node, r Rect) {
 	canvas := f.canvas
 	extra := &f.exts[n.ext]
-	switch n.kind {
-	case kindButton:
-		f.paintButton(n)
-	case kindCheckbox:
-		side := components.CheckboxExtent(f.theme)
-		bounds := Rect{X: r.X + (r.Width-side)/2, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
-		if n.text != "" {
-			bounds.X = r.X
-			f.captionFn(f, n, bounds)
-		}
-		checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
-		if n.flags&flagMixed != 0 {
-			checkbox = checkbox.Indeterminate()
-		}
-		if f.styles != nil && f.styles.Checkbox != nil {
-			checkbox = checkbox.Recipe(f.styles.Checkbox)
-		}
-		if n.label != "" {
-			checkbox = checkbox.Label(n.label)
-		}
-		if n.flags&flagDisabled != 0 {
-			checkbox = checkbox.Disabled()
-		}
-		checkbox.Paint()
-	case kindInput:
-		f.paintInput(n)
-	case kindInputGroup:
-		components.PaintInputGroup(canvas, f.theme, r, f.groups[n.aux])
-	case kindTextarea:
-		f.paintTextarea(n)
-	case kindSegmented:
-		choice := f.segmented[n.aux]
-		components.BeginSegmentedControl(canvas, f.theme, r, choice.options, choice.selected).Paint()
-	case kindTable, kindTabs, kindSelect:
-		f.paintWidget(n)
-	case kindProgress:
-		f.paintProgress(n)
-	case kindSpinner:
-		f.paintSpinner(n)
-	case kindSplitter:
-		f.paintSplitter(n)
-	case kindSplitButton:
-		f.paintSplitButton(n)
-	case kindBadge:
-		f.paintBadge(n)
-	case kindPagination:
-		f.paintPagination(n)
-	case kindSlider:
-		f.paintSlider(n)
-	case kindSwitch:
-		small := n.flags&flagSmall != 0
-		width, height := components.SwitchExtent(f.theme, small)
-		bounds := Rect{X: r.X + (r.Width-width)/2, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
-		if n.text != "" {
-			bounds.X = r.X
-			f.captionFn(f, n, bounds)
-		}
-		control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
-		if recipe := extra.switchRecipe; recipe != nil {
-			control = control.Recipe(recipe)
-		} else if f.styles != nil && f.styles.Switch != nil {
-			control = control.Recipe(f.styles.Switch)
-		}
-		if small {
-			control = control.Small()
-		}
-		if n.label != "" {
-			control = control.Label(n.label)
-		}
-		if n.flags&flagDisabled != 0 {
-			control = control.Disabled()
-		}
-		control.Paint()
+	small := n.flags&flagSmall != 0
+	width, height := components.SwitchExtent(f.theme, small)
+	bounds := Rect{X: r.X + (r.Width-width)/2, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+	if n.text != "" {
+		bounds.X = r.X
+		f.captionFn(f, n, bounds)
 	}
+	control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
+	if recipe := extra.switchRecipe; recipe != nil {
+		control = control.Recipe(recipe)
+	} else if f.styles != nil && f.styles.Switch != nil {
+		control = control.Recipe(f.styles.Switch)
+	}
+	if small {
+		control = control.Small()
+	}
+	if n.label != "" {
+		control = control.Label(n.label)
+	}
+	if n.flags&flagDisabled != 0 {
+		control = control.Disabled()
+	}
+	control.Paint()
+}
+
+func (f *frame) paintInputGroupControl(n *node, r Rect) {
+	components.PaintInputGroup(f.canvas, f.theme, r, f.groups[n.aux])
+}
+
+func (f *frame) paintSegmentedControl(n *node, r Rect) {
+	choice := f.segmented[n.aux]
+	components.BeginSegmentedControl(f.canvas, f.theme, r, choice.options, choice.selected).Paint()
 }
 
 func (f *frame) paintText(n *node) {
