@@ -149,7 +149,7 @@ import (
 func TestForm(t *testing.T) {
 	s := &Settings{Size: "Small"}
 	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) { s.Form(c).Pad(16) }})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 480}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 480, Height: 480}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

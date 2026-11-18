@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/text"
+	"github.com/vivaui/viva/window"
 )
 
 // Field is one single-line text field's state, kept in the application's model; the
@@ -47,7 +47,7 @@ type Field struct {
 	ID     gfx.ID
 	// input is the stable TextInput the platform provider hands out. Returning
 	// a fresh one on every repaint allocated once per focused frame.
-	input app.TextInput
+	input window.TextInput
 	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
 	// field does (see Box.Mono): the platform draws the caret of the others.
 	blink style.CaretBlink
@@ -194,8 +194,8 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 // Fields answers Config.TextInput for the fields: the platform asks which editor
 // belongs to the focused control, and gets the one of the field declared with that
 // identity.
-func Fields(fields ...*Field) func(app.TextInputContext) *app.TextInput {
-	return func(context app.TextInputContext) *app.TextInput {
+func Fields(fields ...*Field) func(window.TextInputContext) *window.TextInput {
+	return func(context window.TextInputContext) *window.TextInput {
 		for _, field := range fields {
 			if field.ID == context.ID && !context.ID.IsZero() {
 				field.input.Alignment = context.Alignment

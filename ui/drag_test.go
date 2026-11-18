@@ -338,7 +338,7 @@ func BenchmarkDragRepaint(b *testing.B) {
 	m := newDragModel(true)
 	page := ui.NewPage(ui.PageConfig{View: m.page})
 	invalidator := new(app.Invalidator)
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 480, Invalidator: invalidator}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 480, Height: 480, Invalidator: invalidator}), nil)
 	if err != nil {
 		b.Fatal(err)
 	}

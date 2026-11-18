@@ -38,7 +38,6 @@ import (
 	"sync/atomic"
 	"unsafe"
 
-	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/window"
 )
@@ -104,10 +103,10 @@ func (c *Ctx) After(fn func()) {
 func ID(c C) gfx.ID { return c.page.ControlID(pkCustom) }
 
 // Application is the application whose window the page was opened in by
-// OpenWindow, so a handler can open more windows. It is nil for a page run by
-// Run or RunCanvas, or drawn into a window of someone else's, which have no
-// Application.
-func (c *Ctx) Application() *app.Application { return c.page.application }
+// OpenWindow, so a handler can open more windows: a *app.Application. It is nil
+// for a page run by Run or RunCanvas, or drawn into a window of someone else's,
+// which have no Application.
+func (c *Ctx) Application() any { return c.page.application }
 
 // Theme is the page's theme. Read it; do not keep it.
 func (c *Ctx) Theme() *Theme { return &c.f.Palette }
@@ -196,6 +195,9 @@ type PageConfig struct {
 	// repaints in the other theme when it switches (app.WatchSystemAppearance). It
 	// is off by default: watching costs a listener on some desktops.
 	FollowSystemTheme bool
+	// Appearance reports the system's appearance, for FollowSystemTheme. Nil is
+	// the light theme; the facade sets it from the platform.
+	Appearance func() window.Appearance
 	// Background is the color Paint fills the window with, the theme's Background
 	// when nil. Draw fills nothing.
 	Background *Color
@@ -242,7 +244,7 @@ type Page struct {
 	effectContext context.Context    // what their runs derive from; cancelled when the page closes
 	effectCancel  context.CancelFunc // cancels effectContext
 	invalidator   window.Invalidator // wakes the window when work finishes, when the page has one
-	application   *app.Application   // what OpenWindow opened the page's window in, else nil
+	application   any                // what OpenWindow opened the page's window in, else nil
 
 	scopes      []*protoScope // by scope: Scopes are dense indexes into the Tree
 	Nodes       []protoNode   // each container of the frame, by node index
@@ -291,7 +293,7 @@ type Page struct {
 	lists       []listDecl
 	listRows    []int32 // the row containers of this paint's Lists
 
-	baseText     app.TextInputProvider
+	baseText     window.TextInputProvider
 	baseScroll   func(gfx.ScrollEvent) gfx.EventResult
 	baseKey      func(gfx.KeyEvent) gfx.EventResult
 	basePointer  func(gfx.PointerEvent) gfx.EventResult
@@ -315,7 +317,7 @@ type Page struct {
 	wheelXRoute   func(*Page, gfx.ScrollEvent) (moved, only bool)   // the sideways wheel of a List with RowWidth
 	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
-	textRoute     func(*Page, gfx.ID) *app.TextInput
+	textRoute     func(*Page, gfx.ID) *window.TextInput
 }
 
 // protoNode is a container of the frame: where it is named (in the container at
@@ -368,42 +370,6 @@ func NewPage(config PageConfig) *Page {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Page{config: config, checkMemos: config.MemoCheck, effectContext: ctx, effectCancel: cancel, invalidator: config.Invalidator}
-}
-
-// Run opens a window that declares view, and blocks until it closes: an
-// application in one call. The config's Tree, Paint, TextInput and OnScroll are
-// the page's (see Page.Config).
-func Run(config app.Config, view func(C)) error {
-	page := NewPage(PageConfig{View: view})
-	var canvas gfx.Canvas
-	return app.RunCanvas(page.Config(config), &canvas)
-}
-
-// OpenWindow opens a window of application that paints page, and returns it. It
-// is Run for an application with several windows (app.RunApplication), and
-// the one call for what NewPage, Page.Config and a canvas of your own would be:
-// the window owns the canvas, and the page is closed, cancelling its Effects,
-// when the window closes or fails to open. Call it where Application.OpenWindow
-// may be called: the start callback of app.RunApplication or a window's
-// callback. config is the window's, and page.View declares what it shows.
-//
-//	app.RunApplication(func(a *app.Application) error {
-//		_, err := ui.OpenWindow(a, app.Config{Title: "Notes", Width: 720, Height: 480},
-//			ui.PageConfig{View: m.page})
-//		return err
-//	})
-//
-// A page opened this way reaches its application with C.Application, so a click
-// can open another window without the model keeping the application.
-func OpenWindow(application *app.Application, config app.Config, page PageConfig) (*app.Window, error) {
-	p := NewPage(page)
-	p.application = application
-	window, err := application.OpenWindow(p.Config(config), new(gfx.Canvas))
-	if err != nil {
-		p.Close()
-		return nil, err
-	}
-	return window, nil
 }
 
 func (p *Page) init(tree *gfx.Tree) {
@@ -672,7 +638,8 @@ func (p *Page) currentTheme() Theme {
 		theme = *p.config.Theme
 	} else if !p.themed || p.stale.Swap(false) {
 		p.themed = true
-		if p.window && app.SystemAppearance() == app.AppearanceDark {
+		dark := p.config.Appearance != nil && p.config.Appearance() == window.AppearanceDark
+		if p.window && dark {
 			theme = gfx.DarkTheme()
 		} else {
 			theme = gfx.LightTheme()
@@ -686,68 +653,45 @@ func (p *Page) currentTheme() Theme {
 	return theme
 }
 
-// Config returns base with the page's Tree, Paint, TextInput, OnScroll, OnKey,
-// OnShortcut and OnPointer:
-//
-//   - Tree: base's is adopted when the page was given none; a different one panics.
-//   - Paint paints view over the whole window.
-//   - TextInput answers for the page's TextFields and asks base's for any other
-//     focused field (a terminal of the application's, say).
-//   - OnScroll scrolls an open Select, then the page's scroll areas, and gives
-//     what they leave to base's.
-//   - OnKey, OnShortcut and OnPointer give a DragState its drag, a Shortcut its
-//     chord and a Control its own events, then base's the rest.
-//
-// Config gives the page an Invalidator when neither PageConfig.Invalidator nor
-// base has one, for the page's Effects and, with FollowSystemTheme, the appearance
-// watch. OnClosed cancels the page's effects and stops that watch before it runs
-// base's OnClosed. Nothing else is touched.
-func (p *Page) Config(Base app.Config) app.Config {
-	if p.config.View == nil {
-		panic("ui: Page.Config needs PageConfig.View, the function that declares the page")
-	}
-	p.init(Base.Tree)
-	if Base.Tree != nil && Base.Tree != p.tree {
-		panic("ui: Page.Config: the app.Config has another Tree than the page's; give NewPage the window's Tree")
-	}
-	config := Base
-	config.Tree, config.Paint = p.tree, p.Paint
-	p.baseText, config.TextInput = Base.TextInput, p.TextInput
-	p.baseKey, config.OnKey = Base.OnKey, p.onKey
-	p.basePointer, config.OnPointer = Base.OnPointer, p.onPointer
-	p.baseShortcut, config.OnShortcut = Base.OnShortcut, p.onShortcut
-	p.baseScroll, config.OnScroll = Base.OnScroll, p.Wheel
-	concrete, _ := p.config.Invalidator.(*app.Invalidator)
-	if concrete == nil {
-		concrete = Base.Invalidator
-	}
-	if concrete == nil {
-		concrete = new(app.Invalidator)
-	}
-	config.Invalidator = concrete
-	p.invalidator = concrete
-	if p.config.FollowSystemTheme && p.config.Theme == nil {
-		stop := app.WatchSystemAppearance(func() {
-			p.stale.Store(true)
-			concrete.Invalidate()
-		})
-		closed := config.OnClosed
-		config.OnClosed = func() {
-			stop()
-			if closed != nil {
-				closed()
-			}
-		}
-	}
-	closed := config.OnClosed
-	config.OnClosed = func() {
-		p.Close()
-		if closed != nil {
-			closed()
-		}
-	}
-	return config
+// Host is the set of hooks a window offers a page. Attach fills the ones the
+// page answers and keeps the host's own, so the facade can hand them back to the
+// platform's config.
+type Host struct {
+	Tree       *gfx.Tree
+	Paint      func(*gfx.Canvas, Size)
+	TextInput  window.TextInputProvider
+	OnScroll   func(gfx.ScrollEvent) gfx.EventResult
+	OnKey      func(gfx.KeyEvent) gfx.EventResult
+	OnShortcut func(gfx.KeyEvent) gfx.EventResult
+	OnPointer  func(gfx.PointerEvent) gfx.EventResult
 }
+
+// Attach wires the page into a host: the page adopts or keeps the tree, paints
+// the view, answers text input, and routes scroll, keys, shortcuts and pointers
+// before handing what is left to the host's own callbacks.
+func (p *Page) Attach(h *Host) {
+	h.Tree, h.Paint = p.tree, p.Paint
+	p.baseText, h.TextInput = h.TextInput, p.TextInput
+	p.baseKey, h.OnKey = h.OnKey, p.onKey
+	p.basePointer, h.OnPointer = h.OnPointer, p.onPointer
+	p.baseShortcut, h.OnShortcut = h.OnShortcut, p.onShortcut
+	p.baseScroll, h.OnScroll = h.OnScroll, p.Wheel
+}
+
+// Init prepares the page's identity tree from the host's, or a new one.
+func (p *Page) Init(tree *gfx.Tree) { p.init(tree) }
+
+// IdentityTree is the tree the page names its elements in.
+func (p *Page) IdentityTree() *gfx.Tree { return p.tree }
+
+// SetInvalidator makes the page wake the window through invalidator.
+func (p *Page) SetInvalidator(invalidator window.Invalidator) { p.invalidator = invalidator }
+
+// MarkThemeStale makes the next paint read the system's appearance again.
+func (p *Page) MarkThemeStale() { p.stale.Store(true) }
+
+// SetApplication records the application whose window the page was opened in.
+func (p *Page) SetApplication(application any) { p.application = application }
 
 // Paint fills the window with the background and declares the view over it. It
 // is the Config's Paint.
@@ -1118,7 +1062,7 @@ func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 }
 
 // TextInput gives the platform the editor of the focused TextField.
-func (p *Page) TextInput(context app.TextInputContext) *app.TextInput {
+func (p *Page) TextInput(context window.TextInputContext) *window.TextInput {
 	for _, entry := range p.fields {
 		if entry.ID == context.ID && !context.ID.IsZero() {
 			entry.field.input.Alignment = context.Alignment

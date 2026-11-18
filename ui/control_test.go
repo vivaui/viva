@@ -6,6 +6,7 @@ import (
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/window"
 )
 
 // console is a control of the application's own, as a terminal is: it paints its
@@ -20,7 +21,7 @@ type console struct {
 	drags   int
 	Scroll  float32
 	Focused bool
-	Text    app.TextInput
+	Text    window.TextInput
 	asked   gfx.ID
 }
 
@@ -50,7 +51,7 @@ func newConsole() *console {
 			t.Scroll += event.DeltaY
 			return gfx.EventResult{Handled: true}
 		},
-		Text: func(context app.TextInputContext) *app.TextInput {
+		Text: func(context window.TextInputContext) *window.TextInput {
 			t.asked = context.ID
 			t.Text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
 			t.Text.OnEvent = t.onText

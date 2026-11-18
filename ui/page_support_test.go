@@ -31,7 +31,7 @@ func openPageWith(t *testing.T, config ui.PageConfig, Base app.Config) *pageDriv
 	if Base.Width == 0 {
 		Base.Width, Base.Height = 480, 480
 	}
-	driver, err := app.NewDriver(page.Config(Base), nil)
+	driver, err := app.NewDriver(ui.Configure(page, Base), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

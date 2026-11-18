@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
+	"github.com/vivaui/viva/window"
 )
 
 // Combobox is a field over choices that filters them as the user types, *value the
@@ -141,7 +141,7 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 // editor's platform input, and its options keyed by their index.
 type comboState struct {
 	list    style.SingleSelectState
-	input   app.TextInput
+	input   window.TextInput
 	ids     comboIDs
 	labels  []string
 	descs   []ComboboxOption // what Describe last gave, to tell a change
@@ -261,7 +261,7 @@ func (p *Page) ComboKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 }
 
 // comboText is the platform's editor of a Combobox's search, for TextInput.
-func (p *Page) ComboText(ID gfx.ID) *app.TextInput {
+func (p *Page) ComboText(ID gfx.ID) *window.TextInput {
 	for _, s := range p.combos {
 		if s.ids.input == ID {
 			s.input.Editor = &s.list.Query

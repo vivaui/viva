@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/window"
 )
 
 // Handlers is how a control of the application's own takes the window's input: a
@@ -37,7 +37,7 @@ type Handlers struct {
 	// their window) and the clipboard. It is asked only for a control whose Role is
 	// RoleTextField or RoleTerminal. What it leaves unset is the control's: its
 	// rectangle, and the page's body text size and color.
-	Text func(app.TextInputContext) *app.TextInput
+	Text func(window.TextInputContext) *window.TextInput
 
 	parts gfx.Scope // the identities inside the control, made by Control
 }
