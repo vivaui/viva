@@ -184,6 +184,9 @@ func (f *frame) paintControl(n *node, r Rect) {
 			f.captionFn(f, n, bounds)
 		}
 		checkbox := components.BeginCheckbox(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
+		if n.flags&flagMixed != 0 {
+			checkbox = checkbox.Indeterminate()
+		}
 		if f.styles != nil && f.styles.Checkbox != nil {
 			checkbox = checkbox.Recipe(f.styles.Checkbox)
 		}

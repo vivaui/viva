@@ -436,3 +436,66 @@ func BenchmarkListStreamingAppend(b *testing.B) {
 		drawPage(page, canvas, m.view)
 	}
 }
+
+// Alt with the arrows moves the rows of a List with Reorder, as a drag would, for the
+// keyboard: the focus stays on the row.
+func TestListReorderByKeyboard(t *testing.T) {
+	names := []string{"a", "b", "c"}
+	var state ui.ListState
+	state.Key = func(i int) int { return int(names[i][0] - 'a') }
+	state.Label = func(i int) string { return names[i] }
+	state.Reorder = func(rows []int, to int) {
+		moved := names[rows[0]]
+		rest := append(append([]string(nil), names[:rows[0]]...), names[rows[0]+1:]...)
+		if to > rows[0] {
+			to--
+		}
+		names = append(append(append([]string(nil), rest[:to]...), moved), rest[to:]...)
+	}
+	d := openPage(t, func(c ui.C) {
+		ui.List(c, &state, len(names), func(row ui.ListRow) {
+			ui.Text(row.C, names[row.Index])
+		}).Height(150)
+	})
+	d.click("b")
+	d.driver.Key(gfx.KeyUp, gfx.ModifierAlt)
+	d.repaint()
+	if got := names[0] + names[1] + names[2]; got != "bac" {
+		t.Fatalf("Alt+Up left %q, want bac", got)
+	}
+	d.driver.Key(gfx.KeyDown, gfx.ModifierAlt)
+	d.driver.Key(gfx.KeyDown, gfx.ModifierAlt)
+	d.repaint()
+	if got := names[0] + names[1] + names[2]; got != "acb" {
+		t.Fatalf("Alt+Down twice left %q, want acb", got)
+	}
+}
+
+// A press the platform takes for itself ends a drag of rows without dropping them.
+func TestListReorderDragCancelledByThePlatformDropsNothing(t *testing.T) {
+	names := []string{"a", "b", "c"}
+	dropped := false
+	var state ui.ListState
+	state.Label = func(i int) string { return names[i] }
+	state.Reorder = func(rows []int, to int) { dropped = true }
+	d := openPage(t, func(c ui.C) {
+		ui.List(c, &state, len(names), func(row ui.ListRow) {
+			ui.Text(row.C, names[row.Index]).Height(30)
+		}).Height(150)
+	})
+	a, c3 := d.hit("a").Bounds, d.hit("c").Bounds
+	ax, ay, cx, cy := a.X+a.Width/2, a.Y+a.Height/2, c3.X+c3.Width/2, c3.Y+c3.Height/2
+	for _, err := range []error{
+		d.driver.Press(ax, ay, gfx.PointerButtonPrimary),
+		d.driver.Move(cx, cy),
+		d.driver.Cancel(),
+		d.driver.Release(cx, cy, gfx.PointerButtonPrimary),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if dropped {
+		t.Fatal("a cancelled press dropped the rows")
+	}
+}

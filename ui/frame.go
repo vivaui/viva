@@ -104,6 +104,7 @@ const (
 	flagPopover  // a Popover's root: painted with components.Popover's dismiss, focus scope and Escape around its children
 	flagDrawer   // a Drawer's root: painted by components.Drawer around its children
 	flagLabelFor // the element is a label of the control its identity names (LabelFor)
+	flagMixed    // a Checkbox that is neither on nor off: some of what it stands for is chosen
 )
 
 // node is one element of the page. Fields are plain values so a node is reused

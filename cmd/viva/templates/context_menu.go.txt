@@ -195,6 +195,10 @@ func (menu *ContextMenu) EndContent() { menu.surface.popOverlay() }
 // AddSeparator paints the official -mx-1/my-1 divider geometry.
 func (menu *ContextMenu) AddSeparator() gfx.Rect { return menu.surface.addSeparator() }
 
+// AddContent reserves a row height tall, painted by the caller between BeginContent and
+// EndContent. It is not an item: it takes no focus and no hit of its own.
+func (menu *ContextMenu) AddContent(height float32) gfx.Rect { return menu.surface.addContent(height) }
+
 // End paints the scrollbar of a menu whose items did not all fit, after the last
 // item: call it once the last item is painted.
 func (menu *ContextMenu) End() { menu.surface.end() }

@@ -12,6 +12,22 @@ import (
 // elements it does nothing.
 //
 //	f.Checkbox(syncID, m.sync).Caption("Sync over SSH")
+//
+// Mixed paints a Checkbox as neither on nor off, a dash in a filled box: the select-all of a
+// list of which only some rows are chosen. Declare it from the rows' state each paint; a
+// press still flips the bound value, so the application decides what the next state is.
+// It has no effect on any other element.
+func (b Box) Mixed(mixed bool) Box {
+	if n := b.n(); n.kind == kindCheckbox {
+		if mixed {
+			n.flags |= flagMixed
+		} else {
+			n.flags &^= flagMixed
+		}
+	}
+	return b
+}
+
 func (b Box) Caption(text string) Box {
 	n := b.n()
 	if n.kind != kindCheckbox && n.kind != kindSwitch {

@@ -133,8 +133,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston
-          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston
+          sudo apt-get install -y --no-install-recommends libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston libxtst6 at-spi2-core
+          dpkg-query -W libgtk-3-0t64 xvfb xauth dbus-x11 ibus ibus-libpinyin ibus-hangul python3-gi gir1.2-ibus-1.0 gir1.2-gtk-3.0 libglib2.0-bin dconf-cli fcitx5 fcitx5-pinyin fcitx5-hangul fcitx5-frontend-gtk3 weston libxtst6 at-spi2-core
       - name: IBus native engine lifecycle
         if: runner.os == 'Linux'
         run: |
@@ -160,6 +160,16 @@ jobs:
             for engine in pinyin hangul; do
               xvfb-run -a env VIVA_FCITX_ENGINE="$engine" VIVA_FCITX_REFERENCE=1 VIVA_FCITX_GTK_REFERENCE=1 VIVA_GTK_IME_NATIVE=1 G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN='^Test(NativeIBus(Frontend|OwnerReactivation|FactoryDeclinedShortcut|UnsupportedModeRetirement)|GTKNativeFcitx(Composition|WindowClose))$' sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
             done
+          done
+      - name: GTK real seat keyboard and Fcitx composition
+        if: runner.os == 'Linux'
+        run: |
+          for backend in x11 wayland; do
+            tests='^TestGTKNativeSeatKeyboardAfterContentClick$'
+            if [ "$backend" = wayland ]; then
+              tests='^Test(GTKNative(SeatKeyboardAfterContentClick|WaylandSeatHideShow|WaylandWidgetExternalFocus|WaylandAttachFailure|WaylandInputRegions)|GTKWaylandWindowAttrLP64Layout)$'
+            fi
+            xvfb-run -a -s '-screen 0 800x600x24' env VIVA_GTK_SEAT_NATIVE=1 VIVA_GTK_SEAT_REMAP=1 VIVA_GTK_NATIVE_WIDGET_FOCUS=1 VIVA_GTK_ATTACH_NATIVE=1 VIVA_GTK_REGION_NATIVE=1 VIVA_GTK_IME_NATIVE=1 VIVA_FCITX_ENGINE=pinyin G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN="$tests" sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
           done
       - name: Linux text callback ordering
         if: runner.os == 'Linux'

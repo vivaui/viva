@@ -36,6 +36,8 @@ type gtkApplication struct {
 	wayland  bool
 	started  bool
 	stopping bool
+
+	mainRunning bool
 	// mainThread is the thread that runs the loop, which is where GTK may be called.
 	mainThread int
 	// active is the window the keyboard or the pointer was last in.
@@ -113,8 +115,10 @@ func RunGTKApplication(start platform.ApplicationStart) error {
 		application.destroyAll()
 		return err
 	}
-	if len(application.windows) > 0 {
+	if len(application.windows) > 0 && !application.stopping {
+		application.mainRunning = true
 		g.main()
+		application.mainRunning = false
 	}
 	application.destroyAll()
 	return application.firstErr
@@ -195,7 +199,9 @@ func (a *gtkApplication) fail(err error) {
 func (a *gtkApplication) stop() {
 	if !a.stopping {
 		a.stopping = true
-		a.g.mainQuit()
+		if a.mainRunning {
+			a.g.mainQuit()
+		}
 	}
 }
 
@@ -312,7 +318,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, capturePress, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -383,6 +389,12 @@ func callbacks() *gtkCallbacks {
 			event: purego.NewCallback(func(widget, event, id uintptr) uintptr {
 				if w := gtkWindowByID(id); w != nil {
 					return w.handleEvent(widget, event)
+				}
+				return 0
+			}),
+			capturePress: purego.NewCallback(func(gesture, sequence, id uintptr) uintptr {
+				if w := gtkWindowByID(id); w != nil && w.wl != nil && w.wl.s.focus == w.wl {
+					w.g.gestureSetState(gesture, 1) // GTK_EVENT_SEQUENCE_CLAIMED
 				}
 				return 0
 			}),
