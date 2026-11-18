@@ -497,8 +497,8 @@ func flexBasis(child *node, axis int, avail float32) float32 {
 // alignOn is how a child sits across its container: its own Self, else the
 // container's Items.
 func (n *node) alignOn(Parent *node) Align {
-	if n.self != Auto {
-		return n.self
+	if n.Self != Auto {
+		return n.Self
 	}
 	return Parent.Items
 }
