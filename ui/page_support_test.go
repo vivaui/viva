@@ -18,9 +18,9 @@ type pageDriver struct {
 
 var pageTheme = gfx.LightTheme()
 
-func openPage(t *testing.T, view func(ui.C)) *pageDriver {
+func openPage(t *testing.T, View func(ui.C)) *pageDriver {
 	t.Helper()
-	return openPageWith(t, ui.PageConfig{View: view}, app.Config{})
+	return openPageWith(t, ui.PageConfig{View: View}, app.Config{})
 }
 
 func openPageWith(t *testing.T, config ui.PageConfig, Base app.Config) *pageDriver {
@@ -110,10 +110,10 @@ func benchCanvas() *gfx.Canvas {
 	return canvas
 }
 
-func drawPage(page *ui.Page, Surface *gfx.Canvas, view func(ui.C)) {
+func drawPage(page *ui.Page, Surface *gfx.Canvas, View func(ui.C)) {
 	Surface.Reset()
 	Surface.BeginFrame()
-	page.Draw(Surface, gfx.Rect{Width: 600, Height: 400}, view)
+	page.Draw(Surface, gfx.Rect{Width: 600, Height: 400}, View)
 	Surface.EndFrame()
 }
 
@@ -127,11 +127,11 @@ type fleetModel struct {
 	filter  int
 	scans   int
 	labels  []string
-	summary string
+	Summary string
 }
 
 func newFleetModel() *fleetModel {
-	m := &fleetModel{labels: []string{"All", "Open", "Handled"}, summary: "8 hosts"}
+	m := &fleetModel{labels: []string{"All", "Open", "Handled"}, Summary: "8 hosts"}
 	for i := range 8 {
 		m.hosts = append(m.hosts, fleetHost{Name: "host-" + string(rune('a'+i)), addr: "10.0.0.1", handled: i%2 == 0})
 	}
@@ -149,7 +149,7 @@ var (
 	benchRows   = benchTree.Sub(benchPage, benchTree.Name("rows"))
 )
 
-func (m *fleetModel) frame(f *ui.Frame) {
+func (m *fleetModel) Frame(f *ui.Frame) {
 	f.Column().Fill().Pad(22).Gap(14).Children(func() {
 		f.Text("Fleet check").FontSize(26).Bold()
 		if i, ok := f.Choice(benchFilter, m.labels, m.filter).ChosenIndex(); ok {
@@ -168,7 +168,7 @@ func (m *fleetModel) frame(f *ui.Frame) {
 			}
 		})
 		f.Row().Gap(10).Children(func() {
-			f.Text(m.summary).Muted()
+			f.Text(m.Summary).Muted()
 			if f.Button(benchScan, "Scan again").Clicked() {
 				m.scans++
 			}
@@ -186,7 +186,7 @@ func BenchmarkFrameFleet(b *testing.B) {
 	for b.Loop() {
 		canvas.Reset()
 		canvas.BeginFrame()
-		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 400}, m.frame)
+		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 400}, m.Frame)
 		canvas.EndFrame()
 	}
 }

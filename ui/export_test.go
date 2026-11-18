@@ -9,9 +9,9 @@ func (p *Page) Overlay() bool { return p.overlay }
 // Frame and View are test-only aliases: the engine types are unexported, but the
 // tests that exercise layout and a View surface still name them. They are not
 // part of the public API.
-type Frame = frame
+type Frame = Frame
 
-type View = view
+type View = View
 
 // Drag, Pointer and Key are test-only: the engine's View surface is unexported,
 // and these expose its host routing to the tests that cover it.

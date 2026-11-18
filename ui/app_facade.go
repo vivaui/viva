@@ -23,7 +23,7 @@ import (
 // appearance watch. OnClosed cancels the page's effects and stops that watch
 // before it runs base's OnClosed. Nothing else is touched.
 func Configure(page *Page, base app.Config) app.Config {
-	if page.config.View == nil {
+	if page.GetConfig().View == nil {
 		panic("ui: Configure needs PageConfig.View, the function that declares the page")
 	}
 	page.Init(base.Tree)
@@ -38,7 +38,7 @@ func Configure(page *Page, base app.Config) app.Config {
 	page.Attach(&host)
 	config.Tree, config.Paint, config.TextInput = host.Tree, host.Paint, host.TextInput
 	config.OnScroll, config.OnKey, config.OnShortcut, config.OnPointer = host.OnScroll, host.OnKey, host.OnShortcut, host.OnPointer
-	concrete, _ := page.config.Invalidator.(*app.Invalidator)
+	concrete, _ := page.GetConfig().Invalidator.(*app.Invalidator)
 	if concrete == nil {
 		concrete = base.Invalidator
 	}
@@ -47,7 +47,7 @@ func Configure(page *Page, base app.Config) app.Config {
 	}
 	config.Invalidator = concrete
 	page.SetInvalidator(concrete)
-	if page.config.FollowSystemTheme && page.config.Theme == nil {
+	if page.GetConfig().FollowSystemTheme && page.GetConfig().Theme == nil {
 		stop := app.WatchSystemAppearance(func() {
 			page.MarkThemeStale()
 			concrete.Invalidate()
@@ -76,8 +76,8 @@ func systemAppearance() window.Appearance { return app.SystemAppearance() }
 // Run opens a window that declares view, and blocks until it closes: an
 // application in one call. The config's Tree, Paint, TextInput and OnScroll are
 // the page's (see Configure).
-func Run(config app.Config, view func(C)) error {
-	page := NewPage(PageConfig{View: view, Appearance: systemAppearance})
+func Run(config app.Config, View func(C)) error {
+	page := NewPage(PageConfig{View: View, Appearance: systemAppearance})
 	var canvas gfx.Canvas
 	return app.RunCanvas(Configure(page, config), &canvas)
 }
@@ -92,7 +92,7 @@ func Run(config app.Config, view func(C)) error {
 //
 //	app.RunApplication(func(a *app.Application) error {
 //		_, err := ui.OpenWindow(a, app.Config{Title: "Notes", Width: 720, Height: 480},
-//			ui.PageConfig{View: m.page})
+//			ui.PageConfig{View: m.GetPage()})
 //		return err
 //	})
 //

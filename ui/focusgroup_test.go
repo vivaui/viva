@@ -138,7 +138,7 @@ func TestFocusGroupRepaintAllocates(t *testing.T) {
 // FocusGroup moves the focus, and Box.State says which member has it.
 type rovingStripModel struct {
 	selected int
-	view     func(ui.C)
+	View     func(ui.C)
 }
 
 func (m *rovingStripModel) page(c ui.C) {
@@ -157,8 +157,8 @@ func (m *rovingStripModel) page(c ui.C) {
 // It does not need Page's internal rover.
 func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
 	m := &rovingStripModel{}
-	m.view = m.page
-	d := openPage(t, m.view)
+	m.View = m.page
+	d := openPage(t, m.View)
 	d.click("tab 0")
 	d.key(gfx.KeyRight)
 	if d.Focused() != "tab 1" || m.selected != 1 {
@@ -175,7 +175,7 @@ func TestRovingStripIsBuildableFromThePublicAPI(t *testing.T) {
 type gridFocusModel struct {
 	columns int
 	orderFn ui.FocusOrder
-	view    func(ui.C)
+	View    func(ui.C)
 }
 
 func (m *gridFocusModel) order(current int, key gfx.Key, count int) (int, bool) {
@@ -211,8 +211,8 @@ func (m *gridFocusModel) page(c ui.C) {
 func TestFocusOrderMovesAGridByRowsAndColumns(t *testing.T) {
 	m := &gridFocusModel{columns: 3}
 	m.orderFn = m.order
-	m.view = m.page
-	d := openPage(t, m.view)
+	m.View = m.page
+	d := openPage(t, m.View)
 	d.click("cell 0")
 	d.key(gfx.KeyRight)
 	if d.Focused() != "cell 1" {

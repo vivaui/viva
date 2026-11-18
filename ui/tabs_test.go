@@ -67,7 +67,7 @@ func TestTabsTakeTheirDeclaredHeight(t *testing.T) {
 		stripHeight := test.height
 		if test.line {
 			// A line's height keeps the indicator's room below its triggers.
-			stripHeight -= tabIndicator
+			stripHeight -= TabIndicator
 		}
 		strip := components.BeginTabList(direct, theme, gfx.Rect{Width: 300, Height: stripHeight}, tabsScope, tabLabels, 1)
 		if test.line {

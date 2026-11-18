@@ -222,14 +222,14 @@ func TestPageSteadyPaintAllocatesNothing(t *testing.T) {
 	m := newFleetModel()
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	for range 3 {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
-	if allocs := testing.AllocsPerRun(50, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(50, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a steady page allocates %v times", allocs)
 	}
 }
 
-func (m *fleetModel) view(c ui.C) {
+func (m *fleetModel) View(c ui.C) {
 	ui.Column(c).Fill().Pad(22).Gap(14).Children(func() {
 		ui.Text(c, "Fleet check").FontSize(26).Bold()
 		ui.Choice(c, &m.filter, fleetFilters, fleetFilterLabel)
@@ -244,7 +244,7 @@ func (m *fleetModel) view(c ui.C) {
 			}
 		})
 		ui.Row(c).Gap(10).Children(func() {
-			ui.Text(c, m.summary).Muted()
+			ui.Text(c, m.Summary).Muted()
 			if ui.Button(c, "Scan again").Clicked() {
 				m.scans++
 			}
@@ -261,7 +261,7 @@ func BenchmarkPageFleet(b *testing.B) {
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 

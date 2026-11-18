@@ -101,9 +101,6 @@ func (result CheckboxResult) Clicked() bool {
 	return result.canvas != nil && result.canvas.Clicked(result.id)
 }
 
-// CheckboxExtent is the side of a checkbox's square at the theme's density.
-func CheckboxExtent(theme gfx.Theme) float32 { return 16 * theme.Metrics.ControlHeight / 32 }
-
 // CheckboxHitExtent is the width and height of the interaction region Paint
 // declares around a checkbox at the theme's density. A layout that gives a
 // checkbox this much room can center the square inside it and keep adjacent

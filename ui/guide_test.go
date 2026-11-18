@@ -82,8 +82,8 @@ func TestTheGuideListsTheThemeFieldsAndOnlyThose(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fields []string
-	ast.Inspect(parsed, func(node ast.Node) bool {
-		spec, ok := node.(*ast.TypeSpec)
+	ast.Inspect(parsed, func(Node ast.Node) bool {
+		spec, ok := Node.(*ast.TypeSpec)
 		if !ok || spec.Name.Name != "Theme" {
 			return true
 		}

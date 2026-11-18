@@ -6,11 +6,11 @@ import (
 
 // paintAlertDialog paints a confirmation: components.AlertDialog owns its scrim,
 // surface, title, description, actions, focus trap and Escape target.
-func (f *frame) paintAlertDialog(n *node) {
-	d := &widgetsOf(f).alertDialogs[n.Aux]
-	spec := &d.spec
+func paintAlertDialog(f *Frame, n *Node) {
+	d := &WidgetsOf(f).GetAlertDialogs()[n.Aux]
+	spec := d.SpecPtr()
 	options := components.AlertDialogOptions{
-		Layer: d.layer, Scope: spec.Scope,
+		Layer: d.GetLayer(), Scope: spec.Scope,
 		ActionID: spec.ActionID, CancelID: spec.CancelID,
 		InitialFocusID: spec.InitialFocusID,
 		ActionVariant:  spec.ActionVariant,

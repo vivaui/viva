@@ -12,7 +12,7 @@ func TestButtonBaselineMatchesItsLabelRow(t *testing.T) {
 	theme := gfx.LightTheme()
 	cases := []struct {
 		Name      string
-		declare   func(*frame) Box
+		declare   func(*Frame) Box
 		labelSize float32
 	}{
 		{"default", func(f *Frame) Box { return f.Button(save, "Save") }, theme.Metrics.FontSizeM},

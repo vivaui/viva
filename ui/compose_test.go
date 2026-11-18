@@ -18,7 +18,7 @@ var composeScope = tree.Sub(page, tree.Name("compose-strip"))
 // and the state the application keeps is the only state. This is why Tabs and Segmented have
 // no whole-control Base: the keyboard functions work on identities, so the items are enough.
 type composedStrip struct {
-	view     View
+	View     View
 	labels   []string
 	selected int
 	segments bool
@@ -36,7 +36,7 @@ func newComposedStrip(segments bool, labels ...string) *composedStrip {
 }
 
 func (s *composedStrip) paint(Surface *gfx.Canvas, Size gfx.Size) {
-	s.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
+	s.View.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 		f.Row().Pad(8).Gap(4).Items(Start).Children(func() {
 			for i, label := range s.labels {
 				var item Box

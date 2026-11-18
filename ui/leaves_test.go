@@ -75,9 +75,9 @@ func TestProgressIsFilledToItsFractionAndSizedLikeABar(t *testing.T) {
 }
 
 // splitPage is two panes either side of a splitter, in a row 400 wide.
-func splitPage(view *View, state *SplitterState, width float32) func(*gfx.Canvas, gfx.Size) {
+func splitPage(View *View, state *SplitterState, width float32) func(*gfx.Canvas, gfx.Size) {
 	return func(Surface *gfx.Canvas, Size gfx.Size) {
-		view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
+		View.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
 			f.Row().Fill().Children(func() {
 				f.Column().Width(state.Pos).Children(func() { f.Text("left") })
 				f.Splitter(splitID, state).Mins(100, 150)

@@ -41,7 +41,7 @@ func (m *memoModel) row(c ui.C, r *memoRow) {
 	})
 }
 
-func (m *memoModel) view(c ui.C) {
+func (m *memoModel) View(c ui.C) {
 	ui.Column(c).Fill().Gap(4).Children(func() {
 		if m.top != "" {
 			ui.Text(c, m.top).Height(30)
@@ -69,7 +69,7 @@ func newMemoPageWith(config ui.PageConfig) *memoPage {
 	return &memoPage{page: ui.NewPage(config), Surface: canvas}
 }
 
-func (mp *memoPage) draw(view func(ui.C)) { drawPage(mp.page, mp.Surface, view) }
+func (mp *memoPage) draw(View func(ui.C)) { drawPage(mp.page, mp.Surface, View) }
 
 type painted struct {
 	Rectangles []gfx.Rectangle
@@ -98,20 +98,20 @@ func (mp *memoPage) output() painted {
 func TestMemoCopyEqualsDeclaring(t *testing.T) {
 	m := newMemoModel(20)
 	fresh := newMemoPage()
-	fresh.draw(m.view)
+	fresh.draw(m.View)
 	want := fresh.output()
 
 	cached := newMemoPage()
-	cached.draw(m.view)
+	cached.draw(m.View)
 	m.calls = 0
-	cached.draw(m.view)
+	cached.draw(m.View)
 	if m.calls != 0 {
 		t.Fatalf("%d rows were declared in a paint where nothing changed", m.calls)
 	}
 	if got := cached.output(); !reflect.DeepEqual(got, want) {
 		t.Fatal("the copied page differs from the declared one")
 	}
-	cached.draw(m.view) // a copy of a copy
+	cached.draw(m.View) // a copy of a copy
 	if got := cached.output(); !reflect.DeepEqual(got, want) {
 		t.Fatal("the page copied twice differs from the declared one")
 	}
@@ -120,11 +120,11 @@ func TestMemoCopyEqualsDeclaring(t *testing.T) {
 func TestMemoDeclaresAgainWhenTheVersionChanges(t *testing.T) {
 	m := newMemoModel(5)
 	mp := newMemoPage()
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.rows[2].Name, m.rows[2].version = "renamed", 2
 	m.calls = 0
-	mp.draw(m.view)
+	mp.draw(m.View)
 	if m.calls != 1 {
 		t.Fatalf("%d rows declared after one row's version changed, want 1", m.calls)
 	}
@@ -138,16 +138,16 @@ func TestMemoDeclaresAgainWhenTheVersionChanges(t *testing.T) {
 func TestMemoRowsMoveWithoutBeingDeclared(t *testing.T) {
 	m := newMemoModel(10)
 	mp := newMemoPage()
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.top = "a heading above the rows"
 	m.calls = 0
-	mp.draw(m.view)
+	mp.draw(m.View)
 	if m.calls != 0 {
 		t.Fatalf("%d rows were declared after only moving", m.calls)
 	}
 	fresh := newMemoPage()
-	fresh.draw(m.view)
+	fresh.draw(m.View)
 	if !reflect.DeepEqual(mp.output(), fresh.output()) {
 		t.Fatal("the moved copies differ from the rows declared there")
 	}
@@ -156,12 +156,12 @@ func TestMemoRowsMoveWithoutBeingDeclared(t *testing.T) {
 func TestMemoDeclaresAgainWhenTheWindowResizes(t *testing.T) {
 	m := newMemoModel(5)
 	mp := newMemoPage()
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.calls = 0
 	mp.Surface.Reset()
 	mp.Surface.BeginFrame()
-	mp.page.Draw(mp.Surface, gfx.Rect{Width: 500, Height: 400}, m.view)
+	mp.page.Draw(mp.Surface, gfx.Rect{Width: 500, Height: 400}, m.View)
 	mp.Surface.EndFrame()
 	if m.calls != 5 {
 		t.Fatalf("%d rows declared after a resize, want 5", m.calls)
@@ -218,14 +218,14 @@ func TestMemoRowsStayInteractive(t *testing.T) {
 func TestMemoCheckCatchesAValueThatMissesAChange(t *testing.T) {
 	m := newMemoModel(3)
 	mp := newMemoPageWith(ui.PageConfig{MemoCheck: true})
-	mp.draw(m.view)
+	mp.draw(m.View)
 	m.rows[1].Name = "changed without a new value"
 	defer func() {
 		if r := recover(); r == nil || !strings.Contains(r.(string), "MemoCheck") {
 			t.Fatalf("recover() = %v, want MemoCheck to report the row", r)
 		}
 	}()
-	mp.draw(m.view)
+	mp.draw(m.View)
 }
 
 func TestMemoValueSnapshotDeclaresAgainOnChange(t *testing.T) {
@@ -275,11 +275,11 @@ func TestMemoDeclaresAgainWhenTheThemeChanges(t *testing.T) {
 	m := newMemoModel(3)
 	theme := gfx.LightTheme()
 	mp := newMemoPageWith(ui.PageConfig{Theme: &theme})
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.calls = 0
 	theme = gfx.DarkTheme()
-	mp.draw(m.view)
+	mp.draw(m.View)
 	if m.calls != 3 {
 		t.Fatalf("%d rows declared after the theme changed, want 3", m.calls)
 	}
@@ -288,11 +288,11 @@ func TestMemoDeclaresAgainWhenTheThemeChanges(t *testing.T) {
 func TestMemoDeclaresAgainWhenTheScaleChanges(t *testing.T) {
 	m := newMemoModel(3)
 	mp := newMemoPage()
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.calls = 0
 	mp.Surface.SetPixelScale(3)
-	mp.draw(m.view)
+	mp.draw(m.View)
 	if m.calls != 3 {
 		t.Fatalf("%d rows declared after the scale changed, want 3", m.calls)
 	}
@@ -335,11 +335,11 @@ func TestMemoDeclaresAgainWhenTheFontGenerationChanges(t *testing.T) {
 	mp := newMemoPage()
 	engine := &fontGenerationEngine{TextEngine: gfx.ReferenceTextEngine(), generation: 1}
 	mp.Surface.SetTextEngine(engine)
-	mp.draw(m.view)
-	mp.draw(m.view)
+	mp.draw(m.View)
+	mp.draw(m.View)
 	m.calls = 0
 	engine.generation++
-	mp.draw(m.view)
+	mp.draw(m.View)
 	if m.calls != 3 {
 		t.Fatalf("%d rows declared after the font generation changed, want 3", m.calls)
 	}
@@ -361,9 +361,9 @@ func TestMemoSteadyPaintAllocatesNothing(t *testing.T) {
 	m := newMemoModel(100)
 	mp := newMemoPage()
 	for range 3 {
-		mp.draw(m.view)
+		mp.draw(m.View)
 	}
-	if allocs := testing.AllocsPerRun(30, func() { mp.draw(m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(30, func() { mp.draw(m.View) }); allocs != 0 {
 		t.Fatalf("a steady memoized page allocates %v times", allocs)
 	}
 }
@@ -428,10 +428,10 @@ func BenchmarkRows200Declared(b *testing.B) {
 func BenchmarkRows200Memo(b *testing.B) {
 	m := newMemoModel(200)
 	mp := newMemoPage()
-	mp.draw(m.view)
+	mp.draw(m.View)
 	b.ReportAllocs()
 	for b.Loop() {
-		mp.draw(m.view)
+		mp.draw(m.View)
 	}
 }
 
@@ -458,11 +458,11 @@ func BenchmarkRows200MemoValue(b *testing.B) {
 func BenchmarkRows200MemoOneChanging(b *testing.B) {
 	m := newMemoModel(200)
 	mp := newMemoPage()
-	mp.draw(m.view)
+	mp.draw(m.View)
 	b.ReportAllocs()
 	for b.Loop() {
 		m.rows[7].version++
-		mp.draw(m.view)
+		mp.draw(m.View)
 	}
 }
 
@@ -473,7 +473,7 @@ func BenchmarkRows200MemoList(b *testing.B) {
 	var version uint64 = 1
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
-			ui.Memo(c, version, func() { m.view(c) })
+			ui.Memo(c, version, func() { m.View(c) })
 		})
 	}
 	mp.draw(view)

@@ -4,7 +4,7 @@ import (
 	"github.com/vivaui/viva/components"
 )
 
-func (f *frame) paintProgress(n *node) {
+func paintProgress(f *Frame, n *Node) {
 	r := n.Rect
 	if n.Natural >= 0 {
 		components.Progress(f.Surface, f.Palette, r, n.Natural)
@@ -15,13 +15,13 @@ func (f *frame) paintProgress(n *node) {
 		return
 	}
 	if r.Height <= 0 {
-		r.Height = progressHeight
+		r.Height = ProgressHeight
 	}
 	canvas.Rounded(r, r.Height/2, f.Palette.Muted)
-	segment := r.Width * indeterminateShare
+	segment := r.Width * IndeterminateShare
 	x := r.X + (r.Width-segment)/2
 	if !canvas.ReduceMotion() {
-		phase := float32(canvas.Now()%indeterminatePeriod) / float32(indeterminatePeriod)
+		phase := float32(canvas.Now()%IndeterminatePeriod) / float32(IndeterminatePeriod)
 		x = r.X - segment + phase*(r.Width+segment)
 		if f.Visible(n) {
 			canvas.RequestFrame()
@@ -32,13 +32,13 @@ func (f *frame) paintProgress(n *node) {
 	canvas.Unclip()
 }
 
-func (f *frame) paintSpinner(n *node) {
+func paintSpinner(f *Frame, n *Node) {
 	canvas := f.Surface
 	phase := components.SpinnerPhase(0)
 	if !canvas.ReduceMotion() {
-		phase = components.SpinnerPhase(canvas.Now() / spinnerStep % 8)
+		phase = components.SpinnerPhase(canvas.Now() / SpinnerStep % 8)
 		if f.Visible(n) {
-			canvas.RequestFrameIn(spinnerStep)
+			canvas.RequestFrameIn(SpinnerStep)
 		}
 	}
 	components.PaintSpinner(canvas, f.Palette, n.Rect, phase)

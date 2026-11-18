@@ -35,9 +35,9 @@ func semanticsOf(h gfx.Hit) semantics {
 
 // declared is the semantics of what a page declares, in paint order: the controls
 // themselves, not the labels painted beside them nor the backdrops under overlays.
-func declared(t *testing.T, view func(ui.C)) []semantics {
+func declared(t *testing.T, View func(ui.C)) []semantics {
 	t.Helper()
-	d := openPage(t, view)
+	d := openPage(t, View)
 	var out []semantics
 	for _, h := range d.driver.Snapshot().Hits {
 		if h.IsLabel || h.Backdrop || h.Block || h.ID.IsZero() {

@@ -11,40 +11,40 @@ import (
 // else, and takes them down as their time is up. It asks for one frame when the
 // next is due and none while there is nothing up. Declare it once, last in the page.
 func Toasts(c C, t *Toaster) {
-	p := c.page
+	p := c.GetPage()
 	p.ForbidInMemo("Toasts")
-	t.scope = p.BoundScope(pkToaster, unsafe.Pointer(t))
-	canvas := c.f.Surface
-	t.acted = 0
-	if canvas == nil || len(t.toasts) == 0 {
+	t.SetScope(p.BoundScope(PKToaster, unsafe.Pointer(t)))
+	canvas := c.GetF().Surface
+	t.SetActed(0)
+	if canvas == nil || len(t.GetToasts()) == 0 {
 		return
 	}
-	now := clockEpoch.Add(canvas.Now())
+	now := ClockEpoch.Add(canvas.Now())
 	// A press on a close or an action button, delivered here.
 	if id, ok := canvas.ClickTarget(); ok {
-		if at, inside := id.In(t.scope); inside && at%3 != 0 {
-			if at%3 == toastAction {
-				t.acted = ToastID(at / 3)
+		if at, inside := id.In(t.GetScope()); inside && at%3 != 0 {
+			if at%3 == ToastAction {
+				t.SetActed(ToastID(at / 3))
 			}
 			t.Close(ToastID(at / 3))
 		}
 	}
 	for {
-		id, ok := t.queue.Expire(now)
+		id, ok := t.QueuePtr().Expire(now)
 		if !ok {
 			break
 		}
-		at, _ := id.In(t.scope)
+		at, _ := id.In(t.GetScope())
 		t.Close(ToastID(at / 3))
 	}
-	for i := 0; i < len(t.toasts); i++ {
-		item := &t.toasts[i]
-		if item.shown {
+	for i := 0; i < len(t.GetToasts()); i++ {
+		item := &t.GetToasts()[i]
+		if item.GetShown() {
 			continue
 		}
-		evicted, ok := t.queue.Add(t.ID(item.n), now, item.Kind == ToastLoading)
-		item.shown = ok
-		if at, inside := evicted.In(t.scope); inside {
+		evicted, ok := t.QueuePtr().Add(t.ID(item.GetN()), now, item.Kind == ToastLoading)
+		item.SetShown(ok)
+		if at, inside := evicted.In(t.GetScope()); inside {
 			// The queue was full: the oldest goes, which is ahead of this one.
 			t.Close(ToastID(at / 3))
 			i--
@@ -52,38 +52,38 @@ func Toasts(c C, t *Toaster) {
 	}
 	// The pointer on the stack, or the focus in it, holds every toast's time.
 	held := false
-	if at, ok := canvas.Hovered().In(t.scope); ok && at > 0 {
+	if at, ok := canvas.Hovered().In(t.GetScope()); ok && at > 0 {
 		held = true
 	}
-	if at, ok := canvas.Focused().In(t.scope); ok && at > 0 {
+	if at, ok := canvas.Focused().In(t.GetScope()); ok && at > 0 {
 		held = true
 	}
-	t.stack = t.stack[:0]
-	for i := len(t.toasts) - 1; i >= 0; i-- {
-		item := &t.toasts[i]
+	t.SetStack(t.GetStack()[:0])
+	for i := len(t.GetToasts()) - 1; i >= 0; i-- {
+		item := &t.GetToasts()[i]
 		if held {
-			t.queue.Pause(t.ID(item.n), now)
+			t.QueuePtr().Pause(t.ID(item.GetN()), now)
 		} else {
-			t.queue.Resume(t.ID(item.n), now)
+			t.QueuePtr().Resume(t.ID(item.GetN()), now)
 		}
 		toast := components.SonnerToast{
-			Snapshot: components.ToastSnapshot{Title: item.title, Description: item.description, Type: item.Kind.component()},
-			Scope:    t.ID(item.n), DismissID: t.scope.At(int(item.n)*3 + toastClose),
+			Snapshot: components.ToastSnapshot{Title: item.GetTitle(), Description: item.GetDescription(), Type: toastKindComponent(item.Kind)},
+			Scope:    t.ID(item.GetN()), DismissID: t.GetScope().At(int(item.GetN())*3 + ToastClose),
 		}
-		if item.action != "" {
-			toast.ActionID, toast.ActionLabel = t.scope.At(int(item.n)*3+toastAction), item.action
+		if item.GetAction() != "" {
+			toast.ActionID, toast.ActionLabel = t.GetScope().At(int(item.GetN())*3+ToastAction), item.GetAction()
 		}
-		t.stack = append(t.stack, toast)
+		t.SetStack(append(t.GetStack(), toast))
 	}
-	components.PaintSonner(canvas, c.f.Palette, c.f.bounds, t.stack, components.SonnerOptions{
+	components.PaintSonner(canvas, c.GetF().Palette, c.GetF().GetBounds(), t.GetStack(), components.SonnerOptions{
 		Layer: ToastLayer, Expanded: held, Position: components.ToastPosition(t.Position),
 	})
-	if deadline, ok := t.queue.NextDeadline(); ok {
+	if deadline, ok := t.QueuePtr().NextDeadline(); ok {
 		canvas.RequestFrameIn(max(deadline.Sub(now), time.Millisecond))
 	}
 }
 
-func (Kind ToastKind) component() components.ToastType {
+func toastKindComponent(Kind ToastKind) components.ToastType {
 	switch Kind {
 	case ToastSuccess:
 		return components.ToastSuccess

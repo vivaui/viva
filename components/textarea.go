@@ -340,45 +340,6 @@ func textareaMax(left, right float32) float32 {
 // textareaPadY is the space above the first row and below the last (py-2).
 const textareaPadY = 8
 
-// TextareaMovementForKey says which movement a key asks for in a multiline
-// editor, and whether it extends the selection (Shift). Home and End, Cmd+Left
-// and Cmd+Right are the ends of a row; Cmd+Up and Cmd+Down, Ctrl+Home and
-// Ctrl+End the ends of the text. Left, Right and the editing keys stay with the
-// text system. Pass the key event of the focused textarea to it, then the result
-// to TextareaLayout.Move, then the new offset to the editor.
-func TextareaMovementForKey(key gfx.Key, modifiers gfx.Modifiers) (movement TextareaMovement, extend bool) {
-	extend = modifiers&gfx.ModifierShift != 0
-	command := modifiers&gfx.ModifierMeta != 0
-	control := modifiers&gfx.ModifierControl != 0
-	switch {
-	case key == gfx.KeyUp && command:
-		return TextareaMoveTextStart, extend
-	case key == gfx.KeyDown && command:
-		return TextareaMoveTextEnd, extend
-	case key == gfx.KeyUp:
-		return TextareaMoveUp, extend
-	case key == gfx.KeyDown:
-		return TextareaMoveDown, extend
-	case key == gfx.KeyLeft && command:
-		return TextareaMoveLineStart, extend
-	case key == gfx.KeyRight && command:
-		return TextareaMoveLineEnd, extend
-	case key == gfx.KeyHome && control:
-		return TextareaMoveTextStart, extend
-	case key == gfx.KeyEnd && control:
-		return TextareaMoveTextEnd, extend
-	case key == gfx.KeyHome:
-		return TextareaMoveLineStart, extend
-	case key == gfx.KeyEnd:
-		return TextareaMoveLineEnd, extend
-	case key == gfx.KeyPageUp:
-		return TextareaMovePageUp, extend
-	case key == gfx.KeyPageDown:
-		return TextareaMovePageDown, extend
-	}
-	return TextareaMoveNone, false
-}
-
 func trimTrailingSpaces(value string) string {
 	for len(value) > 0 && value[len(value)-1] == ' ' {
 		value = value[:len(value)-1]

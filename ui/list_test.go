@@ -25,7 +25,7 @@ func newListModel(n int) *listModel {
 	return m
 }
 
-func (m *listModel) view(c ui.C) {
+func (m *listModel) View(c ui.C) {
 	ui.Column(c).Fill().Children(func() {
 		ui.List(c, &m.state, len(m.names), func(row ui.ListRow) {
 			ui.Row(c).Pad(4).Children(func() {
@@ -49,7 +49,7 @@ func TestListDeclaresOnlyVisibleRows(t *testing.T) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	for range 2 {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 	buttons := 0
 	for _, hit := range canvas.Hits() {
@@ -60,7 +60,7 @@ func TestListDeclaresOnlyVisibleRows(t *testing.T) {
 	if buttons == 0 || buttons > 30 {
 		t.Fatalf("%d rows declared for a 400 px list", buttons)
 	}
-	if allocs := testing.AllocsPerRun(20, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(20, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a steady list paint allocates %v times", allocs)
 	}
 }
@@ -416,10 +416,10 @@ func TestListKeysAreItemNumbers(t *testing.T) {
 func BenchmarkList100k(b *testing.B) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -428,12 +428,12 @@ func BenchmarkList100k(b *testing.B) {
 func BenchmarkListStreamingAppend(b *testing.B) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
 		m.names = append(m.names, "row "+strconv.Itoa(len(m.names)))
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 

@@ -11,13 +11,13 @@ import (
 // wideArea is a page 100 by 100 that is all one ScrollArea, declared by area and
 // holding what children declares.
 type wideArea struct {
-	view     View
+	View     View
 	area     func(Box) Box
 	children func(f *Frame)
 }
 
 func (p *wideArea) paint(Surface *gfx.Canvas, _ gfx.Size) {
-	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
+	p.View.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			p.area(f.ScrollArea(listID).Grow(1)).Children(func() { p.children(f) })
 		})
@@ -40,7 +40,7 @@ func TestASidewaysAreaLaysItsChildrenOutAcrossItsContent(t *testing.T) {
 	}}
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	state := p.view.ScrollState(listID)
+	state := p.View.ScrollState(listID)
 	if state.ContentWidth != 300 || state.ViewportWidth != 100 || state.MaxX() != 200 {
 		t.Fatalf("content %v wide in %v, max %v; want 300 in 100, max 200", state.ContentWidth, state.ViewportWidth, state.MaxX())
 	}
@@ -103,7 +103,7 @@ func TestAnAreaThatIsNotSidewaysDoesNotScrollAcross(t *testing.T) {
 	}}
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	state := p.view.ScrollState(listID)
+	state := p.View.ScrollState(listID)
 	state.ScrollToX(50)
 	state.Wheel(gfx.ScrollEvent{DeltaX: 30, Precise: true})
 	p.paint(canvas, gfx.Size{})
@@ -125,7 +125,7 @@ func TestTheWheelMovesASidewaysAreaAcross(t *testing.T) {
 	}}
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
-	state := p.view.ScrollState(listID)
+	state := p.View.ScrollState(listID)
 	steps := []struct {
 		Name       string
 		event      gfx.ScrollEvent
@@ -231,7 +231,7 @@ func TestDraggingAScrollbarMovesTheArea(t *testing.T) {
 	canvas := testCanvas()
 	p.paint(canvas, gfx.Size{})
 	p.paint(canvas, gfx.Size{})
-	state := p.view.ScrollState(listID)
+	state := p.View.ScrollState(listID)
 	parts := tree.Sub(listID.Scope(), listID.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
 	geometry := components.BeginScrollArea(nil, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, gfx.Size{Width: 300, Height: 300}).
@@ -292,7 +292,7 @@ func TestASidewaysAreaWithScrollbarsAllocatesNothingOnceWarm(t *testing.T) {
 	frame := func() {
 		canvas.Reset()
 		p.paint(canvas, gfx.Size{})
-		p.view.Wheel(gfx.ScrollEvent{X: 5, Y: 5, DeltaX: 3, DeltaY: -3, Precise: true})
+		p.View.Wheel(gfx.ScrollEvent{X: 5, Y: 5, DeltaX: 3, DeltaY: -3, Precise: true})
 		p.pointer(canvas, vertical, gfx.PointerDown, 97, 10)
 		p.pointer(canvas, vertical, gfx.PointerUp, 97, 10)
 	}

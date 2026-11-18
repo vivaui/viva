@@ -1,8 +1,6 @@
 package components
 
 import (
-	"strings"
-
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -16,53 +14,6 @@ func pickerUnit(v float32) float32 {
 
 // ParseColorHex accepts #RGB/#RRGGBB and, when alpha is enabled, their alpha
 // forms. Product-specific formats and validation stay with the caller.
-func ParseColorHex(value string, alpha bool) (gfx.Color, bool) {
-	value = strings.TrimSpace(value)
-	if len(value) == 0 || value[0] != '#' {
-		return gfx.Color{}, false
-	}
-	value = value[1:]
-	short := len(value) == 3 || alpha && len(value) == 4
-	if !short && len(value) != 6 && !(alpha && len(value) == 8) {
-		return gfx.Color{}, false
-	}
-	channels := [4]byte{0, 0, 0, 255}
-	count := len(value) / 2
-	if short {
-		count = len(value)
-	}
-	for i := 0; i < count; i++ {
-		at := i * 2
-		if short {
-			at = i
-		}
-		a, ok := pickerHexDigit(value[at])
-		if !ok {
-			return gfx.Color{}, false
-		}
-		b := a
-		if !short {
-			b, ok = pickerHexDigit(value[i*2+1])
-			if !ok {
-				return gfx.Color{}, false
-			}
-		}
-		channels[i] = a*16 + b
-	}
-	return gfx.Color{Red: float32(channels[0]) / 255, Green: float32(channels[1]) / 255, Blue: float32(channels[2]) / 255, Alpha: float32(channels[3]) / 255}, true
-}
-
-func pickerHexDigit(b byte) (byte, bool) {
-	switch {
-	case b >= '0' && b <= '9':
-		return b - '0', true
-	case b >= 'a' && b <= 'f':
-		return b - 'a' + 10, true
-	case b >= 'A' && b <= 'F':
-		return b - 'A' + 10, true
-	}
-	return 0, false
-}
 
 // ColorPickerOptions is a snapshot, not a binding or a hidden editor. The
 // application stages Value and Hex while open, commits on Apply, and restores
@@ -322,3 +273,8 @@ type ColorPickerValue = style.ColorPickerValue
 type ColorPickerIDs = style.ColorPickerIDs
 type ColorPickerLabels = style.ColorPickerLabels
 type ColorPickerLayout = style.ColorPickerLayout
+
+// ParseColorHex parses #RGB, #RGBA, #RRGGBB and #RRGGBBAA; it lives in style.
+func ParseColorHex(value string, alpha bool) (gfx.Color, bool) {
+	return style.ParseColorHex(value, alpha)
+}

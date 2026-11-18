@@ -18,7 +18,7 @@ func TestFrameGenerationWrapRetiresOldBoxes(t *testing.T) {
 	if !old.Valid() {
 		t.Fatal("a Box is invalid before the wrap")
 	}
-	view.frame.gen = ^uint32(0)
+	view.Frame.gen = ^uint32(0)
 	var fresh Box
 	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
 		fresh = f.Row()

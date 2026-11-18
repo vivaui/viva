@@ -72,7 +72,7 @@ func (t *console) onText(event app.TextEvent) (app.TextState, error) {
 	return app.TextState{}, nil
 }
 
-func (t *console) view(c ui.C) {
+func (t *console) View(c ui.C) {
 	ui.Column(c).Fill().Pad(16).Gap(8).Children(func() {
 		ui.Control(c, "Console", &t.input).Size(300, 200).Draw(t.draw)
 		ui.Button(c, "After")
@@ -81,7 +81,7 @@ func (t *console) view(c ui.C) {
 
 func TestControlTakesItsOwnInput(t *testing.T) {
 	term := newConsole()
-	d := openPage(t, term.view)
+	d := openPage(t, term.View)
 	box := d.hit("Console").Bounds
 	x, y := center(box)
 	if err := d.driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
@@ -138,7 +138,7 @@ func BenchmarkPageControl(b *testing.B) {
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, term.view)
+		drawPage(page, canvas, term.View)
 	}
 }
 

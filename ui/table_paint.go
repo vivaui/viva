@@ -5,71 +5,54 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-func (t *tableDecl) rowHeight(Palette Theme) float32 {
-	if t.spec.RowHeight > 0 {
-		return t.spec.RowHeight
-	}
-	return components.TableRowHeight(Palette)
-}
-
-func (t *tableDecl) headerHeight(Palette Theme) float32 {
-	if len(t.spec.Headers) == 0 {
-		return 0
-	}
-	if t.spec.RowHeight > 0 {
-		return t.spec.RowHeight
-	}
-	return components.TableHeaderHeight(Palette)
-}
-
 // paintTableRows paints the on-screen rows of a table once, with the same
 // components.Table calls an application would make by hand. The caller has
 // already clipped to the band the rows belong to, and rows keeps the whole
 // grid's geometry: every column paints, and the clip does the segmentation.
-func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
+func paintTableRows(f *Frame, t *TableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
 	canvas := f.Surface
-	table := components.BeginTable(canvas, f.Palette, rows, t.spec.Columns).
-		RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
-	w := widgetsOf(f)
-	if cap(w.cells) < len(t.spec.Columns) {
-		w.cells = make([]string, len(t.spec.Columns))
+	table := components.BeginTable(canvas, f.Palette, rows, t.GetSpec().Columns).
+		RowHeight(rowHeight).FontSize(t.GetSpec().FontSize).CellPadding(t.GetSpec().CellPadding)
+	w := WidgetsOf(f)
+	if cap(w.GetCells()) < len(t.GetSpec().Columns) {
+		w.SetCells(make([]string, len(t.GetSpec().Columns)))
 	}
-	cells := w.cells[:len(t.spec.Columns)]
+	cells := w.GetCells()[:len(t.GetSpec().Columns)]
 	for row := First; row < Last; row++ {
 		for column := range cells {
-			cells[column] = t.spec.Source.Cell(row, column)
+			cells[column] = t.GetSpec().Source.Cell(row, column)
 		}
-		if t.spec.Striped && row%2 == 1 {
+		if t.GetSpec().Striped && row%2 == 1 {
 			stripe := f.Palette.Muted
 			stripe.Alpha *= 0.6
 			canvas.Fill(Rect{X: rows.X, Y: top + float32(row)*rowHeight, Width: contentWidth, Height: rowHeight}, stripe)
 		}
 		// A press on the bar owns the pointer: the row under it neither
 		// highlights nor takes a click while the bar is held.
-		id := t.spec.Rows.At(row)
-		if t.state.Scroll.dragging {
+		id := t.GetSpec().Rows.At(row)
+		if t.GetState().Scroll.GetDragging() {
 			id = gfx.ID{}
 		}
-		table.RowState(id, cells, components.TableRowState{Selected: row == t.state.Selected()})
+		table.RowState(id, cells, components.TableRowState{Selected: row == t.GetState().Selected()})
 	}
 }
 
 // paintTableScrollbars paints and drags the bars of a Table that scrolls itself.
 // They share the body's content extents and offsets; a bar sits in the gutter the
 // spec asked for and over the body's edge when it did not.
-func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Size, offsetX, offsetY, frozenWidth float32) {
-	revealed := f.page == nil || f.page.PointerOver(r) || t.state.Scroll.dragging
-	label := t.spec.ScrollbarLabel
+func paintTableScrollbars(f *Frame, t *TableDecl, r, body Rect, Content gfx.Size, offsetX, offsetY, frozenWidth float32) {
+	revealed := f.GetPage() == nil || f.GetPage().PointerOver(r) || t.GetState().Scroll.GetDragging()
+	label := t.GetSpec().ScrollbarLabel
 	if label == "" {
 		label = "Table rows"
 	}
-	horizontalLabel := t.spec.HorizontalScrollbarLabel
+	horizontalLabel := t.GetSpec().HorizontalScrollbarLabel
 	if horizontalLabel == "" {
 		horizontalLabel = "Table columns"
 	}
-	size := t.spec.ScrollbarSize
-	if size <= 0 && f.page != nil {
-		size = f.page.config.ScrollbarSize
+	size := t.GetSpec().ScrollbarSize
+	if size <= 0 && f.GetPage() != nil {
+		size = f.GetPage().GetConfig().ScrollbarSize
 	}
 	// The bars sit at the table's own edges, over the body's clips: the component
 	// places their tracks from these bounds alone. The area they own is the whole
@@ -82,8 +65,8 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 	// An un-owned vertical hover thumb may duplicate an application's adjacent
 	// bar. Omit its component declaration: an explicit ID still paints and keeps
 	// its hit and drag, while the area's geometry and horizontal bar are unchanged.
-	verticalID, verticalLabel := t.spec.Scrollbar, label
-	if t.spec.HideHoverScrollbars && verticalID.IsZero() {
+	verticalID, verticalLabel := t.GetSpec().Scrollbar, label
+	if t.GetSpec().HideHoverScrollbars && verticalID.IsZero() {
 		verticalLabel = ""
 	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
@@ -92,32 +75,32 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 		Frozen(frozenWidth).
 		ScrollbarSize(size).
 		HoverScrollbars(revealed)
-	if t.spec.ScrollbarGutter > 0 {
+	if t.GetSpec().ScrollbarGutter > 0 {
 		area = area.ReserveScrollbars()
 	}
 	area = area.
 		VerticalScrollbar(verticalID, verticalLabel, "").
-		HorizontalScrollbar(t.spec.HorizontalScrollbar, horizontalLabel, "")
+		HorizontalScrollbar(t.GetSpec().HorizontalScrollbar, horizontalLabel, "")
 	geometry := area.Geometry()
 	area.EndContent()
-	if !t.spec.Scrollbar.IsZero() && geometry.MaxOffsetY > 0 {
-		f.DragScrollbar(&t.state.Scroll, t.spec.Scrollbar, geometry, axisY)
+	if !t.GetSpec().Scrollbar.IsZero() && geometry.MaxOffsetY > 0 {
+		f.DragScrollbar(&t.GetState().Scroll, t.GetSpec().Scrollbar, geometry, AxisY)
 	}
-	if !t.spec.HorizontalScrollbar.IsZero() && geometry.MaxOffsetX > 0 {
-		f.DragScrollbar(&t.state.Scroll, t.spec.HorizontalScrollbar, geometry, axisX)
+	if !t.GetSpec().HorizontalScrollbar.IsZero() && geometry.MaxOffsetX > 0 {
+		f.DragScrollbar(&t.GetState().Scroll, t.GetSpec().HorizontalScrollbar, geometry, AxisX)
 	}
 }
 
 // paintTableHeaderRow paints the header cells of r once, with the hover fills,
 // the sort arrows and the hit regions of the sortable columns.
-func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
+func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight float32) {
 	canvas := f.Surface
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
-	cells := components.TableCellBounds(t.spec.Columns, bounds, widgetsOf(f).rects[:0])
-	widgetsOf(f).rects = cells[:0]
+	cells := components.TableCellBounds(t.GetSpec().Columns, bounds, WidgetsOf(f).GetRects()[:0])
+	WidgetsOf(f).SetRectsCells(cells[:0])
 	hover := f.Palette.Hover
 	for column, cell := range cells {
-		if column < len(t.spec.Sortable) && t.spec.Sortable[column] && !t.spec.Header.IsZero() && canvas.Hovered() == t.spec.Header.At(column) {
+		if column < len(t.GetSpec().Sortable) && t.GetSpec().Sortable[column] && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column) {
 			canvas.Fill(cell, hover)
 		}
 	}
@@ -125,23 +108,23 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 	if r.Height <= headerHeight {
 		headerRow.Height = headerHeight
 	}
-	table := components.BeginTable(canvas, f.Palette, headerRow, t.spec.Columns).
-		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
-	table.Header(t.spec.Headers)
+	table := components.BeginTable(canvas, f.Palette, headerRow, t.GetSpec().Columns).
+		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.GetSpec().FontSize).CellPadding(t.GetSpec().CellPadding)
+	table.Header(t.GetSpec().Headers)
 
-	sorted, descending, isSorted := t.state.Sort()
+	sorted, descending, isSorted := t.GetState().Sort()
 	metrics := f.Palette.Metrics
-	fontSize := t.spec.FontSize
+	fontSize := t.GetSpec().FontSize
 	if fontSize <= 0 {
 		fontSize = metrics.FontSizeM
 	}
 	for column, cell := range cells {
-		if column >= len(t.spec.Sortable) || !t.spec.Sortable[column] || t.spec.Header.IsZero() {
+		if column >= len(t.GetSpec().Sortable) || !t.GetSpec().Sortable[column] || t.GetSpec().Header.IsZero() {
 			continue
 		}
 		title := ""
-		if column < len(t.spec.Headers) {
-			title = t.spec.Headers[column]
+		if column < len(t.GetSpec().Headers) {
+			title = t.GetSpec().Headers[column]
 		}
 		if isSorted && sorted == column {
 			arrow := "↑"
@@ -151,7 +134,7 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 			width := canvas.TextWidthWeight(title, fontSize, gfx.WeightMedium)
 			text := Rect{X: cell.X + metrics.PadControlX, Width: max(cell.Width-metrics.PadControlX*2, 0)}
 			x := text.X + min(width, text.Width) + 4
-			switch t.spec.Columns[column].Alignment {
+			switch t.GetSpec().Columns[column].Alignment {
 			case components.TableAlignCenter:
 				x = text.X + (text.Width+min(width, text.Width))/2 + 4
 			case components.TableAlignRight:
@@ -159,6 +142,6 @@ func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeigh
 			}
 			canvas.LabelCenter(arrow, Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: f.Palette.MutedForeground})
 		}
-		canvas.HitWithLabel(t.spec.Header.At(column), cell, title)
+		canvas.HitWithLabel(t.GetSpec().Header.At(column), cell, title)
 	}
 }

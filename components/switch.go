@@ -96,15 +96,6 @@ func (result SwitchResult) Clicked() bool {
 	return result.canvas != nil && result.canvas.Clicked(result.id)
 }
 
-// SwitchExtent is the width and height of a switch at the theme's density.
-func SwitchExtent(theme gfx.Theme, small bool) (width, height float32) {
-	scale := theme.Metrics.ControlHeight / 32
-	if small {
-		return 24 * scale, 14 * scale
-	}
-	return 32 * scale, 18.4 * scale
-}
-
 // SwitchHitExtent is the width and height of the interaction region Paint
 // declares around a switch. The padding is the fixed 12 by 8 logical pixels
 // Paint adds, not scaled by density.

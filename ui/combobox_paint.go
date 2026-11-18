@@ -1,49 +1,28 @@
 package ui
 
 import (
-	"strconv"
-
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/style"
 )
 
-// setOptions gives the list the labels when they are not the ones it has.
-func (s *comboState) setOptions(labels []string) {
-	same := len(labels) == len(s.labels)
-	for i := 0; same && i < len(labels); i++ {
-		same = labels[i] == s.labels[i]
-	}
-	if same {
-		return
-	}
-	s.labels = append(s.labels[:0], labels...)
-	for len(s.keys) < len(labels) {
-		s.keys = append(s.keys, comboKeyPrefix+strconv.Itoa(len(s.keys)))
-	}
-	s.opts = s.opts[:0]
-	for i, label := range labels {
-		s.opts = append(s.opts, style.SingleSelectOption{Value: s.keys[i], Label: label})
-	}
-	s.list.SetOptions(s.opts)
-}
-
 // draw paints the field, and its list while it is open.
-func (s *comboState) draw(d *DrawContext) {
-	n := &s.f.Nodes[s.node]
-	ids := &s.ids
+func comboStateDraw(s *ComboState, d *DrawContext) {
+	n := &s.GetF().Nodes[s.Node]
+	ids := s.IDsPtr()
 	options := style.SingleSelectOptions{
-		InputID: ids.input, TriggerID: ids.trigger, DismissID: ids.dismiss, Scope: ids.focus,
-		ScrollID: ids.Scroll, OptionIDs: ids.options,
-		Label: s.Label, Placeholder: s.placeholder, EmptyLabel: s.empty, CreatePrefix: s.createPrefix,
-		Viewport: s.f.bounds, Layer: max(s.layer, s.f.popupLayer), Disabled: n.Flags&flagDisabled != 0,
+		InputID: ids.GetInput(), TriggerID: ids.GetTrigger(), DismissID: ids.GetDismiss(), Scope: ids.GetFocus(),
+		ScrollID: ids.Scroll, OptionIDs: ids.GetOptions(),
+		Label: s.Label, Placeholder: s.GetPlaceholder(), EmptyLabel: s.GetEmpty(), CreatePrefix: s.GetCreatePrefix(),
+		Viewport: s.GetF().GetBounds(), Layer: max(s.GetLayer(), s.GetF().GetPopupLayer()), Disabled: n.Flags&FlagDisabled != 0,
 	}
-	if s.clearable {
-		if s.clearLabelOf != s.Label {
-			s.clearLabel, s.clearLabelOf = "Clear "+s.Label, s.Label
+	if s.GetClearable() {
+		if s.GetClearLabelOf() != s.Label {
+			s.SetClearLabel("Clear " + s.Label)
+			s.SetClearLabelOf(s.Label)
 		}
-		options.ClearID, options.ClearLabel = ids.clear, s.clearLabel
+		options.ClearID, options.ClearLabel = ids.GetClear(), s.GetClearLabel()
 	}
-	components.PaintSingleSelect(d.Canvas, *d.Theme, d.Rect, &s.list, options)
+	components.PaintSingleSelect(d.Canvas, *d.Theme, d.Rect, s.ListPtr(), options)
 }
 
 // Describe gives a Combobox's choices more than a name: describe(i) is choice i's
@@ -55,30 +34,30 @@ func (s *comboState) draw(d *DrawContext) {
 //		h := hosts[i]
 //		return ui.ComboboxOption{Detail: h.Address, Search: h.Group, Disabled: !h.Online}
 //	})
-func (b Box) Describe(describe func(i int) ComboboxOption) Box {
-	s := b.combo()
+func boxDescribe(b Box, describe func(i int) ComboboxOption) Box {
+	s := b.ComboState()
 	if s == nil || describe == nil {
 		return b
 	}
-	n := len(s.labels)
-	same := n == len(s.descs)
-	s.scratch = s.scratch[:0]
+	n := len(s.GetLabels())
+	same := n == len(s.GetDescs())
+	s.SetScratch(s.GetScratch()[:0])
 	for i := 0; i < n; i++ {
 		d := describe(i)
 		if d.Label == "" {
-			d.Label = s.labels[i]
+			d.Label = s.GetLabels()[i]
 		}
-		s.scratch = append(s.scratch, d)
-		same = same && s.descs[i].sameAs(d)
+		s.SetScratch(append(s.GetScratch(), d))
+		same = same && s.GetDescs()[i].SameAs(d)
 	}
 	if same {
 		return b
 	}
-	s.descs = append(s.descs[:0], s.scratch...)
-	s.opts = s.opts[:0]
-	for i, d := range s.descs {
-		s.opts = append(s.opts, style.SingleSelectOption{Value: s.keys[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content})
+	s.SetDescs(append(s.GetDescs()[:0], s.GetScratch()...))
+	s.SetOpts(s.GetOpts()[:0])
+	for i, d := range s.GetDescs() {
+		s.SetOpts(append(s.GetOpts(), style.SingleSelectOption{Value: s.GetKeys()[i], Label: d.Label, Detail: d.Detail, Search: d.Search, Disabled: d.Disabled, Leading: d.Leading, Trailing: d.Trailing, Content: d.Content}))
 	}
-	s.list.SetOptions(s.opts)
+	s.ListPtr().SetOptions(s.GetOpts())
 	return b
 }

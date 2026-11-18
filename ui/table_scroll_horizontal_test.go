@@ -355,9 +355,9 @@ func TestTableHorizontalBarKeepsTheGutterStripAndClearRows(t *testing.T) {
 	for i := range rows {
 		rows[i] = []string{"aa", "bb", "cc"}
 	}
-	paint := func(Surface *gfx.Canvas, view *View, state *TableState, gutter float32) {
+	paint := func(Surface *gfx.Canvas, View *View, state *TableState, gutter float32) {
 		Surface.Reset()
-		view.Draw(Surface, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
+		View.Draw(Surface, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.Table(state, TableSpec{
 					Rows: tableScope, Columns: gutterColumns, Headers: []string{"A", "B", "C"},

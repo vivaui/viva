@@ -26,7 +26,7 @@ func badgeVariant(Variant components.ButtonVariant) components.BadgeVariant {
 
 // paintBadge paints the chip the view measured, and its hit when one was
 // declared.
-func (f *frame) paintBadge(v ControlView) {
+func paintBadge(f *Frame, v ControlView) {
 	rect := v.Rect
 	components.PaintBadge(f.Surface, f.Palette, Rect{X: rect.X, Y: rect.Y}, v.Text, badgeVariant(v.Variant))
 	if v.HasHit && !v.ID.IsZero() {

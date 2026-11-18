@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 )
 
@@ -21,7 +22,7 @@ import (
 //		})
 //		if d.Dismissed() { m.confirm = false }
 //	}
-func (f *frame) Dialog(spec DialogSpec) Box {
+func frameDialog(f *Frame, spec DialogSpec) Box {
 	layer := spec.Layer
 	if layer == 0 {
 		layer = f.WidgetLayer() + 2
@@ -31,7 +32,7 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 		width = 448
 	}
 	// The sizes of the header and footer, and the padding, are components.Dialog's.
-	geometry := components.BeginDialog(f.Surface, f.Palette, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
+	geometry := components.BeginDialog(f.Surface, f.Palette, f.GetBounds(), components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
 	padding := geometry.Header.X - geometry.Content.X
 	gap := f.Palette.Metrics.GapItem
 	// The body sits as far under the header, and above the footer, as the dialog
@@ -40,13 +41,13 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 	below := geometry.Footer.Y - (geometry.Body.Y + geometry.Body.Height)
 
 	root := f.Popup().At(0, 0).Fill()
-	r := root.n()
-	r.Dir = stack
-	r.Flags |= flagDialog
-	r.Aux = int32(len(widgetsOf(f).dialogs))
-	d := dialogDecl{spec: spec, layer: layer}
+	r := root.N()
+	r.Dir = base.DirectionStack
+	r.Flags |= FlagDialog
+	r.Aux = int32(len(WidgetsOf(f).GetDialogs()))
+	d := NewDialogDecl(spec, layer)
 	root.Children(func() {
-		surface := f.Column().Width(width).MaxWidth(max(f.bounds.Width-32, 1)).MaxHeight(max(f.bounds.Height-32, 1)).Self(Center).Pad(padding)
+		surface := f.Column().Width(width).MaxWidth(max(f.GetBounds().Width-32, 1)).MaxHeight(max(f.GetBounds().Height-32, 1)).Self(Center).Pad(padding)
 		switch {
 		case spec.Height > 0:
 			surface.Height(spec.Height)
@@ -54,34 +55,34 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 			surface.Height(geometry.Content.Height)
 		}
 		surface.Children(func() {
-			d.header = f.Slot().Height(geometry.Header.Height).i
-			d.body = f.Column().Grow(1).Shrink(1).MarginTop(above).MarginBottom(below).i
-			d.footer = f.Row().Height(geometry.Footer.Height).Gap(gap).Justify(End).Items(Center).i
+			d.SetHeader(f.Slot().Height(geometry.Header.Height).GetI())
+			d.SetBody(f.Column().Grow(1).Shrink(1).MarginTop(above).MarginBottom(below).GetI())
+			d.SetFooter(f.Row().Height(geometry.Footer.Height).Gap(gap).Justify(End).Items(Center).GetI())
 		})
 	})
-	widgetsOf(f).dialogs = append(widgetsOf(f).dialogs, d)
+	WidgetsOf(f).SetDialogs(append(WidgetsOf(f).GetDialogs(), d))
 	return root
 }
 
 // paintDialog paints a Dialog's root: components.Dialog's scrim and surface, then the
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
-func (f *frame) paintDialog(n *node) {
-	d := &widgetsOf(f).dialogs[n.Aux]
+func paintDialog(f *Frame, n *Node) {
+	d := &WidgetsOf(f).GetDialogs()[n.Aux]
 	surface := f.Nodes[n.First].Rect
 	dialog := components.BeginDialog(f.Surface, f.Palette, n.Rect, components.DialogOptions{
-		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,
-		InitialFocusID: d.spec.InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
-		Header: d.spec.Header,
+		Layer: d.GetLayer(), Scope: d.GetSpec().Scope, DismissID: d.GetSpec().DismissID, CloseID: d.GetSpec().CloseID,
+		InitialFocusID: d.GetSpec().InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
+		Header: d.GetSpec().Header,
 	})
-	if d.spec.NoClose {
+	if d.GetSpec().NoClose {
 		dialog = dialog.WithoutCloseButton()
 	}
-	if n.Flags&flagDisabled != 0 {
+	if n.Flags&FlagDisabled != 0 {
 		dialog = dialog.Disabled()
 	}
-	dialog.Begin(d.spec.Title, d.spec.Description)
+	dialog.Begin(d.GetSpec().Title, d.GetSpec().Description)
 	for c := n.First; c >= 0; c = f.Nodes[c].Next {
-		f.paint(c)
+		f.PaintChild(c)
 	}
 	dialog.End()
 }

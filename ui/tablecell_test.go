@@ -14,7 +14,7 @@ type cellTable struct {
 	rows  TableRows
 	state TableState
 	spec  TableSpec
-	view  View
+	View  View
 }
 
 func newCellTable(rows int, spec TableSpec) *cellTable {
@@ -29,7 +29,7 @@ func newCellTable(rows int, spec TableSpec) *cellTable {
 
 func (t *cellTable) paint(Size gfx.Rect) *gfx.Canvas {
 	canvas := testCanvas()
-	t.view.Draw(canvas, gfx.LightTheme(), Size, func(f *Frame) {
+	t.View.Draw(canvas, gfx.LightTheme(), Size, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			f.Table(&t.state, t.spec).Fill()
 		})
@@ -189,7 +189,7 @@ func TestTableCellsInAScrollAreaFollowTheArea(t *testing.T) {
 	rowH, headH := components.TableRowHeight(gfx.LightTheme()), components.TableHeaderHeight(gfx.LightTheme())
 	paint := func() {
 		canvas := testCanvas()
-		table.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 200}, func(f *Frame) {
+		table.View.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 200}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
 					f.Text("above").Height(30)
@@ -200,7 +200,7 @@ func TestTableCellsInAScrollAreaFollowTheArea(t *testing.T) {
 	}
 	paint()
 	table.wantCell(t, 0, 0, gfx.Rect{X: 0, Y: 30 + headH, Width: 120, Height: rowH})
-	table.view.ScrollState(listID).Offset = 30 + headH + 10*rowH
+	table.View.ScrollState(listID).Offset = 30 + headH + 10*rowH
 	paint()
 	// The header sticks to the area's top; its rows have scrolled under it, and
 	// row 10 lies behind the sticky header, so the first cell it paints is 11.

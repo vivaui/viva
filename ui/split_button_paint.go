@@ -6,13 +6,13 @@ import (
 
 // paintSplitButton paints both halves with the page's variant, size, name and
 // state, and leaves their hits to the component.
-func (f *frame) paintSplitButton(v ControlView) {
-	d := &widgetsOf(f).splitButtons[v.Aux]
+func paintSplitButton(f *Frame, v ControlView) {
+	d := &WidgetsOf(f).GetSplitButtons()[v.Aux]
 	options := components.SplitButtonOptions{
-		PrimaryID: d.primary, MenuID: d.menu,
-		Label: v.Label, MenuLabel: d.menuLabel, Hint: d.hint, MenuHint: d.menuHint,
-		Icon: d.icon, Variant: v.Variant, Size: v.Size,
-		TriggerWidth: d.triggerWidth, Open: d.open,
+		PrimaryID: d.GetPrimary(), MenuID: d.GetMenu(),
+		Label: v.Label, MenuLabel: d.GetMenuLabel(), Hint: d.GetHint(), MenuHint: d.GetMenuHint(),
+		Icon: d.GetIcon(), Variant: v.Variant, Size: v.Size,
+		TriggerWidth: d.GetTriggerWidth(), Open: d.GetOpen(),
 		Disabled: v.Disabled,
 	}
 	r := v.Rect

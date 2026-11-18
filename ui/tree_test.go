@@ -55,7 +55,7 @@ func TestTreeRowsCanHaveTheirOwnHeights(t *testing.T) {
 
 func newTreeModel(folders []folder) *treeModel {
 	m := &treeModel{folders: folders}
-	m.state.Node, m.Label = m.node, m.Name
+	m.state.Node, m.Label = m.Node, m.Name
 	m.state.Key = func(i int) int { e := m.Visible[i]; return e.folder<<16 | (e.file + 1) }
 	m.flatten()
 	return m
@@ -73,7 +73,7 @@ func (m *treeModel) flatten() {
 	}
 }
 
-func (m *treeModel) node(i int) ui.TreeNode {
+func (m *treeModel) Node(i int) ui.TreeNode {
 	e := m.Visible[i]
 	if e.file < 0 {
 		return ui.TreeNode{Branch: true, Expanded: m.folders[e.folder].open}

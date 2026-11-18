@@ -13,7 +13,7 @@ import (
 type paneModel struct {
 	tree     gfx.Tree
 	sidebar  gfx.Scope
-	view     ui.View
+	View     ui.View
 	page     *ui.Page
 	pageView func(ui.C)
 
@@ -72,14 +72,14 @@ func (m *paneModel) remove(row string) {
 // pageSlot paints page into the slot the Frame laid out for it, as a pane of a
 // Frame-laid-out window is written as a page. The page is drawn on the host
 // canvas so its controls keep the host's identities.
-func pageSlot(f *ui.Frame, page *ui.Page, view func(ui.C)) ui.Box {
+func pageSlot(f *ui.Frame, page *ui.Page, View func(ui.C)) ui.Box {
 	return f.Slot().Draw(func(d *ui.DrawContext) {
-		page.Draw(d.Canvas, d.Rect, view)
+		page.Draw(d.Canvas, d.Rect, View)
 	})
 }
 
 func (m *paneModel) paint(Surface *gfx.Canvas, Size gfx.Size) {
-	m.view.Draw(Surface, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
+	m.View.Draw(Surface, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Children(func() {
 			// The sidebar is as tall as the window, under where an unplaced page would go.
 			f.Column().Width(200).FillHeight().Children(func() {

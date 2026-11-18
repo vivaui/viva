@@ -13,12 +13,12 @@ import (
 //	ui.Button(c, "New host").Icon(plus)
 //	ui.Button(c, "Delete").Icon(trash).IconOnly().Ghost()
 //	ui.TextField(c, &m.query, "Search", "Search hosts").Icon(search)
-func (b Box) Icon(icon gfx.Icon) Box {
-	if b.n().Kind == kindButton {
-		b.f.Extra(b.i).icon = icon
+func boxIcon(b Box, icon gfx.Icon) Box {
+	if b.N().Kind == KindButton {
+		b.GetF().Extra(b.GetI()).SetIcon(icon)
 		return b
 	}
-	b.addons().start = style.InputGroupSlot{Kind: style.InputGroupSlotIcon, Icon: icon}
+	b.Addons().SetStart(style.InputGroupSlot{Kind: style.InputGroupSlotIcon, Icon: icon})
 	return b
 }
 
@@ -30,37 +30,37 @@ func (b Box) Icon(icon gfx.Icon) Box {
 //	if field.ActionClicked() {
 //		m.query = ""
 //	}
-func (b Box) Action(icon gfx.Icon, Label string) Box {
-	a := b.addons()
-	a.end = style.InputGroupSlot{
-		Kind: style.InputGroupSlotButton, ID: b.actionID(), Icon: icon, Label: Label,
+func boxAction(b Box, icon gfx.Icon, Label string) Box {
+	a := b.Addons()
+	a.SetEnd(style.InputGroupSlot{
+		Kind: style.InputGroupSlotButton, ID: b.ActionID(), Icon: icon, Label: Label,
 		ButtonSize: components.InputGroupButtonIconXS,
-	}
+	})
 	return b
 }
 
 // ActionClicked reports whether this paint delivers a press on the field's Action. The
 // keyboard goes back to the field then, so a clear or a reveal does not end the typing.
-func (b Box) ActionClicked() bool {
-	n := b.n()
-	if n.Kind != kindInput || n.Ext == 0 || b.f.Exts[n.Ext].addons == 0 || b.f.Surface == nil {
+func boxActionClicked(b Box) bool {
+	n := b.N()
+	if n.Kind != KindInput || n.Ext == 0 || b.GetF().Exts[n.Ext].GetAddons() == 0 || b.GetF().Surface == nil {
 		return false
 	}
-	end := b.f.addons[b.f.Exts[n.Ext].addons-1].end
-	if end.Kind != style.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.Surface.Clicked(end.ID) {
+	end := b.GetF().GetAddons()[b.GetF().Exts[n.Ext].GetAddons()-1].GetEnd()
+	if end.Kind != style.InputGroupSlotButton || n.Flags&FlagDisabled != 0 || !b.GetF().Surface.Clicked(end.ID) {
 		return false
 	}
-	b.f.Surface.RequestFocus(widgetsOf(b.f).inputs[n.Aux].ID)
+	b.GetF().Surface.RequestFocus(WidgetsOf(b.GetF()).GetInputs()[n.Aux].ID)
 	return true
 }
 
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
-func (f *frame) paintAddons(n *node, snapshot style.InputSnapshot, a *fieldAddons) {
+func paintAddons(f *Frame, n *Node, snapshot style.InputSnapshot, a *FieldAddons) {
 	canvas, theme := f.Surface, f.Palette
-	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
-	start, end, content := components.InputAddonsLayout(canvas, theme, n.Rect, a.start, a.end)
-	components.PaintInputAddon(canvas, theme, start, a.start, true, disabled)
+	disabled := n.Flags&FlagDisabled != 0 || snapshot.Disabled
+	start, end, content := components.InputAddonsLayout(canvas, theme, n.Rect, a.GetStart(), a.GetEnd())
+	components.PaintInputAddon(canvas, theme, start, a.GetStart(), true, disabled)
 	components.PaintInputContent(canvas, theme, n.Rect, content, snapshot)
-	components.PaintInputAddon(canvas, theme, end, a.end, false, disabled) // its hit over the field's
+	components.PaintInputAddon(canvas, theme, end, a.GetEnd(), false, disabled) // its hit over the field's
 }

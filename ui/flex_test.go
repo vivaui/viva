@@ -168,8 +168,8 @@ func TestButtonsAreTheComponentsButtons(t *testing.T) {
 }
 
 // page declares a screen with every kind of element, to count its allocations.
-func declare(view *View, Surface *gfx.Canvas, Palette gfx.Theme, title, detail string, checked bool) {
-	view.Draw(Surface, Palette, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
+func declare(View *View, Surface *gfx.Canvas, Palette gfx.Theme, title, detail string, checked bool) {
+	View.Draw(Surface, Palette, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 		f.Column().Pad(24).Gap(12).Children(func() {
 			f.Row().Gap(10).Items(Center).Children(func() {
 				f.Icon(gfx.Icon{ViewBox: 24}).Size(20, 20)
@@ -831,7 +831,7 @@ func TestViewTrimReleasesLargePageNodes(t *testing.T) {
 	view.Draw(canvas, theme, gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Text("one")
 	})
-	if got := cap(view.frame.Nodes); got > 4096 {
+	if got := cap(view.Frame.Nodes); got > 4096 {
 		t.Fatalf("nodes capacity after a large page = %d, want the spike released", got)
 	}
 }

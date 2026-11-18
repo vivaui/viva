@@ -11,7 +11,7 @@ var volumeID = tree.ID(page, "volume")
 // sliderPage is a slider 200 wide in a window of that width. changed collects what
 // Changed said in each paint.
 type sliderPage struct {
-	view     View
+	View     View
 	state    SliderState
 	declare  func(Box) Box
 	Box      Box
@@ -20,7 +20,7 @@ type sliderPage struct {
 }
 
 func (p *sliderPage) paint(Surface *gfx.Canvas, Size gfx.Size) {
-	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
+	p.View.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			b := f.Slider(volumeID, &p.state).Label("Volume")
 			if p.vertical {
@@ -274,14 +274,14 @@ func BenchmarkSlider(b *testing.B) {
 
 // sliderBasePage is a SliderBase 200 wide whose track and thumb the caller draws.
 type sliderBasePage struct {
-	view  View
+	View  View
 	state SliderState
 	Box   Box
 	thumb gfx.Rect
 }
 
 func (p *sliderBasePage) paint(Surface *gfx.Canvas, Size gfx.Size) {
-	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
+	p.View.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			p.Box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {
 				x := d.Rect.X + 8 + p.state.Fraction()*(d.Rect.Width-16)

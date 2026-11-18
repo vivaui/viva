@@ -18,11 +18,11 @@ func runeCanvas() *gfx.Canvas {
 
 // paintedLines draws a paragraph and returns what was painted and the height the
 // layout gave it.
-func paintedLines(t *testing.T, view *View, Text string, width float32, MaxLines int) ([]string, float32) {
+func paintedLines(t *testing.T, View *View, Text string, width float32, MaxLines int) ([]string, float32) {
 	t.Helper()
 	canvas := runeCanvas()
 	var box Box
-	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 600})
+	f := View.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 600})
 	f.Column().Children(func() {
 		box = f.Text(Text).FontSize(10).MaxLines(MaxLines)
 	})
