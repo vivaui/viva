@@ -78,11 +78,11 @@ func (b Box) DrawOver(fn func(*DrawContext)) Box { b.hooks().over = fn; return b
 func (b Box) hooks() *drawHooks {
 	b.n()
 	extra := b.f.extra(b.i)
-	if extra.draws == 0 {
-		b.f.draws = append(b.f.draws, drawHooks{})
-		extra.draws = int32(len(b.f.draws))
+	if extra.Draws == 0 {
+		b.f.Draws = append(b.f.Draws, drawHooks{})
+		extra.Draws = int32(len(b.f.Draws))
 	}
-	return &b.f.draws[extra.draws-1]
+	return &b.f.Draws[extra.Draws-1]
 }
 
 // State is the element's state as the canvas and the declaration have it now: what its

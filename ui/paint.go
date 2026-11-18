@@ -139,8 +139,8 @@ func (f *frame) paint(i int32) {
 	n.Color = color
 
 	var hooks drawHooks
-	if extra.draws != 0 {
-		hooks = f.draws[extra.draws-1]
+	if extra.Draws != 0 {
+		hooks = f.Draws[extra.Draws-1]
 	}
 	if hooks.under != nil {
 		f.runDraw(n, hooks.under)

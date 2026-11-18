@@ -209,7 +209,7 @@ type extra struct {
 	nativeView    gfx.NativeViewID // the native view that fills the element (NativeView)
 	bind          int32            // 1 + the index of the element's binding in frame.binds, or 0 (see bind.go)
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
-	draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
+	Draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
@@ -241,7 +241,7 @@ type frame struct {
 	Exts        []extra            // exts[0] is never written: an element without extras points at it
 	Floats      []int32            // the Popups, which belong to no container
 	States      []stateLooks       // what Hover, Pressed and Focus declared, by element
-	draws       []drawHooks        // what Draw and DrawOver declared, by element
+	Draws       []drawHooks        // what Draw and DrawOver declared, by element
 	memoDepth   int                // how many Memos of a page are recording what is declared now
 	page        *Page              // the page declaring this frame; nil for a frame of the application's
 	tooltips    bool               // an element was given a Tooltip: End paints the one the pointer rests on
@@ -327,8 +327,8 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
 	f.States, f.Gradients, f.Stops = f.States[:0], f.Gradients[:0], f.Stops[:0]
-	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
-	f.draws = f.draws[:0]
+	clear(f.Draws) // a callback holds what it captured: not past the frame it was declared in
+	f.Draws = f.Draws[:0]
 	f.Opacity = 1
 	f.popupLayer = 0
 	f.memoDepth = 0
@@ -426,7 +426,7 @@ func (f *frame) trim() {
 	f.Nodes = trimFlexCapacity(f.Nodes)
 	f.Images = trimFlexCapacity(f.Images)
 	f.Exts = trimFlexCapacity(f.Exts)
-	f.draws = trimFlexCapacity(f.draws)
+	f.Draws = trimFlexCapacity(f.Draws)
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
 	f.lines = trimFlexCapacity(f.lines)
