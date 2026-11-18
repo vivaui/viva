@@ -13,8 +13,8 @@ const module = "github.com/vivaui/viva/"
 
 // forbidden lists, for each public package, the module packages its non-test
 // code must not import. The rules are the dependency directions that hold today
-// and that the packages' documentation relies on; they say nothing yet about
-// whether ui should depend on components.
+// and that the packages' documentation relies on. components is the style
+// library below the page: ui may import it, and it may not import ui (ADR 0084).
 var forbidden = map[string][]string{
 	// Values and the canvas know nothing of any layer above them.
 	"gfx":  {"app", "ui", "components", "headless", "keymap", "field", "markdown", "text"},
