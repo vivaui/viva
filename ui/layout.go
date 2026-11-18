@@ -355,7 +355,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		child.growNow = grow
 		switch {
 		case child.Flags&flagShrinkSet != 0:
-			child.shrinkNow = child.shrink
+			child.shrinkNow = child.Shrink
 		case axis == axisX && (child.Kind == kindText || child.Kind == kindContainer),
 			axis == axisY && child.Flags&flagScroll != 0:
 			// Across a line of text or a container may give way; down a column an

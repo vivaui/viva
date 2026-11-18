@@ -159,7 +159,7 @@ func (b Box) Grow(v float32) Box {
 }
 func (b Box) Shrink(v float32) Box {
 	n := b.n()
-	n.shrink = v
+	n.Shrink = v
 	n.Flags |= flagShrinkSet
 	return b
 }

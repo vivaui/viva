@@ -116,7 +116,7 @@ type node struct {
 
 	size                 [2]dimension
 	minS, maxS           [2]float32 // a max of zero is no max
-	Grow, shrink         float32
+	Grow, Shrink         float32
 	Pad, Margin          [4]float32 // top, right, bottom, left
 	Gap                  float32
 	Items, Self, Justify Align
@@ -573,7 +573,7 @@ func (f *frame) Text(value string) Box {
 	n.text = value
 	n.FontSize = f.theme.Metrics.FontSizeM
 	n.Color = f.theme.Foreground
-	n.shrink = 1
+	n.Shrink = 1
 	return b
 }
 
