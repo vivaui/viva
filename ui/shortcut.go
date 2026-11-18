@@ -86,7 +86,7 @@ func (p *Page) shortcut(c C, modifiers gfx.Modifiers, key string, focus gfx.ID, 
 	if p.shortcutRoute == nil {
 		p.keyRoute, p.shortcutRoute = (*Page).routeKey, (*Page).matchShortcut
 	}
-	return c.f.canvas != nil && c.f.canvas.Clicked(id)
+	return c.f.Surface != nil && c.f.Surface.Clicked(id)
 }
 
 // matchShortcut finds the Shortcut the key event presses where the focus is, and

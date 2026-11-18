@@ -7,9 +7,9 @@ import (
 )
 
 // topHit is the region a pointer at (x, y) would reach: the last declared that holds it.
-func topHit(canvas *gfx.Canvas, x, y float32) gfx.ID {
+func topHit(Surface *gfx.Canvas, x, y float32) gfx.ID {
 	var id gfx.ID
-	for _, hit := range canvas.Hits() {
+	for _, hit := range Surface.Hits() {
 		b := hit.Bounds
 		if x >= b.X && x < b.X+b.Width && y >= b.Y && y < b.Y+b.Height {
 			id = hit.ID
@@ -74,10 +74,10 @@ func TestGridSpanWiderThanTheGridIsAsWideAsTheGrid(t *testing.T) {
 }
 
 func TestAbsoluteChildDoesNotChangeItsSiblingsIsAboveThemAndWinsTheHit(t *testing.T) {
-	layout := func(withBadge bool) (card, badge, body, Content Box, canvas *gfx.Canvas) {
+	layout := func(withBadge bool) (card, badge, body, Content Box, Surface *gfx.Canvas) {
 		var view View
-		canvas = testCanvas()
-		f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200})
+		Surface = testCanvas()
+		f := view.Begin(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200})
 		f.Column().Pad(10).Gap(4).Children(func() {
 			card = f.Stack().Size(100, 50).Children(func() {
 				body = f.Slot().Fill().Self(Stretch)

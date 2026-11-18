@@ -130,5 +130,5 @@ func (f *frame) paintSplitButton(v ControlView) {
 		Disabled: v.Disabled,
 	}
 	r := v.Rect
-	components.BeginSplitButton(f.canvas, f.theme, Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}, options).Paint()
+	components.BeginSplitButton(f.Surface, f.theme, Rect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height}, options).Paint()
 }

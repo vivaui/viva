@@ -69,7 +69,7 @@ func Pagination(c C, Items []PaginationItem) Box {
 func (f *frame) paintPagination(v ControlView) {
 	d := &widgetsOf(f).paginations[v.Aux]
 	items := widgetsOf(f).paginationItems[d.start : d.start+d.count]
-	bar := components.BeginPagination(f.canvas, f.theme, v.Rect)
+	bar := components.BeginPagination(f.Surface, f.theme, v.Rect)
 	for _, item := range items {
 		bar.Add(item)
 	}

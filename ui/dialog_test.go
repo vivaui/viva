@@ -108,9 +108,9 @@ func TestDialogPaintsTheHeaderMetricsItWasGiven(t *testing.T) {
 
 func TestDialogReportsDismissalAndTheButtonsAreClicked(t *testing.T) {
 	theme := gfx.LightTheme()
-	draw := func(canvas *gfx.Canvas) (dismissed, deleted bool) {
+	draw := func(Surface *gfx.Canvas) (dismissed, deleted bool) {
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 640, Height: 400}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 640, Height: 400}, func(f *Frame) {
 			d := f.Dialog(DialogSpec{Title: "Delete host?", Width: 400, Scope: dlgScope.ID(tree.Name("scope")), DismissID: dlgNo, CloseID: dlgClose})
 			d.Footer(func() {
 				f.Button(dlgNo, "Cancel").Outline()

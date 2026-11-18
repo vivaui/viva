@@ -55,7 +55,7 @@ func (b Box) Clicked() bool {
 	if n.Ext != 0 && b.f.Exts[n.Ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
-	return b.f.canvas != nil && n.Flags&flagVeto == 0 && b.f.canvas.Clicked(n.ID)
+	return b.f.Surface != nil && n.Flags&flagVeto == 0 && b.f.Surface.Clicked(n.ID)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
@@ -517,13 +517,13 @@ func (b Box) HitOutset(top, right, bottom, left float32) Box {
 //	if id, ok := seg.Chosen(); ok { m.theme = id }
 func (b Box) Chosen() (gfx.ID, bool) {
 	n := b.n()
-	if b.f.canvas == nil {
+	if b.f.Surface == nil {
 		return gfx.ID{}, false
 	}
 	if n.Flags&flagAlertDialog != 0 {
 		spec := &widgetsOf(b.f).alertDialogs[n.Aux].spec
 		for _, id := range [2]gfx.ID{spec.ActionID, spec.CancelID} {
-			if !id.IsZero() && b.f.canvas.Clicked(id) {
+			if !id.IsZero() && b.f.Surface.Clicked(id) {
 				return id, true
 			}
 		}
@@ -532,20 +532,20 @@ func (b Box) Chosen() (gfx.ID, bool) {
 	switch n.Kind {
 	case kindSegmented:
 		for _, option := range widgetsOf(b.f).segmented[n.Aux].options {
-			if b.f.canvas.Clicked(option.ID) {
+			if b.f.Surface.Clicked(option.ID) {
 				return option.ID, true
 			}
 		}
 	case kindPagination:
 		for _, item := range b.f.paginationItems(n) {
-			if !item.ID.IsZero() && b.f.canvas.Clicked(item.ID) {
+			if !item.ID.IsZero() && b.f.Surface.Clicked(item.ID) {
 				return item.ID, true
 			}
 		}
 	case kindSplitButton:
 		d := &widgetsOf(b.f).splitButtons[n.Aux]
 		for _, id := range [2]gfx.ID{d.primary, d.menu} {
-			if !id.IsZero() && b.f.canvas.Clicked(id) {
+			if !id.IsZero() && b.f.Surface.Clicked(id) {
 				return id, true
 			}
 		}
@@ -616,10 +616,10 @@ func (b Box) DoubleClicked() bool {
 }
 
 func (b Box) clickInfo() (gfx.ClickInfo, bool) {
-	if b.f.canvas == nil || !b.f.canvas.Clicked(b.n().ID) {
+	if b.f.Surface == nil || !b.f.Surface.Clicked(b.n().ID) {
 		return gfx.ClickInfo{}, false
 	}
-	return b.f.canvas.ClickInfo()
+	return b.f.Surface.ClickInfo()
 }
 
 // ScrollWith makes the element's content follow the sideways scroll of the rows of

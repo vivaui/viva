@@ -81,9 +81,9 @@ func TestTabsTakeTheirDeclaredHeight(t *testing.T) {
 func TestTabsReportTheClickedTabAndTheContentFollowsTheIndex(t *testing.T) {
 	theme := gfx.LightTheme()
 	current := 0
-	draw := func(canvas *gfx.Canvas) (shown string) {
+	draw := func(Surface *gfx.Canvas) (shown string) {
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 			f.Column().Gap(8).Children(func() {
 				if i, ok := f.Tabs(tabsScope, tabLabels, current).TabClicked(); ok {
 					current = i

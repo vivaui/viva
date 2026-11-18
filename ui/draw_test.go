@@ -17,8 +17,8 @@ var (
 )
 
 // colorIndex is where the first rectangle of that color was painted, or -1.
-func colorIndex(canvas *gfx.Canvas, Color gfx.Color) int {
-	for i, rect := range canvas.Rectangles() {
+func colorIndex(Surface *gfx.Canvas, Color gfx.Color) int {
+	for i, rect := range Surface.Rectangles() {
 		if rect.Color == Color {
 			return i
 		}

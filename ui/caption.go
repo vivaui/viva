@@ -70,8 +70,8 @@ func (f *frame) paintCaptionView(v ControlView, control Rect) {
 	if v.Disabled {
 		color.Alpha *= 0.5
 	}
-	f.canvas.Label(v.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
-	f.canvas.HitLabel(v.ID, r, v.Text, v.Disabled)
+	f.Surface.Label(v.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	f.Surface.HitLabel(v.ID, r, v.Text, v.Disabled)
 }
 
 func (f *frame) paintCaption(n *node, control Rect) {
@@ -87,6 +87,6 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	if disabled {
 		color.Alpha *= 0.5
 	}
-	f.canvas.Label(n.text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
-	f.canvas.HitLabel(n.ID, r, n.text, disabled)
+	f.Surface.Label(n.text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	f.Surface.HitLabel(n.ID, r, n.text, disabled)
 }

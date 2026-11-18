@@ -10,10 +10,10 @@ import (
 // drag once the pointer has moved far enough with it, and drops the rows it carries
 // when it is let go. It runs before the rows are declared, from what the last paint
 // found under the pointer.
-func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
+func (s *ListState) reorderPointer(Surface *gfx.Canvas) {
 	in := &s.list
 	drag := &in.drag
-	if s.Reorder == nil || canvas == nil {
+	if s.Reorder == nil || Surface == nil {
 		drag.reset()
 		return
 	}
@@ -21,12 +21,12 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		drag.to, drag.valid = drag.Next, drag.nextOK // what the rows under the pointer found
 		drag.nextOK = false
 		band := min(s.rowHeight(drag.from), in.view.Height/4)
-		dragEdgeScroll(canvas, in.Scroll, in.view, drag.at, band, &drag.scrolled)
+		dragEdgeScroll(Surface, in.Scroll, in.view, drag.at, band, &drag.scrolled)
 	}
-	_, event, ok := canvas.PointerIn(in.rows)
+	_, event, ok := Surface.PointerIn(in.rows)
 	if !ok && !s.Handle.IsZero() {
 		// A drag that starts on the handle carries the handle as its target.
-		_, event, ok = canvas.PointerIn(s.Handle)
+		_, event, ok = Surface.PointerIn(s.Handle)
 	}
 	if !ok {
 		return
@@ -65,7 +65,7 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 			s.carriedRows(drag)
 		}
 		drag.at = point
-		canvas.Consume()
+		Surface.Consume()
 	case gfx.PointerUp:
 		active := drag.active
 		rows, to, valid := drag.rows, drag.to, drag.valid
@@ -75,7 +75,7 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 		}
 		// A drag is not also a click on the row it ends on: its moves were consumed,
 		// which already says so, and so does its release.
-		canvas.Consume()
+		Surface.Consume()
 		if valid && !movesNothing(rows, to) {
 			if drag.handle {
 				// The keyboard stays on the grip of what was dragged, where the
@@ -84,11 +84,11 @@ func (s *ListState) reorderPointer(canvas *gfx.Canvas) {
 				if to > rows[0] {
 					newRow = to - len(rows)
 				}
-				canvas.RequestFocus(s.Handle.At(newRow))
+				Surface.RequestFocus(s.Handle.At(newRow))
 			}
 			moved := append([]int(nil), rows...) // the drag's own rows are reused
 			reorder := s.Reorder
-			canvas.AfterPaint(func() { reorder(moved, to) })
+			Surface.AfterPaint(func() { reorder(moved, to) })
 		}
 		drag.reset()
 	}

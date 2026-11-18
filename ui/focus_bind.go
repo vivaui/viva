@@ -75,7 +75,7 @@ func FocusedValue[T comparable](c C, field *T) T {
 	if !ok || state.epoch != c.page.epoch {
 		return zero
 	}
-	canvas := c.f.canvas
+	canvas := c.f.Surface
 	if canvas == nil {
 		return zero
 	}
@@ -91,7 +91,7 @@ func FocusedValue[T comparable](c C, field *T) T {
 // focusState is a field's bindings without the value type, so the page can
 // settle them after a paint.
 type focusState interface {
-	settle(canvas *gfx.Canvas, focused gfx.ID)
+	settle(Surface *gfx.Canvas, focused gfx.ID)
 	seen() uint32
 }
 
@@ -116,7 +116,7 @@ func (s *focusBindings[T]) seen() uint32 { return s.epoch }
 
 // settle moves the focus to the value the application asked for, or writes the
 // focus the user moved to back into the field.
-func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
+func (s *focusBindings[T]) settle(Surface *gfx.Canvas, focused gfx.ID) {
 	desired := *s.field
 	focusChanged := !s.actualSet || focused != s.actual
 	s.actual, s.actualSet = focused, true
@@ -142,14 +142,14 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 		s.Last, s.set = desired, true
 		s.pending, s.missing = !desiredBound, false
 		if desiredBound && focused != desiredID {
-			canvas.RequestFocus(desiredID)
+			Surface.RequestFocus(desiredID)
 		}
 		return
 	}
 	if desiredBound && (s.pending || s.missing) {
 		s.pending, s.missing = false, false
 		if focused != desiredID {
-			canvas.RequestFocus(desiredID)
+			Surface.RequestFocus(desiredID)
 		}
 		return
 	}
@@ -166,7 +166,7 @@ func (s *focusBindings[T]) settle(canvas *gfx.Canvas, focused gfx.ID) {
 // settleFocus applies the focus bindings of the paint that just ended: a request
 // the application made, or the focus the user moved back into its field.
 func (p *Page) settleFocus() {
-	canvas := p.ctx.f.canvas
+	canvas := p.ctx.f.Surface
 	if canvas != nil {
 		focused := canvas.Focused()
 		for _, state := range p.focusPaint {

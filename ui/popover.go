@@ -109,7 +109,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 func (f *frame) paintPopover(i int32, n *node) {
 	d := &widgetsOf(f).popovers[n.Aux]
 	spec := &d.spec
-	canvas := f.canvas
+	canvas := f.Surface
 	layer := max(d.layer, f.popupLayer, widgetLayerBase) + 2
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)

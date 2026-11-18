@@ -236,20 +236,20 @@ func (f *frame) Table(state *TableState, spec TableSpec) Box {
 // RowClicked reports which row of a Table this paint is delivering a click on.
 func (b Box) RowClicked() (int, bool) {
 	n := b.n()
-	if n.Kind != kindTable || b.f.canvas == nil {
+	if n.Kind != kindTable || b.f.Surface == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.Aux].spec.Rows)
+	return b.f.Surface.ClickedIn(widgetsOf(b.f).tables[n.Aux].spec.Rows)
 }
 
 // HeaderClicked reports which column header of a Table this paint is delivering a
 // click on.
 func (b Box) HeaderClicked() (int, bool) {
 	n := b.n()
-	if n.Kind != kindTable || b.f.canvas == nil {
+	if n.Kind != kindTable || b.f.Surface == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(widgetsOf(b.f).tables[n.Aux].spec.Header)
+	return b.f.Surface.ClickedIn(widgetsOf(b.f).tables[n.Aux].spec.Header)
 }
 
 func (t *tableDecl) rowHeight(theme Theme) float32 {
@@ -338,7 +338,7 @@ func (f *frame) paintTable(n *node) {
 	t := &widgetsOf(f).tables[n.Aux]
 	r := n.rect
 	rowHeight, headerHeight := t.rowHeight(f.theme), t.headerHeight(f.theme)
-	canvas := f.canvas
+	canvas := f.Surface
 	body := Rect{X: r.X, Y: r.Y + headerHeight, Width: r.Width, Height: max(r.Height-headerHeight, 0)}
 	content := float32(t.rows) * rowHeight
 	gutter := max(t.spec.ScrollbarGutter, 0)
@@ -499,7 +499,7 @@ func (f *frame) paintTable(n *node) {
 // already clipped to the band the rows belong to, and rows keeps the whole
 // grid's geometry: every column paints, and the clip does the segmentation.
 func (f *frame) paintTableRows(t *tableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
-	canvas := f.canvas
+	canvas := f.Surface
 	table := components.BeginTable(canvas, f.theme, rows, t.spec.Columns).
 		RowHeight(rowHeight).FontSize(t.spec.FontSize).CellPadding(t.spec.CellPadding)
 	w := widgetsOf(f)
@@ -559,7 +559,7 @@ func (f *frame) paintTableScrollbars(t *tableDecl, r, body Rect, Content gfx.Siz
 		verticalLabel = ""
 	}
 	areaBounds := Rect{X: r.X, Y: body.Y, Width: r.Width, Height: r.Y + r.Height - body.Y}
-	area := components.BeginScrollArea(f.canvas, f.theme, areaBounds, Content).
+	area := components.BeginScrollArea(f.Surface, f.theme, areaBounds, Content).
 		Offset(offsetX, offsetY).
 		Frozen(frozenWidth).
 		ScrollbarSize(size).
@@ -610,8 +610,8 @@ func (f *frame) revealSelected(n *node, t *tableDecl, body Rect, rowHeight, head
 	} else if below := view.Y + view.Height; y+rowHeight > below {
 		outer.Offset += y + rowHeight - below
 	}
-	if f.canvas != nil {
-		f.canvas.RequestFrame()
+	if f.Surface != nil {
+		f.Surface.RequestFrame()
 	}
 }
 
@@ -623,7 +623,7 @@ func (f *frame) paintTableHeader(t *tableDecl, r, viewport Rect, headerHeight, r
 	if headerHeight <= 0 {
 		return
 	}
-	canvas := f.canvas
+	canvas := f.Surface
 	if sideways {
 		// The header scrolls with the body, clipped to the same columns; without
 		// an overflow it is laid out over the table, as it always was.
@@ -655,7 +655,7 @@ func (f *frame) paintTableHeader(t *tableDecl, r, viewport Rect, headerHeight, r
 // paintTableHeaderRow paints the header cells of r once, with the hover fills,
 // the sort arrows and the hit regions of the sortable columns.
 func (f *frame) paintTableHeaderRow(t *tableDecl, r Rect, headerHeight, rowHeight float32) {
-	canvas := f.canvas
+	canvas := f.Surface
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
 	cells := components.TableCellBounds(t.spec.Columns, bounds, widgetsOf(f).rects[:0])
 	widgetsOf(f).rects = cells[:0]

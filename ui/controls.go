@@ -60,7 +60,7 @@ func (f *frame) paintInputGroupControl(n *node, r Rect) { f.paintInputGroup(view
 func (f *frame) paintSegmentedControl(n *node, r Rect)  { f.paintSegmented(viewOf(f, n)) }
 
 func (f *frame) paintCheckbox(v ControlView) {
-	canvas := f.canvas
+	canvas := f.Surface
 	side := components.CheckboxExtent(f.theme)
 	bounds := Rect{X: v.Rect.X + (v.Rect.Width-side)/2, Y: v.Rect.Y + (v.Rect.Height-side)/2, Width: side, Height: side}
 	if v.Text != "" {
@@ -84,7 +84,7 @@ func (f *frame) paintCheckbox(v ControlView) {
 }
 
 func (f *frame) paintSwitch(v ControlView) {
-	canvas := f.canvas
+	canvas := f.Surface
 	small := v.Flags&flagSmall != 0
 	width, height := components.SwitchExtent(f.theme, small)
 	bounds := Rect{X: v.Rect.X + (v.Rect.Width-width)/2, Y: v.Rect.Y + (v.Rect.Height-height)/2, Width: width, Height: height}
@@ -111,12 +111,12 @@ func (f *frame) paintSwitch(v ControlView) {
 }
 
 func (f *frame) paintInputGroup(v ControlView) {
-	components.PaintInputGroup(f.canvas, f.theme, v.Rect, widgetsOf(f).groups[v.Aux])
+	components.PaintInputGroup(f.Surface, f.theme, v.Rect, widgetsOf(f).groups[v.Aux])
 }
 
 func (f *frame) paintSegmented(v ControlView) {
 	choice := widgetsOf(f).segmented[v.Aux]
-	components.BeginSegmentedControl(f.canvas, f.theme, v.Rect, choice.options, choice.selected).Paint()
+	components.BeginSegmentedControl(f.Surface, f.theme, v.Rect, choice.options, choice.selected).Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package
@@ -124,7 +124,7 @@ func (f *frame) paintSegmented(v ControlView) {
 func (f *frame) measureControls(n *node) {
 	switch n.Kind {
 	case kindButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].icon)
+		button := components.BeginButton(f.Surface, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].icon)
 		if d := n.Size[axisY]; d.Kind == dimPx {
 			button = button.Height(d.value) // an icon button is as wide as it is tall
 		}
@@ -134,13 +134,13 @@ func (f *frame) measureControls(n *node) {
 			n.Pref[axisX] = n.Pref[axisY]
 		}
 	case kindBadge:
-		w, h := components.BadgeExtent(f.canvas, f.theme, n.text)
+		w, h := components.BadgeExtent(f.Surface, f.theme, n.text)
 		n.Pref = [2]float32{w, h}
 	case kindPagination:
-		w, h := components.PaginationExtent(f.canvas, f.theme, f.paginationItems(n))
+		w, h := components.PaginationExtent(f.Surface, f.theme, f.paginationItems(n))
 		n.Pref = [2]float32{w, h}
 	case kindSplitButton:
-		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
+		button := components.BeginButton(f.Surface, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
 		trigger := widgetsOf(f).splitButtons[n.Aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
@@ -150,19 +150,19 @@ func (f *frame) measureControls(n *node) {
 		w, h := components.CheckboxHitExtent(f.theme)
 		n.Pref = [2]float32{w, h}
 		if n.text != "" {
-			n.Pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = components.CheckboxExtent(f.theme) + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSwitch:
 		w, h := components.SwitchHitExtent(f.theme, n.Flags&flagSmall != 0)
 		n.Pref = [2]float32{w, h}
 		if n.text != "" {
 			control, _ := components.SwitchExtent(f.theme, n.Flags&flagSmall != 0)
-			n.Pref[axisX] = control + captionGap + f.canvas.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
+			n.Pref[axisX] = control + captionGap + f.Surface.TextWidthWeight(n.text, f.captionSize(n), gfx.WeightMedium)
 		}
 	case kindSegmented:
 		var width float32 = 8
 		for _, option := range widgetsOf(f).segmented[n.Aux].options {
-			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
+			width += f.Surface.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
 		n.Pref = [2]float32{width, f.theme.Metrics.ControlHeight}
 	case kindInput:
@@ -196,7 +196,7 @@ func (f *frame) measureControls(n *node) {
 func (f *frame) paintButton(n *node) {
 	r := n.rect
 	extra := &f.Exts[n.Ext]
-	button := components.BeginButton(f.canvas, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
+	button := components.BeginButton(f.Surface, f.theme, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
 		WithIcon(extra.icon).IconTransform(extra.iconTransform)
 	if f.styles != nil && f.styles.Button != nil {
 		button = button.Recipe(f.styles.Button)
@@ -397,7 +397,7 @@ func (f *frame) paintInput(n *node) {
 		f.paintAddonsFn(f, n, snapshot, &f.addons[a-1])
 		return
 	}
-	components.PaintInputContent(f.canvas, f.theme, n.rect, f.contentRect(n), snapshot)
+	components.PaintInputContent(f.Surface, f.theme, n.rect, f.contentRect(n), snapshot)
 }
 
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
@@ -406,10 +406,10 @@ func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
 		theme := f.theme
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 }
 
 // controlBaseline is the label's baseline of a button, for a row that lines
@@ -419,8 +419,8 @@ var controlBaseline = func(f *frame, n *node) float32 {
 	if n.hasOwnTheme() {
 		theme = f.ownTheme(n)
 	}
-	button := components.BeginButton(f.canvas, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
-	return f.canvas.LabelBaseline(
+	button := components.BeginButton(f.Surface, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
+	return f.Surface.LabelBaseline(
 		gfx.Rect{Height: n.Pref[axisY]},
 		gfx.TextStyle{Size: button.LabelFontSize()},
 	)

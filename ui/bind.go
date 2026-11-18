@@ -68,7 +68,7 @@ func (f *frame) settle(i int32) *bindDecl {
 	switch {
 	case d.field != nil:
 		d.changed = d.field.changed
-	case n.Flags&flagDisabled != 0 || f.canvas == nil:
+	case n.Flags&flagDisabled != 0 || f.Surface == nil:
 	case d.flag != nil:
 		if b.Clicked() {
 			*d.flag = !*d.flag

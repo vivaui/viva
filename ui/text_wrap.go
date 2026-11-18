@@ -49,7 +49,7 @@ func (f *frame) wrapText(dst []string, n *node) []string {
 		return append(dst, wrapped.Lines...)
 	}
 	start := len(dst)
-	dst = f.canvas.WrapLinesStyle(dst, n.text, n.textStyle(), width, maxLines, cache)
+	dst = f.Surface.WrapLinesStyle(dst, n.text, n.textStyle(), width, maxLines, cache)
 	wrapped.text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.text, n.FontSize, n.Weight, mono, face, width, maxLines
 	wrapped.Lines = append(wrapped.Lines[:0], dst[start:]...)
 	wrapped.filled = true

@@ -76,10 +76,10 @@ func TestAlertDialogReportsItsTwoActions(t *testing.T) {
 	}
 	chosen := gfx.ID{}
 	var view View
-	draw := func(canvas *gfx.Canvas, action gfx.ID) {
-		canvas.BeginEventPass(action, gfx.ClickInfo{})
+	draw := func(Surface *gfx.Canvas, action gfx.ID) {
+		Surface.BeginEventPass(action, gfx.ClickInfo{})
 		chosen = gfx.ID{}
-		view.Draw(canvas, theme, viewport, func(f *Frame) {
+		view.Draw(Surface, theme, viewport, func(f *Frame) {
 			if id, ok := f.AlertDialog(spec).Chosen(); ok {
 				chosen = id
 			}

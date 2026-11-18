@@ -25,10 +25,10 @@ func styleCanvas(hovered, pressed, focused gfx.ID, focusVisible bool) *gfx.Canva
 }
 
 // drawRow paints a 100x40 row that has all three looks and returns it.
-func drawRow(canvas *gfx.Canvas, build func(f *Frame, row Box)) Box {
+func drawRow(Surface *gfx.Canvas, build func(f *Frame, row Box)) Box {
 	var view View
 	var row Box
-	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+	view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 		f.Column().Pad(20).Children(func() {
 			row = f.Row().Size(100, 40).Radius(8).Background(colorRest).Hit(styleRow, "row").
 				Hover(Look{}.Background(colorHover)).
@@ -43,21 +43,21 @@ func drawRow(canvas *gfx.Canvas, build func(f *Frame, row Box)) Box {
 }
 
 // fillOf is the color the row's rectangle was painted with.
-func fillOf(t *testing.T, canvas *gfx.Canvas, row Box) gfx.Color {
+func fillOf(t *testing.T, Surface *gfx.Canvas, row Box) gfx.Color {
 	t.Helper()
-	for _, rectangle := range canvas.Rectangles() {
+	for _, rectangle := range Surface.Rectangles() {
 		if rectangle.Bounds == row.Rect() {
 			return rectangle.Color
 		}
 	}
-	t.Fatalf("nothing was painted at the row's rectangle %+v: %+v", row.Rect(), canvas.Rectangles())
+	t.Fatalf("nothing was painted at the row's rectangle %+v: %+v", row.Rect(), Surface.Rectangles())
 	return gfx.Color{}
 }
 
 // ringTriangles counts the triangles of a ring of the ring color.
-func ringTriangles(canvas *gfx.Canvas) (count int, left, top float32) {
+func ringTriangles(Surface *gfx.Canvas) (count int, left, top float32) {
 	left, top = 1e9, 1e9
-	for _, triangle := range canvas.Triangles() {
+	for _, triangle := range Surface.Triangles() {
 		if triangle.Color != colorRing {
 			continue
 		}
@@ -395,8 +395,8 @@ func TestDrawContextDashedBorderIsFadedWithTheElement(t *testing.T) {
 
 // styled declares a page with every look, ring, gradient and fade, to count what
 // it allocates.
-func styled(view *View, canvas *gfx.Canvas, theme gfx.Theme) {
-	view.Draw(canvas, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
+func styled(view *View, Surface *gfx.Canvas, theme gfx.Theme) {
+	view.Draw(Surface, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 		f.Column().Pad(24).Gap(12).Children(func() {
 			for range 12 {
 				row := f.Row().Gap(8).Pad(6).Radius(8).Background(theme.Card).Shadow(gfx.ShadowSM).Opacity(0.9).

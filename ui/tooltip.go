@@ -53,16 +53,16 @@ func (b Box) TooltipOn(side TooltipSide) Box {
 // paintTooltip paints the Tooltip of the element the pointer rests on, over
 // everything the frame painted.
 func (f *frame) paintTooltip() {
-	if f.canvas == nil {
+	if f.Surface == nil {
 		return
 	}
-	if !f.hasTooltip(f.canvas.Hovered()) {
+	if !f.hasTooltip(f.Surface.Hovered()) {
 		// The pointer is on another frame's element (a page in a pane of this one),
 		// whose frame paints its tip, or on none.
 		f.tooltip = nil
 		return
 	}
-	f.tooltipState().Paint(f.canvas, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
+	f.tooltipState().Paint(f.Surface, f.theme, f.bounds, components.TooltipOptions{Layer: TooltipLayer, SideOf: f.tooltipSideOf},
 		components.HoverTooltipDelay)
 }
 

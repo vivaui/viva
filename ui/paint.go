@@ -9,15 +9,15 @@ func (f *frame) paint(i int32) {
 	if !n.FocusScope.IsZero() {
 		// A menu's page controls paint in the menu's focus scope, so a press on
 		// them reaches them while the menu traps the pointer.
-		f.canvas.PushFocusScope(n.FocusScope)
-		defer f.canvas.PopFocusScope()
+		f.Surface.PushFocusScope(n.FocusScope)
+		defer f.Surface.PopFocusScope()
 	}
 	if n.Band != 0 {
 		// An application overlay's subtree paints on its band, over the page and
 		// under Viva's widgets. Hits declared in it capture the same layer, so the
 		// band orders Tab and pointer routing with paint.
-		f.canvas.PushLayer(n.Band)
-		defer f.canvas.PopLayer()
+		f.Surface.PushLayer(n.Band)
+		defer f.Surface.PopLayer()
 	}
 	if n.Flags&flagDialog != 0 {
 		f.paintDialog(n)
@@ -42,7 +42,7 @@ func (f *frame) paint(i int32) {
 		defer f.memoFn(f, i, false)
 	}
 	r := n.rect
-	canvas := f.canvas
+	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	style := f.resolve(n, extra)
 	// What the element is drawn with fades with it and with what it is inside; the
@@ -162,7 +162,7 @@ func (f *frame) paint(i int32) {
 	}
 	if extra.tooltip != "" {
 		// The element's hit, which a container, a control or its Draw declared.
-		f.canvas.HintSince(hits, n.ID, extra.tooltip)
+		f.Surface.HintSince(hits, n.ID, extra.tooltip)
 	}
 	f.Opacity = parentOpacity
 	if style.Opacity < 1 {
@@ -178,7 +178,7 @@ var controlPainter = (*frame).paintControls
 // paintControl paints what the element is: its text, icon, or control. The
 // background and border of its box are already down.
 func (f *frame) paintControl(n *node, r Rect) {
-	canvas := f.canvas
+	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	switch n.Kind {
 	case kindText:
@@ -223,7 +223,7 @@ func (f *frame) paintText(n *node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.canvas.LabelAligned(f.Lines[n.LineFirst+k], bounds, style, alignment)
+			f.Surface.LabelAligned(f.Lines[n.LineFirst+k], bounds, style, alignment)
 		}
 		return
 	}
@@ -231,10 +231,10 @@ func (f *frame) paintText(n *node) {
 	bounds := Rect{X: r.X, Y: r.Y + max((r.Height-height)/2, 0), Width: r.Width, Height: height}
 	clipped := r.Width < n.Natural
 	if clipped {
-		f.canvas.Clip(r)
+		f.Surface.Clip(r)
 	}
-	f.canvas.LabelAligned(n.text, bounds, style, alignment)
+	f.Surface.LabelAligned(n.text, bounds, style, alignment)
 	if clipped {
-		f.canvas.Unclip()
+		f.Surface.Unclip()
 	}
 }

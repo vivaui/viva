@@ -160,7 +160,7 @@ func Toasts(c C, t *Toaster) {
 	p := c.page
 	p.forbidInMemo("Toasts")
 	t.scope = p.boundScope(pkToaster, unsafe.Pointer(t))
-	canvas := c.f.canvas
+	canvas := c.f.Surface
 	t.acted = 0
 	if canvas == nil || len(t.toasts) == 0 {
 		return

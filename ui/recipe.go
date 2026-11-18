@@ -108,7 +108,7 @@ func (f *frame) themedDefaults(n *node, extra *extra, s *resolved) {
 
 // focused reports whether the keyboard is on the element.
 func (f *frame) focused(n *node) bool {
-	return f.canvas != nil && !n.ID.IsZero() && f.canvas.Focused() == n.ID
+	return f.Surface != nil && !n.ID.IsZero() && f.Surface.Focused() == n.ID
 }
 
 // contentRect is where the text of an element sits: inside its Pad and Border. A themed

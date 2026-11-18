@@ -109,11 +109,11 @@ func benchCanvas() *gfx.Canvas {
 	return canvas
 }
 
-func drawPage(page *ui.Page, canvas *gfx.Canvas, view func(ui.C)) {
-	canvas.Reset()
-	canvas.BeginFrame()
-	page.Draw(canvas, gfx.Rect{Width: 600, Height: 400}, view)
-	canvas.EndFrame()
+func drawPage(page *ui.Page, Surface *gfx.Canvas, view func(ui.C)) {
+	Surface.Reset()
+	Surface.BeginFrame()
+	page.Draw(Surface, gfx.Rect{Width: 600, Height: 400}, view)
+	Surface.EndFrame()
 }
 
 type fleetHost struct {

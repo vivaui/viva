@@ -33,7 +33,7 @@ func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, label string) Box {
 // paintSwatch draws a ColorSwatch element.
 func (f *frame) paintSwatch(n *node, r Rect) {
 	extra := &f.Exts[n.Ext]
-	swatch := components.BeginColorSwatch(f.canvas, f.theme, n.ID, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
+	swatch := components.BeginColorSwatch(f.Surface, f.theme, n.ID, r, extra.swatchValue).Label(n.label).Selected(extra.swatchChosen).
 		TabStop(!extra.swatchSkipTab)
 	if extra.swatchFlush {
 		swatch = swatch.Flush()
@@ -205,7 +205,7 @@ func (b Box) pickerExtra() *extra {
 func (f *frame) paintColorPicker(n *node) {
 	extra := &f.Exts[n.Ext]
 	ctx := Ctx{page: f.page, f: f}
-	d := DrawContext{Canvas: f.canvas, Theme: &f.theme, Rect: n.rect, Label: n.label}
+	d := DrawContext{Canvas: f.Surface, Theme: &f.theme, Rect: n.rect, Label: n.label}
 	extra.picker.paint(&d, &ctx, n.ID, extra.pickerLook)
 }
 

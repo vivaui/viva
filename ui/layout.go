@@ -125,10 +125,10 @@ func (f *frame) measureLeafIn(n *node) {
 		if n.Flags&flagMono != 0 {
 			// A Mono text is as wide as its cells: a wide character takes two, a combining
 			// mark none, as the canvas measures and draws it.
-			_, ch := f.canvas.MonoCellSize(n.FontSize, n.Face)
-			n.Pref = [2]float32{f.canvas.TextWidthStyle(n.text, n.textStyle()), ch}
+			_, ch := f.Surface.MonoCellSize(n.FontSize, n.Face)
+			n.Pref = [2]float32{f.Surface.TextWidthStyle(n.text, n.textStyle()), ch}
 		} else {
-			n.Pref = [2]float32{f.canvas.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
+			n.Pref = [2]float32{f.Surface.TextWidthWeight(n.text, n.FontSize, n.Weight), n.leading()}
 		}
 		n.Natural = n.Pref[axisX]
 		n.Pref[axisX] += n.padX() // a Text takes its Pad and Border like a container
@@ -521,11 +521,11 @@ func (f *frame) measureBaseline(n *node) {
 		if n.Flags&flagWrap == 0 {
 			height = max(n.Pref[axisY]-top-bottom, 0)
 		}
-		row := f.canvas.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.FontSize})
+		row := f.Surface.LabelBaseline(gfx.Rect{Height: height}, gfx.TextStyle{Size: n.FontSize})
 		if n.Flags&flagMono != 0 {
 			// A Mono line stands on its font's own baseline in its cell; a face no
 			// engine measured has no known row, and LabelBaseline's is the closest.
-			if mono := f.canvas.MonoBaseline(n.FontSize, n.Face, height); mono > 0 {
+			if mono := f.Surface.MonoBaseline(n.FontSize, n.Face, height); mono > 0 {
 				row = mono
 			}
 		}

@@ -93,8 +93,8 @@ func (c *Ctx) Part(name string) C {
 // outside any paint, then repaints: for a handler that changes the list being
 // declared.
 func (c *Ctx) After(fn func()) {
-	if c.f.canvas != nil {
-		c.f.canvas.AfterPaint(fn)
+	if c.f.Surface != nil {
+		c.f.Surface.AfterPaint(fn)
 	}
 }
 
@@ -751,7 +751,7 @@ func (p *Page) Config(base app.Config) app.Config {
 
 // Paint fills the window with the background and declares the view over it. It
 // is the Config's Paint.
-func (p *Page) Paint(canvas *gfx.Canvas, Size Size) {
+func (p *Page) Paint(Surface *gfx.Canvas, Size Size) {
 	if p.config.View == nil {
 		panic("ui: Page.Paint needs PageConfig.View, the function that declares the page")
 	}
@@ -763,8 +763,8 @@ func (p *Page) Paint(canvas *gfx.Canvas, Size Size) {
 	if p.config.Background != nil {
 		background = *p.config.Background
 	}
-	canvas.Fill(bounds, background)
-	p.Draw(canvas, bounds, p.config.View)
+	Surface.Fill(bounds, background)
+	p.Draw(Surface, bounds, p.config.View)
 }
 
 // Draw declares view in bounds of canvas. When a Memo's copy does not fit where
@@ -773,22 +773,22 @@ func (p *Page) Paint(canvas *gfx.Canvas, Size Size) {
 // out at the slot's rectangle; a page given no Tree names its controls in the
 // canvas's. A host that draws a page this way routes its input with Key,
 // Pointer, Wheel and TextInput; Config does that for a whole window.
-func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
-	if tree := canvas.Tree(); tree != nil && tree.Len() != 0 {
+func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, view func(C)) {
+	if tree := Surface.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
 	} else {
 		p.init(nil)
 	}
-	if tree := canvas.Tree(); tree != p.tree {
+	if tree := Surface.Tree(); tree != p.tree {
 		if tree.Len() != 0 {
 			panic("ui: Page.Draw: the canvas names its identities in another Tree than the page's; give NewPage the canvas's Tree")
 		}
-		canvas.SetTree(p.tree)
+		Surface.SetTree(p.tree)
 	}
-	start := canvas.Mark()
+	start := Surface.Mark()
 	for try := 0; ; try++ {
-		p.paintOnce(canvas, bounds, view)
-		if !p.retry || try > 0 || !canvas.Rewind(start) {
+		p.paintOnce(Surface, bounds, view)
+		if !p.retry || try > 0 || !Surface.Rewind(start) {
 			break
 		}
 	}
@@ -796,11 +796,11 @@ func (p *Page) Draw(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.settleFocus()
 	p.settleEffects()
 	if len(p.memos) > 0 {
-		canvas.KeepPrevious(true) // the next paint copies from this one
+		Surface.KeepPrevious(true) // the next paint copies from this one
 	}
 }
 
-func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
+func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, view func(C)) {
 	p.epoch++
 	p.retry = false
 	p.overlay = false
@@ -837,11 +837,11 @@ func (p *Page) paintOnce(canvas *gfx.Canvas, bounds Rect, view func(C)) {
 	p.icons = p.icons[:0]
 	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
-		if id := p.held[i].ID; !id.IsZero() && id != canvas.Pressed() && id != canvas.Focused() {
+		if id := p.held[i].ID; !id.IsZero() && id != Surface.Pressed() && id != Surface.Focused() {
 			p.held[i] = armedButton{}
 		}
 	}
-	f := p.view.Begin(canvas, p.currentTheme(), bounds)
+	f := p.view.Begin(Surface, p.currentTheme(), bounds)
 	f.styles = p.config.Styles
 	f.page = p
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
@@ -1077,7 +1077,7 @@ func (p *Page) sweep() {
 
 // guard is Screen's protection of a held button whose place now names another.
 func (p *Page) guard(b Box, ID gfx.ID, label string) {
-	canvas := p.ctx.f.canvas
+	canvas := p.ctx.f.Surface
 	if canvas == nil {
 		return
 	}

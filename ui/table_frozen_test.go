@@ -19,9 +19,9 @@ func frozenSpec(state *TableState, rows TableSource) TableSpec {
 // table bands its columns into paints several times, and the last is the one
 // that showed. A return of false means no such text. The scrolled pass of a
 // banded table is the first, so its caller pairs this with firstX below.
-func textX(canvas *gfx.Canvas, value string) (float32, bool) {
+func textX(Surface *gfx.Canvas, value string) (float32, bool) {
 	x, seen := float32(0), false
-	for _, text := range canvas.Texts() {
+	for _, text := range Surface.Texts() {
 		if text.Value == value {
 			x, seen = text.Bounds.X, true
 		}
@@ -30,8 +30,8 @@ func textX(canvas *gfx.Canvas, value string) (float32, bool) {
 }
 
 // firstX reports where the first text equal to value is painted.
-func firstX(canvas *gfx.Canvas, value string) (float32, bool) {
-	for _, text := range canvas.Texts() {
+func firstX(Surface *gfx.Canvas, value string) (float32, bool) {
+	for _, text := range Surface.Texts() {
 		if text.Value == value {
 			return text.Bounds.X, true
 		}

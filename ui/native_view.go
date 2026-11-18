@@ -27,10 +27,10 @@ func (f *frame) raiseOverNativeViews() {
 
 // nativeTop is the highest layer a native view of this page is on.
 func (f *frame) nativeTop() (uint16, bool) {
-	if f.canvas == nil {
+	if f.Surface == nil {
 		return 0, false
 	}
-	views := f.canvas.NativeViews()
+	views := f.Surface.NativeViews()
 	if len(views) <= f.nativeMark {
 		return 0, false
 	}

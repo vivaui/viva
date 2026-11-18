@@ -66,7 +66,7 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 		width = 448
 	}
 	// The sizes of the header and footer, and the padding, are components.Dialog's.
-	geometry := components.BeginDialog(f.canvas, f.theme, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
+	geometry := components.BeginDialog(f.Surface, f.theme, f.bounds, components.DialogOptions{ContentSize: Size{Width: width}, FitBody: true, BodyHeight: spec.BodyHeight, Header: spec.Header}).Layout(spec.Description)
 	padding := geometry.Header.X - geometry.Content.X
 	gap := f.theme.Metrics.GapItem
 	// The body sits as far under the header, and above the footer, as the dialog
@@ -157,18 +157,18 @@ func (b Box) dialogPart(fn func(), partKind int) Box {
 // button; or a Popover: a press outside it or on its anchor, or Escape.
 func (b Box) Dismissed() bool {
 	n := b.n()
-	if n.Flags&flagPopover != 0 && b.f.canvas != nil {
-		return b.f.canvas.Clicked(widgetsOf(b.f).popovers[n.Aux].spec.DismissID)
+	if n.Flags&flagPopover != 0 && b.f.Surface != nil {
+		return b.f.Surface.Clicked(widgetsOf(b.f).popovers[n.Aux].spec.DismissID)
 	}
-	if n.Flags&flagDrawer != 0 && b.f.canvas != nil {
+	if n.Flags&flagDrawer != 0 && b.f.Surface != nil {
 		spec := &widgetsOf(b.f).drawers[n.Aux].spec
-		return b.f.canvas.Clicked(spec.dismiss) || b.f.canvas.Clicked(spec.close)
+		return b.f.Surface.Clicked(spec.dismiss) || b.f.Surface.Clicked(spec.close)
 	}
-	if n.Flags&flagDialog == 0 || b.f.canvas == nil {
+	if n.Flags&flagDialog == 0 || b.f.Surface == nil {
 		return false
 	}
 	spec := &widgetsOf(b.f).dialogs[n.Aux].spec
-	return b.f.canvas.Clicked(spec.DismissID) || b.f.canvas.Clicked(spec.CloseID)
+	return b.f.Surface.Clicked(spec.DismissID) || b.f.Surface.Clicked(spec.CloseID)
 }
 
 // paintDialog paints a Dialog's root: components.Dialog's scrim and surface, then the
@@ -176,7 +176,7 @@ func (b Box) Dismissed() bool {
 func (f *frame) paintDialog(n *node) {
 	d := &widgetsOf(f).dialogs[n.Aux]
 	surface := f.Nodes[n.First].rect
-	dialog := components.BeginDialog(f.canvas, f.theme, n.rect, components.DialogOptions{
+	dialog := components.BeginDialog(f.Surface, f.theme, n.rect, components.DialogOptions{
 		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,
 		InitialFocusID: d.spec.InitialFocusID, ContentSize: Size{Width: surface.Width, Height: surface.Height},
 		Header: d.spec.Header,

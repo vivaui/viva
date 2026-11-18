@@ -20,8 +20,8 @@ func TestAnUnpaintedMenuDrawsItsOwnPartsAndKeepsItsHits(t *testing.T) {
 		anchor := Button(c, "Open")
 		Menu(c, anchor, &open, func(menu *MenuItems) {
 			menu.Unpainted().
-				DrawPanel(func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
-					canvas.Fill(bounds, panelColor)
+				DrawPanel(func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+					Surface.Fill(bounds, panelColor)
 				}).
 				DrawItem(func(parts MenuItemParts) {
 					rows = append(rows, parts)

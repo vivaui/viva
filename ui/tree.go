@@ -167,7 +167,7 @@ func Tree(c C, state *TreeState, n int, label func(i int) string, Content func(i
 	state.c, state.label, state.Content, state.n = c, label, Content, n
 	state.nameOf, state.f = label, c.f
 	if state.CanDrop != nil {
-		state.dragPointer(c.f.canvas)
+		state.dragPointer(c.f.Surface)
 	} else {
 		state.drag = treeDrag{}
 	}
@@ -243,7 +243,7 @@ func (s *TreeState) row(i int, rowBox Box) {
 	if node.Branch {
 		item.DisclosureID = s.chevrons.At(key)
 	}
-	if canvas := f.canvas; canvas != nil && !node.Disabled {
+	if canvas := f.Surface; canvas != nil && !node.Disabled {
 		if canvas.Clicked(item.ID) {
 			s.chosen = i
 		}
@@ -289,17 +289,17 @@ func (s *TreeState) draw(d *DrawContext) {
 // dragPointer follows a press on a row, which turns into a drag once the pointer
 // moves far enough with it, and drops it when it is let go. It runs before the rows
 // are declared, from what the last paint found under the pointer.
-func (s *TreeState) dragPointer(canvas *gfx.Canvas) {
+func (s *TreeState) dragPointer(Surface *gfx.Canvas) {
 	drag := &s.drag
 	if drag.active {
 		drag.target, drag.valid = drag.Next, drag.nextOK // what the rows under the pointer found
 		drag.nextOK = false
-		s.edgeScroll(canvas)
+		s.edgeScroll(Surface)
 	}
-	if canvas == nil {
+	if Surface == nil {
 		return
 	}
-	at, event, ok := canvas.PointerIn(s.rows)
+	at, event, ok := Surface.PointerIn(s.rows)
 	if !ok {
 		return
 	}
@@ -320,7 +320,7 @@ func (s *TreeState) dragPointer(canvas *gfx.Canvas) {
 			return
 		}
 		drag.active, drag.at = true, point
-		canvas.Consume()
+		Surface.Consume()
 	case gfx.PointerUp:
 		active, move, valid := drag.active, drag.target, drag.valid
 		*drag = treeDrag{}
@@ -329,7 +329,7 @@ func (s *TreeState) dragPointer(canvas *gfx.Canvas) {
 		}
 		// A drag is not also a click on the row it ends on: its moves were consumed,
 		// which already says so, and so does its release.
-		canvas.Consume()
+		Surface.Consume()
 		if valid {
 			s.dropped = move
 		}
@@ -400,20 +400,20 @@ func (s *TreeState) dropAt(from, to int, y float32) (TreeDrop, bool) {
 }
 
 // edgeScroll scrolls a tree whose drag rests near its top or bottom edge.
-func (s *TreeState) edgeScroll(canvas *gfx.Canvas) {
+func (s *TreeState) edgeScroll(Surface *gfx.Canvas) {
 	drag := &s.drag
 	if drag.view.Height <= 0 {
 		return
 	}
 	band := min(s.rowHeight(&s.c.f.theme), drag.view.Height/4)
-	dragEdgeScroll(canvas, s.Scroll, drag.view, drag.at, band, &drag.scrolled)
+	dragEdgeScroll(Surface, s.Scroll, drag.view, drag.at, band, &drag.scrolled)
 }
 
 // dragEdgeScroll scrolls scroll while a drag at the point at rests within band of the
 // top or bottom edge of view, in steps timed by the frame clock: since is when the
 // last step was taken, and a frame is asked for only while the drag stays there.
-func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.Point, Band float32, since *time.Duration) {
-	if canvas == nil || Scroll == nil || view.Height <= 0 {
+func dragEdgeScroll(Surface *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.Point, Band float32, since *time.Duration) {
+	if Surface == nil || Scroll == nil || view.Height <= 0 {
 		return
 	}
 	direction := float32(0)
@@ -423,7 +423,7 @@ func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.P
 	case at.Y > view.Y+view.Height-Band && Scroll.Offset+Scroll.Viewport < Scroll.Content:
 		direction = 1
 	}
-	now := canvas.Now()
+	now := Surface.Now()
 	if direction == 0 {
 		*since = 0
 		return
@@ -433,7 +433,7 @@ func dragEdgeScroll(canvas *gfx.Canvas, Scroll *ScrollState, view Rect, at gfx.P
 		Scroll.ScrollTo(Scroll.Offset + direction*dragEdgeSpeed*float32(step.Seconds()))
 	}
 	*since = now
-	canvas.RequestFrameIn(16 * time.Millisecond)
+	Surface.RequestFrameIn(16 * time.Millisecond)
 }
 
 // scrollOffset is how far the tree is scrolled.
@@ -555,14 +555,14 @@ func (p *Page) treeType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		return gfx.EventResult{}, false
 	}
 	for _, s := range p.trees {
-		if _, inside := event.Target.In(s.rows); !inside || s.nameOf == nil || s.f == nil || s.f.canvas == nil {
+		if _, inside := event.Target.In(s.rows); !inside || s.nameOf == nil || s.f == nil || s.f.Surface == nil {
 			continue
 		}
 		s.names = s.names[:0]
 		for i := 0; i < s.n; i++ {
 			s.names = append(s.names, components.MenuTypeaheadItem{ID: s.rows.At(s.key(i)), Label: s.nameOf(i), Disabled: s.Node(i).Disabled})
 		}
-		now := clockEpoch.Add(s.f.canvas.Now())
+		now := clockEpoch.Add(s.f.Surface.Now())
 		typing := text == " " && s.typeahead.Typing(now)
 		if id, ok := s.typeahead.TypeItems(text, now, s.names, event.Target); ok {
 			for i := range s.names {

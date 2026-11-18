@@ -180,8 +180,8 @@ func TestTableInAScrollAreaPaintsOnlyTheRowsOnScreen(t *testing.T) {
 	var view View
 	var table Box
 	var state TableState
-	draw := func(canvas *gfx.Canvas) {
-		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
+	draw := func(Surface *gfx.Canvas) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
 					table = f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns[:2], Headers: []string{"A", "B"}, Source: rows})
@@ -261,10 +261,10 @@ func TestTableHeaderClicksSortAndShowTheArrow(t *testing.T) {
 	theme := gfx.LightTheme()
 	data := TableRows{{"b", "2"}, {"a", "1"}}
 	var state TableState
-	draw := func(canvas *gfx.Canvas) (column, row int) {
+	draw := func(Surface *gfx.Canvas) (column, row int) {
 		column, row = -1, -1
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 			f.Column().Children(func() {
 				tbl := f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: tableColumns[:2], Headers: []string{"Name", "N"}, Sortable: []bool{true, false}, Source: &data})
 				if c, ok := tbl.HeaderClicked(); ok {

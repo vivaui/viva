@@ -120,8 +120,8 @@ func TestTextShrinksBeforeAFixedSiblingDoes(t *testing.T) {
 
 func TestClickedIsReadWhereTheControlIsDeclared(t *testing.T) {
 	var view View
-	draw := func(canvas *gfx.Canvas) (saved, cancelled, row bool) {
-		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
+	draw := func(Surface *gfx.Canvas) (saved, cancelled, row bool) {
+		view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
 			f.Column().Children(func() {
 				f.Row().Hit(rowID, "row").Children(func() {
 					saved = f.Button(save, "Save").Clicked()
@@ -167,8 +167,8 @@ func TestButtonsAreTheComponentsButtons(t *testing.T) {
 }
 
 // page declares a screen with every kind of element, to count its allocations.
-func declare(view *View, canvas *gfx.Canvas, theme gfx.Theme, title, detail string, checked bool) {
-	view.Draw(canvas, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
+func declare(view *View, Surface *gfx.Canvas, theme gfx.Theme, title, detail string, checked bool) {
+	view.Draw(Surface, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 		f.Column().Pad(24).Gap(12).Children(func() {
 			f.Row().Gap(10).Items(Center).Children(func() {
 				f.Icon(gfx.Icon{ViewBox: 24}).Size(20, 20)

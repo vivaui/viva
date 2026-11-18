@@ -54,8 +54,8 @@ func (m *memoModel) view(c ui.C) {
 }
 
 type memoPage struct {
-	page   *ui.Page
-	canvas *gfx.Canvas
+	page    *ui.Page
+	Surface *gfx.Canvas
 }
 
 func newMemoPage() *memoPage { return newMemoPageWith(ui.PageConfig{}) }
@@ -66,10 +66,10 @@ func newMemoPageWith(config ui.PageConfig) *memoPage {
 	if config.Theme == nil {
 		config.Theme = &pageTheme
 	}
-	return &memoPage{page: ui.NewPage(config), canvas: canvas}
+	return &memoPage{page: ui.NewPage(config), Surface: canvas}
 }
 
-func (mp *memoPage) draw(view func(ui.C)) { drawPage(mp.page, mp.canvas, view) }
+func (mp *memoPage) draw(view func(ui.C)) { drawPage(mp.page, mp.Surface, view) }
 
 type painted struct {
 	Rectangles []gfx.Rectangle
@@ -79,7 +79,7 @@ type painted struct {
 }
 
 func (mp *memoPage) output() painted {
-	canvas := mp.canvas
+	canvas := mp.Surface
 	hits := append([]gfx.Hit(nil), canvas.Hits()...)
 	texts := make([]gfx.HitText, len(hits))
 	for index := range hits {
@@ -128,7 +128,7 @@ func TestMemoDeclaresAgainWhenTheVersionChanges(t *testing.T) {
 	if m.calls != 1 {
 		t.Fatalf("%d rows declared after one row's version changed, want 1", m.calls)
 	}
-	if !strings.Contains(textsOf(mp.canvas), "renamed") {
+	if !strings.Contains(textsOf(mp.Surface), "renamed") {
 		t.Fatal("the changed row does not show its new text")
 	}
 }
@@ -159,10 +159,10 @@ func TestMemoDeclaresAgainWhenTheWindowResizes(t *testing.T) {
 	mp.draw(m.view)
 	mp.draw(m.view)
 	m.calls = 0
-	mp.canvas.Reset()
-	mp.canvas.BeginFrame()
-	mp.page.Draw(mp.canvas, gfx.Rect{Width: 500, Height: 400}, m.view)
-	mp.canvas.EndFrame()
+	mp.Surface.Reset()
+	mp.Surface.BeginFrame()
+	mp.page.Draw(mp.Surface, gfx.Rect{Width: 500, Height: 400}, m.view)
+	mp.Surface.EndFrame()
 	if m.calls != 5 {
 		t.Fatalf("%d rows declared after a resize, want 5", m.calls)
 	}
@@ -247,7 +247,7 @@ func TestMemoValueSnapshotDeclaresAgainOnChange(t *testing.T) {
 	if m.calls != 1 {
 		t.Fatalf("%d rows declared after one row's value changed, want 1", m.calls)
 	}
-	if !strings.Contains(textsOf(mp.canvas), "renamed") {
+	if !strings.Contains(textsOf(mp.Surface), "renamed") {
 		t.Fatal("the changed row does not show its new text")
 	}
 }
@@ -291,7 +291,7 @@ func TestMemoDeclaresAgainWhenTheScaleChanges(t *testing.T) {
 	mp.draw(m.view)
 	mp.draw(m.view)
 	m.calls = 0
-	mp.canvas.SetPixelScale(3)
+	mp.Surface.SetPixelScale(3)
 	mp.draw(m.view)
 	if m.calls != 3 {
 		t.Fatalf("%d rows declared after the scale changed, want 3", m.calls)
@@ -334,7 +334,7 @@ func TestMemoDeclaresAgainWhenTheFontGenerationChanges(t *testing.T) {
 	m := newMemoModel(3)
 	mp := newMemoPage()
 	engine := &fontGenerationEngine{TextEngine: gfx.ReferenceTextEngine(), generation: 1}
-	mp.canvas.SetTextEngine(engine)
+	mp.Surface.SetTextEngine(engine)
 	mp.draw(m.view)
 	mp.draw(m.view)
 	m.calls = 0
@@ -399,9 +399,9 @@ func TestMemoRetainedHeapStaysFlat(t *testing.T) {
 	}
 }
 
-func textsOf(canvas *gfx.Canvas) string {
+func textsOf(Surface *gfx.Canvas) string {
 	var b strings.Builder
-	for _, text := range canvas.Texts() {
+	for _, text := range Surface.Texts() {
 		b.WriteString(text.Value)
 		b.WriteByte('\n')
 	}

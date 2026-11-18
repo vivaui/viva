@@ -16,17 +16,17 @@ type wideArea struct {
 	children func(f *Frame)
 }
 
-func (p *wideArea) paint(canvas *gfx.Canvas, _ gfx.Size) {
-	p.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
+func (p *wideArea) paint(Surface *gfx.Canvas, _ gfx.Size) {
+	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			p.area(f.ScrollArea(listID).Grow(1)).Children(func() { p.children(f) })
 		})
 	})
 }
 
-func (p *wideArea) pointer(canvas *gfx.Canvas, target gfx.ID, Kind gfx.PointerEventKind, x, y float32) bool {
+func (p *wideArea) pointer(Surface *gfx.Canvas, target gfx.ID, Kind gfx.PointerEventKind, x, y float32) bool {
 	event := gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: target, Captured: Kind != gfx.PointerDown}
-	return canvas.DeliverPointer(event, gfx.Size{Width: 100, Height: 100}, p.paint)
+	return Surface.DeliverPointer(event, gfx.Size{Width: 100, Height: 100}, p.paint)
 }
 
 func sideways(b Box) Box { return b.Sideways() }

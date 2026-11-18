@@ -63,17 +63,17 @@ func (b Box) Vertical() Box {
 // TabClicked reports which tab of a Tabs strip this paint is delivering a click on.
 func (b Box) TabClicked() (int, bool) {
 	n := b.n()
-	if n.Kind != kindTabs || b.f.canvas == nil {
+	if n.Kind != kindTabs || b.f.Surface == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(widgetsOf(b.f).tabs[n.Aux].scope)
+	return b.f.Surface.ClickedIn(widgetsOf(b.f).tabs[n.Aux].scope)
 }
 
 func (f *frame) measureTabs(n *node) {
 	t := &widgetsOf(f).tabs[n.Aux]
 	var widest float32
 	for _, label := range t.labels {
-		widest = max(widest, f.canvas.TextWidthWeight(label, f.theme.Metrics.FontSizeM, gfx.WeightMedium))
+		widest = max(widest, f.Surface.TextWidthWeight(label, f.theme.Metrics.FontSizeM, gfx.WeightMedium))
 	}
 	count := float32(len(t.labels))
 	var gap float32
@@ -108,7 +108,7 @@ func (f *frame) paintTabs(n *node) {
 			bounds.Width = max(bounds.Width-tabIndicator-1, 0)
 		}
 	}
-	tabs := components.BeginTabList(f.canvas, f.theme, bounds, t.scope, t.labels, t.selected)
+	tabs := components.BeginTabList(f.Surface, f.theme, bounds, t.scope, t.labels, t.selected)
 	if t.line {
 		tabs = tabs.Line()
 	}

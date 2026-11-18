@@ -62,30 +62,30 @@ func (b Box) Action(icon gfx.Icon, label string) Box {
 // keyboard goes back to the field then, so a clear or a reveal does not end the typing.
 func (b Box) ActionClicked() bool {
 	n := b.n()
-	if n.Kind != kindInput || n.Ext == 0 || b.f.Exts[n.Ext].addons == 0 || b.f.canvas == nil {
+	if n.Kind != kindInput || n.Ext == 0 || b.f.Exts[n.Ext].addons == 0 || b.f.Surface == nil {
 		return false
 	}
 	end := b.f.addons[b.f.Exts[n.Ext].addons-1].end
-	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
+	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.Surface.Clicked(end.ID) {
 		return false
 	}
-	b.f.canvas.RequestFocus(widgetsOf(b.f).inputs[n.Aux].ID)
+	b.f.Surface.RequestFocus(widgetsOf(b.f).inputs[n.Aux].ID)
 	return true
 }
 
 // actionID names a field's Action in the field's own scope.
 func (b Box) actionID() gfx.ID {
 	id := b.n().ID
-	if id.IsZero() || b.f.canvas == nil {
+	if id.IsZero() || b.f.Surface == nil {
 		return gfx.ID{}
 	}
-	return b.f.canvas.Tree().Sub(id.Scope(), id.Name()).At(0)
+	return b.f.Surface.Tree().Sub(id.Scope(), id.Name()).At(0)
 }
 
 // paintAddons paints a field with an icon or a button inside it: the addons where
 // InputGroup puts them, the text between them.
 func (f *frame) paintAddons(n *node, snapshot components.InputSnapshot, a *fieldAddons) {
-	canvas, theme := f.canvas, f.theme
+	canvas, theme := f.Surface, f.theme
 	disabled := n.Flags&flagDisabled != 0 || snapshot.Disabled
 	start, end, content := components.InputAddonsLayout(canvas, theme, n.rect, a.start, a.end)
 	components.PaintInputAddon(canvas, theme, start, a.start, true, disabled)

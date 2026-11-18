@@ -142,9 +142,9 @@ func TestSelectOpensChoosesAndClosesThroughItsClicks(t *testing.T) {
 	theme := gfx.LightTheme()
 	var state SelectState
 	selected := 0
-	draw := func(canvas *gfx.Canvas) {
+	draw := func(Surface *gfx.Canvas) {
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Pad(10).Children(func() {
 				if i, ok := f.Select(selScope, &state, selLabels, selected).Picked(); ok {
 					selected = i
@@ -197,15 +197,15 @@ func TestSelectTooLongForTheFrameScrollsItsWindow(t *testing.T) {
 		labels[i] = fmt.Sprintf("option %d", i)
 	}
 	state := SelectState{Open: true}
-	draw := func(canvas *gfx.Canvas) (First, Last, arrows int) {
+	draw := func(Surface *gfx.Canvas) (First, Last, arrows int) {
 		First, Last = -1, -1
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 300, Height: 300}, func(f *Frame) {
 			f.Column().Pad(10).Children(func() {
 				f.Select(selScope, &state, labels, 20).Picked()
 			})
 		})
-		for _, hit := range canvas.Hits() {
+		for _, hit := range Surface.Hits() {
 			if i, ok := hit.ID.In(selScope); ok {
 				switch {
 				case i < 40:
@@ -529,10 +529,10 @@ func TestSelectBasePanelIsAsWideAsItsRowsForANarrowTrigger(t *testing.T) {
 func TestSelectInScrollAreaShowsItsListBeyondTheClip(t *testing.T) {
 	theme := gfx.LightTheme()
 	labels := []string{"Apple", "Avocado", "Banana", "Blueberry", "Cherry", "Date"}
-	draw := func(canvas *gfx.Canvas, state *SelectState) Box {
+	draw := func(Surface *gfx.Canvas, state *SelectState) Box {
 		var view View
 		var box Box
-		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Pad(10).Children(func() {
 				f.ScrollArea(listID).Height(100).Children(func() {
 					f.Column().Children(func() {
@@ -690,9 +690,9 @@ func TestSelectListObeysItsWidthAndHeightCaps(t *testing.T) {
 		labels[i] = fmt.Sprintf("%s %d", strings.Repeat("wide label ", 12), i)
 	}
 	state := SelectState{Open: true}
-	draw := func(canvas *gfx.Canvas, capWidth, capHeight float32) (options []gfx.Hit, arrows int) {
+	draw := func(Surface *gfx.Canvas, capWidth, capHeight float32) (options []gfx.Hit, arrows int) {
 		var view View
-		view.Draw(canvas, theme, gfx.Rect{Width: 900, Height: 700}, func(f *Frame) {
+		view.Draw(Surface, theme, gfx.Rect{Width: 900, Height: 700}, func(f *Frame) {
 			f.Column().Pad(10).Children(func() {
 				sel := f.Select(selScope, &state, labels, 0).Width(120)
 				if capWidth > 0 {
@@ -704,7 +704,7 @@ func TestSelectListObeysItsWidthAndHeightCaps(t *testing.T) {
 				sel.Picked()
 			})
 		})
-		for _, hit := range canvas.Hits() {
+		for _, hit := range Surface.Hits() {
 			if i, ok := hit.ID.In(selScope); ok {
 				switch {
 				case i < len(labels):

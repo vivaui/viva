@@ -75,8 +75,8 @@ func TestTableScrollsItsColumnsWhenTheyDoNotFit(t *testing.T) {
 	}
 }
 
-func headerAndRowX(canvas *gfx.Canvas) (headerX, rowX float32) {
-	for _, text := range canvas.Texts() {
+func headerAndRowX(Surface *gfx.Canvas) (headerX, rowX float32) {
+	for _, text := range Surface.Texts() {
 		if text.Value == "B" {
 			headerX = text.Bounds.X
 		}
@@ -273,9 +273,9 @@ func TestTableHorizontalScrollbarDrags(t *testing.T) {
 	}
 }
 
-func hitByID(canvas *gfx.Canvas, ID gfx.ID) gfx.Hit {
+func hitByID(Surface *gfx.Canvas, ID gfx.ID) gfx.Hit {
 	var hit gfx.Hit
-	for _, h := range canvas.Hits() {
+	for _, h := range Surface.Hits() {
 		if h.ID == ID {
 			return h
 		}
@@ -283,9 +283,9 @@ func hitByID(canvas *gfx.Canvas, ID gfx.ID) gfx.Hit {
 	return hit
 }
 
-func tableHeaderHits(canvas *gfx.Canvas, scope gfx.Scope) []gfx.Hit {
+func tableHeaderHits(Surface *gfx.Canvas, scope gfx.Scope) []gfx.Hit {
 	var hits []gfx.Hit
-	for _, hit := range canvas.Hits() {
+	for _, hit := range Surface.Hits() {
 		if hit.ID.Scope() == scope {
 			hits = append(hits, hit)
 		}
@@ -355,9 +355,9 @@ func TestTableHorizontalBarKeepsTheGutterStripAndClearRows(t *testing.T) {
 	for i := range rows {
 		rows[i] = []string{"aa", "bb", "cc"}
 	}
-	paint := func(canvas *gfx.Canvas, view *View, state *TableState, gutter float32) {
-		canvas.Reset()
-		view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
+	paint := func(Surface *gfx.Canvas, view *View, state *TableState, gutter float32) {
+		Surface.Reset()
+		view.Draw(Surface, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.Table(state, TableSpec{
 					Rows: tableScope, Columns: gutterColumns, Headers: []string{"A", "B", "C"},

@@ -75,10 +75,10 @@ func intersect(a, b Rect) Rect {
 func (f *frame) paintProgress(n *node) {
 	r := n.rect
 	if n.Natural >= 0 {
-		components.Progress(f.canvas, f.theme, r, n.Natural)
+		components.Progress(f.Surface, f.theme, r, n.Natural)
 		return
 	}
-	canvas := f.canvas
+	canvas := f.Surface
 	if r.Width <= 0 {
 		return
 	}
@@ -101,7 +101,7 @@ func (f *frame) paintProgress(n *node) {
 }
 
 func (f *frame) paintSpinner(n *node) {
-	canvas := f.canvas
+	canvas := f.Surface
 	phase := components.SpinnerPhase(0)
 	if !canvas.ReduceMotion() {
 		phase = components.SpinnerPhase(canvas.Now() / spinnerStep % 8)

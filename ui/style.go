@@ -172,8 +172,8 @@ func (b Box) AutoFocus() Box {
 	if id.IsZero() {
 		panic("ui: AutoFocus needs an element with an identity: a control, or a container given Hit before AutoFocus")
 	}
-	if b.f.canvas != nil {
-		b.f.canvas.RequestFocus(id)
+	if b.f.Surface != nil {
+		b.f.Surface.RequestFocus(id)
 	}
 	return b
 }
@@ -303,7 +303,7 @@ func (f *frame) resolve(n *node, extra *extra) resolved {
 	if source.IsZero() {
 		return s
 	}
-	canvas := f.canvas
+	canvas := f.Surface
 	focus, hover, pressed := target(canvas.FocusVisible() == source), target(canvas.Hovered() == source), target(canvas.Pressed() == source)
 	focused := target(canvas.Focused() == source)
 	if looks.animated {
@@ -374,7 +374,7 @@ func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
 	if Radius > 0 {
 		Radius += w
 	}
-	f.canvas.RoundedOutline(outer, Radius, w, color)
+	f.Surface.RoundedOutline(outer, Radius, w, color)
 }
 
 // paintGradient draws the gradient of an element over its whole rectangle.
@@ -388,5 +388,5 @@ func (f *frame) paintGradient(n *node, extra *extra) {
 			stops[i].Color = fade(stops[i].Color, f.Opacity)
 		}
 	}
-	f.canvas.FillGradient(n.rect, n.Radius, float32(g.angle), stops)
+	f.Surface.FillGradient(n.rect, n.Radius, float32(g.angle), stops)
 }

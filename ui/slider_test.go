@@ -19,8 +19,8 @@ type sliderPage struct {
 	vertical bool
 }
 
-func (p *sliderPage) paint(canvas *gfx.Canvas, Size gfx.Size) {
-	p.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
+func (p *sliderPage) paint(Surface *gfx.Canvas, Size gfx.Size) {
+	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			b := f.Slider(volumeID, &p.state).Label("Volume")
 			if p.vertical {
@@ -37,9 +37,9 @@ func (p *sliderPage) paint(canvas *gfx.Canvas, Size gfx.Size) {
 	})
 }
 
-func (p *sliderPage) pointer(t *testing.T, canvas *gfx.Canvas, Kind gfx.PointerEventKind, x, y float32) bool {
+func (p *sliderPage) pointer(t *testing.T, Surface *gfx.Canvas, Kind gfx.PointerEventKind, x, y float32) bool {
 	t.Helper()
-	return canvas.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
+	return Surface.DeliverPointer(gfx.PointerEvent{Kind: Kind, Button: gfx.PointerButtonPrimary, X: x, Y: y, Target: volumeID, Captured: Kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, p.paint)
 }
 
 // The track of a horizontal slider 200 wide runs between the thumb's two half widths.
@@ -280,8 +280,8 @@ type sliderBasePage struct {
 	thumb gfx.Rect
 }
 
-func (p *sliderBasePage) paint(canvas *gfx.Canvas, Size gfx.Size) {
-	p.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
+func (p *sliderBasePage) paint(Surface *gfx.Canvas, Size gfx.Size) {
+	p.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: 200, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			p.box = f.SliderBase(volumeID, &p.state).Label("Volume").Draw(func(d *DrawContext) {
 				x := d.Rect.X + 8 + p.state.Fraction()*(d.Rect.Width-16)

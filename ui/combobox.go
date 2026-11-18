@@ -73,7 +73,7 @@ func combobox[T comparable](c C, value *T, choices []T, nameOf func(T) string, l
 	ids := &state.ids
 	// What the user did since the last paint: a choice (made here or by Enter in
 	// Key) is written to *value; a value the program changed is shown.
-	if canvas := f.canvas; canvas != nil {
+	if canvas := f.Surface; canvas != nil {
 		switch id, delivering := canvas.ClickTarget(); {
 		case !delivering:
 		case id == ids.trigger:

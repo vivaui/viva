@@ -25,7 +25,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	xs, xe := n.inset(axisX)
 	ys, ye := n.inset(axisY)
 	content := gfx.Size{Width: s.ContentWidth + xs + xe, Height: s.Content + ys + ye}
-	parts := f.canvas.Tree().Sub(s.ID.Scope(), s.ID.Name())
+	parts := f.Surface.Tree().Sub(s.ID.Scope(), s.ID.Name())
 	vertical, horizontal := parts.At(0), parts.At(1)
 	if !s.verticalID.IsZero() {
 		vertical = s.verticalID
@@ -51,7 +51,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	// fading out as they go.
 	theme, revealed := f.theme, float32(1)
 	if f.page != nil {
-		now := f.canvas.Now()
+		now := f.Surface.Now()
 		if !s.barSeen {
 			// An area first painted with an offset already set is not moving:
 			// only a change seen across two paints lights the bars.
@@ -68,21 +68,21 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 		case s.barLit:
 			if remaining := scrollbarLinger - (now - s.barSince); remaining > 0 {
 				target = 1
-				f.canvas.RequestFrameIn(remaining)
+				f.Surface.RequestFrameIn(remaining)
 			} else {
 				s.barLit = false
 			}
 		}
 		if target > 0 {
 			// The bars appear at once; only their leaving is animated.
-			revealed = f.canvas.Animate(vertical, slotScrollbarFade, target, gfx.Motion{})
+			revealed = f.Surface.Animate(vertical, slotScrollbarFade, target, gfx.Motion{})
 		} else {
-			revealed = f.canvas.Animate(vertical, slotScrollbarFade, target, gfx.DefaultMotion())
+			revealed = f.Surface.Animate(vertical, slotScrollbarFade, target, gfx.DefaultMotion())
 		}
 		theme.Border.Alpha *= revealed
 		theme.MutedForeground.Alpha *= revealed
 	}
-	area := components.BeginScrollArea(f.canvas, theme, n.rect, content).
+	area := components.BeginScrollArea(f.Surface, theme, n.rect, content).
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
 		HoverScrollbars(revealed > 0.001).
@@ -104,7 +104,7 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 // drags it until it is let go. The canvas captures the pointer for the press, so the
 // moves come to the bar wherever the pointer is.
 func (f *frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.ScrollAreaGeometry, axis int) {
-	event, ok := f.canvas.PointerOn(bar)
+	event, ok := f.Surface.PointerOn(bar)
 	if !ok {
 		return
 	}
@@ -124,7 +124,7 @@ func (f *frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.Sc
 	case event.Kind == gfx.PointerMove && s.dragging:
 	case event.Kind == gfx.PointerUp && s.dragging:
 		s.dragging = false
-		f.canvas.Consume()
+		f.Surface.Consume()
 		return
 	default:
 		return
@@ -134,5 +134,5 @@ func (f *frame) dragScrollbar(s *ScrollState, bar gfx.ID, geometry components.Sc
 	} else {
 		s.ScrollToX(geometry.HorizontalOffsetForThumb(pointer - s.grab))
 	}
-	f.canvas.Consume()
+	f.Surface.Consume()
 }

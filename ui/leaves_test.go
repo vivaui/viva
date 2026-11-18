@@ -76,8 +76,8 @@ func TestProgressIsFilledToItsFractionAndSizedLikeABar(t *testing.T) {
 
 // splitPage is two panes either side of a splitter, in a row 400 wide.
 func splitPage(view *View, state *SplitterState, width float32) func(*gfx.Canvas, gfx.Size) {
-	return func(canvas *gfx.Canvas, Size gfx.Size) {
-		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
+	return func(Surface *gfx.Canvas, Size gfx.Size) {
+		view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: width, Height: 100}, func(f *Frame) {
 			f.Row().Fill().Children(func() {
 				f.Column().Width(state.Pos).Children(func() { f.Text("left") })
 				f.Splitter(splitID, state).Mins(100, 150)
@@ -87,9 +87,9 @@ func splitPage(view *View, state *SplitterState, width float32) func(*gfx.Canvas
 	}
 }
 
-func splitterAt(t *testing.T, canvas *gfx.Canvas) gfx.Rect {
+func splitterAt(t *testing.T, Surface *gfx.Canvas) gfx.Rect {
 	t.Helper()
-	for _, hit := range canvas.Hits() {
+	for _, hit := range Surface.Hits() {
 		if hit.ID == splitID {
 			if hit.Cursor != gfx.PointerCursorResizeHorizontal {
 				t.Errorf("the splitter's cursor is %v, want the horizontal resize shape", hit.Cursor)

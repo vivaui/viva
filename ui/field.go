@@ -175,7 +175,7 @@ func (field *Field) snapshot(f *frame, ID gfx.ID, label, placeholder string) com
 	value := editor.String()
 	field.changed = value != field.seen
 	field.seen = value
-	focused := f.canvas != nil && f.canvas.Focused() == ID
+	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
 	snapshot := components.InputSnapshot{
 		ID: ID, Label: label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
@@ -218,10 +218,10 @@ func (field *Field) snapshot(f *frame, ID gfx.ID, label, placeholder string) com
 // lines and has no Submitted.
 func (b Box) Submitted() bool {
 	n := b.n()
-	if n.Kind != kindInput || b.f.canvas == nil {
+	if n.Kind != kindInput || b.f.Surface == nil {
 		return false
 	}
-	return b.f.canvas.ClickedByKey(widgetsOf(b.f).inputs[n.Aux].ID)
+	return b.f.Surface.ClickedByKey(widgetsOf(b.f).inputs[n.Aux].ID)
 }
 
 // OnKey gives the field a handler for the keys pressed while it has the

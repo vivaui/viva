@@ -59,12 +59,12 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 		p.touchMemo(entry)
 		entry.epoch = p.epoch
 		cell.v, cell.set = value, true
-		if entry.listens && f.canvas != nil {
+		if entry.listens && f.Surface != nil {
 			// The part's controls were not asked about a click this paint, as
 			// they were not declared: say they listen, so that the runtime
 			// delivers the next click and the part is declared to take it.
-			f.canvas.Clicked(gfx.ID{})
-			f.canvas.PointerOn(gfx.ID{})
+			f.Surface.Clicked(gfx.ID{})
+			f.Surface.PointerOn(gfx.ID{})
 		}
 		return b
 	}
@@ -93,9 +93,9 @@ func Memo[T comparable](c C, value T, fn func()) Box {
 	}
 	cell.v, cell.set = value, true
 	entry.scale, entry.fonts = 0, 0
-	if f.canvas != nil {
-		entry.scale = f.canvas.PixelScale()
-		entry.fonts = f.canvas.FontGeneration()
+	if f.Surface != nil {
+		entry.scale = f.Surface.PixelScale()
+		entry.fonts = f.Surface.FontGeneration()
 	}
 	entry.epoch = p.epoch
 	return b
@@ -182,7 +182,7 @@ func (p *Page) memoBox(entry *memoEntry, copy bool) int32 {
 
 // memoHit reports whether the part may be copied rather than declared.
 func (p *Page) memoHit(entry *memoEntry, same bool) bool {
-	canvas := p.ctx.f.canvas
+	canvas := p.ctx.f.Surface
 	if canvas == nil || !entry.painted || entry.stale || !same || entry.epoch+1 != p.epoch ||
 		entry.held || entry.bounds != p.ctx.f.bounds || entry.themeEpoch != p.themeEpoch ||
 		entry.Opacity != p.ctx.f.Opacity || canvas.PixelScale() != entry.scale ||
@@ -202,7 +202,7 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	box := &p.memoBoxes[f.Exts[f.Nodes[i].Ext].memo-1]
 	entry := box.entry
-	canvas := f.canvas
+	canvas := f.Surface
 	rect := f.Nodes[i].rect
 	if box.copy {
 		if entry.themeEpoch != p.themeEpoch || entry.Opacity != f.Opacity {
@@ -249,7 +249,7 @@ func (p *Page) memoDiffers(span gfx.Span, prev memoCheckOf, rect Rect) bool {
 	if prev.at.Width != rect.Width || prev.at.Height != rect.Height {
 		return false // laid out at another size: not a copy's place to compare
 	}
-	return !p.ctx.f.canvas.SameAsPrevious(span, prev.span, rect.X-prev.at.X, rect.Y-prev.at.Y)
+	return !p.ctx.f.Surface.SameAsPrevious(span, prev.span, rect.X-prev.at.X, rect.Y-prev.at.Y)
 }
 
 // touchMemo tells the page that what a copied part declared last time is still on

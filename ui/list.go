@@ -204,10 +204,10 @@ func (s *ListState) Submitted() (int, bool) {
 // of the row it is called on.
 func (s *ListState) HasFocus() bool {
 	in := &s.list
-	if in.f == nil || in.f.canvas == nil || in.rows.IsZero() {
+	if in.f == nil || in.f.Surface == nil || in.rows.IsZero() {
 		return false
 	}
-	return in.f.canvas.Focused().Scope() == in.rows
+	return in.f.Surface.Focused().Scope() == in.rows
 }
 
 // ScrollTo scrolls the list to row at align, at its next declaration. A row the
@@ -572,8 +572,8 @@ func (s *ListState) applyScrollRequest(f *frame) bool {
 		scroll.ScrollTo(target)
 	}
 	in.pendingFrame++
-	if f.canvas != nil {
-		f.canvas.RequestFrame()
+	if f.Surface != nil {
+		f.Surface.RequestFrame()
 	}
 	return scroll.Offset != before
 }
@@ -592,9 +592,9 @@ func (s *ListState) afterLayout() {
 		in.followFrame = 0
 		return
 	}
-	if in.followFrame < listScrollFrames && in.f != nil && in.f.canvas != nil {
+	if in.followFrame < listScrollFrames && in.f != nil && in.f.Surface != nil {
 		in.followFrame++
-		in.f.canvas.RequestFrame()
+		in.f.Surface.RequestFrame()
 	}
 }
 
@@ -802,7 +802,7 @@ func (r ListRow) Current() bool { return r.state.Selected() == r.Index }
 
 // Focused reports whether the keyboard focus is visibly on the row.
 func (r ListRow) Focused() bool {
-	return r.Element.f.canvas != nil && r.Element.f.canvas.FocusVisible() == r.ID
+	return r.Element.f.Surface != nil && r.Element.f.Surface.FocusVisible() == r.ID
 }
 
 // List is a scrolling list of n rows of which it declares only the ones on screen:
@@ -852,7 +852,7 @@ func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	if scope != in.scope {
 		in.scope, in.rows = scope, p.tree.Sub(scope, gfx.Index(0))
 	}
-	state.reorderPointer(c.f.canvas)
+	state.reorderPointer(c.f.Surface)
 	area := p.listArea(c, state, n, true, func(i int, box Box) {
 		in.declareRow(c, state, i, box, row)
 	})
@@ -1061,7 +1061,7 @@ func (in *listInternals) declareRow(c C, s *ListState, i int, box Box, row func(
 	}
 	id := in.rows.At(key)
 	label := s.rowName(i)
-	if canvas := c.f.canvas; canvas != nil && !id.IsZero() && canvas.Clicked(id) {
+	if canvas := c.f.Surface; canvas != nil && !id.IsZero() && canvas.Clicked(id) {
 		info, _ := canvas.ClickInfo()
 		s.clickRow(c.page, i, info)
 	}
@@ -1280,7 +1280,7 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		return gfx.EventResult{}, false
 	}
 	for _, s := range p.listStates {
-		if _, inside := event.Target.In(s.list.rows); !inside || s.list.f == nil || s.list.f.canvas == nil {
+		if _, inside := event.Target.In(s.list.rows); !inside || s.list.f == nil || s.list.f.Surface == nil {
 			continue
 		}
 		epoch := p.epoch + 1
@@ -1297,7 +1297,7 @@ func (p *Page) listType(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		if s.Header != nil {
 			rows.Disabled = s.isHeader
 		}
-		now := clockEpoch.Add(s.list.f.canvas.Now())
+		now := clockEpoch.Add(s.list.f.Surface.Now())
 		typing := text == " " && s.list.typeahead.Typing(now)
 		if id, ok := s.list.typeahead.TypeRows(text, now, rows, event.Target); ok {
 			if row := s.indexOf(id); row >= 0 {

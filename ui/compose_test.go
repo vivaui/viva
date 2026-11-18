@@ -34,8 +34,8 @@ func newComposedStrip(segments bool, labels ...string) *composedStrip {
 	return s
 }
 
-func (s *composedStrip) paint(canvas *gfx.Canvas, Size gfx.Size) {
-	s.view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
+func (s *composedStrip) paint(Surface *gfx.Canvas, Size gfx.Size) {
+	s.view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 		f.Row().Pad(8).Gap(4).Items(Start).Children(func() {
 			for i, label := range s.labels {
 				var item Box

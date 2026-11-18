@@ -145,7 +145,7 @@ var swipeMotion = gfx.Motion{Duration: 300 * time.Millisecond, Easing: gfx.EaseO
 // swipe follows the pointer on the handle and reports whether letting it go
 // closes the drawer. It sets how far the panel is moved toward its edge.
 func (d *drawerSpec) swipe(f *frame, s *drawerSwipe) bool {
-	canvas := f.canvas
+	canvas := f.Surface
 	if canvas == nil {
 		return false
 	}
@@ -195,8 +195,8 @@ type drawerDecl struct {
 	layer        uint16
 }
 
-func (spec *drawerSpec) component(canvas *gfx.Canvas, theme Theme, bounds Rect, layer uint16) components.Drawer {
-	drawer := components.BeginDrawer(canvas, theme, bounds, components.DrawerOptions{
+func (spec *drawerSpec) component(Surface *gfx.Canvas, theme Theme, bounds Rect, layer uint16) components.Drawer {
+	drawer := components.BeginDrawer(Surface, theme, bounds, components.DrawerOptions{
 		Layer: layer, Scope: spec.scope, DismissID: spec.dismiss, CloseID: spec.close,
 		Side: spec.Side.component(), ContentExtent: spec.Size, InitialFocusID: spec.InitialFocus,
 		HandleID: spec.handle, Offset: spec.offset,
@@ -211,7 +211,7 @@ func (spec *drawerSpec) component(canvas *gfx.Canvas, theme Theme, bounds Rect, 
 // body and footer at the rectangles components.Drawer gives them.
 func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 	layer := f.widgetLayer() + 2
-	layout := spec.component(f.canvas, f.theme, f.bounds, layer).Layout(spec.Description)
+	layout := spec.component(f.Surface, f.theme, f.bounds, layer).Layout(spec.Description)
 	body := layout.Body
 	switch {
 	case spec.title == "":
@@ -254,7 +254,7 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 // body and footer inside the layer and focus scope it opens.
 func (f *frame) paintDrawer(n *node) {
 	d := &widgetsOf(f).drawers[n.Aux]
-	drawer := d.spec.component(f.canvas, f.theme, n.rect, d.layer)
+	drawer := d.spec.component(f.Surface, f.theme, n.rect, d.layer)
 	if n.Flags&flagDisabled != 0 {
 		drawer = drawer.Disabled()
 	}

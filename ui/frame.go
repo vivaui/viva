@@ -232,7 +232,7 @@ type extra struct {
 // gives the frame the declarations. Tests and previews that need the engine
 // paint through a View; applications do not reach a frame.
 type frame struct {
-	canvas      *gfx.Canvas
+	Surface     *gfx.Canvas
 	theme       Theme
 	styles      *Styles // the page's recipe overrides; nil keeps the theme's
 	Nodes       []node
@@ -291,8 +291,8 @@ type frame struct {
 type view struct{ frame *frame }
 
 // Draw declares, lays out and paints one page inside bounds. build runs once.
-func (view *view) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(*frame)) {
-	f := view.Begin(canvas, theme, bounds)
+func (view *view) Draw(Surface *gfx.Canvas, theme Theme, bounds Rect, build func(*frame)) {
+	f := view.Begin(Surface, theme, bounds)
 	build(f)
 	f.End()
 }
@@ -300,7 +300,7 @@ func (view *view) Draw(canvas *gfx.Canvas, theme Theme, bounds Rect, build func(
 // Begin starts a page for callers that need the rectangles it lays out (Box.Rect)
 // before painting something of their own; End finishes it. Draw is Begin, build
 // and End.
-func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
+func (view *view) Begin(Surface *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	if view.frame == nil {
 		view.frame = new(frame)
 	}
@@ -317,7 +317,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 		f = &next
 	}
 	f.gen++
-	f.canvas, f.theme, f.bounds, f.done = canvas, theme, bounds, false
+	f.Surface, f.theme, f.bounds, f.done = Surface, theme, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
 	f.Exts = append(f.Exts[:0], extra{})
@@ -335,8 +335,8 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.page = nil
 	f.tooltips = false
 	f.nativeMark = 0
-	if canvas != nil {
-		f.nativeMark = len(canvas.NativeViews())
+	if Surface != nil {
+		f.nativeMark = len(Surface.NativeViews())
 	}
 	f.scratch.reset()
 	resetControls(f)
@@ -393,13 +393,13 @@ func (f *frame) End() {
 	f.paint(0)
 	f.raiseOverNativeViews()
 	if f.popupLayer != 0 {
-		f.canvas.PushLayer(f.popupLayer)
+		f.Surface.PushLayer(f.popupLayer)
 	}
 	for _, index := range f.Floats {
 		f.paint(index)
 	}
 	if f.popupLayer != 0 {
-		f.canvas.PopLayer()
+		f.Surface.PopLayer()
 	}
 	if f.tooltips {
 		f.paintTooltipFn(f)
@@ -440,7 +440,7 @@ func (f *frame) trim() {
 }
 
 // Canvas and Theme give the declaration what it was started with.
-func (f *frame) Canvas() *gfx.Canvas { return f.canvas }
+func (f *frame) Canvas() *gfx.Canvas { return f.Surface }
 func (f *frame) Theme() Theme        { return f.theme }
 
 // Bounds is the rectangle this frame lays out in, as the caller gave it to Draw

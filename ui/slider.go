@@ -195,14 +195,14 @@ func (f *frame) settleSlider(n *node) {
 	d.changed = s.moved
 	s.off = n.Flags&flagDisabled != 0
 	s.moved = false
-	if f.canvas == nil {
+	if f.Surface == nil {
 		return
 	}
 	if n.Flags&flagDisabled != 0 {
 		s.dragging = false
 		return
 	}
-	event, ok := f.canvas.PointerOn(n.ID)
+	event, ok := f.Surface.PointerOn(n.ID)
 	if !ok {
 		return
 	}
@@ -228,13 +228,13 @@ func (f *frame) settleSlider(n *node) {
 		}
 		s.dragging = true
 		s.Value = track.ValueAt(pointer - s.grab)
-		f.canvas.Consume()
+		f.Surface.Consume()
 	case event.Kind == gfx.PointerMove && s.dragging:
 		s.Value = track.ValueAt(pointer - s.grab)
-		f.canvas.Consume()
+		f.Surface.Consume()
 	case event.Kind == gfx.PointerUp && s.dragging:
 		s.dragging = false
-		f.canvas.Consume()
+		f.Surface.Consume()
 	}
 	if s.Value != before {
 		d.changed = true
@@ -257,13 +257,13 @@ func (f *frame) paintSlider(n *node) {
 		if step <= 0 {
 			step = 1
 		}
-		f.canvas.HitWithOptions(n.ID, n.rect, label, gfx.HitOptions{
+		f.Surface.HitWithOptions(n.ID, n.rect, label, gfx.HitOptions{
 			Role: gfx.RoleSlider, Value: s.valueText(), Disabled: n.Flags&flagDisabled != 0,
 			Range: gfx.ValueRange{Now: float64(s.Value), Min: float64(s.min), Max: float64(s.max), Step: float64(step), Set: true},
 		})
 		return
 	}
-	slider := components.BeginSlider(f.canvas, f.theme, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
+	slider := components.BeginSlider(f.Surface, f.theme, n.ID, n.rect, s.Value).Range(s.min, s.max).Step(s.step).ValueText(s.valueText())
 	if n.Natural > 0 {
 		slider = slider.Vertical()
 	}

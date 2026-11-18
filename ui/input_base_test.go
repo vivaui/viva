@@ -531,13 +531,13 @@ func TestInputTextEndRightAlignsTheValueAndTheEditorGeometry(t *testing.T) {
 		})
 		return canvas
 	}
-	lineOf := func(canvas *gfx.Canvas) gfx.Text {
-		for _, text := range canvas.Texts() {
+	lineOf := func(Surface *gfx.Canvas) gfx.Text {
+		for _, text := range Surface.Texts() {
 			if text.Value == "42" {
 				return text
 			}
 		}
-		t.Fatalf("no value painted: %+v", canvas.Texts())
+		t.Fatalf("no value painted: %+v", Surface.Texts())
 		return gfx.Text{}
 	}
 	plain, ended := paint(func(b Box) Box { return b }), paint(func(b Box) Box { return b.TextEnd() })

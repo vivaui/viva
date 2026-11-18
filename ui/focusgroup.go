@@ -104,7 +104,7 @@ type groupStop struct {
 // endFocusGroup finishes painting container i, a FocusGroup, whose hits start at from:
 // its members become one stop of Tab, and are kept for the arrow keys.
 func (f *frame) endFocusGroup(i int32, axis FocusAxis, from gfx.Mark) {
-	p, canvas := f.page, f.canvas
+	p, canvas := f.page, f.Surface
 	if canvas == nil || int(i) >= len(p.Nodes) {
 		return
 	}

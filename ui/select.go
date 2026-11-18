@@ -360,7 +360,7 @@ type selectDecl struct {
 	disabled []bool // this declaration's DisabledOptions: what the list paints
 	hint     string // the trigger's Hint
 	selected int
-	canvas   *gfx.Canvas
+	Surface  *gfx.Canvas
 	popup    int32 // the Popup that places the list, or -1 when it is closed
 	visible  int   // how many options the list shows at once
 	layer    uint16
@@ -423,12 +423,12 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 	b := f.box(kindSelect)
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(widgetsOf(f).selects))
-	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
+	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, Surface: f.Surface, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	if state.listMaxHeight > 0 {
 		d.visible = min(d.visible, listRowsForHeight(len(labels), state.listMaxHeight))
 	}
-	widest := state.widestOption(f.canvas, labels, f.theme.Metrics.FontSizeM)
+	widest := state.widestOption(f.Surface, labels, f.theme.Metrics.FontSizeM)
 	state.disabled = nil
 	state.labels, state.scope, state.selected, state.visible = labels, scope, selected, d.visible
 	if state.Open && len(labels) > 0 {
@@ -452,11 +452,11 @@ func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string,
 // or the size change. The comparison is against the labels the measurement was
 // taken for, which is what the state declared last, so calling before or after
 // the frame records its labels both work.
-func (s *SelectState) widestOption(canvas *gfx.Canvas, labels []string, Size float32) float32 {
+func (s *SelectState) widestOption(Surface *gfx.Canvas, labels []string, Size float32) float32 {
 	if !s.optionsMeasured || s.optionsSize != Size || !sameOptionLabels(s.labels, labels) {
 		var widest float32
 		for _, label := range labels {
-			widest = max(widest, canvas.TextWidthWeight(label, Size, gfx.WeightRegular))
+			widest = max(widest, Surface.TextWidthWeight(label, Size, gfx.WeightRegular))
 		}
 		s.optionsMeasured, s.optionsWidest, s.optionsSize = true, widest, Size
 	}
@@ -488,7 +488,7 @@ func (f *frame) sizeSelectList(n *node) {
 	if d.popup < 0 {
 		return
 	}
-	width := selectListWidth(d.state.widestOption(f.canvas, d.labels, n.FontSize))
+	width := selectListWidth(d.state.widestOption(f.Surface, d.labels, n.FontSize))
 	if d.state.listMaxWidth > 0 {
 		width = min(width, d.state.listMaxWidth)
 	}
@@ -556,7 +556,7 @@ func optionDisabled(disabled []bool, i int) bool { return i >= 0 && i < len(disa
 // outside closes it, the arrows move its window.
 func (b Box) Picked() (int, bool) {
 	n := b.n()
-	if n.Kind != kindSelect || b.f.canvas == nil {
+	if n.Kind != kindSelect || b.f.Surface == nil {
 		return 0, false
 	}
 	d := &widgetsOf(b.f).selects[n.Aux]
@@ -574,7 +574,7 @@ func (d *selectDecl) pickIn() (int, bool) {
 		d.state.chosen, d.state.Open = 0, false
 		return chosen - 1, true
 	}
-	canvas := d.canvas
+	canvas := d.Surface
 	count := len(d.labels)
 	if trigger := d.state.trigger; !trigger.IsZero() && canvas.Clicked(trigger) {
 		d.state.Open = !d.state.Open
@@ -638,7 +638,7 @@ func (s *SelectState) triggerID(count int) gfx.ID {
 
 func (f *frame) measureSelect(n *node) {
 	d := &widgetsOf(f).selects[n.Aux]
-	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
+	widest := d.state.widestOption(f.Surface, d.labels, f.theme.Metrics.FontSizeM)
 	height := f.theme.Metrics.ControlHeight
 	switch {
 	case n.ButtonSize == components.ButtonSizeXSmall:
@@ -686,7 +686,7 @@ func (f *frame) paintSelect(n *node) {
 		list.Width = max(list.Width, trigger.Width)
 		options.Open, options.Content = true, list
 	}
-	control := components.BeginSelect(f.canvas, f.theme, trigger, options)
+	control := components.BeginSelect(f.Surface, f.theme, trigger, options)
 	if !open {
 		return
 	}

@@ -233,15 +233,15 @@ func (f *frame) reportSplitters() {
 		s.thickness = *extent(&n.rect, axis)
 		if pos := s.limit(s.Pos); pos != s.Pos {
 			s.Pos = pos
-			if f.canvas != nil {
-				f.canvas.RequestFrame()
+			if f.Surface != nil {
+				f.Surface.RequestFrame()
 			}
 		}
 	}
 }
 
 func (f *frame) paintSplitter(n *node) {
-	canvas := f.canvas
+	canvas := f.Surface
 	d := &widgetsOf(f).splits[n.Aux]
 	s := d.state
 	row := f.splitsRow(n)

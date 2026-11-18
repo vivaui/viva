@@ -36,9 +36,9 @@ func (m *listModel) view(c ui.C) {
 	})
 }
 
-func paintedTexts(canvas *gfx.Canvas) map[string]bool {
+func paintedTexts(Surface *gfx.Canvas) map[string]bool {
 	seen := map[string]bool{}
-	for _, text := range canvas.Texts() {
+	for _, text := range Surface.Texts() {
 		seen[text.Value] = true
 	}
 	return seen

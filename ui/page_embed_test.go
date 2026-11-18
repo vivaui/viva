@@ -78,8 +78,8 @@ func pageSlot(f *ui.Frame, page *ui.Page, view func(ui.C)) ui.Box {
 	})
 }
 
-func (m *paneModel) paint(canvas *gfx.Canvas, Size gfx.Size) {
-	m.view.Draw(canvas, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
+func (m *paneModel) paint(Surface *gfx.Canvas, Size gfx.Size) {
+	m.view.Draw(Surface, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Children(func() {
 			// The sidebar is as tall as the window, under where an unplaced page would go.
 			f.Column().Width(200).FillHeight().Children(func() {
@@ -173,9 +173,9 @@ func BenchmarkFramePage(b *testing.B) {
 	}
 }
 
-func embeddedHitID(t *testing.T, canvas *gfx.Canvas, label string) gfx.ID {
+func embeddedHitID(t *testing.T, Surface *gfx.Canvas, label string) gfx.ID {
 	t.Helper()
-	for _, hit := range canvas.Hits() {
+	for _, hit := range Surface.Hits() {
 		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
 			return hit.ID
 		}

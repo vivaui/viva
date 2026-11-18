@@ -53,7 +53,7 @@ func (hover IconHover) Transform(f *frame) gfx.IconTransform {
 	if hover.state == nil || f == nil || hover.ID.IsZero() {
 		return gfx.IconTransform{}
 	}
-	progress, _ := hover.state.Progress(f.canvas, hover.ID, hover.slot, hover.dwell, hover.span)
+	progress, _ := hover.state.Progress(f.Surface, hover.ID, hover.slot, hover.dwell, hover.span)
 	if progress >= 1 {
 		return gfx.IconTransform{}
 	}

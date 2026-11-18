@@ -18,8 +18,8 @@ func TestFieldBaseTakesTypedTextAndSubmitsThroughTheDriver(t *testing.T) {
 	var submitted []string
 	config := app.Config{
 		Tree: &tree, Title: "cell", Width: 300, Height: 120,
-		Paint: func(canvas *gfx.Canvas, Size gfx.Size) {
-			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
+		Paint: func(Surface *gfx.Canvas, Size gfx.Size) {
+			view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 				f.Column().Fill().Pad(12).Children(func() {
 					if f.FieldBase(&cell, cellID, "Cell", "").Pad(8).Border(2, gfx.LightTheme().Primary).Radius(0).Submitted() {
 						submitted = append(submitted, cell.Text())
@@ -69,8 +69,8 @@ func TestMonoFieldBaseIsPaintedByTheComponentFromTheEditorsState(t *testing.T) {
 	id := tree.ID(page, "cell-mono")
 	config := app.Config{
 		Tree: &tree, Title: "mono", Width: 300, Height: 100,
-		Paint: func(canvas *gfx.Canvas, Size gfx.Size) {
-			view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
+		Paint: func(Surface *gfx.Canvas, Size gfx.Size) {
+			view.Draw(Surface, gfx.LightTheme(), gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *Frame) {
 				f.Column().Pad(12).Children(func() {
 					f.FieldBase(&field, id, "Type", "").Height(28).FontSize(11).Weight(gfx.WeightMedium).MonoFace(gfx.MonoClassic)
 				})

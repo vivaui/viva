@@ -106,7 +106,7 @@ func contextMenu(c C, target Box, bound gfx.Scope, opened *menuOrigin, body func
 		p.keyRoute, p.menuRoute = (*Page).routeKey, (*Page).menuKey
 		p.wheelRoute = (*Page).overlayWheel
 	}
-	if canvas := c.f.canvas; canvas != nil && opened == nil {
+	if canvas := c.f.Surface; canvas != nil && opened == nil {
 		if event, ok := canvas.PointerOn(id); ok && event.Kind == gfx.PointerDown && event.Button == gfx.PointerButtonSecondary {
 			menu.shown, menu.at = true, Rect{X: event.X, Y: event.Y}
 			canvas.Consume()
@@ -170,7 +170,7 @@ func (p *Page) declareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, an
 	menu.side = menuBelow            // unless body says otherwise again in this paint
 	menu.fresh()
 	menu.declare(body)
-	if f.canvas != nil && f.canvas.Clicked(scope.At(menuDismiss)) {
+	if f.Surface != nil && f.Surface.Clicked(scope.At(menuDismiss)) {
 		*open = false
 		return
 	}
@@ -268,7 +268,7 @@ const submenuDelay = 100 * time.Millisecond
 // hover opens the submenu of the row the pointer rests on, or closes the open one
 // when it rests on another row.
 func (m *MenuItems) hover() {
-	canvas := m.f.canvas
+	canvas := m.f.Surface
 	if canvas == nil {
 		return
 	}
@@ -305,13 +305,13 @@ func (m *MenuItems) Size() (width, height float32) {
 		default:
 			row := m.row(i)
 			if m.context {
-				if f.canvas != nil {
-					width = max(width, components.ContextMenuItemWidth(f.canvas, *theme, contextItem(row)))
+				if f.Surface != nil {
+					width = max(width, components.ContextMenuItemWidth(f.Surface, *theme, contextItem(row)))
 				}
 				continue
 			}
-			if f.canvas != nil {
-				width = max(width, components.DropdownMenuItemWidth(f.canvas, *theme, row))
+			if f.Surface != nil {
+				width = max(width, components.DropdownMenuItemWidth(f.Surface, *theme, row))
 			}
 		}
 	}
@@ -424,7 +424,7 @@ func (m *MenuItems) Unpainted() *MenuItems {
 
 // DrawPanel paints an Unpainted menu's surface, inside the menu's layer and
 // clipping and within its entrance. Nil paints no surface.
-func (m *MenuItems) DrawPanel(draw func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) *MenuItems {
+func (m *MenuItems) DrawPanel(draw func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) *MenuItems {
 	m.drawPanel = draw
 	return m
 }
@@ -452,9 +452,9 @@ func (m *MenuItems) paintItem(parts components.MenuItemPaint) {
 }
 
 // paintPanel is DrawPanel as the components take it.
-func (m *MenuItems) paintPanel(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+func (m *MenuItems) paintPanel(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
 	if m.drawPanel != nil {
-		m.drawPanel(canvas, bounds, theme)
+		m.drawPanel(Surface, bounds, theme)
 	}
 }
 
@@ -472,11 +472,11 @@ type menuRow struct {
 	disabled      bool
 	submenu       bool // the row opens a submenu
 	trailingWidth float32
-	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
-	height        float32                                                    // a content row's height
-	Content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
-	pageContent   func(c C, bounds Rect)                                     // what a page content row declares
-	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
+	trailing      func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
+	height        float32                                                     // a content row's height
+	Content       func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
+	pageContent   func(c C, bounds Rect)                                      // what a page content row declares
+	checked       int8                                                        // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
 // minWidth is shadcn's: 8rem for a DropdownMenu, 9rem for a ContextMenu.
@@ -530,7 +530,7 @@ func (m *MenuItems) Item(label string) MenuItem {
 func (m *MenuItems) Sub(label string, body func(*MenuItems)) MenuItem {
 	item := m.Item(label)
 	m.Items[item.i].submenu = true
-	if canvas := m.f.canvas; canvas != nil && canvas.Clicked(m.scope.At(menuRows+item.i)) {
+	if canvas := m.f.Surface; canvas != nil && canvas.Clicked(m.scope.At(menuRows+item.i)) {
 		m.sub, m.subMenu = item.i, nil // a click opens it, as the pointer resting there does
 	}
 	if m.sub != item.i {
@@ -585,7 +585,7 @@ func (m *MenuItems) WidthRange(least, greatest float32) {
 // such as a strip of color swatches. It is not an item, so the keyboard passes over it; body
 // takes the row's rectangle and declares its own hits, inside the menu's clip, and is not
 // called while scrolling has the row out of sight.
-func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
+func (m *MenuItems) Content(height float32, body func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) {
 	m.Items = append(m.Items, menuRow{Kind: menuRowContent, height: height, Content: body})
 }
 
@@ -616,24 +616,24 @@ func (m *MenuItems) rowExtent(i int) float32 {
 }
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
-func (m *MenuItems) paintContent(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
+func (m *MenuItems) paintContent(Surface *gfx.Canvas, theme gfx.Theme, row *menuRow, bounds gfx.Rect, begin, end func(), menu gfx.Rect) {
 	if bounds.Width <= 0 || row.Content == nil {
 		return
 	}
 	begin()
-	canvas.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
-	row.Content(canvas, bounds, theme)
-	canvas.Unclip()
+	Surface.Clip(gfx.Rect{X: menu.X, Y: menu.Y + components.DropdownMenuPadding/2, Width: menu.Width, Height: menu.Height - components.DropdownMenuPadding})
+	row.Content(Surface, bounds, theme)
+	Surface.Unclip()
 	end()
 }
 
 // paintTrailing calls a row's trailing painter over the slot the menu reserved at its end.
-func (m *MenuItems) paintTrailing(canvas *gfx.Canvas, theme gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
+func (m *MenuItems) paintTrailing(Surface *gfx.Canvas, theme gfx.Theme, row *menuRow, slot gfx.Rect, begin, end func()) {
 	if slot.Width <= 0 || row.trailing == nil {
 		return
 	}
 	begin()
-	row.trailing(canvas, slot, theme)
+	row.trailing(Surface, slot, theme)
 	end()
 }
 
@@ -651,7 +651,7 @@ func (m *MenuItems) Separator() {
 // of the row's own, such as the eye that hides a shell from a list. The control declares its
 // own hit, over the row's, so pressing it does not choose the row; it is not called while
 // scrolling has the row out of sight. A menu row has either Trailing or a shortcut.
-func (item MenuItem) Trailing(width float32, paint func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) MenuItem {
+func (item MenuItem) Trailing(width float32, paint func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)) MenuItem {
 	row := &item.menu.Items[item.i]
 	row.trailingWidth, row.trailing = width, paint
 	return item
@@ -718,7 +718,7 @@ func (item MenuItem) Chosen(on bool) MenuItem {
 // or Enter, and closes the menu then.
 func (item MenuItem) Clicked() bool {
 	m := item.menu
-	canvas := m.f.canvas
+	canvas := m.f.Surface
 	if canvas == nil || m.Items[item.i].disabled || m.Items[item.i].submenu || !canvas.Clicked(m.scope.At(menuRows+item.i)) {
 		return false
 	}
@@ -733,7 +733,7 @@ func (m *MenuItems) draw(d *DrawContext) {
 
 // paintAt paints the menu over bounds in layer, then the submenu open in it beside
 // its row, a layer over.
-func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer uint16) {
+func (m *MenuItems) paintAt(Surface *gfx.Canvas, theme *Theme, bounds Rect, layer uint16) {
 	f, scope := m.f, m.scope
 	m.Scroll.BarID = scope.At(menuBar)
 	// A submenu is in its root's focus scope, which keeps the keyboard in the chain
@@ -745,7 +745,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	}
 	var trigger Rect // the row of the open submenu
 	if m.context {
-		menu := components.BeginContextMenu(canvas, *theme, bounds, components.ContextMenuOptions{
+		menu := components.BeginContextMenu(Surface, *theme, bounds, components.ContextMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
 			Scroll: &m.Scroll, Submenu: m.Parent != nil, RowHeight: m.rowSize,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
@@ -757,7 +757,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
-				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+				m.paintContent(Surface, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:
 				menu.AddContent(row.height) // the page declares the row's controls
 			default:
@@ -766,7 +766,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 					if i == m.sub {
 						trigger = r
 					}
-					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+					m.paintTrailing(Surface, *theme, row, slot, menu.BeginContent, menu.EndContent)
 				} else if r := menu.AddItem(contextItem(m.row(i))); i == m.sub {
 					trigger = r
 				}
@@ -788,7 +788,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 				side = components.OverlayBottom
 			}
 		}
-		menu := components.BeginDropdownMenu(canvas, *theme, bounds, components.DropdownMenuOptions{
+		menu := components.BeginDropdownMenu(Surface, *theme, bounds, components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.bounds, ID: id,
 			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil,
 			Unpainted: m.unpainted, PaintPanel: m.panelPainter, PaintItem: m.itemPainter,
@@ -800,7 +800,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 			case menuRowLabel:
 				menu.AddLabel(row.label, false)
 			case menuRowContent:
-				m.paintContent(canvas, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
+				m.paintContent(Surface, *theme, row, menu.AddContent(row.height), func() { menu.BeginContent() }, func() { menu.EndContent() }, menu.Bounds())
 			case menuRowPageContent:
 				menu.AddContent(row.height) // the page declares the row's controls
 			default:
@@ -809,7 +809,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 					if i == m.sub {
 						trigger = r
 					}
-					m.paintTrailing(canvas, *theme, row, slot, menu.BeginContent, menu.EndContent)
+					m.paintTrailing(Surface, *theme, row, slot, menu.BeginContent, menu.EndContent)
 				} else if r := menu.AddItem(m.row(i)); i == m.sub {
 					trigger = r
 				}
@@ -821,7 +821,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 		m.focusFirst = false
 		for i := range m.Items {
 			if row := &m.Items[i]; row.Kind == menuRowItem && !row.disabled {
-				canvas.RequestFocus(scope.At(menuRows + i))
+				Surface.RequestFocus(scope.At(menuRows + i))
 				break
 			}
 		}
@@ -829,7 +829,7 @@ func (m *MenuItems) paintAt(canvas *gfx.Canvas, theme *Theme, bounds Rect, layer
 	if child := m.subMenu; child != nil && trigger.Width > 0 { // a row scrolled out of sight shows none
 		width, height := child.Size()
 		placed := components.SubmenuPlacement(trigger, gfx.Size{Width: width, Height: height}, f.bounds.Inset(gfx.All(components.DropdownMenuPadding)))
-		child.paintAt(canvas, theme, placed, layer+1)
+		child.paintAt(Surface, theme, placed, layer+1)
 	}
 }
 
@@ -883,7 +883,7 @@ func (p *Page) menuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 			if text == "" {
 				text = " "
 			}
-			now := clockEpoch.Add(m.f.canvas.Now())
+			now := clockEpoch.Add(m.f.Surface.Now())
 			typing := text == " " && m.typeahead.Typing(now) // a Space in the middle of a label
 			if id, ok := m.typeahead.Type(text, now, &m.Scroll, event.Target); ok {
 				return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true

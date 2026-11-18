@@ -51,12 +51,12 @@ func badgeVariant(variant components.ButtonVariant) components.BadgeVariant {
 // declared.
 func (f *frame) paintBadge(v ControlView) {
 	rect := v.Rect
-	components.PaintBadge(f.canvas, f.theme, Rect{X: rect.X, Y: rect.Y}, v.Text, badgeVariant(v.Variant))
+	components.PaintBadge(f.Surface, f.theme, Rect{X: rect.X, Y: rect.Y}, v.Text, badgeVariant(v.Variant))
 	if v.HasHit && !v.ID.IsZero() {
 		options := v.Hit
 		if options.Role == 0 {
 			options.Role = gfx.RoleButton
 		}
-		f.canvas.HitWithOptions(v.ID, rect, v.Label, options)
+		f.Surface.HitWithOptions(v.ID, rect, v.Label, options)
 	}
 }

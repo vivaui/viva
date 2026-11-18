@@ -614,9 +614,9 @@ func TestMenuContentRow(t *testing.T) {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
 				menu.Item("One")
-				menu.Content(40, func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+				menu.Content(40, func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
 					painted = bounds
-					canvas.Hit(gfx.Item(77), bounds)
+					Surface.Hit(gfx.Item(77), bounds)
 				})
 				if menu.Item("Two").Clicked() {
 					m.renamed++
@@ -644,9 +644,9 @@ func TestMenuItemTrailingControl(t *testing.T) {
 		ui.Column(c).Pad(16).Children(func() {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
-				if menu.Item("One").Trailing(24, func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
+				if menu.Item("One").Trailing(24, func(Surface *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) {
 					eye = bounds
-					canvas.HitWithOptions(gfx.Item(88), bounds, "Hide", gfx.HitOptions{Role: gfx.RoleButton})
+					Surface.HitWithOptions(gfx.Item(88), bounds, "Hide", gfx.HitOptions{Role: gfx.RoleButton})
 				}).Clicked() {
 					m.renamed++
 				}
