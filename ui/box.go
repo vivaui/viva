@@ -390,16 +390,16 @@ func (b Box) TextDirection(direction gfx.TextDirection) Box {
 }
 
 // Button variants and sizes.
-func (b Box) Secondary() Box   { return b.variant(style.VariantSecondary) }
-func (b Box) Outline() Box     { return b.variant(style.VariantOutline) }
-func (b Box) Ghost() Box       { return b.variant(style.VariantGhost) }
-func (b Box) Link() Box        { return b.variant(style.VariantLink) }
-func (b Box) Destructive() Box { return b.variant(style.VariantDestructive) }
+func (b Box) Secondary() Box   { return b.setVariant(style.VariantSecondary) }
+func (b Box) Outline() Box     { return b.setVariant(style.VariantOutline) }
+func (b Box) Ghost() Box       { return b.setVariant(style.VariantGhost) }
+func (b Box) Link() Box        { return b.setVariant(style.VariantLink) }
+func (b Box) Destructive() Box { return b.setVariant(style.VariantDestructive) }
 func (b Box) DestructiveOutline() Box {
-	return b.variant(style.VariantDestructiveOutline)
+	return b.setVariant(style.VariantDestructiveOutline)
 }
-func (b Box) variant(v style.Variant) Box { b.n().variant = v; return b }
-func (b Box) XSmall() Box                 { b.n().ButtonSize = style.SizeXSmall; return b }
+func (b Box) setVariant(v style.Variant) Box { b.n().Variant = v; return b }
+func (b Box) XSmall() Box                    { b.n().ButtonSize = style.SizeXSmall; return b }
 func (b Box) Small() Box {
 	n := b.n()
 	n.ButtonSize = style.SizeSmall

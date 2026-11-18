@@ -31,8 +31,8 @@ func Badge(c C, label string) Box {
 // badgeVariant is the chip's look, from the variant the Button methods chose:
 // the two recipes share the names, and an outline destructive button has no
 // separate chip.
-func badgeVariant(variant components.ButtonVariant) components.BadgeVariant {
-	switch variant {
+func badgeVariant(Variant components.ButtonVariant) components.BadgeVariant {
+	switch Variant {
 	case components.ButtonSecondary:
 		return components.BadgeSecondary
 	case components.ButtonOutline:

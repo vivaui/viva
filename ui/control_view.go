@@ -42,7 +42,7 @@ func viewOf(f *frame, n *node) ControlView {
 	extra := &f.Exts[n.Ext]
 	return ControlView{
 		Kind: n.Kind, Rect: n.rect, Aux: n.Aux, ID: n.ID, Label: n.label, Text: n.text,
-		Font: n.FontSize, Weight: n.Weight, Variant: n.variant, Size: n.ButtonSize,
+		Font: n.FontSize, Weight: n.Weight, Variant: n.Variant, Size: n.ButtonSize,
 		Flags: n.Flags, Hit: extra.hit, HasHit: n.Flags&flagHasHit != 0,
 		Disabled: n.Flags&flagDisabled != 0, Icon: extra.icon,
 		Color: n.Color, HasColor: n.Flags&flagHasColor != 0,

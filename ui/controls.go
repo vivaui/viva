@@ -212,7 +212,7 @@ func (f *frame) paintButton(n *node) {
 	if n.Flags&flagDisabled != 0 {
 		button = button.Disabled()
 	}
-	switch n.variant {
+	switch n.Variant {
 	case components.ButtonSecondary:
 		button.Secondary(n.label)
 	case components.ButtonOutline:
