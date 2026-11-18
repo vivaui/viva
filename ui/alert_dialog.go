@@ -53,7 +53,7 @@ func (f *frame) AlertDialog(spec AlertDialogSpec) Box {
 	root := f.Popup().At(0, 0).Fill()
 	r := root.n()
 	r.Flags |= flagAlertDialog
-	r.aux = int32(len(widgetsOf(f).alertDialogs))
+	r.Aux = int32(len(widgetsOf(f).alertDialogs))
 	widgetsOf(f).alertDialogs = append(widgetsOf(f).alertDialogs, alertDialogDecl{spec: spec, layer: layer})
 	return root
 }
@@ -74,7 +74,7 @@ func AlertDialog(c C, spec AlertDialogSpec) Box {
 // paintAlertDialog paints a confirmation: components.AlertDialog owns its scrim,
 // surface, title, description, actions, focus trap and Escape target.
 func (f *frame) paintAlertDialog(n *node) {
-	d := &widgetsOf(f).alertDialogs[n.aux]
+	d := &widgetsOf(f).alertDialogs[n.Aux]
 	spec := &d.spec
 	options := components.AlertDialogOptions{
 		Layer: d.layer, Scope: spec.Scope,

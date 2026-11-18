@@ -74,7 +74,7 @@ func (b Box) NavigationKeys() Box {
 	if n.Kind != kindInput {
 		panic("ui: NavigationKeys is for a TextField")
 	}
-	widgetsOf(b.f).inputs[n.aux].NavigationKeys = true
+	widgetsOf(b.f).inputs[n.Aux].NavigationKeys = true
 	return b
 }
 
@@ -88,6 +88,6 @@ func (b Box) Secure() Box {
 	if n.Kind != kindInput {
 		panic("ui: Secure is for a TextField")
 	}
-	widgetsOf(b.f).inputs[n.aux].Secure = true // what the field paints and the platform is told
+	widgetsOf(b.f).inputs[n.Aux].Secure = true // what the field paints and the platform is told
 	return b
 }

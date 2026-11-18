@@ -41,7 +41,7 @@ type ControlView struct {
 func viewOf(f *frame, n *node) ControlView {
 	extra := &f.exts[n.ext]
 	return ControlView{
-		Kind: n.Kind, Rect: n.rect, Aux: n.aux, ID: n.ID, Label: n.label, Text: n.text,
+		Kind: n.Kind, Rect: n.rect, Aux: n.Aux, ID: n.ID, Label: n.label, Text: n.text,
 		Font: n.FontSize, Weight: n.Weight, Variant: n.variant, Size: n.ButtonSize,
 		Flags: n.Flags, Hit: extra.hit, HasHit: n.Flags&flagHasHit != 0,
 		Disabled: n.Flags&flagDisabled != 0, Icon: extra.icon,

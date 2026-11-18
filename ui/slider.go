@@ -132,7 +132,7 @@ func (f *frame) SliderBase(ID gfx.ID, state *SliderState) Box {
 	b := f.box(kindSlider)
 	n := &f.nodes[b.i]
 	n.ID = ID
-	n.aux = int32(len(widgetsOf(f).sliders))
+	n.Aux = int32(len(widgetsOf(f).sliders))
 	widgetsOf(f).sliders = append(widgetsOf(f).sliders, sliderDecl{state: state})
 	state.ID, state.min, state.max, state.step = ID, 0, sliderDefaultTo, 0
 	return b
@@ -141,7 +141,7 @@ func (f *frame) SliderBase(ID gfx.ID, state *SliderState) Box {
 // Range sets the least and the greatest value of a Slider.
 func (b Box) Range(least, greatest float32) Box {
 	if n := b.n(); n.Kind == kindSlider {
-		s := widgetsOf(b.f).sliders[n.aux].state
+		s := widgetsOf(b.f).sliders[n.Aux].state
 		s.min, s.max = least, max(greatest, least)
 	}
 	return b
@@ -150,7 +150,7 @@ func (b Box) Range(least, greatest float32) Box {
 // Step makes a Slider take only multiples of step above its least value.
 func (b Box) Step(step float32) Box {
 	if n := b.n(); n.Kind == kindSlider {
-		widgetsOf(b.f).sliders[n.aux].state.step = max(step, 0)
+		widgetsOf(b.f).sliders[n.Aux].state.step = max(step, 0)
 	}
 	return b
 }
@@ -169,7 +169,7 @@ func (b Box) Changed() bool {
 		return false
 	}
 	b.f.settleSlider(n)
-	return widgetsOf(b.f).sliders[n.aux].changed
+	return widgetsOf(b.f).sliders[n.Aux].changed
 }
 
 func (f *frame) measureSlider(n *node) {
@@ -184,7 +184,7 @@ func (f *frame) measureSlider(n *node) {
 // the value inside its range. It runs when Changed asks, so the caller sees the new
 // value at once, or else when the slider is painted.
 func (f *frame) settleSlider(n *node) {
-	d := &widgetsOf(f).sliders[n.aux]
+	d := &widgetsOf(f).sliders[n.Aux]
 	if d.settled {
 		return
 	}
@@ -243,7 +243,7 @@ func (f *frame) settleSlider(n *node) {
 
 func (f *frame) paintSlider(n *node) {
 	f.settleSlider(n)
-	d := &widgetsOf(f).sliders[n.aux]
+	d := &widgetsOf(f).sliders[n.Aux]
 	s := d.state
 	s.area = n.rect
 	if n.Flags&flagThemed == 0 {

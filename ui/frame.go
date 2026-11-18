@@ -144,7 +144,7 @@ type node struct {
 	Content              float32   // the natural height of a Scroll's children
 	GridMin              float32   // the narrowest cell of a Grid; a Flow's LineGap, negative for Gap
 	Basis                float32   // Basis, when flagBasis is set
-	aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
+	Aux                  int32     // index into the frame\'s table for an Input, InputGroup, Textarea or Segmented
 	natural              float32   // the width of a Text on one line, before any size is applied; a Progress's fraction (negative: indeterminate)
 	ext                  int32     // index into frame.exts, or 0 for none (exts[0] is a zero value)
 	place                placement // a Popup\'s position
@@ -616,7 +616,7 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 // (see gfx.Bitmap). An empty or invalid bitmap leaves the room blank.
 func (f *frame) Image(bitmap gfx.Bitmap) Box {
 	b := f.box(kindImage)
-	f.nodes[b.i].aux = int32(len(f.images))
+	f.nodes[b.i].Aux = int32(len(f.images))
 	f.images = append(f.images, bitmap)
 	return b
 }

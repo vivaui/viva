@@ -34,7 +34,7 @@ const (
 func (f *frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 	b := f.box(kindTabs)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).tabs))
+	n.Aux = int32(len(widgetsOf(f).tabs))
 	widgetsOf(f).tabs = append(widgetsOf(f).tabs, tabsDecl{scope: scope, labels: labels, selected: selected})
 	return b
 }
@@ -43,7 +43,7 @@ func (f *frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 // tab. Vertical stacks its tabs in a column, with the line at their trailing edge.
 func (b Box) Line() Box {
 	if n := b.n(); n.Kind == kindTabs {
-		widgetsOf(b.f).tabs[n.aux].line = true
+		widgetsOf(b.f).tabs[n.Aux].line = true
 	}
 	return b
 }
@@ -53,7 +53,7 @@ func (b Box) Line() Box {
 func (b Box) Vertical() Box {
 	switch n := b.n(); n.Kind {
 	case kindTabs:
-		widgetsOf(b.f).tabs[n.aux].vertical = true
+		widgetsOf(b.f).tabs[n.Aux].vertical = true
 	case kindSlider:
 		n.natural = 1 // a vertical Slider: its thumb moves up and down
 	}
@@ -66,11 +66,11 @@ func (b Box) TabClicked() (int, bool) {
 	if n.Kind != kindTabs || b.f.canvas == nil {
 		return 0, false
 	}
-	return b.f.canvas.ClickedIn(widgetsOf(b.f).tabs[n.aux].scope)
+	return b.f.canvas.ClickedIn(widgetsOf(b.f).tabs[n.Aux].scope)
 }
 
 func (f *frame) measureTabs(n *node) {
-	t := &widgetsOf(f).tabs[n.aux]
+	t := &widgetsOf(f).tabs[n.Aux]
 	var widest float32
 	for _, label := range t.labels {
 		widest = max(widest, f.canvas.TextWidthWeight(label, f.theme.Metrics.FontSizeM, gfx.WeightMedium))
@@ -94,7 +94,7 @@ func (f *frame) measureTabs(n *node) {
 }
 
 func (f *frame) paintTabs(n *node) {
-	t := &widgetsOf(f).tabs[n.aux]
+	t := &widgetsOf(f).tabs[n.Aux]
 	// The strip is as tall as the element: an explicit height is the trigger's,
 	// and the line variant's measured height keeps the room for its indicator
 	// below the triggers.

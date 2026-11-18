@@ -99,7 +99,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 	n := b.n()
 	n.Flags |= flagPopover
 	f.paintPopoverFn = (*frame).paintPopover
-	n.aux = int32(len(widgetsOf(f).popovers))
+	n.Aux = int32(len(widgetsOf(f).popovers))
 	widgetsOf(f).popovers = append(widgetsOf(f).popovers, popoverDecl{spec: spec, anchor: anchor.i, layer: widgetsOf(f).layer})
 	return b
 }
@@ -107,7 +107,7 @@ func (f *frame) Popover(anchor Box, spec PopoverSpec) Box {
 // paintPopover paints a Popover's root inside the layer and focus scope it opens: the
 // press outside, the anchor's press and Escape go to its DismissID.
 func (f *frame) paintPopover(i int32, n *node) {
-	d := &widgetsOf(f).popovers[n.aux]
+	d := &widgetsOf(f).popovers[n.Aux]
 	spec := &d.spec
 	canvas := f.canvas
 	layer := max(d.layer, f.popupLayer, widgetLayerBase) + 2

@@ -141,7 +141,7 @@ func (f *frame) measureControls(n *node) {
 		n.pref = [2]float32{w, h}
 	case kindSplitButton:
 		button := components.BeginButton(f.canvas, f.theme, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.label)
-		trigger := widgetsOf(f).splitButtons[n.aux].triggerWidth
+		trigger := widgetsOf(f).splitButtons[n.Aux].triggerWidth
 		if trigger <= 0 {
 			trigger = splitButtonTrigger
 		}
@@ -161,7 +161,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindSegmented:
 		var width float32 = 8
-		for _, option := range widgetsOf(f).segmented[n.aux].options {
+		for _, option := range widgetsOf(f).segmented[n.Aux].options {
 			width += f.canvas.TextWidthWeight(option.Label, f.theme.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
 		n.pref = [2]float32{width, f.theme.Metrics.ControlHeight}
@@ -172,7 +172,7 @@ func (f *frame) measureControls(n *node) {
 		}
 	case kindInputGroup:
 		n.pref = [2]float32{0, f.theme.Metrics.ControlHeight}
-		if n.Kind == kindInputGroup && widgetsOf(f).groups[n.aux].Multiline {
+		if n.Kind == kindInputGroup && widgetsOf(f).groups[n.Aux].Multiline {
 			n.pref[axisY] = 64
 		}
 	case kindTextarea:
@@ -301,7 +301,7 @@ func (f *frame) Input(snapshot components.InputSnapshot) Box {
 func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 	b := f.box(kindInput)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).inputs))
+	n.Aux = int32(len(widgetsOf(f).inputs))
 	n.ID = snapshot.ID
 	widgetsOf(f).inputs = append(widgetsOf(f).inputs, snapshot)
 	return b
@@ -312,7 +312,7 @@ func (f *frame) InputBase(snapshot components.InputSnapshot) Box {
 func (f *frame) InputGroup(snapshot components.InputGroupSnapshot) Box {
 	b := f.box(kindInputGroup)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).groups))
+	n.Aux = int32(len(widgetsOf(f).groups))
 	widgetsOf(f).groups = append(widgetsOf(f).groups, snapshot)
 	return b
 }
@@ -334,7 +334,7 @@ func (f *frame) Textarea(snapshot components.TextareaSnapshot) Box {
 func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 	b := f.box(kindTextarea)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).textareas))
+	n.Aux = int32(len(widgetsOf(f).textareas))
 	n.ID = snapshot.ID
 	widgetsOf(f).textareas = append(widgetsOf(f).textareas, snapshot)
 	return b
@@ -345,7 +345,7 @@ func (f *frame) TextareaBase(snapshot components.TextareaSnapshot) Box {
 func (f *frame) Segmented(options []components.SegmentOption, selected gfx.ID) Box {
 	b := f.box(kindSegmented)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).segmented))
+	n.Aux = int32(len(widgetsOf(f).segmented))
 	widgetsOf(f).segmented = append(widgetsOf(f).segmented, segmented{options: options, selected: selected})
 	return b
 }
@@ -375,7 +375,7 @@ func (f *frame) paintInput(n *node) {
 	// What it says of its alignment is the same, but a field is start-aligned unless it says
 	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
 	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
-	snapshot := widgetsOf(f).inputs[n.aux]
+	snapshot := widgetsOf(f).inputs[n.Aux]
 	if n.TextEnd {
 		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
 			snapshot.Alignment = gfx.AlignEnd
@@ -406,10 +406,10 @@ func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
 		theme := f.theme
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])
+		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])
+	components.PaintTextareaContent(f.canvas, f.theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.Aux])
 }
 
 // controlBaseline is the label's baseline of a button, for a row that lines

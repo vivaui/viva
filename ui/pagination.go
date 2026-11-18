@@ -44,7 +44,7 @@ type paginationDecl struct {
 func (f *frame) Pagination(Items []PaginationItem) Box {
 	b := f.box(kindPagination)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).paginations))
+	n.Aux = int32(len(widgetsOf(f).paginations))
 	start := int32(len(widgetsOf(f).paginationItems))
 	for _, item := range Items {
 		widgetsOf(f).paginationItems = append(widgetsOf(f).paginationItems, components.PaginationItem{
@@ -78,6 +78,6 @@ func (f *frame) paintPagination(v ControlView) {
 // paginationItems is the converted items of element n (for the measure and the
 // click report).
 func (f *frame) paginationItems(n *node) []components.PaginationItem {
-	d := &widgetsOf(f).paginations[n.aux]
+	d := &widgetsOf(f).paginations[n.Aux]
 	return widgetsOf(f).paginationItems[d.start : d.start+d.count]
 }

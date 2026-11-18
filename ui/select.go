@@ -57,7 +57,7 @@ type SelectState struct {
 // trigger. It has no effect on a box that is not a Select.
 func (b Box) ListMaxWidth(width float32) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		widgetsOf(b.f).selects[n.aux].state.listMaxWidth = max(width, 0)
+		widgetsOf(b.f).selects[n.Aux].state.listMaxWidth = max(width, 0)
 	}
 	return b
 }
@@ -68,7 +68,7 @@ func (b Box) ListMaxWidth(width float32) Box {
 // box that is not a Select.
 func (b Box) ListMaxHeight(height float32) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		widgetsOf(b.f).selects[n.aux].state.listMaxHeight = max(height, 0)
+		widgetsOf(b.f).selects[n.Aux].state.listMaxHeight = max(height, 0)
 	}
 	return b
 }
@@ -422,7 +422,7 @@ func (f *frame) Select(scope gfx.Scope, state *SelectState, labels []string, sel
 func (f *frame) SelectBase(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.box(kindSelect)
 	n := &f.nodes[b.i]
-	n.aux = int32(len(widgetsOf(f).selects))
+	n.Aux = int32(len(widgetsOf(f).selects))
 	d := selectDecl{scope: scope, state: state, labels: labels, selected: selected, canvas: f.canvas, popup: -1, layer: f.widgetLayer() + 1, rects: -1}
 	d.visible = selectRows(len(labels), f.bounds.Height)
 	if state.listMaxHeight > 0 {
@@ -484,7 +484,7 @@ func selectListWidth(widest float32) float32 {
 // sizeSelectList widens or narrows the open list of n to the font size the Select
 // was given after it was declared, which is when the size is known.
 func (f *frame) sizeSelectList(n *node) {
-	d := &widgetsOf(f).selects[n.aux]
+	d := &widgetsOf(f).selects[n.Aux]
 	if d.popup < 0 {
 		return
 	}
@@ -521,7 +521,7 @@ func (b Box) Placeholder(value string) Box {
 // none, as it does the rest of the look.
 func (b Box) Icons(icons []gfx.Icon) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		widgetsOf(b.f).selects[n.aux].icons = icons
+		widgetsOf(b.f).selects[n.Aux].icons = icons
 	}
 	return b
 }
@@ -533,7 +533,7 @@ func (b Box) Icons(icons []gfx.Icon) Box {
 // option enabled.
 func (b Box) DisabledOptions(disabled []bool) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		d := &widgetsOf(b.f).selects[n.aux]
+		d := &widgetsOf(b.f).selects[n.Aux]
 		d.disabled, d.state.disabled = disabled, disabled
 	}
 	return b
@@ -543,7 +543,7 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 // what the value alone does not say, such as the path a chosen shell stands for.
 func (b Box) Hint(text string) Box {
 	if n := b.n(); n.Kind == kindSelect {
-		widgetsOf(b.f).selects[n.aux].hint = text
+		widgetsOf(b.f).selects[n.Aux].hint = text
 	}
 	return b
 }
@@ -559,7 +559,7 @@ func (b Box) Picked() (int, bool) {
 	if n.Kind != kindSelect || b.f.canvas == nil {
 		return 0, false
 	}
-	d := &widgetsOf(b.f).selects[n.aux]
+	d := &widgetsOf(b.f).selects[n.Aux]
 	if d.asked {
 		return d.pick, d.picked
 	}
@@ -637,7 +637,7 @@ func (s *SelectState) triggerID(count int) gfx.ID {
 }
 
 func (f *frame) measureSelect(n *node) {
-	d := &widgetsOf(f).selects[n.aux]
+	d := &widgetsOf(f).selects[n.Aux]
 	widest := d.state.widestOption(f.canvas, d.labels, f.theme.Metrics.FontSizeM)
 	height := f.theme.Metrics.ControlHeight
 	switch {
@@ -650,7 +650,7 @@ func (f *frame) measureSelect(n *node) {
 }
 
 func (f *frame) paintSelect(n *node) {
-	d := &widgetsOf(f).selects[n.aux]
+	d := &widgetsOf(f).selects[n.Aux]
 	count := len(d.labels)
 	// A Select is as tall as it measures unless the application gave it a height,
 	// which then sizes the trigger itself.
@@ -730,7 +730,7 @@ func (b Box) Popup() (Box, bool) {
 	if n.Kind != kindSelect {
 		return Box{}, false
 	}
-	d := &widgetsOf(b.f).selects[n.aux]
+	d := &widgetsOf(b.f).selects[n.Aux]
 	if d.popup < 0 {
 		return Box{}, false
 	}
@@ -741,7 +741,7 @@ func (f *frame) selectPart(n *node, i int) Rect {
 	if n.Kind != kindSelect {
 		return Rect{}
 	}
-	d := &widgetsOf(f).selects[n.aux]
+	d := &widgetsOf(f).selects[n.Aux]
 	if d.rects < 0 || i < 0 || i >= len(d.labels) {
 		return Rect{}
 	}

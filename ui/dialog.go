@@ -78,7 +78,7 @@ func (f *frame) Dialog(spec DialogSpec) Box {
 	r := root.n()
 	r.Dir = stack
 	r.Flags |= flagDialog
-	r.aux = int32(len(widgetsOf(f).dialogs))
+	r.Aux = int32(len(widgetsOf(f).dialogs))
 	d := dialogDecl{spec: spec, layer: layer}
 	root.Children(func() {
 		surface := f.Column().Width(width).MaxWidth(max(f.bounds.Width-32, 1)).MaxHeight(max(f.bounds.Height-32, 1)).Self(Center).Pad(padding)
@@ -137,7 +137,7 @@ func (b Box) dialogPart(fn func(), partKind int) Box {
 	if b.n().Flags&flagDialog == 0 {
 		return b
 	}
-	d := &widgetsOf(b.f).dialogs[b.n().aux]
+	d := &widgetsOf(b.f).dialogs[b.n().Aux]
 	saved := widgetsOf(b.f).layer
 	widgetsOf(b.f).layer = d.layer
 	part := d.body
@@ -158,23 +158,23 @@ func (b Box) dialogPart(fn func(), partKind int) Box {
 func (b Box) Dismissed() bool {
 	n := b.n()
 	if n.Flags&flagPopover != 0 && b.f.canvas != nil {
-		return b.f.canvas.Clicked(widgetsOf(b.f).popovers[n.aux].spec.DismissID)
+		return b.f.canvas.Clicked(widgetsOf(b.f).popovers[n.Aux].spec.DismissID)
 	}
 	if n.Flags&flagDrawer != 0 && b.f.canvas != nil {
-		spec := &widgetsOf(b.f).drawers[n.aux].spec
+		spec := &widgetsOf(b.f).drawers[n.Aux].spec
 		return b.f.canvas.Clicked(spec.dismiss) || b.f.canvas.Clicked(spec.close)
 	}
 	if n.Flags&flagDialog == 0 || b.f.canvas == nil {
 		return false
 	}
-	spec := &widgetsOf(b.f).dialogs[n.aux].spec
+	spec := &widgetsOf(b.f).dialogs[n.Aux].spec
 	return b.f.canvas.Clicked(spec.DismissID) || b.f.canvas.Clicked(spec.CloseID)
 }
 
 // paintDialog paints a Dialog's root: components.Dialog's scrim and surface, then the
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
 func (f *frame) paintDialog(n *node) {
-	d := &widgetsOf(f).dialogs[n.aux]
+	d := &widgetsOf(f).dialogs[n.Aux]
 	surface := f.nodes[n.First].rect
 	dialog := components.BeginDialog(f.canvas, f.theme, n.rect, components.DialogOptions{
 		Layer: d.layer, Scope: d.spec.Scope, DismissID: d.spec.DismissID, CloseID: d.spec.CloseID,

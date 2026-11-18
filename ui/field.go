@@ -221,7 +221,7 @@ func (b Box) Submitted() bool {
 	if n.Kind != kindInput || b.f.canvas == nil {
 		return false
 	}
-	return b.f.canvas.ClickedByKey(widgetsOf(b.f).inputs[n.aux].ID)
+	return b.f.canvas.ClickedByKey(widgetsOf(b.f).inputs[n.Aux].ID)
 }
 
 // OnKey gives the field a handler for the keys pressed while it has the
@@ -271,7 +271,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 			if p.fieldKeyRoute == nil {
 				p.keyRoute, p.fieldKeyRoute = (*Page).routeKey, (*Page).fieldKey
 			}
-			widgetsOf(b.f).inputs[n.aux].NavigationKeys = true
+			widgetsOf(b.f).inputs[n.Aux].NavigationKeys = true
 			return b
 		}
 	}

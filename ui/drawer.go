@@ -91,7 +91,7 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 		}
 	}
 	drawer := c.f.drawer(d, footer != nil)
-	decl := &widgetsOf(c.f).drawers[drawer.n().aux]
+	decl := &widgetsOf(c.f).drawers[drawer.n().Aux]
 	p.setScope(decl.body, scope)
 	if decl.footer >= 0 {
 		p.setScope(decl.footer, scope)
@@ -224,7 +224,7 @@ func (f *frame) drawer(spec drawerSpec, footer bool) Box {
 	r.Dir = stack
 	r.Flags |= flagDrawer
 	f.paintDrawerFn = (*frame).paintDrawer
-	r.aux = int32(len(widgetsOf(f).drawers))
+	r.Aux = int32(len(widgetsOf(f).drawers))
 	d := drawerDecl{spec: spec, layer: layer, footer: -1}
 	// A Stack's children sit at its top left; the margin moves each to its rectangle.
 	place := func(b Box, r Rect) Box {
@@ -253,7 +253,7 @@ func (b Box) drawerPart(fn func(), layer uint16) {
 // paintDrawer paints a Drawer's root: the scrim, the panel and its header, then the
 // body and footer inside the layer and focus scope it opens.
 func (f *frame) paintDrawer(n *node) {
-	d := &widgetsOf(f).drawers[n.aux]
+	d := &widgetsOf(f).drawers[n.Aux]
 	drawer := d.spec.component(f.canvas, f.theme, n.rect, d.layer)
 	if n.Flags&flagDisabled != 0 {
 		drawer = drawer.Disabled()

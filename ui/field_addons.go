@@ -69,7 +69,7 @@ func (b Box) ActionClicked() bool {
 	if end.Kind != components.InputGroupSlotButton || n.Flags&flagDisabled != 0 || !b.f.canvas.Clicked(end.ID) {
 		return false
 	}
-	b.f.canvas.RequestFocus(widgetsOf(b.f).inputs[n.aux].ID)
+	b.f.canvas.RequestFocus(widgetsOf(b.f).inputs[n.Aux].ID)
 	return true
 }
 
