@@ -6,9 +6,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
+	"github.com/vivaui/viva/style"
 )
 
 // ListState is what a List knows of its rows between paints: the height of each row
@@ -102,7 +102,7 @@ type listInternals struct {
 	followFrame  uint8      // the paints a following list asked for to reach its end, counted to a bound
 	declared     []listDeclRow
 	f            *frame
-	typeahead    components.MenuTypeahead
+	typeahead    style.MenuTypeahead
 	paint        func(*DrawContext) // the area's Draw, made once
 	over         func(*DrawContext) // its DrawOver, made once
 	block        func(*DrawContext) // what keeps the pinned header's rows from the pointer

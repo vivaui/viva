@@ -553,6 +553,30 @@ func (scroll *MenuScroll) Match(prefix string, from gfx.ID) (gfx.ID, bool) {
 	return gfx.ID{}, false
 }
 
+// menuTypeaheadCanCycle reports whether a repeated first letter may cycle
+// through matches. Base UI does not cycle when a row's first two letters are
+// the same ("Aaron", "llama"), because then a doubled letter is a real query.
+func menuTypeaheadCanCycle(scroll *MenuScroll) bool {
+	for _, item := range scroll.items {
+		if item.disabled || item.id.IsZero() {
+			continue
+		}
+		first, firstSize := utf8.DecodeRuneInString(item.label)
+		if firstSize == 0 {
+			continue
+		}
+		second, secondSize := utf8.DecodeRuneInString(item.label[firstSize:])
+		if secondSize > 0 && unicode.ToLower(first) == unicode.ToLower(second) {
+			return false
+		}
+	}
+	return true
+}
+
+// CanCycle reports whether a repeated first letter may cycle through matches:
+// no row's first two letters are the same, so a doubled letter is a real query.
+func (scroll *MenuScroll) CanCycle() bool { return menuTypeaheadCanCycle(scroll) }
+
 // menuLabelHasPrefix reports whether label starts with prefix, comparing one
 // rune at a time without lowercasing either string. Typeahead runs on a key
 // press, so it should not allocate.

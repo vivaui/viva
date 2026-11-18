@@ -4,8 +4,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // TreeNode is what a Tree shows of one of its visible rows: how deep it is, whether
@@ -47,11 +47,11 @@ type TreeState struct {
 	toggled, chosen int
 	dropped         TreeMove
 	drag            treeDrag
-	typeahead       components.MenuTypeahead
-	names           []components.MenuTypeaheadItem // the rows as typeahead matches them
-	nameOf          func(int) string               // label, until the next paint: the keys between read it
-	f               *frame                         // the frame the tree was last declared in
-	scope           gfx.Scope                      // the ids of the rows (scope.At(0)) and chevrons (At(1))
+	typeahead       style.MenuTypeahead
+	names           []style.MenuTypeaheadItem // the rows as typeahead matches them
+	nameOf          func(int) string          // label, until the next paint: the keys between read it
+	f               *frame                    // the frame the tree was last declared in
+	scope           gfx.Scope                 // the ids of the rows (scope.At(0)) and chevrons (At(1))
 	rows, chevrons  gfx.Scope
 	Scroll          *ScrollState // the List's, between paints: its area's state lives while it is declared
 	n               int
@@ -68,7 +68,7 @@ type treeRow struct {
 	key   int
 	node  int32  // the row element
 	gen   uint32 // the paint it was declared in
-	item  components.TreeItem
+	item  style.TreeItem
 }
 
 // TreeDrop is where a dragged row goes, relative to the row it is let go on.

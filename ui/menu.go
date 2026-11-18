@@ -7,6 +7,7 @@ import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
+	"github.com/vivaui/viva/style"
 )
 
 // Menu shows a list of actions hanging off anchor while *open, as shadcn's
@@ -228,7 +229,7 @@ const (
 type MenuItems struct {
 	Items     []menuRow
 	Scroll    components.MenuScroll
-	typeahead components.MenuTypeahead // the letters typed to reach an item
+	typeahead style.MenuTypeahead // the letters typed to reach an item
 	paint     func(*DrawContext)
 	keys      [6]string // the keycaps of the row being measured or painted
 	page      *Page
