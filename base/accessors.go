@@ -871,7 +871,7 @@ func (x *Page) GetSliderRoute() func(*Page, gfx.KeyEvent) (gfx.EventResult, bool
 func (x *Page) GetSliders() []*SliderState { return x.sliders }
 
 // GetStale reads the stale of Page for the styled painting layer.
-func (x *Page) GetStale() atomic.Bool { return x.stale }
+func (x *Page) GetStale() *atomic.Bool { return &x.stale }
 
 // GetTables reads the tables of Page for the styled painting layer.
 func (x *Page) GetTables() []tableRoute { return x.tables }
