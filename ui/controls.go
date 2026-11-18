@@ -388,7 +388,7 @@ func (f *frame) paintInput(n *node) {
 		snapshot.Text.Weight = n.Weight
 	}
 	if n.Flags&flagHasColor != 0 {
-		snapshot.Text.Color = n.color
+		snapshot.Text.Color = n.Color
 	}
 	if n.Flags&flagMono != 0 {
 		snapshot.Text.Mono, snapshot.Text.MonoFace = true, n.Face
@@ -405,7 +405,7 @@ func (f *frame) paintInput(n *node) {
 func (f *frame) paintTextarea(n *node) {
 	if n.Flags&flagHasColor != 0 {
 		theme := f.theme
-		theme.Foreground = n.color
+		theme.Foreground = n.Color
 		components.PaintTextareaContent(f.canvas, theme, n.rect, f.contentRect(n), widgetsOf(f).textareas[n.aux])
 		return
 	}

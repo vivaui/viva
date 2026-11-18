@@ -440,9 +440,9 @@ func TestSwitchUsesItsOwnRecipe(t *testing.T) {
 		page.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
 		return canvas.Rectangles()
 	}
-	has := func(rects []gfx.Rectangle, color gfx.Color) bool {
+	has := func(rects []gfx.Rectangle, Color gfx.Color) bool {
 		for _, r := range rects {
-			if r.Color == color {
+			if r.Color == Color {
 				return true
 			}
 		}

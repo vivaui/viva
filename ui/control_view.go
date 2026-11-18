@@ -45,7 +45,7 @@ func viewOf(f *frame, n *node) ControlView {
 		Font: n.FontSize, Weight: n.Weight, Variant: n.variant, Size: n.ButtonSize,
 		Flags: n.Flags, Hit: extra.hit, HasHit: n.Flags&flagHasHit != 0,
 		Disabled: n.Flags&flagDisabled != 0, Icon: extra.icon,
-		Color: n.color, HasColor: n.Flags&flagHasColor != 0,
+		Color: n.Color, HasColor: n.Flags&flagHasColor != 0,
 		SwitchRecipe: extra.switchRecipe,
 	}
 }

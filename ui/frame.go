@@ -130,7 +130,7 @@ type node struct {
 	Face                 gfx.MonoFace
 	TextDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
 	TextEnd              bool              // a Text aligned to the end of its direction
-	color                Color
+	Color                Color
 	ID                   gfx.ID
 	label                string
 	variant              style.Variant
@@ -572,7 +572,7 @@ func (f *frame) Text(value string) Box {
 	n := &f.nodes[b.i]
 	n.text = value
 	n.FontSize = f.theme.Metrics.FontSizeM
-	n.color = f.theme.Foreground
+	n.Color = f.theme.Foreground
 	n.shrink = 1
 	return b
 }
@@ -605,7 +605,7 @@ func (f *frame) Icon(icon gfx.Icon) Box {
 	b := f.box(kindIcon)
 	n := &f.nodes[b.i]
 	f.extra(b.i).icon = icon
-	n.color = f.theme.Foreground
+	n.Color = f.theme.Foreground
 	return b
 }
 

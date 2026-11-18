@@ -37,9 +37,9 @@ func TestColorSwatchChoosesByClick(t *testing.T) {
 	}
 }
 
-func pickerPage(t *testing.T, state *ui.ColorPickerState, color *gfx.Color) *pageDriver {
+func pickerPage(t *testing.T, state *ui.ColorPickerState, Color *gfx.Color) *pageDriver {
 	return openPage(t, func(c ui.C) {
-		ui.Column(c).Pad(16).Children(func() { ui.ColorPicker(c, state, color, "Accent") })
+		ui.Column(c).Pad(16).Children(func() { ui.ColorPicker(c, state, Color, "Accent") })
 	})
 }
 

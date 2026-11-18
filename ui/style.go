@@ -278,7 +278,7 @@ func (b Box) GradientStops(angle Angle, stops ...gfx.GradientStop) Box {
 // resolved is how an element is drawn this frame: what it is at rest with its
 // looks applied.
 type resolved struct {
-	Background, border, color, ring Color
+	Background, border, Color, ring Color
 	ringWidth, opacity              float32
 	shadow                          gfx.ShadowLevel
 	dashed                          bool
@@ -286,7 +286,7 @@ type resolved struct {
 
 func (f *frame) resolve(n *node, extra *extra) resolved {
 	s := resolved{
-		Background: n.Background, border: extra.border, color: n.color, ring: extra.ring,
+		Background: n.Background, border: extra.border, Color: n.Color, ring: extra.ring,
 		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
 	}
 	if n.Flags&flagThemed != 0 {
@@ -341,7 +341,7 @@ func (s *resolved) apply(look *Look, progress float32) {
 		s.dashed = look.lookDashed
 	}
 	if look.set&lookColor != 0 {
-		s.color = s.color.Mix(look.lookColor, progress)
+		s.Color = s.Color.Mix(look.lookColor, progress)
 	}
 	if look.set&lookRing != 0 {
 		if s.ringWidth <= 0 {

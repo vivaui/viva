@@ -14,18 +14,18 @@ import (
 // owns the choice. It is as wide and tall as its Size, 28 when it has none.
 //
 //	if ui.ColorSwatch(c.Key(name), color, m.color == color, name).Clicked() { m.color = color }
-func ColorSwatch(c C, color Color, selected bool, label string) Box {
-	return colorSwatch(c, c.page.controlID(pkRadio), color, selected, label)
+func ColorSwatch(c C, Color Color, selected bool, label string) Box {
+	return colorSwatch(c, c.page.controlID(pkRadio), Color, selected, label)
 }
 
-func colorSwatch(c C, ID gfx.ID, color Color, selected bool, label string) Box {
+func colorSwatch(c C, ID gfx.ID, Color Color, selected bool, label string) Box {
 	b := Slot(c).Size(28, 28).Shrink(0)
 	n := b.n()
 	n.ID, n.label = ID, label
 	// The swatch paints from what the element carries rather than from a Draw
 	// callback: a closure made in each paint allocates in a hot path.
 	extra := b.f.extra(b.i)
-	extra.swatch, extra.swatchValue, extra.swatchChosen = true, color, selected
+	extra.swatch, extra.swatchValue, extra.swatchChosen = true, Color, selected
 	b.f.paintSwatchFn = (*frame).paintSwatch
 	return b
 }
@@ -114,25 +114,25 @@ type colorPickerLook struct {
 //
 //	ui.ColorPicker(c, &m.picker, &m.accent, "Accent")
 //	if m.picker.Applied() { m.save() }
-func ColorPicker(c C, state *ColorPickerState, color *Color, label string) Box {
-	return colorPicker(c, gfx.ID{}, state, color, label)
+func ColorPicker(c C, state *ColorPickerState, Color *Color, label string) Box {
+	return colorPicker(c, gfx.ID{}, state, Color, label)
 }
 
 // ColorPickerID is ColorPicker for a trigger the application already names: the picker
 // keeps its state by identity, so it takes the id when it is made. A row's words can then
 // be its LabelFor, as for any control the application names. A ColorSwatch, which keeps
 // none, is named with Hit instead.
-func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, color *Color, label string) Box {
-	return colorPicker(c, ID, state, color, label)
+func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, label string) Box {
+	return colorPicker(c, ID, state, Color, label)
 }
 
-func colorPicker(c C, ID gfx.ID, s *ColorPickerState, color *Color, label string) Box {
+func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, label string) Box {
 	p := c.page
 	p.forbidInMemo("ColorPicker")
 	if ID.IsZero() {
 		ID = p.controlID(pkControl)
 	}
-	s.target = color
+	s.target = Color
 	if !s.bound {
 		s.hex.Bind(&s.hexEditor)
 		s.handlers.Key, s.handlers.Pointer = s.key, s.pointer

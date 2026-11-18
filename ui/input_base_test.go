@@ -149,9 +149,9 @@ func TestInputBaseFocusLookFollowsTheField(t *testing.T) {
 		})
 		return canvas
 	}
-	count := func(c *gfx.Canvas, color gfx.Color) (n int) {
+	count := func(c *gfx.Canvas, Color gfx.Color) (n int) {
 		for _, rect := range c.Rectangles() {
-			if rect.Color == color {
+			if rect.Color == Color {
 				n++
 			}
 		}

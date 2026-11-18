@@ -126,8 +126,8 @@ func (f *frame) paint(i int32) {
 	}
 
 	// A Text and an Icon draw with their color, which is the one the looks give.
-	color := n.color
-	n.color = fade(style.color, f.opacity)
+	color := n.Color
+	n.Color = fade(style.Color, f.opacity)
 	if n.hasOwnTheme() {
 		saved := f.theme
 		f.theme = f.ownTheme(n)
@@ -136,7 +136,7 @@ func (f *frame) paint(i int32) {
 	} else {
 		f.paintControl(n, r)
 	}
-	n.color = color
+	n.Color = color
 
 	var hooks drawHooks
 	if extra.draws != 0 {
@@ -184,7 +184,7 @@ func (f *frame) paintControl(n *node, r Rect) {
 	case kindText:
 		f.paintText(n)
 	case kindIcon:
-		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.pref[axisX], Height: n.pref[axisY]}, n.color, extra.iconTransform)
+		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.pref[axisX], Height: n.pref[axisY]}, n.Color, extra.iconTransform)
 	case kindImage:
 		canvas.DrawBitmap(f.images[n.aux], r)
 	case kindSlot:
@@ -206,7 +206,7 @@ func (f *frame) paintText(n *node) {
 	left, right := n.inset(axisX)
 	top, bottom := n.inset(axisY)
 	r := Rect{X: n.rect.X + left, Y: n.rect.Y + top, Width: max(n.rect.Width-left-right, 0), Height: max(n.rect.Height-top-bottom, 0)}
-	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
+	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.Color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
 	alignment := gfx.AlignStart
 	switch {
 	case n.Flags&flagTextCenter != 0:

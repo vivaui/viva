@@ -325,7 +325,7 @@ func (b Box) LineHeight(v float32) Box { b.n().LineH = v; return b }
 func (b Box) Bold() Box                { return b.Weight(gfx.WeightSemibold) }
 func (b Box) Color(c Color) Box {
 	n := b.n()
-	n.color = c
+	n.Color = c
 	n.Flags |= flagHasColor
 	return b
 }

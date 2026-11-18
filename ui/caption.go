@@ -82,7 +82,7 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	disabled := n.Flags&flagDisabled != 0
 	color := fade(f.theme.Foreground, f.opacity)
 	if n.Flags&flagHasColor != 0 {
-		color = n.color // faded with the element already
+		color = n.Color // faded with the element already
 	}
 	if disabled {
 		color.Alpha *= 0.5
