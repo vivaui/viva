@@ -47,11 +47,11 @@ func (f *frame) paint(i int32) {
 	style := f.resolve(n, extra)
 	// What the element is drawn with fades with it and with what it is inside; the
 	// controls inside it are painted with a theme faded the same way.
-	parentOpacity, parentTheme := f.opacity, Theme{}
-	f.opacity *= style.opacity
-	if style.opacity < 1 {
+	parentOpacity, parentTheme := f.Opacity, Theme{}
+	f.Opacity *= style.Opacity
+	if style.Opacity < 1 {
 		parentTheme = f.theme // a theme is large: copied only for what is faded
-		f.theme = f.theme.WithOpacity(style.opacity)
+		f.theme = f.theme.WithOpacity(style.Opacity)
 	}
 	f.paintRing(r, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.Flags&flagClip != 0 {
@@ -60,12 +60,12 @@ func (f *frame) paint(i int32) {
 	}
 
 	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
-	background, border := fade(style.Background, f.opacity), fade(style.border, f.opacity)
+	background, border := fade(style.Background, f.Opacity), fade(style.border, f.Opacity)
 	if style.shadow != gfx.ShadowNone {
-		canvas.ElevateFaded(r, n.Radius, style.shadow, f.opacity)
+		canvas.ElevateFaded(r, n.Radius, style.shadow, f.Opacity)
 	}
 	switch {
-	case n.BorderWidth > 0 && !style.dashed && extra.gradient == 0 && f.opacity >= 1 && background.Alpha >= 1:
+	case n.BorderWidth > 0 && !style.dashed && extra.gradient == 0 && f.Opacity >= 1 && background.Alpha >= 1:
 		canvas.RoundedBorder(r, n.Radius, n.BorderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
@@ -127,7 +127,7 @@ func (f *frame) paint(i int32) {
 
 	// A Text and an Icon draw with their color, which is the one the looks give.
 	color := n.Color
-	n.Color = fade(style.Color, f.opacity)
+	n.Color = fade(style.Color, f.Opacity)
 	if n.hasOwnTheme() {
 		saved := f.theme
 		f.theme = f.ownTheme(n)
@@ -164,8 +164,8 @@ func (f *frame) paint(i int32) {
 		// The element's hit, which a container, a control or its Draw declared.
 		f.canvas.HintSince(hits, n.ID, extra.tooltip)
 	}
-	f.opacity = parentOpacity
-	if style.opacity < 1 {
+	f.Opacity = parentOpacity
+	if style.Opacity < 1 {
 		f.theme = parentTheme
 	}
 }

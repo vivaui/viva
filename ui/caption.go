@@ -63,7 +63,7 @@ func (f *frame) paintCaptionView(v ControlView, control Rect) {
 	line := size + 7
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: v.Rect.Y + (v.Rect.Height-line)/2, Width: max(v.Rect.X+v.Rect.Width-x, 0), Height: line}
-	color := fade(f.theme.Foreground, f.opacity)
+	color := fade(f.theme.Foreground, f.Opacity)
 	if v.HasColor {
 		color = v.Color
 	}
@@ -80,7 +80,7 @@ func (f *frame) paintCaption(n *node, control Rect) {
 	x := control.X + control.Width + captionGap
 	r := Rect{X: x, Y: n.rect.Y + (n.rect.Height-line)/2, Width: max(n.rect.X+n.rect.Width-x, 0), Height: line}
 	disabled := n.Flags&flagDisabled != 0
-	color := fade(f.theme.Foreground, f.opacity)
+	color := fade(f.theme.Foreground, f.Opacity)
 	if n.Flags&flagHasColor != 0 {
 		color = n.Color // faded with the element already
 	}

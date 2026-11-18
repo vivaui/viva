@@ -250,7 +250,7 @@ type frame struct {
 	gradients   []gradient         // the gradients of the elements that have one
 	stops       []gfx.GradientStop // their stops, in the order declared
 	paintStops  []gfx.GradientStop // the stops of the gradient being painted, faded
-	opacity     float32            // the product of the opacities of the elements being painted
+	Opacity     float32            // the product of the opacities of the elements being painted
 	popupLayer  uint16             // the canvas layer the Popups are painted on
 	nativeMark  int                // how many native views the canvas had when the page began
 	binds       []bindDecl         // the bound controls, see bind.go
@@ -329,7 +329,7 @@ func (view *view) Begin(canvas *gfx.Canvas, theme Theme, bounds Rect) *frame {
 	f.states, f.gradients, f.stops = f.states[:0], f.gradients[:0], f.stops[:0]
 	clear(f.draws) // a callback holds what it captured: not past the frame it was declared in
 	f.draws = f.draws[:0]
-	f.opacity = 1
+	f.Opacity = 1
 	f.popupLayer = 0
 	f.memoDepth = 0
 	f.page = nil

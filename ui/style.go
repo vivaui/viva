@@ -279,7 +279,7 @@ func (b Box) GradientStops(angle Angle, stops ...gfx.GradientStop) Box {
 // looks applied.
 type resolved struct {
 	Background, border, Color, ring Color
-	ringWidth, opacity              float32
+	ringWidth, Opacity              float32
 	shadow                          gfx.ShadowLevel
 	dashed                          bool
 }
@@ -287,7 +287,7 @@ type resolved struct {
 func (f *frame) resolve(n *node, extra *extra) resolved {
 	s := resolved{
 		Background: n.Background, border: extra.border, Color: n.Color, ring: extra.ring,
-		ringWidth: extra.ringWidth, opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
+		ringWidth: extra.ringWidth, Opacity: 1 - extra.fade, shadow: extra.shadow, dashed: extra.borderDashed,
 	}
 	if n.Flags&flagThemed != 0 {
 		f.themedDefaults(n, extra, &s)
@@ -354,18 +354,18 @@ func (s *resolved) apply(look *Look, progress float32) {
 		s.shadow = look.lookShadow
 	}
 	if look.set&lookOpacity != 0 {
-		s.opacity = gfx.Lerp(s.opacity, look.lookOpacity, progress)
+		s.Opacity = gfx.Lerp(s.Opacity, look.lookOpacity, progress)
 	}
 }
 
-func fade(c Color, opacity float32) Color {
-	c.Alpha *= opacity
+func fade(c Color, Opacity float32) Color {
+	c.Alpha *= Opacity
 	return c
 }
 
 // paintRing draws the ring around r, outside it.
 func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
-	color := fade(s.ring, f.opacity)
+	color := fade(s.ring, f.Opacity)
 	if s.ringWidth <= 0 || color.Alpha <= 0 {
 		return
 	}
@@ -381,11 +381,11 @@ func (f *frame) paintRing(r Rect, Radius float32, s *resolved) {
 func (f *frame) paintGradient(n *node, extra *extra) {
 	g := f.gradients[extra.gradient-1]
 	stops := f.stops[g.First : g.First+g.count]
-	if f.opacity < 1 {
+	if f.Opacity < 1 {
 		stops = append(f.paintStops[:0], stops...)
 		f.paintStops = stops
 		for i := range stops {
-			stops[i].Color = fade(stops[i].Color, f.opacity)
+			stops[i].Color = fade(stops[i].Color, f.Opacity)
 		}
 	}
 	f.canvas.FillGradient(n.rect, n.Radius, float32(g.angle), stops)

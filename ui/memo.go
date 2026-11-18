@@ -126,7 +126,7 @@ type memoCell[T comparable] struct {
 type memoEntry struct {
 	cell       any      // *memoCell[T] of the value the part was last declared with
 	themeEpoch uint32   // the page's theme when the part was last painted
-	opacity    float32  // the inherited opacity then
+	Opacity    float32  // the inherited opacity then
 	scale      float32  // the canvas's pixel scale then
 	fonts      uint32   // the canvas's font generation then
 	epoch      uint32   // the paint the part was last declared or copied in
@@ -185,7 +185,7 @@ func (p *Page) memoHit(entry *memoEntry, same bool) bool {
 	canvas := p.ctx.f.canvas
 	if canvas == nil || !entry.painted || entry.stale || !same || entry.epoch+1 != p.epoch ||
 		entry.held || entry.bounds != p.ctx.f.bounds || entry.themeEpoch != p.themeEpoch ||
-		entry.opacity != p.ctx.f.opacity || canvas.PixelScale() != entry.scale ||
+		entry.Opacity != p.ctx.f.Opacity || canvas.PixelScale() != entry.scale ||
 		canvas.FontGeneration() != entry.fonts || canvas.Delivering() || canvas.Animating() {
 		return false
 	}
@@ -205,7 +205,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	canvas := f.canvas
 	rect := f.Nodes[i].rect
 	if box.copy {
-		if entry.themeEpoch != p.themeEpoch || entry.opacity != f.opacity {
+		if entry.themeEpoch != p.themeEpoch || entry.Opacity != f.Opacity {
 			entry.stale = true
 			p.retry = true
 			return true
@@ -231,7 +231,7 @@ func (p *Page) memoPaint(f *frame, i int32, before bool) bool {
 	entry.span = canvas.SpanSince(box.before)
 	entry.listens = len(canvas.HitsSince(box.before)) > 0
 	entry.rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
-	entry.themeEpoch, entry.opacity = p.themeEpoch, f.opacity
+	entry.themeEpoch, entry.Opacity = p.themeEpoch, f.Opacity
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
 	for _, hit := range canvas.HitsSince(box.before) {
 		if !hit.ID.IsZero() && (hit.ID == hovered || hit.ID == pressed || hit.ID == focused) {

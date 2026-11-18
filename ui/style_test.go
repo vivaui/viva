@@ -244,12 +244,12 @@ func TestOpacityFadesAnElementAndWhatIsInsideIt(t *testing.T) {
 
 func TestAnElementAtNoOpacityIsStillLaidOutAndHit(t *testing.T) {
 	var view View
-	draw := func(opacity float32) (*gfx.Canvas, Rect) {
+	draw := func(Opacity float32) (*gfx.Canvas, Rect) {
 		canvas := testCanvas()
 		var row Box
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
 			f.Row().Gap(8).Children(func() {
-				row = f.Row().Size(80, 30).Opacity(opacity).Hit(styleRow, "row").Background(colorRest)
+				row = f.Row().Size(80, 30).Opacity(Opacity).Hit(styleRow, "row").Background(colorRest)
 				f.Slot().Size(10, 10)
 			})
 		})
@@ -299,11 +299,11 @@ func TestGradientFillsTheElementUnderItsBorderAndFades(t *testing.T) {
 	const border = 2
 	var view View
 	var box Box
-	paint := func(opacity float32) *gfx.Canvas {
+	paint := func(Opacity float32) *gfx.Canvas {
 		canvas := testCanvas()
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
 			f.Row().Pad(10).Children(func() {
-				box = f.Row().Size(120, 40).Radius(8).Border(border, colorRest).Opacity(opacity).Gradient(ToRight, colorHover, colorPressed)
+				box = f.Row().Size(120, 40).Radius(8).Border(border, colorRest).Opacity(Opacity).Gradient(ToRight, colorHover, colorPressed)
 			})
 		})
 		return canvas
