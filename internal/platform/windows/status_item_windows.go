@@ -45,8 +45,10 @@ const (
 	wsPopup            = 0x80000000
 	wsExToolWindow     = 0x00000080
 	wsExTopmost        = 0x00000008
+	wsExTransparent    = 0x00000020
 	swHide             = 0
 	swShow             = 5
+	swShowNoActivate   = 4
 	swRestore          = 9
 	smSmallIconWidth   = 49
 	monitorNearest     = 2
