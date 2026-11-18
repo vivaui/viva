@@ -28,8 +28,32 @@ func colorSwatch(c C, id gfx.ID, color Color, selected bool, label string) Box {
 	n := b.n()
 	n.id, n.label = id, label
 	b.Draw(func(d *DrawContext) {
-		components.BeginColorSwatch(d.Canvas, *d.Theme, id, d.Rect, color).Label(label).Selected(selected).Paint()
+		extra := b.f.extra(b.i)
+		swatch := components.BeginColorSwatch(d.Canvas, *d.Theme, id, d.Rect, color).Label(label).Selected(selected).
+			TabStop(!extra.swatchSkipTab)
+		if extra.swatchFlush {
+			swatch = swatch.Flush()
+		}
+		swatch.Paint()
 	})
+	return b
+}
+
+// Flush makes a ColorSwatch fill its hairline border with its color instead of
+// leaving a background-colored ring inside it, for a small swatch whose color
+// would otherwise read as faded. Other elements ignore it.
+func (b Box) Flush() Box {
+	b.n()
+	b.f.extra(b.i).swatchFlush = true
+	return b
+}
+
+// TabStop says whether Tab may enter a ColorSwatch: a radio set gives its chosen
+// swatch the stop and the others false, as components.ColorSwatch's TabStop. Other
+// elements ignore it.
+func (b Box) TabStop(on bool) Box {
+	b.n()
+	b.f.extra(b.i).swatchSkipTab = !on
 	return b
 }
 

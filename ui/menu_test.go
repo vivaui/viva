@@ -673,7 +673,7 @@ func TestMenuPageContentRow(t *testing.T) {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &open, func(menu *ui.MenuItems) {
 				menu.Item("One")
-				menu.ContentPage(40, func(c ui.C) {
+				menu.ContentPage(40, func(c ui.C, _ ui.Rect) {
 					if ui.ColorSwatch(c, gfx.RGB(220, 38, 38), chosen, "Red").Clicked() {
 						chosen = true
 					}

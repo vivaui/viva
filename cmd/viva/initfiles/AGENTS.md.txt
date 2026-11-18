@@ -156,9 +156,10 @@ func (m *model) page(c ui.C) {
   (opens as the pointer rests on it, on a click, or on Right/Enter/Space; Left goes back), in a ContextMenu too.
 - A right-click menu: `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` (Shift+F10 opens it too); items
   take `.Icon(icon)`, `.Keys(ui.Primary, "c")` (shown, not bound), `.Checked(on)` and `.Chosen(on)`.
-- A row a menu cannot say: `menu.ContentPage(40, func(c ui.C) { ui.ColorSwatch(c, ...) })` declares page controls
+- A row a menu cannot say: `menu.ContentPage(40, func(c ui.C, bounds ui.Rect) { ui.ColorSwatch(c, ...) })` declares page controls
   in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
   the page cannot declare.
+- Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
   handle that a drag toward the edge closes it by (past half its size, or thrown).

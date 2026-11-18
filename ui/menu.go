@@ -229,8 +229,9 @@ func (m *MenuItems) declarePageRows(c C, width, height float32) {
 		if row.kind == menuRowPageContent && row.pageContent != nil && row.height > 0 &&
 			y+row.height > 0 && y < height {
 			pageY, pageHeight := y, row.height
-			Column(c).Absolute().Left(pad).Top(pageY).Width(max(width-2*pad, 0)).Height(pageHeight).Children(func() {
-				row.pageContent(c)
+			bounds := Rect{X: pad, Y: pageY, Width: max(width-2*pad, 0), Height: pageHeight}
+			Column(c).Absolute().Left(bounds.X).Top(bounds.Y).Width(bounds.Width).Height(bounds.Height).Children(func() {
+				row.pageContent(c, bounds)
 			})
 		}
 		y += m.rowExtent(i)
@@ -474,7 +475,7 @@ type menuRow struct {
 	trailing      func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
 	height        float32                                                    // a content row's height
 	content       func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme) // what paints a content row
-	pageContent   func(c C)                                                  // what a page content row declares
+	pageContent   func(c C, bounds Rect)                                     // what a page content row declares
 	checked       int8                                                       // 1 a checked checkbox, 2 an unchecked one, 3 a chosen radio, 4 an unchosen one
 }
 
@@ -593,7 +594,7 @@ func (m *MenuItems) Content(height float32, body func(canvas *gfx.Canvas, bounds
 // as a strip of color swatches. It is not an item, so the keyboard passes over it.
 // The row is placed where the menu's rows put it; it is for a menu that does not
 // scroll its rows.
-func (m *MenuItems) ContentPage(height float32, body func(c C)) {
+func (m *MenuItems) ContentPage(height float32, body func(c C, bounds Rect)) {
 	m.items = append(m.items, menuRow{kind: menuRowPageContent, height: height, pageContent: body})
 }
 

@@ -217,6 +217,8 @@ type extra struct {
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
+	swatchFlush   bool             // a ColorSwatch fills its border with its color
+	swatchSkipTab bool             // a ColorSwatch takes no Tab stop (TabStop)
 }
 
 // frame is one page being declared. It is handed to the function given to
