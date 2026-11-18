@@ -238,7 +238,9 @@ func (f *frame) paintControl(n *node, r Rect) {
 			f.captionFn(f, n, bounds)
 		}
 		control := components.BeginSwitch(canvas, f.theme, n.id, bounds, n.flags&flagChecked != 0)
-		if f.styles != nil && f.styles.Switch != nil {
+		if recipe := extra.switchRecipe; recipe != nil {
+			control = control.Recipe(recipe)
+		} else if f.styles != nil && f.styles.Switch != nil {
 			control = control.Recipe(f.styles.Switch)
 		}
 		if small {

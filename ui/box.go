@@ -409,6 +409,18 @@ func (b Box) Small() Box {
 func (b Box) Large() Box    { b.n().buttonSize = components.ButtonSizeLarge; return b }
 func (b Box) IconOnly() Box { b.n().buttonSize = components.ButtonSizeIcon; return b }
 
+// SwitchRecipe gives one Switch its own look, as ButtonRecipe does a Button,
+// winning over the page's Styles.Switch. Start from components.SwitchRecipe.
+// Other elements ignore it.
+//
+//	ui.Switch(c, &m.on, "Running").SwitchRecipe(components.SwitchRecipe)
+func (b Box) SwitchRecipe(recipe func(gfx.Theme, gfx.State, float32) components.SwitchLook) Box {
+	if n := b.n(); n.kind == kindSwitch {
+		b.f.extra(b.i).switchRecipe = recipe
+	}
+	return b
+}
+
 // ButtonRecipe gives one Button its own look: the function is asked for the colors, radius
 // and ring of the button in each state, as PageConfig.Styles.Button is for every button of a
 // page, and wins over it. Start from components.ButtonRecipe and change what differs:

@@ -193,6 +193,7 @@ type extra struct {
 	icon          gfx.Icon
 	iconTransform gfx.IconTransform                                                          // moves the icon inside its box without moving the box
 	buttonRecipe  func(gfx.Theme, components.ButtonVariant, gfx.State) components.ButtonLook // ButtonRecipe: this button's own look
+	switchRecipe  func(gfx.Theme, gfx.State, float32) components.SwitchLook                  // SwitchRecipe: this switch's own look
 	border        Color
 	shadow        gfx.ShadowLevel
 	ring          Color   // Ring: a line around the outside of the element
