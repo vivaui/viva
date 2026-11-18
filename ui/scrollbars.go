@@ -52,6 +52,12 @@ func (f *frame) paintScrollbars(n *node, s *ScrollState) {
 	theme, revealed := f.theme, float32(1)
 	if f.page != nil {
 		now := f.canvas.Now()
+		if !s.barSeen {
+			// An area first painted with an offset already set is not moving:
+			// only a change seen across two paints lights the bars.
+			s.barSeen = true
+			s.barOffset, s.barOffsetX = s.Offset, s.OffsetX
+		}
 		if s.Offset != s.barOffset || s.OffsetX != s.barOffsetX {
 			s.barOffset, s.barOffsetX, s.barSince, s.barLit = s.Offset, s.OffsetX, now, true
 		}

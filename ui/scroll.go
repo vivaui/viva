@@ -53,6 +53,7 @@ type ScrollState struct {
 	barOffset, barOffsetX float32
 	barSince              time.Duration
 	barLit                bool
+	barSeen               bool // the bars' baseline offset was taken: a first paint is no movement
 	// The names and accessible names of the bars, as ScrollbarIDs and
 	// ScrollbarLabels gave them; zero and empty keep the area's own.
 	verticalID, horizontalID       gfx.ID
