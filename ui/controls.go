@@ -5,7 +5,6 @@ package ui
 // these kinds here, so the engine can move below the styled controls; this file
 // moves with them.
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -176,18 +175,4 @@ func (f *frame) Segmented(options []style.SegmentOption, selected gfx.ID) Box {
 	n.Aux = int32(len(widgetsOf(f).segmented))
 	widgetsOf(f).segmented = append(widgetsOf(f).segmented, segmented{options: options, selected: selected})
 	return b
-}
-
-// controlBaseline is the label's baseline of a button, for a row that lines
-// elements up by it. The engine asks the hook; the control layer answers.
-var controlBaseline = func(f *frame, n *node) float32 {
-	theme := f.Palette
-	if n.HasOwnTheme() {
-		theme = f.OwnTheme(n)
-	}
-	button := components.BeginButton(f.Surface, theme, gfx.ID{}, Rect{}).Size(n.ButtonSize)
-	return f.Surface.LabelBaseline(
-		gfx.Rect{Height: n.Pref[axisY]},
-		gfx.TextStyle{Size: button.LabelFontSize()},
-	)
 }
