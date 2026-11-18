@@ -157,7 +157,7 @@ type node struct {
 
 	Pref                [2]float32
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
-	GrowNow, shrinkNow  float32
+	GrowNow, ShrinkNow  float32
 	base, want, bounded float32 // while flexible lengths are resolved
 	frozen              bool
 	rect                Rect

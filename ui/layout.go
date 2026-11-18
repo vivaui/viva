@@ -355,15 +355,15 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 		child.GrowNow = grow
 		switch {
 		case child.Flags&flagShrinkSet != 0:
-			child.shrinkNow = child.Shrink
+			child.ShrinkNow = child.Shrink
 		case axis == axisX && (child.Kind == kindText || child.Kind == kindContainer),
 			axis == axisY && child.Flags&flagScroll != 0:
 			// Across a line of text or a container may give way; down a column an
 			// element keeps its content's height (as CSS min-height:auto does) unless it
 			// is a scroll area, which is what shrinking to fit is for.
-			child.shrinkNow = 1
+			child.ShrinkNow = 1
 		default:
-			child.shrinkNow = 0
+			child.ShrinkNow = 0
 		}
 		*extent(&child.rect, axis) = basis
 		ms, me := child.marginOn(axis)
@@ -394,7 +394,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			}
 			baseSum += child.base
 			growSum += child.GrowNow
-			shrinkSum += child.shrinkNow * child.base
+			shrinkSum += child.ShrinkNow * child.base
 		}
 		room := avail
 		if scrolls {
@@ -412,7 +412,7 @@ func (f *frame) solveFlow(n *node, First, stop int32, axis int, start, avail flo
 			case free > 0 && growSum > 0:
 				want += free * child.GrowNow / growSum
 			case free < 0 && shrinkSum > 0:
-				want += free * child.shrinkNow * child.base / shrinkSum
+				want += free * child.ShrinkNow * child.base / shrinkSum
 			}
 			bounded := clamp(want, child.MinS[axis], f.maxOn(child, axis, avail))
 			violation += bounded - want
