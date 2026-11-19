@@ -1,9 +1,9 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/markerview"
 )
 
 var markerComponent = Component{
@@ -12,59 +12,31 @@ var markerComponent = Component{
 	Examples: []Example{
 		{ID: "default", Title: "元数据", Description: "图标与文本组成的标准标记。", Snippet: `// m.clockIcon is a caller-owned gfx.Icon; a nil icon paints none.
 components.Marker(canvas, theme, bounds, components.MarkerDefault,
-    &m.clockIcon, "Updated 2 minutes ago")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
-    ui.Text(c, "Updated 2 minutes ago").Muted()
-})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
-    ui.Text(c, "Updated 2 minutes ago").Muted()
-})`},
+    &m.clockIcon, "Updated 2 minutes ago")`, PageSnippet: `m.marker.Reset().Icon(m.clockIcon).Label("Updated 2 minutes ago")
+m.marker.View(c, "Updated 2 minutes ago")`, PageSnippetZh: `m.marker.Reset().Icon(m.clockIcon).Label("Updated 2 minutes ago")
+m.marker.View(c, "Updated 2 minutes ago")`},
 		{ID: "variants", Title: "三种形式", Description: "普通、居中分隔和底部边框形式。", Snippet: `// The separator centers its content between rules; the border draws one below.
 components.Marker(canvas, theme, bounds[0], components.MarkerDefault,
     &m.checkIcon, "Default")
 components.Marker(canvas, theme, bounds[1], components.MarkerSeparator,
     nil, "October 2026")
 components.Marker(canvas, theme, bounds[2], components.MarkerBorder,
-    &m.clockIcon, "Release channel")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Icon(c, m.checkIcon).Size(16, 16).Muted()
-    ui.Text(c, "Default").Muted()
-})
-ui.Row(c).Gap(10).Items(ui.Center).Children(func() {
-    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
-    ui.Text(c, "October 2026").Muted()
-    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
-})
-ui.Column(c).Gap(6).Children(func() {
-    ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-        ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
-        ui.Text(c, "Release channel").Muted()
-    })
-    ui.Divider(c)
-})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Icon(c, m.checkIcon).Size(16, 16).Muted()
-    ui.Text(c, "Default").Muted()
-})
-ui.Row(c).Gap(10).Items(ui.Center).Children(func() {
-    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
-    ui.Text(c, "October 2026").Muted()
-    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
-})
-ui.Column(c).Gap(6).Children(func() {
-    ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-        ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
-        ui.Text(c, "Release channel").Muted()
-    })
-    ui.Divider(c)
-})`},
-		{ID: "progress", Title: "进行中", Description: "用 Spinner 代替图标表示正在进行的工作。", Snippet: `// Advance the phase from an animation frame and request the next paint.
+    &m.clockIcon, "Release channel")`, PageSnippet: `m.markers[0].Reset().Icon(m.checkIcon).Label("Default")
+m.markers[0].View(c, "Default")
+m.markers[1].Reset().Separator().Label("October 2026")
+m.markers[1].View(c, "October 2026")
+m.markers[2].Reset().Border().Icon(m.clockIcon).Label("Release channel")
+m.markers[2].View(c, "Release channel")`, PageSnippetZh: `m.markers[0].Reset().Icon(m.checkIcon).Label("Default")
+m.markers[0].View(c, "Default")
+m.markers[1].Reset().Separator().Label("October 2026")
+m.markers[1].View(c, "October 2026")
+m.markers[2].Reset().Border().Icon(m.clockIcon).Label("Release channel")
+m.markers[2].View(c, "Release channel")`},
+		{ID: "progress", Title: "进行中", Description: "Spinner 取代图标表示正在进行的工作；调用方拥有相位和帧。", Snippet: `// Advance the phase from an animation frame and request the next paint.
 phase = (phase + 1) % 8
-components.MarkerProgress(canvas, theme, bounds, components.MarkerDefault, phase, "Thinking")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Spinner(c)
-    ui.Text(c, "Thinking").Muted()
-})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
-    ui.Spinner(c)
-    ui.Text(c, "Thinking").Muted()
-})`},
+components.MarkerProgress(canvas, theme, bounds, components.MarkerDefault, phase, "Thinking")`, PageSnippet: `m.marker.Reset().Progress(m.phase).Label("Thinking")
+m.marker.View(c, "Thinking")`, PageSnippetZh: `m.marker.Reset().Progress(m.phase).Label("Thinking")
+m.marker.View(c, "Thinking")`},
 	},
 }
 
@@ -90,31 +62,28 @@ func demoCircle(cx, cy, r float32) []gfx.PathCommand {
 	}
 }
 
+// markerDemo is the demo's reusable marker declaration. State cannot hold it
+// without widening the preview model, so the demo keeps configured views and
+// resets them in every paint; their handlers are made once. A view belongs to
+// one place, so the variants example keeps one per row. The progress example
+// shows a fixed frame: the demo schedules no frames, an application advances
+// the phase.
+var (
+	markerDemo     = markerview.New()
+	markerVariants [3]markerview.Marker
+)
+
 func (state *State) paintMarker(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var rows [3]ui.Box
 	state.drawPage(canvas, theme, size, 560, state.Text("Marker · 内容分组", "Marker · Content grouping"), func(c ui.C) {
-		count := 3
-		if state.exampleID != "variants" {
-			count = 1
-		}
-		rowHeight := theme.Metrics.FontSizeM + 7
-		for index := range count {
-			height := rowHeight
-			if state.exampleID == "variants" && index == 2 {
-				height += 8*(theme.Metrics.ControlHeight/32) + 1 // MarkerBorder's rule
-			}
-			rows[index] = ui.Slot(c).FillWidth().Height(height)
+		switch state.exampleID {
+		case "default":
+			markerDemo.Reset().Icon(markerClockIcon).Label("Updated 2 minutes ago").View(c, "Updated 2 minutes ago")
+		case "progress":
+			markerDemo.Reset().Progress(2).Label("Thinking").View(c, "Thinking")
+		default:
+			markerVariants[0].Reset().Icon(markerCheckIcon).Label("Default").View(c, "Default")
+			markerVariants[1].Reset().Separator().Label("October 2026").View(c, "October 2026")
+			markerVariants[2].Reset().Border().Icon(markerClockIcon).Label("Release channel").View(c, "Release channel")
 		}
 	})
-	switch state.exampleID {
-	case "default":
-		components.Marker(canvas, theme, rows[0].Rect(), components.MarkerDefault, &markerClockIcon, "Updated 2 minutes ago")
-	case "progress":
-		// A fixed frame: the demo does not schedule frames, an application turns the phase.
-		components.MarkerProgress(canvas, theme, rows[0].Rect(), components.MarkerDefault, 2, "Thinking")
-	default:
-		components.Marker(canvas, theme, rows[0].Rect(), components.MarkerDefault, &markerCheckIcon, "Default")
-		components.Marker(canvas, theme, rows[1].Rect(), components.MarkerSeparator, nil, "October 2026")
-		components.Marker(canvas, theme, rows[2].Rect(), components.MarkerBorder, &markerClockIcon, "Release channel")
-	}
 }

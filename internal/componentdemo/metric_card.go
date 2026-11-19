@@ -1,87 +1,56 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/metriccardview"
 )
 
 var metricCardComponent = Component{
 	ID: "metric-card", Title: "Metric Card", Category: "Data Display", Summary: "标题、数值和趋势组成的仪表盘指标卡。",
 	paint: (*State).paintMetricCard,
 	Examples: []Example{
-		{ID: "default", Title: "单项指标", Description: "生产 MetricCard 展示当前值与正向趋势。", Snippet: `// bounds is the dashboard slot reserved for the card.
+		{ID: "default", Title: "单项指标", Description: "生产 MetricCard 展示当前值、正向趋势、周期说明和图标。", Snippet: `// bounds is the dashboard slot reserved for the card.
 components.MetricCard(canvas, theme, bounds, "Active sessions",
-    "12,840", "+18.2% from last week", true)`, PageSnippet: `ui.Column(c).FillWidth().Pad(c.Theme().Metrics.PadSurface).Gap(6).
-    Background(c.Theme().Card).Border(1, c.Theme().Border).
-    Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-    ui.Text(c, "Active sessions").
-        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-    ui.Text(c, "12,840").
-        FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-    ui.Text(c, "+18.2% from last week").
-        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
-})`, PageSnippetZh: `ui.Column(c).FillWidth().Pad(c.Theme().Metrics.PadSurface).Gap(6).
-    Background(c.Theme().Card).Border(1, c.Theme().Border).
-    Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-    ui.Text(c, "Active sessions").
-        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-    ui.Text(c, "12,840").
-        FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-    ui.Text(c, "+18.2% from last week").
-        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
-})`},
+    "12,840", "+18.2% from last week", true)`, PageSnippet: `metriccardview.View(c, "Active sessions", metriccardview.New().
+    Title("Active sessions").Value("12,840").
+    Trend("+18.2% from last week").Up().
+    Description("Compared with the previous 7 days").
+    Icon(m.metricIcon)).
+    FillWidth().Height(150)`, PageSnippetZh: `metriccardview.View(c, "Active sessions", metriccardview.New().
+    Title("Active sessions").Value("12,840").
+    Trend("+18.2% from last week").Up().
+    Description("Compared with the previous 7 days").
+    Icon(m.metricIcon)).
+    FillWidth().Height(150)`},
 		{ID: "trends", Title: "趋势对比", Description: "正向和负向趋势并列展示。", Snippet: `// left and right are equal-width slots in the page's row.
 // true paints the trend in Success; false paints it in Danger.
 components.MetricCard(canvas, theme, left, "Revenue", "$48.2K", "+12.4%", true)
 components.MetricCard(canvas, theme, right, "Refunds", "$1.3K", "+4.1%", false)`, PageSnippet: `ui.Row(c).FillWidth().Gap(16).Children(func() {
-    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
-        Background(c.Theme().Card).Border(1, c.Theme().Border).
-        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-        ui.Text(c, "Revenue").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-        ui.Text(c, "$48.2K").
-            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-        ui.Text(c, "+12.4%").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
-    })
-    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
-        Background(c.Theme().Card).Border(1, c.Theme().Border).
-        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-        ui.Text(c, "Refunds").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-        ui.Text(c, "$1.3K").
-            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-        ui.Text(c, "+4.1%").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Danger)
-    })
+    metriccardview.View(c, "Revenue", metriccardview.New().
+        Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
+        Grow(1).Height(120)
+    metriccardview.View(c, "Refunds", metriccardview.New().
+        Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
+        Grow(1).Height(120)
 })`, PageSnippetZh: `ui.Row(c).FillWidth().Gap(16).Children(func() {
-    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
-        Background(c.Theme().Card).Border(1, c.Theme().Border).
-        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-        ui.Text(c, "Revenue").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-        ui.Text(c, "$48.2K").
-            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-        ui.Text(c, "+12.4%").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
-    })
-    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
-        Background(c.Theme().Card).Border(1, c.Theme().Border).
-        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
-        ui.Text(c, "Refunds").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
-        ui.Text(c, "$1.3K").
-            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
-        ui.Text(c, "+4.1%").
-            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Danger)
-    })
+    metriccardview.View(c, "Revenue", metriccardview.New().
+        Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
+        Grow(1).Height(120)
+    metriccardview.View(c, "Refunds", metriccardview.New().
+        Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
+        Grow(1).Height(120)
 })`},
 	},
 }
 
+// metricTrendIcon is Lucide's trending-up arrow, compiled to the gfx.Icon form.
+var metricTrendIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(3, 17), gfx.LineTo(9, 11), gfx.LineTo(13, 15), gfx.LineTo(21, 7),
+	gfx.MoveTo(15, 7), gfx.LineTo(21, 7), gfx.LineTo(21, 13),
+}}
+
 func (state *State) paintMetricCard(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var cards [2]ui.Box
 	// Two cards share a row when the page is wide enough for both; otherwise
 	// the second example stacks them.
 	wide := state.exampleID == "trends" && min(size.Width-48, float32(600)) >= 480
@@ -89,24 +58,28 @@ func (state *State) paintMetricCard(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		switch {
 		case wide:
 			ui.Row(c).FillWidth().Gap(16).Children(func() {
-				cards[0] = ui.Slot(c).Grow(1).Height(120)
-				cards[1] = ui.Slot(c).Grow(1).Height(120)
+				metriccardview.View(c, "Revenue", metriccardview.New().
+					Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
+					Grow(1).Height(120)
+				metriccardview.View(c, "Refunds", metriccardview.New().
+					Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
+					Grow(1).Height(120)
 			})
 		case state.exampleID == "trends":
-			cards[0] = ui.Slot(c).FillWidth().Height(120)
-			cards[1] = ui.Slot(c).FillWidth().Height(120)
+			metriccardview.View(c, "Active sessions", metriccardview.New().
+				Title("Active sessions").Value("12,840").
+				Trend("+18.2% from last week").Up()).
+				FillWidth().Height(120)
+			metriccardview.View(c, "Error rate", metriccardview.New().
+				Title("Error rate").Value("0.42%").Trend("-0.08% improvement").Up()).
+				FillWidth().Height(120)
 		default:
-			cards[0] = ui.Slot(c).FillWidth().Height(120)
+			metriccardview.View(c, "Active sessions", metriccardview.New().
+				Title("Active sessions").Value("12,840").
+				Trend("+18.2% from last week").Up().
+				Description("Compared with the previous 7 days").
+				Icon(metricTrendIcon)).
+				FillWidth().Height(150)
 		}
 	})
-	switch {
-	case wide:
-		components.MetricCard(canvas, theme, cards[0].Rect(), "Revenue", "$48.2K", "+12.4%", true)
-		components.MetricCard(canvas, theme, cards[1].Rect(), "Refunds", "$1.3K", "+4.1%", false)
-	case state.exampleID == "trends":
-		components.MetricCard(canvas, theme, cards[0].Rect(), "Active sessions", "12,840", "+18.2% from last week", true)
-		components.MetricCard(canvas, theme, cards[1].Rect(), "Error rate", "0.42%", "-0.08% improvement", true)
-	default:
-		components.MetricCard(canvas, theme, cards[0].Rect(), "Active sessions", "12,840", "+18.2% from last week", true)
-	}
 }

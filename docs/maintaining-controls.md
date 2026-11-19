@@ -47,7 +47,9 @@ Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chartview`,
 `ui/calendarview`, `ui/carouselview`, `ui/markdownview`, `ui/columnresizeview`,
 `ui/avatareditorview`, `ui/reordergridview`, `ui/avatarview`, `ui/attachmentview`,
 `ui/messageview`, `ui/messagescrollerview`, `ui/commandview`, `ui/menubarview`,
-`ui/navigationmenuview`, `ui/hovercardview`, `ui/multiselect`,
+`ui/navigationmenuview`, `ui/hovercardview`, `ui/imageview`, `ui/aspectratioview`,
+`ui/skeletonview`, `ui/inputgroupview`, `ui/inputotpview`, `ui/questionnaireview`,
+`ui/metriccardview`, `ui/markerview`, `ui/sidebarview`, `ui/multiselect`,
 `ui/hierarchypicker`).
 They import only `base`, `components`, `gfx`, `ui` and `window`, own stable
 handlers, and are never imported by package `ui`; importing one is the explicit

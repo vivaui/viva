@@ -124,26 +124,27 @@ func (state *State) paintBadge(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		}
 		variants = []components.BadgeVariant{components.BadgeSecondary, components.BadgeOutline, components.BadgeDefault}
 	}
-	// A badge is as wide as its label. The grid's cell is as wide as the widest
-	// one, so the badges wrap onto new rows when the stage is too narrow for them
-	// side by side; each is a Slot of its natural size that the component paints.
-	cell := float32(0)
-	for _, label := range labels {
-		width, _ := components.BadgeExtent(canvas, theme, label)
-		cell = max(cell, width)
-	}
-	var slots [6]ui.Box
 	state.drawPage(canvas, theme, size, 560, state.Text("Badge · 内容决定宽度", "Badge · Width follows content"), func(c ui.C) {
-		ui.Grid(c, cell).Gap(12).Children(func() {
+		ui.Flow(c).Gap(12).Children(func() {
 			for index, label := range labels {
-				width, height := components.BadgeExtent(canvas, theme, label)
-				slots[index] = ui.Slot(c).Size(width, height).Self(ui.Start)
+				badge := ui.Badge(c, label)
+				switch variants[index] {
+				case components.BadgeSecondary:
+					badge.Secondary()
+				case components.BadgeDestructive:
+					badge.Destructive()
+				case components.BadgeOutline:
+					badge.Outline()
+				case components.BadgeGhost:
+					badge.Ghost()
+				case components.BadgeLink:
+					badge.Link()
+				}
 			}
 		})
-		ui.Text(c, state.Text("仅展示状态，不声明点击区域。", "Display only; no click target is declared.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		if state.exampleID == "default" {
+			ui.Text(c, state.Text("仅展示状态，不声明点击区域。", "Display only; no click target is declared.")).
+				FontSize(theme.Metrics.FontSizeS).Muted()
+		}
 	})
-	for index, label := range labels {
-		bounds := slots[index].Rect()
-		components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
-	}
 }

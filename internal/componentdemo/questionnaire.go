@@ -1,9 +1,9 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/questionnaireview"
 )
 
 var questionnaireComponent = Component{
@@ -27,31 +27,29 @@ q.PaintActions(components.QuestionnaireActions{
 })
 if index, ok := canvas.ClickedIn(choice); ok {
     selected = index
-}`, PageSnippet: `ui.Text(c, "Question 2 of 5").Muted()
-ui.Text(c, "What should Viva optimize first?")
-ui.Text(c, "Answers stay in application state.").Muted()
-ui.RadioGroup(c).Children(func() {
-    ui.Radio(c, &m.answer, "Low memory", "Low memory")
-    ui.Radio(c, &m.answer, "Fast startup", "Fast startup")
-    ui.Radio(c, &m.answer, "Small binaries", "Small binaries")
-})
-ui.Row(c).Gap(8).Children(func() {
-    ui.Button(c, "Back").Outline()
-    ui.Button(c, "Skip").Outline()
-    ui.Button(c, "Continue")
-})`, PageSnippetZh: `ui.Text(c, "Question 2 of 5").Muted()
-ui.Text(c, "What should Viva optimize first?")
-ui.Text(c, "Answers stay in application state.").Muted()
-ui.RadioGroup(c).Children(func() {
-    ui.Radio(c, &m.answer, "Low memory", "Low memory")
-    ui.Radio(c, &m.answer, "Fast startup", "Fast startup")
-    ui.Radio(c, &m.answer, "Small binaries", "Small binaries")
-})
-ui.Row(c).Gap(8).Children(func() {
-    ui.Button(c, "Back").Outline()
-    ui.Button(c, "Skip").Outline()
-    ui.Button(c, "Continue")
-})`},
+}`, PageSnippet: `question := questionnaireview.New().
+    Progress("Question 2 of 5").
+    Title("What should Viva optimize first?").
+    Description("Answers stay in application state.").
+    Single().
+    Choice(m.choiceIDs[0], "Low memory", m.answer == 0, m.choose[0]).
+    Choice(m.choiceIDs[1], "Fast startup", m.answer == 1, m.choose[1]).
+    Choice(m.choiceIDs[2], "Small binaries", m.answer == 2, m.choose[2]).
+    Back(m.previousID, "Back", m.back).
+    Skip(m.skipID, "Skip", m.skip).
+    Continue(m.nextID, "Continue", m.next)
+question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaireview.New().
+    Progress("第 2 题，共 5 题").
+    Title("Viva 应优先优化什么？").
+    Description("答案保留在应用状态中。").
+    Single().
+    Choice(m.choiceIDs[0], "低内存", m.answer == 0, m.choose[0]).
+    Choice(m.choiceIDs[1], "快速启动", m.answer == 1, m.choose[1]).
+    Choice(m.choiceIDs[2], "小体积", m.answer == 2, m.choose[2]).
+    Back(m.previousID, "返回", m.back).
+    Skip(m.skipID, "跳过", m.skip).
+    Continue(m.nextID, "继续", m.next)
+question.View(c, "问卷").FillWidth()`},
 		{ID: "multiple-choice", Title: "多选题", Description: "切换多个性能目标，组件不隐藏答案状态。", Snippet: `choice := tree.Sub(page, tree.Name("choice"))
 q := components.BeginQuestionnaire(canvas, theme, bounds, components.QuestionnaireData{
     Progress: "Question 2 of 5", Title: "Which performance goals matter?",
@@ -65,29 +63,29 @@ for index, label := range []string{"Low memory", "Fast startup", "Small binaries
 }
 if index, ok := canvas.ClickedIn(choice); ok {
     checked[index] = !checked[index]
-}`, PageSnippet: `ui.Text(c, "Question 2 of 5").Muted()
-ui.Text(c, "Which performance goals matter?")
-ui.Text(c, "Answers stay in application state.").Muted()
-memory, startup, binaries := false, false, false
-ui.Checkbox(c, &memory, "Low memory")
-ui.Checkbox(c, &startup, "Fast startup")
-ui.Checkbox(c, &binaries, "Small binaries")
-ui.Row(c).Gap(8).Children(func() {
-    ui.Button(c, "Back").Outline()
-    ui.Button(c, "Skip").Outline()
-    ui.Button(c, "Continue")
-})`, PageSnippetZh: `ui.Text(c, "Question 2 of 5").Muted()
-ui.Text(c, "Which performance goals matter?")
-ui.Text(c, "Answers stay in application state.").Muted()
-memory, startup, binaries := false, false, false
-ui.Checkbox(c, &memory, "Low memory")
-ui.Checkbox(c, &startup, "Fast startup")
-ui.Checkbox(c, &binaries, "Small binaries")
-ui.Row(c).Gap(8).Children(func() {
-    ui.Button(c, "Back").Outline()
-    ui.Button(c, "Skip").Outline()
-    ui.Button(c, "Continue")
-})`},
+}`, PageSnippet: `question := questionnaireview.New().
+    Progress("Question 2 of 5").
+    Title("Which performance goals matter?").
+    Description("Answers stay in application state.").
+    Multiple().
+    Choice(m.choiceIDs[0], "Low memory", m.memory, m.toggle[0]).
+    Choice(m.choiceIDs[1], "Fast startup", m.startup, m.toggle[1]).
+    Choice(m.choiceIDs[2], "Small binaries", m.binaries, m.toggle[2]).
+    Back(m.previousID, "Back", m.back).
+    Skip(m.skipID, "Skip", m.skip).
+    Continue(m.nextID, "Continue", m.next)
+question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaireview.New().
+    Progress("第 2 题，共 5 题").
+    Title("哪些性能目标重要？").
+    Description("答案保留在应用状态中。").
+    Multiple().
+    Choice(m.choiceIDs[0], "低内存", m.memory, m.toggle[0]).
+    Choice(m.choiceIDs[1], "快速启动", m.startup, m.toggle[1]).
+    Choice(m.choiceIDs[2], "小体积", m.binaries, m.toggle[2]).
+    Back(m.previousID, "返回", m.back).
+    Skip(m.skipID, "跳过", m.skip).
+    Continue(m.nextID, "继续", m.next)
+question.View(c, "问卷").FillWidth()`},
 	},
 }
 
@@ -100,65 +98,103 @@ var (
 	questionnaireNext     = tree.ID(questionnaireUI, "next")
 )
 
+// questionnaireDemo is one example's page control and its stable callbacks. It
+// is kept beside the State rather than rebuilt in each paint, so the handlers
+// are stable and a warm re-declaration allocates nothing.
+type questionnaireDemo struct {
+	view   questionnaireview.Questionnaire
+	choose [3]func()
+	toggle [3]func()
+	back   func()
+	skip   func()
+	next   func()
+}
+
+// questionnaireDemos is keyed by State because the constrained demo model has
+// no field for this control; a State is painted on one thread at a time.
+var questionnaireDemos = map[*State]*questionnaireDemo{}
+
 func (state *State) initializeQuestionnaire() {
 	if state.exampleID == "single-choice" {
 		state.values[0] = 0
 	}
+	demo := &questionnaireDemo{}
+	for index := range demo.choose {
+		value := index
+		demo.choose[index] = func() { state.values[0] = int32(value) }
+		demo.toggle[index] = func() { state.flags ^= uint64(1) << value }
+	}
+	demo.back = func() { state.values[1]-- }
+	demo.skip = func() { state.values[1]++ }
+	demo.next = func() { state.values[1]++ }
+	questionnaireDemos[state] = demo
+}
+
+func questionnaireDemoFor(state *State) *questionnaireDemo {
+	if demo := questionnaireDemos[state]; demo != nil {
+		return demo
+	}
+	demo := &questionnaireDemo{}
+	for index := range demo.choose {
+		value := index
+		demo.choose[index] = func() { state.values[0] = int32(value) }
+		demo.toggle[index] = func() { state.flags ^= uint64(1) << value }
+	}
+	demo.back = func() { state.values[1]-- }
+	demo.skip = func() { state.values[1]++ }
+	demo.next = func() { state.values[1]++ }
+	questionnaireDemos[state] = demo
+	return demo
 }
 
 func (state *State) paintQuestionnaire(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	multiple := state.exampleID == "multiple-choice"
-	data := components.QuestionnaireData{
-		Progress: "Question 2 of 5", Title: "What should Viva optimize first?",
-		Description: "Answers stay in application state.", ChoiceType: components.QuestionnaireRadio,
-	}
+	demo := questionnaireDemoFor(state)
+	height := max(size.Height-48-36, 0)
+	title := "What should Viva optimize first?"
+	description := "Answers stay in application state."
 	if multiple {
-		data.Title = "Which performance goals matter?"
-		data.ChoiceType = components.QuestionnaireCheckbox
+		title = "Which performance goals matter?"
 	}
-	var card ui.Box
-	state.drawPage(canvas, theme, size, 560, "Questionnaire", func(c ui.C) {
-		// The question fills what the page leaves: its own choices and actions
-		// decide what fits (a narrow card drops its last choice).
-		card = ui.Slot(c).Height(max(size.Height-48-36, 0))
-	})
-	bounds := card.Rect()
-	if bounds.Height < 280 {
-		data.Description = "" // a short card drops its description to keep the actions
+	if height < 280 {
+		description = "" // a short card drops its description to keep the actions
 	}
-	questionnaire := components.BeginQuestionnaire(canvas, theme, bounds, data)
 	labels := [...]string{"Low memory", "Fast startup", "Small binaries"}
-	for index, label := range labels {
-		checked := state.values[0] == int32(index)
-		if multiple {
-			checked = state.flags&(uint64(1)<<index) != 0
-		}
-		questionnaire.AddChoice(components.QuestionnaireChoice{
-			ID: questionnaireChoice.At(index), Label: label, Shortcut: questionnaireChoiceShortcut(index), Checked: checked,
-		})
-		if bounds.Width < 360 && index == 1 {
-			break
-		}
+	// A narrow card keeps its two first answers so the action row still fits;
+	// the component drops what it cannot place, but the demo chooses the pair.
+	count := len(labels)
+	if min(size.Width-2*theme.Metrics.PadSurface, 560) < 360 {
+		count = 2
 	}
-	questionnaire.PaintActions(components.QuestionnaireActions{
-		PreviousID: questionnairePrevious, PreviousLabel: "Back",
-		SkipID: questionnaireSkip, SkipLabel: "Skip",
-		NextID: questionnaireNext, NextLabel: "Continue",
-	})
-
-	if index, ok := canvas.ClickedIn(questionnaireChoice); ok {
+	state.drawPage(canvas, theme, size, 560, "Questionnaire", func(c ui.C) {
+		question := &demo.view
+		question.Reset().
+			Progress("Question 2 of 5").
+			Title(title).
+			Description(description)
 		if multiple {
-			state.flags ^= uint64(1) << index
+			question.Multiple()
 		} else {
-			state.values[0] = int32(index)
+			question.Single()
 		}
-	}
-	switch {
-	case canvas.Clicked(questionnairePrevious):
-		state.values[1]--
-	case canvas.Clicked(questionnaireSkip), canvas.Clicked(questionnaireNext):
-		state.values[1]++
-	}
+		for index := 0; index < count; index++ {
+			label := labels[index]
+			checked := state.values[0] == int32(index)
+			if multiple {
+				checked = state.flags&(uint64(1)<<index) != 0
+			}
+			onSelect := demo.choose[index]
+			if multiple {
+				onSelect = demo.toggle[index]
+			}
+			question.Choice(questionnaireChoice.At(index), label, checked, onSelect).
+				Detail("", questionnaireChoiceShortcut(index))
+		}
+		question.Back(questionnairePrevious, "Back", demo.back).
+			Skip(questionnaireSkip, "Skip", demo.skip).
+			Continue(questionnaireNext, "Continue", demo.next)
+		question.View(c, "Questionnaire").FillWidth().Height(height)
+	})
 }
 
 func questionnaireChoiceShortcut(index int) string {

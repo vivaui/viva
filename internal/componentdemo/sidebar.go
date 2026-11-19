@@ -1,9 +1,9 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/sidebarview"
 )
 
 var sidebarComponent = Component{
@@ -21,86 +21,26 @@ sidebar.AddMenuItem(components.SidebarMenuItem{
     ID: items.At(1), Label: "Components", Icon: "C", Active: selected == 1,
 })
 if index, ok := canvas.ClickedIn(items); ok { selected = int(index) }`,
-			PageSnippet: `type navItem struct {
-    Icon, Label, Trailing string
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview", Trailing: "12"},
-    {Icon: "C", Label: "Components"},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Row(c).Gap(20).Children(func() {
-    ui.Column(c).Width(240).FillHeight().Gap(8).Children(func() {
-        ui.Text(c, "Viva Studio").Bold()
-        ui.Text(c, "Workspace").Muted()
-        ui.List(c, &m.nav, len(navItems), func(row ui.ListRow) {
-            item := navItems[row.Index]
-            row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
-                ui.Text(row.C, item.Icon)
-                ui.Text(row.C, item.Label).Grow(1)
-                ui.Text(row.C, item.Trailing).Muted()
-            })
-        }).Grow(1)
-        ui.Column(c).Gap(2).PadLeft(24).Children(func() {
-            if ui.Button(c, "Buttons").Ghost().Small().Self(ui.Start).Clicked() {
-                m.section = "buttons"
-            }
-            if ui.Button(c, "Inputs").Ghost().Small().Self(ui.Start).Clicked() {
-                m.section = "inputs"
-            }
-        })
-        ui.Divider(c)
-        if ui.Button(c, "Settings").Ghost().Small().Self(ui.Start).Clicked() {
-            m.section = "settings"
-        }
-        if ui.Button(c, "Skyler").Ghost().Self(ui.Start).Clicked() {
-            m.account = true
-        }
-    })
-    ui.Column(c).Grow(1).Basis(0).Gap(16).Children(func() {
-        ui.Text(c, m.selection).Bold()
-    })
-})`,
-			PageSnippetZh: `type navItem struct {
-    Icon, Label, Trailing string
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview", Trailing: "12"},
-    {Icon: "C", Label: "Components"},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Row(c).Gap(20).Children(func() {
-    ui.Column(c).Width(240).FillHeight().Gap(8).Children(func() {
-        ui.Text(c, "Viva Studio").Bold()
-        ui.Text(c, "Workspace").Muted()
-        ui.List(c, &m.nav, len(navItems), func(row ui.ListRow) {
-            item := navItems[row.Index]
-            row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
-                ui.Text(row.C, item.Icon)
-                ui.Text(row.C, item.Label).Grow(1)
-                ui.Text(row.C, item.Trailing).Muted()
-            })
-        }).Grow(1)
-        ui.Column(c).Gap(2).PadLeft(24).Children(func() {
-            if ui.Button(c, "Buttons").Ghost().Small().Self(ui.Start).Clicked() {
-                m.section = "buttons"
-            }
-            if ui.Button(c, "Inputs").Ghost().Small().Self(ui.Start).Clicked() {
-                m.section = "inputs"
-            }
-        })
-        ui.Divider(c)
-        if ui.Button(c, "Settings").Ghost().Small().Self(ui.Start).Clicked() {
-            m.section = "settings"
-        }
-        if ui.Button(c, "Skyler").Ghost().Self(ui.Start).Clicked() {
-            m.account = true
-        }
-    })
-    ui.Column(c).Grow(1).Basis(0).Gap(16).Children(func() {
-        ui.Text(c, m.selection).Bold()
-    })
-})`},
+			PageSnippet: `m.nav.Reset().Title("Viva Studio").Fixed().
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").Badge("12").Active(m.section == "overview").
+    Item(m.componentsID, "Components").Icon("C").Active(m.section == "components").
+        Sub(m.buttonsID, "Buttons").SubActive(m.section == "buttons").
+        Sub(m.inputsID, "Inputs").SubActive(m.section == "inputs").
+    Item(m.benchmarksID, "Benchmarks").Icon("B").Active(m.section == "benchmarks").
+    Account(m.accountID, "Skyler").Icon("S")
+m.nav.OnSelect = m.selectSection
+sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
+			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").Fixed().
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").Badge("12").Active(m.section == "overview").
+    Item(m.componentsID, "Components").Icon("C").Active(m.section == "components").
+        Sub(m.buttonsID, "Buttons").SubActive(m.section == "buttons").
+        Sub(m.inputsID, "Inputs").SubActive(m.section == "inputs").
+    Item(m.benchmarksID, "Benchmarks").Icon("B").Active(m.section == "benchmarks").
+    Account(m.accountID, "Skyler").Icon("S")
+m.nav.OnSelect = m.selectSection
+sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
 		{ID: "floating", Title: "浮动变体", Description: "使用官方 Floating 表面与描边菜单项。", Snippet: `rail := ui.Slot(c).WidthPercent(42).MaxWidth(260).FillHeight()
 items := tree.Sub(page, tree.Name("item"))
 sidebar := components.BeginSidebarWithOptions(canvas, theme, rail.Rect(), "Viva Studio",
@@ -111,65 +51,21 @@ sidebar.AddMenuItem(components.SidebarMenuItem{
     ID: items.At(1), Label: "Components", Icon: "C",
     Variant: components.SidebarMenuOutline,
 })`,
-			PageSnippet: `type navItem struct {
-    Icon, Label string
-    Outline     bool
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview"},
-    {Icon: "C", Label: "Components", Outline: true},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Column(c).Width(240).FillHeight().Pad(c.Theme().Metrics.PadSurface).
-    Background(c.Theme().Card).Border(1, c.Theme().Border).
-    Radius(c.Theme().Metrics.RadiusSurface).Gap(8).Children(func() {
-        ui.Text(c, "Viva Studio").Bold()
-        ui.Text(c, "Workspace").Muted()
-        ui.List(c, &m.nav, len(navItems), func(row ui.ListRow) {
-            item := navItems[row.Index]
-            if item.Outline {
-                ui.Button(row.C, item.Icon+"  "+item.Label).Outline().Small().Self(ui.Start)
-                return
-            }
-            row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
-                ui.Text(row.C, item.Icon)
-                ui.Text(row.C, item.Label).Grow(1)
-            })
-        }).Grow(1)
-        if ui.Button(c, "Settings").Ghost().Small().Self(ui.Start).Clicked() {
-            m.section = "settings"
-        }
-    })`,
-			PageSnippetZh: `type navItem struct {
-    Icon, Label string
-    Outline     bool
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview"},
-    {Icon: "C", Label: "Components", Outline: true},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Column(c).Width(240).FillHeight().Pad(c.Theme().Metrics.PadSurface).
-    Background(c.Theme().Card).Border(1, c.Theme().Border).
-    Radius(c.Theme().Metrics.RadiusSurface).Gap(8).Children(func() {
-        ui.Text(c, "Viva Studio").Bold()
-        ui.Text(c, "Workspace").Muted()
-        ui.List(c, &m.nav, len(navItems), func(row ui.ListRow) {
-            item := navItems[row.Index]
-            if item.Outline {
-                ui.Button(row.C, item.Icon+"  "+item.Label).Outline().Small().Self(ui.Start)
-                return
-            }
-            row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
-                ui.Text(row.C, item.Icon)
-                ui.Text(row.C, item.Label).Grow(1)
-            })
-        }).Grow(1)
-        if ui.Button(c, "Settings").Ghost().Small().Self(ui.Start).Clicked() {
-            m.section = "settings"
-        }
-    })`},
-		{ID: "collapsed", Title: "图标折叠", Description: "切换完整导航和桌面图标栏。", Snippet: `rail := ui.Slot(c).FillHeight()
+			PageSnippet: `m.nav.Reset().Title("Viva Studio").Floating().Fixed().
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").
+    Item(m.componentsID, "Components").Icon("C").Outline().
+    Item(m.benchmarksID, "Benchmarks").Icon("B").
+    Account(m.accountID, "Skyler").Icon("S")
+sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
+			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").Floating().Fixed().
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").
+    Item(m.componentsID, "Components").Icon("C").Outline().
+    Item(m.benchmarksID, "Benchmarks").Icon("B").
+    Account(m.accountID, "Skyler").Icon("S")
+sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
+		{ID: "collapsed", Title: "图标折叠", Description: "切换完整导航和桌面图标栏；折叠状态由调用方持有。", Snippet: `rail := ui.Slot(c).FillHeight()
 if collapsed {
     rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2)
 } else {
@@ -181,66 +77,24 @@ if ui.Button(c, "Toggle sidebar").Outline().Hit(collapseID, "Toggle sidebar").Cl
     collapsed = !collapsed
 }
 sidebar.AddMenuItem(components.SidebarMenuItem{ID: tree.ID(page, "overview"), Label: "Overview", Icon: "O"})`,
-			PageSnippet: `type navItem struct {
-    Icon, Label string
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview"},
-    {Icon: "C", Label: "Components"},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Column(c).FillHeight().Gap(6).Children(func() {
-    if m.collapsed {
-        for _, item := range navItems {
-            if ui.Button(c, item.Icon).Ghost().IconOnly().Clicked() {
-                m.selection = item.Label
-            }
-        }
-        if ui.Button(c, "»").Ghost().IconOnly().Clicked() {
-            m.collapsed = false
-        }
-        return
-    }
-    ui.Text(c, "Viva Studio").Bold()
-    for _, item := range navItems {
-        if ui.Button(c, item.Icon+"  "+item.Label).Ghost().Self(ui.Start).Clicked() {
-            m.selection = item.Label
-        }
-    }
-    if ui.Button(c, "Collapse sidebar").Ghost().Self(ui.Start).Clicked() {
-        m.collapsed = true
-    }
-})`,
-			PageSnippetZh: `type navItem struct {
-    Icon, Label string
-}
-navItems := []navItem{
-    {Icon: "O", Label: "Overview"},
-    {Icon: "C", Label: "Components"},
-    {Icon: "B", Label: "Benchmarks"},
-}
-ui.Column(c).FillHeight().Gap(6).Children(func() {
-    if m.collapsed {
-        for _, item := range navItems {
-            if ui.Button(c, item.Icon).Ghost().IconOnly().Clicked() {
-                m.selection = item.Label
-            }
-        }
-        if ui.Button(c, "»").Ghost().IconOnly().Clicked() {
-            m.collapsed = false
-        }
-        return
-    }
-    ui.Text(c, "Viva Studio").Bold()
-    for _, item := range navItems {
-        if ui.Button(c, item.Icon+"  "+item.Label).Ghost().Self(ui.Start).Clicked() {
-            m.selection = item.Label
-        }
-    }
-    if ui.Button(c, "Collapse sidebar").Ghost().Self(ui.Start).Clicked() {
-        m.collapsed = true
-    }
-})`},
+			PageSnippet: `m.nav.Reset().Title("Viva Studio").IconCollapse().Collapsed(m.collapsed).
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").Active(m.section == "overview").
+    Item(m.componentsID, "Components").Icon("C").Active(m.section == "components").
+    Item(m.benchmarksID, "Benchmarks").Icon("B").
+    Account(m.accountID, "Skyler").Icon("S")
+m.nav.OnSelect = m.selectSection
+sidebarview.View(c, "Application navigation", &m.nav).
+    Width(c.Theme().Metrics.ControlHeight + c.Theme().Metrics.GapItem*2).FillHeight()`,
+			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").IconCollapse().Collapsed(m.collapsed).
+    Group("Workspace").
+    Item(m.overviewID, "Overview").Icon("O").Active(m.section == "overview").
+    Item(m.componentsID, "Components").Icon("C").Active(m.section == "components").
+    Item(m.benchmarksID, "Benchmarks").Icon("B").
+    Account(m.accountID, "Skyler").Icon("S")
+m.nav.OnSelect = m.selectSection
+sidebarview.View(c, "Application navigation", &m.nav).
+    Width(c.Theme().Metrics.ControlHeight + c.Theme().Metrics.GapItem*2).FillHeight()`},
 	},
 }
 
@@ -249,37 +103,53 @@ var (
 	// sidebarItem's item i is the i-th menu item.
 	sidebarItem     = tree.Sub(sidebarUI, tree.Name("item"))
 	sidebarSub      = tree.Sub(sidebarUI, tree.Name("sub"))
-	sidebarSettings = tree.ID(sidebarUI, "settings")
-	sidebarMore     = tree.ID(sidebarUI, "more")
 	sidebarAccount  = tree.ID(sidebarUI, "account")
 	sidebarCollapse = tree.ID(sidebarUI, "collapse")
 )
 
+// sidebarDemo is the demo's reusable sidebar declaration. State cannot hold it
+// without widening the preview model, so the demo keeps one configured view
+// and rebuilds its declarations in every paint; handlers are made once.
+var sidebarDemo = sidebarview.New()
+
 func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	options := components.SidebarOptions{Collapsible: components.SidebarFixed}
-	if state.exampleID == "floating" {
-		options.Variant = components.SidebarFloating
-	}
-	if state.exampleID == "collapsed" {
-		options.Collapsible = components.SidebarIcon
-		options.Collapsed = state.flags&1 != 0
-	}
+	collapsed := state.exampleID == "collapsed" && state.flags&1 != 0
 	// A collapsed icon bar is one control wide plus its gaps; otherwise the
 	// sidebar takes 42% of the stage, at most 260.
 	var rail ui.Box
 	state.drawStage(canvas, theme, size, func(c ui.C) {
 		ui.Row(c).Fill().Pad(theme.Metrics.PadSurface).Gap(20).Children(func() {
-			rail = ui.Slot(c).FillHeight()
-			if options.Collapsed {
-				rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2)
+			bar := sidebarDemo.Reset().Title("Viva Studio").Standard().Fixed().Collapsed(collapsed)
+			switch state.exampleID {
+			case "floating":
+				bar.Floating()
+			case "collapsed":
+				bar.IconCollapse()
+			}
+			bar.Group("Workspace").
+				Item(sidebarItem.At(0), "Overview").Icon("O").Badge("12").Active(state.values[0] == 0)
+			if state.exampleID == "floating" {
+				bar.Item(sidebarItem.At(1), "Components").Icon("C").Active(state.values[0] == 1).Outline()
 			} else {
-				rail.WidthPercent(42).MaxWidth(260)
+				bar.Item(sidebarItem.At(1), "Components").Icon("C").Active(state.values[0] == 1)
+			}
+			if state.exampleID == "default" {
+				bar.Sub(sidebarSub.At(0), "Buttons").SubActive(state.values[1] == 0).
+					Sub(sidebarSub.At(1), "Inputs").SubActive(state.values[1] == 1)
+			}
+			bar.Item(sidebarItem.At(2), "Benchmarks").Icon("B").Active(state.values[0] == 2).
+				Account(sidebarAccount, "Skyler").Icon("S")
+			rail = bar.View(c, "Application navigation")
+			if collapsed {
+				rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2).FillHeight()
+			} else {
+				rail.WidthPercent(42).MaxWidth(260).FillHeight()
 			}
 			ui.Column(c).Grow(1).Basis(0).Gap(16).PadTop(14).Children(func() {
 				ui.Text(c, sidebarSelectionLabel(state.values[0])).FontSize(theme.Metrics.FontSizeM + 4).Weight(gfx.WeightSemibold)
 				if state.exampleID == "collapsed" {
 					label := "Collapse sidebar"
-					if options.Collapsed {
+					if collapsed {
 						label = "Expand sidebar"
 					}
 					if ui.Button(c, label).Outline().Self(ui.Start).Hit(sidebarCollapse, label).Clicked() {
@@ -290,34 +160,10 @@ func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		})
 	})
 
-	sidebar := components.BeginSidebarWithOptions(canvas, theme, rail.Rect(), "Viva Studio", options)
-	sidebar.AddFooterMenuItem(components.SidebarMenuItem{ID: sidebarAccount, Label: "Skyler", Icon: "S"})
-	sidebar.AddGroup("Workspace")
-	items := [...]components.SidebarMenuItem{
-		{ID: sidebarItem.At(0), Label: "Overview", Icon: "O", Trailing: "12"},
-		{ID: sidebarItem.At(1), Label: "Components", Icon: "C"},
-		{ID: sidebarItem.At(2), Label: "Benchmarks", Icon: "B", Action: components.SidebarMenuAction{ID: sidebarMore, Icon: moreIcon, Label: "More", ShowOnHover: true}},
-	}
-	for index, item := range items {
-		item.Active = state.values[0] == int32(index)
-		if state.exampleID == "floating" && index == 1 {
-			item.Variant = components.SidebarMenuOutline
-		}
-		sidebar.AddMenuItem(item)
-		if index == 1 {
-			sidebar.AddSubMenu([]components.SidebarSubItem{
-				{ID: sidebarSub.At(0), Label: "Buttons", Active: state.values[1] == 0},
-				{ID: sidebarSub.At(1), Label: "Inputs", Active: state.values[1] == 1},
-			})
-		}
-	}
-	sidebar.AddSeparator()
-	sidebar.AddMenuItem(components.SidebarMenuItem{ID: sidebarSettings, Label: "Settings", Icon: "S", Size: components.SidebarMenuSizeSmall})
-
-	if index, ok := canvas.ClickedIn(sidebarItem); ok {
+	if index, ok := sidebarDemo.Selected().In(sidebarItem); ok {
 		state.values[0] = int32(index)
 	}
-	if index, ok := canvas.ClickedIn(sidebarSub); ok {
+	if index, ok := sidebarDemo.Selected().In(sidebarSub); ok {
 		state.values[1] = int32(index)
 	}
 }
