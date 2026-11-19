@@ -53,5 +53,4 @@
   <Button variant={prominent ? 'default' : 'outline'} size="sm" class="copy-icon-button" onclick={copy} disabled={pending || !text} aria-label={copyLabel} title={copyLabel}>
     <Icon name={result && !failed ? 'check' : 'copy'} size={14} />
   </Button>
-  <span class="copy-result" class:copy-failed={failed} role="status" aria-live="polite" aria-atomic="true">{result}</span>
 </div>
