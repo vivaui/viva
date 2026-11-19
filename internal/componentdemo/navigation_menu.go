@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/navigationmenuview"
+	"github.com/vivaui/viva/ui/navigationmenu"
 )
 
 var navigationMenuComponent = Component{
@@ -45,7 +45,7 @@ nav.ContentLink(guide, "Getting started").
 nav.ContentLink(api, "Component API").
     Description("Read the source-owned recipes.").
     Value("/components").Active(m.page == "components")
-navigationmenuview.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
 			PageSnippetZh: `// m.navigation.Selected 保存上一次绘制中选中的链接。
 products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
 nav := m.navigation
@@ -67,7 +67,7 @@ nav.ContentLink(guide, "Getting started").
 nav.ContentLink(api, "Component API").
     Description("Read the source-owned recipes.").
     Value("/components").Active(m.page == "components")
-navigationmenuview.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
 		{ID: "direct-content", Title: "直接内容", Description: "以直接内容模式展示无触发器指示的菜单面板。", Snippet: `trigger := tree.ID(page, "products")
 options := components.NavigationMenuOptions{
     Open: true, DirectContent: true, Content: panel, Layer: 2,
@@ -104,7 +104,7 @@ nav.ContentLink(guide, "Getting started").
 nav.ContentLink(api, "Component API").
     Description("Read the source-owned recipes.").
     Value("/components").Active(m.page == "components")
-navigationmenuview.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
 			PageSnippetZh: `products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
 nav := m.navigation
 switch nav.Selected {
@@ -127,7 +127,7 @@ nav.ContentLink(guide, "Getting started").
 nav.ContentLink(api, "Component API").
     Description("Read the source-owned recipes.").
     Value("/components").Active(m.page == "components")
-navigationmenuview.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
 	},
 }
 
@@ -142,7 +142,7 @@ var (
 
 	// navigationMenuDemo is the preview's page control. The preview has one
 	// navigation menu.
-	navigationMenuDemo      navigationmenuview.NavigationMenu
+	navigationMenuDemo      navigationmenu.NavigationMenu
 	navigationMenuDemoState *State
 )
 
@@ -182,7 +182,7 @@ func (state *State) paintNavigationMenu(canvas *gfx.Canvas, theme gfx.Theme, siz
 		caption(c, status)
 		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
 			ui.Text(c, "Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
-			navigationmenuview.View(c, "Navigation menu", nav).Grow(1).Height(36)
+			navigationmenu.View(c, "Navigation menu", nav).Grow(1).Height(36)
 		})
 	})
 

@@ -6,7 +6,7 @@ import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/calendarview"
+	"github.com/vivaui/viva/ui/calendar"
 )
 
 var calendarComponent = Component{
@@ -24,7 +24,7 @@ if canvas.Clicked(previous) {
     value = -1
 } else if canvas.Clicked(next) {
     value = 1
-}`, PageSnippet: `days := []calendarview.Day{
+}`, PageSnippet: `days := []calendar.Day{
     {Label: "29", Outside: true},
     {Label: "30", Outside: true},
     {Label: "1"}, {Label: "2"}, {Label: "3"}, {Label: "4"}, {Label: "5"},
@@ -37,19 +37,19 @@ if canvas.Clicked(previous) {
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
 previous, next := m.previous, m.next
-calendar := &calendarview.Calendar{Options: calendarview.Options{
+cal := &calendar.Calendar{Options: calendar.Options{
     MonthTitle: "October 2026",
     Weekdays:   [7]string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"},
     Days:       days,
     PreviousID: previous, NextID: next,
     PreviousLabel: "Previous month", NextLabel: "Next month",
 }}
-calendarview.View(c, "Calendar", calendar).FillWidth().MaxWidth(360)
-if calendar.Clicked(previous) {
+calendar.View(c, "Calendar", cal).FillWidth().MaxWidth(360)
+if cal.Clicked(previous) {
     m.month = -1
-} else if calendar.Clicked(next) {
+} else if cal.Clicked(next) {
     m.month = 1
-}`, PageSnippetZh: `days := []calendarview.Day{
+}`, PageSnippetZh: `days := []calendar.Day{
     {Label: "29", Outside: true},
     {Label: "30", Outside: true},
     {Label: "1"}, {Label: "2"}, {Label: "3"}, {Label: "4"}, {Label: "5"},
@@ -62,17 +62,17 @@ if calendar.Clicked(previous) {
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
 previous, next := m.previous, m.next
-calendar := &calendarview.Calendar{Options: calendarview.Options{
+cal := &calendar.Calendar{Options: calendar.Options{
     MonthTitle: "2026 年 10 月",
     Weekdays:   [7]string{"一", "二", "三", "四", "五", "六", "日"},
     Days:       days,
     PreviousID: previous, NextID: next,
     PreviousLabel: "上个月", NextLabel: "下个月",
 }}
-calendarview.View(c, "日历", calendar).FillWidth().MaxWidth(360)
-if calendar.Clicked(previous) {
+calendar.View(c, "日历", cal).FillWidth().MaxWidth(360)
+if cal.Clicked(previous) {
     m.month = -1
-} else if calendar.Clicked(next) {
+} else if cal.Clicked(next) {
     m.month = 1
 }`},
 		{ID: "range", Title: "日期范围", Description: "连续三天使用范围起点、中段和终点样式。", Snippet: `previous, next := tree.ID(page, "previous"), tree.ID(page, "next")
@@ -82,7 +82,7 @@ days[24].RangeEnd = true
 components.BeginCalendar(canvas, theme, bounds, components.CalendarOptions{
     MonthTitle: monthTitle, Weekdays: weekdays, Days: days,
     PreviousID: previous, NextID: next,
-}).Paint()`, PageSnippet: `days := []calendarview.Day{
+}).Paint()`, PageSnippet: `days := []calendar.Day{
     {Label: "29", Outside: true},
     {Label: "30", Outside: true},
     {Label: "1"}, {Label: "2"}, {Label: "3"}, {Label: "4"}, {Label: "5"},
@@ -95,14 +95,14 @@ components.BeginCalendar(canvas, theme, bounds, components.CalendarOptions{
     {Label: "29"}, {Label: "30"}, {Label: "31"},
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
-calendar := &calendarview.Calendar{Options: calendarview.Options{
+cal := &calendar.Calendar{Options: calendar.Options{
     MonthTitle: "October 2026",
     Weekdays:   [7]string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"},
     Days:       days,
     PreviousID: m.previous, NextID: m.next,
     PreviousLabel: "Previous month", NextLabel: "Next month",
 }}
-calendarview.View(c, "Calendar", calendar).FillWidth().MaxWidth(360)`, PageSnippetZh: `days := []calendarview.Day{
+calendar.View(c, "Calendar", cal).FillWidth().MaxWidth(360)`, PageSnippetZh: `days := []calendar.Day{
     {Label: "29", Outside: true},
     {Label: "30", Outside: true},
     {Label: "1"}, {Label: "2"}, {Label: "3"}, {Label: "4"}, {Label: "5"},
@@ -115,14 +115,14 @@ calendarview.View(c, "Calendar", calendar).FillWidth().MaxWidth(360)`, PageSnipp
     {Label: "29"}, {Label: "30"}, {Label: "31"},
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
-calendar := &calendarview.Calendar{Options: calendarview.Options{
+cal := &calendar.Calendar{Options: calendar.Options{
     MonthTitle: "2026 年 10 月",
     Weekdays:   [7]string{"一", "二", "三", "四", "五", "六", "日"},
     Days:       days,
     PreviousID: m.previous, NextID: m.next,
     PreviousLabel: "上个月", NextLabel: "下个月",
 }}
-calendarview.View(c, "日历", calendar).FillWidth().MaxWidth(360)`},
+calendar.View(c, "日历", cal).FillWidth().MaxWidth(360)`},
 	},
 }
 
@@ -193,7 +193,7 @@ func newCalendarRangeDays(month [35]components.CalendarDay) [35]components.Calen
 // are made once and point at this value, so it is kept beside the State rather
 // than rebuilt in each paint.
 type calendarDemo struct {
-	view calendarview.Calendar
+	view calendar.Calendar
 }
 
 // calendarDemos is keyed by State because the constrained demo model has no
@@ -235,7 +235,7 @@ func (state *State) paintCalendar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 		weekdays[index] = state.Text(label, calendarWeekdaysEnglish[index])
 	}
 	demo := calendarDemoFor(state)
-	demo.view.Options = calendarview.Options{
+	demo.view.Options = calendar.Options{
 		MonthTitle: monthTitle, Weekdays: weekdays, Days: days,
 		PreviousID: calendarPrevious, NextID: calendarNext,
 		PreviousLabel: state.Text("上个月", "Previous month"), NextLabel: state.Text("下个月", "Next month"),
@@ -243,7 +243,7 @@ func (state *State) paintCalendar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	// The calendar is the whole demo: it takes the stage, at most 360 wide.
 	state.drawStage(canvas, theme, size, func(c ui.C) {
 		ui.Column(c).Fill().Pad(18).Items(ui.Center).Children(func() {
-			calendarview.View(c, state.Text("日历", "Calendar"), &demo.view).
+			calendar.View(c, state.Text("日历", "Calendar"), &demo.view).
 				FillWidth().MaxWidth(360).FillHeight()
 		})
 	})

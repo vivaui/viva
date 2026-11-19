@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/carouselview"
+	"github.com/vivaui/viva/ui/carousel"
 )
 
 var carouselComponent = Component{
@@ -22,14 +22,14 @@ if canvas.Clicked(previous) && state.carousel > 0 {
 } else if canvas.Clicked(next) && state.carousel < 2 {
     state.carousel++
 }`, PageSnippet: `slides := []string{"Retained scene", "Localized update", "Idle means idle"}
-carousel := &carouselview.Carousel{
+car := &carousel.Carousel{
     ItemCount: 3, Index: m.slide,
     PreviousID: m.previous, PreviousLabel: "Previous slide",
     NextID: m.next, NextLabel: "Next slide",
 }
-carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
-    for index := 0; index < carousel.ItemCount; index++ {
-        item := carousel.ItemBounds(geometry, index)
+car.Draw = func(d *ui.DrawContext, geometry carousel.Geometry) {
+    for index := 0; index < car.ItemCount; index++ {
+        item := car.ItemBounds(geometry, index)
         fill := d.Theme.Muted
         if index == geometry.Index {
             fill = d.Theme.Accent
@@ -41,20 +41,20 @@ carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
         })
     }
 }
-carouselview.View(c, "Product tour", carousel).FillWidth().Height(200).MarginX(32)
-if carousel.Clicked(m.previous) && m.slide > 0 {
+carousel.View(c, "Product tour", car).FillWidth().Height(200).MarginX(32)
+if car.Clicked(m.previous) && m.slide > 0 {
     m.slide--
-} else if carousel.Clicked(m.next) && m.slide < 2 {
+} else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`, PageSnippetZh: `slides := []string{"保留场景", "本地化更新", "空闲即空闲"}
-carousel := &carouselview.Carousel{
+car := &carousel.Carousel{
     ItemCount: 3, Index: m.slide,
     PreviousID: m.previous, PreviousLabel: "上一张",
     NextID: m.next, NextLabel: "下一张",
 }
-carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
-    for index := 0; index < carousel.ItemCount; index++ {
-        item := carousel.ItemBounds(geometry, index)
+car.Draw = func(d *ui.DrawContext, geometry carousel.Geometry) {
+    for index := 0; index < car.ItemCount; index++ {
+        item := car.ItemBounds(geometry, index)
         fill := d.Theme.Muted
         if index == geometry.Index {
             fill = d.Theme.Accent
@@ -66,10 +66,10 @@ carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
         })
     }
 }
-carouselview.View(c, "产品导览", carousel).FillWidth().Height(200).MarginX(32)
-if carousel.Clicked(m.previous) && m.slide > 0 {
+carousel.View(c, "产品导览", car).FillWidth().Height(200).MarginX(32)
+if car.Clicked(m.previous) && m.slide > 0 {
     m.slide--
-} else if carousel.Clicked(m.next) && m.slide < 2 {
+} else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`},
 		{ID: "vertical", Title: "垂直轮播", Description: "相同几何模型切换为纵向内容轴。", Snippet: `previous, next := tree.ID(page, "previous"), tree.ID(page, "next")
@@ -84,15 +84,15 @@ if canvas.Clicked(previous) && state.carousel > 0 {
 } else if canvas.Clicked(next) && state.carousel < 2 {
     state.carousel++
 }`, PageSnippet: `slides := []string{"Retained scene", "Localized update", "Idle means idle"}
-carousel := &carouselview.Carousel{
+car := &carousel.Carousel{
     ItemCount: 3, Index: m.slide,
-    Orientation: carouselview.Vertical,
+    Orientation: carousel.Vertical,
     PreviousID: m.previous, PreviousLabel: "Previous slide",
     NextID: m.next, NextLabel: "Next slide",
 }
-carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
-    for index := 0; index < carousel.ItemCount; index++ {
-        item := carousel.ItemBounds(geometry, index)
+car.Draw = func(d *ui.DrawContext, geometry carousel.Geometry) {
+    for index := 0; index < car.ItemCount; index++ {
+        item := car.ItemBounds(geometry, index)
         fill := d.Theme.Muted
         if index == geometry.Index {
             fill = d.Theme.Accent
@@ -104,21 +104,21 @@ carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
         })
     }
 }
-carouselview.View(c, "Product tour", carousel).FillWidth().Height(180).MarginY(44).MarginX(32)
-if carousel.Clicked(m.previous) && m.slide > 0 {
+carousel.View(c, "Product tour", car).FillWidth().Height(180).MarginY(44).MarginX(32)
+if car.Clicked(m.previous) && m.slide > 0 {
     m.slide--
-} else if carousel.Clicked(m.next) && m.slide < 2 {
+} else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`, PageSnippetZh: `slides := []string{"保留场景", "本地化更新", "空闲即空闲"}
-carousel := &carouselview.Carousel{
+car := &carousel.Carousel{
     ItemCount: 3, Index: m.slide,
-    Orientation: carouselview.Vertical,
+    Orientation: carousel.Vertical,
     PreviousID: m.previous, PreviousLabel: "上一张",
     NextID: m.next, NextLabel: "下一张",
 }
-carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
-    for index := 0; index < carousel.ItemCount; index++ {
-        item := carousel.ItemBounds(geometry, index)
+car.Draw = func(d *ui.DrawContext, geometry carousel.Geometry) {
+    for index := 0; index < car.ItemCount; index++ {
+        item := car.ItemBounds(geometry, index)
         fill := d.Theme.Muted
         if index == geometry.Index {
             fill = d.Theme.Accent
@@ -130,10 +130,10 @@ carousel.Draw = func(d *ui.DrawContext, geometry carouselview.Geometry) {
         })
     }
 }
-carouselview.View(c, "产品导览", carousel).FillWidth().Height(180).MarginY(44).MarginX(32)
-if carousel.Clicked(m.previous) && m.slide > 0 {
+carousel.View(c, "产品导览", car).FillWidth().Height(180).MarginY(44).MarginX(32)
+if car.Clicked(m.previous) && m.slide > 0 {
     m.slide--
-} else if carousel.Clicked(m.next) && m.slide < 2 {
+} else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`},
 	},
@@ -150,7 +150,7 @@ var (
 // than rebuilt in each paint.
 type carouselDemo struct {
 	state *State
-	view  carouselview.Carousel
+	view  carousel.Carousel
 }
 
 // carouselDemos is keyed by State because the constrained demo model has no
@@ -179,9 +179,9 @@ func (state *State) paintCarousel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	demo.view.ItemCount = 3
 	demo.view.Index = int(state.values[0])
 	demo.view.Offset, demo.view.Extent = 0, 0
-	demo.view.Orientation = carouselview.Horizontal
+	demo.view.Orientation = carousel.Horizontal
 	if vertical {
-		demo.view.Orientation = carouselview.Vertical
+		demo.view.Orientation = carousel.Vertical
 	}
 	demo.view.PreviousID, demo.view.NextID = carouselPrevious, carouselNext
 	demo.view.PreviousLabel = state.Text("上一张", "Previous slide")
@@ -189,7 +189,7 @@ func (state *State) paintCarousel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	// The previous and next buttons sit just outside the viewport, so the view is
 	// kept clear of the page edge and of the title by a margin.
 	state.drawPage(canvas, theme, size, 584, state.Text("轮播 · 产品导览", "Carousel · Product tour"), func(c ui.C) {
-		view := carouselview.View(c, state.Text("轮播", "Carousel"), &demo.view).FillWidth()
+		view := carousel.View(c, state.Text("轮播", "Carousel"), &demo.view).FillWidth()
 		if vertical {
 			view.Height(180).MarginY(44).MarginX(32)
 		} else {
@@ -206,13 +206,13 @@ func (state *State) paintCarousel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 // draw paints each caller-owned slide into the clipped viewport. The wrapper
 // hands it the complete geometry, so it maps an evenly divided content extent
 // with ItemBounds.
-func (d *carouselDemo) draw(ctx *ui.DrawContext, geometry carouselview.Geometry) {
+func (d *carouselDemo) draw(ctx *ui.DrawContext, geometry carousel.Geometry) {
 	labels := [3]string{
 		d.state.Text("保留场景", "Retained scene"),
 		d.state.Text("本地化更新", "Localized update"),
 		d.state.Text("空闲即空闲", "Idle means idle"),
 	}
-	vertical := d.view.Orientation == carouselview.Vertical
+	vertical := d.view.Orientation == carousel.Vertical
 	for index := range labels {
 		bounds := d.view.ItemBounds(geometry, index)
 		if !carouselSlideVisible(bounds, geometry.Viewport) {

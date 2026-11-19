@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/questionnaireview"
+	"github.com/vivaui/viva/ui/questionnaire"
 )
 
 var questionnaireComponent = Component{
@@ -27,7 +27,7 @@ q.PaintActions(components.QuestionnaireActions{
 })
 if index, ok := canvas.ClickedIn(choice); ok {
     selected = index
-}`, PageSnippet: `question := questionnaireview.New().
+}`, PageSnippet: `question := questionnaire.New().
     Progress("Question 2 of 5").
     Title("What should Viva optimize first?").
     Description("Answers stay in application state.").
@@ -38,7 +38,7 @@ if index, ok := canvas.ClickedIn(choice); ok {
     Back(m.previousID, "Back", m.back).
     Skip(m.skipID, "Skip", m.skip).
     Continue(m.nextID, "Continue", m.next)
-question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaireview.New().
+question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaire.New().
     Progress("第 2 题，共 5 题").
     Title("Viva 应优先优化什么？").
     Description("答案保留在应用状态中。").
@@ -63,7 +63,7 @@ for index, label := range []string{"Low memory", "Fast startup", "Small binaries
 }
 if index, ok := canvas.ClickedIn(choice); ok {
     checked[index] = !checked[index]
-}`, PageSnippet: `question := questionnaireview.New().
+}`, PageSnippet: `question := questionnaire.New().
     Progress("Question 2 of 5").
     Title("Which performance goals matter?").
     Description("Answers stay in application state.").
@@ -74,7 +74,7 @@ if index, ok := canvas.ClickedIn(choice); ok {
     Back(m.previousID, "Back", m.back).
     Skip(m.skipID, "Skip", m.skip).
     Continue(m.nextID, "Continue", m.next)
-question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaireview.New().
+question.View(c, "Questionnaire").FillWidth()`, PageSnippetZh: `question := questionnaire.New().
     Progress("第 2 题，共 5 题").
     Title("哪些性能目标重要？").
     Description("答案保留在应用状态中。").
@@ -102,7 +102,7 @@ var (
 // is kept beside the State rather than rebuilt in each paint, so the handlers
 // are stable and a warm re-declaration allocates nothing.
 type questionnaireDemo struct {
-	view   questionnaireview.Questionnaire
+	view   questionnaire.Questionnaire
 	choose [3]func()
 	toggle [3]func()
 	back   func()

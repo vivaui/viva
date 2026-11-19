@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/avatarview"
+	"github.com/vivaui/viva/ui/avatar"
 )
 
 var avatarComponent = Component{
@@ -13,22 +13,22 @@ var avatarComponent = Component{
 		{ID: "default", Title: "状态头像", Description: "头像在没有图片时使用首字母回退。", Snippet: `components.Avatar(canvas, theme, bounds, components.AvatarData{
     Name: "Skyler", Initials: "SK", Tint: theme.Primary,
     Status: components.AvatarStatusOnline,
-})`, PageSnippet: `// m.avatar* were made with avatarview.New() in the model.
+})`, PageSnippet: `// m.avatar* were made with avatar.New() in the model.
 look := c.Theme()
-avatar := m.avatar
-avatar.Reset().Initials("SK").Name("Skyler").Tint(look.Primary).Diameter(64).Online()
+person := m.avatar
+person.Reset().Initials("SK").Name("Skyler").Tint(look.Primary).Diameter(64).Online()
 ui.Row(c).Gap(20).Items(ui.Center).Children(func() {
-    avatar.View(c, "Skyler").Size(64, 64)
+    person.View(c, "Skyler").Size(64, 64)
     ui.Column(c).Gap(4).Children(func() {
         ui.Text(c, "Skyler").FontSize(look.Metrics.FontSizeM).Bold()
         ui.Text(c, "Online · Local development").FontSize(look.Metrics.FontSizeS).Muted()
     })
-})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatarview.New() 创建。
+})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatar.New() 创建。
 look := c.Theme()
-avatar := m.avatar
-avatar.Reset().Initials("SK").Name("Skyler").Tint(look.Primary).Diameter(64).Online()
+person := m.avatar
+person.Reset().Initials("SK").Name("Skyler").Tint(look.Primary).Diameter(64).Online()
 ui.Row(c).Gap(20).Items(ui.Center).Children(func() {
-    avatar.View(c, "Skyler").Size(64, 64)
+    person.View(c, "Skyler").Size(64, 64)
     ui.Column(c).Gap(4).Children(func() {
         ui.Text(c, "Skyler").FontSize(look.Metrics.FontSizeM).Bold()
         ui.Text(c, "在线 · 本地开发").FontSize(look.Metrics.FontSizeS).Muted()
@@ -45,7 +45,7 @@ components.Avatar(canvas, theme, large, components.AvatarData{
 })
 components.Avatar(canvas, theme, photo, components.AvatarData{
     Name: "Photo", Image: photoBitmap, Size: components.AvatarSizeLarge,
-})`, PageSnippet: `// m.avatar* were made with avatarview.New() in the model.
+})`, PageSnippet: `// m.avatar* were made with avatar.New() in the model.
 look := c.Theme()
 small := m.smallAvatar
 small.Reset().Initials("L").Name("Lin").Diameter(24).Online()
@@ -73,7 +73,7 @@ ui.Row(c).Gap(24).Items(ui.Start).Children(func() {
         photo.View(c, "Photo").Size(40, 40)
         ui.Text(c, "Image").FontSize(look.Metrics.FontSizeS).Muted()
     })
-})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatarview.New() 创建。
+})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatar.New() 创建。
 look := c.Theme()
 small := m.smallAvatar
 small.Reset().Initials("L").Name("Lin").Diameter(24).Online()
@@ -110,7 +110,7 @@ group.Add(components.AvatarData{
 group.Add(components.AvatarData{Name: "Bo", Initials: "BO", Tint: theme.Success})
 group.Add(components.AvatarData{Name: "Chen", Initials: "CH", Tint: theme.Danger})
 group.Add(components.AvatarData{Name: "Photo", Image: photoBitmap})
-group.AddCount("+8")`, PageSnippet: `// m.avatar* were made with avatarview.New() in the model.
+group.AddCount("+8")`, PageSnippet: `// m.avatar* were made with avatar.New() in the model.
 look := c.Theme()
 group := m.avatarGroup
 group.Reset().Diameter(40).Overlap(8)
@@ -123,7 +123,7 @@ group.AddCount("+8")
 ui.Column(c).Gap(8).Items(ui.Start).Children(func() {
     group.View(c, "Collaborators")
     ui.Text(c, "12 collaborators").FontSize(look.Metrics.FontSizeS).Muted()
-})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatarview.New() 创建。
+})`, PageSnippetZh: `// m.avatar* 在 model 中用 avatar.New() 创建。
 look := c.Theme()
 group := m.avatarGroup
 group.Reset().Diameter(40).Overlap(8)
@@ -157,8 +157,8 @@ var avatarPhoto = func() gfx.Bitmap {
 // State rather than rebuilt in each paint, so their handlers and draw functions
 // are stable and a warm paint allocates nothing.
 type avatarDemo struct {
-	single, small, standard, large, photo *avatarview.Avatar
-	group                                 *avatarview.Group
+	single, small, standard, large, photo *avatar.Avatar
+	group                                 *avatar.Group
 }
 
 // avatarDemos is keyed by State because the constrained demo model has no field
@@ -172,12 +172,12 @@ func avatarDemoFor(state *State) *avatarDemo {
 		return demo
 	}
 	demo := &avatarDemo{
-		single:   avatarview.New(),
-		small:    avatarview.New(),
-		standard: avatarview.New(),
-		large:    avatarview.New(),
-		photo:    avatarview.New(),
-		group:    avatarview.NewGroup(),
+		single:   avatar.New(),
+		small:    avatar.New(),
+		standard: avatar.New(),
+		large:    avatar.New(),
+		photo:    avatar.New(),
+		group:    avatar.NewGroup(),
 	}
 	avatarDemos[state] = demo
 	return demo
@@ -224,9 +224,9 @@ func (state *State) paintAvatar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 }
 
 // avatarSample declares one labelled avatar of the sizes example.
-func avatarSample(c ui.C, theme gfx.Theme, avatar *avatarview.Avatar, name string, side float32, label string) {
+func avatarSample(c ui.C, theme gfx.Theme, person *avatar.Avatar, name string, side float32, label string) {
 	ui.Column(c).Gap(8).Items(ui.Center).Children(func() {
-		avatar.View(c, name).Size(side, side)
+		person.View(c, name).Size(side, side)
 		ui.Text(c, label).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 }

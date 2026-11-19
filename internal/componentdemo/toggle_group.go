@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/togglegroupview"
+	"github.com/vivaui/viva/ui/togglegroup"
 )
 
 var toggleGroupComponent = Component{
@@ -78,7 +78,7 @@ var toggleGroupDemos = map[*State]*toggleGroupDemo{}
 
 type toggleGroupDemo struct {
 	state    *State
-	group    togglegroupview.Group
+	group    togglegroup.Group
 	selected int
 	active   [3]bool
 	multiple bool

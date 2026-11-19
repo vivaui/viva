@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/metriccardview"
+	"github.com/vivaui/viva/ui/metriccard"
 )
 
 var metricCardComponent = Component{
@@ -12,12 +12,12 @@ var metricCardComponent = Component{
 	Examples: []Example{
 		{ID: "default", Title: "单项指标", Description: "生产 MetricCard 展示当前值、正向趋势、周期说明和图标。", Snippet: `// bounds is the dashboard slot reserved for the card.
 components.MetricCard(canvas, theme, bounds, "Active sessions",
-    "12,840", "+18.2% from last week", true)`, PageSnippet: `metriccardview.View(c, "Active sessions", metriccardview.New().
+    "12,840", "+18.2% from last week", true)`, PageSnippet: `metriccard.View(c, "Active sessions", metriccard.New().
     Title("Active sessions").Value("12,840").
     Trend("+18.2% from last week").Up().
     Description("Compared with the previous 7 days").
     Icon(m.metricIcon)).
-    FillWidth().Height(150)`, PageSnippetZh: `metriccardview.View(c, "Active sessions", metriccardview.New().
+    FillWidth().Height(150)`, PageSnippetZh: `metriccard.View(c, "Active sessions", metriccard.New().
     Title("Active sessions").Value("12,840").
     Trend("+18.2% from last week").Up().
     Description("Compared with the previous 7 days").
@@ -27,17 +27,17 @@ components.MetricCard(canvas, theme, bounds, "Active sessions",
 // true paints the trend in Success; false paints it in Danger.
 components.MetricCard(canvas, theme, left, "Revenue", "$48.2K", "+12.4%", true)
 components.MetricCard(canvas, theme, right, "Refunds", "$1.3K", "+4.1%", false)`, PageSnippet: `ui.Row(c).FillWidth().Gap(16).Children(func() {
-    metriccardview.View(c, "Revenue", metriccardview.New().
+    metriccard.View(c, "Revenue", metriccard.New().
         Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
         Grow(1).Height(120)
-    metriccardview.View(c, "Refunds", metriccardview.New().
+    metriccard.View(c, "Refunds", metriccard.New().
         Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
         Grow(1).Height(120)
 })`, PageSnippetZh: `ui.Row(c).FillWidth().Gap(16).Children(func() {
-    metriccardview.View(c, "Revenue", metriccardview.New().
+    metriccard.View(c, "Revenue", metriccard.New().
         Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
         Grow(1).Height(120)
-    metriccardview.View(c, "Refunds", metriccardview.New().
+    metriccard.View(c, "Refunds", metriccard.New().
         Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
         Grow(1).Height(120)
 })`},
@@ -58,23 +58,23 @@ func (state *State) paintMetricCard(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		switch {
 		case wide:
 			ui.Row(c).FillWidth().Gap(16).Children(func() {
-				metriccardview.View(c, "Revenue", metriccardview.New().
+				metriccard.View(c, "Revenue", metriccard.New().
 					Title("Revenue").Value("$48.2K").Trend("+12.4%").Up()).
 					Grow(1).Height(120)
-				metriccardview.View(c, "Refunds", metriccardview.New().
+				metriccard.View(c, "Refunds", metriccard.New().
 					Title("Refunds").Value("$1.3K").Trend("+4.1%").Down()).
 					Grow(1).Height(120)
 			})
 		case state.exampleID == "trends":
-			metriccardview.View(c, "Active sessions", metriccardview.New().
+			metriccard.View(c, "Active sessions", metriccard.New().
 				Title("Active sessions").Value("12,840").
 				Trend("+18.2% from last week").Up()).
 				FillWidth().Height(120)
-			metriccardview.View(c, "Error rate", metriccardview.New().
+			metriccard.View(c, "Error rate", metriccard.New().
 				Title("Error rate").Value("0.42%").Trend("-0.08% improvement").Up()).
 				FillWidth().Height(120)
 		default:
-			metriccardview.View(c, "Active sessions", metriccardview.New().
+			metriccard.View(c, "Active sessions", metriccard.New().
 				Title("Active sessions").Value("12,840").
 				Trend("+18.2% from last week").Up().
 				Description("Compared with the previous 7 days").

@@ -43,14 +43,14 @@ There are two authoring paths, and they are not duplicates:
 may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
 copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
 
-Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chartview`,
-`ui/calendarview`, `ui/carouselview`, `ui/markdownview`, `ui/columnresizeview`,
-`ui/avatareditorview`, `ui/reordergridview`, `ui/avatarview`, `ui/attachmentview`,
-`ui/messageview`, `ui/messagescrollerview`, `ui/commandview`, `ui/menubarview`,
-`ui/navigationmenuview`, `ui/hovercardview`, `ui/imageview`, `ui/aspectratioview`,
-`ui/skeletonview`, `ui/inputgroupview`, `ui/inputotpview`, `ui/questionnaireview`,
-`ui/metriccardview`, `ui/markerview`, `ui/sidebarview`, `ui/buttongroupview`,
-`ui/togglegroupview`, `ui/multiselect`,
+Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
+`ui/calendar`, `ui/carousel`, `ui/markdown`, `ui/columnresize`,
+`ui/avatareditor`, `ui/reordergrid`, `ui/avatar`, `ui/attachment`,
+`ui/message`, `ui/messagescroller`, `ui/command`, `ui/menubar`,
+`ui/navigationmenu`, `ui/hovercard`, `ui/image`, `ui/aspectratio`,
+`ui/skeleton`, `ui/inputgroup`, `ui/inputotp`, `ui/questionnaire`,
+`ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
+`ui/togglegroup`, `ui/multiselect`,
 `ui/hierarchypicker`).
 They import only `base`, `components`, `gfx`, `ui` and `window`, own stable
 handlers, and are never imported by package `ui`; importing one is the explicit

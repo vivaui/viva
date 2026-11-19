@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/attachmentview"
+	"github.com/vivaui/viva/ui/attachment"
 )
 
 var attachmentComponent = Component{
@@ -19,7 +19,7 @@ card := components.BeginAttachment(canvas, theme, file, bounds,
 card.Paint()
 if canvas.Clicked(file) {
     index = (index + 1) % len(states)
-}`, PageSnippet: `// m.attachment* were made with attachmentview.New() in the model.
+}`, PageSnippet: `// m.attachment* were made with attachment.New() in the model.
 card := m.attachment
 states := [...]string{"2.4 MB · Complete", "Uploading · 64%", "Generating preview", "Upload failed · Click to retry"}
 card.Reset().ID(m.fileID).Title("product-demo.mov").Meta(states[m.fileState]).File()
@@ -32,7 +32,7 @@ case 3:
     card.Failed()
 }
 card.OnClick(m.nextState)
-card.View(c, "product-demo.mov").FillWidth()`, PageSnippetZh: `// m.attachment* 在 model 中用 attachmentview.New() 创建。
+card.View(c, "product-demo.mov").FillWidth()`, PageSnippetZh: `// m.attachment* 在 model 中用 attachment.New() 创建。
 card := m.attachment
 states := [...]string{"2.4 MB · 已完成", "正在上传 · 64%", "正在生成预览", "上传失败 · 点击重试"}
 card.Reset().ID(m.fileID).Title("product-demo.mov").Meta(states[m.fileState]).File()
@@ -56,13 +56,13 @@ components.BeginAttachment(canvas, theme, tree.ID(page, "cover"), cover,
     components.AttachmentData{
         Name: "cover.png", Description: "1200 × 1200", Kind: components.AttachmentImage,
         Orientation: components.AttachmentVertical,
-    }).Paint()`, PageSnippet: `// m.attachment* were made with attachmentview.New() in the model.
+    }).Paint()`, PageSnippet: `// m.attachment* were made with attachment.New() in the model.
 file := m.smallAttachment
 file.Reset().ID(m.notesID).Title("release-notes.md").Meta("18 KB · Markdown").File().Small()
 file.View(c, "release-notes.md")
 cover := m.coverAttachment
 cover.Reset().ID(m.coverID).Title("cover.png").Meta("1200 × 1200").Image().Idle().Vertical()
-cover.View(c, "cover.png")`, PageSnippetZh: `// m.attachment* 在 model 中用 attachmentview.New() 创建。
+cover.View(c, "cover.png")`, PageSnippetZh: `// m.attachment* 在 model 中用 attachment.New() 创建。
 file := m.smallAttachment
 file.Reset().ID(m.notesID).Title("release-notes.md").Meta("18 KB · Markdown").File().Small()
 file.View(c, "release-notes.md")
@@ -143,8 +143,8 @@ var (
 // so their handlers and draw functions are stable and a warm paint allocates
 // nothing.
 type attachmentDemo struct {
-	card, small, cover, failed *attachmentview.Attachment
-	group                      *attachmentview.Group
+	card, small, cover, failed *attachment.Attachment
+	group                      *attachment.Group
 	next                       func()
 	remove                     [3]func()
 	retry                      func()
@@ -165,11 +165,11 @@ func attachmentDemoFor(state *State) *attachmentDemo {
 		return demo
 	}
 	demo := &attachmentDemo{
-		card:   attachmentview.New(),
-		small:  attachmentview.New(),
-		cover:  attachmentview.New(),
-		failed: attachmentview.New(),
-		group:  attachmentview.NewGroup(),
+		card:   attachment.New(),
+		small:  attachment.New(),
+		cover:  attachment.New(),
+		failed: attachment.New(),
+		group:  attachment.NewGroup(),
 	}
 	demo.next = func() { state.values[0] = (state.values[0] + 1) % 4 }
 	for index := range demo.remove {

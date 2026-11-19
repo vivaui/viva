@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/buttongroupview"
+	"github.com/vivaui/viva/ui/buttongroup"
 )
 
 var buttonGroupComponent = Component{
@@ -18,7 +18,7 @@ var buttonGroupComponent = Component{
 group := components.BeginButtonGroup(canvas, theme, bounds, options)
 if id, ok := group.Paint().Clicked(); ok {
     align = id
-}`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroupview.Group; m.align is the chosen index.
+}`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroup.Group; m.align is the chosen index.
 group := m.buttonGroup
 group.Reset().
     Item(ui.ID(c), "Left").Outline().
@@ -28,7 +28,7 @@ group.Reset().
     OnClick(m.selectAlignment)
 group.View(c, "Text alignment").FillWidth()
 ui.Textf(c, "Current: %s", m.alignName).
-    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroupview.Group；m.align 是选中项下标。
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroup.Group；m.align 是选中项下标。
 group := m.buttonGroup
 group.Reset().
     Item(ui.ID(c), "左对齐").Outline().
@@ -47,7 +47,7 @@ ui.Textf(c, "当前：%s", m.alignName).
 group := components.BeginButtonGroup(canvas, theme, bounds, options).Vertical()
 if id, ok := group.Paint().Clicked(); ok {
     align = id
-}`, Height: 230, PageSnippet: `// m.buttonGroup is a buttongroupview.Group; m.align is the chosen index.
+}`, Height: 230, PageSnippet: `// m.buttonGroup is a buttongroup.Group; m.align is the chosen index.
 group := m.buttonGroup
 group.Reset().
     Vertical().
@@ -58,7 +58,7 @@ group.Reset().
     OnClick(m.selectAlignment)
 group.View(c, "Text alignment").Width(160)
 ui.Textf(c, "Current: %s", m.alignName).
-    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroupview.Group；m.align 是选中项下标。
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroup.Group；m.align 是选中项下标。
 group := m.buttonGroup
 group.Reset().
     Vertical().
@@ -75,7 +75,7 @@ ui.Textf(c, "当前：%s", m.alignName).
     {ID: tree.ID(page, "center"), Label: "Center", Variant: components.ButtonOutline},
     {ID: tree.ID(page, "right"), Label: "Right", Variant: components.ButtonOutline},
 }
-components.BeginButtonGroup(canvas, theme, bounds, options).Disabled().Paint()`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroupview.Group.
+components.BeginButtonGroup(canvas, theme, bounds, options).Disabled().Paint()`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroup.Group.
 group := m.buttonGroup
 group.Reset().
     Disabled().
@@ -84,7 +84,7 @@ group.Reset().
     Item(ui.ID(c), "Right").Outline()
 group.View(c, "Text alignment").FillWidth()
 ui.Text(c, "The whole group is disabled.").
-    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroupview.Group。
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroup.Group。
 group := m.buttonGroup
 group.Reset().
     Disabled().
@@ -102,7 +102,7 @@ ui.Text(c, "整个操作组已禁用。").
 group := components.BeginButtonGroup(canvas, theme, bounds, options)
 if id, ok := group.Paint().Clicked(); ok {
     action = id
-}`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroupview.Group; m.selectAction reports the click.
+}`, Height: 170, PageSnippet: `// m.buttonGroup is a buttongroup.Group; m.selectAction reports the click.
 group := m.buttonGroup
 group.Reset().
     Item(ui.ID(c), "Save").Outline().
@@ -111,7 +111,7 @@ group.Reset().
     OnClick(m.selectAction)
 group.View(c, "Actions").FillWidth()
 ui.Textf(c, "Current: %s", m.actionName).
-    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroupview.Group；m.selectAction 处理点击。
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `// m.buttonGroup 是 buttongroup.Group；m.selectAction 处理点击。
 group := m.buttonGroup
 group.Reset().
     Item(ui.ID(c), "保存").Outline().
@@ -131,7 +131,7 @@ var (
 )
 
 func (state *State) initializeButtonGroup() {
-	state.buttonGroup = buttongroupview.New()
+	state.buttonGroup = buttongroup.New()
 	state.buttonGroup.OnClick(state.selectButtonGroup)
 }
 

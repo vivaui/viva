@@ -3,18 +3,18 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/reordergridview"
+	"github.com/vivaui/viva/ui/reordergrid"
 )
 
 var reorderGridDemoHandles = tree.Sub(tree.Feature("reorder-grid"), tree.Name("handle"))
 
 type reorderGridDemoState struct {
 	state *State
-	view  reordergridview.Grid
+	view  reordergrid.Grid
 	order [6]int
 }
 
-func (demo *reorderGridDemoState) move(move reordergridview.Move) {
+func (demo *reorderGridDemoState) move(move reordergrid.Move) {
 	if !move.Valid() || move.From < 0 || move.From >= len(demo.order) || move.To < 0 || move.To >= len(demo.order) {
 		return
 	}
@@ -56,7 +56,7 @@ var reorderGridComponent = Component{
 			"}\n" +
 			"// Keyboard events use dragState.Key(event) in the same way.\n" +
 			"_ = result",
-		PageSnippet: `// m.reorderGrid is a reordergridview.Grid.
+		PageSnippet: `// m.reorderGrid is a reordergrid.Grid.
 grid := m.reorderGrid
 grid.HandleHitSlop = 8
 grid.Draw = m.drawReorderGrid
@@ -64,7 +64,7 @@ grid.Move = m.applyReorderMove
 grid.View(c, "Host order").FillWidth().Height(220)
 // Pointer, key and wheel callbacks are optional observers; the wrapper routes
 // reorder input to State either way.`,
-		PageSnippetZh: `// m.reorderGrid 是 reordergridview.Grid。
+		PageSnippetZh: `// m.reorderGrid 是 reordergrid.Grid。
 grid := m.reorderGrid
 grid.HandleHitSlop = 8
 grid.Draw = m.drawReorderGrid
@@ -77,13 +77,13 @@ grid.View(c, "主机排序").FillWidth().Height(220)
 func (state *State) paintReorderGrid(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.reorderGrid
 	state.drawPage(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(c ui.C) {
-		reordergridview.View(c, state.Text("主机排序", "Host order"), &demo.view).FillWidth().Height(220)
+		reordergrid.View(c, state.Text("主机排序", "Host order"), &demo.view).FillWidth().Height(220)
 	})
 }
 
 // draw paints the caller's cards and declares each one through the layout. The
 // layout reports the dragged and target items with the caller's own identities.
-func (demo *reorderGridDemoState) draw(ctx *ui.DrawContext, layout reordergridview.Layout) {
+func (demo *reorderGridDemoState) draw(ctx *ui.DrawContext, layout reordergrid.Layout) {
 	labels := [6]string{
 		demo.state.Text("主机一", "Host one"),
 		demo.state.Text("主机二", "Host two"),

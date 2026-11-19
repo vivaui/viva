@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/messagescrollerview"
+	"github.com/vivaui/viva/ui/messagescroller"
 )
 
 var messageScrollerComponent = Component{
@@ -12,7 +12,7 @@ var messageScrollerComponent = Component{
 	initialize: (*State).initializeMessageScroller,
 	scroll:     (*State).scrollMessageScroller,
 	Examples: []Example{
-		{ID: "default", Title: "消息流", Description: "点击较早/较晚按钮或滚动滚轮，视图把新偏移交给调用方。", Snippet: `stream := &messagescrollerview.Scroller{
+		{ID: "default", Title: "消息流", Description: "点击较早/较晚按钮或滚动滚轮，视图把新偏移交给调用方。", Snippet: `stream := &messagescroller.Scroller{
     Offset: m.offset,
     EarlierLabel: "Earlier messages", LaterLabel: "Later messages",
     Content: func(c ui.C) {
@@ -29,14 +29,14 @@ var messageScrollerComponent = Component{
     },
 }
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippet: `stream := &m.scroller
+messagescroller.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippet: `stream := &m.scroller
 stream.Offset = m.offset
 stream.EarlierLabel = "Earlier messages"
 stream.LaterLabel = "Later messages"
@@ -55,14 +55,14 @@ stream.Content = func(c ui.C) {
     })
 }
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippetZh: `stream := &m.scroller
+messagescroller.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippetZh: `stream := &m.scroller
 stream.Offset = m.offset
 stream.EarlierLabel = "更早的消息"
 stream.LaterLabel = "更晚的消息"
@@ -80,52 +80,52 @@ stream.Content = func(c ui.C) {
     })
 }
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "消息流", stream).FillWidth().Height(278)`},
-		{ID: "end", Title: "接近末尾", Description: "初始偏移为 72；较早/较晚按钮都可用，每次把调用方持有的偏移移动 72 像素。", Snippet: `stream := &messagescrollerview.Scroller{
+messagescroller.View(c, "消息流", stream).FillWidth().Height(278)`},
+		{ID: "end", Title: "接近末尾", Description: "初始偏移为 72；较早/较晚按钮都可用，每次把调用方持有的偏移移动 72 像素。", Snippet: `stream := &messagescroller.Scroller{
     Offset: 72, // near the end of the content
     EarlierLabel: "Earlier messages", LaterLabel: "Later messages",
     Content: func(c ui.C) { /* the same five rows */ },
 }
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippet: `stream := &m.scroller
+messagescroller.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippet: `stream := &m.scroller
 stream.Offset = 72 // near the end of the content
 stream.EarlierLabel = "Earlier messages"
 stream.LaterLabel = "Later messages"
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippetZh: `stream := &m.scroller
+messagescroller.View(c, "Message stream", stream).FillWidth().Height(278)`, PageSnippetZh: `stream := &m.scroller
 stream.Offset = 72 // 接近内容末尾
 stream.EarlierLabel = "更早的消息"
 stream.LaterLabel = "更晚的消息"
 stream.OnScroll = func(offset float32) { m.offset = offset }
-stream.OnJump = func(direction messagescrollerview.Direction, end float32) {
-    if direction == messagescrollerview.Earlier {
+stream.OnJump = func(direction messagescroller.Direction, end float32) {
+    if direction == messagescroller.Earlier {
         m.offset = max(float32(0), m.offset-72)
     } else {
         m.offset = min(end, m.offset+72)
     }
 }
-messagescrollerview.View(c, "消息流", stream).FillWidth().Height(278)`},
+messagescroller.View(c, "消息流", stream).FillWidth().Height(278)`},
 	},
 }
 
@@ -141,7 +141,7 @@ var (
 // rebuilt in each paint.
 type messageScrollerDemo struct {
 	state *State
-	view  messagescrollerview.Scroller
+	view  messagescroller.Scroller
 }
 
 // messageScrollerDemos is keyed by State because the constrained demo model has
@@ -180,7 +180,7 @@ func (state *State) paintMessageScroller(canvas *gfx.Canvas, theme gfx.Theme, si
 	demo.view.ScrollbarLabel = state.Text("消息位置", "Message position")
 	demo.view.ScrollbarValue = state.Text("会话", "Conversation")
 	state.drawPage(canvas, theme, size, 560, state.Text("Message Scroller · 受控偏移", "Message Scroller · Controlled offset"), func(c ui.C) {
-		messagescrollerview.View(c, state.Text("消息流", "Message stream"), &demo.view).
+		messagescroller.View(c, state.Text("消息流", "Message stream"), &demo.view).
 			FillWidth().Height(min(278, max(size.Height-84, 180)))
 	})
 }
@@ -212,12 +212,12 @@ func (d *messageScrollerDemo) scroll(offset float32) {
 
 // jump steps toward the end an earlier/later control asked for; the view hands
 // it the target offset, which caps a later step at the end of the content.
-func (d *messageScrollerDemo) jump(direction messagescrollerview.Direction, target float32) {
+func (d *messageScrollerDemo) jump(direction messagescroller.Direction, target float32) {
 	offset := d.state.values[0]
 	switch direction {
-	case messagescrollerview.Earlier:
+	case messagescroller.Earlier:
 		offset = max(0, offset-72)
-	case messagescrollerview.Later:
+	case messagescroller.Later:
 		offset = min(int32(target), offset+72)
 	}
 	d.state.values[0] = offset

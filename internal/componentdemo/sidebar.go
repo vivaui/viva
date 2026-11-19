@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/sidebarview"
+	"github.com/vivaui/viva/ui/sidebar"
 )
 
 var sidebarComponent = Component{
@@ -30,7 +30,7 @@ if index, ok := canvas.ClickedIn(items); ok { selected = int(index) }`,
     Item(m.benchmarksID, "Benchmarks").Icon("B").Active(m.section == "benchmarks").
     Account(m.accountID, "Skyler").Icon("S")
 m.nav.OnSelect = m.selectSection
-sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
+sidebar.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
 			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").Fixed().
     Group("Workspace").
     Item(m.overviewID, "Overview").Icon("O").Badge("12").Active(m.section == "overview").
@@ -40,7 +40,7 @@ sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
     Item(m.benchmarksID, "Benchmarks").Icon("B").Active(m.section == "benchmarks").
     Account(m.accountID, "Skyler").Icon("S")
 m.nav.OnSelect = m.selectSection
-sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
+sidebar.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
 		{ID: "floating", Title: "浮动变体", Description: "使用官方 Floating 表面与描边菜单项。", Snippet: `rail := ui.Slot(c).WidthPercent(42).MaxWidth(260).FillHeight()
 items := tree.Sub(page, tree.Name("item"))
 sidebar := components.BeginSidebarWithOptions(canvas, theme, rail.Rect(), "Viva Studio",
@@ -57,14 +57,14 @@ sidebar.AddMenuItem(components.SidebarMenuItem{
     Item(m.componentsID, "Components").Icon("C").Outline().
     Item(m.benchmarksID, "Benchmarks").Icon("B").
     Account(m.accountID, "Skyler").Icon("S")
-sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
+sidebar.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`,
 			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").Floating().Fixed().
     Group("Workspace").
     Item(m.overviewID, "Overview").Icon("O").
     Item(m.componentsID, "Components").Icon("C").Outline().
     Item(m.benchmarksID, "Benchmarks").Icon("B").
     Account(m.accountID, "Skyler").Icon("S")
-sidebarview.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
+sidebar.View(c, "Application navigation", &m.nav).Width(240).FillHeight()`},
 		{ID: "collapsed", Title: "图标折叠", Description: "切换完整导航和桌面图标栏；折叠状态由调用方持有。", Snippet: `rail := ui.Slot(c).FillHeight()
 if collapsed {
     rail.Width(theme.Metrics.ControlHeight + theme.Metrics.GapItem*2)
@@ -84,7 +84,7 @@ sidebar.AddMenuItem(components.SidebarMenuItem{ID: tree.ID(page, "overview"), La
     Item(m.benchmarksID, "Benchmarks").Icon("B").
     Account(m.accountID, "Skyler").Icon("S")
 m.nav.OnSelect = m.selectSection
-sidebarview.View(c, "Application navigation", &m.nav).
+sidebar.View(c, "Application navigation", &m.nav).
     Width(c.Theme().Metrics.ControlHeight + c.Theme().Metrics.GapItem*2).FillHeight()`,
 			PageSnippetZh: `m.nav.Reset().Title("Viva Studio").IconCollapse().Collapsed(m.collapsed).
     Group("Workspace").
@@ -93,7 +93,7 @@ sidebarview.View(c, "Application navigation", &m.nav).
     Item(m.benchmarksID, "Benchmarks").Icon("B").
     Account(m.accountID, "Skyler").Icon("S")
 m.nav.OnSelect = m.selectSection
-sidebarview.View(c, "Application navigation", &m.nav).
+sidebar.View(c, "Application navigation", &m.nav).
     Width(c.Theme().Metrics.ControlHeight + c.Theme().Metrics.GapItem*2).FillHeight()`},
 	},
 }
@@ -110,7 +110,7 @@ var (
 // sidebarDemo is the demo's reusable sidebar declaration. State cannot hold it
 // without widening the preview model, so the demo keeps one configured view
 // and rebuilds its declarations in every paint; handlers are made once.
-var sidebarDemo = sidebarview.New()
+var sidebarDemo = sidebar.New()
 
 func (state *State) paintSidebar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	collapsed := state.exampleID == "collapsed" && state.flags&1 != 0

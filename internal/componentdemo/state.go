@@ -7,7 +7,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/buttongroupview"
+	"github.com/vivaui/viva/ui/buttongroup"
 )
 
 type Example struct {
@@ -127,7 +127,7 @@ type State struct {
 	reorderGrid  *reorderGridDemoState
 	imageBitmap  *gfx.Bitmap
 	avatarEditor *avatarEditorDemoState
-	buttonGroup  *buttongroupview.Group
+	buttonGroup  *buttongroup.Group
 	dialog       dialogState
 	slider       sliderDemoState
 	picker       *colorPickerDemoState
