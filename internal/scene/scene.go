@@ -78,6 +78,14 @@ func abs32(value float32) float32 {
 	return value
 }
 
+// Shape is the geometry only a triangle or a shadow carries. Rectangle
+// changes leave Change.Shape nil, so the common change is small.
+type Shape struct {
+	Points [3]Point
+	Shade  Shade
+	Shadow Shadow
+}
+
 // Change is one renderer-facing incremental scene update.
 type Change struct {
 	ID              ID
@@ -88,10 +96,11 @@ type Change struct {
 	Bounds          Rect
 	Color           Color
 	Radius          float32
-	Points          [3]Point
 	EdgeMask        uint8
-	Shade           Shade
-	Shadow          Shadow
+	// Shape is the triangle points or shadow of a KindTriangle or KindShadow
+	// change, and nil for a rectangle. It points into the Scene's reusable
+	// change scratch and is valid until the next DrainChanges.
+	Shape *Shape
 }
 
 type node struct {
@@ -117,11 +126,12 @@ type node struct {
 
 // Scene stores retained nodes in flat slots with stable generational IDs.
 type Scene struct {
-	nodes   []node
-	free    []uint32
-	dirty   []ID
-	scratch []ID
-	root    ID
+	nodes        []node
+	free         []uint32
+	dirty        []ID
+	scratch      []ID
+	shapeScratch []Shape
+	root         ID
 }
 
 // New creates a scene with one root group.
@@ -377,6 +387,11 @@ func (scene *Scene) detach(current *node) {
 
 // DrainChanges appends coalesced incremental changes to destination.
 func (scene *Scene) DrainChanges(destination []Change) []Change {
+	if cap(scene.shapeScratch) < len(scene.dirty) {
+		scene.shapeScratch = make([]Shape, 0, len(scene.dirty))
+	} else {
+		scene.shapeScratch = scene.shapeScratch[:0]
+	}
 	for _, id := range scene.dirty {
 		index, current, ok := scene.node(id)
 		if !ok || !current.queued {
@@ -395,6 +410,13 @@ func (scene *Scene) DrainChanges(destination []Change) []Change {
 			continue
 		}
 
+		var shape *Shape
+		if current.kind == KindTriangle || current.kind == KindShadow {
+			scene.shapeScratch = append(scene.shapeScratch, Shape{
+				Points: current.points, Shade: current.shade, Shadow: current.shadow,
+			})
+			shape = &scene.shapeScratch[len(scene.shapeScratch)-1]
+		}
 		destination = append(destination, Change{
 			ID:              id,
 			Operation:       OperationUpsert,
@@ -404,10 +426,8 @@ func (scene *Scene) DrainChanges(destination []Change) []Change {
 			Bounds:          current.bounds,
 			Color:           current.color,
 			Radius:          current.radius,
-			Points:          current.points,
 			EdgeMask:        current.edgeMask,
-			Shade:           current.shade,
-			Shadow:          current.shadow,
+			Shape:           shape,
 		})
 		current.published = true
 	}

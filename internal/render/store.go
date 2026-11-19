@@ -304,16 +304,20 @@ func (store *Store) deleteBatch(changes []scene.Change) (Update, error) {
 
 // rectangleOf is the render instance a scene change describes.
 func rectangleOf(change scene.Change) Rectangle {
+	var shape scene.Shape
+	if change.Shape != nil {
+		shape = *change.Shape
+	}
 	return Rectangle{
 		ID:       change.ID,
 		Kind:     change.Kind,
 		Bounds:   change.Bounds,
 		Color:    change.Color,
 		Radius:   change.Radius,
-		Points:   change.Points,
+		Points:   shape.Points,
 		EdgeMask: change.EdgeMask,
-		Shade:    change.Shade,
-		Shadow:   change.Shadow,
+		Shade:    shape.Shade,
+		Shadow:   shape.Shadow,
 	}
 }
 
@@ -360,10 +364,12 @@ func (store *Store) upsert(change scene.Change) (bool, int, error) {
 			rectangle.Bounds = change.Bounds
 			rectangle.Color = change.Color
 			rectangle.Radius = change.Radius
-			rectangle.Points = change.Points
+			if change.Shape != nil {
+				rectangle.Points = change.Shape.Points
+				rectangle.Shade = change.Shape.Shade
+				rectangle.Shadow = change.Shape.Shadow
+			}
 			rectangle.EdgeMask = change.EdgeMask
-			rectangle.Shade = change.Shade
-			rectangle.Shadow = change.Shadow
 		}
 		return false, instance, nil
 	}
