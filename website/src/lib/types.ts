@@ -36,6 +36,7 @@ export interface Page extends Nav {
   Sections: Section[];
   Capabilities: Capability[];
   PageUsage?: string;
+  PageSource?: string;
 }
 
 export interface Coverage {

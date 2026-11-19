@@ -24,6 +24,8 @@ type Component struct {
 	// component has one. Empty means it is a canvas recipe, used inside
 	// ui.Control/Draw or copied by viva add.
 	PageUsage string
+	// PageSource is where PageUsage is implemented; empty keeps Source.
+	PageSource string
 	// Source is the Go file the example calls, relative to the repository root, when
 	// the control is not one of the components package: a page-layer control such as
 	// ui.List. Empty means components/<ID>.go, the component's own file.
@@ -75,6 +77,7 @@ func buildCatalog() []Component {
 	}
 	for i := range result {
 		result[i].PageUsage = pageUsage[result[i].ID]
+		result[i].PageSource = pageSource[result[i].ID]
 	}
 	return result
 }

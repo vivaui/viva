@@ -18,7 +18,7 @@ const zhName = locale === 'zh' ? componentName(locale, page.ID, page.Title) : ''
 const text = messages[locale];
 const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
-const sourcePath = page.Source || `components/${sourceFile}`;
+const sourcePath = page.PageUsage && page.PageSource ? page.PageSource : (page.Source || `components/${sourceFile}`);
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
 const fallbackUsage = `ui.Control(c, "${page.Title.replaceAll('"', '')}", &m.handlers).Draw(paint)`;
 ---
@@ -29,7 +29,7 @@ const fallbackUsage = `ui.Control(c, "${page.Title.replaceAll('"', '')}", &m.han
     <div class="title-line">
       <h1>{page.Title}{zhName && zhName !== page.Title && <span class="title-zh">{zhName}</span>}</h1>
       <a class="source-link" href={`https://github.com/vivaui/viva/blob/main/${sourcePath}`} target="_blank" rel="noopener noreferrer" aria-label={`${text.viewSource}: ${sourcePath}`}>
-        <span>{text.componentSource}</span><code>{sourcePath}</code><Icon name="arrow" size={14} />
+        <span>{page.PageUsage && page.PageSource ? text.pageApiSource : text.componentSource}</span><code>{sourcePath}</code><Icon name="arrow" size={14} />
       </a>
     </div>
   </div>
