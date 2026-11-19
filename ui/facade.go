@@ -251,6 +251,30 @@ func Slider(c C, state *SliderState) Box { return base.Slider(c, state) }
 
 func SliderBase(c C, state *SliderState) Box { return base.SliderBase(c, state) }
 
+// NewRangeSliderState returns a range slider holding low and high.
+func NewRangeSliderState(low, high float32) *RangeSliderState {
+	return base.NewRangeSliderState(low, high)
+}
+
+// RangeSlider is a two-thumb slider over one track: Low and High are the
+// values, Min, Max and Step the range. It is a Control, so its thumbs take the
+// focus and the keyboard.
+func RangeSlider(c C, state *RangeSliderState) Box {
+	if state == nil {
+		panic("ui: RangeSlider needs its RangeSliderState")
+	}
+	if state.Handlers.Key == nil {
+		state.Handlers.Key = state.Key
+		state.Handlers.Pointer = state.Pointer
+	}
+	if state.Paint == nil {
+		state.Paint = func(d *base.DrawContext) { paintRangeSlider(d, state) }
+	}
+	return Control(c, "Range", &state.Handlers).
+		Height(c.Theme().Metrics.ControlHeight).
+		Draw(state.DrawFunc())
+}
+
 func Splitter(c C, state *SplitterState) Box { return base.Splitter(c, state) }
 
 func SplitButton(c C, spec SplitButtonSpec) Box { return base.SplitButton(c, spec) }

@@ -64,6 +64,9 @@ type PopoverDecl = base.PopoverDecl
 type PopoverSpec = base.PopoverSpec
 type ScrollState = base.ScrollState
 
+// RangeSliderState is the two values and range of a RangeSlider.
+type RangeSliderState = base.RangeSliderState
+
 // ScrollAreaGeometry is the complete deterministic layout of one scroll area:
 // its viewport, translated content, tracks, thumbs and corner.
 type ScrollAreaGeometry = base.ScrollAreaGeometry
