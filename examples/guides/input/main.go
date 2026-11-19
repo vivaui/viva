@@ -83,7 +83,7 @@ func (m *model) row(r ui.ListRow) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{
+	return ui.Configure(page, app.Config{
 		Title: "Input", Width: 640, Height: 360,
 		// The page routes pointer, wheel, shortcut and text input to the controls
 		// it declares. A splitter keeps its arrow keys in its own state, so give

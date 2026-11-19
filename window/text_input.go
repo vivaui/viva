@@ -1,0 +1,259 @@
+package window
+
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
+)
+
+// TextRange is a half-open rune-indexed range.
+type TextRange struct {
+	Start int
+	End   int
+}
+
+// TextState is the complete application-owned native editor state.
+type TextState struct {
+	// SelectionReversed preserves the moving end of a backwards selection.
+	SelectionReversed bool
+	Value             string
+	Selection         TextRange
+	Composition       TextRange
+	Composing         bool
+	// TentativeComposition snapshots the editor's explicit opt-in capability,
+	// independently of whether it currently has visible marked text.
+	TentativeComposition bool
+	// Redraw asks for a frame after the event although the editor looks the same,
+	// because the application changed something else in response. A terminal
+	// uses it when typed text appears ahead of the server's echo; ordinary
+	// terminal input leaves it false and costs no frame.
+	Redraw bool
+	// Numeric ownership keeps editor/history references out of value snapshots.
+	CompositionIdentity text.CompositionIdentity
+}
+
+// TextEventKind identifies one native text-system mutation.
+type TextEventKind uint8
+
+const (
+	TextInsert TextEventKind = iota + 1
+	TextSetMarked
+	TextUnmark
+	TextCommandEvent
+	TextSetSelection
+	// TextPaste is one pasteboard edit. It is a separate undo unit in an
+	// ordinary editor; a terminal receives it as is, without line breaks
+	// flattened, and decides how to forward it.
+	TextPaste
+	// TextPasteNoText is a paste asked for while the clipboard holds no text. It
+	// changes nothing in an editor (TextEvent.Apply ignores it). A field that
+	// takes more than text, such as a chat box that accepts a screenshot, uses it
+	// as the cue to look at the clipboard's other formats (ClipboardImagePNG).
+	// Terminals receive it too, so they can handle non-text clipboard formats.
+	TextPasteNoText
+	// TextCancelComposition is an explicit input-method cancellation. It restores
+	// the text and selection the composition replaced and adds no history. An
+	// ordinary empty marked string is not this event.
+	TextCancelComposition
+)
+
+// TextCommand identifies one platform-normalized editing command.
+type TextCommand uint8
+
+const (
+	TextDeleteBackward TextCommand = iota + 1
+	TextDeleteForward
+	TextMoveLeft
+	TextMoveRight
+	TextMoveLeftAndModifySelection
+	TextMoveRightAndModifySelection
+	TextInsertNewline
+	TextInsertTab
+	// TextInsertLineBreak is a line break asked for without ending the entry:
+	// Shift+Enter (and Option or Control+Enter on macOS). A chat box submits on
+	// TextInsertNewline and adds a line on this one.
+	TextInsertLineBreak
+	TextUndo
+	TextRedo
+	TextSelectAll
+	TextMoveLineStart
+	TextMoveLineEnd
+	TextMoveLineStartAndModifySelection
+	TextMoveLineEndAndModifySelection
+	TextMoveDocumentStart
+	TextMoveDocumentEnd
+	TextMoveDocumentStartAndModifySelection
+	TextMoveDocumentEndAndModifySelection
+	TextMoveWordLeft
+	TextMoveWordRight
+	TextMoveWordLeftAndModifySelection
+	TextMoveWordRightAndModifySelection
+	TextDeleteWordBackward
+	TextDeleteWordForward
+	// TextDeleteToLineStart and TextDeleteToLineEnd remove the text between the
+	// caret and the start or end of its line (Command+Backspace and
+	// Command+Delete on macOS).
+	TextDeleteToLineStart
+	TextDeleteToLineEnd
+)
+
+// TextEvent contains rune-indexed selection and replacement ranges.
+// Text is the text the event applies to, and MarkedSelection, when the input
+// method is composing, is a range into Text rather than into the document.
+type TextEvent struct {
+	Kind TextEventKind
+	// Rectangular marks a text paste as a column selection.
+	Rectangular     bool
+	Text            string
+	Selection       TextRange
+	MarkedSelection TextRange
+	Replacement     TextRange
+	HasReplacement  bool
+	Command         TextCommand
+	// CompositionPhase is forwarded unchanged; the target editor's capability
+	// selects the explicit route. Zero preserves the legacy event contract.
+	CompositionPhase    text.CompositionPhase
+	ReplacementUTF16    text.UTF16Range
+	HasReplacementUTF16 bool
+}
+
+// TextInputContext describes the focused Canvas text-field hit.
+type TextInputContext struct {
+	ID     gfx.ID
+	Bounds gfx.Rect
+	// Layer is the compositing layer captured by the focused hit.
+	Layer     uint16
+	Multiline bool
+	ReadOnly  bool
+	Secure    bool
+	// NavigationKeys reports a field that asked for Up, Down, PageUp and
+	// PageDown to be delivered to the application as raw gfx.KeyEvents.
+	NavigationKeys bool
+	// Terminal reports a RoleTerminal hit. The native editor then is a
+	// preedit surface in the fixed-pitch font: it draws only the text being
+	// composed, with no caret or selection, and Bounds should be the cursor
+	// cell. Plain keys reach the application as TextInsert events and the
+	// rest as raw gfx.KeyEvents (see gfx.KeyEvent).
+	Terminal bool
+	// TypeAhead reports a hit that is not a text field but declared it takes
+	// typed text (gfx.HitOptions.TypeAhead). It is delivered as a Terminal is:
+	// plain keys and input-method input arrive as text events, the rest as raw
+	// gfx.KeyEvents, and the editor is a preedit surface that draws only the
+	// text being composed, at Bounds. Return an input whose OnEvent keeps the
+	// query the application builds from the events.
+	TypeAhead bool
+	// TextBounds, FontSize, FontWeight, TextColor and Alignment are the text geometry
+	// the component declared for this field. They fill whatever the returned TextInput leaves
+	// unset, so a bare &TextInput{Editor: editor} draws its text exactly where
+	// the field painted it; set them only to deliberately override.
+	TextBounds gfx.Rect
+	FontSize   float32
+	FontWeight float32
+	TextColor  gfx.Color
+	Alignment  gfx.Alignment
+	// HideNativeOverlays requests that the platform editor keep its own caret
+	// and selection invisible. Editing, IME and clipboard behavior are
+	// unchanged. Components that paint those overlays themselves set it.
+	HideNativeOverlays bool
+}
+
+// TextInputProvider resolves one focused text-field hit. Returning nil disables
+// native editing without retaining a hidden first responder.
+type TextInputProvider func(TextInputContext) *TextInput
+
+// TextInput describes one application-owned native editor surface. Bounds are
+// logical window pixels. Bounds, FontSize, Weight and Color default to the text
+// geometry the focused component declared (see TextInputContext), which is
+// what keeps the text from jumping when a field gains focus.
+type TextInput struct {
+	Bounds   gfx.Rect
+	FontSize float32
+	Weight   float32
+	Color    gfx.Color
+	MonoFace gfx.MonoFace
+	// Alignment places a fitted line within Bounds. Zero keeps the existing
+	// left-aligned input; terminal and self-placed inputs ignore it.
+	Alignment gfx.Alignment
+	// CopyOverride supplies Copy/Cut with an application-owned selection such as
+	// disjoint code-editor rows. CopyText is called only on Copy/Cut; an empty
+	// result or nil callback leaves the clipboard and document unchanged, including
+	// on Cut. It never falls back to the native selection while CopyOverride is set.
+	// Editing still uses State or Editor.
+	CopyOverride bool
+	// CopyRectangular requests column-selection clipboard metadata on Windows.
+	// It does not alter the editor's selection or evaluate CopyText during paint.
+	CopyRectangular bool
+	CopyText        func() string
+	// AltSendsEscape asks printable Alt/Option chords on a terminal to arrive as
+	// raw key events with the unmodified character in KeyEvent.Text. Terminal
+	// encoders can then send the conventional Escape-prefixed Meta sequence.
+	// It is ignored for ordinary text fields, and input-method composition keeps
+	// ownership of every key until it commits. The native policy is currently
+	// implemented on macOS; app.Driver implements it for headless verification.
+	AltSendsEscape bool
+	// KeyReleases asks a terminal for the whole keyboard as presses and
+	// releases: the modifier keys, printable keys (as raw KeyEvents with Text,
+	// not text events, unless an input method consumed them) and a KeyEvent
+	// with Release set when each key goes up. It is for a terminal that shows
+	// another machine's desktop, where a held key or modifier means something
+	// there, and for a terminal implementing a keyboard protocol (kitty's
+	// progressive enhancement or win32-input-mode). Releases are never delivered to a handler that did not ask, every
+	// release matches a press the handler saw, and keys still down when the
+	// terminal loses the keyboard or the window loses focus are released
+	// first. Committed text from an input method still arrives as text events.
+	// Implemented on macOS, Windows and X11, and by app.Driver.
+	KeyReleases bool
+	// DisableIME keeps the host's input method off the window while this field
+	// is focused, the way a remote-desktop client does: every key, the
+	// input method's own switch hotkeys included, is the other machine's, so
+	// it composes with the input method over there. Text events still arrive
+	// if a method commits anyway, so a paste keeps working. Combine it with
+	// KeyReleases for a surface that shows another machine's desktop.
+	// Implemented on macOS and Windows; the Linux backend does not consult it
+	// yet.
+	DisableIME bool
+	// NavigationKeys asks Up, Down, PageUp and PageDown to reach the
+	// application as raw gfx.KeyEvents while the field is focused, instead
+	// of being consumed by the text system or moving its caret. Use it
+	// for a search field, combobox or command palette with a dropdown.
+	// Cursor placement, selection, Home/End, word navigation and
+	// input-method composition remain native. Defaults to the component's
+	// declaration (see TextInputContext.NavigationKeys).
+	// Honored by the macOS text system and app.Driver; the other platform
+	// backends do not consult it yet.
+	NavigationKeys bool
+	// Editor connects the native text service straight to a text.Editor: the
+	// runtime mirrors the editor into the platform and applies every native
+	// event to it, so State and OnEvent are ignored. Leave it nil to own the
+	// event handling yourself, for example to filter or transform edits.
+	Editor  *text.Editor
+	State   TextState
+	OnEvent func(TextEvent) (TextState, error)
+	// HideNativeOverlays keeps the platform's caret and selection invisible
+	// while native editing continues. It combines with the declaration on the
+	// focused Canvas hit.
+	HideNativeOverlays bool
+}
+
+// Apply routes one native text event into editor. The event kinds and commands are
+// the platform's, value for value, so the one switch that maps them lives in
+// internal/platform rather than in a second copy here.
+func (event TextEvent) Apply(editor *text.Editor) bool {
+	return platform.TextEvent{
+		Kind:                platform.TextEventKind(event.Kind),
+		Text:                event.Text,
+		Rectangular:         event.Rectangular,
+		Selection:           platformTextRange(event.Selection),
+		MarkedSelection:     platformTextRange(event.MarkedSelection),
+		Replacement:         platformTextRange(event.Replacement),
+		HasReplacement:      event.HasReplacement,
+		Command:             platform.TextCommand(event.Command),
+		CompositionPhase:    event.CompositionPhase,
+		ReplacementUTF16:    event.ReplacementUTF16,
+		HasReplacementUTF16: event.HasReplacementUTF16,
+	}.Apply(editor)
+}
+
+func platformTextRange(value TextRange) text.Range {
+	return text.Range{Start: value.Start, End: value.End}
+}

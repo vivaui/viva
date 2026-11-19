@@ -19,7 +19,7 @@ func TestPageFocusRequestInAClickHandlerTakesEffect(t *testing.T) {
 		})
 	})
 	d.click("Focus search")
-	if got := d.focused(); got != "Search" {
+	if got := d.Focused(); got != "Search" {
 		t.Fatalf("focus after the click = %q, want the field the handler asked for", got)
 	}
 	d.typeText("find")
@@ -49,7 +49,7 @@ func TestPageFocusRequestInTheRepaintWinsOverTheClick(t *testing.T) {
 		})
 	})
 	d.click("Focus first")
-	if got := d.focused(); got != "Second" {
+	if got := d.Focused(); got != "Second" {
 		t.Fatalf("focus = %q, want the repaint's request to win", got)
 	}
 }
@@ -69,7 +69,7 @@ func TestPageCarriedFocusRequestIsAppliedOnce(t *testing.T) {
 	})
 	d.click("Focus search")
 	d.click("After")
-	if got := d.focused(); got != "After" {
+	if got := d.Focused(); got != "After" {
 		t.Fatalf("focus = %q, want the button the user clicked", got)
 	}
 }
@@ -88,7 +88,7 @@ func TestPageFocusRequestInAShortcutHandlerTakesEffect(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(ui.Primary, 'f'); err != nil {
 		t.Fatal(err)
 	}
-	if got := d.focused(); got != "Search" {
+	if got := d.Focused(); got != "Search" {
 		t.Fatalf("focus after the shortcut = %q, want the field the handler asked for", got)
 	}
 }

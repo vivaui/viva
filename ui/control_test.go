@@ -6,6 +6,7 @@ import (
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/window"
 )
 
 // console is a control of the application's own, as a terminal is: it paints its
@@ -18,9 +19,9 @@ type console struct {
 	keys    []gfx.Key
 	presses int
 	drags   int
-	scroll  float32
-	focused bool
-	text    app.TextInput
+	Scroll  float32
+	Focused bool
+	Text    window.TextInput
 	asked   gfx.ID
 }
 
@@ -47,18 +48,18 @@ func newConsole() *console {
 			return gfx.EventResult{Handled: true}
 		},
 		Scroll: func(event gfx.ScrollEvent) gfx.EventResult {
-			t.scroll += event.DeltaY
+			t.Scroll += event.DeltaY
 			return gfx.EventResult{Handled: true}
 		},
-		Text: func(context app.TextInputContext) *app.TextInput {
+		Text: func(context window.TextInputContext) *window.TextInput {
 			t.asked = context.ID
-			t.text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
-			t.text.OnEvent = t.onText
-			return &t.text
+			t.Text.Bounds = gfx.Rect{X: context.Bounds.X + 4, Y: context.Bounds.Y + 4, Width: 1, Height: 16}
+			t.Text.OnEvent = t.onText
+			return &t.Text
 		},
 	}
 	t.draw = func(d *ui.DrawContext) {
-		t.focused = d.State.Focused
+		t.Focused = d.State.Focused
 		d.Canvas.Fill(d.Rect, d.Theme.Card)
 	}
 	return t
@@ -71,7 +72,7 @@ func (t *console) onText(event app.TextEvent) (app.TextState, error) {
 	return app.TextState{}, nil
 }
 
-func (t *console) view(c ui.C) {
+func (t *console) View(c ui.C) {
 	ui.Column(c).Fill().Pad(16).Gap(8).Children(func() {
 		ui.Control(c, "Console", &t.input).Size(300, 200).Draw(t.draw)
 		ui.Button(c, "After")
@@ -80,7 +81,7 @@ func (t *console) view(c ui.C) {
 
 func TestControlTakesItsOwnInput(t *testing.T) {
 	term := newConsole()
-	d := openPage(t, term.view)
+	d := openPage(t, term.View)
 	box := d.hit("Console").Bounds
 	x, y := center(box)
 	if err := d.driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
@@ -95,8 +96,8 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	if term.presses != 1 || term.drags == 0 {
 		t.Fatalf("presses=%d drags=%d", term.presses, term.drags)
 	}
-	if d.focused() != "Console" || !term.focused {
-		t.Fatalf("a press on the control did not focus it: %q, drawn focused %v", d.focused(), term.focused)
+	if d.Focused() != "Console" || !term.Focused {
+		t.Fatalf("a press on the control did not focus it: %q, drawn focused %v", d.Focused(), term.Focused)
 	}
 	d.key(gfx.KeyUp)
 	d.key(gfx.KeyEnter)
@@ -110,12 +111,12 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	if err := d.driver.Scroll(gfx.ScrollEvent{X: x, Y: y, DeltaY: -3}); err != nil {
 		t.Fatal(err)
 	}
-	if term.scroll != -3 {
-		t.Fatalf("scroll = %v", term.scroll)
+	if term.Scroll != -3 {
+		t.Fatalf("scroll = %v", term.Scroll)
 	}
 	d.key(gfx.KeyTab)
-	if d.focused() != "After" {
-		t.Fatalf("Tab left unhandled did not move the focus on: %q", d.focused())
+	if d.Focused() != "After" {
+		t.Fatalf("Tab left unhandled did not move the focus on: %q", d.Focused())
 	}
 }
 
@@ -137,7 +138,7 @@ func BenchmarkPageControl(b *testing.B) {
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, term.view)
+		drawPage(page, canvas, term.View)
 	}
 }
 

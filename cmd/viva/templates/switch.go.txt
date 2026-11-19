@@ -1,6 +1,12 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/base"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type SwitchLook = style.SwitchLook
 
 // SwitchSize selects the official default or small switch geometry.
 type SwitchSize uint8
@@ -18,16 +24,17 @@ const switchSlotChecked uint8 = 0
 // thumb and fades the track over the theme's Transition; the caller still
 // passes only the destination state.
 type Switch struct {
-	canvas   *gfx.Canvas
-	theme    gfx.Theme
-	id       gfx.ID
-	bounds   gfx.Rect
-	label    string
-	checked  bool
-	focused  bool
-	invalid  bool
-	size     SwitchSize
-	disabled bool
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	id        gfx.ID
+	bounds    gfx.Rect
+	label     string
+	hitBounds gfx.Rect
+	checked   bool
+	focused   bool
+	invalid   bool
+	size      SwitchSize
+	disabled  bool
 	// recipe, when set, replaces SwitchRecipe; see Button.Recipe.
 	recipe func(gfx.Theme, gfx.State, float32) SwitchLook
 }
@@ -91,13 +98,13 @@ func (result SwitchResult) Clicked() bool {
 	return result.canvas != nil && result.canvas.Clicked(result.id)
 }
 
-// SwitchExtent is the width and height of a switch at the theme's density.
-func SwitchExtent(theme gfx.Theme, small bool) (width, height float32) {
-	scale := theme.Metrics.ControlHeight / 32
-	if small {
-		return 24 * scale, 14 * scale
-	}
-	return 32 * scale, 18.4 * scale
+// HitBounds makes an enclosing label or selection card activate this switch.
+// The visual track keeps its normal position and size; zero bounds use the
+// default enlarged target. The rect replaces the track's target rather than
+// adding to it and must contain the track.
+func (switchControl Switch) HitBounds(bounds gfx.Rect) Switch {
+	switchControl.hitBounds = bounds
+	return switchControl
 }
 
 // SwitchHitExtent is the width and height of the interaction region Paint
@@ -172,6 +179,9 @@ func (switchControl Switch) Paint() SwitchResult {
 			X: switchControl.bounds.X - 12, Y: switchControl.bounds.Y - 8,
 			Width: switchControl.bounds.Width + 24, Height: switchControl.bounds.Height + 16,
 		}
+		if switchControl.hitBounds.Width > 0 && switchControl.hitBounds.Height > 0 {
+			hitBounds = switchControl.hitBounds
+		}
 		switchControl.canvas.HitWithOptions(switchControl.id, hitBounds, switchControl.label, gfx.HitOptions{
 			Role: gfx.RoleSwitch, Disabled: switchControl.disabled,
 			Checked: switchControl.checked,
@@ -181,18 +191,6 @@ func (switchControl Switch) Paint() SwitchResult {
 }
 
 // SwitchLook is the look of a switch in one state and at one point of its travel.
-type SwitchLook struct {
-	// Track and Thumb are the colors of the track and the knob at that point of the
-	// travel; Border is the track's line, drawn only when Bordered.
-	Track, Thumb, Border gfx.Color
-	Bordered             bool
-	// Ring is the halo of a focused or invalid switch, transparent when there is none;
-	// RingWidth is how far it reaches beyond the track.
-	Ring      gfx.Color
-	RingWidth float32
-	// Shadow is the elevation under the track.
-	Shadow gfx.ShadowLevel
-}
 
 // SwitchRecipe resolves the look of a switch. progress is how far the thumb has travelled
 // toward on, 0 to 1 (see gfx.Canvas.Animate), which the track and the thumb colors follow.
@@ -227,4 +225,7 @@ func switchRecipe(theme *gfx.Theme, state gfx.State, progress float32) SwitchLoo
 		look.Border.Alpha *= 0.50
 	}
 	return look
+}
+func SwitchExtent(theme gfx.Theme, on bool) (width, height float32) {
+	return base.SwitchExtent(theme, on)
 }

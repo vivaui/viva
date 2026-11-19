@@ -3,6 +3,7 @@ package components
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -44,65 +45,6 @@ type DrawerOptions struct {
 	// DrawerSwipe.Offset reports it: Layout and Begin place every part that much
 	// closer to closed, and the scrim fades with it.
 	Offset float32
-}
-
-// DrawerSwipe is caller-owned drag state for a drawer that is swiped toward
-// its edge to dismiss. The caller supplies one axis of the pointer: increasing
-// toward the closed edge (down for a bottom drawer, up for a top one, right for
-// a right drawer, left for a left one). Move clamps the travel to the open
-// extent; End decides whether the release dismisses or snaps to one of the
-// caller's snap fractions.
-type DrawerSwipe struct {
-	dragging bool
-	start    float32
-	offset   float32
-}
-
-// Begin starts a swipe at pointer.
-func (swipe *DrawerSwipe) Begin(pointer float32) {
-	swipe.dragging, swipe.start, swipe.offset = true, pointer, 0
-}
-
-// Move advances the swipe and returns how far it has travelled toward closed,
-// clamped to [0, extent].
-func (swipe *DrawerSwipe) Move(pointer, extent float32) float32 {
-	if !swipe.dragging {
-		return swipe.offset
-	}
-	swipe.offset = min(max(pointer-swipe.start, 0), max(extent, 0))
-	return swipe.offset
-}
-
-// Offset is the current distance travelled toward closed.
-func (swipe *DrawerSwipe) Offset() float32 { return swipe.offset }
-
-// Dragging reports whether a swipe is in progress.
-func (swipe *DrawerSwipe) Dragging() bool { return swipe.dragging }
-
-// End finishes the swipe. velocity is the release speed toward closed, in
-// pixels per second. It dismisses when the drawer travelled at least half its
-// extent or was thrown faster than 600 px/s; otherwise it returns the nearest
-// snap fraction (0 is the open edge) times extent. snapPoints are fractions in
-// [0,1]; an empty slice snaps to the open or half-open position the drawer is
-// already nearest.
-func (swipe *DrawerSwipe) End(extent, velocity float32, snapPoints []float32) (offset float32, dismissed bool) {
-	swipe.dragging = false
-	if extent <= 0 {
-		return 0, false
-	}
-	if swipe.offset >= extent/2 || velocity >= 600 {
-		swipe.offset = extent
-		return extent, true
-	}
-	best, bestDistance := float32(0), swipe.offset
-	for _, point := range snapPoints {
-		candidate := min(max(point, 0), 1) * extent
-		if distance := absFloat32(candidate - swipe.offset); distance < bestDistance {
-			best, bestDistance = candidate, distance
-		}
-	}
-	swipe.offset = best
-	return best, false
 }
 
 func absFloat32(value float32) float32 {
@@ -443,3 +385,6 @@ func (drawer Drawer) paintClose(bounds gfx.Rect) {
 
 // drawerDuration is the 450ms of Base UI's drawer transition.
 const drawerDuration = 450 * time.Millisecond
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type DrawerSwipe = base.SwipeGesture

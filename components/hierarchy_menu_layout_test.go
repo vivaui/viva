@@ -36,22 +36,22 @@ func TestHierarchyMenuKeepsVisibleLevelsReadableInsideViewport(t *testing.T) {
 				anchor := gfx.Rect{X: width + 20, Y: 60, Width: 160, Height: 26}
 				PaintHierarchyMenu(&canvas, gfx.LightTheme(), anchor, &m, o)
 				first := 0
-				if m.compact {
-					first = m.depth
+				if m.Compact {
+					first = m.DepthValue
 				}
-				for level := first; level <= m.depth; level++ {
-					panel := m.panels[level]
+				for level := first; level <= m.DepthValue; level++ {
+					panel := m.Panels[level]
 					if panel.Width < hierarchyMinColumn || panel.X < o.Viewport.X || panel.X+panel.Width > o.Viewport.X+o.Viewport.Width {
 						t.Fatalf("level %d panel %+v is not usable inside %+v", level, panel, o.Viewport)
 					}
 					for ancestor := first; ancestor < level; ancestor++ {
-						previous := m.panels[ancestor]
+						previous := m.Panels[ancestor]
 						if min(panel.X+panel.Width, previous.X+previous.Width)-max(panel.X, previous.X) > 4.01 {
 							t.Fatalf("level %d panel %+v covers ancestor %+v", level, panel, previous)
 						}
 					}
 				}
-				root := m.panels[first]
+				root := m.Panels[first]
 				if root.X >= anchor.X+anchor.Width || root.X+root.Width <= anchor.X {
 					t.Fatalf("root popup %+v detached from anchor %+v", root, anchor)
 				}
@@ -128,18 +128,18 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 			}
 			for level := 0; level < hierarchyMaxLevels-1; level++ {
 				move(level, 0)
-				if m.depth != level+1 {
-					t.Fatalf("hovering level %d opened depth %d", level, m.depth)
+				if m.DepthValue != level+1 {
+					t.Fatalf("hovering level %d opened depth %d", level, m.DepthValue)
 				}
 				must(driver.Advance(time.Second))
-				if m.depth != level+1 {
-					t.Fatalf("resting pointer changed depth to %d", m.depth)
+				if m.DepthValue != level+1 {
+					t.Fatalf("resting pointer changed depth to %d", m.DepthValue)
 				}
 			}
 			for level := hierarchyMaxLevels - 1; level >= 0; level-- {
 				move(level, 1)
-				if m.depth != level {
-					t.Fatalf("returning to level %d left depth %d", level, m.depth)
+				if m.DepthValue != level {
+					t.Fatalf("returning to level %d left depth %d", level, m.DepthValue)
 				}
 				bounds := row(level, 1)
 				must(driver.Click(bounds.X+bounds.Width/2, bounds.Y+bounds.Height/2))
@@ -152,14 +152,14 @@ func TestHierarchyMenuPointerNavigatesDeepCascade(t *testing.T) {
 			move(0, 0)
 			for level := 1; level < hierarchyMaxLevels; level++ {
 				must(driver.Key(gfx.KeyRight, 0))
-				if m.level != level {
-					t.Fatalf("Right reached level %d, want %d", m.level, level)
+				if m.Level != level {
+					t.Fatalf("Right reached level %d, want %d", m.Level, level)
 				}
 			}
 			for level := hierarchyMaxLevels - 2; level >= 0; level-- {
 				must(driver.Key(gfx.KeyLeft, 0))
-				if m.depth != level {
-					t.Fatalf("Left left depth %d, want %d", m.depth, level)
+				if m.DepthValue != level {
+					t.Fatalf("Left left depth %d, want %d", m.DepthValue, level)
 				}
 			}
 		})
@@ -234,7 +234,7 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer driver.Close()
-	if !s.tree.compact {
+	if !s.Tree.Compact {
 		t.Fatal("eight levels in a narrow window need compact navigation")
 	}
 	for level := 0; level < hierarchyMaxLevels-1; level++ {
@@ -245,12 +245,12 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 		if err := driver.Advance(time.Second); err != nil {
 			t.Fatal(err)
 		}
-		if s.tree.depth != level {
+		if s.Tree.DepthValue != level {
 			t.Fatal("compact hover navigated before a click")
 		}
 		hierarchyTestClick(t, driver, o.OptionIDs.At((hierarchyOpenLevel+level)<<16))
-		if !s.Open || s.Value() != "" || s.tree.depth != level+1 {
-			t.Fatalf("navigation selected %q, open=%v depth=%d", s.Value(), s.Open, s.tree.depth)
+		if !s.Open || s.Value() != "" || s.Tree.DepthValue != level+1 {
+			t.Fatalf("navigation selected %q, open=%v depth=%d", s.Value(), s.Open, s.Tree.DepthValue)
 		}
 		label := strings.Split(path, "/")[level+1]
 		visible := false
@@ -267,15 +267,15 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 		if err := driver.Resize(width, 600); err != nil {
 			t.Fatal(err)
 		}
-		if s.tree.level != 7 {
-			t.Fatalf("resize moved keyboard to level %d", s.tree.level)
+		if s.Tree.Level != 7 {
+			t.Fatalf("resize moved keyboard to level %d", s.Tree.Level)
 		}
 		hierarchyTestHit(t, driver, o.OptionIDs.At(7<<16))
 	}
 	for level := hierarchyMaxLevels - 2; level >= 0; level-- {
 		hierarchyTestClick(t, driver, o.OptionIDs.At(hierarchyBackIndex))
-		if !s.Open || s.Value() != "" || s.tree.depth != level {
-			t.Fatalf("back selected %q, open=%v depth=%d", s.Value(), s.Open, s.tree.depth)
+		if !s.Open || s.Value() != "" || s.Tree.DepthValue != level {
+			t.Fatalf("back selected %q, open=%v depth=%d", s.Value(), s.Open, s.Tree.DepthValue)
 		}
 	}
 	// The parent label still selects that parent, rather than descending.
@@ -290,15 +290,15 @@ func TestSingleSelectCompactHierarchyNavigatesAndSelects(t *testing.T) {
 		if err := driver.Key(gfx.KeyRight, 0); err != nil {
 			t.Fatal(err)
 		}
-		if s.tree.level != level || s.tree.depth != level {
-			t.Fatalf("Right reached level %d depth %d, want %d", s.tree.level, s.tree.depth, level)
+		if s.Tree.Level != level || s.Tree.DepthValue != level {
+			t.Fatalf("Right reached level %d depth %d, want %d", s.Tree.Level, s.Tree.DepthValue, level)
 		}
 	}
 	if err := driver.Key(gfx.KeyLeft, 0); err != nil {
 		t.Fatal(err)
 	}
-	if s.tree.depth != 6 {
-		t.Fatalf("Left left depth %d", s.tree.depth)
+	if s.Tree.DepthValue != 6 {
+		t.Fatalf("Left left depth %d", s.Tree.DepthValue)
 	}
 	if err := driver.Key(gfx.KeyRight, 0); err != nil {
 		t.Fatal(err)
@@ -337,15 +337,15 @@ func TestHierarchyMenuCompactBackRemainsReachableAfterScroll(t *testing.T) {
 	if err := driver.Scroll(gfx.ScrollEvent{X: row.X + 20, Y: row.Y + 16, DeltaY: 1000}); err != nil {
 		t.Fatal(err)
 	}
-	if m.scrolls[1].Offset == 0 {
+	if m.Scrolls[1].Offset == 0 {
 		t.Fatal("the child list did not scroll")
 	}
 	if after := hierarchyTestHit(t, driver, o.OptionIDs.At(hierarchyBackIndex)); after != back {
 		t.Fatalf("scroll moved back button %+v -> %+v", back, after)
 	}
 	hierarchyTestClick(t, driver, o.OptionIDs.At(hierarchyBackIndex))
-	if m.depth != 0 {
-		t.Fatalf("back left depth %d", m.depth)
+	if m.DepthValue != 0 {
+		t.Fatalf("back left depth %d", m.DepthValue)
 	}
 }
 
@@ -358,22 +358,22 @@ func TestHierarchyMenuRebuildAndSeekKeepCurrentLevelReachable(t *testing.T) {
 		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
 	}
 	paint()
-	if !m.compact || m.level != m.depth {
+	if !m.Compact || m.Level != m.DepthValue {
 		t.Fatal("deep selection did not show its compact level")
 	}
 	m.Reset()
 	paint()
-	if m.depth != 0 || m.level != 0 || m.panels[0].Width == 0 {
+	if m.DepthValue != 0 || m.Level != 0 || m.Panels[0].Width == 0 {
 		t.Fatal("Reset did not return to a visible root")
 	}
 	m.Seek("A/B/C")
 	paint()
-	if m.depth != 2 || m.level != 2 || m.panels[2].Width == 0 {
+	if m.DepthValue != 2 || m.Level != 2 || m.Panels[2].Width == 0 {
 		t.Fatal("Seek did not reveal the selected level")
 	}
 	m.Build("/", "New root", nil, 1, func(int) HierarchyMenuItem { return HierarchyMenuItem{Value: "New root"} })
 	paint()
-	if m.compact || m.depth != 0 || m.level != 0 {
+	if m.Compact || m.DepthValue != 0 || m.Level != 0 {
 		t.Fatal("rebuilding a shallow tree retained the deep layout")
 	}
 	if value, ok := m.Choose(0); !ok || value != "New root" {
@@ -387,7 +387,7 @@ func TestHierarchyMenuCompactNavigationClipsToShortPopup(t *testing.T) {
 		o.Viewport.Width, o.Viewport.Height = 320, height
 		var canvas gfx.Canvas
 		PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 100, Y: 20, Width: 160, Height: 26}, &m, o)
-		panel := m.panels[m.depth]
+		panel := m.Panels[m.DepthValue]
 		for _, hit := range canvas.Hits() {
 			if _, ok := hit.ID.In(o.OptionIDs); ok && (hit.Bounds.Y < panel.Y || hit.Bounds.Y+hit.Bounds.Height > panel.Y+panel.Height) {
 				t.Fatalf("height %.0f navigation %+v escaped its short popup %+v", height, hit.Bounds, panel)
@@ -402,12 +402,12 @@ func TestHierarchyMenuDeepPathDoesNotCoverAncestorRows(t *testing.T) {
 	m, o := deepHierarchyMenu()
 	var canvas gfx.Canvas
 	PaintHierarchyMenu(&canvas, gfx.LightTheme(), gfx.Rect{X: 240, Y: 20, Width: 100, Height: 26}, &m, o)
-	if m.compact {
+	if m.Compact {
 		t.Fatal("a readable cascade fits beside the anchor")
 	}
-	for a := 0; a <= m.depth; a++ {
-		for b := a + 1; b <= m.depth; b++ {
-			first, second := m.panels[a], m.panels[b]
+	for a := 0; a <= m.DepthValue; a++ {
+		for b := a + 1; b <= m.DepthValue; b++ {
+			first, second := m.Panels[a], m.Panels[b]
 			width := min(first.X+first.Width, second.X+second.Width) - max(first.X, second.X)
 			height := min(first.Y+first.Height, second.Y+second.Height) - max(first.Y, second.Y)
 			// Adjacent popup borders overlap by four pixels; row contents must not.

@@ -43,7 +43,7 @@ func TestListFollowShowsTheEndAsRowsArrive(t *testing.T) {
 type followRowsModel struct {
 	rows   *logRows
 	follow bool
-	scroll *ui.ScrollState
+	Scroll *ui.ScrollState
 }
 
 func (m *followRowsModel) page(c ui.C) {
@@ -53,7 +53,7 @@ func (m *followRowsModel) page(c ui.C) {
 				ui.Text(row.C, "row "+strconv.Itoa(row.Index))
 			})
 		}).Label("Rows")
-		m.scroll = list.ScrollState()
+		m.Scroll = list.ScrollState()
 		list.Follow(m.follow).Grow(1)
 	})
 }
@@ -66,18 +66,18 @@ func TestListFollowCanBeStoppedBetweenPaints(t *testing.T) {
 	m := &followRowsModel{rows: newLogRows(10), follow: true}
 	d := openPage(t, m.page)
 	d.repaint()
-	m.scroll.Follow(false) // the user grabs the thumb
+	m.Scroll.Follow(false) // the user grabs the thumb
 	m.follow = false
-	before := m.scroll.Offset
+	before := m.Scroll.Offset
 	m.rows.n += 20
 	d.repaint()
-	if m.scroll.Offset != before {
-		t.Fatalf("rows that arrived after the drag began moved the offset from %v to %v", before, m.scroll.Offset)
+	if m.Scroll.Offset != before {
+		t.Fatalf("rows that arrived after the drag began moved the offset from %v to %v", before, m.Scroll.Offset)
 	}
 	m.follow = true
 	d.repaint()
 	if !m.rows.list.AtEnd() {
-		t.Fatalf("following again did not return to the end: offset %v max %v", m.scroll.Offset, m.scroll.Max())
+		t.Fatalf("following again did not return to the end: offset %v max %v", m.Scroll.Offset, m.Scroll.Max())
 	}
 }
 

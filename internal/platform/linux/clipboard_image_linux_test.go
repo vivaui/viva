@@ -1,7 +1,9 @@
 package linux
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -12,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 )
 
 // TestClipboardImageFromX11Owner reads an image another program put on the real
@@ -167,5 +171,96 @@ Gtk.main()`
 		if got, want := color.NRGBAModel.Convert(decoded.At(point.X, point.Y)), picture.At(point.X, point.Y); got != want {
 			t.Fatalf("pixel %v is %v, want %v", point, got, want)
 		}
+	}
+}
+
+func TestX11PasteFromImageOnlyClipboard(t *testing.T) {
+	if testing.Short() || os.Getenv("VIVA_LINUX_XCB_SMOKE") == "" {
+		t.Skip("set VIVA_LINUX_XCB_SMOKE=1 with a private X11 display and GTK 3 PyGObject")
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil || exec.Command(python, "-c", "import gi; gi.require_version('Gtk', '3.0')").Run() != nil {
+		t.Skip("PyGObject with GTK 3 is not installed")
+	}
+	for _, scenario := range []string{"no-owner", "image", "text", "no-display"} {
+		t.Run(scenario, func(t *testing.T) {
+			if scenario == "image" || scenario == "text" {
+				const script = `import gi, sys
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk, Gdk, GdkPixbuf
+clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+if sys.argv[1] == 'image':
+    bitmap = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, False, 8, 3, 2)
+    bitmap.fill(0x2155aaff)
+    clipboard.set_image(bitmap)
+else:
+    clipboard.set_text('pasted', -1)
+print('serving', flush=True)
+Gtk.main()`
+				ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+				t.Cleanup(cancel)
+				owner := exec.CommandContext(ctx, python, "-c", script, scenario)
+				owner.Stderr = os.Stderr
+				stdout, err := owner.StdoutPipe()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := owner.Start(); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { cancel(); _ = owner.Wait() })
+				ready := bufio.NewScanner(stdout)
+				if !ready.Scan() || ready.Text() != "serving" {
+					t.Fatalf("clipboard owner did not start: %q, %v", ready.Text(), ready.Err())
+				}
+			}
+			if scenario == "image" {
+				data, err := ClipboardImagePNG()
+				config, decodeErr := png.DecodeConfig(bytes.NewReader(data))
+				if err != nil || decodeErr != nil || config.Width != 3 || config.Height != 2 {
+					t.Fatalf("image fixture not available: %+v, read=%v, decode=%v", config, err, decodeErr)
+				}
+			}
+			if scenario == "no-display" {
+				t.Setenv("DISPLAY", "")
+				if value, err := ClipboardText(); err == nil {
+					t.Fatalf("text read without a display returned %q without an error", value)
+				}
+			}
+
+			editor := text.NewEditor("abc")
+			editor.SetSelection(text.Range{Start: 1, End: 2})
+			before := platform.EditorState(editor).WithoutRedraw()
+			var events []platform.TextEvent
+			state := linuxTextInput{
+				enabled: true, config: &platform.Config{}, state: before,
+				input: platform.TextInput{State: before, OnEvent: func(event platform.TextEvent) (platform.TextState, error) {
+					events = append(events, event)
+					event.Apply(editor)
+					return platform.EditorState(editor), nil
+				}},
+			}
+			if _, handled, err := state.key(platform.KeyEvent{Modifiers: input.ModifierControl, Text: "v"}); !handled || err != nil {
+				t.Fatalf("paste ingress: handled=%t, error=%v", handled, err)
+			}
+			switch scenario {
+			case "text":
+				if len(events) != 1 || events[0].Kind != platform.TextPaste || editor.String() != "apastedc" {
+					t.Fatalf("text paste: events=%+v, editor=%q", events, editor.String())
+				}
+			case "no-display":
+				if len(events) != 0 {
+					t.Fatalf("transport failure dispatched events: %+v", events)
+				}
+			default:
+				if len(events) != 1 || events[0].Kind != platform.TextPasteNoText {
+					t.Fatalf("non-text paste: events=%+v, want one TextPasteNoText", events)
+				}
+			}
+			if scenario != "text" && (platform.EditorState(editor).WithoutRedraw() != before || editor.CanUndo()) {
+				t.Fatal("a paste without text changed editor content, selection, or history")
+			}
+		})
 	}
 }

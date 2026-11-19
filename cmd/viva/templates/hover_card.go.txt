@@ -3,6 +3,8 @@ package {{PACKAGE}}
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -73,43 +75,6 @@ func hoverCardDeadline(now time.Time, delay time.Duration) time.Time {
 	}
 	return now.Add(delay)
 }
-
-// HoverIntent is caller-owned hover-rest state for a control that opens
-// something on hover, such as a hover card, a submenu trigger, a menubar
-// trigger while another menu is open, or a navigation menu. Its zero value is
-// ready for the first target. Call Rest with the hovered identity each frame:
-// it returns the identity once it has rested for delay, and otherwise how long
-// the caller should wait before asking again. Moving to another target, or
-// passing zero, starts over, so the caller schedules no timer of its own.
-type HoverIntent struct {
-	target gfx.ID
-	since  time.Time
-}
-
-// Rest advances the intent to target at now. It returns target and zero once the
-// target has rested for delay; until then it returns zero and the remaining
-// wait. A zero target clears the candidate. A non-positive delay makes the
-// target ready at once.
-func (intent *HoverIntent) Rest(target gfx.ID, now time.Time, delay time.Duration) (gfx.ID, time.Duration) {
-	if target.IsZero() {
-		*intent = HoverIntent{}
-		return gfx.ID{}, 0
-	}
-	if target != intent.target || now.Before(intent.since) {
-		intent.target, intent.since = target, now
-	}
-	if delay <= 0 {
-		return target, 0
-	}
-	if elapsed := now.Sub(intent.since); elapsed >= delay {
-		return target, 0
-	} else {
-		return gfx.ID{}, delay - elapsed
-	}
-}
-
-// Reset forgets the current candidate, as leaving the control does.
-func (intent *HoverIntent) Reset() { *intent = HoverIntent{} }
 
 // HoverCardOptions describes one synchronous preview surface.
 type HoverCardOptions struct {
@@ -252,3 +217,6 @@ func (card HoverCard) contentBounds(width, headerHeight float32) (gfx.Rect, Over
 		SideOffset: offset, AlignOffset: alignOffset, Margin: 8,
 	})
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type HoverIntent = base.HoverIntent

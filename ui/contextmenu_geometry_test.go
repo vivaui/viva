@@ -17,9 +17,9 @@ func TestContextMenuAtKeepsItsOriginAndDenseRows(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			ui.Button(c, "alpha")
-			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, at, func(items *ui.MenuItems) {
-				menu = items
-				items.RowHeight(24)
+			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, at, func(Items *ui.MenuItems) {
+				menu = Items
+				Items.RowHeight(24)
 				menu.Item("One")
 				menu.Item("Two")
 				menu.Separator()

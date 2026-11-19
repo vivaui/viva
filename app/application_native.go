@@ -78,6 +78,17 @@ type resultWindow struct {
 	waker   *platform.Waker
 }
 
+// The embedded WindowControl intentionally exposes only the methods every
+// native window has. Forward optional capabilities explicitly so wrapping a
+// window for event-result handling does not hide resize, fullscreen,
+// always-on-top, or shortcut capture support.
+var _ platform.WindowSizer = resultWindow{}
+var _ fullscreenControl = resultWindow{}
+var _ alwaysOnTopControl = resultWindow{}
+var _ shortcutCapturer = resultWindow{}
+var _ titleControl = resultWindow{}
+var _ platform.WindowMover = resultWindow{}
+
 // What OpenWindow looks for in a host's window control.
 var _ interface {
 	applyResult(gfx.EventResult) bool
@@ -85,8 +96,14 @@ var _ interface {
 	runShortcut(keymap.Chord) (gfx.EventResult, bool)
 } = resultWindow{}
 
-// Forward fullscreen explicitly because WindowControl embeds only the basic
-// window operations.
+func (window resultWindow) SetSize(width, height int) error {
+	sizer, ok := window.WindowControl.(platform.WindowSizer)
+	if !ok {
+		return platform.ErrWindowSizeUnsupported
+	}
+	return sizer.SetSize(width, height)
+}
+
 func (window resultWindow) SetFullscreen(fullscreen bool) error {
 	control, ok := window.WindowControl.(fullscreenControl)
 	if !ok {
@@ -98,6 +115,40 @@ func (window resultWindow) SetFullscreen(fullscreen bool) error {
 func (window resultWindow) Fullscreen() bool {
 	control, ok := window.WindowControl.(fullscreenControl)
 	return ok && control.Fullscreen()
+}
+
+func (window resultWindow) SetTitle(title string) error {
+	control, ok := window.WindowControl.(titleControl)
+	if !ok {
+		return fmt.Errorf("%w: window titles", ErrUnsupported)
+	}
+	return control.SetTitle(title)
+}
+
+func (window resultWindow) SetAlwaysOnTop(enabled bool) error {
+	control, ok := window.WindowControl.(alwaysOnTopControl)
+	if !ok {
+		return platform.ErrAlwaysOnTopUnsupported
+	}
+	return control.SetAlwaysOnTop(enabled)
+}
+
+func (window resultWindow) MoveTo(origin gfx.Point) {
+	if control, ok := window.WindowControl.(platform.WindowMover); ok {
+		control.MoveTo(origin)
+	}
+}
+
+func (window resultWindow) unwrapWindowControl() WindowControl {
+	return window.WindowControl
+}
+
+func (window resultWindow) CaptureSystemShortcuts(capture bool) error {
+	control, ok := window.WindowControl.(shortcutCapturer)
+	if !ok {
+		return fmt.Errorf("%w: this platform keeps the system's shortcuts", ErrUnsupported)
+	}
+	return control.CaptureSystemShortcuts(capture)
 }
 
 func (window resultWindow) applyResult(result gfx.EventResult) bool {

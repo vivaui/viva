@@ -209,7 +209,7 @@ func TestEffectCancelsWhenThePageCloses(t *testing.T) {
 	draw := func() { drawPage(page, canvas, view) }
 
 	var baseClosed bool
-	config := page.Config(app.Config{OnClosed: func() { baseClosed = true }})
+	config := ui.Configure(page, app.Config{OnClosed: func() { baseClosed = true }})
 	if config.Invalidator == nil {
 		t.Fatal("Page.Config did not give the effects an Invalidator")
 	}
@@ -237,7 +237,7 @@ func TestEffectSteadyPaintAllocatesNothing(t *testing.T) {
 		ui.Text(c, "steady")
 	}
 	page, canvas := ui.NewPage(ui.PageConfig{View: view}), benchCanvas()
-	defer page.Config(app.Config{}).OnClosed()
+	defer ui.Configure(page, app.Config{}).OnClosed()
 	draw := func() { drawPage(page, canvas, view) }
 	for range 3 {
 		draw()
@@ -339,7 +339,7 @@ func TestEffectCannotBeDeclaredTwiceWithDifferentKeys(t *testing.T) {
 	}
 	page, canvas := ui.NewPage(ui.PageConfig{View: view}), benchCanvas()
 	defer func() {
-		page.Config(app.Config{}).OnClosed()
+		ui.Configure(page, app.Config{}).OnClosed()
 		recovered := recover()
 		if recovered == nil || !strings.Contains(recovered.(string), "twice") {
 			t.Fatalf("the second declaration did not panic: %v", recovered)
@@ -358,8 +358,8 @@ func TestEffectStateBelongsToOnePage(t *testing.T) {
 	drawPage(first, canvas, firstView)
 	second := ui.NewPage(ui.PageConfig{View: firstView})
 	defer func() {
-		first.Config(app.Config{}).OnClosed()
-		second.Config(app.Config{}).OnClosed()
+		ui.Configure(first, app.Config{}).OnClosed()
+		ui.Configure(second, app.Config{}).OnClosed()
 		recovered := recover()
 		if recovered == nil || !strings.Contains(recovered.(string), "one page") {
 			t.Fatalf("the second page did not panic: %v", recovered)
@@ -372,7 +372,7 @@ func TestPageConfigInvalidatorCanBeGivenToAnEmbeddedPage(t *testing.T) {
 	view := func(ui.C) {}
 	ours, base := new(app.Invalidator), new(app.Invalidator)
 	page := ui.NewPage(ui.PageConfig{View: view, Invalidator: ours})
-	if config := page.Config(app.Config{Invalidator: base}); config.Invalidator != ours {
+	if config := ui.Configure(page, app.Config{Invalidator: base}); config.Invalidator != ours {
 		t.Fatal("Page.Config did not use the page's Invalidator")
 	}
 }

@@ -1,6 +1,7 @@
 package linux
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -8,6 +9,40 @@ import (
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 )
+
+func TestCPUOffscreenMagnifiesBitmapInsideClip(t *testing.T) {
+	offscreen, err := NewCPUOffscreen(20, 10, 1.5, platform.Color{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(offscreen.Close)
+	label := bitmapLabel()
+	label.Bitmap = []byte{0, 0, 128, 128, 0, 255, 0, 255}
+	label.Clipped = true
+	label.Clip = gfx.Rect{X: 3, Y: 3, Width: 14, Height: 4}
+	if err := offscreen.Set(nil, []platform.TextLabel{label}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := offscreen.Image()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, check := range []struct {
+		x, y int
+		want color.RGBA
+	}{
+		{4, 4, color.RGBA{R: 128, A: 128}},
+		{14, 7, color.RGBA{R: 69, G: 117, A: 186}},
+		{25, 10, color.RGBA{G: 255, A: 255}},
+		{3, 4, color.RGBA{}},
+		{26, 10, color.RGBA{}},
+		{25, 11, color.RGBA{}},
+	} {
+		if got := result.RGBAAt(check.x, check.y); got != check.want {
+			t.Errorf("pixel (%d, %d) = %+v, want %+v", check.x, check.y, got, check.want)
+		}
+	}
+}
 
 func TestCPUOffscreenDrawsShapesAndTextWithoutVulkan(t *testing.T) {
 	clear := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}

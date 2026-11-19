@@ -7,7 +7,7 @@ group: guides
 
 ## One window or several
 
-`app.RunCanvas` opens a single window and returns when it closes. For anything with more than one window, or a window that can hide while the application keeps running, use `app.RunApplication`. Its start callback runs once on the native event-loop thread and opens the first window with `ui.OpenWindow(application, config, ui.PageConfig{View: ...})`, which makes the page and its canvas; a page reaches its application with `c.Application()` to open more; later windows are opened from that callback or from another window's callbacks, which run on the same thread.
+`app.RunCanvas` opens a single window and returns when it closes. For anything with more than one window, or a window that can hide while the application keeps running, use `app.RunApplication`. Its start callback runs once on the native event-loop thread and opens the first window with `ui.OpenWindow(application, config, ui.PageConfig{View: ...})`, which makes the page and its canvas; a page reaches its application with `ui.Application(c)` to open more; later windows are opened from that callback or from another window's callbacks, which run on the same thread.
 
 Every window has its own canvas, paint callback, focus, input state and close handling. The loop ends when the last window closes, or when something calls `Application.Quit`, which closes every window whatever their close handlers say.
 
@@ -110,7 +110,7 @@ func (state *notes) page(c ui.C) {
 			if ui.Button(c, "Settings").Outline().Clicked() {
 				// Windows are opened from the start callback or from another
 				// window's callbacks, which run on the native event-loop thread.
-				_, _ = ui.OpenWindow(c.Application(), app.Config{Title: "Settings", Width: 420, Height: 320},
+				_, _ = ui.OpenWindow(ui.Application(c), app.Config{Title: "Settings", Width: 420, Height: 320},
 					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})

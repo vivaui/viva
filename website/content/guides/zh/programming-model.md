@@ -17,7 +17,7 @@ Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *
 
 ## 事件
 
-按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Page.Config` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
+按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Configure` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
 
 | 回调 | 收到什么 |
 | --- | --- |
@@ -101,7 +101,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
+	config := ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
 	// for: move what the goroutine published into state that the page reads.
