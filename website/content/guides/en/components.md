@@ -23,7 +23,7 @@ A theme is a value, `gfx.LightTheme()` or `gfx.DarkTheme()`. Switching appearanc
 
 ## Tree navigation
 
-`BeginTree` paints rows from an application-owned flattened hierarchy. For keyboard navigation, pass the visible rows' actual depths, expansion state and disabled state to `components.NavigateTree`; do not pass display-clamped indentation as the depth. It returns the next visible index or an expand/collapse action. The application still owns loading children, expansion, selection and focus, so no hidden model or background work is created. Keep the navigation slice as reusable caller-owned scratch when handling keys.
+`BeginTree` paints rows from an application-owned flattened hierarchy. For keyboard navigation, pass the visible rows' actual depths, expansion state and disabled state to `ui.NavigateTree`; do not pass display-clamped indentation as the depth. It returns the next visible index or an expand/collapse action. The application still owns loading children, expansion, selection and focus, so no hidden model or background work is created. Keep the navigation slice as reusable caller-owned scratch when handling keys.
 
 ## Charts
 

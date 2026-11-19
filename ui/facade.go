@@ -387,6 +387,23 @@ func LayoutScrollArea(bounds gfx.Rect, content gfx.Size, layout ScrollAreaLayout
 	return base.LayoutScrollArea(bounds, content, layout)
 }
 
+// Tree navigation.
+
+type TreeNavigationItem = base.TreeNavigationItem
+
+type TreeNavigationAction = base.TreeNavigationAction
+
+const (
+	TreeNavigationNone     = base.TreeNavigationNone
+	TreeNavigationMove     = base.TreeNavigationMove
+	TreeNavigationExpand   = base.TreeNavigationExpand
+	TreeNavigationCollapse = base.TreeNavigationCollapse
+)
+
+func NavigateTree(items []TreeNavigationItem, current int, key gfx.Key, pageRows int) (int, TreeNavigationAction, bool) {
+	return base.NavigateTree(items, current, key, pageRows)
+}
+
 // Identity and input.
 
 func ID(c C) gfx.ID { return base.ID(c) }

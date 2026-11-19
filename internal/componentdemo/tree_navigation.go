@@ -11,12 +11,12 @@ var treeNavigationComponent = Component{
 	Summary: "为应用管理的可见树行和展开状态提供键盘导航。",
 	paint:   (*State).paintTreeNavigation, key: (*State).keyTreeNavigation,
 	Examples: []Example{
-		{ID: "default", Title: "键盘导航", Description: "聚焦 Production 行。按 → 展开或进入第一个子项，按 ← 返回父项或收起当前分支。", Snippet: `next, action, handled := components.NavigateTree(visible, current, event.Key, pageRows)
+		{ID: "default", Title: "键盘导航", Description: "聚焦 Production 行。按 → 展开或进入第一个子项，按 ← 返回父项或收起当前分支。", Snippet: `next, action, handled := ui.NavigateTree(visible, current, event.Key, pageRows)
 if handled {
     switch action {
-    case components.TreeNavigationExpand:
+    case ui.TreeNavigationExpand:
         expanded = true
-    case components.TreeNavigationCollapse:
+    case ui.TreeNavigationCollapse:
         expanded = false
     }
     selected = next
@@ -80,14 +80,14 @@ func (state *State) keyTreeNavigation(event gfx.KeyEvent) gfx.EventResult {
 	if expanded {
 		visible = items[:]
 	}
-	next, action, handled := components.NavigateTree(visible, current, event.Key, len(items))
+	next, action, handled := ui.NavigateTree(visible, current, event.Key, len(items))
 	if !handled {
 		return gfx.EventResult{}
 	}
 	switch action {
-	case components.TreeNavigationExpand:
+	case ui.TreeNavigationExpand:
 		state.flags |= 1
-	case components.TreeNavigationCollapse:
+	case ui.TreeNavigationCollapse:
 		state.flags &^= 1
 	}
 	changed := action != components.TreeNavigationNone || state.values[0] != int32(next)
