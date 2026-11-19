@@ -1,13 +1,13 @@
 package windows
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
 
-var errTransparentPreviewUnavailable = errors.New("windows: transparent drag preview is unavailable")
+var errTransparentPreviewUnavailable = fmt.Errorf("%w: windows has no compositor for it", platform.ErrDragPreviewUnsupported)
 
 // SupportsDragPreview marks the Windows adapter as able to show a transparent
 // preview window that never takes focus or input.

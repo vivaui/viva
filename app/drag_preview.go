@@ -60,6 +60,11 @@ func (application *Application) OpenDragPreview(config DragPreviewConfig) (*Drag
 		Paint:      config.Paint,
 	}, nil)
 	if err != nil {
+		// A host that cannot show the preview at all keeps the drag going
+		// without it, as the API promises.
+		if errors.Is(err, platform.ErrDragPreviewUnsupported) {
+			return nil, ErrNoDragPreview
+		}
 		return nil, err
 	}
 	if _, ok := previewMover(window.control); !ok {
