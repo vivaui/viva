@@ -569,6 +569,21 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmRedraw:
 		// Keep posted redraws coalesced until WM_PAINT lets hardware input run first.
 		state.redrawRequested = true
+		// A hidden or minimized window never receives WM_PAINT, so a wake that
+		// only invalidated the window would never run OnWake. Run the redraw
+		// here: the visibility gate runs OnWake and skips the paint, remembering
+		// the frame the first wake after Show must draw.
+		if state.hiddenByShow || state.iconic() {
+			state.redrawRequested = false
+			state.redraws.begin()
+			if state.config.OnRedraw != nil {
+				frame, redrawErr := state.config.OnRedraw()
+				if err := state.frameWithText(frame, redrawErr, false); err != nil || state.window == 0 {
+					return 0
+				}
+			}
+			return 0
+		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
 	case wmGetObject:
