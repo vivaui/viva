@@ -405,6 +405,7 @@ type menuOptionsModel struct {
 	above           bool
 	beside          bool
 	least, greatest float32
+	rowHeight       float32
 	description     string
 	Label           string
 	picked          int
@@ -421,6 +422,9 @@ func (m *menuOptionsModel) page(c ui.C) {
 		}
 		ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
 			menu.WidthRange(m.least, m.greatest)
+			if m.rowHeight > 0 {
+				menu.RowHeight(m.rowHeight)
+			}
 			if m.above {
 				menu.Above()
 			}
@@ -480,6 +484,24 @@ func TestMenuWidthRange(t *testing.T) {
 			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
 		}
 	})
+	t.Run("content below the default minimum", func(t *testing.T) {
+		m := &menuOptionsModel{greatest: 112, Label: "Go"}
+		d := openPage(t, m.page)
+		d.click("More")
+		if got := d.hit(m.Label).Bounds.Width; got <= 0 || got >= 128 {
+			t.Fatalf("the compact menu is %v wide, want its content below the 128 default", got)
+		}
+	})
+}
+
+func TestMenuRowHeightPacksDropdownItems(t *testing.T) {
+	m := &menuOptionsModel{rowHeight: 24}
+	d := openPage(t, m.page)
+	d.click("More")
+	first, second := d.hit("Model").Bounds, d.hit("Other").Bounds
+	if first.Height != 24 || second.Y != first.Y+24 {
+		t.Fatalf("rows = %+v and %+v, want 24px rows", first, second)
+	}
 }
 
 // Beside opens the menu right of its anchor, its first row level with the anchor

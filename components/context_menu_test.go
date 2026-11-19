@@ -179,6 +179,23 @@ func TestContextMenuRowHeightOptionPacksItemsDenser(t *testing.T) {
 	}
 }
 
+func TestDropdownMenuRowHeightOptionPacksItemsDenser(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.LightTheme()
+	menu := BeginDropdownMenu(&canvas, theme, gfx.Rect{X: 10, Y: 20, Width: 160, Height: 200}, DropdownMenuOptions{
+		Layer: 1, Scope: gfx.Item(2), DismissID: gfx.Item(3), RowHeight: 24,
+	})
+	firstItem := DropdownMenuItem{ID: gfx.Item(11), Label: "One"}
+	first := menu.AddItem(firstItem)
+	second := menu.AddItem(DropdownMenuItem{ID: gfx.Item(12), Label: "Two"})
+	if first.Height != 24 || second.Y != first.Y+24 || menu.NextItemBounds().Height != 24 {
+		t.Fatalf("rows = %+v %+v next %+v", first, second, menu.NextItemBounds())
+	}
+	if got := DropdownMenuItemHeightForRow(theme, firstItem, 24); got != 24 {
+		t.Fatalf("DropdownMenuItemHeightForRow = %v, want 24", got)
+	}
+}
+
 func TestMenuRowsFollowTheThemeControlHeight(t *testing.T) {
 	compact := gfx.LightTheme()
 	compact.Metrics = compact.Metrics.WithDensity(gfx.DensityCompact)

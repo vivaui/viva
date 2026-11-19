@@ -45,7 +45,7 @@ func rowExtent(m *MenuItems, i int) float32 {
 	if m.GetContext() {
 		return components.ContextMenuItemHeight(m.GetF().Palette, contextItem(menuItemRow(m, i)), m.GetRowSize())
 	}
-	return components.DropdownMenuItemHeight(m.GetF().Palette, menuItemRow(m, i))
+	return components.DropdownMenuItemHeightForRow(m.GetF().Palette, menuItemRow(m, i), m.GetRowSize())
 }
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
@@ -117,11 +117,16 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 				side = components.OverlayBottom
 			}
 		}
-		menu := components.BeginDropdownMenu(Surface, *Palette, bounds, components.DropdownMenuOptions{
+		options := components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.GetBounds(), ID: id,
 			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil,
+			RowHeight: m.GetRowSize(),
 			Unpainted: m.GetUnpainted(), PaintPanel: m.GetPanelPainter(), PaintItem: m.GetItemPainter(),
-		})
+		}
+		if widthMax := m.GetWidthMax(); widthMax > 0 && widthMax < m.MinWidth() {
+			options.MinWidth = 1
+		}
+		menu := components.BeginDropdownMenu(Surface, *Palette, bounds, options)
 		for i := range m.Items {
 			switch row := &m.Items[i]; row.Kind {
 			case MenuRowSeparator:
@@ -186,7 +191,7 @@ func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 func menuSize(m *MenuItems) (width, height float32) {
 	f := m.GetF()
 	theme := &f.Palette
-	width, height = m.MinWidth(), 2*base.DropdownMenuPadding
+	height = 2 * base.DropdownMenuPadding
 	for i := range m.Items {
 		item := &m.Items[i]
 		height += rowExtent(m, i)
@@ -205,11 +210,16 @@ func menuSize(m *MenuItems) (width, height float32) {
 			}
 		}
 	}
-	if m.GetWidthMin() > 0 && width < m.GetWidthMin() {
-		width = m.GetWidthMin()
+	widthMin, widthMax := m.GetWidthMin(), m.GetWidthMax()
+	if widthMin > 0 && width < widthMin {
+		width = widthMin
 	}
-	if m.GetWidthMax() > 0 && width > m.GetWidthMax() {
-		width = m.GetWidthMax()
+	defaultMin := m.MinWidth()
+	if widthMax <= 0 || widthMax >= defaultMin {
+		width = max(width, defaultMin)
+	}
+	if widthMax > 0 && width > widthMax {
+		width = widthMax
 	}
 	return width, height
 }
