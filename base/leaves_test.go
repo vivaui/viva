@@ -201,6 +201,25 @@ func TestSplitterKeepsItsPositionInRangeWhenTheWindowShrinksAndTakesArrowKeys(t 
 	}
 }
 
+// A splitter given a share per arrow key moves by that share of its room, as the
+// component's 5% step did, instead of a fixed 16 pixels.
+func TestSplitterTakesAStepFraction(t *testing.T) {
+	var view View
+	state := SplitterState{Pos: 300, StepFraction: .05}
+	canvas := testCanvas()
+	splitPage(&view, &state, 1000)(canvas, gfx.Size{})
+	thickness := state.thickness
+	if thickness <= 0 {
+		thickness = splitterThickness
+	}
+	step := max(state.Span-thickness, 1) * .05
+	before := state.Pos
+	state.Key(gfx.KeyEvent{Key: gfx.KeyRight, Target: splitID})
+	if want := before + step; state.Pos != want {
+		t.Fatalf("Right moved the splitter to %v, want %v", state.Pos, want)
+	}
+}
+
 func TestASplitterInAColumnResizesVertically(t *testing.T) {
 	var view View
 	state := SplitterState{Pos: 30}

@@ -6,7 +6,7 @@ import "github.com/vivaui/viva/gfx"
 // it is one pixel, three while the pointer is on it.
 const (
 	splitterThickness = 8
-	splitterStep      = 16 // what an arrow key moves a focused splitter
+	splitterStep      = 16 // what an arrow key moves a focused splitter, unless StepFraction says
 	splitterMin       = 48 // the smallest either pane is, unless Mins says otherwise
 )
 
@@ -16,7 +16,10 @@ const (
 // minimum), give the pane that size, and a drag, an arrow key or a window resize
 // keeps it inside the limits. The rest is bookkeeping.
 type SplitterState struct {
-	Pos float32
+	// StepFraction, when positive, makes an arrow key move the splitter that
+	// share of the room it has (the component's 5% step) instead of 16 pixels.
+	StepFraction float32
+	Pos          float32
 	// Ratio is the share of the container the first pane takes, kept on every
 	// layout while it is non-zero. It lets an application say "the editor gets
 	// two thirds" without knowing the window's size, and a resize keeps the
@@ -43,12 +46,20 @@ func (s *SplitterState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if s.ID.IsZero() || event.Target != s.ID {
 		return gfx.EventResult{}
 	}
+	step := float32(splitterStep)
+	if s.StepFraction > 0 {
+		thickness := s.thickness
+		if thickness <= 0 {
+			thickness = splitterThickness
+		}
+		step = max(s.Span-thickness, 1) * s.StepFraction
+	}
 	pos := s.Pos
 	switch event.Key {
 	case gfx.KeyLeft, gfx.KeyUp:
-		pos -= splitterStep
+		pos -= step
 	case gfx.KeyRight, gfx.KeyDown:
-		pos += splitterStep
+		pos += step
 	case gfx.KeyHome:
 		pos = s.lo
 	case gfx.KeyEnd:
