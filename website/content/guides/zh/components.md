@@ -31,6 +31,8 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 包名是能力名，没有 `view` 后缀；状态类型按角色命名，不重复包名：`calendar.State`、`message.Row`、`attachment.Card`。局部变量避让包名（`cal`、`msg`、`pic`）；model 字段可以保留领域名词（`m.calendar`），因为选择器不会遮蔽包。
 
+有些包暴露 `pkg.View(c, label, &state)`（`calendar.View`、`markdown.View`），有些则是状态上的方法（`avatar.New().View(c, label)`、`questionnaire.New().View(c, label)`）。用 `go doc github.com/vivaui/viva/ui/<package>` 查看具体形式。
+
 ```go
 cal := &m.calendar
 calendar.View(c, "Calendar", cal).FillWidth()

@@ -64,7 +64,9 @@ An opt-in package is named for the capability, never with a `view` suffix:
 role, not by repeating the package: `calendar.State`, `message.Row`,
 `attachment.Card`, `hovercard.Card`. Keep local variables out of the package's
 name (`cal`, `msg`, `pic`); a model field may keep the domain noun
-(`m.calendar`) because a selector never shadows a package.
+(`m.calendar`) because a selector never shadows a package. A package exposes
+either `pkg.View(c, label, &state)` or a `state.View(c, label)` method; keep new
+packages to one of the two and document which one.
 
 ### Page controls inside a custom slot
 

@@ -31,6 +31,8 @@ A page control for a heavy or stateful component lives in its own package under 
 
 The package name is the capability, never a `view` suffix, and its state type is named by role: `calendar.State`, `message.Row`, `attachment.Card`. Keep locals out of the package name (`cal`, `msg`, `pic`); a model field may keep the noun (`m.calendar`) because a selector never shadows a package.
 
+Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others expose a method on the state (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>` shows which.
+
 ```go
 cal := &m.calendar
 calendar.View(c, "Calendar", cal).FillWidth()
