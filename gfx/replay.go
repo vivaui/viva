@@ -316,6 +316,7 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 	scratch.texts = append(scratch.texts, canvas.texts[:span.from.texts]...)
 	scratch.runs = append(scratch.runs, canvas.runs[:span.from.runs]...)
 	scratch.hits = append(scratch.hits, canvas.hits[:span.from.hits]...)
+	scratch.hitTexts = append(scratch.hitTexts, canvas.hitTexts[:span.from.hitTexts]...)
 	scratch.nativeViews = append(scratch.nativeViews, canvas.nativeViews[:span.from.nativeViews]...)
 	prev.from.clip, prev.from.clipped, prev.from.layer, prev.from.scope = span.from.clip, span.from.clipped, span.from.layer, span.from.scope
 	copied, ok := scratch.ReplayAt(prev, dx, dy)
@@ -328,7 +329,8 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 		slices.EqualFunc(canvas.images[span.from.images:span.to.images], scratch.images[copied.from.images:], sameImage) &&
 		slices.EqualFunc(canvas.texts[span.from.texts:span.to.texts], scratch.texts[copied.from.texts:], sameText) &&
 		slices.Equal(canvas.runs[span.from.runs:span.to.runs], scratch.runs[copied.from.runs:]) &&
-		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:], sameHit) &&
+		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:copied.to.hits], sameHit) &&
+		slices.Equal(canvas.hitTexts[span.from.hitTexts:span.to.hitTexts], scratch.hitTexts[copied.from.hitTexts:copied.to.hitTexts]) &&
 		slices.Equal(canvas.nativeViews[span.from.nativeViews:span.to.nativeViews], scratch.nativeViews[copied.from.nativeViews:])
 }
 
@@ -345,11 +347,7 @@ func sameImage(a, b Image) bool {
 		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
 }
 
-func sameHit(a, b Hit) bool {
-	return a.ID == b.ID && a.Bounds == b.Bounds && a.Label == b.Label && a.Value == b.Value && a.Layer == b.Layer && a.Scope == b.Scope &&
-		a.Role == b.Role && a.Disabled == b.Disabled && a.Checked == b.Checked && a.Selected == b.Selected && a.Focusable == b.Focusable &&
-		a.IsLabel == b.IsLabel && a.Backdrop == b.Backdrop && a.Block == b.Block && a.BlockSurface == b.BlockSurface
-}
+func sameHit(a, b Hit) bool { return a == b }
 
 func contains(outer, inner Rect) bool {
 	return inner.X >= outer.X && inner.Y >= outer.Y && inner.X+inner.Width <= outer.X+outer.Width && inner.Y+inner.Height <= outer.Y+outer.Height

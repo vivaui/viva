@@ -448,6 +448,11 @@ func (r *runner) scenarios(results *report) {
 		if err != nil {
 			return err
 		}
+		// Hide it before the panel opens: a panel is dismissed when it loses the
+		// focus, and hiding another window takes it on platforms that hand the
+		// focus to the next window, which would close this one early.
+		hidden.window.Hide()
+		time.Sleep(300 * time.Millisecond)
 		refuser, err := r.open("refuses", app.WindowTitled, true)
 		if err != nil {
 			return err
@@ -456,8 +461,6 @@ func (r *runner) scenarios(results *report) {
 		if err != nil {
 			return err
 		}
-		hidden.window.Hide()
-		time.Sleep(300 * time.Millisecond)
 		// The panel is the window that handled an event last, as when a user has
 		// just clicked in it, and it is closing as Quit is asked for: a Quit posted
 		// to just that window would be lost with it. This is what the tray's Quit

@@ -515,7 +515,7 @@ func (b Box) Placeholder(Value string) Box {
 
 // Icons sets the icons a Select paints before its chosen value on the trigger and
 // before each option's label in the open list, one per option and indexed like the
-// labels: what SelectIcon's icon function names. A select given none of them paints
+// labels: one per option, like the labels. A select given none of them paints
 // exactly what it always has; a SelectBase keeps them for its caller and paints
 // none, as it does the rest of the look.
 func (b Box) Icons(icons []gfx.Icon) Box {
@@ -525,15 +525,34 @@ func (b Box) Icons(icons []gfx.Icon) Box {
 	return b
 }
 
-// DisabledOptions marks options of a Select as unavailable, one per option and indexed like
-// the labels: a true entry is painted dimmed, cannot take the focus or a click, is skipped by type-ahead and
-// is never reported by Picked. The slice is the caller's and is read until the paint ends;
-// a shorter one leaves the options past its end enabled. A select given none has every
-// option enabled.
+// DisabledOptions marks options unavailable, one per option and indexed like the
+// labels: a true entry is painted dimmed, cannot take the focus or a click, is
+// skipped by type-ahead and the arrow keys, and is never reported by Picked or
+// Chosen. It is for a Select (whose options are its list's rows) and for a
+// Segmented control, which may also declare the state in each option's own
+// Disabled field; both read the same look. The slice is the caller's and is read
+// until the paint ends; a shorter one leaves the options past its end enabled. An
+// option list given none has every option enabled.
 func (b Box) DisabledOptions(disabled []bool) Box {
-	if n := b.N(); n.Kind == kindSelect {
+	n := b.N()
+	switch n.Kind {
+	case kindSelect:
 		d := &WidgetsOf(b.f).selects[n.Aux]
 		d.disabled, d.state.disabled = disabled, disabled
+	case kindSegmented:
+		if len(disabled) == 0 {
+			return b
+		}
+		// The merged options go into the choice scratch: the caller's slice stays
+		// its own, and a warm paint reuses the same room.
+		w := WidgetsOf(b.f)
+		d := &w.segmented[n.Aux]
+		first := len(w.choices)
+		for index, option := range d.options {
+			option.Disabled = option.Disabled || OptionDisabled(disabled, index)
+			w.choices = append(w.choices, option)
+		}
+		d.options = w.choices[first:len(w.choices):len(w.choices)]
 	}
 	return b
 }

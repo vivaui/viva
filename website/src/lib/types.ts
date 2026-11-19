@@ -9,6 +9,8 @@ export interface Demo {
   Title: string;
   Description: string;
   Snippet?: string;
+  PageSnippet?: string;
+  PageSnippetZh?: string;
   Height?: number;
 }
 
@@ -35,6 +37,8 @@ export interface Page extends Nav {
   InstallCommand: string;
   Sections: Section[];
   Capabilities: Capability[];
+  PageUsage?: string;
+  PageSource?: string;
 }
 
 export interface Coverage {

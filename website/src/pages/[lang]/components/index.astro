@@ -1,36 +1,29 @@
 ---
 import DocsLayout from '../../../layouts/DocsLayout.astro';
 import { navigationFor, readCatalog } from '../../../lib/catalog';
-import { locales, messages, isLocale, localizePage, componentPath, categoryLabel, componentName } from '../../../lib/i18n';
+import { locales, messages, isLocale, localizePage, componentPath, componentName } from '../../../lib/i18n';
 
 export function getStaticPaths() { return locales.map(lang => ({ params: { lang } })); }
 const locale = Astro.params.lang;
 if (!isLocale(locale)) throw new Error('Unsupported locale');
 const text = messages[locale];
 const catalog = readCatalog();
-const pages = catalog.pages.map(page => localizePage(page, locale));
-const groups = [...new Set(pages.map(page => page.Category))].map(category => ({
-  category,
-  pages: pages.filter(page => page.Category === category),
-}));
+const pages = catalog.pages
+  .map(page => localizePage(page, locale))
+  .sort((left, right) => left.Title.localeCompare(right.Title, 'en'));
 ---
 
 <DocsLayout {locale} title={text.components} summary={text.componentsSummary} navigation={navigationFor(catalog)} currentID="components" wide>
   <div class="page-heading">
     <h1>{text.components}</h1>
+    <p class="page-summary">{text.componentsSummary}</p>
   </div>
   <div class="component-index">
-    {groups.map(group => (
-      <section class="component-index-group">
-        <h2>{categoryLabel(locale, group.category)}</h2>
-        <div class="component-index-grid">
-          {group.pages.map(page => (
-            <a class="component-card" href={componentPath(locale, page.ID)}>
-              <span class="component-card-heading"><span>{page.Title}</span>{locale === 'zh' && <span class="component-card-zh">{componentName(locale, page.ID, page.Title)}</span>}</span>
-            </a>
-          ))}
-        </div>
-      </section>
+    {pages.map(page => (
+      <a class="component-index-link" href={componentPath(locale, page.ID)}>
+        <span>{page.Title}</span>
+        {locale === 'zh' && <span class="component-index-zh">{componentName(locale, page.ID, page.Title)}</span>}
+      </a>
     ))}
   </div>
 </DocsLayout>

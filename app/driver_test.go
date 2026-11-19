@@ -11,6 +11,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/framebuild"
 	"github.com/vivaui/viva/text"
 )
 
@@ -200,7 +201,7 @@ func TestDriverEditsAFocusedTextFieldThroughTheTextSystem(t *testing.T) {
 			break
 		}
 	}
-	if fieldText.Bounds == (gfx.Rect{}) || !containsRect(field.Bounds, fieldText.Bounds) {
+	if fieldText.Bounds == (gfx.Rect{}) || !framebuild.ContainsRect(field.Bounds, fieldText.Bounds) {
 		t.Fatalf("field declared no text line inside its control: %+v", field)
 	}
 	if snapshot.Editor.Bounds != fieldText.Bounds {

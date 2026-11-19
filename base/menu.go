@@ -541,6 +541,10 @@ func (item MenuItem) Chosen(on bool) MenuItem {
 	return item
 }
 
+// ID is the row's identity, for an application that anchors a context menu or
+// another part to this item. It is stable while the menu stays open.
+func (item MenuItem) ID() gfx.ID { return item.menu.scope.At(MenuRowsPart + item.i) }
+
 // Clicked reports whether this paint delivers the choice of the item, by a click
 // or Enter, and closes the menu then.
 func (item MenuItem) Clicked() bool {

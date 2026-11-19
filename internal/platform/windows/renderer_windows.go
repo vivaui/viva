@@ -377,8 +377,12 @@ func (renderer *renderer) storeRectangles(frame platform.Frame) (first, count in
 			clear(renderer.instances[old:])
 			clear(renderer.rectangleClips[old:])
 		}
-	} else if len(renderer.instances) != len(frame.Rectangles) {
-		return 0, 0, fmt.Errorf("windows: rectangle count shrank without rebuild")
+	} else if len(renderer.instances) > len(frame.Rectangles) {
+		if !update.Shrink || update.First > len(frame.Rectangles) || update.First+update.Count != len(frame.Rectangles) {
+			return 0, 0, fmt.Errorf("windows: rectangle count shrank outside a suffix update")
+		}
+		renderer.instances = renderer.instances[:len(frame.Rectangles)]
+		renderer.rectangleClips = renderer.rectangleClips[:len(frame.Rectangles)]
 	}
 	first, count = update.First, update.Count
 	if update.Rebuild {

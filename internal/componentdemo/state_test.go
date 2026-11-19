@@ -227,6 +227,13 @@ func TestPaintDeterministicResponsiveAndIdle(t *testing.T) {
 						// seconds later it is in, and paints what reduced motion did.
 						paintFrame(&canvas, state, size, 5*time.Second, false)
 						paintFrame(&canvas, state, size, 10*time.Second, false)
+						if component.ID == "toast" || component.ID == "sonner" {
+							// The page toast stack takes a toast down five seconds after it
+							// appears, so by 10s the example has settled into its dismissed
+							// state. That state is itself stable and asks for no frame.
+							expected = snapshot(&canvas)
+							paintFrame(&canvas, state, size, 11*time.Second, false)
+						}
 						assertSamePaint(t, expected, &canvas)
 						if canvas.Animating() {
 							t.Fatal("unchanged example requested another frame")
@@ -284,7 +291,7 @@ func assertLayout(t *testing.T, canvas *gfx.Canvas, size gfx.Size) {
 			t.Fatalf("text outside viewport: %+v; measured %+v", label, ink)
 		}
 	}
-	seen := make(map[gfx.ID]bool)
+	seen := make(map[gfx.ID]gfx.Rect)
 	for index, hit := range canvas.Hits() {
 		if hit.Block || hit.Container {
 			// An occluder or a semantic container has no ID and may sit under
@@ -294,11 +301,17 @@ func assertLayout(t *testing.T, canvas *gfx.Canvas, size gfx.Size) {
 			}
 			continue
 		}
-		// A label shares the identity of the control it labels, by design.
-		if hit.ID.IsZero() || seen[hit.ID] && !hit.IsLabel || !inside(hit.Bounds) || hit.Bounds.Width <= 0 || hit.Bounds.Height <= 0 {
+		// A label shares the identity of the control it labels, by design. A
+		// control that names an inner region with its own identity (a picker's
+		// input inside its control) is a nested region, and the later hit wins.
+		previous, duplicate := seen[hit.ID]
+		nested := duplicate && contains(previous, hit.Bounds)
+		if hit.ID.IsZero() || duplicate && !hit.IsLabel && !nested || !inside(hit.Bounds) || hit.Bounds.Width <= 0 || hit.Bounds.Height <= 0 {
 			t.Fatalf("invalid, duplicate, or clipped hit: %+v", hit)
 		}
-		seen[hit.ID] = seen[hit.ID] || !hit.IsLabel
+		if !hit.IsLabel {
+			seen[hit.ID] = hit.Bounds
+		}
 		for _, previous := range canvas.Hits()[:index] {
 			// A hit declared on top of another and wholly inside it is an overlay by design
 			// (an attachment's action over its trigger): the later hit wins its own area.

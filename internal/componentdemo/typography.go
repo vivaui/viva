@@ -17,7 +17,17 @@ h4 := ui.Slot(c).Height(30)
 components.Typography(canvas, theme, h1.Rect(), components.TypographyH1, "Heading 1")
 components.Typography(canvas, theme, h2.Rect(), components.TypographyH2, "Heading 2")
 components.Typography(canvas, theme, h3.Rect(), components.TypographyH3, "Heading 3")
-components.Typography(canvas, theme, h4.Rect(), components.TypographyH4, "Heading 4")`},
+components.Typography(canvas, theme, h4.Rect(), components.TypographyH4, "Heading 4")`, PageSnippet: `ui.Column(c).Gap(6).Children(func() {
+    ui.Text(c, "Heading 1").FontSize(c.Theme().Metrics.FontSizeL * 1.5).Weight(gfx.WeightBold)
+    ui.Text(c, "Heading 2").FontSize(c.Theme().Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Heading 3").FontSize(c.Theme().Metrics.FontSizeL).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Heading 4").FontSize(c.Theme().Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Text(c, "一级标题").FontSize(c.Theme().Metrics.FontSizeL * 1.5).Weight(gfx.WeightBold)
+    ui.Text(c, "二级标题").FontSize(c.Theme().Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
+    ui.Text(c, "三级标题").FontSize(c.Theme().Metrics.FontSizeL).Weight(gfx.WeightSemibold)
+    ui.Text(c, "四级标题").FontSize(c.Theme().Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
+})`},
 		{ID: "content", Title: "正文角色", Description: "段落、引导、大号与小号正文。", Snippet: `lead := ui.Slot(c).Height(32)
 body := ui.Slot(c).Height(28)
 large := ui.Slot(c).Height(28)
@@ -29,7 +39,25 @@ components.Typography(canvas, theme, body.Rect(),
 components.Typography(canvas, theme, large.Rect(),
     components.TypographyLarge, "Large · Key note")
 components.Typography(canvas, theme, small.Rect(),
-    components.TypographySmall, "Small · Compact labels and supporting copy")`},
+    components.TypographySmall, "Small · Compact labels and supporting copy")`, PageSnippet: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "A complete type system for native desktop interfaces", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 7).Muted()
+    ui.Paragraph(c, "Paragraph text uses the theme's font size and foreground color.", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 3)
+    ui.Text(c, "Large · Key note").
+        FontSize(c.Theme().Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Small · Compact labels and supporting copy").
+        FontSize(c.Theme().Metrics.FontSizeM).Weight(gfx.WeightMedium)
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "原生桌面界面的完整文字系统", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 7).Muted()
+    ui.Paragraph(c, "段落文字使用主题字号与前景色。", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 3)
+    ui.Text(c, "Large · 关键说明").
+        FontSize(c.Theme().Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Small · 紧凑标签与辅助内容").
+        FontSize(c.Theme().Metrics.FontSizeM).Weight(gfx.WeightMedium)
+})`},
 		{ID: "muted", Title: "强调与弱化", Description: "正文、强调文字与弱化说明。", Snippet: `body := ui.Slot(c).Height(32)
 strong := ui.Slot(c).Height(30)
 note := ui.Slot(c).Height(26)
@@ -38,7 +66,21 @@ components.Typography(canvas, theme, body.Rect(),
 components.Typography(canvas, theme, strong.Rect(),
     components.TypographyLarge, "Key results use a heavier weight.")
 components.Typography(canvas, theme, note.Rect(),
-    components.TypographyMuted, "Secondary notes use the theme's muted foreground.")`},
+    components.TypographyMuted, "Secondary notes use the theme's muted foreground.")`, PageSnippet: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "Body copy stays clear, stable, and readable.", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 3)
+    ui.Text(c, "Key results use a heavier weight.").
+        FontSize(c.Theme().Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Secondary notes use the theme's muted foreground.").
+        FontSize(c.Theme().Metrics.FontSizeM).Muted()
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "正文保持清晰、稳定且可读。", 0).
+        FontSize(c.Theme().Metrics.FontSizeM + 3)
+    ui.Text(c, "关键结果使用更高字重。").
+        FontSize(c.Theme().Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "次要说明使用主题的弱化前景色。").
+        FontSize(c.Theme().Metrics.FontSizeM).Muted()
+})`},
 	},
 }
 
@@ -71,8 +113,8 @@ var (
 	}
 )
 
-// The specimens are the component's roles themselves, painted in slots: ui.Text
-// would only imitate their size and weight.
+// The specimens are the component's roles, declared with the page's text calls:
+// Paragraph wraps, Text does not, and the role decides size, weight and color.
 func (state *State) paintTypography(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	lines := typographyHierarchy[:]
 	switch state.exampleID {
@@ -81,15 +123,31 @@ func (state *State) paintTypography(canvas *gfx.Canvas, theme gfx.Theme, size gf
 	case "muted":
 		lines = typographyMuted[:]
 	}
-	var slots [len(typographyHierarchy)]ui.Box
 	state.drawPage(canvas, theme, size, 600, state.Text("Typography · 文字角色", "Typography · Text roles"), func(c ui.C) {
 		ui.Column(c).Gap(6).Children(func() {
-			for index, line := range lines {
-				slots[index] = ui.Slot(c).Height(line.height)
+			for _, line := range lines {
+				text := state.Text(line.text, line.english)
+				switch line.role {
+				case components.TypographyH1:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL * 1.5).Weight(gfx.WeightBold)
+				case components.TypographyH2:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
+				case components.TypographyH3:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL).Weight(gfx.WeightSemibold)
+				case components.TypographyH4:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
+				case components.TypographyLead:
+					ui.Paragraph(c, text, 0).FontSize(theme.Metrics.FontSizeM + 7).Muted()
+				case components.TypographyParagraph:
+					ui.Paragraph(c, text, 0).FontSize(theme.Metrics.FontSizeM + 3)
+				case components.TypographyLarge:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+				case components.TypographySmall:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+				default:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM).Muted()
+				}
 			}
 		})
 	})
-	for index, line := range lines {
-		components.Typography(canvas, theme, slots[index].Rect(), line.role, state.Text(line.text, line.english))
-	}
 }

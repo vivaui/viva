@@ -31,8 +31,12 @@ type Package struct {
 	Homepage   string
 	// Comment is the one-line description of the package.
 	Comment string
-	// Depends are Arch package names, such as vulkan-icd-loader.
+	// Depends are Arch package names, such as libxcb.
 	Depends []string
+	// OptDepends are Arch package names that improve the application
+	// without being required, such as a Vulkan driver where the program
+	// falls back to a CPU renderer.
+	OptDepends []string
 	// Archive is the tar.gz's file name, as it is in the PKGBUILD's
 	// directory or at the end of SourceURL.
 	Archive string
@@ -99,9 +103,11 @@ func (pkg Package) check() error {
 	case pkg.IconPixels < 0:
 		return fmt.Errorf("pkgbuild: the icon size cannot be negative")
 	}
-	for _, dependency := range pkg.Depends {
-		if dependency == "" || strings.ContainsAny(dependency, "\r\n") {
-			return fmt.Errorf("pkgbuild: %q is not one dependency", dependency)
+	for _, dependencies := range [][]string{pkg.Depends, pkg.OptDepends} {
+		for _, dependency := range dependencies {
+			if dependency == "" || strings.ContainsAny(dependency, "\r\n") {
+				return fmt.Errorf("pkgbuild: %q is not one dependency", dependency)
+			}
 		}
 	}
 	if pkg.SourceURL != "" && (!strings.HasPrefix(pkg.SourceURL, "https://") && !strings.HasPrefix(pkg.SourceURL, "http://")) {
@@ -155,6 +161,9 @@ func (pkg Package) PKGBUILD() ([]byte, error) {
 	fmt.Fprintf(&b, "license=(%s)\n", quote("custom"))
 	if len(pkg.Depends) > 0 {
 		fmt.Fprintf(&b, "depends=(%s)\n", quotedList(pkg.Depends))
+	}
+	if len(pkg.OptDepends) > 0 {
+		fmt.Fprintf(&b, "optdepends=(%s)\n", quotedList(pkg.OptDepends))
 	}
 	fmt.Fprintf(&b, "provides=(%s)\n", quote(pkg.Executable))
 	fmt.Fprintf(&b, "conflicts=(%s)\n", quote(pkg.Executable))
@@ -219,6 +228,9 @@ func (pkg Package) SRCINFO() ([]byte, error) {
 	field("license", "custom")
 	for _, dependency := range pkg.Depends {
 		field("depends", dependency)
+	}
+	for _, dependency := range pkg.OptDepends {
+		field("optdepends", dependency)
 	}
 	field("provides", pkg.Executable)
 	field("conflicts", pkg.Executable)

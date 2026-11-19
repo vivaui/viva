@@ -56,7 +56,7 @@ screenshot, when the code behind them changes:
 - a panel closes when it loses focus, and the click that did it does not reopen it;
 - the window manager's close button reaches `OnCloseRequest`;
 - a hidden window is repainted when shown again (a compositor drops its contents);
-- a custom-titlebar window with a drawn frame on Linux (`VIVA_LINUX_FRAME=on`): shadow, round corners, a resize from the margin, maximize and restore;
+- a custom-titlebar window with a drawn frame on Linux: shadow, round corners, a resize from the margin, maximize and restore (drawn automatically on a compositing desktop; `VIVA_LINUX_FRAME` still forces or disables it);
 - a custom-titlebar window (`cmd/titlebar-demo`): minimize, maximize and restore,
   close (reaches `OnCloseRequest`), a drag of the strip, a double click on the
   strip, a drag of each edge and corner, and a click on a window button that does
@@ -64,6 +64,14 @@ screenshot, when the code behind them changes:
   maximized window must stop at the taskbar;
 - where a panel and a new window are placed on a multi-monitor or scaled screen (Linux: not
   verified with more than one monitor or a real HiDPI display);
+- an operating-system input method's candidate window: the browser gate and the
+  Go tests synthesize composition events, but the candidate window is the
+  system's own UI. Type through a real IME on macOS, Windows and Linux with the
+  Input example focused, and verify the candidate window sits at the caret and
+  that commit, cancel and selection update the Go editor exactly once;
+- real Safari through `safaridriver` after one-time `sudo safaridriver --enable`:
+  `node tools/webcheck/safari.mjs --dir build/webcheck`. Playwright's WebKit is
+  not Safari's browser shell;
 - text, which each platform draws with its own engine and is not expected to match.
 
 ## Known differences
@@ -76,7 +84,7 @@ Not failures; the API reports what the platform can say.
 | Panel dismissal | resign key | deactivation | `FocusOut`, from a dialog-type window (KWin gives no focus to utility or popup windows) |
 | New icon with a full bar | hidden by the system, notably next to the notch | shown in the overflow flyout until promoted | up to the host |
 | Corner radius of a panel | the layer's | the system's on Windows 11 (`DWMWA_WINDOW_CORNER_PREFERENCE`, set in the code, not yet checked on screen), square on Windows 10 | square |
-| Shadow and round corners of a custom-titlebar window | the system's | the system's | drawn by Viva where the desktop composites and the graphics device is a GPU ("Window frame on Linux"); otherwise flat and square |
+| Shadow and round corners of a custom-titlebar window | the system's | the system's | drawn by Viva where the desktop composites ("Window frame on Linux"). GNOME/Mutter does not advertise synchronized resize, so on a drag the inset margin can lag at the dragged edge there; otherwise flat and square |
 
 ## Not done, and why
 
@@ -98,7 +106,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
 | XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |
-| Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS only; the other backends paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
+| Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS and WebGL2. Canvas2D approximates it with horizontal strips and a corner-to-corner tint gradient. Windows, Linux and headless paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
 
 ## Test environments
 

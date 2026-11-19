@@ -23,7 +23,8 @@ func sample() Package {
 			Category:    "Development", Keywords: []string{"ide"},
 			Program: []byte("#!/bin/sh\necho hi\n"),
 		},
-		Requires: []string{"vulkan-loader", "libxcb", "cairo"},
+		Requires:   []string{"libxcb", "cairo"},
+		Recommends: []string{"vulkan-loader"},
 	}
 }
 
@@ -132,6 +133,12 @@ func TestWriteVerifiesWithRPMTools(t *testing.T) {
 		if !strings.Contains(list, want) {
 			t.Fatalf("rpm -qpl lacks %q:\n%s", want, list)
 		}
+	}
+	if requires := run("-qp", "--requires", path); strings.Contains(requires, "vulkan-loader") {
+		t.Fatalf("rpm hard-requires the GPU loader, which the CPU renderer does not need:\n%s", requires)
+	}
+	if recommends := run("-qp", "--recommends", path); !strings.Contains(recommends, "vulkan-loader") {
+		t.Fatalf("rpm does not recommend the GPU loader:\n%s", recommends)
 	}
 	// The package is unsigned, so the signature check is skipped; the digests
 	// must all be intact, and the header and payload SHA-256 must be present.

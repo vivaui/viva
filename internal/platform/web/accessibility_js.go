@@ -217,6 +217,9 @@ func applyAccessibilityDescription(node *accessibilityDOMNode, description acces
 	if initial || before.Disabled != description.Disabled {
 		setBooleanState(node.element, "aria-disabled", description.Disabled, description.Disabled)
 	}
+	if initial || before.Invalid != description.Invalid {
+		setBooleanState(node.element, "aria-invalid", description.Invalid, description.Invalid)
+	}
 	if initial || before.Hidden != description.Hidden {
 		setBooleanState(node.element, "aria-hidden", description.Hidden, description.Hidden)
 	}

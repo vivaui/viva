@@ -53,6 +53,9 @@ type gtkWindow struct {
 	minimized   bool
 	focused     bool
 	focusSerial uint64 // coalesces GDK focus transfers between a Wayland parent and its child
+	// visible is the last visibility reported to OnVisibility; known says it was reported at
+	// least once. GTK's map and unmap are the visibility the compositor can express here.
+	visibleKnown, visible bool
 
 	regionsDirty bool
 	// dragging and dropping follow a drag of files over the window.
@@ -485,6 +488,10 @@ func (w *gtkWindow) mapChanged(on bool) {
 		// Whether the compositor has a surface for the window decides whether there is anything to
 		// attach to.
 		w.wl.mapped(w, on)
+	}
+	if w.config.OnVisibility != nil && (!w.visibleKnown || w.visible != on) {
+		w.visibleKnown, w.visible = true, on
+		w.config.OnVisibility(on)
 	}
 }
 

@@ -127,7 +127,13 @@ func (s *softScene) applyRectangles(frame platform.Frame) error {
 		return nil
 	}
 	if len(frame.Rectangles) < len(s.rects) {
-		return fmt.Errorf("linux: rectangle count shrank without rebuild")
+		if !update.Shrink || update.First > len(frame.Rectangles) || update.First+update.Count != len(frame.Rectangles) {
+			return fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+		}
+		for index := len(frame.Rectangles); index < len(s.rects); index++ {
+			s.addDamage(raster.Box(&s.rects[index], s.scale))
+		}
+		s.rects = s.rects[:len(frame.Rectangles)]
 	}
 	if len(frame.Rectangles) > len(s.rects) {
 		if update.First > len(s.rects) || update.First+update.Count != len(frame.Rectangles) {

@@ -786,8 +786,8 @@ func TestPainterUsesTheCallersStaticCanvasWithoutPaint(t *testing.T) {
 	painter := newPainter(&canvas, &Config{})
 	painter.width, painter.height = 40, 20
 	painter.repaint()
-	if len(painter.rectangles) != 1 {
-		t.Fatalf("static canvas rectangles = %d, want the caller's one", len(painter.rectangles))
+	if len(painter.frame.Rectangles) != 1 {
+		t.Fatalf("static canvas rectangles = %d, want the caller's one", len(painter.frame.Rectangles))
 	}
 }
 

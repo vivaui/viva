@@ -22,6 +22,7 @@ func useControls() {
 		base.SetControlPainter(KindButton, paintButtonControl)
 		base.SetControlPainter(KindCheckbox, paintCheckboxControl)
 		base.SetControlPainter(KindSwitch, paintSwitchControl)
+		base.SetControlPainter(KindToggle, paintToggleControl)
 		base.SetControlPainter(KindInput, paintInputControl)
 		base.SetControlPainter(KindInputGroup, paintInputGroupControl)
 		base.SetControlPainter(KindTextarea, paintTextareaControl)

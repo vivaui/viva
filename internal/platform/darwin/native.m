@@ -3917,7 +3917,7 @@ static void viva_encode_scene(
     BOOL _dynamicTextInput;
     BOOL _caretVisible;
     NSTimer *_caretTimer;
-    NSUInteger _textSelectionAnchor;
+    NSRange _textSelectionAnchor;
     BOOL _textSelectionDragging;
     BOOL _pointerEventsEnabled;
     BOOL _resizeEventsEnabled;
@@ -4452,7 +4452,16 @@ static int viva_navigation_command(SEL selector) {
             return;
         }
         NSUInteger index = [self textIndexForEvent:event];
-        _textSelectionAnchor = index;
+        _textSelectionAnchor = NSMakeRange(index, 0);
+        if (event.clickCount >= 2 && _text.length > 0) {
+            if (event.clickCount >= 3 || _textSecure) {
+                _textSelectionAnchor = NSMakeRange(0, _text.length);
+            } else {
+                NSAttributedString *value = [[NSAttributedString alloc] initWithString:_text];
+                _textSelectionAnchor = [value doubleClickAtIndex:MIN(index, _text.length - 1)];
+                [value release];
+            }
+        }
         _textSelectionDragging = YES;
         [self selectTextToIndex:index];
     } else {
@@ -5386,11 +5395,29 @@ static void viva_set_secure_event_input(BOOL on) {
         viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
         viva_gpu_full_rebuild_count++;
     } else {
+        BOOL shrank = totalCount < _rectangleCount;
+        if (shrank) {
+            if (first + count != totalCount) {
+                return 2;
+            }
+            _rectangleCount = totalCount;
+        }
         if (count == 0) {
+            if (shrank && ![self replaceCompositePlanForRectangles:
+                    _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:_rectangleCount
+                                       textLayers:_textLabelLayers
+                                 textShapesBefore:_textLabelShapesBefore
+                                        textCount:_textLabelCount]) {
+                return 3;
+            }
+            if (render) {
+                [self render];
+            }
             return 0;
         }
         if (_rectangleBuffer == nil || _rectangleClips == NULL || clips == NULL ||
-            totalCount < _rectangleCount ||
             first > totalCount || count > totalCount - first) {
             return 2;
         }
@@ -6011,8 +6038,9 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (void)selectTextToIndex:(NSUInteger)index {
-    NSUInteger start = MIN(_textSelectionAnchor, index);
-    NSUInteger end = MAX(_textSelectionAnchor, index);
+    // Keep the word under a double press selected through the release and drag.
+    NSUInteger start = MIN(_textSelectionAnchor.location, index);
+    NSUInteger end = MAX(NSMaxRange(_textSelectionAnchor), index);
     [self selectTextRange:NSMakeRange(start, end - start)];
 }
 
@@ -6042,7 +6070,6 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)selectAll:(id)sender {
     (void)sender;
-    _textSelectionAnchor = 0;
     _textSelectionDragging = NO;
     [self selectTextRange:NSMakeRange(0, _text.length)];
 }

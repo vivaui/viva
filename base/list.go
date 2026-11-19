@@ -419,6 +419,10 @@ func (s *ListState) rowHeight(i int) float32 {
 // itself; the List's own Reorder and Tree's CanDrop use the same heights.
 func (s *ListState) RowHeightAt(i int) float32 { return s.rowHeight(i) }
 
+// RowOffset is the top of row i in content space, as of the last layout, for
+// an application that anchors on a row while content above it changes.
+func (s *ListState) RowOffset(i int) float32 { return s.top(i) }
+
 // RowID is the identity of visible row i as the last paint named it, by Key when
 // one is set: the target to give the focus (Canvas.RequestFocus), to look up in a
 // pointer event or to find among the hits. It is the zero ID before the list has

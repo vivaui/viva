@@ -86,6 +86,22 @@ func TestUIAQueuesTypedStateChanges(t *testing.T) {
 	}
 }
 
+func TestUIAQueuesInvalidFormState(t *testing.T) {
+	provider := &uiaProvider{}
+	events := appendPropertyChanges(nil, provider, platform.AccessibilityNode{}, platform.AccessibilityNode{Invalid: true})
+	if len(events) != 1 || events[0].property != uiaIsDataValidForFormProperty {
+		t.Fatalf("invalid event = %+v", events)
+	}
+	value, ok := propertyVariant(uiaIsDataValidForFormProperty, platform.AccessibilityNode{Invalid: true})
+	if !ok || value.Type != variantBool || value.Value != 0 {
+		t.Fatalf("invalid property = %+v, %v", value, ok)
+	}
+	value, ok = propertyVariant(uiaIsDataValidForFormProperty, platform.AccessibilityNode{})
+	if !ok || value.Type != variantBool || value.Value == 0 {
+		t.Fatalf("valid property = %+v, %v", value, ok)
+	}
+}
+
 func TestUIAQueuesOnlyObservablePropertyChanges(t *testing.T) {
 	provider := &uiaProvider{}
 	oldNode := platform.AccessibilityNode{Role: 2, X: 1, Y: 2, Width: 3, Height: 4, Label: "Old"}

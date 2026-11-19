@@ -55,6 +55,7 @@ const (
 	FocusHorizontal    = base.FocusHorizontal
 	FocusVertical      = base.FocusVertical
 	KindContainer      = base.KindContainer
+	KindToggle         = base.KindToggle
 	KindIcon           = base.KindIcon
 	KindImage          = base.KindImage
 	KindSlot           = base.KindSlot
@@ -164,6 +165,12 @@ func ToggleBase(c C, Value *bool, Label string) Box {
 	return base.ToggleBase(c, Value, Label)
 }
 
+func Toggle(c C, Value *bool, Label string) Box { return base.Toggle(c, Value, Label) }
+
+func DisclosureBase(c C, Value *bool, Label string) Box {
+	return base.DisclosureBase(c, Value, Label)
+}
+
 func Control(c C, Label string, h *Handlers) Box { useControls(); return base.Control(c, Label, h) }
 
 func FormField(c C, state *FormFieldState, Label string) Box {
@@ -212,11 +219,6 @@ func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T)
 	return base.SelectID(c, ID, Value, choices, Label)
 }
 
-func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
-	useSelect()
-	return base.SelectIcon(c, Value, choices, Label, icon)
-}
-
 func SelectBase[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	useSelect()
 	return base.SelectBase(c, Value, choices, Label)
@@ -247,6 +249,30 @@ func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label 
 func Slider(c C, state *SliderState) Box { return base.Slider(c, state) }
 
 func SliderBase(c C, state *SliderState) Box { return base.SliderBase(c, state) }
+
+// NewRangeSliderState returns a range slider holding low and high.
+func NewRangeSliderState(low, high float32) *RangeSliderState {
+	return base.NewRangeSliderState(low, high)
+}
+
+// RangeSlider is a two-thumb slider over one track: Low and High are the
+// values, Min, Max and Step the range. It is a Control, so its thumbs take the
+// focus and the keyboard.
+func RangeSlider(c C, state *RangeSliderState) Box {
+	if state == nil {
+		panic("ui: RangeSlider needs its RangeSliderState")
+	}
+	if state.Handlers.Key == nil {
+		state.Handlers.Key = state.Key
+		state.Handlers.Pointer = state.Pointer
+	}
+	if state.Paint == nil {
+		state.Paint = func(d *base.DrawContext) { paintRangeSlider(d, state) }
+	}
+	return Control(c, "Range", &state.Handlers).
+		Height(c.Theme().Metrics.ControlHeight).
+		Draw(state.DrawFunc())
+}
 
 func Splitter(c C, state *SplitterState) Box { return base.Splitter(c, state) }
 
@@ -385,6 +411,23 @@ func Effect[T any, K comparable](c C, state *EffectState[T, K], key K) {
 // component and ScrollState.BarGeometry use the same layout.
 func LayoutScrollArea(bounds gfx.Rect, content gfx.Size, layout ScrollAreaLayout) ScrollAreaGeometry {
 	return base.LayoutScrollArea(bounds, content, layout)
+}
+
+// Tree navigation.
+
+type TreeNavigationItem = base.TreeNavigationItem
+
+type TreeNavigationAction = base.TreeNavigationAction
+
+const (
+	TreeNavigationNone     = base.TreeNavigationNone
+	TreeNavigationMove     = base.TreeNavigationMove
+	TreeNavigationExpand   = base.TreeNavigationExpand
+	TreeNavigationCollapse = base.TreeNavigationCollapse
+)
+
+func NavigateTree(items []TreeNavigationItem, current int, key gfx.Key, pageRows int) (int, TreeNavigationAction, bool) {
+	return base.NavigateTree(items, current, key, pageRows)
 }
 
 // Identity and input.

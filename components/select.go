@@ -312,7 +312,7 @@ func (selectControl Select) paintTrigger() {
 	if !options.TriggerID.IsZero() {
 		canvas.HitWithOptions(options.TriggerID, bounds, options.Label, gfx.HitOptions{
 			Role: gfx.RoleCombobox, Value: options.Value, Hint: options.Hint,
-			Disabled: options.Disabled, Expanded: options.Open,
+			Disabled: options.Disabled, Expanded: options.Open, Invalid: options.Invalid,
 		})
 	}
 }

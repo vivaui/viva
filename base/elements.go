@@ -105,7 +105,8 @@ func Button(c C, Label string) Box {
 // Checkbox adds a checkbox showing *value, flipped by a click, with label beside it.
 // The click writes *value when Clicked or Changed is first read on the box, or else
 // when the paint ends; reading *value earlier in that paint sees the previous value,
-// and a Disabled declared after the box still holds.
+// and a Disabled declared after the box still holds. Invalid(true) gives it the
+// destructive validation look.
 func Checkbox(c C, Value *bool, Label string) Box {
 	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(Value)), *Value)
 	if Label != "" {
@@ -153,19 +154,6 @@ func options[T comparable](p *Page, Value *T, options []T, Label func(T) string)
 	return p.labels[first:len(p.labels):len(p.labels)], selected
 }
 
-// optionIcons writes the icons of choices into the page's scratch, as options does
-// the labels, or returns nil when icon is nil and the select paints none of them.
-func optionIcons[T comparable](p *Page, choices []T, icon func(T) gfx.Icon) []gfx.Icon {
-	if icon == nil {
-		return nil
-	}
-	first := len(p.icons)
-	for _, choice := range choices {
-		p.icons = append(p.icons, icon(choice))
-	}
-	return p.icons[first:len(p.icons):len(p.icons)]
-}
-
 // pick writes the option a click chose into *value, where the control is declared,
 // and records whether it did for Changed.
 func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
@@ -178,10 +166,11 @@ func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
 
 // Choice is a segmented control over options, *value the chosen one; a click sets
 // it. The options are of the value's type, so a choice of the wrong kind does not
-// compile; label names them, or is nil for options that are strings.
+// compile; label names them, or is nil for options that are strings. Mark an
+// option as unavailable with DisabledOptions, one entry per choice:
 //
 //	ui.Choice(c, &m.theme, []Theme{Light, Dark}, Theme.String)
-//	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil)
+//	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil).DisabledOptions([]bool{false, false, true})
 func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	p := c.page
 	scope := p.BoundScope(pkChoice, unsafe.Pointer(Value))
@@ -208,7 +197,8 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 
 // Select is a drop-down over choices, *value the chosen one (Placeholder shows while
 // it is none of them); picking an option sets it. Whether its list is open is the
-// Select's own state.
+// Select's own state. Invalid(true) marks the value as failing validation and
+// DisabledOptions marks options unavailable.
 func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	return selectOf(c, Value, choices, Label, nil, false, gfx.ID{})
 }
@@ -220,19 +210,9 @@ func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T)
 	return selectOf(c, Value, choices, Label, nil, false, ID)
 }
 
-// SelectIcon is Select with an icon before every option: icon names each option's
-// own, painted before the chosen value on the trigger and before each label in the
-// open list. It is asked for once per option per paint, as label is; a nil icon
-// paints exactly what Select does.
-//
-//	ui.SelectIcon(c, &m.locale, locales, localeName, localeFlag)
-func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
-	return selectOf(c, Value, choices, Label, optionIcons(c.page, choices, icon), false, gfx.ID{})
-}
-
-// selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
-// control without the theme's look. icons, when SelectIcon's icon function gave
-// them, are indexed by option like the labels; nil is the select without icons.
+// selectOf is Select, or SelectBase when base is set: the same control without
+// the theme's look. icons are indexed by option like the labels; nil is the
+// select without icons.
 func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
 	p := c.page
 	scope := p.BoundScope(pkSelect, unsafe.Pointer(Value))

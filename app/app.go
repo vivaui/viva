@@ -166,6 +166,12 @@ type Config struct {
 	// OnScroll receives normalized pixel deltas and the hovered hit target.
 	// Handled suppresses the window's default canvas scroll offset.
 	OnScroll func(event gfx.ScrollEvent) gfx.EventResult
+	// ForwardWheel, when set, receives a wheel gesture the application did not
+	// use, so an embedding page can scroll instead. Setting it makes the page
+	// own the default scroll: only a gesture the application handled scrolls
+	// the canvas. It is a browser deployment option and is ignored on native
+	// platforms.
+	ForwardWheel func(deltaX, deltaY float32)
 	// OnFileDrop receives files dragged from the system over this window: the
 	// pointer entering and moving with them (FileDropOver), leaving
 	// (FileDropLeave), and the drop. Each event carries the hit under the point;

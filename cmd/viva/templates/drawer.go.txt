@@ -142,7 +142,7 @@ func (drawer Drawer) Begin(title, description string) DrawerLayout {
 	if drawer.showHandle {
 		drawer.canvas.Rounded(layout.Handle, min(layout.Handle.Width, layout.Handle.Height)/2, drawer.theme.Muted)
 		if id := drawer.options.HandleID; !id.IsZero() {
-			drawer.canvas.HitWithOptions(id, drawer.handleStrip(content), "Drag to dismiss", gfx.HitOptions{
+			drawer.canvas.HitWithOptions(id, drawer.handleStrip(content, layout.Close), "Drag to dismiss", gfx.HitOptions{
 				Role: gfx.RoleButton, Disabled: drawer.disabled, SkipFocus: true,
 			})
 		}
@@ -350,13 +350,19 @@ func (drawer Drawer) extent(content gfx.Rect) float32 {
 }
 
 // handleStrip is where a swipe begins: the band across the panel that holds its
-// handle (see handleBounds), with the handle's margin on both sides of it.
-func (drawer Drawer) handleStrip(content gfx.Rect) gfx.Rect {
+// handle (see handleBounds), with the handle's margin on both sides of it. The
+// close button sits in that band's top right; the strip stops short of it so a
+// press there closes the drawer instead of starting a drag.
+func (drawer Drawer) handleStrip(content, close gfx.Rect) gfx.Rect {
 	reach := drawer.theme.Metrics.PadSurface + drawerHandleReach(drawer.theme.Metrics)
 	if drawer.options.Side == DrawerLeft || drawer.options.Side == DrawerRight {
 		return gfx.Rect{X: content.X, Y: content.Y, Width: reach, Height: content.Height}
 	}
-	return gfx.Rect{X: content.X, Y: content.Y, Width: content.Width, Height: reach}
+	width := content.Width
+	if close.Width > 0 && close.Y < content.Y+reach && content.Y < close.Y+close.Height {
+		width = max(close.X-content.X, 0)
+	}
+	return gfx.Rect{X: content.X, Y: content.Y, Width: width, Height: reach}
 }
 
 func (drawer Drawer) handleBounds(content gfx.Rect) gfx.Rect {

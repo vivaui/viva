@@ -50,7 +50,7 @@ const english = {
     { name: 'Linux', stack: 'X11 · Vulkan · Pango/Cairo', detail: 'X11 through system XCB and Vulkan libraries, with Pango/Cairo text and packaged builds.' },
   ] satisfies Platform[],
   platformsLink: 'Platform details',
-  platformsWebNote: 'There is also an optional web target: the same Go components compiled to WebAssembly and drawn with Canvas2D in the browser. It is a secondary deployment and preview target, not part of the desktop runtime, and it does not replace native verification.',
+  platformsWebNote: 'There is also an optional web target: the same Go components compiled to WebAssembly and drawn with WebGL2, falling back to Canvas2D when WebGL2 is unavailable or a context is lost. It is a secondary deployment and preview target, not part of the desktop runtime, and it does not replace native verification.',
 };
 
 const chinese: typeof english = {
@@ -95,7 +95,7 @@ const chinese: typeof english = {
     { name: 'Linux', stack: 'X11 · Vulkan · Pango/Cairo', detail: '通过系统 XCB 与 Vulkan 库使用 X11，Pango/Cairo 文字，并提供打包构建。' },
   ],
   platformsLink: '平台详情',
-  platformsWebNote: '另有可选的 Web 目标：同一份 Go 组件编译为 WASM，在浏览器里用 Canvas2D 绘制。它是次要的部署与预览目标，不进入桌面运行时，也不替代原生验证。',
+  platformsWebNote: '另有可选的 Web 目标：同一份 Go 组件编译为 WASM，优先用 WebGL2 绘制，WebGL2 不可用或上下文丢失时回退 Canvas2D。它是次要的部署与预览目标，不进入桌面运行时，也不替代原生验证。',
 };
 
 export const home = { zh: chinese, en: english } as const;

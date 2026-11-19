@@ -125,6 +125,7 @@ func PaintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snaps
 		options := gfx.HitOptions{
 			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: snapshot.Multiline, Secure: snapshot.Secure,
+			Invalid:        snapshot.Invalid,
 			NavigationKeys: snapshot.NavigationKeys,
 			TextBounds:     textBounds, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
 		}

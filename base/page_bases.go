@@ -62,6 +62,26 @@ func ToggleBase(c C, Value *bool, Label string) Box {
 	return b
 }
 
+// Toggle is a two-state button with the theme's look: it flips *value, and to
+// assistive technology it is a button that is pressed or not. Outline chooses
+// the bordered treatment; Invalid(true) gives it the destructive validation look;
+// ToggleBase is the same without a look.
+func Toggle(c C, Value *bool, Label string) Box {
+	b := c.f.Toggle(c.page.boundID(pkToggle, unsafe.Pointer(Value)), Label, *Value).Label(Label)
+	c.f.bindBool(b, Value)
+	return b
+}
+
+// DisclosureBase is a disclosure header without a look: it flips *value and, to
+// assistive technology, is a button that is expanded or not. The caller paints the
+// trigger and declares the content under it; *value is written when Clicked or
+// Changed is first read on the header, or else when the paint ends.
+func DisclosureBase(c C, Value *bool, Label string) Box {
+	b := c.f.DisclosureBase(c.page.boundID(pkDisclosure, unsafe.Pointer(Value)), Label, *Value).Label(Label)
+	c.f.bindBool(b, Value)
+	return b
+}
+
 // RadioBase is one option of a radio group or a segmented control without a look: a click
 // sets *value to option, and it is a radio button that is chosen while *value is option.
 // Name it with c.Key when the options are reordered.

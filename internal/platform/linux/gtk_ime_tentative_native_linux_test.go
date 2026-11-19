@@ -262,7 +262,10 @@ func (p *gtkTentativeProbe) run() {
 				p.w.ime.setFocused(false)
 			}
 			wantSignals := append(prefix, "preedit:", "end")
-			wantText := "ac"
+			wantText := "abc"
+			if tentative {
+				wantText = "ac"
+			}
 			if ending == "commit" {
 				wantSignals = append(wantSignals, "commit:\u03a9")
 				wantText = "a\u03a9c"
@@ -289,11 +292,20 @@ func (p *gtkTentativeProbe) run() {
 				}
 			}
 			p.record(fmt.Sprintf("tentative=%t/%s", tentative, ending), failures...)
-			if !editor.Undo() || ending == "commit" && editor.String() != "ac" || ending != "commit" && editor.String() != "abc" {
-				p.trials[len(p.trials)-1].failures = append(p.trials[len(p.trials)-1].failures, fmt.Sprintf("first Undo=%q", editor.String()))
+			trial := &p.trials[len(p.trials)-1]
+			if tentative || ending == "commit" {
+				wantUndo := "abc"
+				if tentative && ending == "commit" {
+					wantUndo = "ac"
+				}
+				if !editor.Undo() || editor.String() != wantUndo {
+					trial.failures = append(trial.failures, fmt.Sprintf("first Undo=%q, want %q", editor.String(), wantUndo))
+				}
+			} else if editor.CanUndo() {
+				trial.failures = append(trial.failures, "legacy cancellation added undo history")
 			}
-			if ending == "commit" && (!editor.Undo() || editor.String() != "abc") {
-				p.trials[len(p.trials)-1].failures = append(p.trials[len(p.trials)-1].failures, fmt.Sprintf("second Undo=%q", editor.String()))
+			if tentative && ending == "commit" && (!editor.Undo() || editor.String() != "abc") {
+				trial.failures = append(trial.failures, fmt.Sprintf("second Undo=%q", editor.String()))
 			}
 		}
 		p.composingTrial = false

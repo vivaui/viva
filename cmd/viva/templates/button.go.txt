@@ -427,7 +427,7 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	}
 	if !button.id.IsZero() {
 		button.canvas.HitWithOptions(button.id, button.bounds, label, gfx.HitOptions{
-			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint,
+			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint, Invalid: button.state.Invalid,
 		})
 	}
 	return result

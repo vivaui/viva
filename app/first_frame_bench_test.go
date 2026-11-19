@@ -28,3 +28,16 @@ func BenchmarkPainterFirstFrame(b *testing.B) {
 		}
 	}
 }
+
+// An empty window is the floor an application pays before its own paint:
+// constructor, first frame, scene and renderer setup.
+func BenchmarkPainterEmptyWindow(b *testing.B) {
+	config := Config{Title: "empty", Width: 480, Height: 240}
+	b.ReportAllocs()
+	for b.Loop() {
+		var canvas gfx.Canvas
+		if painter := newTestPainter(b, &canvas, config); painter == nil {
+			b.Fatal("no painter")
+		}
+	}
+}

@@ -509,6 +509,17 @@ func (b Box) HitOutset(top, right, bottom, left float32) Box {
 	return b
 }
 
+// HitExact makes a styled control's pointer target its laid-out rectangle
+// instead of the enlarged desktop target its component paints: a Checkbox in a
+// 22x24 slot is clicked across the whole slot, not a 40x32 region around it. The
+// painted geometry is unchanged, and it has no effect on controls whose target
+// is already their rectangle.
+func (b Box) HitExact() Box {
+	b.N()
+	b.f.Extra(b.i).hitExact = true
+	return b
+}
+
 // Chosen reports which item this paint is delivering a click on: the option of a
 // Segmented control, or the page item of a Pagination. It is false in every other
 // paint, like Clicked for the whole control:

@@ -64,8 +64,10 @@ type Node struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
-	Secure    bool
-	Hidden    bool
+	// Invalid marks a control whose value failed validation.
+	Invalid bool
+	Secure  bool
+	Hidden  bool
 }
 
 // Change is one coalesced platform accessibility update.

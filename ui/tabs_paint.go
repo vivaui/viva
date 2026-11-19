@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 )
 
 func paintTabs(f *Frame, n *Node) {
@@ -20,7 +21,24 @@ func paintTabs(f *Frame, n *Node) {
 			bounds.Width = max(bounds.Width-TabIndicator-1, 0)
 		}
 	}
-	tabs := components.BeginTabList(f.Surface, f.Palette, bounds, t.GetScope(), t.GetLabels(), t.GetSelected())
+	var tabs components.Tabs
+	if icon := t.GetIcon(); icon != nil {
+		widgets := base.WidgetsOf(f)
+		labels := t.GetLabels()
+		widgets.TabOptions = widgets.TabOptions[:0]
+		for index, label := range labels {
+			widgets.TabOptions = append(widgets.TabOptions, base.TabOption{
+				ID: t.GetScope().At(index), Label: label, Icon: icon(index),
+			})
+		}
+		selected := gfx.ID{}
+		if s := t.GetSelected(); s >= 0 && s < len(widgets.TabOptions) {
+			selected = widgets.TabOptions[s].ID
+		}
+		tabs = components.BeginTabs(f.Surface, f.Palette, bounds, widgets.TabOptions, selected)
+	} else {
+		tabs = components.BeginTabList(f.Surface, f.Palette, bounds, t.GetScope(), t.GetLabels(), t.GetSelected())
+	}
 	if t.GetLine() {
 		tabs = tabs.Line()
 	}

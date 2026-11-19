@@ -426,3 +426,24 @@ func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
 		t.Fatalf("a narrow label got a texture %d wide, wider than itself", width)
 	}
 }
+
+func TestShrinkUpdateTruncatesRetainedInstances(t *testing.T) {
+	renderer := renderer{}
+	rectangles := layered(0, 0, 0)
+	if _, _, err := renderer.storeRectangles(platform.Frame{Update: render.Update{Rebuild: true}, Rectangles: rectangles}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := renderer.storeRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1, Shrink: true}, Rectangles: rectangles[:2],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(renderer.instances) != 2 || len(renderer.rectangleClips) != 2 {
+		t.Fatalf("shrunk store = %d instances, %d clips", len(renderer.instances), len(renderer.rectangleClips))
+	}
+	if _, _, err := renderer.storeRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1}, Rectangles: rectangles[:1],
+	}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
+	}
+}

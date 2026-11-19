@@ -265,6 +265,10 @@ var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupport
 // application.
 var ErrWindowSizeUnsupported = errors.New("platform: programmatic window size is unsupported")
 
+// ErrDragPreviewUnsupported means this adapter cannot show the click-through
+// preview window a drag uses; the application keeps its in-window ghost.
+var ErrDragPreviewUnsupported = errors.New("platform: a transparent drag preview is unsupported")
+
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
 // host. The application keeps running; it only has no icon.
@@ -530,7 +534,9 @@ type AccessibilityNode struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
-	Secure    bool
+	// Invalid marks a control whose value failed validation.
+	Invalid bool
+	Secure  bool
 	// Focusable marks a node the keyboard can reach.
 	Focusable bool
 	// Expandable marks a node that opens and closes: Expanded says which.

@@ -4,9 +4,11 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // movableWindow is a fake window that can be moved, as a preview's is.
@@ -33,6 +35,22 @@ func (host *previewingHost) OpenWindow(config Config, canvas *gfx.Canvas, closed
 	window := &movableWindow{fakeWindow: control.(*fakeWindow)}
 	host.opened = append(host.opened, window)
 	return window, nil
+}
+
+// resultPreviewingHost mimics the native host that wraps an adapter window in
+// resultWindow before handing it to an application.
+type resultPreviewingHost struct {
+	*fakeHost
+}
+
+func (host *resultPreviewingHost) CanPreview() bool { return true }
+
+func (host *resultPreviewingHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
+	control, err := host.fakeHost.OpenWindow(config, canvas, closed)
+	if err != nil {
+		return nil, err
+	}
+	return resultWindow{WindowControl: control}, nil
 }
 
 func usePreviewHost(t *testing.T, host *previewingHost) {
@@ -81,6 +99,34 @@ func TestADragPreviewFollowsMovesAndGoesWhenClosed(t *testing.T) {
 	}
 }
 
+func TestADragPreviewRejectsANativeWindowThatCannotMove(t *testing.T) {
+	host := &resultPreviewingHost{fakeHost: &fakeHost{}}
+	previous := applicationRunner
+	t.Cleanup(func() {
+		applicationRunner = previous
+		for _, window := range host.windows {
+			window.Close()
+		}
+	})
+	applicationRunner = func(start func(Host) error) error { return start(host) }
+
+	err := RunApplication(func(application *Application) error {
+		if _, err := application.OpenWindow(Config{Title: "main"}, nil); err != nil {
+			return err
+		}
+		if _, err := application.OpenDragPreview(DragPreviewConfig{Width: 10, Height: 10}); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("OpenDragPreview error = %v, want ErrUnsupported", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(host.windows) != 2 || !host.windows[1].done {
+		t.Fatalf("unmovable preview was not closed: windows=%d done=%v", len(host.windows), len(host.windows) > 1 && host.windows[1].done)
+	}
+}
+
 func TestADragPreviewIsRefusedWhereTheHostCannotShowOne(t *testing.T) {
 	host := &fakeHost{}
 	useHost(t, host)
@@ -102,6 +148,19 @@ func TestADragPreviewIsRefusedWhereTheHostCannotShowOne(t *testing.T) {
 	}
 }
 
+func TestANativeWindowResultStillMovesAPreview(t *testing.T) {
+	moving := &movableWindow{fakeWindow: &fakeWindow{}}
+	control := resultWindow{WindowControl: moving}
+	mover, ok := any(control).(platform.WindowMover)
+	if !ok {
+		t.Fatal("a native window result hid the platform's MoveTo")
+	}
+	mover.MoveTo(gfx.Point{X: 30, Y: 40})
+	if len(moving.moves) != 1 || moving.moves[0] != (gfx.Point{X: 30, Y: 40}) {
+		t.Fatalf("moves = %v", moving.moves)
+	}
+}
+
 func BenchmarkDragPreviewMoveTo(b *testing.B) {
 	host := &previewingHost{fakeHost: &fakeHost{}}
 	var preview *DragPreview
@@ -118,5 +177,43 @@ func BenchmarkDragPreviewMoveTo(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		preview.MoveTo(gfx.Point{X: float32(i), Y: 1})
+	}
+}
+
+// unavailablePreviewHost is a host that advertises previews but cannot create
+// one: the compositor is missing.
+type unavailablePreviewHost struct{ *fakeHost }
+
+func (host *unavailablePreviewHost) CanPreview() bool { return true }
+
+func (host *unavailablePreviewHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
+	if config.WindowMode == windowPreview {
+		return nil, fmt.Errorf("%w: no compositor", platform.ErrDragPreviewUnsupported)
+	}
+	return host.fakeHost.OpenWindow(config, canvas, closed)
+}
+
+func TestADragPreviewTheHostCannotShowKeepsTheDrag(t *testing.T) {
+	host := &unavailablePreviewHost{fakeHost: &fakeHost{}}
+	previous := applicationRunner
+	t.Cleanup(func() {
+		applicationRunner = previous
+		for _, window := range host.windows {
+			window.Close()
+		}
+	})
+	applicationRunner = func(start func(Host) error) error { return start(host) }
+	err := RunApplication(func(application *Application) error {
+		if _, err := application.OpenWindow(Config{Title: "main"}, nil); err != nil {
+			return err
+		}
+		_, err := application.OpenDragPreview(DragPreviewConfig{Width: 120, Height: 28})
+		if !errors.Is(err, ErrNoDragPreview) || !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("open error = %v, want ErrNoDragPreview", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

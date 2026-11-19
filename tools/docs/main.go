@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/vivaui/viva/internal/webbuild"
 )
 
 //go:embed preview/*
@@ -68,23 +69,18 @@ func run(output string, check bool) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	command := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags=-s -w -buildid=", "-o", filepath.Join(staging, "public", "preview", "preview-"+manifest.Revision+".wasm"), "./cmd/component-preview")
-	command.Dir = root
-	command.Env = targetEnvironment(os.Environ())
-	command.Stdout, command.Stderr = os.Stdout, os.Stderr
-	if err := command.Run(); err != nil {
+	if _, err := webbuild.Build(webbuild.Options{
+		Context:     ctx,
+		Dir:         root,
+		OutputDir:   filepath.Join(staging, "public", "preview"),
+		Executable:  "preview-" + manifest.Revision,
+		Package:     "./cmd/component-preview",
+		Flags:       []string{"-trimpath", "-ldflags=-s -w -buildid="},
+		Environment: os.Environ(),
+		Stdout:      os.Stdout,
+		Stderr:      os.Stderr,
+	}); err != nil {
 		return fmt.Errorf("compile shared Web preview: %w", err)
-	}
-	gorootBytes, err := exec.Command("go", "env", "GOROOT").Output()
-	if err != nil {
-		return err
-	}
-	wasmRuntime, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(gorootBytes)), "lib", "wasm", "wasm_exec.js"))
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(staging, "public", "preview", "wasm_exec.js"), wasmRuntime, 0o644); err != nil {
-		return err
 	}
 	current, err := sourceManifest(root)
 	if err != nil {
@@ -138,13 +134,7 @@ func retainPreviousPreview(output, staging, currentRevision string) error {
 }
 
 func targetEnvironment(environment []string) []string {
-	result := make([]string, 0, len(environment)+3)
-	for _, entry := range environment {
-		if !strings.HasPrefix(entry, "GOOS=") && !strings.HasPrefix(entry, "GOARCH=") && !strings.HasPrefix(entry, "CGO_ENABLED=") {
-			result = append(result, entry)
-		}
-	}
-	return append(result, "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
+	return webbuild.WebEnvironment(environment)
 }
 
 func findRoot() (string, error) {

@@ -18,8 +18,41 @@ const zhName = locale === 'zh' ? componentName(locale, page.ID, page.Title) : ''
 const text = messages[locale];
 const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
-const sourcePath = page.Source || `components/${sourceFile}`;
+const sourcePath = page.PageUsage && page.PageSource ? page.PageSource : (page.Source || `components/${sourceFile}`);
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
+const optionalImports = {
+  text: 'github.com/vivaui/viva/text',
+  gfx: 'github.com/vivaui/viva/gfx',
+  style: 'github.com/vivaui/viva/style',
+  base: 'github.com/vivaui/viva/base',
+  codeeditor: 'github.com/vivaui/viva/ui/codeeditor',
+  chart: 'github.com/vivaui/viva/ui/chart',
+  calendar: 'github.com/vivaui/viva/ui/calendar',
+  carousel: 'github.com/vivaui/viva/ui/carousel',
+  markdown: 'github.com/vivaui/viva/ui/markdown',
+  hovercard: 'github.com/vivaui/viva/ui/hovercard',
+  sidebar: 'github.com/vivaui/viva/ui/sidebar',
+  marker: 'github.com/vivaui/viva/ui/marker',
+  metriccard: 'github.com/vivaui/viva/ui/metriccard',
+  questionnaire: 'github.com/vivaui/viva/ui/questionnaire',
+  inputotp: 'github.com/vivaui/viva/ui/inputotp',
+  inputgroup: 'github.com/vivaui/viva/ui/inputgroup',
+  skeleton: 'github.com/vivaui/viva/ui/skeleton',
+  aspectratio: 'github.com/vivaui/viva/ui/aspectratio',
+  image: 'github.com/vivaui/viva/ui/image',
+  navigationmenu: 'github.com/vivaui/viva/ui/navigationmenu',
+  menubar: 'github.com/vivaui/viva/ui/menubar',
+  command: 'github.com/vivaui/viva/ui/command',
+  messagescroller: 'github.com/vivaui/viva/ui/messagescroller',
+  message: 'github.com/vivaui/viva/ui/message',
+  attachment: 'github.com/vivaui/viva/ui/attachment',
+  avatar: 'github.com/vivaui/viva/ui/avatar',
+  columnresize: 'github.com/vivaui/viva/ui/columnresize',
+  avatareditor: 'github.com/vivaui/viva/ui/avatareditor',
+  reordergrid: 'github.com/vivaui/viva/ui/reordergrid',
+  multiselect: 'github.com/vivaui/viva/ui/multiselect',
+  hierarchypicker: 'github.com/vivaui/viva/ui/hierarchypicker',
+};
 ---
 
 <DocsLayout {locale} title={page.Title} summary={page.Summary} navigation={navigationFor(catalog, page)} currentID={page.ID}>
@@ -28,7 +61,7 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
     <div class="title-line">
       <h1>{page.Title}{zhName && zhName !== page.Title && <span class="title-zh">{zhName}</span>}</h1>
       <a class="source-link" href={`https://github.com/vivaui/viva/blob/main/${sourcePath}`} target="_blank" rel="noopener noreferrer" aria-label={`${text.viewSource}: ${sourcePath}`}>
-        <span>{text.viewSource}</span><code>{sourcePath}</code><Icon name="arrow" size={14} />
+        <span>{page.PageUsage && page.PageSource ? text.pageApiSource : text.componentSource}</span><code>{sourcePath}</code><Icon name="arrow" size={14} />
       </a>
     </div>
   </div>
@@ -36,11 +69,21 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
     {page.Examples.map(example => <section class="example-section" aria-labelledby={`example-${example.ID}`}>
       <h3 id={`example-${example.ID}`}>{example.Title}<a class="heading-anchor" href={`#example-${example.ID}`} aria-label={example.Title}>#</a></h3>
       <p class="example-summary">{example.Description}</p>
-      <Preview {locale} componentID={page.ID} title={page.Title} {example} revision={page.Revision} height={example.Height} client:load />
-      {example.Snippet && <div class="code-block usage-block">
-        <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={example.Snippet} label={text.copyUsage} {locale} client:load /></div>
-        <div class="highlighted-code"><Code code={example.Snippet} lang="go" themes={themes} defaultColor={false} /></div>
-      </div>}
+      <Preview {locale} componentID={page.ID} title={page.Title} example={example.Snippet && /components\.|Begin/.test(example.Snippet) ? {...example, Snippet: undefined} : example} revision={page.Revision} height={example.Height} client:load />
+      {(() => {
+        const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
+        const localized = locale === 'zh' ? example.PageSnippetZh : example.PageSnippet;
+        const usage = localized || example.PageSnippet || (own ? example.Snippet : '') || '';
+        if (!usage.trim()) throw new Error(`No page usage for ${page.ID}/${example.ID} (${locale})`);
+        const imports = Object.entries(optionalImports)
+          .filter(([name]) => new RegExp(`\\b${name}\\.`).test(usage))
+          .map(([, path]) => `import "${path}"`);
+        const shown = imports.length > 0 ? `${imports.join('\n')}\n\n${usage}` : usage;
+        return <div class="code-block usage-block">
+          <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={shown} label={text.copyUsage} {locale} client:load /></div>
+          <div class="highlighted-code"><Code code={shown} lang="go" themes={themes} defaultColor={false} /></div>
+        </div>;
+      })()}
     </section>)}
   </div>
   <section class="doc-section" aria-labelledby="installation">

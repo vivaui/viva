@@ -335,3 +335,30 @@ func TestScrollStateKeyScrollsWithinItsContent(t *testing.T) {
 		t.Errorf("%v allocations per key, want 0", allocs)
 	}
 }
+
+// Following says whether new content stays in view, and Prepend keeps the rows
+// a reader is looking at in place when content above them changes.
+func TestScrollStateFollowingAndPrepend(t *testing.T) {
+	var view View
+	logPage(&view, true, 10) // follows its end
+	state := view.ScrollState(listID)
+	if !state.Following() {
+		t.Fatal("a following area is not following")
+	}
+	state.ScrollTo(40)
+	if state.Following() {
+		t.Fatal("an area the user scrolled up still follows")
+	}
+	state.Prepend(30)
+	if state.Offset != 70 {
+		t.Fatalf("Prepend(30) moved the offset to %v, want 70", state.Offset)
+	}
+	state.Prepend(-100)
+	if state.Offset != 0 {
+		t.Fatalf("Prepend(-100) left the offset at %v, want 0", state.Offset)
+	}
+	state.ScrollToEnd()
+	if !state.Following() {
+		t.Fatal("ScrollToEnd did not reattach the follow")
+	}
+}

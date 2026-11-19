@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 func paintCheckbox(f *Frame, v ControlView) {
@@ -18,8 +19,14 @@ func paintCheckbox(f *Frame, v ControlView) {
 		f.PaintCaptionView(v, bounds)
 	}
 	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
+	if v.Exact {
+		checkbox = checkbox.HitBounds(v.Rect)
+	}
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
+	}
+	if v.Flags&FlagInvalid != 0 {
+		checkbox = checkbox.Invalid()
 	}
 	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
 		checkbox = checkbox.Recipe(f.GetStyles().Checkbox)
@@ -43,6 +50,9 @@ func paintSwitch(f *Frame, v ControlView) {
 		f.PaintCaptionView(v, bounds)
 	}
 	control := components.BeginSwitch(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
+	if v.Exact {
+		control = control.HitBounds(v.Rect)
+	}
 	if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.GetStyles() != nil && f.GetStyles().Switch != nil {
@@ -50,6 +60,9 @@ func paintSwitch(f *Frame, v ControlView) {
 	}
 	if small {
 		control = control.Small()
+	}
+	if v.Flags&FlagInvalid != 0 {
+		control = control.Invalid()
 	}
 	if v.Label != "" {
 		control = control.Label(v.Label)
@@ -60,13 +73,41 @@ func paintSwitch(f *Frame, v ControlView) {
 	control.Paint()
 }
 
+func paintToggle(f *Frame, v ControlView) {
+	toggle := components.BeginToggle(f.Surface, f.Palette, v.ID, v.Rect, v.Flags&FlagChecked != 0)
+	if v.Size == style.SizeSmall {
+		toggle = toggle.Small()
+	} else if v.Size == style.SizeLarge {
+		toggle = toggle.Large()
+	}
+	if v.Flags&FlagDisabled != 0 {
+		toggle = toggle.Disabled()
+	}
+	if v.Flags&FlagInvalid != 0 {
+		toggle = toggle.Invalid()
+	}
+	label := v.Text
+	if label == "" {
+		label = v.Label
+	}
+	if v.Variant == style.VariantOutline {
+		toggle.Outline(label)
+	} else {
+		toggle.Default(label)
+	}
+}
+
 func paintInputGroup(f *Frame, v ControlView) {
 	components.PaintInputGroup(f.Surface, f.Palette, v.Rect, base.WidgetsOf(f).GetGroups()[v.Aux])
 }
 
 func paintSegmented(f *Frame, v ControlView) {
 	choice := base.WidgetsOf(f).GetSegmented()[v.Aux]
-	components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected()).Paint()
+	control := components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected())
+	if v.Flags&FlagDisabled != 0 {
+		control = control.Disabled()
+	}
+	control.Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package
@@ -109,6 +150,25 @@ func measureControls(f *Frame, n *Node) {
 			control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
 			n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
 		}
+	case KindToggle:
+		toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
+		if n.ButtonSize == style.SizeSmall {
+			toggle = toggle.Small()
+		} else if n.ButtonSize == style.SizeLarge {
+			toggle = toggle.Large()
+		}
+		label := n.Text
+		if label == "" {
+			label = n.Label
+		}
+		toggle = toggle.SizeToFit(label)
+		height := f.Palette.Metrics.ControlHeight
+		if n.ButtonSize == style.SizeSmall {
+			height -= 4
+		} else if n.ButtonSize == style.SizeLarge {
+			height += 4
+		}
+		n.Pref = [2]float32{toggle.BoundsWidth(), height}
 	case KindSegmented:
 		var width float32 = 8
 		for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
@@ -129,6 +189,20 @@ func measureControls(f *Frame, n *Node) {
 		n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
 		if n.Flags&FlagThemed != 0 {
 			n.Pref = [2]float32{0, 64}
+		}
+		if n.MaxLines > 0 {
+			// AutoGrow: the rows measured by the same layout the paint will use,
+			// capped at n.MaxLines rows and never below the control's minimum.
+			// The width is the one the last layout gave the box, which the first
+			// paint records and then asks for before it is shown.
+			snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
+			if layout := snapshot.Layout; layout != nil {
+				if width := layout.BoxWidth(); width > 0 {
+					height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
+					maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
+					n.Pref[AxisY] = max(64, min(height, maxHeight))
+				}
+			}
 		}
 	case KindTable, KindTabs, KindSelect:
 		f.MeasureWidget(n)
@@ -214,11 +288,24 @@ func paintInput(f *Frame, n *Node) {
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
 func paintTextarea(f *Frame, n *Node) {
+	snapshot := base.WidgetsOf(f).GetTextareas()[n.Aux]
+	if n.MaxLines > 0 {
+		if layout := snapshot.Layout; layout != nil {
+			// AutoGrow measured the last width the layout gave this box. The
+			// first time the box is laid out there is no such width yet: record
+			// it and ask the page to lay out once more so the displayed frame is
+			// already the right height.
+			if layout.BoxWidth() != n.Rect.Width {
+				f.RequestRelayout()
+			}
+			layout.SetBoxWidth(n.Rect.Width)
+		}
+	}
 	if n.Flags&FlagHasColor != 0 {
 		theme := f.Palette
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), snapshot)
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), snapshot)
 }

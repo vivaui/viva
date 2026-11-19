@@ -569,6 +569,12 @@ func (state *windowState) prepareFrameWithCancel(frame platform.Frame, nativeVis
 			return platform.Frame{}, false, err
 		}
 	}
+	// The native text overlay owns storage sized to the old base. A shrink
+	// would have to resize it while the editor's rows are merged; rebuild the
+	// merged frame instead, which is rare and correct.
+	if frame.Update.Shrink && !frame.Update.Rebuild {
+		frame.Update = render.Update{Count: len(frame.Rectangles), Rebuild: true}
+	}
 	oldBaseRectangles := state.baseRectangleCount
 	oldBaseLabels := state.baseTextLabelCount
 	baseRectangles := state.textRectangles[:oldBaseRectangles]

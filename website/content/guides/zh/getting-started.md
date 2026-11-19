@@ -9,7 +9,7 @@ group: start
 
 - **Go 1.26 或更新版本。** 使用 `viva` 命令时如果机器上没有，它会替你下载；见[构建与打包](/zh/docs/build-and-package/)。
 - **macOS：** Xcode 命令行工具。Viva 通过 cgo 调用 Cocoa 和 Metal。
-- **Linux：** X11，以及系统自带的 XCB 和 Vulkan 加载库。Viva 在运行时加载它们，自身不捆绑任何一个。
+- **Linux：** X11，以及系统自带的 XCB、Pango 和 Cairo 库。Vulkan 加载库和驱动建议安装以获得 GPU 加速；没有时 Viva 用 CPU 渲染。
 - **Windows：** Win32，以及系统自带的 Direct3D 11 和 DirectWrite 库。
 
 ## 把 Viva 加入项目

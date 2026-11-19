@@ -39,6 +39,14 @@ type TableSpec struct {
 	Columns []style.TableColumn
 	// Headers are the column titles; none means no header row.
 	Headers []string
+	// FitHeadings widens each fixed-width column that is narrower than its
+	// heading to the width the heading needs, so no heading is cut or ends in an
+	// ellipsis, the page equivalent of fitting the component's headings. A
+	// column that takes the remaining space (Width <= 0) and a column without a
+	// heading keep their width. Headings are measured at the table's own font
+	// size and cell padding, so a heading translated longer than a hand-written
+	// width still fits. It applies to the preferred width and to painting.
+	FitHeadings bool
 	// Sortable says which columns can be sorted by clicking their header (a nil
 	// slice, none); the Table shows the arrow of the one TableState says is sorted.
 	Sortable []bool
@@ -197,6 +205,10 @@ type TableDecl struct {
 	spec  TableSpec
 	state *TableState
 	rows  int
+	// columns is the fitted copy of spec.Columns a FitHeadings table measures
+	// and paints from. It keeps its capacity across frames, so a warm table
+	// fits no heading into a new allocation.
+	columns []style.TableColumn
 }
 
 // Table adds a table painted by components.Table, with a header row of sortable
@@ -225,13 +237,56 @@ type TableDecl struct {
 func (f *Frame) Table(state *TableState, spec TableSpec) Box {
 	b := f.Box(kindTable)
 	n := &f.Nodes[b.i]
-	n.Aux = int32(len(WidgetsOf(f).tables))
+	decls := &WidgetsOf(f).tables
+	index := len(*decls)
+	n.Aux = int32(index)
 	rows := 0
 	if spec.Source != nil {
 		rows = max(spec.Source.Len(), 0)
 	}
-	WidgetsOf(f).tables = append(WidgetsOf(f).tables, TableDecl{spec: spec, state: state, rows: rows})
+	decl := TableDecl{spec: spec, state: state, rows: rows}
+	if spec.FitHeadings && f.Surface != nil && len(spec.Columns) > 0 {
+		// Reuse the fitted columns of this table from the last paint. The slice
+		// is at the same index every frame, so its capacity survives the reset.
+		if index < cap(*decls) {
+			decl.columns = (*decls)[:cap(*decls)][index].columns
+		}
+		decl.columns = append(decl.columns[:0], spec.Columns...)
+		fitTableHeadings(f.Surface, f.Palette, decl.columns, spec.Headers, spec.FontSize, spec.CellPadding)
+		decl.spec.Columns = decl.columns
+	}
+	*decls = append(*decls, decl)
 	return b
+}
+
+// fitTableHeadings widens each fixed-width column of columns that is narrower
+// than its heading to the width the heading needs, so no heading is cut or ends
+// in an ellipsis. A column that takes the remaining space (Width <= 0) and a
+// column without a heading keep their width. The heading is measured at the
+// table's own font size and cell padding; a heading of a column too wide for
+// the room left is still ellipsized.
+func fitTableHeadings(canvas *gfx.Canvas, palette Theme, columns []style.TableColumn, headings []string, fontSize, cellPadding float32) {
+	size := fontSize
+	if size <= 0 {
+		size = palette.Metrics.FontSizeM
+	}
+	padding := cellPadding
+	if padding <= 0 {
+		padding = palette.Metrics.GapItem
+	}
+	for index := range columns {
+		column := &columns[index]
+		if column.Width <= 0 || index >= len(headings) || headings[index] == "" {
+			continue
+		}
+		need := canvas.TextWidthWeight(headings[index], size, gfx.WeightMedium)
+		inset := float32(0)
+		if column.Alignment == style.TableAlignLeft {
+			inset = max(column.Inset, 0) + max(column.EndInset, 0)
+		}
+		// A heading is measured to the pixel, so round it up: it must fit, not tie.
+		column.Width = max(column.Width, float32(math.Ceil(float64(need)))+padding*2+inset)
+	}
 }
 
 // RowClicked reports which row of a Table this paint is delivering a click on.

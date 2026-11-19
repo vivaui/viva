@@ -21,7 +21,7 @@ func sample() Package {
 		Executable: "fixture-notes", ID: "dev.example.notes", Name: "Fixture Notes", Version: "2.0.1", Arch: "amd64",
 		Maintainer: "Ann Lee <ann@example.com>", Homepage: "https://example.com/notes", Comment: "Takes notes",
 		Description: "First paragraph.\n\nSecond paragraph.", Category: "Utility", Keywords: []string{"notes"},
-		Depends: []string{"libc6 (>= 2.31)", "libvulkan1 | libvulkan-dev"}, Program: bytes.Repeat([]byte("p"), 3000),
+		Depends: []string{"libc6 (>= 2.31)", "libvulkan1 | libvulkan-dev"}, Recommends: []string{"mesa-vulkan-drivers"}, Program: bytes.Repeat([]byte("p"), 3000),
 		Icons: []linuxicon.Rendition{{Pixels: 48, PNG: []byte("png48")}, {Pixels: 256, PNG: []byte("png256")}},
 	}
 }
@@ -178,7 +178,7 @@ func TestControlFile(t *testing.T) {
 	}
 	// 3000 B program = 3 KiB, plus 1 KiB for each of the three smaller files.
 	want := "Package: fixture-notes\nVersion: 2.0.1\nArchitecture: amd64\nMaintainer: Ann Lee <ann@example.com>\nInstalled-Size: 6\n" +
-		"Depends: libc6 (>= 2.31), libvulkan1 | libvulkan-dev\nSection: utils\nPriority: optional\nHomepage: https://example.com/notes\n" +
+		"Depends: libc6 (>= 2.31), libvulkan1 | libvulkan-dev\nRecommends: mesa-vulkan-drivers\nSection: utils\nPriority: optional\nHomepage: https://example.com/notes\n" +
 		"Description: Takes notes\n First paragraph.\n .\n Second paragraph.\n"
 	if got := string(contents["./control"]); got != want {
 		t.Errorf("control\n%q\nwant\n%q", got, want)
@@ -187,14 +187,14 @@ func TestControlFile(t *testing.T) {
 
 func TestControlWithoutOptionalFields(t *testing.T) {
 	pkg := sample()
-	pkg.Depends, pkg.Homepage, pkg.Description, pkg.Comment = nil, "", "", ""
+	pkg.Depends, pkg.Recommends, pkg.Homepage, pkg.Description, pkg.Comment = nil, nil, "", "", ""
 	files, _ := pkg.Files()
 	control, err := pkg.Control(files)
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(control)
-	if strings.Contains(text, "Depends:") || strings.Contains(text, "Homepage:") || !strings.HasSuffix(text, "Description: Fixture Notes\n") {
+	if strings.Contains(text, "Depends:") || strings.Contains(text, "Recommends:") || strings.Contains(text, "Homepage:") || !strings.HasSuffix(text, "Description: Fixture Notes\n") {
 		t.Errorf("control:\n%s", text)
 	}
 }
@@ -279,6 +279,7 @@ func TestRejectsBadPackages(t *testing.T) {
 		"comment":    func(p *Package) { p.Comment = "a\nb" },
 		"homepage":   func(p *Package) { p.Homepage = "not a url" },
 		"depends":    func(p *Package) { p.Depends = []string{"a, b"} },
+		"recommends": func(p *Package) { p.Recommends = []string{"a, b"} },
 		"icon":       func(p *Package) { p.Icons = []linuxicon.Rendition{{Pixels: 48}} },
 	} {
 		pkg := sample()

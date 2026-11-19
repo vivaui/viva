@@ -110,6 +110,26 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 		}
 	})
 
+	for _, state := range []struct {
+		Name     string
+		open     bool
+		disabled bool
+	}{{"closed", false, false}, {"open", true, false}, {"disabled", false, true}} {
+		styled := ui.CollapsibleState{Open: state.open, Disabled: state.disabled}
+		base := ui.CollapsibleState{Open: state.open, Disabled: state.disabled}
+		t.Run("collapsible/"+state.Name, func(t *testing.T) {
+			styledHits := declared(t, page(func(c ui.C) {
+				ui.Collapsible(c, &styled, "Details", func() {})
+			}))
+			baseHits := declared(t, page(func(c ui.C) {
+				ui.DisclosureBase(c, &base.Open, "Details").Disabled(base.Disabled).Size(120, 30)
+			}))
+			if fmt.Sprint(styledHits) != fmt.Sprint(baseHits) {
+				t.Fatalf("the collapsible and its Base declare different semantics\n  styled: %+v\n  base:   %+v", styledHits, baseHits)
+			}
+		})
+	}
+
 	t.Run("text field", func(t *testing.T) {
 		var a, b string
 		styled := declared(t, page(func(c ui.C) { ui.TextField(c, &a, "Name", "Ada") }))

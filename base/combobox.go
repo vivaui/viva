@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/window"
 )
 
@@ -21,7 +22,8 @@ import (
 // Clearable adds a button that clears the choice, Empty says what the list shows
 // when nothing matches, and Creatable offers what was typed as a new choice, which
 // Created reports for the application to add. Describe gives choices a detail, text to
-// search by and a disabled state.
+// search by and a disabled state. InitiallyOpen and InitialQuery start the list open
+// with a search, once; Invalid marks the field as one whose value is wrong.
 //
 // Not inside a Memo.
 func Combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
@@ -120,6 +122,7 @@ func combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 	// Clearable, Empty and Creatable say these again for this paint, after the clicks
 	// were taken with what the last paint showed.
 	state.clearable, state.empty, state.list.AllowCreate, state.createPrefix = false, "", false, ""
+	state.Invalid = false
 	state.layer = f.WidgetLayer() + 1
 	// The field declares its own hits as it paints; the element only places it, as
 	// wide as its container, a control tall.
@@ -155,10 +158,15 @@ type ComboState struct {
 	Node                      int32
 	gen                       uint32
 	Label, placeholder, empty string
-	clearLabel, clearLabelOf  string // "Clear <label>", made once per label
-	createPrefix              string
-	clearable                 bool
-	layer                     uint16
+	// Invalid paints the field as one whose value is wrong, with the destructive
+	// border and fill; it is set for each paint by Box.Invalid.
+	Invalid                  bool
+	clearLabel, clearLabelOf string // "Clear <label>", made once per label
+	createPrefix             string
+	clearable                bool
+	layer                    uint16
+	initialOpenSet           bool // Box.InitiallyOpen has had its one say
+	initialQuerySet          bool // Box.InitialQuery has had its one say
 }
 
 // comboKeyPrefix starts the Value of each option: a byte no one types, so an option
@@ -215,6 +223,65 @@ func (b Box) Empty(Text string) Box {
 	if s := b.ComboState(); s != nil {
 		s.empty = Text
 	}
+	return b
+}
+
+// Invalid paints a control as one whose value is wrong. A Combobox's field takes the
+// destructive border and fill, while its list, if open, still shows the choices. A
+// Checkbox, Switch, Toggle or Select marked this way wears the theme's destructive
+// border and ring, as components give it; the control is still focusable, still
+// clicked and still writes its value. Invalid(false) makes a condition the
+// declaration's own. Other elements ignore it.
+//
+//	ui.Checkbox(c, &m.terms, "Accept terms").Invalid(!m.terms)
+func (b Box) Invalid(invalid bool) Box {
+	if s := b.ComboState(); s != nil {
+		s.Invalid = invalid
+		return b
+	}
+	switch b.N().Kind {
+	case kindCheckbox, kindSwitch, kindToggle, kindSelect:
+		if invalid {
+			b.N().Flags |= FlagInvalid
+		} else {
+			b.N().Flags &^= FlagInvalid
+		}
+	}
+	return b
+}
+
+// InitiallyOpen opens a Combobox's list on the first declaration that gives it
+// this option, or keeps it closed. It applies once: a choice, Escape or a press
+// outside closes the list afterwards and it stays closed, so the call is the
+// starting state, not a value the application keeps writing.
+func (b Box) InitiallyOpen(open bool) Box {
+	s := b.ComboState()
+	if s == nil || s.initialOpenSet {
+		return b
+	}
+	s.initialOpenSet = true
+	if !open {
+		return b
+	}
+	s.list.Open = true
+	if s.f != nil && s.f.page != nil {
+		s.f.page.overlay = true
+	}
+	return b
+}
+
+// InitialQuery puts query in a Combobox's search field on the first declaration
+// that gives it this option, as if the user had typed it, so the list is filtered
+// before the first paint. It applies once: what the user types afterwards stays.
+// It does not open the list; pair it with InitiallyOpen.
+func (b Box) InitialQuery(query string) Box {
+	s := b.ComboState()
+	if s == nil || s.initialQuerySet {
+		return b
+	}
+	s.initialQuerySet = true
+	s.list.Query = text.Editor{}
+	s.list.Query.Insert(query)
 	return b
 }
 

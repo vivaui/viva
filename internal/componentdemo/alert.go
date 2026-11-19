@@ -15,7 +15,27 @@ var alertComponent = Component{
     Title:       "Sync complete",
     Description: "All local changes are safely on disk.",
 }
-components.Alert(canvas, theme, bounds, data)`},
+components.Alert(canvas, theme, bounds, data)`, PageSnippet: `look := c.Theme()
+ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+    Background(look.Card).Border(1, look.Border).
+    Radius(look.Metrics.RadiusSurface).Children(func() {
+    ui.Icon(c, m.infoIcon).Size(16, 16).Color(look.CardForeground)
+    ui.Column(c).Grow(1).Gap(2).Children(func() {
+        ui.Text(c, "Sync complete").Weight(gfx.WeightMedium).Color(look.CardForeground)
+        ui.Text(c, "All local changes are safely on disk. The remote host confirmed the final write, so you can close the session safely.").
+            FontSize(look.Metrics.FontSizeM).Muted()
+    })
+})`, PageSnippetZh: `look := c.Theme()
+ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+    Background(look.Card).Border(1, look.Border).
+    Radius(look.Metrics.RadiusSurface).Children(func() {
+    ui.Icon(c, m.infoIcon).Size(16, 16).Color(look.CardForeground)
+    ui.Column(c).Grow(1).Gap(2).Children(func() {
+        ui.Text(c, "同步已完成").Weight(gfx.WeightMedium).Color(look.CardForeground)
+        ui.Text(c, "所有本地更改都已安全写入磁盘。远端主机确认了最后一次写入，可以放心关闭会话。").
+            FontSize(look.Metrics.FontSizeM).Muted()
+    })
+})`},
 		{ID: "variants", Title: "语义变体", Description: "并列展示默认与破坏性提示。", Snippet: `plainData := components.AlertData{
     Icon: icon, Title: "Sync complete",
     Description: "All local changes are safely on disk.",
@@ -25,7 +45,51 @@ dangerData := components.AlertData{
     Title: "Unable to delete project", Description: "Remove any release configurations that still use this project first.",
 }
 components.Alert(canvas, theme, plainBounds, plainData)
-components.Alert(canvas, theme, dangerBounds, dangerData)`},
+components.Alert(canvas, theme, dangerBounds, dangerData)`, PageSnippet: `look := c.Theme()
+ui.Column(c).Gap(16).Children(func() {
+    ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+        Background(look.Card).Border(1, look.Border).
+        Radius(look.Metrics.RadiusSurface).Children(func() {
+        ui.Icon(c, m.infoIcon).Size(16, 16).Color(look.CardForeground)
+        ui.Column(c).Grow(1).Gap(2).Children(func() {
+            ui.Text(c, "Sync complete").Weight(gfx.WeightMedium).Color(look.CardForeground)
+            ui.Text(c, "All local changes are safely on disk. The remote host confirmed the final write, so you can close the session safely.").
+                FontSize(look.Metrics.FontSizeM).Muted()
+        })
+    })
+    ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+        Background(look.Card).Border(1, look.Border).
+        Radius(look.Metrics.RadiusSurface).Children(func() {
+        ui.Icon(c, m.alertIcon).Size(16, 16).Color(look.Danger)
+        ui.Column(c).Grow(1).Gap(2).Children(func() {
+            ui.Text(c, "Unable to delete project").Weight(gfx.WeightMedium).Color(look.Danger)
+            ui.Text(c, "Remove any release configurations that still use this project first.").
+                FontSize(look.Metrics.FontSizeM).Color(look.Danger)
+        })
+    })
+})`, PageSnippetZh: `look := c.Theme()
+ui.Column(c).Gap(16).Children(func() {
+    ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+        Background(look.Card).Border(1, look.Border).
+        Radius(look.Metrics.RadiusSurface).Children(func() {
+        ui.Icon(c, m.infoIcon).Size(16, 16).Color(look.CardForeground)
+        ui.Column(c).Grow(1).Gap(2).Children(func() {
+            ui.Text(c, "同步已完成").Weight(gfx.WeightMedium).Color(look.CardForeground)
+            ui.Text(c, "所有本地更改都已安全写入磁盘。远端主机确认了最后一次写入，可以放心关闭会话。").
+                FontSize(look.Metrics.FontSizeM).Muted()
+        })
+    })
+    ui.Row(c).FillWidth().Pad(14).Gap(10).Items(ui.Start).
+        Background(look.Card).Border(1, look.Border).
+        Radius(look.Metrics.RadiusSurface).Children(func() {
+        ui.Icon(c, m.alertIcon).Size(16, 16).Color(look.Danger)
+        ui.Column(c).Grow(1).Gap(2).Children(func() {
+            ui.Text(c, "无法删除项目").Weight(gfx.WeightMedium).Color(look.Danger)
+            ui.Text(c, "请先移除仍在使用该项目的发布配置。").
+                FontSize(look.Metrics.FontSizeM).Color(look.Danger)
+        })
+    })
+})`},
 	},
 }
 

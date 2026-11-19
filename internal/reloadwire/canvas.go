@@ -122,7 +122,7 @@ func ApplyCanvas(canvas *gfx.Canvas, snapshot CanvasSnapshot) {
 			canvas.HitWithOptions(hit.ID, hit.Bounds, hit.Label, gfx.HitOptions{
 				Role: hit.Role, Value: hit.Value, Hint: hit.Hint, Disabled: hit.Disabled,
 				Checked: hit.Checked, Selected: hit.Selected, Expanded: hit.Expanded,
-				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure, SkipFocus: !hit.Focusable, Autofocus: hit.Autofocus,
+				Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Invalid: hit.Invalid, Secure: hit.Secure, SkipFocus: !hit.Focusable, Autofocus: hit.Autofocus,
 				TextBounds: text.Bounds, TextSize: text.Size, TextColor: text.Color, TextWeight: text.Weight,
 				Placement: text.Placement,
 			})

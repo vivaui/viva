@@ -96,6 +96,15 @@ func clickHit(t *testing.T, driver *app.Driver, hit gfx.Hit) {
 	}
 }
 
+// clickField clicks a text field near its top edge: a compound control may be
+// as tall as its results, while its editable row sits at the top.
+func clickField(t *testing.T, driver *app.Driver, hit gfx.Hit) {
+	t.Helper()
+	if err := driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+min(hit.Bounds.Height/2, 8)); err != nil {
+		t.Fatalf("click %q: %v", hit.Label, err)
+	}
+}
+
 func countText(driver *app.Driver, value string) int {
 	count := 0
 	for _, text := range driver.Snapshot().Texts {
@@ -215,7 +224,7 @@ func TestEditingATextFieldGoesThroughTheNativeTextPath(t *testing.T) {
 	if field.ID.IsZero() {
 		t.Fatal("the input page has no editable field")
 	}
-	clickHit(t, driver, field)
+	clickField(t, driver, field)
 	if driver.Snapshot().Focused != field.ID {
 		t.Fatalf("clicking the field focused %v, want %v", driver.Snapshot().Focused, field.ID)
 	}
@@ -429,7 +438,7 @@ func TestEveryEditableFieldAcceptsKeyboardInput(t *testing.T) {
 				continue // below the fold; its siblings cover the component
 			}
 			editable[catalog[index].ID] = true
-			clickHit(t, driver, field)
+			clickField(t, driver, field)
 			editor, ok := state.TextEditor(field.ID)
 			if !ok {
 				t.Fatalf("%s: %q looks editable but has no editor", catalog[index].ID, field.Label)
@@ -615,7 +624,7 @@ func TestTextareaTakesMultilineInput(t *testing.T) {
 	driver := newDriver(t, state)
 	open(t, driver, "Textarea")
 	field := fieldNamed(t, driver, "项目说明")
-	clickHit(t, driver, field)
+	clickField(t, driver, field)
 	editor, _ := state.TextEditor(field.ID)
 	if err := driver.Key(gfx.KeyEnter, 0); err != nil {
 		t.Fatal(err)

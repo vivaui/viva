@@ -13,6 +13,26 @@ var colorSwatchComponent = Component{
 	    Label("Blue").Selected(selected == id).TabStop(selected == id)
 if swatch.Paint().Clicked() {
     selected = id
+}`, PageSnippet: `colors := [...]ui.Color{{}, ui.RGB(33, 196, 94), ui.RGB(59, 130, 245), ui.RGB(240, 69, 69)}
+labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}
+for index, color := range colors {
+    swatch := ui.ColorSwatch(c, color, m.color == color, labels[index]).TabStop(m.color == color)
+    if index == 3 {
+        swatch = swatch.Disabled(true)
+    }
+    if swatch.Clicked() {
+        m.color = color
+    }
+}`, PageSnippetZh: `colors := [...]ui.Color{{}, ui.RGB(33, 196, 94), ui.RGB(59, 130, 245), ui.RGB(240, 69, 69)}
+labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}
+for index, color := range colors {
+    swatch := ui.ColorSwatch(c, color, m.color == color, labels[index]).TabStop(m.color == color)
+    if index == 3 {
+        swatch = swatch.Disabled(true)
+    }
+    if swatch.Clicked() {
+        m.color = color
+    }
 }`}},
 }
 
@@ -39,27 +59,27 @@ func (state *State) keyColorSwatch(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
+// paintColorSwatch uses the page API. Disabled forwards to components.ColorSwatch,
+// so the disabled choice is dimmed, inert and announced as unavailable.
 func (state *State) paintColorSwatch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var slots [4]ui.Box
+	colors := [...]gfx.Color{{}, {Green: 0.77, Red: 0.13, Blue: 0.37, Alpha: 1}, {Red: 0.23, Green: 0.51, Blue: 0.96, Alpha: 1}, {Red: 0.94, Green: 0.27, Blue: 0.27, Alpha: 1}}
+	labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}
 	state.drawPage(canvas, theme, size, 360, state.Text("连接颜色", "Connection color"), func(c ui.C) {
 		ui.Row(c).Gap(12).Children(func() {
-			for i := range slots {
-				slots[i] = ui.Slot(c).Size(36, 36)
+			for i, color := range colors {
+				selected := state.values[0] == int32(i)
+				swatch := ui.ColorSwatch(c, color, selected, labels[i]).
+					Hit(colorSwatchItems.At(i), labels[i]).
+					TabStop(selected)
+				if i == 3 {
+					swatch = swatch.Disabled(true)
+				}
+				if swatch.Clicked() {
+					state.values[0] = int32(i)
+				}
 			}
 		})
 		ui.Wrap(c, state.Text("Tab 进入色板，方向键移动，Space 选择。", "Tab enters the palette, arrows move, and Space selects.")).
 			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
-	colors := [...]gfx.Color{{}, {Green: 0.77, Red: 0.13, Blue: 0.37, Alpha: 1}, {Red: 0.23, Green: 0.51, Blue: 0.96, Alpha: 1}, {Red: 0.94, Green: 0.27, Blue: 0.27, Alpha: 1}}
-	labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}
-	for i, color := range colors {
-		selected := state.values[0] == int32(i)
-		swatch := components.BeginColorSwatch(canvas, theme, colorSwatchItems.At(i), slots[i].Rect(), color).Label(labels[i]).Selected(selected).TabStop(selected)
-		if i == 3 {
-			swatch = swatch.Disabled()
-		}
-		if swatch.Paint().Clicked() {
-			state.values[0] = int32(i)
-		}
-	}
 }

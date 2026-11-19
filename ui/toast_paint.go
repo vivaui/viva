@@ -67,8 +67,11 @@ func Toasts(c C, t *Toaster) {
 			t.QueuePtr().Resume(t.ID(item.GetN()), now)
 		}
 		toast := components.SonnerToast{
-			Snapshot: components.ToastSnapshot{Title: item.GetTitle(), Description: item.GetDescription(), Type: toastKindComponent(item.Kind)},
-			Scope:    t.ID(item.GetN()), DismissID: t.GetScope().At(int(item.GetN())*3 + ToastClose),
+			Snapshot: components.ToastSnapshot{
+				Title: item.GetTitle(), Description: item.GetDescription(), Type: toastKindComponent(item.Kind),
+				SwipeX: t.SwipeX(ToastID(item.GetN())),
+			},
+			Scope: t.ID(item.GetN()), DismissID: t.GetScope().At(int(item.GetN())*3 + ToastClose),
 		}
 		if item.GetAction() != "" {
 			toast.ActionID, toast.ActionLabel = t.GetScope().At(int(item.GetN())*3+ToastAction), item.GetAction()
@@ -76,7 +79,7 @@ func Toasts(c C, t *Toaster) {
 		t.SetStack(append(t.GetStack(), toast))
 	}
 	components.PaintSonner(canvas, c.GetF().Palette, c.GetF().GetBounds(), t.GetStack(), components.SonnerOptions{
-		Layer: ToastLayer, Expanded: held, Position: components.ToastPosition(t.Position),
+		Layer: ToastLayer, Expanded: held || t.Expanded, Position: components.ToastPosition(t.Position),
 	})
 	if deadline, ok := t.QueuePtr().NextDeadline(); ok {
 		canvas.RequestFrameIn(max(deadline.Sub(now), time.Millisecond))

@@ -82,7 +82,7 @@ func doctor(host doctorHost, directory string, output io.Writer) error {
 	failures, warnings := 0, 0
 	for _, result := range results {
 		fmt.Fprintf(output, "  %-4s  %-10s %s\n", result.level.label(), result.name, result.detail)
-		if result.fix != "" && result.level >= checkWarn {
+		if result.fix != "" && result.level >= checkNote {
 			fmt.Fprintf(output, "        %-10s %s\n", "", result.fix)
 		}
 		switch result.level {
@@ -172,16 +172,25 @@ func (host doctorHost) checkPlatform() []checkResult {
 			return []checkResult{{level: checkNote, name: "libraries", detail: "could not list shared libraries (ldconfig -p); XCB and Vulkan are loaded at run time"}}
 		}
 		var results []checkResult
-		for _, library := range []struct{ file, packages string }{
-			{"libxcb.so.1", "libxcb1"},
-			{"libvulkan.so.1", "libvulkan1 (and a Vulkan driver such as mesa-vulkan-drivers)"},
+		for _, library := range []struct {
+			file, packages string
+			optional       bool
+		}{
+			{"libxcb.so.1", "libxcb1", false},
+			{"libvulkan.so.1", "libvulkan1 (and a Vulkan driver such as mesa-vulkan-drivers)", true},
 		} {
 			if strings.Contains(out, library.file) {
 				results = append(results, checkResult{level: checkOK, name: library.file, detail: "found"})
-			} else {
-				results = append(results, checkResult{level: checkWarn, name: library.file, detail: "not found; windows cannot open without it",
-					fix: "Debian/Ubuntu: sudo apt install " + library.packages})
+				continue
 			}
+			if library.optional {
+				results = append(results, checkResult{level: checkNote, name: library.file,
+					detail: "not found; windows draw on the CPU without GPU acceleration",
+					fix:    "optional: Debian/Ubuntu: sudo apt install " + library.packages})
+				continue
+			}
+			results = append(results, checkResult{level: checkWarn, name: library.file, detail: "not found; windows cannot open without it",
+				fix: "Debian/Ubuntu: sudo apt install " + library.packages})
 		}
 		return results
 	}

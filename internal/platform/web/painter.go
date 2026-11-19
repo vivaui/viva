@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/framebuild"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/interaction"
 	"github.com/vivaui/viva/internal/platform"
@@ -23,6 +24,10 @@ type painter struct {
 	width         float32
 	height        float32
 	clear         gfx.Color
+	builder       *framebuild.Builder
+	frame         platform.Frame
+	labels        []platform.TextLabel
+	frameErr      error
 	rectangles    []gfx.Rectangle
 	shadows       []gfx.Shadow
 	triangles     []gfx.Triangle
@@ -62,9 +67,10 @@ func newPainter(canvas *gfx.Canvas, config *Config) *painter {
 		clear = config.ClearColor
 	}
 	return &painter{
-		config: config,
-		canvas: canvas,
-		clear:  clear,
+		config:  config,
+		canvas:  canvas,
+		clear:   clear,
+		builder: framebuild.New(canvas),
 	}
 }
 
@@ -475,20 +481,23 @@ func (p *painter) deliverPointer(event gfx.PointerEvent) bool {
 func (p *painter) repaint() {
 	for pass := 0; ; pass++ {
 		p.paint()
-		p.rectangles = p.canvas.Rectangles()
-		p.shadows = p.canvas.Shadows()
-		p.triangles = p.canvas.Triangles()
-		p.texts = p.canvas.Texts()
-		p.layers = collectLayers(p.layers[:0], p.rectangles, p.triangles, p.texts)
-		for _, shadow := range p.shadows {
-			p.layers = insertLayer(p.layers, shadow.Layer)
-		}
-
 		before := p.focus.Focused()
 		p.focus.Sync(p.canvas)
 		if p.focus.Focused() == before || pass > 0 {
 			break
 		}
+	}
+	if frame, err := p.builder.Build(); err != nil {
+		// Keep the last frame on screen rather than losing the page to one bad
+		// batch; the runtime reports the error to the console.
+		p.frameErr = err
+	} else {
+		p.frameErr = nil
+		p.frame = frame
+		if frame.TextLabels != nil {
+			p.labels = append(p.labels[:0], frame.TextLabels...)
+		}
+		p.builder.Trim()
 	}
 	p.accessibility = describeAccessibility(p.accessibility[:0], p.canvas.Hits(), p.focus.Router().ActiveScope())
 	p.syncTextInput()
