@@ -691,3 +691,22 @@ func TestMenuPageContentRow(t *testing.T) {
 		t.Fatalf("the swatch chose %v, menu open %v", chosen, open)
 	}
 }
+
+// MenuItem.ID is the row's identity: a caller can anchor a context menu or a
+// part to the row it declared, without knowing the menu's numbering.
+func TestMenuItemIDNamesItsRow(t *testing.T) {
+	open := true
+	var row gfx.ID
+	d := openPage(t, func(c ui.C) {
+		anchor := ui.Button(c, "More")
+		ui.Menu(c, anchor, &open, func(menu *ui.MenuItems) {
+			row = menu.Item("Rename").ID()
+		})
+	})
+	if row.IsZero() {
+		t.Fatal("MenuItem.ID is zero")
+	}
+	if hit := d.hit("Rename"); hit.ID != row {
+		t.Fatalf("the row's hit is %v, ID says %v", hit.ID, row)
+	}
+}

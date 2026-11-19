@@ -58,6 +58,7 @@ type ScrollState struct {
 	// ScrollbarLabels gave them; zero and empty keep the area's own.
 	verticalID, horizontalID       gfx.ID
 	verticalLabel, horizontalLabel string
+	verticalValue, horizontalValue string
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -345,6 +346,7 @@ func (f *Frame) ScrollArea(ID gfx.ID) Box {
 	state := f.Scrolls.get(ID)
 	state.ID, state.follow, state.sideways, state.bars, state.barSize = ID, false, false, false, 0
 	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
+	state.verticalValue, state.horizontalValue = "", ""
 	b := f.Scroll(state.Offset)
 	f.Extra(b.i).scrollState = state
 	return b
@@ -434,6 +436,17 @@ func (b Box) ScrollbarLabels(vertical, horizontal string) Box {
 func (b Box) ScrollbarSize(Size float32) Box {
 	if s := b.areaState(); s != nil {
 		s.barSize = Size
+	}
+	return b
+}
+
+// ScrollbarValues gives the values assistive technology reports for a ScrollArea's
+// bars, as components.ScrollArea's VerticalScrollbar and HorizontalScrollbar do: a
+// percentage, a row's name, or what the bar means. Empty keeps the default, which
+// has no value. Like Scrollbars, it has no effect on a box that is not a ScrollArea.
+func (b Box) ScrollbarValues(vertical, horizontal string) Box {
+	if s := b.areaState(); s != nil {
+		s.verticalValue, s.horizontalValue = vertical, horizontal
 	}
 	return b
 }

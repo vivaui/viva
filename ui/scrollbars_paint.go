@@ -78,8 +78,8 @@ func paintScrollbars(f *Frame, n *Node, s *ScrollState) {
 		Offset(s.OffsetX, s.Offset).
 		ScrollbarSize(size).
 		HoverScrollbars(revealed > 0.001).
-		VerticalScrollbar(vertical, verticalLabel, "").
-		HorizontalScrollbar(horizontal, horizontalLabel, "")
+		VerticalScrollbar(vertical, verticalLabel, s.GetVerticalValue()).
+		HorizontalScrollbar(horizontal, horizontalLabel, s.GetHorizontalValue())
 	geometry := area.Geometry()
 	if geometry.MaxOffsetY > 0 {
 		f.DragScrollbar(s, vertical, geometry, AxisY)

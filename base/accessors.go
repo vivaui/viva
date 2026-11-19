@@ -1451,6 +1451,14 @@ func (x *drawerState) GetLayer() uint16 { return x.layer }
 // GetSpec reads the spec of drawerState for the styled painting layer.
 func (x *drawerState) GetSpec() DrawerDeclaration { return x.spec }
 
+// GetVerticalValue reads the accessible value of a scroll area's vertical bar for
+// the styled painting layer.
+func (x *ScrollState) GetVerticalValue() string { return x.verticalValue }
+
+// GetHorizontalValue reads the accessible value of a scroll area's horizontal bar
+// for the styled painting layer.
+func (x *ScrollState) GetHorizontalValue() string { return x.horizontalValue }
+
 // GetViewport reads the area the drawer covers, the frame less its spec's Inset.
 func (x *drawerState) GetViewport() Rect { return x.viewport }
 

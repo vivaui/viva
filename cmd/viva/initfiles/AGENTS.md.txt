@@ -139,7 +139,7 @@ func (m *model) page(c ui.C) {
   `Content`, `Viewport`, `Max()`, `AtEnd()`, `Pinned()`, `Dragging()`, `ScrollTo(px)`, `ScrollToEnd()` and
   `Key(event, step)` for a pane the page gives the keyboard (also for the area a `ui.List` or `ui.Tree` returns);
   ask for it in each paint and do not keep the pointer. `BarGeometry(bounds, barSize)` is the tracks and thumb for a
-  scrollbar the page paints itself. The page gives the
+  scrollbar the page paints itself; `.ScrollbarValues(vertical, horizontal)` is the value assistive technology reads for them. The page gives the
   wheel to the area under the pointer (the innermost, or the next one out when that is at its end), so side-by-side
   columns and nested lists each scroll alone. `.Follow(true)` keeps a log or chat at its end until the user scrolls
   up (and again when they scroll back down; `.Follow(m.autoScroll)` makes it a switch); `Pinned()` says the next
@@ -158,7 +158,8 @@ func (m *model) page(c ui.C) {
 
 - `.Tooltip("Delete")` on a control is the tip shown while the pointer rests on it (and its description).
 - A menu of actions off a button: `ui.Menu(c, more, &m.menu, func(menu *ui.MenuItems) { if menu.Item("Rename").Clicked() { ... } })`;
-  `menu.Separator()`, `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.
+  `menu.Item("Rename").ID()` is the row's identity, for anchoring a part or context menu; `menu.Separator()`,
+  `menu.Label("Group")`, `.Destructive()`, `.Disabled(x)`. Choosing an item closes it.
   Typing a letter goes to the item it begins. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is a submenu
   (opens as the pointer rests on it, on a click, or on Right/Enter/Space; Left goes back), in a ContextMenu too.
 - A right-click menu: `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` (Shift+F10 opens it too); items
