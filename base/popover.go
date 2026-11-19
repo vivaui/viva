@@ -37,6 +37,13 @@ type PopoverSpec struct {
 	// Width is the panel's width, 288 when zero; its height fits what is in it
 	// (give the body a Height to fix it).
 	Width float32
+	// Radius overrides the panel's corner radius; zero keeps the popover recipe's.
+	// A hover card, painted with components.PopupRecipe, is rounder than a popover.
+	Radius float32
+	// NoDismiss leaves the panel without a press-outside target and without an
+	// Escape target: a hover preview the pointer keeps open. Dismissed then never
+	// reports it.
+	NoDismiss bool
 	// ConsumeOutsidePress keeps the press that closes the panel from also reaching
 	// the control under it, which it does by default, as a web popover's does.
 	ConsumeOutsidePress bool

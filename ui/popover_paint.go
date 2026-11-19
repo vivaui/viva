@@ -23,6 +23,9 @@ import (
 func framePopover(f *Frame, Anchor Box, spec PopoverSpec) Box {
 	metrics := f.Palette.Metrics
 	look := components.PopoverRecipe(f.Palette)
+	if spec.Radius > 0 {
+		look.Radius = spec.Radius
+	}
 	width := spec.Width
 	if width <= 0 {
 		width = 288

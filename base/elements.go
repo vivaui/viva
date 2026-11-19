@@ -390,7 +390,7 @@ func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) boo
 	if spec.Scope.IsZero() {
 		spec.Scope = scope.At(0)
 	}
-	if spec.DismissID.IsZero() {
+	if spec.DismissID.IsZero() && !spec.NoDismiss {
 		spec.DismissID = scope.At(1)
 	}
 	panel := c.f.Popover(Anchor, spec)

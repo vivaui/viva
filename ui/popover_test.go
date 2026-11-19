@@ -102,3 +102,27 @@ func TestPopoverAlignOffset(t *testing.T) {
 		t.Fatalf("an AlignOffset of 40 moved the panel from %v to %v, want %v", base, shifted, base+40)
 	}
 }
+
+// A hover preview can leave out the dismiss target: no press-outside hit and no
+// Escape target, as a hand-painted hover card had. Radius is how it keeps the
+// popup recipe's corners rather than a popover's.
+func TestPopoverCanBeAHoverPreview(t *testing.T) {
+	open := true
+	d := openPage(t, func(c ui.C) {
+		anchor := ui.Button(c, "Anchor")
+		ui.PopoverWith(c, anchor, ui.PopoverSpec{Title: "Details", Width: 200, Radius: 10, NoDismiss: true}, &open, func() {
+			ui.Text(c, "Body")
+		})
+	})
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.Label == "Dismiss popover" {
+			t.Fatal("a hover preview declared a dismiss target")
+		}
+	}
+	if err := d.driver.Key(gfx.KeyEscape, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !open {
+		t.Fatal("Escape closed a hover preview")
+	}
+}
