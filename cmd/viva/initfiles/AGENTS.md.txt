@@ -222,7 +222,7 @@ func (m *model) page(c ui.C) {
   `ui/chart`, `ui/sidebar`. Its state type is named by role, not by repeating the package: `calendar.State`,
   `message.Row`, `attachment.Card`. Use `cal`, `msg`, `pic` for locals; a model field may keep the noun
   (`m.calendar`) because a selector never shadows a package.
-- Editors and visuals: `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`,
+- Editors and visuals: `ui/textview`, `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`,
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,

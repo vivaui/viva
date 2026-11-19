@@ -25,7 +25,7 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 重功能或有状态的页面控件放在 `ui/<能力名>` 的独立包里。用到才 import；包本身就是按需付费的边界。
 
-- 编辑器与可视化：`ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
+- 编辑器与可视化：`ui/textview`, `ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
 - 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
 - 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`
 

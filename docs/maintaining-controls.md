@@ -43,7 +43,7 @@ There are two authoring paths, and they are not duplicates:
 may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
 copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
 
-Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
+Opt-in page packages live under `ui/<name>` (`ui/textview`, `ui/codeeditor`, `ui/chart`,
 `ui/calendar`, `ui/carousel`, `ui/markdown`, `ui/columnresize`,
 `ui/avatareditor`, `ui/reordergrid`, `ui/avatar`, `ui/attachment`,
 `ui/message`, `ui/messagescroller`, `ui/command`, `ui/menubar`,
