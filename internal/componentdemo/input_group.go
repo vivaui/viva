@@ -25,7 +25,11 @@ var inputGroupComponent = Component{
         Icon: clearIcon, ButtonSize: components.InputGroupButtonIconXS,
         Label: "Clear domain",
     },
-})`},
+})`, PageSnippet: `domain := "viva.dev"
+ui.TextField(c, &domain, "Project domain", "project-name").
+    Action(m.clearIcon, "Clear domain")`, PageSnippetZh: `domain := "viva.dev"
+ui.TextField(c, &domain, "Project domain", "project-name").
+    Action(m.clearIcon, "Clear domain")`},
 		{ID: "addons", Title: "块级附加项", Description: "块级说明、键帽和多行控制槽。", Snippet: `components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
     ID: tree.ID(page, "description"), Label: "Release description",
     Value: value, Multiline: true,
@@ -36,7 +40,9 @@ var inputGroupComponent = Component{
     BlockEnd: components.InputGroupSlot{
         Kind: components.InputGroupSlotKbd, Text: "⌘↵",
     },
-})`},
+})`, PageSnippet: `description := "Ship the component gallery.\nAdd the keyboard shortcuts."
+ui.TextArea(c, &description, "Release description", "").Height(128)`, PageSnippetZh: `description := "Ship the component gallery.\nAdd the keyboard shortcuts."
+ui.TextArea(c, &description, "Release description", "").Height(128)`},
 		{ID: "buttons", Title: "图标按钮与加载", Description: "icon-xs / icon-sm 按钮切换密码可见，以及 Spinner 附加槽。", Snippet: `reveal := tree.ID(page, "reveal")
 components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
     ID: tree.ID(page, "password"), Label: "Password", Value: value,
@@ -48,7 +54,21 @@ components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
 })
 if canvas.Clicked(reveal) {
     revealed = !revealed
-}`},
+}`, PageSnippet: `password := "viva.dev"
+ui.TextField(c, &password, "Password", "").
+    Secure().Action(m.eyeIcon, "Show password")
+search := "viva"
+ui.Row(c).Gap(8).Children(func() {
+    ui.TextField(c, &search, "Search", "").Grow(1)
+    ui.Spinner(c)
+})`, PageSnippetZh: `password := "viva.dev"
+ui.TextField(c, &password, "Password", "").
+    Secure().Action(m.eyeIcon, "Show password")
+search := "viva"
+ui.Row(c).Gap(8).Children(func() {
+    ui.TextField(c, &search, "Search", "").Grow(1)
+    ui.Spinner(c)
+})`},
 		{ID: "states", Title: "输入状态", Description: "无效与禁用快照保留完整语义。", Snippet: `invalid := components.InputGroupSnapshot{
     ID: tree.ID(page, "email"), Label: "Project domain", Value: value,
     Invalid: true,
@@ -65,7 +85,17 @@ locked := components.InputGroupSnapshot{
     ID: tree.ID(page, "locked"), Label: "Project domain",
     Value: "locked", Disabled: true,
 }
-components.PaintInputGroup(canvas, theme, lockedBounds, locked)`},
+components.PaintInputGroup(canvas, theme, lockedBounds, locked)`, PageSnippet: `// m.email starts as "viva.dev".
+m.email.Invalid = true
+ui.TextFieldID(c, ui.ID(c), &m.email, "Project domain", "")
+// m.locked starts as "locked".
+m.locked.Disabled = true
+ui.TextFieldID(c, ui.ID(c), &m.locked, "Project domain", "")`, PageSnippetZh: `// m.email starts as "viva.dev".
+m.email.Invalid = true
+ui.TextFieldID(c, ui.ID(c), &m.email, "Project domain", "")
+// m.locked starts as "locked".
+m.locked.Disabled = true
+ui.TextFieldID(c, ui.ID(c), &m.locked, "Project domain", "")`},
 	},
 }
 

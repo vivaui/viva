@@ -515,7 +515,7 @@ func (b Box) Placeholder(Value string) Box {
 
 // Icons sets the icons a Select paints before its chosen value on the trigger and
 // before each option's label in the open list, one per option and indexed like the
-// labels: what SelectIcon's icon function names. A select given none of them paints
+// labels: one per option, like the labels. A select given none of them paints
 // exactly what it always has; a SelectBase keeps them for its caller and paints
 // none, as it does the rest of the look.
 func (b Box) Icons(icons []gfx.Icon) Box {

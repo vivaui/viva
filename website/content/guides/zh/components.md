@@ -19,7 +19,7 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 主题是一个值，`gfx.LightTheme()` 或 `gfx.DarkTheme()`。切换外观就是改用另一个主题绘制。
 
-`Begin*` 是样式层的构造器，不是第二套页面 API。页面控件用 `ui.*`、`ui.*Base` 和 `ui.Control` 声明；`components.Begin*` 用于 `Draw` 内部、纯测量或 `viva add` 复制出的源码。“零 Begin”不是目标：边界是页面行为不再手拼，而不是绘制构造器消失。`multiselect`、`hierarchypicker` 这类可复用的重型复合控件走 opt-in 包。
+`Begin*` 是样式层的构造器，不是第二套页面 API。页面控件用 `ui.*`、`ui.*Base` 和 `ui.Control` 声明；`components.Begin*` 用于 `Draw` 内部、纯测量或 `viva add` 复制出的源码。“零 Begin”不是目标：边界是页面行为不再手拼，而不是绘制构造器消失。`ui/multiselect`、`ui/hierarchypicker` 这类可复用的重型复合控件走 opt-in 包。
 
 ## 树形导航
 

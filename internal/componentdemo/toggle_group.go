@@ -61,11 +61,11 @@ if id, ok := group.Paint().Clicked(); ok {
 }`, PageSnippet: `ui.Column(c).Gap(0).Children(func() {
     ui.Toggle(c, &m.left, "Left").Outline()
     ui.Toggle(c, &m.center, "Center").Outline()
-    ui.Toggle(c, &m.right, "Right").Outline()
+    ui.Toggle(c, &m.right, "Right").Outline().Disabled(true)
 })`, PageSnippetZh: `ui.Column(c).Gap(0).Children(func() {
     ui.Toggle(c, &m.left, "左对齐").Outline()
     ui.Toggle(c, &m.center, "居中").Outline()
-    ui.Toggle(c, &m.right, "右对齐").Outline()
+    ui.Toggle(c, &m.right, "右对齐").Outline().Disabled(true)
 })`},
 	},
 }

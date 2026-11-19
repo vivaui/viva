@@ -62,6 +62,58 @@ var codeMergeComponent = Component{
     Editor: components.CodeDiffSnapshot{ID: resultID, Value: result},
     Actions: []components.CodeMergeAction{{Row: 1, Incoming: true, ID: acceptID, Label: "Accept"}},
 })`,
+		PageSnippet: `current := []string{"head", "local", "tail"}
+incoming := []string{"head", "remote", "tail"}
+result := "head\nchoice\ntail"
+type mergeRow struct {
+    CurrentLine, ResultLine, IncomingLine int
+    CurrentChanged, IncomingChanged       bool
+}
+rows := []mergeRow{
+    {CurrentLine: 0, ResultLine: 0, IncomingLine: 0},
+    {CurrentLine: 1, ResultLine: 1, IncomingLine: 1, CurrentChanged: true, IncomingChanged: true},
+    {CurrentLine: 2, ResultLine: 2, IncomingLine: 2},
+}
+type mergeAction struct {
+    Row      int
+    Incoming bool
+    ID       gfx.ID
+    Label    string
+}
+m.merge.Snapshot.Current = current
+m.merge.Snapshot.Incoming = incoming
+m.merge.Snapshot.Rows = rows
+m.merge.Snapshot.Editor.Value = result
+m.merge.Snapshot.Editor.VerticalScrollbarID = codeeditor.Shown
+// m.acceptID is the caller's stable hit ID for the Accept action.
+m.merge.Snapshot.Actions = []mergeAction{{Row: 1, Incoming: true, ID: m.acceptID, Label: "Accept"}}
+codeeditor.MergeView(c, "Merge result", &m.merge).Fill()`,
+		PageSnippetZh: `current := []string{"head", "local", "tail"}
+incoming := []string{"head", "remote", "tail"}
+result := "head\nchoice\ntail"
+type mergeRow struct {
+    CurrentLine, ResultLine, IncomingLine int
+    CurrentChanged, IncomingChanged       bool
+}
+rows := []mergeRow{
+    {CurrentLine: 0, ResultLine: 0, IncomingLine: 0},
+    {CurrentLine: 1, ResultLine: 1, IncomingLine: 1, CurrentChanged: true, IncomingChanged: true},
+    {CurrentLine: 2, ResultLine: 2, IncomingLine: 2},
+}
+type mergeAction struct {
+    Row      int
+    Incoming bool
+    ID       gfx.ID
+    Label    string
+}
+m.merge.Snapshot.Current = current
+m.merge.Snapshot.Incoming = incoming
+m.merge.Snapshot.Rows = rows
+m.merge.Snapshot.Editor.Value = result
+m.merge.Snapshot.Editor.VerticalScrollbarID = codeeditor.Shown
+// m.acceptID 是调用方为“接受”操作分配的稳定命中 ID。
+m.merge.Snapshot.Actions = []mergeAction{{Row: 1, Incoming: true, ID: m.acceptID, Label: "接受"}}
+codeeditor.MergeView(c, "合并结果", &m.merge).Fill()`,
 	}},
 }
 

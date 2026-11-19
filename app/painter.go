@@ -1318,7 +1318,7 @@ func (painter *painter) syncTextInput() platform.TextInputUpdate {
 	alignment := input.Alignment
 	if bounds == (gfx.Rect{}) {
 		bounds = context.TextBounds
-		if bounds == (gfx.Rect{}) {
+		if bounds.Width <= 0 || bounds.Height <= 0 {
 			bounds = context.Bounds
 		}
 	}

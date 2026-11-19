@@ -20,6 +20,18 @@ if open {
         ActionLabel: "View",
     })
     if canvas.Clicked(tree.ID(page, "dismiss")) { open = false }
+}`, PageSnippet: `if ui.Button(c, "Save project").Clicked() {
+    m.toaster.ShowAction("Project saved", "Changes are safely written locally.", ui.ToastSuccess, "View")
+}
+ui.Toasts(c, &m.toaster)
+if _, ok := m.toaster.Acted(); ok {
+    m.openSaved()
+}`, PageSnippetZh: `if ui.Button(c, "保存项目").Clicked() {
+    m.toaster.ShowAction("项目已保存", "更改已安全写入本地。", ui.ToastSuccess, "查看")
+}
+ui.Toasts(c, &m.toaster)
+if _, ok := m.toaster.Acted(); ok {
+    m.openSaved()
 }`},
 		{ID: "types", Title: "语义类型", Description: "通过点击操作在信息、警告和错误样式间切换。", Snippet: `types := [...]components.ToastType{
     components.ToastInfo, components.ToastWarning, components.ToastError,
@@ -33,7 +45,29 @@ components.PaintToast(canvas, theme, viewport, snapshot, components.ToastOptions
     Layer: 52, Scope: tree.ID(page, "toast"), DismissID: tree.ID(page, "dismiss"),
     ActionID: tree.ID(page, "action"), ActionLabel: "Switch",
 })
-if canvas.Clicked(tree.ID(page, "action")) { selected = (selected + 1) % len(types) }`},
+if canvas.Clicked(tree.ID(page, "action")) { selected = (selected + 1) % len(types) }`, PageSnippet: `if ui.Button(c, "Switch type").Clicked() {
+    switch m.toastType {
+    case 0:
+        m.toaster.Show("Update available", "Activate the action button to see the next semantic type.", ui.ToastInfo)
+    case 1:
+        m.toaster.Show("Low disk space", "Activate the action button to see the next semantic type.", ui.ToastWarning)
+    default:
+        m.toaster.Show("Build failed", "Activate the action button to see the next semantic type.", ui.ToastError)
+    }
+    m.toastType = (m.toastType + 1) % 3
+}
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if ui.Button(c, "切换类型").Clicked() {
+    switch m.toastType {
+    case 0:
+        m.toaster.Show("有可用更新", "激活操作按钮查看下一个语义类型。", ui.ToastInfo)
+    case 1:
+        m.toaster.Show("磁盘空间不足", "激活操作按钮查看下一个语义类型。", ui.ToastWarning)
+    default:
+        m.toaster.Show("构建失败", "激活操作按钮查看下一个语义类型。", ui.ToastError)
+    }
+    m.toastType = (m.toastType + 1) % 3
+}
+ui.Toasts(c, &m.toaster)`},
 		{ID: "swipe", Title: "手势快照", Description: "仅展示调用方提供的横向位移；组件不解释手势。", Snippet: `snapshot := components.ToastSnapshot{
     Title: "Download almost complete", Description: "The horizontal offset comes from the caller's snapshot.",
     Type: components.ToastInfo, SwipeX: -8,
@@ -41,7 +75,9 @@ if canvas.Clicked(tree.ID(page, "action")) { selected = (selected + 1) % len(typ
 components.PaintToast(canvas, theme, viewport, snapshot, components.ToastOptions{
     Layer: 52, Scope: tree.ID(page, "toast"), DismissID: tree.ID(page, "dismiss"),
     ActionID: tree.ID(page, "action"), ActionLabel: "Continue",
-})`},
+})`, PageSnippet: `m.toaster.Show("Download almost complete", "The horizontal offset comes from the caller's snapshot.", ui.ToastInfo)
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `m.toaster.Show("下载即将完成", "横向位移来自调用方提供的快照。", ui.ToastInfo)
+ui.Toasts(c, &m.toaster)`},
 	},
 }
 

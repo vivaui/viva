@@ -21,7 +21,27 @@ for index, title := range titles {
     if canvas.Clicked(items.At(index)) {
         open ^= 1 << index
     }
-}`},
+}`, PageSnippet: `ui.Accordion(c, m.faq, []ui.AccordionItem{
+    {Title: "Does it repaint constantly?", Content: func() {
+        ui.Text(c, "A new frame is submitted only when content changes.").Muted()
+    }},
+    {Title: "Who owns the state?", Content: func() {
+        ui.Text(c, "The expanded state is owned explicitly by the application.").Muted()
+    }},
+    {Title: "Is it keyboard accessible?", Content: func() {
+        ui.Text(c, "Headers declare focusable button semantics.").Muted()
+    }},
+})`, PageSnippetZh: `ui.Accordion(c, m.faq, []ui.AccordionItem{
+    {Title: "是否持续重绘？", Content: func() {
+        ui.Text(c, "仅在内容变化时提交新帧。").Muted()
+    }},
+    {Title: "状态由谁持有？", Content: func() {
+        ui.Text(c, "展开位由应用状态明确持有。").Muted()
+    }},
+    {Title: "是否支持键盘？", Content: func() {
+        ui.Text(c, "标题声明为可聚焦按钮语义。").Muted()
+    }},
+})`},
 		{ID: "disabled", Title: "禁用状态", Description: "保留展开内容，但所有标题均不可交互。", Snippet: `items := tree.Sub(page, tree.Name("item"))
 accordion := components.BeginAccordion(canvas, theme, bounds).Disabled()
 for index, title := range titles {
@@ -30,7 +50,29 @@ for index, title := range titles {
         style := gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground}
         canvas.Label(answers[index], content, style)
     }
-}`},
+}`, PageSnippet: `m.faq.Disabled = true
+ui.Accordion(c, m.faq, []ui.AccordionItem{
+    {Title: "Does it repaint constantly?", Content: func() {
+        ui.Text(c, "A new frame is submitted only when content changes.").Muted()
+    }},
+    {Title: "Who owns the state?", Content: func() {
+        ui.Text(c, "The expanded state is owned explicitly by the application.").Muted()
+    }},
+    {Title: "Is it keyboard accessible?", Content: func() {
+        ui.Text(c, "Headers declare focusable button semantics.").Muted()
+    }},
+})`, PageSnippetZh: `m.faq.Disabled = true
+ui.Accordion(c, m.faq, []ui.AccordionItem{
+    {Title: "是否持续重绘？", Content: func() {
+        ui.Text(c, "仅在内容变化时提交新帧。").Muted()
+    }},
+    {Title: "状态由谁持有？", Content: func() {
+        ui.Text(c, "展开位由应用状态明确持有。").Muted()
+    }},
+    {Title: "是否支持键盘？", Content: func() {
+        ui.Text(c, "标题声明为可聚焦按钮语义。").Muted()
+    }},
+})`},
 	},
 }
 

@@ -16,14 +16,50 @@ options := []components.TabOption{
     {ID: tabs.At(1), Label: "Activity", Icon: activityIcon},
     {ID: tabs.At(2), Label: "Settings", Icon: settingsIcon},
 }
-components.BeginTabs(canvas, theme, bounds, options, options[selected].ID).Paint()`, PageSnippet: ""},
+components.BeginTabs(canvas, theme, bounds, options, options[selected].ID).Paint()`, PageSnippet: `// The strip shares its width between the three tabs.
+labels := []string{"Overview", "Activity", "Settings"}
+stroke := func(commands ...gfx.PathCommand) gfx.Icon {
+    return gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: commands}
+}
+circle := []gfx.PathCommand{
+    gfx.MoveTo(22, 12), gfx.CubicTo(22, 17.52, 17.52, 22, 12, 22),
+    gfx.CubicTo(6.48, 22, 2, 17.52, 2, 12), gfx.CubicTo(2, 6.48, 6.48, 2, 12, 2),
+    gfx.CubicTo(17.52, 2, 22, 6.48, 22, 12), gfx.ClosePath(),
+}
+info := stroke(append(circle, gfx.MoveTo(12, 16), gfx.LineTo(12, 12), gfx.MoveTo(12, 8), gfx.LineTo(12.01, 8))...)
+activity := stroke(append(circle, gfx.MoveTo(12, 8), gfx.LineTo(12, 12), gfx.MoveTo(12, 16), gfx.LineTo(12.01, 16))...)
+folder := stroke(
+    gfx.MoveTo(4, 20), gfx.LineTo(20, 20), gfx.CubicTo(21.1, 20, 22, 19.1, 22, 18), gfx.LineTo(22, 8),
+    gfx.CubicTo(22, 6.9, 21.1, 6, 20, 6), gfx.LineTo(12.1, 6), gfx.LineTo(10.5, 3.9),
+    gfx.CubicTo(10.1, 3.4, 9.6, 3.1, 9, 3.1), gfx.LineTo(4, 3.1),
+    gfx.CubicTo(2.9, 3.1, 2, 4, 2, 5.1), gfx.LineTo(2, 18), gfx.CubicTo(2, 19.1, 2.9, 20, 4, 20), gfx.ClosePath(),
+)
+icons := []gfx.Icon{info, activity, folder}
+ui.Tabs(c, &m.tab, labels, nil).TabIcons(func(i int) gfx.Icon { return icons[i] })`, PageSnippetZh: `// 标签条在三个标签之间均分宽度。
+labels := []string{"概览", "活动", "设置"}
+stroke := func(commands ...gfx.PathCommand) gfx.Icon {
+    return gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: commands}
+}
+circle := []gfx.PathCommand{
+    gfx.MoveTo(22, 12), gfx.CubicTo(22, 17.52, 17.52, 22, 12, 22),
+    gfx.CubicTo(6.48, 22, 2, 17.52, 2, 12), gfx.CubicTo(2, 6.48, 6.48, 2, 12, 2),
+    gfx.CubicTo(17.52, 2, 22, 6.48, 22, 12), gfx.ClosePath(),
+}
+info := stroke(append(circle, gfx.MoveTo(12, 16), gfx.LineTo(12, 12), gfx.MoveTo(12, 8), gfx.LineTo(12.01, 8))...)
+activity := stroke(append(circle, gfx.MoveTo(12, 8), gfx.LineTo(12, 12), gfx.MoveTo(12, 16), gfx.LineTo(12.01, 16))...)
+folder := stroke(
+    gfx.MoveTo(4, 20), gfx.LineTo(20, 20), gfx.CubicTo(21.1, 20, 22, 19.1, 22, 18), gfx.LineTo(22, 8),
+    gfx.CubicTo(22, 6.9, 21.1, 6, 20, 6), gfx.LineTo(12.1, 6), gfx.LineTo(10.5, 3.9),
+    gfx.CubicTo(10.1, 3.4, 9.6, 3.1, 9, 3.1), gfx.LineTo(4, 3.1),
+    gfx.CubicTo(2.9, 3.1, 2, 4, 2, 5.1), gfx.LineTo(2, 18), gfx.CubicTo(2, 19.1, 2.9, 20, 4, 20), gfx.ClosePath(),
+)
+icons := []gfx.Icon{info, activity, folder}
+ui.Tabs(c, &m.tab, labels, nil).TabIcons(func(i int) gfx.Icon { return icons[i] })`},
 		{ID: "default", Title: "分段标签", Description: "三个稳定 tab ID 驱动关联内容。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil)
-ui.Text(c, tab).FontSize(c.Theme().Metrics.FontSizeM)`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil)
-switch tab {
+ui.Tabs(c, &m.tab, labels, nil)
+ui.Text(c, m.tab).FontSize(c.Theme().Metrics.FontSizeM)`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
+ui.Tabs(c, &m.tab, labels, nil)
+switch m.tab {
 case "Overview":
     ui.Column(c).Gap(8).Children(func() {
         ui.Text(c, "Project overview")
@@ -40,9 +76,8 @@ case "Settings":
         ui.Wrap(c, "Configure display and local runtime options.")
     })
 }`, PageSnippetZh: `labels := []string{"概览", "活动", "设置"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil)
-switch tab {
+ui.Tabs(c, &m.tab, labels, nil)
+switch m.tab {
 case "概览":
     ui.Column(c).Gap(8).Children(func() {
         ui.Text(c, "项目概览")
@@ -60,16 +95,13 @@ case "设置":
     })
 }`},
 		{ID: "line", Title: "线形标签", Description: "透明列表与两像素活动指示条。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil).Line()`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil).Line()
+ui.Tabs(c, &m.tab, labels, nil).Line()`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
+ui.Tabs(c, &m.tab, labels, nil).Line()
 ui.Column(c).Gap(8).Children(func() {
     ui.Text(c, "Project overview")
     ui.Wrap(c, "See recent status and key highlights.")
 })`, PageSnippetZh: `labels := []string{"概览", "活动", "设置"}
-tab := labels[0]
-ui.Tabs(c, &tab, labels, nil).Line()
+ui.Tabs(c, &m.tab, labels, nil).Line()
 ui.Column(c).Gap(8).Children(func() {
     ui.Text(c, "项目概览")
     ui.Wrap(c, "查看近期状态与关键摘要。")
@@ -78,7 +110,7 @@ ui.Column(c).Gap(8).Children(func() {
 tab := labels[0]
 ui.Row(c).Gap(20).Children(func() {
     ui.Tabs(c, &tab, labels, nil).Line().Vertical().Self(ui.Start)
-    ui.Text(c, tab).Grow(1).Basis(0)
+    ui.Text(c, m.tab).Grow(1).Basis(0)
 })`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
 ui.Row(c).Gap(20).Children(func() {
@@ -146,29 +178,18 @@ func (state *State) keyTabs(event gfx.KeyEvent) gfx.EventResult {
 }
 
 func (state *State) paintTabs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	labels := state.tabsLabels()
-	selected := int(state.values[0])
-	if selected < 0 || selected >= len(labels) {
-		selected = 0
-	}
 	if state.exampleID == "icons" {
-		var slot ui.Box
 		state.drawPage(canvas, theme, size, 540, state.Text("Tabs · 图标标签", "Tabs · Icon labels"), func(c ui.C) {
-			slot = ui.Slot(c).FillWidth().Height(36)
-			state.tabsPanel(c, theme, selected)
+			ui.Tabs(c, &state.values[0], tabsChoices[:], state.tabLabel).TabIcons(tabIcon)
+			state.tabsPanel(c, theme, int(state.values[0]))
 		})
-		options := [...]components.TabOption{{ID: tabsItem.At(0), Label: labels[0], Icon: infoIcon}, {ID: tabsItem.At(1), Label: labels[1], Icon: alertIcon}, {ID: tabsItem.At(2), Label: labels[2], Icon: folderIcon}}
-		components.BeginTabs(canvas, theme, slot.Rect(), options[:], options[selected].ID).Paint()
-		if index, ok := canvas.ClickedIn(tabsItem); ok {
-			state.values[0] = int32(index)
-		}
 		return
 	}
 	state.drawPage(canvas, theme, size, 540, state.Text("Tabs · 内容切换", "Tabs · Content switching"), func(c ui.C) {
 		if state.exampleID == "vertical" {
 			ui.Row(c).Gap(20).Children(func() {
 				ui.Tabs(c, &state.values[0], tabsChoices[:], state.tabLabel).Line().Vertical().Self(ui.Start)
-				state.tabsPanel(c, theme, selected).Grow(1).Basis(0)
+				state.tabsPanel(c, theme, int(state.values[0])).Grow(1).Basis(0)
 			})
 			return
 		}
@@ -176,8 +197,18 @@ func (state *State) paintTabs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size
 		if state.exampleID == "line" {
 			strip.Line()
 		}
-		state.tabsPanel(c, theme, selected)
+		state.tabsPanel(c, theme, int(state.values[0]))
 	})
+}
+
+func tabIcon(index int) gfx.Icon {
+	switch index {
+	case 1:
+		return alertIcon
+	case 2:
+		return folderIcon
+	}
+	return infoIcon
 }
 
 // tabsChoices are the tab indices ui.Tabs chooses among.

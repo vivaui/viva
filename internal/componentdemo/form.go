@@ -45,6 +45,14 @@ field := components.PaintFormField(canvas, theme, bounds, components.FormFieldSn
 components.PaintInput(canvas, theme, field.Control, components.InputSnapshot{
     ID: username, Label: field.Semantics.Label,
     Value: value, Hint: field.Semantics.AssistiveText(),
+})`, PageSnippet: `m.field.Description = "This name is visible to collaborators."
+// m.username starts as "gopher".
+ui.FormField(c, &m.field, "Username").Children(func() {
+    ui.TextField(c, &m.username, "Username", "")
+})`, PageSnippetZh: `m.field.Description = "This name is visible to collaborators."
+// m.username starts as "gopher".
+ui.FormField(c, &m.field, "Username").Children(func() {
+    ui.TextField(c, &m.username, "Username", "")
 })`},
 		{ID: "invalid", Title: "验证错误", Description: "错误覆盖普通消息并同步到控件语义。", Snippet: `username := tree.ID(page, "username")
 snapshot := components.FormFieldSnapshot{

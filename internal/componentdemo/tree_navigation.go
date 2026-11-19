@@ -11,7 +11,7 @@ var treeNavigationComponent = Component{
 	Summary: "为应用管理的可见树行和展开状态提供键盘导航。",
 	paint:   (*State).paintTreeNavigation, key: (*State).keyTreeNavigation,
 	Examples: []Example{
-		{ID: "default", Title: "键盘导航", Description: "聚焦 Production 行。按 → 展开或进入第一个子项，按 ← 返回父项或收起当前分支。", Snippet: `next, action, handled := ui.NavigateTree(visible, current, event.Key, pageRows)
+		{ID: "default", Title: "键盘导航", Description: "聚焦 Production 行。按 → 展开或进入第一个子项，按 ← 返回父项或收起当前分支。", Snippet: `next, action, handled := ui.NavigateTree(visible, current, m.key, pageRows)
 if handled {
     switch action {
     case ui.TreeNavigationExpand:
@@ -30,7 +30,7 @@ visible := items[:1]
 if m.expanded {
     visible = items[:]
 }
-next, action, handled := ui.NavigateTree(visible, m.selected, event.Key, len(rows))
+next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(rows))
 if handled {
     switch action {
     case ui.TreeNavigationExpand:
@@ -49,7 +49,7 @@ visible := items[:1]
 if m.expanded {
     visible = items[:]
 }
-next, action, handled := ui.NavigateTree(visible, m.selected, event.Key, len(rows))
+next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(rows))
 if handled {
     switch action {
     case ui.TreeNavigationExpand:

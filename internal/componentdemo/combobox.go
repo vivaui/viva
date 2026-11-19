@@ -60,7 +60,9 @@ combo.AddItem(components.ComboboxItem{ID: opt.At(1), Label: "WebGPU", Selected: 
 combo.AddItem(components.ComboboxItem{
     ID: opt.At(2), Label: "Headless tests", Selected: selected == 3,
 })
-combo.End()`},
+combo.End()`, PageSnippet: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests"}
+ui.Combobox(c, &m.framework, frameworks, nil, "Framework").Clearable()`, PageSnippetZh: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests"}
+ui.Combobox(c, &m.framework, frameworks, nil, "框架").Clearable()`},
 		{ID: "chips", Title: "多选标签", Description: "标签与查询输入按宽度换行，容器随内容增高。", Snippet: `// chips is the caller-owned []components.ComboboxChip, one RemoveID each.
 var rects [5]gfx.Rect
 components.PaintComboboxChips(canvas, theme, bounds, chips, components.ComboboxChipsOptions{
@@ -69,7 +71,9 @@ components.PaintComboboxChips(canvas, theme, bounds, chips, components.ComboboxC
 }, rects[:0])
 if index, ok := canvas.ClickedIn(remove); ok {
     chips = append(chips[:index], chips[index+1:]...)
-}`},
+}`, PageSnippet: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests", "Windows", "Linux"}
+ui.Combobox(c, &m.framework, frameworks, nil, "Framework").Clearable()`, PageSnippetZh: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests", "Windows", "Linux"}
+ui.Combobox(c, &m.framework, frameworks, nil, "框架").Clearable()`},
 	},
 }
 

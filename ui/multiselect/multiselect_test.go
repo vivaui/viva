@@ -6,8 +6,8 @@ import (
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/multiselect"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/multiselect"
 	"github.com/vivaui/viva/window"
 )
 

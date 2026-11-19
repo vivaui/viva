@@ -200,8 +200,8 @@ func (m *model) page(c ui.C) {
   `Choice`, `Tabs` and `Select` write the value in the declaration, so disable them with an `if`, not a chained
   `.Disabled`: `if !m.locked { if ui.Tabs(c, &m.tab, tabs, nil).Changed() { ... } }`. `Tabs` and `Select` also honor a
   chained `.Disabled` for input; `Choice` ignores it, so never rely on it there.
-- Hierarchical path values ("School/Class A") use the opt-in package `github.com/vivaui/viva/hierarchypicker`: `state := hierarchypicker.NewState(paths)`, keep `picker := hierarchypicker.New(state)` in the model, and declare `picker.View(c, hierarchypicker.Spec{Label: "Group", OptionIDs: groupOptions}).FillWidth()`; `SetValue`/`Value` read and set the full path.
-- Removable chips with a filtered query are the opt-in package `github.com/vivaui/viva/multiselect`: keep `picker := multiselect.New(&m.tags)` in the model and declare `picker.View(c, multiselect.Spec{Label: "Tags", Options: tagOptions, Removes: tagRemoves}).FillWidth()`; `tagOptions.At(i)` and `tagRemoves.At(i)` name the popup rows and chip remove buttons. Import it only when used.
+- Hierarchical path values ("School/Class A") use the opt-in package `github.com/vivaui/viva/ui/hierarchypicker`: `state := hierarchypicker.NewState(paths)`, keep `picker := hierarchypicker.New(state)` in the model, and declare `picker.View(c, hierarchypicker.Spec{Label: "Group", OptionIDs: groupOptions}).FillWidth()`; `SetValue`/`Value` read and set the full path.
+- Removable chips with a filtered query are the opt-in package `github.com/vivaui/viva/ui/multiselect`: keep `picker := multiselect.New(&m.tags)` in the model and declare `picker.View(c, multiselect.Spec{Label: "Tags", Options: tagOptions, Removes: tagRemoves}).FillWidth()`; `tagOptions.At(i)` and `tagRemoves.At(i)` name the popup rows and chip remove buttons. Import it only when used.
 - A long list to choose from by typing: `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` (Select's
   arguments plus a label); it filters as the user types. `.Clearable()` adds a clear button, `.Empty("No zone")`
   is what an empty list says, `.Creatable("")` offers what was typed as a new choice, read with `.Created()`.
@@ -491,7 +491,8 @@ func (m *model) page(c ui.C) {
 ### Tabs and select
 
 - Tabs: `if ui.Tabs(c, &m.tab, tabs, nil).Line().Changed() { ... }`, then declare the active tab's content under it with an
-  ordinary `switch m.tab`. `Line()` is the underlined variant (it draws 5 px under the strip), `Vertical()` stacks the tabs.
+  ordinary `switch m.tab`. `Line()` is the underlined variant (it draws 5 px under the strip), `Vertical()` stacks the tabs,
+  and `TabIcons(func(i int) gfx.Icon)` puts an icon before each label without a second constructor.
   `Choice`, `Tabs` and `Select` write the value in the declaration, so disable them with an `if`, not a chained
   `.Disabled`: `if !m.locked { if ui.Tabs(c, &m.tab, tabs, nil).Changed() { ... } }`. `Tabs` and `Select` also honor a
   chained `.Disabled` for input; `Choice` ignores it, so never rely on it there.

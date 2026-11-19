@@ -13,7 +13,21 @@ var iconHoverComponent = Component{
 	Examples: []Example{
 		{ID: "default", Title: "悬停手势", Description: "指针在图标上停留后上浮再归位；离开不会中断已经开始的播放。", Snippet: `icon := tree.ID(page, "icon")
 ui.Icon(c, menuIcon).Size(24, 24).Hit(icon, "Menu").
-    BindIconHover(ui.BindIconHover(&hover, icon))`, Height: 200},
+    BindIconHover(ui.BindIconHover(&hover, icon))`, Height: 200, PageSnippet: `icon := ui.ID(c)
+ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.moreIcon).Size(24, 24).
+        Hit(icon, "More actions").
+        BindIconHover(ui.BindIconHover(&m.iconHover, icon).
+            Dwell(130 * time.Millisecond).Span(180 * time.Millisecond))
+    ui.Text(c, "Hover → lift → settle")
+})`, PageSnippetZh: `icon := ui.ID(c)
+ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.moreIcon).Size(24, 24).
+        Hit(icon, "更多操作").
+        BindIconHover(ui.BindIconHover(&m.iconHover, icon).
+            Dwell(130 * time.Millisecond).Span(180 * time.Millisecond))
+    ui.Text(c, "悬停 → 上浮 → 归位")
+})`},
 	},
 }
 

@@ -21,7 +21,13 @@ ui.Slider(c, &volume).Range(0, 100).Step(10).Label("音量")`},
     {ID: tree.ID(page, "lower"), Label: "Minimum price", ValueText: "25", Value: 25},
     {ID: tree.ID(page, "upper"), Label: "Maximum price", ValueText: "75", Value: 75},
 }
-components.BeginRangeSlider(canvas, theme, bounds, thumbs).Step(5).Paint("Price range")`, PageSnippet: ""},
+components.BeginRangeSlider(canvas, theme, bounds, thumbs).Step(5).Paint("Price range")`, PageSnippet: `// m.price starts at 25–75.
+price := ui.NewRangeSliderState(25, 75)
+price.Step = 5
+ui.RangeSlider(c, &price)`, PageSnippetZh: `// m.price 初始为 25–75。
+price := ui.NewRangeSliderState(25, 75)
+price.Step = 5
+ui.RangeSlider(c, &price)`},
 		{ID: "states", Title: "方向与禁用", Description: "同时展示竖向滑块与禁用状态。", Snippet: `components.BeginSlider(canvas, theme, tree.ID(page, "volume"), volumeBounds,
     float32(volume)).Vertical().Step(10).Paint("Volume")
 components.BeginSlider(canvas, theme, tree.ID(page, "disabled"), disabledBounds, 64).

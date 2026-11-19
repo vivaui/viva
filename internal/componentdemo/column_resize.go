@@ -21,9 +21,12 @@ layout := components.BeginColumnResize(canvas, theme, stage.Rect(), widths).
     Fits([]float32{180, 64, 100}).Gap(8).
     Paint(columns, dividers, hits, []string{"Resize name", "Resize size"})
 edit, ok := components.BeginColumnResize(nil, theme, stage.Rect(), widths).
-    Gap(8).Edit(0, pointer.X)`,
-	}},
-}
+    Gap(8).Edit(0, pointer.X)`, PageSnippet: `m.columns.Widths = m.columnWidths
+columnresizeview.View(c, "File list", &m.columns).FillWidth().Height(180)
+ui.Text(c, "Drag a divider to resize two columns; double-click it to fit the left one.").Muted()`, PageSnippetZh: `m.columns.Widths = m.columnWidths
+columnresizeview.View(c, "文件列表", &m.columns).FillWidth().Height(180)
+ui.Text(c, "拖动分隔线调整两列宽度；双击按内容自适应。").Muted()`},
+	}}
 
 var (
 	columnResizeDemoUI      = tree.Feature("column-resize")

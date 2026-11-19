@@ -150,7 +150,21 @@ const chineseComponentNames: Record<string, string> = {
   'dropdown-menu': '下拉菜单',
   'hover-card': '悬停卡片',
   'code-diff': '代码差异',
+  'code-editor': '代码编辑器',
   'code-merge': '三方合并',
+  'color-picker': '颜色选择器',
+  'color-swatch': '颜色色块',
+  'multi-select': '多选',
+  'single-select': '单选',
+  'avatar-editor': '头像编辑器',
+  'image-view': '图片视图',
+  'column-resize': '列宽调整',
+  'reorder-grid': '排序网格',
+  'reorder-list': '排序列表',
+  'icon-hover': '图标悬停',
+  'chart-area': '面积图',
+  'chart-bar': '柱状图',
+  'chart-downsample': '图表降采样',
   'split-button': '分离按钮',
   list: '列表',
 };
@@ -270,11 +284,6 @@ const genericChineseSections: Record<string, Omit<Section, 'ID'>> = {
     Title: '源码组件用法',
     Text: '此预览直接调用生产 Go 组件。稳定 ID、值与打开状态仍由应用持有；组件只负责绘制并声明交互语义。',
     Items: ['标题旁的源码链接列出了全部选项与视觉决策。', '请使用原生命令验证系统文本、焦点、无障碍与平台集成。', '浏览器预览验证共享布局和场景行为，不代表原生性能。'],
-  },
-  verification: {
-    Title: '验证边界',
-    Text: '示例覆盖当前 API 的代表性状态，但不表示每个桌面后端都已完成真机验证。',
-    Items: [],
   },
 };
 

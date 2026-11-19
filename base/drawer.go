@@ -40,6 +40,10 @@ type DrawerSpec struct {
 	// edges, as a page leaves a title strip or a status bar it does not own out
 	// of an overlay. Zero covers the whole window.
 	Inset gfx.Insets
+	// Disabled paints the drawer and its header as inert: it cannot be dismissed
+	// by the pointer, Escape or its close button. The body's own controls keep
+	// their state; disable them too when the whole panel is unavailable.
+	Disabled bool
 }
 
 // Drawer shows a panel that slides in from an edge of the window while *open, as
@@ -82,6 +86,9 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 		}
 	}
 	drawer := c.f.Drawer(d, footer != nil)
+	if spec.Disabled {
+		drawer.Disabled(true)
+	}
 	decl := &WidgetsOf(c.f).drawers[drawer.N().Aux]
 	p.SetScope(decl.body, scope)
 	if decl.footer >= 0 {

@@ -559,9 +559,9 @@ func TestSelectStaysOpenWhenOneAppearsAbove(t *testing.T) {
 	}
 }
 
-// SelectIcon opens, chooses and writes back through the option type of the
-// application's own, label and icon both named by functions of the option.
-func TestSelectIconChoosesAnOption(t *testing.T) {
+// Select Icons opens, chooses and writes back through the option type of the
+// application's own; the icons are indexed like the choices.
+func TestSelectIconsChooseAnOption(t *testing.T) {
 	type locale struct {
 		Name string
 		flag int
@@ -572,11 +572,14 @@ func TestSelectIconChoosesAnOption(t *testing.T) {
 	}
 	locales := []locale{{"简体中文", 0}, {"English", 1}, {"日本語", 2}}
 	chosen := locales[1]
+	icons := make([]gfx.Icon, len(locales))
+	for i, locale := range locales {
+		icons[i] = flagOf(locale.flag)
+	}
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
-			ui.SelectIcon(c, &chosen, locales,
-				func(l locale) string { return l.Name },
-				func(l locale) gfx.Icon { return flagOf(l.flag) }).Placeholder("Language")
+			ui.Select(c, &chosen, locales, func(l locale) string { return l.Name }).
+				Icons(icons).Placeholder("Language")
 		})
 	})
 	d.click("Language")
