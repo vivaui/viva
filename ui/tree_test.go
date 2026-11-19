@@ -559,3 +559,33 @@ func TestListRowID(t *testing.T) {
 		t.Fatal("RowID(1) is not the identity of the second row's hit")
 	}
 }
+
+// DisplayDepth changes only the indent: a tree that compresses deep rows still
+// has its hierarchy, so Right on a branch moves the focus to its child.
+func TestTreeCompressedIndentKeepsTheHierarchyForKeys(t *testing.T) {
+	labels := []string{"branch", "child", "one", "two"}
+	depths := []int{3, 4, 0, 1}
+	var state ui.TreeState
+	state.Node = func(i int) ui.TreeNode {
+		return ui.TreeNode{Depth: depths[i], Branch: i == 0, Expanded: i == 0}
+	}
+	state.Label = func(i int) string { return labels[i] }
+	state.DisplayDepth = func(int) int { return 0 }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Tree(c, &state, len(labels), state.Label, nil).Grow(1)
+		})
+	})
+	if x, y := d.hit("one").Bounds.X, d.hit("two").Bounds.X; x != y {
+		t.Fatalf("the compressed leaf rows start at %v and %v, want the same indent", x, y)
+	}
+	d.click("branch")
+	d.key(gfx.KeyRight)
+	if got := d.Focused(); got != "child" {
+		t.Fatalf("Right focused %q, want the branch's child", got)
+	}
+	d.key(gfx.KeyLeft)
+	if got := d.Focused(); got != "branch" {
+		t.Fatalf("Left focused %q, want the parent", got)
+	}
+}

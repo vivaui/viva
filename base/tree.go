@@ -39,6 +39,12 @@ type TreeState struct {
 	Node      func(i int) TreeNode
 	RowHeight float32
 	Indent    float32
+	// DisplayDepth maps a row's Depth to the level the tree indents it by, when
+	// the application compresses deep rows to keep their names in view. Depth
+	// stays the tree's structure, which keyboard movement, typeahead and drops
+	// read, so a compressed indent never makes a child look like a sibling.
+	// Nil indents by Depth itself.
+	DisplayDepth func(depth int) int
 	// CanDrop says whether row from may be dropped at where of row to: a group not
 	// into itself or what is inside it, a row not before a sibling of another kind.
 	// It is asked as the pointer moves; nil makes the rows not draggable.
