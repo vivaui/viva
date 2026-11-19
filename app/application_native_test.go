@@ -38,3 +38,19 @@ func TestResultWindowForwardsAlwaysOnTop(t *testing.T) {
 		t.Fatalf("wrapped unsupported window error = %v", err)
 	}
 }
+
+func TestResultWindowForwardsSetTitle(t *testing.T) {
+	native := &titleTestControl{}
+	window := &Window{control: resultWindow{WindowControl: native}}
+	if err := window.SetTitle("project – main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if len(native.titles) != 1 || native.titles[0] != "project – main.go" {
+		t.Fatalf("titles = %q", native.titles)
+	}
+
+	unsupported := &Window{control: resultWindow{WindowControl: &fakeWindow{}}}
+	if err := unsupported.SetTitle("x"); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("wrapped unsupported window error = %v", err)
+	}
+}
