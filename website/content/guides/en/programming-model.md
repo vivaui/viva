@@ -17,7 +17,7 @@ A page names its elements by their place among their siblings, and a row by `c.K
 
 ## Events
 
-A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Page.Config`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
+A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Configure`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
 
 | Callback | Receives |
 | --- | --- |
@@ -101,7 +101,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
+	config := ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 
 	// OnWake runs on the window thread right before the repaint Invalidate asked
 	// for: move what the goroutine published into state that the page reads.

@@ -30,7 +30,7 @@ func BenchmarkPaint(b *testing.B) {
 				Follow:     true,
 			}
 			page := ui.NewPage(ui.PageConfig{View: func(c ui.C) { view.Declare(c, spec).Fill() }})
-			driver, err := app.NewDriver(page.Config(app.Config{Width: 800, Height: 600}), nil)
+			driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 800, Height: 600}), nil)
 			if err != nil {
 				b.Fatal(err)
 			}

@@ -48,7 +48,7 @@ The loop for every change:
 | Light/dark, a color picker, custom colors | The theme | `gfx.LightTheme()`, `gfx.DarkTheme()`, `PageConfig.Theme`, `c.Theme()` |
 | A split pane, a divider, drag and drop | Keys, drag and the mouse | `ui.Splitter`, `ui.DragState`, `.DragSource`, `.DropTarget` |
 | A chat or a log that follows its end | Lists, trees and scrolling | `ui.Scroll(...).Follow(true)`, `MaxWidthPercent`, `Justify` |
-| A second window, a tray window | Several windows | `app.RunApplication`, `ui.OpenWindow`, `c.Application()` |
+| A second window, a tray window | Several windows | `app.RunApplication`, `ui.OpenWindow`, `ui.Application(c)` |
 
 ## How a window works
 
@@ -125,7 +125,8 @@ func (m *model) page(c ui.C) {
   makes some rows section headings: the heading of the section at the top stays there until the next pushes it away (give it a
   Background; it is not chosen, focused or typed to, and the keys pass over it). `m.list.Reorder = func(rows []int, to int)` lets
   the user drag rows (the chosen ones when the row dragged is chosen) and calls it with the rows and the row they go before; move
-  them there, in the model. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
+  them there, in the model. `m.list.Handle = grips` (a `gfx.Scope`) makes a drag start only on the hit each row names in that
+  scope, as a grip, so the row body keeps its clicks; the arrows, Home and End on a focused grip then reorder without Alt. `m.list.RowWidth = 900` makes the rows at least that wide and the list scrolls sideways (the
   horizontal wheel, or the wheel with Shift); a column header above it follows with
   `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
@@ -135,19 +136,23 @@ func (m *model) page(c ui.C) {
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
   `m.tree.RowID(i)` (`DisclosureID(i)` for the chevron; `ListState` has `RowID`) is a row's identity, to focus it or find its hit.
 - To read or move a page's scroll area: `area := ui.Scroll(c).Grow(1)` then `area.ScrollState()` has `Offset`,
-  `Content`, `Viewport`, `Max()`, `AtEnd()`, `Pinned()`, `Dragging()`, `ScrollTo(px)` and `ScrollToEnd()` (also for the
-  area a `ui.List` or `ui.Tree` returns); ask for it in each paint and do not keep the pointer. The page gives the
+  `Content`, `Viewport`, `Max()`, `AtEnd()`, `Pinned()`, `Dragging()`, `ScrollTo(px)`, `ScrollToEnd()` and
+  `Key(event, step)` for a pane the page gives the keyboard (also for the area a `ui.List` or `ui.Tree` returns);
+  ask for it in each paint and do not keep the pointer. `BarGeometry(bounds, barSize)` is the tracks and thumb for a
+  scrollbar the page paints itself. The page gives the
   wheel to the area under the pointer (the innermost, or the next one out when that is at its end), so side-by-side
   columns and nested lists each scroll alone. `.Follow(true)` keeps a log or chat at its end until the user scrolls
   up (and again when they scroll back down; `.Follow(m.autoScroll)` makes it a switch); `Pinned()` says the next
   layout puts it at its end before `Offset` has caught up. `.Sideways()` scrolls left and right too (`OffsetX`,
   `ContentWidth`, `ViewportWidth`, `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the
-  overflowing edges. The bars are the hover style: they appear while the pointer is over the area, and
-  `.ScrollbarSize(px)` sets their thickness (a right `Pad` leaves the gutter they sit in instead of covering the
-  content). `PageConfig.ScrollbarSize` sets the page's default thickness for every bar that does not set its own.
-  `.Bars(components.ScrollBarStyle{Size, HoverSize, Inset, MinThumb})` gives those bars your own geometry, and
-  `PageConfig.BarStyle` gives it to every area of the page; the zero style keeps Viva's, so set only the fields your
-  product changes. `.ScrollbarSize(px)` still wins over the style's thickness.
+  overflowing edges. The bars are the hover style: they appear while the pointer is over the area or the view
+  moves, stay a moment after the pointer leaves, and fade out; `.AlwaysScrollbars()` keeps them drawn at rest
+  instead of revealing them on hover. `.ScrollbarSize(px)` sets their thickness (a right `Pad` leaves the gutter
+  they sit in instead of covering the content). `PageConfig.ScrollbarSize` sets the page's default thickness for
+  every bar that does not set its own, and `.Bars(components.ScrollBarStyle{Size, HoverSize, Inset, MinThumb})` /
+  `PageConfig.BarStyle` override bar geometry. `.ScrollbarIDs(vertical, horizontal)` names the two bars with your own
+  identities (by default they are named under the area's), and `.ScrollbarLabels(vertical, horizontal)` names
+  them to assistive technology.
   An area a paint does not declare forgets its offset (a closed dialog, another tab).
 
 ### Menus, dialogs and popups
@@ -477,7 +482,7 @@ func (m *model) page(c ui.C) {
   `ScrollbarGutter` keeps a strip beside the columns for it. An application painting its own vertical bar sets
   `HideHoverScrollbars: true` to omit the anonymous vertical hover thumb only; the horizontal overlay, gutter, wheel,
   and an explicitly identified draggable `Scrollbar` are unchanged. The page gives the wheel to a self-scrolling table under the pointer; give the `app.Config` passed to
-  `page.Config` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
+  `ui.Configure` `OnKey: m.table.Key` for Up/Down/Page/Home/End selection (a host that routes its own scroll gives
   `m.table.Wheel` the wheel).
 
 ### Tabs and select
@@ -490,8 +495,10 @@ func (m *model) page(c ui.C) {
 - A drop-down select: keep the value in the model; whether the list is open is the Select's own state:
   `if ui.Select(c, &m.size, sizes, nil).Placeholder("Size").Changed() { m.load(m.size) }`. The list is placed under the
   trigger (above it when there is no room), painted over everything, and scrolls when it is taller than the window; the page
-  routes the wheel to it while it is open. `.DisabledOptions(flags)` takes a `[]bool` you keep, indexed like the options: a true
-  entry is dimmed, takes no click or focus and is skipped by type-ahead. `.ButtonRecipe(fn)` gives one Button its own look (colors, radius, ring) where `PageConfig.Styles.Button` dresses them all; declare `fn` once, not as a closure per paint. `.XSmall()` makes the trigger shorter, and `.Hint(text)` gives it a description for assistive technology. `ui.Combobox` takes the same arguments plus a label and filters as the user types.
+  routes the wheel to it while it is open. `.ListMaxWidth(px)` and `.ListMaxHeight(px)` cap the open list: its width
+  never grows past the cap (nor shrinks below the trigger), and its height counts the padding and the scroll arrows, so
+  the list shows the rows that fit and scrolls for the rest. `.DisabledOptions(flags)` takes a `[]bool` you keep, indexed like the options: a true
+  entry is dimmed, takes no click or focus and is skipped by type-ahead. `.ButtonRecipe(fn)` gives one Button its own look (colors, radius, ring) where `PageConfig.Styles.Button` dresses them all, and `.SwitchRecipe(fn)` does the same for one Switch against `Styles.Switch`; declare `fn` once, not as a closure per paint. `.XSmall()` makes the trigger shorter, and `.Hint(text)` gives it a description for assistive technology. `ui.Combobox` takes the same arguments plus a label and filters as the user types.
 
 ### Slots, grids and absolute placement
 
@@ -605,11 +612,11 @@ ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 `app.RunCanvas` runs one window. For more, `app.RunApplication(func(a *app.Application) error {...})` calls its
 function once on the event-loop thread; open windows there or from a click, each with its own page, config and canvas.
 Make every window a `ui.Page` and open it with `w, err := ui.OpenWindow(a, config, ui.PageConfig{View: m.inspector})`:
-it makes the page and the canvas, and a page reaches its application with `c.Application()`, so a click opens another
+it makes the page and the canvas, and a page reaches its application with `ui.Application(c)`, so a click opens another
 window without the model keeping `a`. `w.Close()` closes one (and `w.Closed()` says whether it is gone; it is true for a
 nil window); `a.Quit()` ends everything. Keep `newConfig(m)` for the main window so tests still drive it
 (`a.OpenWindow(config, new(gfx.Canvas))`); every other window is a `ui.OpenWindow`. To repaint another window after the shared model changed, give it an `app.Invalidator` (`config.Invalidator =
-inv`, declared as `&app.Invalidator{}`, the zero value works) and call `inv.Invalidate()`; `Page.Config` makes one when
+inv`, declared as `&app.Invalidator{}`, the zero value works) and call `inv.Invalidate()`; `Configure` makes one when
 neither the page nor the base config has it.
 
 ```go
@@ -633,11 +640,9 @@ err := app.RunApplication(func(a *app.Application) error {
 ## The theme (gfx.Theme; `gfx.LightTheme()`, `gfx.DarkTheme()`)
 
 Colors, all `gfx.Color`: `Background`, `Foreground`, `Card`, `CardForeground`, `CardElevated`, `Popover`,
-`PopoverForeground`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
+`PopoverForeground`, `Tooltip`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
 `Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
 `Chart` (an array of five). There is no `Surface`, `Text` or `Error`: use `Card`, `Foreground`, `Danger`.
-`Tooltip` is a `gfx.TooltipStyle` that overrides the tooltip surface (radius, padding, text size, background,
-text and border); zero fields keep Viva's own surface, so set only what your product changes.
 A `gfx.Color` is `{Red, Green, Blue, Alpha float32}` with each in 0..1 (so `gfx.Color{Alpha: 0.5}` is a black scrim);
 it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. To write a color of your own, `gfx.RGB24(0x0a84ff)`
 (an integer constant, no string to parse), `gfx.RGB(10, 132, 255)` or `gfx.RGBA(10, 132, 255, 0.5)`; take theme colors where you can. A dark window is `gfx.DarkTheme()` in place
@@ -697,7 +702,7 @@ the result into the model on the window's thread before the repaint.
 
 ## Testing
 
-`app.NewDriver(page.Config(config()), nil)` runs the real application with no window
+`app.NewDriver(ui.Configure(page, config()), nil)` runs the real application with no window
 (`ui.NewPage(ui.PageConfig{View: m.page})` makes the page):
 `driver.Click(x, y)`, `Type`, `Key`, `Move`, `Scroll`, `Resize`, then `driver.Snapshot()` for the
 labels, hits and rectangles painted. main_test.go clicks a control by its name and reads

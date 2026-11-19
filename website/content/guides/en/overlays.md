@@ -73,7 +73,7 @@ func main() {
 
 ## Popovers
 
-`ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
+`ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment, the width, the padding of its content and the margin it keeps from the window's edges (8 unless set) and `Instant` to open without the entrance motion, as a list appearing under the cursor as the user types. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
 
 A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there.
 

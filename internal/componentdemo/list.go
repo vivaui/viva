@@ -161,7 +161,7 @@ func (d *listDemo) drawPage(dc *ui.DrawContext) {
 
 var listComponent = Component{
 	ID: "list", Title: "List", Category: "Data", Summary: "虚拟化列表：多选、吸顶分组、拖动排序与横向滚动。",
-	Source:     "ui/list.go",
+	Source:     "base/list.go",
 	initialize: func(state *State) { state.list = newListDemo(state.english) },
 	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 		d := state.list

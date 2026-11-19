@@ -3,6 +3,7 @@ package ui_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
@@ -52,8 +53,42 @@ func TestScrollAreaBarsFollowThePointerAtTheirSize(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.driver.Move(2, 2)
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("the bar vanished with the pointer instead of lingering")
+	}
+	if err := d.driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
 	if d.has("Vertical scrollbar") {
-		t.Fatal("the bar stayed after the pointer left the area")
+		t.Fatal("the bar stayed after the pointer left and it had lingered")
+	}
+}
+
+// A view that moves while the pointer is elsewhere — a key, or the application
+// scrolling it — lights its bars, which linger and then fade as a pointer's do.
+func TestScrollAreaBarsLingerAfterTheViewMoves(t *testing.T) {
+	var area ui.Box
+	view := func(c ui.C) {
+		ui.Column(c).Fill().Pad(20).Children(func() {
+			area = ui.Scroll(c).Size(300, 200).Scrollbars().Children(func() {
+				ui.Slot(c).Height(2000)
+			})
+		})
+	}
+	d := openPage(t, view)
+	if d.has("Vertical scrollbar") {
+		t.Fatal("the bar is painted before anything moved")
+	}
+	area.ScrollState().ScrollTo(100)
+	d.repaint()
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("a view moved with the pointer away did not light its bars")
+	}
+	if err := d.driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if d.has("Vertical scrollbar") {
+		t.Fatal("the bar stayed after the view had moved and the bar had lingered")
 	}
 }
 
@@ -61,16 +96,16 @@ func TestScrollAreaBarsFollowThePointerAtTheirSize(t *testing.T) {
 // overlay without losing the table's geometry, wheel, or horizontal overlay.
 func TestTableHideHoverScrollbarsOmitsOnlyTheAnonymousVerticalThumb(t *testing.T) {
 	for _, test := range []struct {
-		name   string
+		Name   string
 		hide   bool
 		gutter float32
 	}{
-		{name: "default overlay", gutter: 0},
-		{name: "default over a gutter", gutter: 10},
-		{name: "hidden overlay", hide: true, gutter: 0},
-		{name: "hidden overlay over a gutter", hide: true, gutter: 10},
+		{Name: "default overlay", gutter: 0},
+		{Name: "default over a gutter", gutter: 10},
+		{Name: "hidden overlay", hide: true, gutter: 0},
+		{Name: "hidden overlay over a gutter", hide: true, gutter: 10},
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			rows := make(ui.TableRows, 100)
 			for i := range rows {
 				rows[i] = []string{"row", "a", "b", "c"}
@@ -249,5 +284,30 @@ func TestTableScrollsItselfWithAHoverBarInItsGutter(t *testing.T) {
 	}
 	if err := d.driver.Release(r.X+20, at.Y, gfx.PointerButtonPrimary); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// AlwaysScrollbars keeps a scroll area's bars at rest, at the size given, without
+// the pointer over it.
+func TestAlwaysScrollbarsStayAtRest(t *testing.T) {
+	var area ui.Box
+	d := openPageWith(t, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(20).Children(func() {
+			area = ui.Scroll(c).Size(300, 200).AlwaysScrollbars().ScrollbarSize(10).Children(func() {
+				ui.Slot(c).Height(2000)
+			})
+		})
+	}, ScrollbarSize: 6}, app.Config{})
+	bar := d.hit("Vertical scrollbar")
+	if bar.Bounds.Width != 10 {
+		t.Fatalf("bar width = %v, want 10", bar.Bounds.Width)
+	}
+	r := area.Rect()
+	if bar.Bounds.X+bar.Bounds.Width < r.X+r.Width-10 || bar.Bounds.X > r.X+r.Width {
+		t.Fatalf("the bar at %v is not against the area's right edge %v", bar.Bounds, r)
+	}
+	d.driver.Move(2, 2)
+	if !d.has("Vertical scrollbar") {
+		t.Fatal("the bar left when the pointer did")
 	}
 }

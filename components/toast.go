@@ -3,250 +3,16 @@ package components
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 )
-
-// ToastType selects the official semantic icon treatment.
-type ToastType uint8
-
-const (
-	ToastDefault ToastType = iota
-	ToastSuccess
-	ToastInfo
-	ToastWarning
-	ToastError
-	ToastLoading
-)
-
-// ToastSnapshot is the complete caller-owned state painted for one frame.
-// Timing, expiry, swipe interpretation, and stack membership live outside the
-// component.
-type ToastSnapshot struct {
-	Title       string
-	Description string
-	Type        ToastType
-	Index       uint16
-	Expanded    bool
-	Limited     bool
-	OffsetY     float32
-	SwipeX      float32
-	SwipeY      float32
-}
 
 // ToastQueueTimeout and ToastQueueLimit are Base UI's default toast lifetime
 // (5 seconds) and visible limit.
 const (
 	ToastQueueTimeout = 5 * time.Second
 	ToastQueueLimit   = 3
-)
-
-// ToastQueueEntry is one live toast as the queue sees it.
-type ToastQueueEntry struct {
-	ID        gfx.ID
-	Loading   bool
-	Paused    bool
-	Remaining time.Duration // zero for a loading toast or after the deadline
-}
-
-type toastQueueEntry struct {
-	id        gfx.ID
-	deadline  time.Time
-	remaining time.Duration
-	loading   bool
-	paused    bool
-}
-
-// ToastQueue is caller-owned toast lifetime policy: Base UI's five-second
-// timeout, pause on hover/focus/window blur, loading toasts that do not expire,
-// and a visible limit. It never starts a timer; the caller asks Expire when
-// NextDeadline comes due and pauses or resumes as the pointer and focus move.
-// Painting remains PaintSonner's job.
-type ToastQueue struct {
-	// Timeout is the lifetime of a new non-loading toast; zero means
-	// ToastQueueTimeout.
-	Timeout time.Duration
-	// Limit is the maximum number of queued toasts; zero means ToastQueueLimit.
-	Limit   int
-	entries []toastQueueEntry
-}
-
-func (queue *ToastQueue) timeout() time.Duration {
-	if queue.Timeout > 0 {
-		return queue.Timeout
-	}
-	return ToastQueueTimeout
-}
-
-func (queue *ToastQueue) limit() int {
-	if queue.Limit > 0 {
-		return queue.Limit
-	}
-	return ToastQueueLimit
-}
-
-// Add enqueues a toast. When the limit is full it drops the oldest and returns
-// its ID so the caller can paint its exit. Add reports false for a zero ID or
-// one that is already queued.
-func (queue *ToastQueue) Add(id gfx.ID, now time.Time, loading bool) (evicted gfx.ID, ok bool) {
-	if id.IsZero() {
-		return gfx.ID{}, false
-	}
-	for index := range queue.entries {
-		if queue.entries[index].id == id {
-			return gfx.ID{}, false
-		}
-	}
-	if len(queue.entries) >= queue.limit() {
-		evicted = queue.entries[0].id
-		queue.entries = queue.entries[1:]
-	}
-	entry := toastQueueEntry{id: id, loading: loading}
-	if !loading {
-		entry.deadline = now.Add(queue.timeout())
-	}
-	queue.entries = append(queue.entries, entry)
-	return evicted, true
-}
-
-// Remove drops a toast, as its close button or a swipe does.
-func (queue *ToastQueue) Remove(id gfx.ID) bool {
-	for index := range queue.entries {
-		if queue.entries[index].id == id {
-			queue.entries = append(queue.entries[:index], queue.entries[index+1:]...)
-			return true
-		}
-	}
-	return false
-}
-
-// SetLoading changes whether a toast expires. A toast that stops loading gets
-// a fresh timeout; one that starts loading never expires.
-func (queue *ToastQueue) SetLoading(id gfx.ID, loading bool, now time.Time) bool {
-	for index := range queue.entries {
-		entry := &queue.entries[index]
-		if entry.id != id {
-			continue
-		}
-		entry.loading = loading
-		entry.paused = false
-		entry.remaining = 0
-		if loading {
-			entry.deadline = time.Time{}
-		} else {
-			entry.deadline = now.Add(queue.timeout())
-		}
-		return true
-	}
-	return false
-}
-
-// Pause stops a toast's clock, remembering how much time was left, as hovering
-// or focusing its viewport does.
-func (queue *ToastQueue) Pause(id gfx.ID, now time.Time) bool {
-	for index := range queue.entries {
-		entry := &queue.entries[index]
-		if entry.id != id || entry.paused || entry.loading || entry.deadline.IsZero() {
-			continue
-		}
-		entry.remaining = max(entry.deadline.Sub(now), 0)
-		entry.deadline = time.Time{}
-		entry.paused = true
-		return true
-	}
-	return false
-}
-
-// Resume restarts a paused toast's remaining time.
-func (queue *ToastQueue) Resume(id gfx.ID, now time.Time) bool {
-	for index := range queue.entries {
-		entry := &queue.entries[index]
-		if entry.id != id || !entry.paused {
-			continue
-		}
-		entry.deadline = now.Add(entry.remaining)
-		entry.remaining = 0
-		entry.paused = false
-		return true
-	}
-	return false
-}
-
-// PauseAll stops every toast, as losing window focus does.
-func (queue *ToastQueue) PauseAll(now time.Time) {
-	for index := range queue.entries {
-		queue.Pause(queue.entries[index].id, now)
-	}
-}
-
-// ResumeAll restarts every paused toast.
-func (queue *ToastQueue) ResumeAll(now time.Time) {
-	for index := range queue.entries {
-		queue.Resume(queue.entries[index].id, now)
-	}
-}
-
-// Expire removes and returns the first toast whose time is up. Loading and
-// paused toasts never expire. Call it after NextDeadline comes due; it reports
-// false when nothing is due.
-func (queue *ToastQueue) Expire(now time.Time) (gfx.ID, bool) {
-	for index := range queue.entries {
-		entry := &queue.entries[index]
-		if entry.paused || entry.loading || entry.deadline.IsZero() || now.Before(entry.deadline) {
-			continue
-		}
-		id := entry.id
-		queue.entries = append(queue.entries[:index], queue.entries[index+1:]...)
-		return id, true
-	}
-	return gfx.ID{}, false
-}
-
-// NextDeadline is the earliest time an unpaused, non-loading toast expires, for
-// scheduling one frame. It reports false when no toast has a deadline.
-func (queue *ToastQueue) NextDeadline() (time.Time, bool) {
-	var next time.Time
-	for index := range queue.entries {
-		entry := queue.entries[index]
-		if entry.paused || entry.loading || entry.deadline.IsZero() {
-			continue
-		}
-		if next.IsZero() || entry.deadline.Before(next) {
-			next = entry.deadline
-		}
-	}
-	return next, !next.IsZero()
-}
-
-// Entries copies the live toasts into dst in queue order (oldest first) and
-// returns the result, for building ToastSnapshots without allocating when dst
-// has room.
-func (queue *ToastQueue) Entries(now time.Time, dst []ToastQueueEntry) []ToastQueueEntry {
-	dst = dst[:0]
-	for index := range queue.entries {
-		entry := queue.entries[index]
-		remaining := entry.remaining
-		if !entry.paused && !entry.loading && !entry.deadline.IsZero() {
-			remaining = max(entry.deadline.Sub(now), 0)
-		}
-		dst = append(dst, ToastQueueEntry{ID: entry.id, Loading: entry.loading, Paused: entry.paused, Remaining: remaining})
-	}
-	return dst
-}
-
-// Len is how many toasts are queued.
-func (queue *ToastQueue) Len() int { return len(queue.entries) }
-
-// ToastPosition is the corner or edge of the viewport a toast stack grows from.
-// Toasts stack away from it: up from a bottom position, down from a top one.
-type ToastPosition uint8
-
-const (
-	ToastBottomRight ToastPosition = iota
-	ToastBottomLeft
-	ToastBottomCenter
-	ToastTopRight
-	ToastTopLeft
-	ToastTopCenter
 )
 
 // ToastOptions contains stable action and overlay identities.
@@ -505,3 +271,25 @@ var (
 
 // toastDuration is the 500ms of Base UI's toast transition.
 const toastDuration = 500 * time.Millisecond
+
+// Aliases into the style vocabulary.
+type ToastQueue = base.ToastQueue
+type ToastSnapshot = base.ToastSnapshot
+type ToastQueueEntry = base.ToastQueueEntry
+type ToastType = base.ToastKind
+type ToastPosition = base.ToastPosition
+
+const (
+	ToastBottomCenter = base.ToastBottomCenter
+	ToastBottomLeft   = base.ToastBottomLeft
+	ToastBottomRight  = base.ToastBottomRight
+	ToastDefault      = base.ToastDefault
+	ToastError        = base.ToastError
+	ToastInfo         = base.ToastInfo
+	ToastLoading      = base.ToastLoading
+	ToastSuccess      = base.ToastSuccess
+	ToastTopCenter    = base.ToastTopCenter
+	ToastTopLeft      = base.ToastTopLeft
+	ToastTopRight     = base.ToastTopRight
+	ToastWarning      = base.ToastWarning
+)

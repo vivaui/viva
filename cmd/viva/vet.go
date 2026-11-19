@@ -27,6 +27,13 @@ import (
 
 const uiPath = "github.com/vivaui/viva/ui"
 
+// basePath is where the engine's types live now; package ui aliases them, so a
+// type checked through the facade unaliases to base.
+const basePath = "github.com/vivaui/viva/base"
+
+// isUIPackage reports whether path is the ui facade or the engine below it.
+func isUIPackage(path string) bool { return path == uiPath || path == basePath }
+
 // vetFinding is one mistake, at a place in a file.
 type vetFinding struct {
 	pos     token.Position
@@ -229,7 +236,7 @@ func isContext(t types.Type) bool {
 		return false
 	}
 	named, ok := types.Unalias(pointer.Elem()).(*types.Named)
-	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == uiPath && named.Obj().Name() == "Ctx"
+	return ok && named.Obj().Pkg() != nil && isUIPackage(named.Obj().Pkg().Path()) && named.Obj().Name() == "Ctx"
 }
 
 // isRetainedType reports whether t is a value that belongs to one paint: ui.C,
@@ -269,7 +276,7 @@ func isRetainedType(t types.Type) bool {
 		return false
 	case *types.Named:
 		object := t.Obj()
-		if object.Pkg() == nil || object.Pkg().Path() != uiPath {
+		if object.Pkg() == nil || !isUIPackage(object.Pkg().Path()) {
 			return false
 		}
 		switch object.Name() {

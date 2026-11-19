@@ -1,8 +1,9 @@
 // Package components contains source-oriented UI recipes that paint into a
-// gfx.Canvas. It imports gfx, text and field, not package ui: package ui paints
-// its own controls with these recipes, and a page is written with ui. Use a
-// recipe directly when painting into a canvas by hand, or install its source
-// with viva add to change it.
+// gfx.Canvas: the style library of the layers gfx -> style -> base -> ui.
+// Recipes may read the engine's state and metrics from package base, and they
+// never import package ui or app; package ui paints its own controls with these
+// recipes, and a page is written with ui. Use a recipe directly when painting
+// into a canvas by hand, or install its source with viva add to change it.
 //
 // Every recipe is a plain Go value: one component per file, no runtime
 // registry, no reflection, no package init, no hidden workers. Linkage is
@@ -55,9 +56,10 @@
 //
 // Multi-selection:
 //   - MultiSelect: `PaintMultiSelect` combines removable chips, a native query
-//     input and a filtered popup. `MultiSelectState` handles multi-selection,
-//     optional item creation, limits and keyboard/IME-safe confirmation. Bind
-//     its Query editor to the application's text-input provider.
+//     input and a filtered popup. The engine's `base.MultiSelectState` handles
+//     multi-selection, optional item creation, limits and keyboard/IME-safe
+//     confirmation; `components.MultiSelectState` is that type. Bind its Query
+//     editor to the application's text-input provider.
 //
 // Actions:
 //   - Avatar editor: `BeginAvatarEditor` paints a crop surface inside
