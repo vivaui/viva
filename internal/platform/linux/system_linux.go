@@ -999,11 +999,8 @@ func selectionOwner(api *xcbAPI, connection uintptr, selection uint32) (uint32, 
 
 func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, property uint32) (string, error) {
 	value, accepted, err := readSelection(api, connection, requestor, selection, xcbAtomString, property)
-	if err != nil {
+	if err != nil || !accepted {
 		return "", err
-	}
-	if !accepted {
-		return "", unsupported("clipboard owner provides neither UTF8_STRING nor STRING")
 	}
 	return decodeLatin1(value), nil
 }
