@@ -2,8 +2,9 @@
 
 `RunCanvas` on `GOOS=js GOARCH=wasm` is a deployment target, not a visual
 preview. It runs the same component tree, input router, text shaping and
-accessibility model as the native applications, paints them through Canvas2D,
-and keeps the browser event loop free by making every platform operation that
+accessibility model as the native applications, paints them through WebGL2,
+and falls back to Canvas2D when WebGL2 is unavailable or a context is lost.
+It keeps the browser event loop free by making every platform operation that
 is asynchronous in the browser asynchronous in the API too.
 
 The page is the window. A web build has one document, one canvas and one
@@ -66,6 +67,41 @@ Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy are not required:
 Viva does not use `SharedArrayBuffer`. Add them only if an embedding page needs
 them, and verify that the application's own network integrations still work
 under the resulting isolation.
+
+## Renderer
+
+The browser target draws with WebGL2 by default. Both renderers consume the
+same `platform.Frame` from the shared frame builder, so component geometry,
+paint order, text content, input routing and the accessibility mirror are the
+same; they differ only in rasterization.
+
+- WebGL2 ports the analytic rounded-rectangle, triangle and shadow shaders used
+  by the native GPU backends, and draws text as whole-line textures rasterized
+  by the browser. It uses premultiplied alpha, no sRGB framebuffer conversion,
+  and grayscale text antialiasing (no dual-source LCD text).
+- Canvas2D is the fallback. It is chosen when the browser has no WebGL2, shader
+  or buffer initialization fails, or a WebGL2 context is lost. It uses the
+  Canvas2D rasterizer and draws text with `fillText`.
+- A page can force a renderer for diagnostics or tests with
+  `?viva-renderer=webgl2` or `?viva-renderer=canvas2d`; without it, WebGL2 is
+  preferred.
+- `document.documentElement.dataset.vivaRenderer` reports `webgl2` or
+  `canvas2d`, and `window.vivaWebStats.renderer` does after the first frame.
+- A lost WebGL2 context falls back to Canvas2D for the rest of the page's life,
+  following the same path as an initial WebGL2 failure. Input listeners live on
+  the window root, so the replacement canvas keeps pointer, wheel and keyboard
+  events.
+- Images are `platform.TextLabel` bitmaps. Both renderers draw them, including
+  cropped surfaces; no separate image path exists.
+- A warped label (`TextLabel.HasQuad`) is drawn with its per-corner tint in
+  WebGL2. Labels wider than `MAX_TEXTURE_SIZE` are split into overlapping
+  horizontal tiles. The Canvas2D fallback approximates the warp with horizontal
+  strips and a corner-to-corner tint gradient.
+
+Neither renderer promises pixel-identical output to macOS Metal, Windows
+Direct3D 11 or Linux Vulkan: text shaping and font fallback belong to the
+browser, and Canvas2D antialiasing differs from the GPU shaders. The shared
+contract is the draw list and the semantic tree, not the pixels.
 
 ## Capabilities
 
@@ -179,12 +215,14 @@ engine. `FontFamilies` and `MonospaceFamilies` are empty because browsers do not
 expose the machine's installed fonts. Use `gfx.MonoSystem`, `gfx.MonoClassic`, or
 a family registered by the application.
 
-Text is shaped and measured in CSS pixels through the document, and painted by
-Canvas2D at `devicePixelRatio`. Widths, caret positions, selections and hits
-therefore agree with the glyphs the browser draws. They are not promised to be
-pixel-identical to macOS CoreText, Windows DirectWrite or Linux Pango: font
-fallback, hinting and DPI rounding differ. A browser zoom change invalidates
-measurements, as does a font that finishes loading.
+Text is shaped and measured in CSS pixels through the document and painted at
+`devicePixelRatio`: WebGL2 draws whole-line label textures rasterized by the
+browser, and Canvas2D draws the same lines with `fillText`. Widths, caret
+positions, selections and hits therefore agree with the glyphs the browser
+draws. They are not promised to be pixel-identical to macOS CoreText, Windows
+DirectWrite or Linux Pango: font fallback, hinting and DPI rounding differ. A
+browser zoom change invalidates measurements, as does a font that finishes
+loading.
 
 ## Lifecycle
 
@@ -278,8 +316,8 @@ focus, autofocus, pending focus, Escape targets, held-key pairing, press
 capture, click completion, cursor selection and text-editor ownership — lives in
 `internal/interaction` and is used by both painters. The painters themselves
 remain platform implementations: the native one publishes to the retained
-scene, renderer and native views, while the browser one paints Canvas2D and
-drives the DOM accessibility mirror. The browser backend is still an
+scene, renderer and native views, while the browser one paints WebGL2 or
+Canvas2D and drives the DOM accessibility mirror. The browser backend is still an
 intentional subset where the document cannot supply a platform service. A
 behavior added to one painter must still be checked against the other and
 covered where it is observable without a real window.
@@ -303,9 +341,9 @@ use rather than inventing a private browser runtime:
   Access, Clipboard, WebCrypto, IndexedDB and Fullscreen;
 - W3C ARIA Authoring Practices for the ARIA mirror and keyboard semantics.
 
-These are design references, not dependencies. Viva keeps Canvas2D drawing,
-the Go input router and the application-facing API under its own control; it
-does not embed a browser engine in a native build.
+These are design references, not dependencies. Viva keeps its WebGL2 and
+Canvas2D drawing, the Go input router and the application-facing API under its
+own control; it does not embed a browser engine in a native build.
 
 ## Verification
 
@@ -359,8 +397,33 @@ The same gate runs locally with:
 npm ci --prefix tools/webcheck
 tools/webcheck/node_modules/.bin/playwright install chromium firefox webkit
 go run ./cmd/viva build --target web ./tools/webcheck/fixture -o build/webcheck
-node tools/webcheck/check.mjs --dir build/webcheck --browser all
+node tools/webcheck/check.mjs --dir build/webcheck --browser all --renderer webgl2
+node tools/webcheck/check.mjs --dir build/webcheck --browser all --renderer canvas2d
 ```
+
+The driver's `--renderer` chooses `auto`, `webgl2` or `canvas2d`; a forced
+renderer is passed in the page's query string, and the gate asserts the
+renderer the page reports. It checks the painted canvas from a Playwright
+screenshot rather than a 2D `getImageData` call, so it covers both renderers.
+In a forced-WebGL2 run it also loses the context through
+`WEBGL_lose_context`, waits for the page to report `canvas2d`, and verifies that
+a pointer click still reaches the application. CI runs Chromium with forced
+WebGL2 and forced Canvas2D, and Firefox and WebKit with `auto`.
+
+The system Safari is not Playwright's WebKit. After one-time
+`sudo safaridriver --enable` (or Safari Settings > Developer > Allow Remote
+Automation), run:
+
+```sh
+node tools/webcheck/safari.mjs --dir build/webcheck
+```
+
+That smoke gate checks the chosen renderer, a non-blank canvas, the bitmap
+pixel and a trusted pointer click. The full interaction suite remains in
+`check.mjs`. An operating-system IME candidate window still needs a person at
+the target machine; the synthetic composition in `check.mjs` verifies the event
+contract, not the candidate window's placement. `docs/conformance.md` records
+that manual check.
 
 A headless Chrome run served the generated `index.html`, `.wasm` and
 `wasm_exec.js` over HTTP, rendered the gallery, and then invoked the DOM

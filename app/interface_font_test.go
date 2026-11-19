@@ -143,10 +143,10 @@ func TestAFamilyChangeSendsTheSameTextToTheRendererAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	generation := func() (interfaceText, fixedPitch uint32) {
-		if len(painter.labels) != 2 {
-			t.Fatalf("labels = %+v", painter.labels)
+		if len(painter.frame.Labels()) != 2 {
+			t.Fatalf("labels = %+v", painter.frame.Labels())
 		}
-		return painter.labels[0].FontGeneration, painter.labels[1].FontGeneration
+		return painter.frame.Labels()[0].FontGeneration, painter.frame.Labels()[1].FontGeneration
 	}
 	before, _ := generation()
 	frame, err := painter.repaint()

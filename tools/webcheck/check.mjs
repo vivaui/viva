@@ -2,6 +2,12 @@
 //
 //   viva build --target web ./tools/webcheck/fixture -o build/webcheck
 //   node tools/webcheck/check.mjs --dir build/webcheck --browser chromium
+//   node tools/webcheck/check.mjs --dir build/webcheck --renderer webgl2
+//
+// --renderer is auto (the default), webgl2 or canvas2d. A forced renderer is
+// passed in the page query string and asserted from the page's
+// data-viva-renderer. A forced-WebGL2 run also loses the context and verifies
+// the Canvas2D fallback keeps pointer input.
 //
 // The checks cover the complete browser interaction path, not just painting:
 // a pointer click, Enter on the focused button, Tab traversal, a captured
@@ -19,9 +25,12 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright';
+import { PNG } from 'pngjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1]?.startsWith('--') || all[i + 1] === undefined ? true : all[i + 1]] : []).filter(e => e.length));
 const width = +(args.width ?? 640), height = +(args.height ?? 480);
+const renderer = args.renderer ?? 'auto';
+if (!['auto', 'webgl2', 'canvas2d'].includes(renderer)) throw new Error(`unknown renderer ${renderer}; use auto, webgl2 or canvas2d`);
 const engines = { chromium, firefox, webkit };
 const requested = args.browser ?? 'chromium';
 const names = requested === 'all' ? Object.keys(engines) : [requested];
@@ -73,7 +82,10 @@ async function run(name, url) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text());
+    if (message.type() === 'warning') console.log(`warn ${message.text()}`);
+  });
 
   const wait = async (fn, message, arg, timeout = 10000) => {
     try {
@@ -94,16 +106,22 @@ async function run(name, url) {
 
   try {
     console.log(`# ${name} ${browser.version()}`);
-    await page.goto(url);
+    const target = new URL(url);
+    target.searchParams.set('viva-renderer', renderer);
+    await page.goto(target.href);
     await wait(() => !!document.querySelector('canvas'), 'the page mounted a canvas');
     await page.waitForSelector('[role=button][aria-label^="Count:"]');
-    check(await page.evaluate(() => {
-      const canvas = document.querySelector('canvas');
-      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
-      let painted = 0;
-      for (let i = 0; i < data.length; i += 64) if (data[i] || data[i + 1] || data[i + 2] || data[i + 3]) painted++;
-      return painted > (data.length / 64) / 10;
-    }), 'the canvas is not blank');
+    const chosen = await page.evaluate(() => document.documentElement.dataset.vivaRenderer);
+    check(renderer === 'auto' ? chosen === 'webgl2' || chosen === 'canvas2d' : chosen === renderer, `the page chose the ${renderer} renderer`);
+    const shot = PNG.sync.read(await page.locator('canvas').screenshot());
+    const background = [shot.data[0], shot.data[1], shot.data[2]];
+    let painted = 0;
+    for (let i = 0; i < shot.data.length; i += 4) {
+      if (Math.abs(shot.data[i] - background[0]) + Math.abs(shot.data[i + 1] - background[1]) + Math.abs(shot.data[i + 2] - background[2]) > 30) painted++;
+    }
+    check(painted > (shot.width * shot.height) / 50, 'the canvas is not blank');
+    const imagePixel = (420 * 4) + (320 * shot.width * 4);
+    check(shot.data[imagePixel] > 200 && shot.data[imagePixel + 1] < 80 && shot.data[imagePixel + 2] > 200, 'the bitmap image is painted');
 
     await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 0', 'the counter starts at zero');
     await page.mouse.click(110, 40);
@@ -211,6 +229,22 @@ async function run(name, url) {
     await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 3', 'a pass-through backdrop dismisses and reaches the control beneath');
     await page.waitForSelector('[role=group][aria-label="Dismiss"]', { state: 'detached' });
     check(true, 'the pass-through backdrop closed');
+
+    if (renderer === 'webgl2') {
+      const lost = await page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        const gl = canvas.getContext('webgl2');
+        const extension = gl?.getExtension('WEBGL_lose_context');
+        if (!extension) return false;
+        extension.loseContext();
+        return true;
+      });
+      if (lost) {
+        await wait(() => document.documentElement.dataset.vivaRenderer === 'canvas2d', 'a lost WebGL2 context falls back to Canvas2D');
+        await page.mouse.click(110, 40);
+        await waitLabel('[role=button][aria-label^="Count:"]', 'Count: 4', 'input survives the renderer fallback');
+      }
+    }
 
     check(errors.length === 0, `the page reported no errors${errors.length ? ': ' + errors.join('; ') : ''}`);
     console.log(`web check passed (${name} ${browser.version()})`);

@@ -35,12 +35,16 @@ X11 through dynamically loaded system XCB, Vulkan, Pango and Cairo, with a block
 
 ## Browser (optional)
 
-A secondary target: the same Go components compiled to WebAssembly and drawn with Canvas2D. The component catalog's previews use it.
+A secondary target: the same Go components compiled to WebAssembly and drawn
+with WebGL2, falling back to Canvas2D when WebGL2 is unavailable or a context
+is lost. The component catalog's previews use it.
 
 - The browser build uses the same application, layout and component code as the native backends.
 - Clipboard and file pickers use the browser's asynchronous APIs.
 - Text editing is available in the Input example, and the same Go editor backs it as the native preview.
-- WebGPU is a planned backend.
+- WebGL2 is the primary browser renderer, with Canvas2D as the compatibility
+  fallback. WebGPU is not required; it may be added later as an optional backend
+  only if measurements show a need.
 
 The browser backend is built separately and never makes a native artifact larger, slower or more complicated.
 

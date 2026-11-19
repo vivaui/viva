@@ -64,6 +64,14 @@ screenshot, when the code behind them changes:
   maximized window must stop at the taskbar;
 - where a panel and a new window are placed on a multi-monitor or scaled screen (Linux: not
   verified with more than one monitor or a real HiDPI display);
+- an operating-system input method's candidate window: the browser gate and the
+  Go tests synthesize composition events, but the candidate window is the
+  system's own UI. Type through a real IME on macOS, Windows and Linux with the
+  Input example focused, and verify the candidate window sits at the caret and
+  that commit, cancel and selection update the Go editor exactly once;
+- real Safari through `safaridriver` after one-time `sudo safaridriver --enable`:
+  `node tools/webcheck/safari.mjs --dir build/webcheck`. Playwright's WebKit is
+  not Safari's browser shell;
 - text, which each platform draws with its own engine and is not expected to match.
 
 ## Known differences
@@ -98,7 +106,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
 | XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |
-| Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS only; the other backends paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
+| Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS and WebGL2. Canvas2D approximates it with horizontal strips and a corner-to-corner tint gradient. Windows, Linux and headless paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
 
 ## Test environments
 

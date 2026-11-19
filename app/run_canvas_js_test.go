@@ -26,10 +26,12 @@ func TestRunCanvasHandsTheApplicationToThePage(t *testing.T) {
 	var invalidator Invalidator
 	canvas := &gfx.Canvas{}
 	woken := false
+	forwarded := [2]float32{}
 	err := RunCanvas(Config{
 		Title: "Notes", Tree: &tree, Invalidator: &invalidator, OnWake: func() { woken = true },
-		Paint:     func(*gfx.Canvas, gfx.Size) {},
-		TextInput: func(TextInputContext) *TextInput { return nil },
+		Paint:        func(*gfx.Canvas, gfx.Size) {},
+		TextInput:    func(TextInputContext) *TextInput { return nil },
+		ForwardWheel: func(deltaX, deltaY float32) { forwarded = [2]float32{deltaX, deltaY} },
 	}, canvas)
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +44,13 @@ func TestRunCanvasHandsTheApplicationToThePage(t *testing.T) {
 	}
 	if got.Paint == nil || got.TextInput == nil {
 		t.Error("Paint and TextInput must reach the page")
+	}
+	if got.ForwardWheel == nil {
+		t.Fatal("ForwardWheel must reach the page")
+	}
+	got.ForwardWheel(1.5, -2.5)
+	if forwarded != [2]float32{1.5, -2.5} {
+		t.Errorf("the page forwarded %v, want the application's callback", forwarded)
 	}
 	if got.Waker == nil {
 		t.Fatal("an Invalidator must reach the page as its waker")

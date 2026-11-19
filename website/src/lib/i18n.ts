@@ -310,7 +310,7 @@ export function localizePage(page: Page, locale: Locale): Page {
         macOS: ['原生预览', 'AppKit + Metal。请在本机验证系统字体、焦点与可访问性。'],
         Windows: ['实验性', '原生运行器通过交叉编译；本文档不是 Windows 真机验证报告。'],
         Linux: ['暂不可用', '当前 Linux 后端尚不能运行这些 Canvas 组件示例。'],
-		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['Canvas2D 预览', '同一份 Go 示例编译为 WASM，不是 HTML/CSS 仿制，不能据此推断原生性能。'],
+		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['WebGL2 预览（Canvas2D 回退）', '同一份 Go 示例编译为 WASM，优先用 WebGL2 绘制，不可用时回退 Canvas2D；不是 HTML/CSS 仿制，不能据此推断原生性能。'],
       };
       if (!translated[capability.Platform]) throw new Error(`Missing platform translation: ${capability.Platform}`);
       return { Platform: capability.Platform, Status: translated[capability.Platform][0], Detail: translated[capability.Platform][1] };

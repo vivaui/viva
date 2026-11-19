@@ -58,7 +58,7 @@ func documentation() map[string]Page {
 			{Platform: "macOS", Status: "Native preview", Detail: "AppKit + Metal. Run locally to check system fonts, focus and accessibility."},
 			{Platform: "Windows", Status: "Experimental", Detail: "Native runner cross-builds; this documentation is not a Windows hardware-validation report."},
 			{Platform: "Linux", Status: "Not available", Detail: "The current Linux backend cannot run these Canvas component examples."},
-			{Platform: "Web", Status: "Canvas2D preview", Detail: "The same Go example compiled to WASM, not HTML/CSS imitation. Native performance and system integration are not measured here."},
+			{Platform: "Web", Status: "WebGL2 preview", Detail: "The same Go example compiled to WASM, drawn with WebGL2 and falling back to Canvas2D; not HTML/CSS imitation. Native performance and system integration are not measured here."},
 		}
 		if id == "input" {
 			page.Capabilities[3] = Capability{Platform: "Web", Status: "Interactive text input", Detail: "Browser typing, selection and IME connect to the same caller-owned Go editor used by the native preview."}
