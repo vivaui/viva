@@ -15,20 +15,50 @@ icon := ui.Slot(c).Size(24, 24)
 components.PaintSpinner(canvas, theme, icon.Rect(), 2)
 ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)`, PageSnippet: `ui.Row(c).Gap(14).Items(ui.Center).Children(func() {
     ui.Spinner(c)
-    ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+    ui.Text(c, "Syncing workspace…").Weight(gfx.WeightMedium)
 })`, PageSnippetZh: `ui.Row(c).Gap(14).Items(ui.Center).Children(func() {
     ui.Spinner(c)
-    ui.Text(c, "正在同步工作区…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+    ui.Text(c, "正在同步工作区…").Weight(gfx.WeightMedium)
 })`},
 		{ID: "phases", Title: "八个相位", Description: "同屏展示全部确定性相位，不启动动画循环。", Snippet: `for index := range 8 {
     cell := ui.Slot(c).Size(32, 32)
     components.PaintSpinner(canvas, theme, cell.Rect(), components.SpinnerPhase(index))
+}`, PageSnippet: `for range 2 {
+    ui.Row(c).Gap(24).Children(func() {
+        for range 4 {
+            ui.Column(c).Size(32, 32).Center().Children(func() {
+                ui.Spinner(c)
+            })
+        }
+    })
+}`, PageSnippetZh: `for range 2 {
+    ui.Row(c).Gap(24).Children(func() {
+        for range 4 {
+            ui.Column(c).Size(32, 32).Center().Children(func() {
+                ui.Spinner(c)
+            })
+        }
+    })
 }`},
 		{ID: "sizes", Title: "约束尺寸", Description: "指示器在不同边界中居中并保持比例。", Snippet: `for index, side := range [...]float32{16, 32, 48} {
     box := ui.Slot(c).Size(side, side)
     canvas.RoundedBorder(box.Rect(), 5, 1, theme.Border, theme.Background)
     components.PaintSpinner(canvas, theme, box.Rect(), components.SpinnerPhase(index*2))
-}`},
+}`, PageSnippet: `ui.Row(c).Gap(40).Items(ui.Center).Children(func() {
+    for _, side := range [...]float32{16, 32, 48} {
+        ui.Column(c).Size(side, side).Center().Border(1, c.Theme().Border).
+            Radius(5).Children(func() {
+            ui.Spinner(c)
+        })
+    }
+})`, PageSnippetZh: `ui.Row(c).Gap(40).Items(ui.Center).Children(func() {
+    for _, side := range [...]float32{16, 32, 48} {
+        ui.Column(c).Size(side, side).Center().Border(1, c.Theme().Border).
+            Radius(5).Children(func() {
+            ui.Spinner(c)
+        })
+    }
+})`},
 	},
 }
 

@@ -19,12 +19,12 @@ var emptyComponent = Component{
 content := components.Empty(canvas, theme, bounds, data)
 components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
     SizeToFit("Create project").CenterIn(content).Default("Create project")`, PageSnippet: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
-    ui.Icon(c, folderIcon).Size(40, 40).Color(theme.MutedForeground)
+    ui.Icon(c, m.folderIcon).Size(40, 40).Muted()
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
     ui.Button(c, "Create project").Self(ui.Start)
 })`, PageSnippetZh: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
-    ui.Icon(c, folderIcon).Size(40, 40).Color(theme.MutedForeground)
+    ui.Icon(c, m.folderIcon).Size(40, 40).Muted()
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
     ui.Button(c, "Create project").Self(ui.Start)
@@ -37,15 +37,15 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: 
 content := components.Empty(canvas, theme, bounds, data)
 components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
     SizeToFit("Create project").CenterIn(content).Default("Create project")`, PageSnippet: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
-    ui.Column(c).Size(56, 56).Center().Radius(28).Background(theme.Muted).Children(func() {
-        ui.Icon(c, folderIcon).Size(24, 24).Color(theme.MutedForeground)
+    ui.Column(c).Size(56, 56).Center().Radius(28).Background(c.Theme().Muted).Children(func() {
+        ui.Icon(c, m.folderIcon).Size(24, 24).Muted()
     })
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
     ui.Button(c, "Create project").Self(ui.Start)
 })`, PageSnippetZh: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
-    ui.Column(c).Size(56, 56).Center().Radius(28).Background(theme.Muted).Children(func() {
-        ui.Icon(c, folderIcon).Size(24, 24).Color(theme.MutedForeground)
+    ui.Column(c).Size(56, 56).Center().Radius(28).Background(c.Theme().Muted).Children(func() {
+        ui.Icon(c, m.folderIcon).Size(24, 24).Muted()
     })
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()

@@ -33,7 +33,21 @@ components.PaintNativeSelect(canvas, theme, invalidBounds, components.NativeSele
 components.PaintNativeSelect(canvas, theme, disabledBounds, components.NativeSelectSnapshot{
     ID: tree.ID(page, "plan"), Label: "Plan", Value: "enterprise",
     Display: "Enterprise", Disabled: true,
-})`, PageSnippet: ""},
+})`, PageSnippet: `regions := []string{"us-east", "eu-west", "ap-south"}
+teams := []string{"No team"}
+plans := []string{"Enterprise"}
+ui.Select(c, &m.region, regions, nil).Placeholder("Select a region").Small()
+ui.FormField(c, &m.teamField, "Team").Children(func() {
+    ui.Select(c, &m.team, teams, nil).Placeholder("No team")
+})
+ui.Select(c, &m.plan, plans, nil).Disabled(true)`, PageSnippetZh: `regions := []string{"us-east", "eu-west", "ap-south"}
+teams := []string{"No team"}
+plans := []string{"Enterprise"}
+ui.Select(c, &m.region, regions, nil).Placeholder("Select a region").Small()
+ui.FormField(c, &m.teamField, "Team").Children(func() {
+    ui.Select(c, &m.team, teams, nil).Placeholder("No team")
+})
+ui.Select(c, &m.plan, plans, nil).Disabled(true)`},
 	},
 }
 

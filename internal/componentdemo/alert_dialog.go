@@ -11,32 +11,62 @@ var alertDialogComponent = Component{
 	paint: (*State).paintAlertDialog, initialize: initializeAlertDialog,
 	Examples: []Example{
 		{ID: "default", Title: "删除确认", Description: "确认和取消动作均由调用方处理。", Snippet: `options := components.AlertDialogOptions{
-    Layer: 8, Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    Layer: 8, Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     ActionVariant: components.ButtonDestructive,
 }
 components.BeginAlertDialog(canvas, theme, viewport, options).
     Paint("Delete this project?", "This cannot be undone.", "Delete", "Cancel")
-if canvas.Clicked(confirmID) || canvas.Clicked(cancelID) {
+if canvas.Clicked(m.confirmID) || canvas.Clicked(m.cancelID) {
     open = false
 }`, PageSnippet: `ui.AlertDialog(c, ui.AlertDialogSpec{
     Title: "Permanently delete this project?",
     Description: "This cannot be undone. Local data will be removed.",
-    Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     ActionLabel: "Delete", CancelLabel: "Cancel",
 })`, PageSnippetZh: `ui.AlertDialog(c, ui.AlertDialogSpec{
     Title: "永久删除这个项目？",
     Description: "此操作无法撤销，本地数据将被移除。",
-    Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     ActionLabel: "删除", CancelLabel: "取消",
 })`},
 		{ID: "media", Title: "带媒体的小尺寸", Description: "预留可由调用方绘制的媒体区域。", Snippet: `dialog := components.BeginAlertDialog(canvas, theme, viewport, components.AlertDialogOptions{
-    Layer: 8, Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    Layer: 8, Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     Size: components.AlertDialogSmall,
 }).WithMedia()
 layout := dialog.Begin("Replace avatar?", "The new image replaces it.", "Replace", "Cancel")
 canvas.Rounded(layout.Media, min(layout.Media.Width, layout.Media.Height)/2, theme.Muted)
 canvas.LabelCenter("SK", layout.Media, gfx.TextStyle{Size: theme.Metrics.FontSizeM})
-dialog.End()`, PageSnippet: ""},
+dialog.End()`, PageSnippet: `ui.Dialog(c, ui.DialogSpec{
+    Title: "Replace avatar?",
+    Description: "The current avatar is replaced immediately with the new local image.",
+    Width: 320, Scope: m.scope, DismissID: m.scope, CloseID: m.cancelID,
+}).Body(func() {
+    ui.Column(c).Size(64, 64).Center().Radius(32).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "SK").Weight(gfx.WeightMedium)
+    })
+}).Footer(func() {
+    if ui.Button(c, "Cancel").Outline().Hit(m.cancelID, "Cancel").Clicked() {
+        m.alertOpen = false
+    }
+    if ui.Button(c, "Replace").Hit(m.confirmID, "Replace").Clicked() {
+        m.alertOpen = false
+    }
+})`, PageSnippetZh: `ui.Dialog(c, ui.DialogSpec{
+    Title: "替换头像？",
+    Description: "当前头像将立即被新的本地图片替换。",
+    Width: 320, Scope: m.scope, DismissID: m.scope, CloseID: m.cancelID,
+}).Body(func() {
+    ui.Column(c).Size(64, 64).Center().Radius(32).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "SK").Weight(gfx.WeightMedium)
+    })
+}).Footer(func() {
+    if ui.Button(c, "取消").Outline().Hit(m.cancelID, "取消").Clicked() {
+        m.alertOpen = false
+    }
+    if ui.Button(c, "替换").Hit(m.confirmID, "替换").Clicked() {
+        m.alertOpen = false
+    }
+})`},
 	},
 }
 

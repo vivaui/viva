@@ -153,19 +153,6 @@ func options[T comparable](p *Page, Value *T, options []T, Label func(T) string)
 	return p.labels[first:len(p.labels):len(p.labels)], selected
 }
 
-// optionIcons writes the icons of choices into the page's scratch, as options does
-// the labels, or returns nil when icon is nil and the select paints none of them.
-func optionIcons[T comparable](p *Page, choices []T, icon func(T) gfx.Icon) []gfx.Icon {
-	if icon == nil {
-		return nil
-	}
-	first := len(p.icons)
-	for _, choice := range choices {
-		p.icons = append(p.icons, icon(choice))
-	}
-	return p.icons[first:len(p.icons):len(p.icons)]
-}
-
 // pick writes the option a click chose into *value, where the control is declared,
 // and records whether it did for Changed.
 func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
@@ -220,19 +207,9 @@ func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T)
 	return selectOf(c, Value, choices, Label, nil, false, ID)
 }
 
-// SelectIcon is Select with an icon before every option: icon names each option's
-// own, painted before the chosen value on the trigger and before each label in the
-// open list. It is asked for once per option per paint, as label is; a nil icon
-// paints exactly what Select does.
-//
-//	ui.SelectIcon(c, &m.locale, locales, localeName, localeFlag)
-func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
-	return selectOf(c, Value, choices, Label, optionIcons(c.page, choices, icon), false, gfx.ID{})
-}
-
-// selectOf is Select (or SelectIcon), or SelectBase when base is set: the same
-// control without the theme's look. icons, when SelectIcon's icon function gave
-// them, are indexed by option like the labels; nil is the select without icons.
+// selectOf is Select, or SelectBase when base is set: the same control without
+// the theme's look. icons are indexed by option like the labels; nil is the
+// select without icons.
 func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
 	p := c.page
 	scope := p.BoundScope(pkSelect, unsafe.Pointer(Value))

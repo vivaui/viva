@@ -27,7 +27,31 @@ q.PaintActions(components.QuestionnaireActions{
 })
 if index, ok := canvas.ClickedIn(choice); ok {
     selected = index
-}`},
+}`, PageSnippet: `ui.Text(c, "Question 2 of 5").Muted()
+ui.Text(c, "What should Viva optimize first?")
+ui.Text(c, "Answers stay in application state.").Muted()
+ui.RadioGroup(c).Children(func() {
+    ui.Radio(c, &m.answer, "Low memory", "Low memory")
+    ui.Radio(c, &m.answer, "Fast startup", "Fast startup")
+    ui.Radio(c, &m.answer, "Small binaries", "Small binaries")
+})
+ui.Row(c).Gap(8).Children(func() {
+    ui.Button(c, "Back").Outline()
+    ui.Button(c, "Skip").Outline()
+    ui.Button(c, "Continue")
+})`, PageSnippetZh: `ui.Text(c, "Question 2 of 5").Muted()
+ui.Text(c, "What should Viva optimize first?")
+ui.Text(c, "Answers stay in application state.").Muted()
+ui.RadioGroup(c).Children(func() {
+    ui.Radio(c, &m.answer, "Low memory", "Low memory")
+    ui.Radio(c, &m.answer, "Fast startup", "Fast startup")
+    ui.Radio(c, &m.answer, "Small binaries", "Small binaries")
+})
+ui.Row(c).Gap(8).Children(func() {
+    ui.Button(c, "Back").Outline()
+    ui.Button(c, "Skip").Outline()
+    ui.Button(c, "Continue")
+})`},
 		{ID: "multiple-choice", Title: "多选题", Description: "切换多个性能目标，组件不隐藏答案状态。", Snippet: `choice := tree.Sub(page, tree.Name("choice"))
 q := components.BeginQuestionnaire(canvas, theme, bounds, components.QuestionnaireData{
     Progress: "Question 2 of 5", Title: "Which performance goals matter?",
@@ -41,7 +65,29 @@ for index, label := range []string{"Low memory", "Fast startup", "Small binaries
 }
 if index, ok := canvas.ClickedIn(choice); ok {
     checked[index] = !checked[index]
-}`},
+}`, PageSnippet: `ui.Text(c, "Question 2 of 5").Muted()
+ui.Text(c, "Which performance goals matter?")
+ui.Text(c, "Answers stay in application state.").Muted()
+memory, startup, binaries := false, false, false
+ui.Checkbox(c, &memory, "Low memory")
+ui.Checkbox(c, &startup, "Fast startup")
+ui.Checkbox(c, &binaries, "Small binaries")
+ui.Row(c).Gap(8).Children(func() {
+    ui.Button(c, "Back").Outline()
+    ui.Button(c, "Skip").Outline()
+    ui.Button(c, "Continue")
+})`, PageSnippetZh: `ui.Text(c, "Question 2 of 5").Muted()
+ui.Text(c, "Which performance goals matter?")
+ui.Text(c, "Answers stay in application state.").Muted()
+memory, startup, binaries := false, false, false
+ui.Checkbox(c, &memory, "Low memory")
+ui.Checkbox(c, &startup, "Fast startup")
+ui.Checkbox(c, &binaries, "Small binaries")
+ui.Row(c).Gap(8).Children(func() {
+    ui.Button(c, "Back").Outline()
+    ui.Button(c, "Skip").Outline()
+    ui.Button(c, "Continue")
+})`},
 	},
 }
 

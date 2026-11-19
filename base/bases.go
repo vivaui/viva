@@ -88,6 +88,18 @@ func (f *Frame) ComboboxBase(ID gfx.ID, Label, Value string, open bool) Box {
 	return b.HitWith(ID, Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: Value, Expanded: open, Expandable: true})
 }
 
+// DisclosureBase adds a disclosure header without a look: a row that reports Clicked and,
+// to assistive technology, is a button that is expanded or not. The caller paints the
+// trigger and owns the content under it; DisclosureBase itself adds no chevron, surface
+// or content.
+func (f *Frame) DisclosureBase(ID gfx.ID, Label string, open bool) Box {
+	b := f.Row().Center()
+	if open {
+		f.Nodes[b.i].Flags |= flagOpen
+	}
+	return b.HitWith(ID, Label, gfx.HitOptions{Role: gfx.RoleButton, Expanded: open, Expandable: true})
+}
+
 // SwitchBase adds a switch without a look: the size of the shadcn track, that reports
 // Clicked and is a switch in the given state to assistive technology, with the pointer
 // region reaching beyond the track as the shadcn control's does. The track and the thumb

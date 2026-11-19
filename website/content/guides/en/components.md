@@ -19,7 +19,7 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 A theme is a value, `gfx.LightTheme()` or `gfx.DarkTheme()`. Switching appearance means painting with the other one.
 
-`Begin*` is the style layer's constructor, not a second page API. Declare page controls with `ui.*`, `ui.*Base` and `ui.Control`; use `components.Begin*` inside a `Draw`, for pure measurement, or in source copied by `viva add`. “Zero Begin” is not a goal: the boundary is that page behaviour is not hand-built, not that the painter constructor disappears. Reusable heavy composites such as `multiselect` and `hierarchypicker` are opt-in packages.
+`Begin*` is the style layer's constructor, not a second page API. Declare page controls with `ui.*`, `ui.*Base` and `ui.Control`; use `components.Begin*` inside a `Draw`, for pure measurement, or in source copied by `viva add`. “Zero Begin” is not a goal: the boundary is that page behaviour is not hand-built, not that the painter constructor disappears. Reusable heavy composites such as `ui/multiselect` and `ui/hierarchypicker` are opt-in packages.
 
 ## Tree navigation
 

@@ -12,11 +12,71 @@ var metricCardComponent = Component{
 	Examples: []Example{
 		{ID: "default", Title: "单项指标", Description: "生产 MetricCard 展示当前值与正向趋势。", Snippet: `// bounds is the dashboard slot reserved for the card.
 components.MetricCard(canvas, theme, bounds, "Active sessions",
-    "12,840", "+18.2% from last week", true)`},
+    "12,840", "+18.2% from last week", true)`, PageSnippet: `ui.Column(c).FillWidth().Pad(c.Theme().Metrics.PadSurface).Gap(6).
+    Background(c.Theme().Card).Border(1, c.Theme().Border).
+    Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+    ui.Text(c, "Active sessions").
+        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+    ui.Text(c, "12,840").
+        FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+    ui.Text(c, "+18.2% from last week").
+        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
+})`, PageSnippetZh: `ui.Column(c).FillWidth().Pad(c.Theme().Metrics.PadSurface).Gap(6).
+    Background(c.Theme().Card).Border(1, c.Theme().Border).
+    Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+    ui.Text(c, "Active sessions").
+        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+    ui.Text(c, "12,840").
+        FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+    ui.Text(c, "+18.2% from last week").
+        FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
+})`},
 		{ID: "trends", Title: "趋势对比", Description: "正向和负向趋势并列展示。", Snippet: `// left and right are equal-width slots in the page's row.
 // true paints the trend in Success; false paints it in Danger.
 components.MetricCard(canvas, theme, left, "Revenue", "$48.2K", "+12.4%", true)
-components.MetricCard(canvas, theme, right, "Refunds", "$1.3K", "+4.1%", false)`},
+components.MetricCard(canvas, theme, right, "Refunds", "$1.3K", "+4.1%", false)`, PageSnippet: `ui.Row(c).FillWidth().Gap(16).Children(func() {
+    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
+        Background(c.Theme().Card).Border(1, c.Theme().Border).
+        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+        ui.Text(c, "Revenue").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+        ui.Text(c, "$48.2K").
+            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+        ui.Text(c, "+12.4%").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
+    })
+    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
+        Background(c.Theme().Card).Border(1, c.Theme().Border).
+        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+        ui.Text(c, "Refunds").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+        ui.Text(c, "$1.3K").
+            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+        ui.Text(c, "+4.1%").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Danger)
+    })
+})`, PageSnippetZh: `ui.Row(c).FillWidth().Gap(16).Children(func() {
+    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
+        Background(c.Theme().Card).Border(1, c.Theme().Border).
+        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+        ui.Text(c, "Revenue").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+        ui.Text(c, "$48.2K").
+            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+        ui.Text(c, "+12.4%").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Success)
+    })
+    ui.Column(c).Grow(1).Pad(c.Theme().Metrics.PadSurface).Gap(6).
+        Background(c.Theme().Card).Border(1, c.Theme().Border).
+        Radius(c.Theme().Metrics.RadiusSurface).Children(func() {
+        ui.Text(c, "Refunds").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Muted()
+        ui.Text(c, "$1.3K").
+            FontSize(c.Theme().Metrics.FontSizeL - 2).Weight(gfx.WeightSemibold)
+        ui.Text(c, "+4.1%").
+            FontSize(c.Theme().Metrics.FontSizeS).Weight(gfx.WeightMedium).Color(c.Theme().Danger)
+    })
+})`},
 	},
 }
 

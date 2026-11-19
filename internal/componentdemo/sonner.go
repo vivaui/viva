@@ -18,7 +18,13 @@ toasts := [...]components.SonnerToast{{
     Scope: toast, DismissID: tree.ID(page, "dismiss"),
     ActionID: tree.ID(page, "action"), ActionLabel: "View",
 }}
-components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`},
+components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`, PageSnippet: `if ui.Button(c, "Save project").Clicked() {
+    m.toaster.ShowAction("Project saved", "All local changes are written.", ui.ToastSuccess, "View")
+}
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if ui.Button(c, "保存项目").Clicked() {
+    m.toaster.ShowAction("项目已保存", "所有本地更改均已写入。", ui.ToastSuccess, "查看")
+}
+ui.Toasts(c, &m.toaster)`},
 		{ID: "stack", Title: "折叠堆栈", Description: "最新通知在前，使用小间距叠放。", Snippet: `toast := tree.Sub(page, tree.Name("toast"))
 toasts := [...]components.SonnerToast{
     {Snapshot: components.ToastSnapshot{Title: "Project saved", Type: components.ToastSuccess},
@@ -28,7 +34,19 @@ toasts := [...]components.SonnerToast{
     {Snapshot: components.ToastSnapshot{Title: "Connection lost", Type: components.ToastError},
         Scope: toast.At(2)},
 }
-components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`},
+components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`, PageSnippet: `if !m.notified {
+    m.toaster.Show("Project saved", "", ui.ToastSuccess)
+    m.toaster.Show("Update available", "", ui.ToastInfo)
+    m.toaster.Show("Connection lost", "", ui.ToastError)
+    m.notified = true
+}
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if !m.notified {
+    m.toaster.Show("项目已保存", "", ui.ToastSuccess)
+    m.toaster.Show("有可用更新", "", ui.ToastInfo)
+    m.toaster.Show("连接已中断", "", ui.ToastError)
+    m.notified = true
+}
+ui.Toasts(c, &m.toaster)`},
 		{ID: "expanded", Title: "展开堆栈", Description: "显式展开多条不同语义通知。", Snippet: `toast := tree.Sub(page, tree.Name("toast"))
 action := tree.Sub(page, tree.Name("action"))
 toasts := [...]components.SonnerToast{
@@ -41,7 +59,21 @@ toasts := [...]components.SonnerToast{
 }
 components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{
     Layer: 40, Expanded: true,
-})`},
+})`, PageSnippet: `// The stack expands while the pointer rests on it or focus is inside it.
+if !m.notified {
+    m.toaster.ShowAction("Project saved", "", ui.ToastSuccess, "View")
+    m.toaster.ShowAction("Update available", "", ui.ToastInfo, "Later")
+    m.toaster.Show("Connection lost", "", ui.ToastError)
+    m.notified = true
+}
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `// 指针停留或焦点在通知堆栈内时，堆栈会展开。
+if !m.notified {
+    m.toaster.ShowAction("项目已保存", "", ui.ToastSuccess, "查看")
+    m.toaster.ShowAction("有可用更新", "", ui.ToastInfo, "稍后")
+    m.toaster.Show("连接已中断", "", ui.ToastError)
+    m.notified = true
+}
+ui.Toasts(c, &m.toaster)`},
 	},
 }
 

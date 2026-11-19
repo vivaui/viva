@@ -1,15 +1,15 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/avatareditorview"
 )
 
 var avatarEditorComponent = Component{
 	ID: "avatar-editor", Title: "Avatar Editor", Category: "Media",
 	Summary: "嵌入任意容器的头像裁切表面，支持拖动、缩放、圆形预览和任意宽高比。",
-	paint:   (*State).paintAvatarEditor, pointer: (*State).pointerAvatarEditor,
-	key: (*State).keyAvatarEditor, scroll: (*State).scrollAvatarEditor,
+	paint:   (*State).paintAvatarEditor,
 	initialize: func(state *State) {
 		const width, height = 360, 240
 		pixels := make([]byte, width*height*4)
@@ -37,6 +37,28 @@ var avatarEditorComponent = Component{
 }).Paint()
 draft = layout.State
 // The caller owns the surrounding dialog or panel and uses layout.Crop when layout.Ready.`,
+			PageSnippet: `// m.avatarEditor is an avatareditorview.Editor.
+editor := m.avatarEditor
+editor.Bitmap = m.avatarBitmap
+editor.IDs = m.avatarIDs
+editor.State = m.avatarCrop
+editor.AspectRatio, editor.Circular = 1, true
+editor.MaxStageSize = 320
+editor.Labels.Canvas = "Image crop"
+editor.Labels.Hint = "Drag to reposition. Scroll, use the slider, or use the buttons to zoom."
+editor.View(c, "Avatar crop").FillWidth().MaxWidth(360)
+m.avatarCrop = editor.State`,
+			PageSnippetZh: `// m.avatarEditor 是 avatareditorview.Editor。
+editor := m.avatarEditor
+editor.Bitmap = m.avatarBitmap
+editor.IDs = m.avatarIDs
+editor.State = m.avatarCrop
+editor.AspectRatio, editor.Circular = 1, true
+editor.MaxStageSize = 320
+editor.Labels.Canvas = "头像裁切区域"
+editor.Labels.Hint = "拖动图片调整位置，滚轮、滑杆或按钮缩放。"
+editor.View(c, "头像裁切区域").FillWidth().MaxWidth(360)
+m.avatarCrop = editor.State`,
 		},
 		{
 			ID: "cover", Title: "自定义宽高比", Height: 520,
@@ -45,11 +67,33 @@ draft = layout.State
 options.Circular = false
 layout := components.BeginAvatarEditor(canvas, theme, bounds, options).Paint()
 sourceRegion := layout.Crop`,
+			PageSnippet: `// m.coverEditor is an avatareditorview.Editor.
+editor := m.coverEditor
+editor.Bitmap = m.coverBitmap
+editor.IDs = m.coverIDs
+editor.State = m.coverCrop
+editor.AspectRatio, editor.Circular = 16.0/9.0, false
+editor.MaxStageSize = 320
+editor.View(c, "Cover crop").FillWidth().MaxWidth(440)
+sourceRegion := editor.Layout().Crop
+m.coverCrop = editor.State
+// sourceRegion is the selected rectangle in the source image.`,
+			PageSnippetZh: `// m.coverEditor 是 avatareditorview.Editor。
+editor := m.coverEditor
+editor.Bitmap = m.coverBitmap
+editor.IDs = m.coverIDs
+editor.State = m.coverCrop
+editor.AspectRatio, editor.Circular = 16.0/9.0, false
+editor.MaxStageSize = 320
+editor.View(c, "封面裁切区域").FillWidth().MaxWidth(440)
+sourceRegion := editor.Layout().Crop
+m.coverCrop = editor.State
+// sourceRegion 是源图片中被选中的区域。`,
 		},
 	},
 }
 
-var avatarEditorDemoIDs = components.AvatarEditorIDs{
+var avatarEditorDemoIDs = avatareditorview.IDs{
 	Canvas:  tree.ID(tree.Feature("avatar-editor"), "canvas"),
 	Zoom:    tree.ID(tree.Feature("avatar-editor"), "zoom"),
 	ZoomOut: tree.ID(tree.Feature("avatar-editor"), "zoom-out"),
@@ -59,8 +103,8 @@ var avatarEditorDemoIDs = components.AvatarEditorIDs{
 
 type avatarEditorDemoState struct {
 	bitmap gfx.Bitmap
-	state  components.AvatarEditorState
-	layout components.AvatarEditorLayout
+	state  avatareditorview.State
+	view   avatareditorview.Editor
 }
 
 func (state *State) paintAvatarEditor(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
@@ -72,49 +116,23 @@ func (state *State) paintAvatarEditor(canvas *gfx.Canvas, theme gfx.Theme, size 
 	}
 	stageSize := min(float32(320), max(float32(1), size.Width-48))
 	control := max(float32(32), theme.Metrics.ControlHeight)
-	bounds := gfx.Rect{
-		X: 24, Y: 24,
-		Width:  min(float32(440), max(float32(1), size.Width-48)),
-		Height: min(max(float32(1), size.Height-48), stageSize+control+12),
+	height := min(max(float32(1), size.Height-48), stageSize+control+12)
+	demo.view.Bitmap = demo.bitmap
+	demo.view.IDs = avatarEditorDemoIDs
+	demo.view.State = demo.state
+	demo.view.AspectRatio = aspect
+	demo.view.Circular = circular
+	demo.view.MaxStageSize = stageSize
+	demo.view.Labels = avatareditorview.Labels{
+		Hint:   state.Text("拖动图片调整位置，滚轮、滑杆或按钮缩放。", "Drag to reposition. Scroll, use the slider, or use the buttons to zoom."),
+		Canvas: state.Text("头像裁切区域", "Image crop"), Zoom: state.Text("缩放", "Zoom"),
+		ZoomOut: state.Text("缩小", "Zoom out"), ZoomIn: state.Text("放大", "Zoom in"),
+		Reset: state.Text("重置", "Reset"), Loading: state.Text("正在读取图片…", "Loading image…"),
+		Unavailable: state.Text("无法读取这张图片", "This image could not be displayed."),
 	}
-	options := components.AvatarEditorOptions{
-		IDs: avatarEditorDemoIDs, Bitmap: demo.bitmap, State: demo.state,
-		AspectRatio: aspect, Circular: circular, MaxStageSize: stageSize,
-		Labels: components.AvatarEditorLabels{
-			Hint:   state.Text("拖动图片调整位置，滚轮、滑杆或按钮缩放。", "Drag to reposition. Scroll, use the slider, or use the buttons to zoom."),
-			Canvas: state.Text("头像裁切区域", "Image crop"), Zoom: state.Text("缩放", "Zoom"),
-			ZoomOut: state.Text("缩小", "Zoom out"), ZoomIn: state.Text("放大", "Zoom in"),
-			Reset: state.Text("重置", "Reset"), Loading: state.Text("正在读取图片…", "Loading image…"),
-			Unavailable: state.Text("无法读取这张图片", "This image could not be displayed."),
-		},
-	}
-	demo.layout = components.BeginAvatarEditor(canvas, theme, bounds, options).Paint()
-	demo.state = demo.layout.State
-}
-
-func (state *State) pointerAvatarEditor(event gfx.PointerEvent) gfx.EventResult {
-	if state.avatarEditor == nil {
-		return gfx.EventResult{}
-	}
-	var result gfx.EventResult
-	state.avatarEditor.state, result = state.avatarEditor.layout.Pointer(event, state.avatarEditor.state)
-	return result
-}
-
-func (state *State) scrollAvatarEditor(event gfx.ScrollEvent) gfx.EventResult {
-	if state.avatarEditor == nil {
-		return gfx.EventResult{}
-	}
-	var result gfx.EventResult
-	state.avatarEditor.state, result = state.avatarEditor.layout.Scroll(event, state.avatarEditor.state)
-	return result
-}
-
-func (state *State) keyAvatarEditor(event gfx.KeyEvent) gfx.EventResult {
-	if state.avatarEditor == nil {
-		return gfx.EventResult{}
-	}
-	var result gfx.EventResult
-	state.avatarEditor.state, result = state.avatarEditor.layout.Key(event, state.avatarEditor.state)
-	return result
+	state.drawPage(canvas, theme, size, 440, state.Text("头像裁切 · 圆形预览", "Avatar editor · Circular crop"), func(c ui.C) {
+		avatareditorview.View(c, state.Text("头像裁切区域", "Image crop"), &demo.view).
+			FillWidth().MaxWidth(440).Height(height)
+	})
+	demo.state = demo.view.State
 }

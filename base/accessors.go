@@ -761,9 +761,6 @@ func (x *Page) GetHeld() [2]armedButton { return x.held }
 // GetHoverArea reads the hoverArea of Page for the styled painting layer.
 func (x *Page) GetHoverArea() gfx.ID { return x.hoverArea }
 
-// GetIcons reads the icons of Page for the styled painting layer.
-func (x *Page) GetIcons() []gfx.Icon { return x.icons }
-
 // GetIntKeys reads the intKeys of Page for the styled painting layer.
 func (x *Page) GetIntKeys() map[intKey]keyEntry { return x.intKeys }
 
@@ -1208,6 +1205,9 @@ func (x *TableState) GetSortColumn() int32 { return x.sortColumn }
 
 // GetLabels reads the labels of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetLabels() []string { return x.labels }
+
+// GetIcon reads the icon function of TabsDecl for the styled painting layer.
+func (x *TabsDecl) GetIcon() func(index int) gfx.Icon { return x.icon }
 
 // GetLine reads the line of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetLine() bool { return x.line }

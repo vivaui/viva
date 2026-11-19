@@ -24,7 +24,7 @@ if open || canvas.Hovered() == trigger {
     TooltipOn(ui.TooltipTop)`, PageSnippetZh: `ui.Button(c, "悬停或点击").
     Tooltip("原生同步提示，无后台延时器").
     TooltipOn(ui.TooltipTop)`},
-		{ID: "sides", Title: "四个方向", Description: "同屏展示上、右、下、左四种放置方向。", Snippet: `labels := [...]string{"Top", "Right", "Bottom", "Left"}
+		{ID: "sides", Title: "四个方向", Description: "同屏展示上、右、下、左四种放置方向。", Height: 340, Snippet: `labels := [...]string{"Top", "Right", "Bottom", "Left"}
 sides := [...]components.TooltipSide{
     components.TooltipTop, components.TooltipRight,
     components.TooltipBottom, components.TooltipLeft,
@@ -76,14 +76,15 @@ func (state *State) paintTooltip(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 	var anchors [4]ui.Box
 	state.drawPage(canvas, theme, size, 520, state.Text("Tooltip · 同步浮层", "Tooltip · Synchronous overlay"), func(c ui.C) {
 		if state.exampleID == "sides" {
-			// A cross: the anchor whose tip hangs below on top, the others in a row.
-			ui.Column(c).Gap(36).Items(ui.Center).Children(func() {
-				anchors[2] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
-				ui.Row(c).Gap(48).Children(func() {
-					anchors[1] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
-					anchors[0] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
-					anchors[3] = ui.Slot(c).Size(56, theme.Metrics.ControlHeight)
+			// A cross with room between the anchors: each tooltip points away
+			// from the cross instead of over a neighbouring button.
+			ui.Column(c).Gap(44).Items(ui.Center).Children(func() {
+				anchors[0] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
+				ui.Row(c).Gap(180).Children(func() {
+					anchors[3] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
+					anchors[1] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
 				})
+				anchors[2] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
 			})
 			return
 		}
@@ -104,8 +105,10 @@ func (state *State) paintTooltip(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 	}
 	anchor := anchors[0].Rect()
 	if state.exampleID == "clamped" {
-		// The point of this example is an anchor at the window's edge.
-		anchor.X, anchor.Width = size.Width-76, 60
+		// The point of this example is an anchor at the window's edge; keep the
+		// trigger wide enough for its label and let the tooltip clamp itself.
+		anchor.Width = 128
+		anchor.X = size.Width - anchor.Width - 12
 	}
 	canvas.RoundedBorder(anchor, theme.Metrics.RadiusControl, 1, theme.Border, theme.Background)
 	canvas.LabelCenter(state.Text("悬停或点击", "Hover or click"), anchor, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground})

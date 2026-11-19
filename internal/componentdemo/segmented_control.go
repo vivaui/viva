@@ -19,7 +19,11 @@ options := []components.SegmentOption{
 control := components.BeginSegmentedControl(canvas, theme, bounds, options, selected)
 if id, ok := control.Paint().Clicked(); ok {
     selected = id
-}`},
+}`, PageSnippet: `// m.view starts as "List".
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)`, PageSnippetZh: `// m.view 初始为 "List"。
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)`},
 		{ID: "states", Title: "局部禁用", Description: "展示一个不可用选项与完整控件禁用状态。", Snippet: `view := tree.Sub(page, tree.Name("view"))
 control := components.BeginSegmentedControl(canvas, theme, bounds, []components.SegmentOption{
     {ID: view.At(0), Label: "List"}, {ID: view.At(1), Label: "Board"},
@@ -32,7 +36,13 @@ locked := tree.Sub(page, tree.Name("locked"))
 components.BeginSegmentedControl(canvas, theme, lockedBounds, []components.SegmentOption{
     {ID: locked.At(0), Label: "List"}, {ID: locked.At(1), Label: "Board"},
     {ID: locked.At(2), Label: "Timeline"},
-}, locked.At(1)).Disabled().Paint()`},
+}, locked.At(1)).Disabled().Paint()`, PageSnippet: `// m.view starts as "Board"; Timeline is unavailable here.
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)
+ui.Choice(c, &m.lockedView, views, nil).Disabled(true)`, PageSnippetZh: `// m.view 初始为 "Board"；这里的 Timeline 不可用。
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)
+ui.Choice(c, &m.lockedView, views, nil).Disabled(true)`},
 	},
 }
 

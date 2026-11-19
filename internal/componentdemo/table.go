@@ -22,6 +22,11 @@ table.Caption("Click any data row to see its interactive feedback.")`, PageSnipp
     {"Desktop build", "Processing", "¥ 860"},
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Width: 0, Alignment: style.TableAlignRight},
+}
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"Item", "Status", "Amount"},
@@ -32,6 +37,11 @@ ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`, Page
     {"设计系统", "已支付", "¥ 2,400"},
     {"桌面构建", "处理中", "¥ 860"},
     {"性能审计", "待付款", "¥ 1,280"},
+}
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Width: 0, Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
@@ -54,6 +64,11 @@ table.Footer([]string{"Total", "3 items", "¥ 4,540"})`, PageSnippet: `bills := 
     {"Desktop build", "Processing", "¥ 860"},
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Width: 0, Alignment: style.TableAlignRight},
+}
 table := ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"Item", "Status", "Amount"},
@@ -68,6 +83,11 @@ if row := m.table.Selected(); row >= 0 {
     {"设计系统", "已支付", "¥ 2,400"},
     {"桌面构建", "处理中", "¥ 860"},
     {"性能审计", "待付款", "¥ 1,280"},
+}
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Width: 0, Alignment: style.TableAlignRight},
 }
 table := ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,

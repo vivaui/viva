@@ -20,6 +20,30 @@ const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
 const sourcePath = page.PageUsage && page.PageSource ? page.PageSource : (page.Source || `components/${sourceFile}`);
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
+const optionalImports = {
+  text: 'github.com/vivaui/viva/text',
+  gfx: 'github.com/vivaui/viva/gfx',
+  style: 'github.com/vivaui/viva/style',
+  base: 'github.com/vivaui/viva/base',
+  codeeditor: 'github.com/vivaui/viva/ui/codeeditor',
+  chartview: 'github.com/vivaui/viva/ui/chartview',
+  calendarview: 'github.com/vivaui/viva/ui/calendarview',
+  carouselview: 'github.com/vivaui/viva/ui/carouselview',
+  markdownview: 'github.com/vivaui/viva/ui/markdownview',
+  hovercardview: 'github.com/vivaui/viva/ui/hovercardview',
+  navigationmenuview: 'github.com/vivaui/viva/ui/navigationmenuview',
+  menubarview: 'github.com/vivaui/viva/ui/menubarview',
+  commandview: 'github.com/vivaui/viva/ui/commandview',
+  messagescrollerview: 'github.com/vivaui/viva/ui/messagescrollerview',
+  messageview: 'github.com/vivaui/viva/ui/messageview',
+  attachmentview: 'github.com/vivaui/viva/ui/attachmentview',
+  avatarview: 'github.com/vivaui/viva/ui/avatarview',
+  columnresizeview: 'github.com/vivaui/viva/ui/columnresizeview',
+  avatareditorview: 'github.com/vivaui/viva/ui/avatareditorview',
+  reordergridview: 'github.com/vivaui/viva/ui/reordergridview',
+  multiselect: 'github.com/vivaui/viva/ui/multiselect',
+  hierarchypicker: 'github.com/vivaui/viva/ui/hierarchypicker',
+};
 ---
 
 <DocsLayout {locale} title={page.Title} summary={page.Summary} navigation={navigationFor(catalog, page)} currentID={page.ID}>
@@ -40,10 +64,15 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
       {(() => {
         const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
         const localized = locale === 'zh' ? example.PageSnippetZh : example.PageSnippet;
-        const usage = localized || example.PageSnippet || (own ? example.Snippet : '') || `ui.Control(c, "${example.Title.replaceAll('"', '')}", &m.handlers).Draw(paint)`;
+        const usage = localized || example.PageSnippet || (own ? example.Snippet : '');
+        if (!usage || !usage.trim()) throw new Error(`No page usage for ${page.ID}/${example.ID} (${locale})`);
+        const imports = Object.entries(optionalImports)
+          .filter(([name]) => new RegExp(`\\b${name}\\.`).test(usage))
+          .map(([, path]) => `import "${path}"`);
+        const shown = imports.length > 0 ? `${imports.join('\n')}\n\n${usage}` : usage;
         return <div class="code-block usage-block">
-          <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>
-          <div class="highlighted-code"><Code code={usage} lang="go" themes={themes} defaultColor={false} /></div>
+          <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={shown} label={text.copyUsage} {locale} client:load /></div>
+          <div class="highlighted-code"><Code code={shown} lang="go" themes={themes} defaultColor={false} /></div>
         </div>;
       })()}
     </section>)}

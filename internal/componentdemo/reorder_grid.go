@@ -1,94 +1,42 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/reordergridview"
 )
 
 var reorderGridDemoHandles = tree.Sub(tree.Feature("reorder-grid"), tree.Name("handle"))
 
 type reorderGridDemoState struct {
-	grid  components.ReorderGridState
+	state *State
+	view  reordergridview.Grid
 	order [6]int
 }
 
-func (state *reorderGridDemoState) move(move components.ReorderGridMove) {
-	if !move.Valid() || move.From < 0 || move.From >= len(state.order) || move.To < 0 || move.To >= len(state.order) {
+func (demo *reorderGridDemoState) move(move reordergridview.Move) {
+	if !move.Valid() || move.From < 0 || move.From >= len(demo.order) || move.To < 0 || move.To >= len(demo.order) {
 		return
 	}
-	value := state.order[move.From]
+	value := demo.order[move.From]
 	if move.From < move.To {
-		copy(state.order[move.From:move.To], state.order[move.From+1:move.To+1])
+		copy(demo.order[move.From:move.To], demo.order[move.From+1:move.To+1])
 	} else {
-		copy(state.order[move.To+1:move.From+1], state.order[move.To:move.From])
+		copy(demo.order[move.To+1:move.From+1], demo.order[move.To:move.From])
 	}
-	state.order[move.To] = value
+	demo.order[move.To] = value
 }
 
 var reorderGridComponent = Component{
 	ID: "reorder-grid", Title: "Reorder Grid", Category: "Layout", Summary: "在调用方定位的卡片或行中，用拖动手柄和键盘调整顺序。",
 	initialize: func(state *State) {
-		state.reorderGrid = &reorderGridDemoState{order: [6]int{0, 1, 2, 3, 4, 5}}
+		demo := &reorderGridDemoState{state: state, order: [6]int{0, 1, 2, 3, 4, 5}}
+		demo.view.HandleHitSlop = 8
+		demo.view.Draw = demo.draw
+		demo.view.Move = demo.move
+		state.reorderGrid = demo
 	},
-	paint: func(state *State, canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-		var slot ui.Box
-		state.drawPage(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(c ui.C) {
-			slot = ui.Slot(c).FillWidth().Height(220)
-		})
-		bounds := slot.Rect()
-		const (
-			columns = 3
-			gap     = float32(10)
-			height  = float32(92)
-		)
-		width := max((bounds.Width-gap*(columns-1))/columns, 0)
-		grid := components.BeginReorderGrid(canvas, theme, bounds, &state.reorderGrid.grid).HandleHitSlop(8)
-		labels := [6]string{
-			state.Text("主机一", "Host one"),
-			state.Text("主机二", "Host two"),
-			state.Text("主机三", "Host three"),
-			state.Text("主机四", "Host four"),
-			state.Text("主机五", "Host five"),
-			state.Text("主机六", "Host six"),
-		}
-		for order, index := range state.reorderGrid.order {
-			grid.Order(reorderGridDemoHandles.At(index), 0, order, false)
-		}
-		for order, index := range state.reorderGrid.order {
-			id := reorderGridDemoHandles.At(index)
-			column, row := order%columns, order/columns
-			card := gfx.Rect{
-				X:     bounds.X + float32(column)*(width+gap),
-				Y:     bounds.Y + float32(row)*(height+gap),
-				Width: width, Height: height,
-			}
-			edge := theme.Border
-			if state.reorderGrid.grid.Target() == id && state.reorderGrid.grid.Active() != id {
-				edge = theme.Primary
-			}
-			if state.reorderGrid.grid.Dragging() && state.reorderGrid.grid.Active() == id {
-				canvas.Elevate(card, theme.Metrics.RadiusControl, gfx.ShadowMD)
-				edge = theme.Primary
-			}
-			canvas.RoundedBorder(card, theme.Metrics.RadiusControl, 1, edge, theme.Background)
-			handle := gfx.Rect{X: card.X + 8, Y: card.Y + 12, Width: 28, Height: card.Height - 24}
-			content := gfx.Rect{X: card.X + 44, Y: card.Y, Width: max(card.Width-52, 0), Height: card.Height}
-			grid.Item(id, labels[index], 0, order, card, handle, false)
-			canvas.Label(labels[index], content, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-		}
-		grid.End()
-	},
-	pointer: func(state *State, event gfx.PointerEvent) gfx.EventResult {
-		move, result := state.reorderGrid.grid.Pointer(event)
-		state.reorderGrid.move(move)
-		return result
-	},
-	key: func(state *State, event gfx.KeyEvent) gfx.EventResult {
-		move, result := state.reorderGrid.grid.Key(event)
-		state.reorderGrid.move(move)
-		return result
-	},
+	paint: (*State).paintReorderGrid,
 	Examples: []Example{{
 		ID: "default", Title: "卡片排序",
 		Description: "调用方提供每个项目的位置与逻辑顺序；手柄负责拖动，方向键、Home / End 也可排序。",
@@ -108,5 +56,65 @@ var reorderGridComponent = Component{
 			"}\n" +
 			"// Keyboard events use dragState.Key(event) in the same way.\n" +
 			"_ = result",
+		PageSnippet: `// m.reorderGrid is a reordergridview.Grid.
+grid := m.reorderGrid
+grid.HandleHitSlop = 8
+grid.Draw = m.drawReorderGrid
+grid.Move = m.applyReorderMove
+grid.View(c, "Host order").FillWidth().Height(220)
+// Pointer, key and wheel callbacks are optional observers; the wrapper routes
+// reorder input to State either way.`,
+		PageSnippetZh: `// m.reorderGrid 是 reordergridview.Grid。
+grid := m.reorderGrid
+grid.HandleHitSlop = 8
+grid.Draw = m.drawReorderGrid
+grid.Move = m.applyReorderMove
+grid.View(c, "主机排序").FillWidth().Height(220)
+// Pointer、按键和滚轮回调是可选的观察者；重排输入始终由包装路由到 State。`,
 	}},
+}
+
+func (state *State) paintReorderGrid(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	demo := state.reorderGrid
+	state.drawPage(canvas, theme, size, 620, state.Text("Reorder Grid · 卡片顺序", "Reorder Grid · Card order"), func(c ui.C) {
+		reordergridview.View(c, state.Text("主机排序", "Host order"), &demo.view).FillWidth().Height(220)
+	})
+}
+
+// draw paints the caller's cards and declares each one through the layout. The
+// layout reports the dragged and target items with the caller's own identities.
+func (demo *reorderGridDemoState) draw(ctx *ui.DrawContext, layout reordergridview.Layout) {
+	labels := [6]string{
+		demo.state.Text("主机一", "Host one"),
+		demo.state.Text("主机二", "Host two"),
+		demo.state.Text("主机三", "Host three"),
+		demo.state.Text("主机四", "Host four"),
+		demo.state.Text("主机五", "Host five"),
+		demo.state.Text("主机六", "Host six"),
+	}
+	const (
+		columns = 3
+		gap     = float32(10)
+		height  = float32(92)
+	)
+	for order, index := range demo.order {
+		layout.Order(reorderGridDemoHandles.At(index), 0, order, false)
+	}
+	for order, index := range demo.order {
+		id := reorderGridDemoHandles.At(index)
+		card := layout.ItemBounds(columns, order, gap, height)
+		edge := ctx.Theme.Border
+		if layout.Target() == id && layout.Active() != id {
+			edge = ctx.Theme.Primary
+		}
+		if layout.Dragging() && layout.Active() == id {
+			ctx.Canvas.Elevate(card, ctx.Theme.Metrics.RadiusControl, gfx.ShadowMD)
+			edge = ctx.Theme.Primary
+		}
+		ctx.Canvas.RoundedBorder(card, ctx.Theme.Metrics.RadiusControl, 1, edge, ctx.Theme.Background)
+		handle := gfx.Rect{X: card.X + 8, Y: card.Y + 12, Width: 28, Height: card.Height - 24}
+		content := gfx.Rect{X: card.X + 44, Y: card.Y, Width: max(card.Width-52, 0), Height: card.Height}
+		layout.Item(id, labels[index], 0, order, card, handle, false)
+		ctx.Canvas.Label(labels[index], content, gfx.TextStyle{Size: ctx.Theme.Metrics.FontSizeM, Color: ctx.Theme.Foreground})
+	}
 }

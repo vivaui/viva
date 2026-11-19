@@ -59,7 +59,17 @@ options := []components.RadioOption{
 group := components.BeginRadioGroup(canvas, theme, bounds, options, selected)
 if id, ok := group.Paint().Clicked(); ok {
     selected = id
-}`, PageSnippet: ""},
+}`, PageSnippet: `plan := "Team"
+ui.RadioGroup(c).Children(func() {
+    ui.Radio(c, &plan, "Personal", "Personal")
+    ui.Radio(c, &plan, "Team", "Team")
+    ui.Radio(c, &plan, "Enterprise", "Enterprise").Disabled(true)
+})`, PageSnippetZh: `plan := "Team"
+ui.RadioGroup(c).Children(func() {
+    ui.Radio(c, &plan, "Personal", "Personal")
+    ui.Radio(c, &plan, "Team", "Team")
+    ui.Radio(c, &plan, "Enterprise", "Enterprise").Disabled(true)
+})`},
 	},
 }
 

@@ -18,7 +18,31 @@ var buttonGroupComponent = Component{
 group := components.BeginButtonGroup(canvas, theme, bounds, options)
 if id, ok := group.Paint().Clicked(); ok {
     align = id
-}`, Height: 170},
+}`, Height: 170, PageSnippet: `ui.Row(c).Children(func() {
+    if ui.Button(c, "Left").Outline().Clicked() {
+        m.align = "Left"
+    }
+    if ui.Button(c, "Center").Outline().Clicked() {
+        m.align = "Center"
+    }
+    if ui.Button(c, "Right").Outline().Clicked() {
+        m.align = "Right"
+    }
+})
+ui.Textf(c, "Current: %s", m.align).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Row(c).Children(func() {
+    if ui.Button(c, "左对齐").Outline().Clicked() {
+        m.align = "左对齐"
+    }
+    if ui.Button(c, "居中").Outline().Clicked() {
+        m.align = "居中"
+    }
+    if ui.Button(c, "右对齐").Outline().Clicked() {
+        m.align = "右对齐"
+    }
+})
+ui.Textf(c, "当前：%s", m.align).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 		{ID: "vertical", Title: "垂直操作", Description: "窄区域中使用相同选项垂直排列。", Snippet: `options := []components.ButtonGroupOption{
     {ID: tree.ID(page, "left"), Label: "Left", Variant: components.ButtonOutline},
     {ID: tree.ID(page, "center"), Label: "Center", Variant: components.ButtonOutline},
@@ -27,13 +51,49 @@ if id, ok := group.Paint().Clicked(); ok {
 group := components.BeginButtonGroup(canvas, theme, bounds, options).Vertical()
 if id, ok := group.Paint().Clicked(); ok {
     align = id
-}`, Height: 230},
+}`, Height: 230, PageSnippet: `ui.Column(c).Children(func() {
+    if ui.Button(c, "Left").Outline().Clicked() {
+        m.align = "Left"
+    }
+    if ui.Button(c, "Center").Outline().Clicked() {
+        m.align = "Center"
+    }
+    if ui.Button(c, "Right").Outline().Clicked() {
+        m.align = "Right"
+    }
+})
+ui.Textf(c, "Current: %s", m.align).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Column(c).Children(func() {
+    if ui.Button(c, "左对齐").Outline().Clicked() {
+        m.align = "左对齐"
+    }
+    if ui.Button(c, "居中").Outline().Clicked() {
+        m.align = "居中"
+    }
+    if ui.Button(c, "右对齐").Outline().Clicked() {
+        m.align = "右对齐"
+    }
+})
+ui.Textf(c, "当前：%s", m.align).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 		{ID: "disabled", Title: "禁用组合", Description: "整体禁用仍保留每个动作的语义。", Snippet: `options := []components.ButtonGroupOption{
     {ID: tree.ID(page, "left"), Label: "Left", Variant: components.ButtonOutline},
     {ID: tree.ID(page, "center"), Label: "Center", Variant: components.ButtonOutline},
     {ID: tree.ID(page, "right"), Label: "Right", Variant: components.ButtonOutline},
 }
-components.BeginButtonGroup(canvas, theme, bounds, options).Disabled().Paint()`, Height: 170},
+components.BeginButtonGroup(canvas, theme, bounds, options).Disabled().Paint()`, Height: 170, PageSnippet: `ui.Row(c).Children(func() {
+    ui.Button(c, "Left").Outline().Disabled(true)
+    ui.Button(c, "Center").Outline().Disabled(true)
+    ui.Button(c, "Right").Outline().Disabled(true)
+})
+ui.Text(c, "The whole group is disabled.").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Row(c).Children(func() {
+    ui.Button(c, "左对齐").Outline().Disabled(true)
+    ui.Button(c, "居中").Outline().Disabled(true)
+    ui.Button(c, "右对齐").Outline().Disabled(true)
+})
+ui.Text(c, "整个操作组已禁用。").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 		{ID: "variants", Title: "混合变体", Description: "描边、危险与链接动作沿用各自 Button 变体的配色。", Snippet: `options := []components.ButtonGroupOption{
     {ID: tree.ID(page, "save"), Label: "Save", Variant: components.ButtonOutline},
     {ID: tree.ID(page, "delete"), Label: "Delete", Variant: components.ButtonDestructiveOutline},
@@ -42,7 +102,31 @@ components.BeginButtonGroup(canvas, theme, bounds, options).Disabled().Paint()`,
 group := components.BeginButtonGroup(canvas, theme, bounds, options)
 if id, ok := group.Paint().Clicked(); ok {
     action = id
-}`, Height: 170},
+}`, Height: 170, PageSnippet: `ui.Row(c).Children(func() {
+    if ui.Button(c, "Save").Outline().Clicked() {
+        m.action = "Save"
+    }
+    if ui.Button(c, "Delete").DestructiveOutline().Clicked() {
+        m.action = "Delete"
+    }
+    if ui.Button(c, "Help").Link().Clicked() {
+        m.action = "Help"
+    }
+})
+ui.Textf(c, "Current: %s", m.action).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Row(c).Children(func() {
+    if ui.Button(c, "保存").Outline().Clicked() {
+        m.action = "保存"
+    }
+    if ui.Button(c, "删除").DestructiveOutline().Clicked() {
+        m.action = "删除"
+    }
+    if ui.Button(c, "帮助").Link().Clicked() {
+        m.action = "帮助"
+    }
+})
+ui.Textf(c, "当前：%s", m.action).
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 	},
 }
 

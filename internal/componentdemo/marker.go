@@ -10,19 +10,61 @@ var markerComponent = Component{
 	ID: "marker", Title: "Marker", Category: "Display", Summary: "用于分组和时间线的轻量元数据标记。",
 	paint: (*State).paintMarker,
 	Examples: []Example{
-		{ID: "default", Title: "元数据", Description: "图标与文本组成的标准标记。", Snippet: `// clockIcon is a caller-owned gfx.Icon; a nil icon paints none.
+		{ID: "default", Title: "元数据", Description: "图标与文本组成的标准标记。", Snippet: `// m.clockIcon is a caller-owned gfx.Icon; a nil icon paints none.
 components.Marker(canvas, theme, bounds, components.MarkerDefault,
-    &clockIcon, "Updated 2 minutes ago")`},
+    &m.clockIcon, "Updated 2 minutes ago")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
+    ui.Text(c, "Updated 2 minutes ago").Muted()
+})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
+    ui.Text(c, "Updated 2 minutes ago").Muted()
+})`},
 		{ID: "variants", Title: "三种形式", Description: "普通、居中分隔和底部边框形式。", Snippet: `// The separator centers its content between rules; the border draws one below.
 components.Marker(canvas, theme, bounds[0], components.MarkerDefault,
-    &checkIcon, "Default")
+    &m.checkIcon, "Default")
 components.Marker(canvas, theme, bounds[1], components.MarkerSeparator,
     nil, "October 2026")
 components.Marker(canvas, theme, bounds[2], components.MarkerBorder,
-    &clockIcon, "Release channel")`},
+    &m.clockIcon, "Release channel")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.checkIcon).Size(16, 16).Muted()
+    ui.Text(c, "Default").Muted()
+})
+ui.Row(c).Gap(10).Items(ui.Center).Children(func() {
+    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
+    ui.Text(c, "October 2026").Muted()
+    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
+})
+ui.Column(c).Gap(6).Children(func() {
+    ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+        ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
+        ui.Text(c, "Release channel").Muted()
+    })
+    ui.Divider(c)
+})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Icon(c, m.checkIcon).Size(16, 16).Muted()
+    ui.Text(c, "Default").Muted()
+})
+ui.Row(c).Gap(10).Items(ui.Center).Children(func() {
+    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
+    ui.Text(c, "October 2026").Muted()
+    ui.Column(c).Grow(1).Height(1).Background(c.Theme().Border)
+})
+ui.Column(c).Gap(6).Children(func() {
+    ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+        ui.Icon(c, m.clockIcon).Size(16, 16).Muted()
+        ui.Text(c, "Release channel").Muted()
+    })
+    ui.Divider(c)
+})`},
 		{ID: "progress", Title: "进行中", Description: "用 Spinner 代替图标表示正在进行的工作。", Snippet: `// Advance the phase from an animation frame and request the next paint.
 phase = (phase + 1) % 8
-components.MarkerProgress(canvas, theme, bounds, components.MarkerDefault, phase, "Thinking")`},
+components.MarkerProgress(canvas, theme, bounds, components.MarkerDefault, phase, "Thinking")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Spinner(c)
+    ui.Text(c, "Thinking").Muted()
+})`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Spinner(c)
+    ui.Text(c, "Thinking").Muted()
+})`},
 	},
 }
 

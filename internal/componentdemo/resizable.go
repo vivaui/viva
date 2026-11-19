@@ -66,7 +66,25 @@ layout := components.BeginResizable(canvas, theme, handle, bounds, fraction).
     Limits(0.2, 0.8).HandleSize(12).WithHandle().Disabled().
     Paint("Resize editor panels")
 canvas.Rounded(layout.First.Inset(gfx.All(8)), 6, theme.Muted)
-canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`, PageSnippet: ""},
+canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`, PageSnippet: `split := ui.SplitterState{Pos: 260}
+ui.Row(c).Height(200).Children(func() {
+    ui.Column(c).Width(split.Pos).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "Navigator")
+    })
+    ui.Splitter(c, &split).Mins(120, 200).Label("Resize editor panels").Disabled(true)
+    ui.Column(c).Grow(1).Basis(0).Background(c.Theme().CardElevated).Children(func() {
+        ui.Text(c, "Preview")
+    })
+})`, PageSnippetZh: `split := ui.SplitterState{Pos: 260}
+ui.Row(c).Height(200).Children(func() {
+    ui.Column(c).Width(split.Pos).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "Navigator")
+    })
+    ui.Splitter(c, &split).Mins(120, 200).Label("Resize editor panels").Disabled(true)
+    ui.Column(c).Grow(1).Basis(0).Background(c.Theme().CardElevated).Children(func() {
+        ui.Text(c, "Preview")
+    })
+})`},
 	},
 }
 

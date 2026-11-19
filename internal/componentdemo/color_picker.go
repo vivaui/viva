@@ -37,7 +37,15 @@ if m.picker.Applied() {
 // Use #RRGGBBAA in the caller-owned text editor.
 color, valid := components.ParseColorHex(hex, true)
 if valid { draft = draft.WithColor(color) }
-layout := components.BeginColorPicker(canvas, theme, bounds, options).Paint()`}},
+layout := components.BeginColorPicker(canvas, theme, bounds, options).Paint()`, PageSnippet: `// m.color starts as #3B82F6.
+ui.ColorPicker(c, &m.picker, &m.color, "Custom color")
+if m.picker.Applied() {
+    m.saved = m.color
+}`, PageSnippetZh: `// m.color 初始为 #3B82F6。
+ui.ColorPicker(c, &m.picker, &m.color, "自定义颜色")
+if m.picker.Applied() {
+    m.saved = m.color
+}`}},
 }
 
 var demoPickerFeature = tree.Feature("color-picker")

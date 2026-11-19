@@ -10,9 +10,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/text"
 )
 
@@ -42,17 +42,20 @@ type fixture struct {
 
 func main() {
 	page := &fixture{level: 20, editor: text.NewEditor("")}
-	_ = web.Run(web.Config{
-		Title:     "Viva web check",
-		Width:     640,
-		Height:    480,
-		Paint:     page.paint,
-		OnPointer: page.pointer,
-		OnKey:     page.key,
-		TextInput: web.EditorInputs(func(id gfx.ID) (*text.Editor, bool) {
-			return page.editor, id == editorID
-		}),
-	})
+	var input app.TextInput
+	_ = app.RunCanvas(app.Config{
+		Title:  "Viva web check",
+		Width:  640,
+		Height: 480,
+		Paint:  page.paint, OnPointer: page.pointer, OnKey: page.key,
+		TextInput: func(context app.TextInputContext) *app.TextInput {
+			if context.ID != editorID {
+				return nil
+			}
+			input = app.TextInput{Editor: page.editor}
+			return &input
+		},
+	}, nil)
 }
 
 func (f *fixture) paint(canvas *gfx.Canvas, size gfx.Size) {

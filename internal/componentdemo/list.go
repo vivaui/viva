@@ -186,9 +186,31 @@ var listComponent = Component{
 m.files.Header = func(i int) bool { return m.files[i].Header }
 m.files.Selection = &m.chosen
 m.files.Reorder = m.move
-m.files.RowWidth = 640`, PageSnippet: `theme := c.Theme()
-m.files.Key = func(i int) int { return m.rows[i].ID }
-m.files.Header = func(i int) bool { return m.rows[i].Header }
+m.files.RowWidth = 640`, PageSnippet: `type file struct {
+    ID               int
+    Name, Size, Date string
+    Header           bool
+}
+files := []file{
+    {ID: 1, Name: "Recent", Header: true},
+    {ID: 2, Name: "Report.pdf", Size: "2.4 MB", Date: "2026-11-02 14:20"},
+    {ID: 3, Name: "Notes.md", Size: "12 KB", Date: "2026-11-02 09:05"},
+    {ID: 4, Name: "Budget.xlsx", Size: "88 KB", Date: "2026-11-01 18:44"},
+    {ID: 5, Name: "Screenshot.png", Size: "1.1 MB", Date: "2026-11-01 11:30"},
+    {ID: 6, Name: "Documents", Header: true},
+    {ID: 7, Name: "Contract.pdf", Size: "640 KB", Date: "2026-10-31 16:12"},
+    {ID: 8, Name: "Roadmap.md", Size: "8 KB", Date: "2026-10-30 10:02"},
+    {ID: 9, Name: "Style guide.pdf", Size: "3.8 MB", Date: "2026-10-29 15:48"},
+    {ID: 10, Name: "Meeting notes.md", Size: "24 KB", Date: "2026-10-28 08:19"},
+    {ID: 11, Name: "Images", Header: true},
+    {ID: 12, Name: "Logo.svg", Size: "36 KB", Date: "2026-10-27 13:07"},
+    {ID: 13, Name: "Hero.jpg", Size: "4.2 MB", Date: "2026-10-26 19:26"},
+    {ID: 14, Name: "Icon set.zip", Size: "2.9 MB", Date: "2026-10-25 07:41"},
+    {ID: 15, Name: "Palette.png", Size: "310 KB", Date: "2026-10-24 12:55"},
+}
+theme := c.Theme()
+m.files.Key = func(i int) int { return files[i].ID }
+m.files.Header = func(i int) bool { return files[i].Header }
 m.files.Selection = &m.selection
 m.files.Reorder = m.reorder
 m.files.RowWidth = 640
@@ -199,8 +221,8 @@ ui.Row(c).Clip().Height(24).Children(func() {
         ui.Text(c, "Modified").Width(150).TextEnd().Bold()
     })
 })
-ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
-    item := m.rows[row.Index]
+ui.List(c, &m.files, len(files), func(row ui.ListRow) {
+    item := files[row.Index]
     if item.Header {
         row.Element.Height(32).PadX(8).Background(theme.Muted)
         ui.Text(row.C, item.Name).Bold()
@@ -213,9 +235,31 @@ ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
     ui.Text(row.C, item.Name).Grow(1).Ellipsis()
     ui.Text(row.C, item.Size).Width(90).TextEnd().Muted()
     ui.Text(row.C, item.Date).Width(150).TextEnd().Muted()
-}).Label("Files").Grow(1)`, PageSnippetZh: `theme := c.Theme()
-m.files.Key = func(i int) int { return m.rows[i].ID }
-m.files.Header = func(i int) bool { return m.rows[i].Header }
+}).Label("Files").Grow(1)`, PageSnippetZh: `type file struct {
+    ID               int
+    Name, Size, Date string
+    Header           bool
+}
+files := []file{
+    {ID: 1, Name: "最近", Header: true},
+    {ID: 2, Name: "Report.pdf", Size: "2.4 MB", Date: "2026-11-02 14:20"},
+    {ID: 3, Name: "Notes.md", Size: "12 KB", Date: "2026-11-02 09:05"},
+    {ID: 4, Name: "Budget.xlsx", Size: "88 KB", Date: "2026-11-01 18:44"},
+    {ID: 5, Name: "Screenshot.png", Size: "1.1 MB", Date: "2026-11-01 11:30"},
+    {ID: 6, Name: "文档", Header: true},
+    {ID: 7, Name: "Contract.pdf", Size: "640 KB", Date: "2026-10-31 16:12"},
+    {ID: 8, Name: "Roadmap.md", Size: "8 KB", Date: "2026-10-30 10:02"},
+    {ID: 9, Name: "Style guide.pdf", Size: "3.8 MB", Date: "2026-10-29 15:48"},
+    {ID: 10, Name: "Meeting notes.md", Size: "24 KB", Date: "2026-10-28 08:19"},
+    {ID: 11, Name: "图片", Header: true},
+    {ID: 12, Name: "Logo.svg", Size: "36 KB", Date: "2026-10-27 13:07"},
+    {ID: 13, Name: "Hero.jpg", Size: "4.2 MB", Date: "2026-10-26 19:26"},
+    {ID: 14, Name: "Icon set.zip", Size: "2.9 MB", Date: "2026-10-25 07:41"},
+    {ID: 15, Name: "Palette.png", Size: "310 KB", Date: "2026-10-24 12:55"},
+}
+theme := c.Theme()
+m.files.Key = func(i int) int { return files[i].ID }
+m.files.Header = func(i int) bool { return files[i].Header }
 m.files.Selection = &m.selection
 m.files.Reorder = m.reorder
 m.files.RowWidth = 640
@@ -226,8 +270,8 @@ ui.Row(c).Clip().Height(24).Children(func() {
         ui.Text(c, "修改时间").Width(150).TextEnd().Bold()
     })
 })
-ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
-    item := m.rows[row.Index]
+ui.List(c, &m.files, len(files), func(row ui.ListRow) {
+    item := files[row.Index]
     if item.Header {
         row.Element.Height(32).PadX(8).Background(theme.Muted)
         ui.Text(row.C, item.Name).Bold()

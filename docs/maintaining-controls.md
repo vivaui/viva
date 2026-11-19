@@ -43,6 +43,17 @@ There are two authoring paths, and they are not duplicates:
 may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
 copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
 
+Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chartview`,
+`ui/calendarview`, `ui/carouselview`, `ui/markdownview`, `ui/columnresizeview`,
+`ui/avatareditorview`, `ui/reordergridview`, `ui/avatarview`, `ui/attachmentview`,
+`ui/messageview`, `ui/messagescrollerview`, `ui/commandview`, `ui/menubarview`,
+`ui/navigationmenuview`, `ui/hovercardview`, `ui/multiselect`,
+`ui/hierarchypicker`).
+They import only `base`, `components`, `gfx`, `ui` and `window`, own stable
+handlers, and are never imported by package `ui`; importing one is the explicit
+opt-in. Do not add a new directory at the repository root for a page widget.
+See `private/docs/decisions/0086-opt-in-page-views.md`.
+
 ## Two forms of one control
 
 A control that ships with a look has a **styled form** and a **Base**:

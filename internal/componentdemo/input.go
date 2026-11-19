@@ -38,9 +38,9 @@ components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     Placeholder: "name@example.com", Invalid: invalid,
 })`, PageSnippet: `// m.email starts as "not-an-email".
 m.email.Invalid = !strings.Contains(m.email.Text(), "@")
-ui.TextField(c, &m.email, "Email", "name@example.com")`, PageSnippetZh: `// m.email starts as "not-an-email".
+ui.TextFieldID(c, ui.ID(c), &m.email, "Email", "name@example.com")`, PageSnippetZh: `// m.email 初始为 "not-an-email"。
 m.email.Invalid = !strings.Contains(m.email.Text(), "@")
-ui.TextField(c, &m.email, "Email", "name@example.com")`},
+ui.TextFieldID(c, ui.ID(c), &m.email, "Email", "name@example.com")`},
 		{ID: "states", Title: "禁用与只读", Description: "两个固定文本样本均不向平台 provider 暴露 Editor。", Snippet: `disabled := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, disabled.Rect(), components.InputSnapshot{
     ID: disabledID, Label: "Disabled",
@@ -50,7 +50,13 @@ readOnly := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, readOnly.Rect(), components.InputSnapshot{
     ID: readOnlyID, Label: "Read-only",
     Value: "Viva · read-only text", ReadOnly: true,
-})`},
+})`, PageSnippet: `// m.disabled starts as "Not editable"; m.readOnly as "Viva · read-only text".
+m.disabled.Disabled = true
+ui.TextFieldID(c, ui.ID(c), &m.disabled, "Disabled", "")
+ui.TextFieldID(c, ui.ID(c), &m.readOnly, "Read-only", "")`, PageSnippetZh: `// m.disabled 初始为 "不可编辑"；m.readOnly 初始为 "Viva · 只读文本"。
+m.disabled.Disabled = true
+ui.TextFieldID(c, ui.ID(c), &m.disabled, "Disabled", "")
+ui.TextFieldID(c, ui.ID(c), &m.readOnly, "Read-only", "")`},
 		{ID: "custom", Title: "圆角与字号", Description: "单个输入框用 Radius 和 FontSize 拥有自己的圆角与字号，光标、选区随字号缩放，旁边的输入框不受影响。", Snippet: `// A field's theme and text size belong to the call: the others keep theirs.
 field := ui.Slot(c).FillWidth().Height(40)
 components.PaintInput(canvas, theme.WithRadius(gfx.RadiusFull), field.Rect(), components.InputSnapshot{

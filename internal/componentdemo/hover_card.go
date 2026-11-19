@@ -1,36 +1,91 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/hovercardview"
 )
 
 var hoverCardComponent = Component{
-	ID: "hover-card", Title: "Hover Card", Category: "Overlays", Summary: "无计时器的同步锚点预览卡。",
+	ID: "hover-card", Title: "Hover Card", Category: "Overlays", Summary: "带延迟、可进入内容的页面锚点悬停预览卡。",
 	paint: (*State).paintHoverCard, pointer: (*State).pointerHoverCard,
 	Examples: []Example{
-		{ID: "default", Title: "个人资料", Description: "生产 HoverCard 根据锚点和视口放置预览。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
-if canvas.Hovered() == anchorID {
-    card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(), components.HoverCardOptions{
-        Layer: 1, Side: components.HoverCardBottom, BodyHeight: 24,
-    })
-    layout := card.Begin("Viva Framework", "Go-first, GPU-native desktop UI.")
-    canvas.Label("Native • Retained", layout.Body, labelStyle)
-    card.End()
-}`},
-		{ID: "sides", Title: "侧边放置", Description: "右侧放置在窄视口会自动限制到边缘。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
-card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(), components.HoverCardOptions{
-    Layer: 1, Side: components.HoverCardRight, Align: components.HoverCardAlignCenter,
-    ContentSize: gfx.Size{Width: min(280, size.Width-32)}, BodyHeight: 24,
-})
-layout := card.Begin("Viva Framework", "Placed right and clamped to the viewport.")
-canvas.Label("@viva-framework", layout.Body, labelStyle)
-card.End()`},
-		{ID: "disabled", Title: "禁用触发器", Description: "禁用声明不绘制预览表面。", Snippet: `trigger := ui.Button(c, "@viva-framework").Outline().Width(180).Hit(anchorID, "@viva-framework")
-card := components.BeginHoverCard(canvas, theme, viewport, trigger.Rect(),
-    components.HoverCardOptions{Layer: 1, Side: components.HoverCardBottom}).Disabled()
-card.Paint("Viva Framework", "A disabled trigger shows no preview.")`},
+		{ID: "default", Title: "个人资料", Description: "页面 HoverCard 使用锚点几何，在指针停留后打开，并允许指针进入卡片。", Snippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "Go-first, GPU-native desktop UI.",
+    Body: func() {
+        ui.Text(c, "Native • Retained • Allocation-aware").Muted()
+    },
+})`, PageSnippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "Go-first, GPU-native desktop UI.",
+    Body: func() {
+        ui.Text(c, "Native • Retained • Allocation-aware").Muted()
+    },
+    Open: &m.hoverOpen,
+})`, PageSnippetZh: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "Go 优先、GPU 原生的桌面 UI。",
+    Body: func() {
+        ui.Text(c, "原生 • 保留式 • 关注分配").Muted()
+    },
+    Open: &m.hoverOpen,
+})`},
+		{ID: "sides", Title: "侧边放置", Description: "右侧放置并在窄视口内由页面弹层收进边缘。", Snippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+card := &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "Placed right and clamped to the viewport.",
+    Body: func() {
+        ui.Text(c, "@viva-framework").Muted()
+    },
+}
+card.Side(hovercardview.Right).Align(hovercardview.Center)
+hovercardview.View(c, "@viva-framework", card)`, PageSnippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+card := &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "Placed right and clamped to the viewport.",
+    Body: func() {
+        ui.Text(c, "@viva-framework").Muted()
+    },
+    Open: &m.hoverOpen,
+}
+card.Side(hovercardview.Right).Align(hovercardview.Center)
+hovercardview.View(c, "@viva-framework", card)`, PageSnippetZh: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+card := &hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "放在右侧，并在视口边缘内收。",
+    Body: func() {
+        ui.Text(c, "@viva-framework").Muted()
+    },
+    Open: &m.hoverOpen,
+}
+card.Side(hovercardview.Right).Align(hovercardview.Center)
+hovercardview.View(c, "@viva-framework", card)`},
+		{ID: "disabled", Title: "禁用触发器", Description: "禁用声明不打开预览卡。", Snippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", (&hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "A disabled trigger shows no preview.",
+}).Disabled())`, PageSnippet: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", (&hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "A disabled trigger shows no preview.",
+}).Disabled())`, PageSnippetZh: `anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
+hovercardview.View(c, "@viva-framework", (&hovercardview.HoverCard{
+    Anchor:      anchor,
+    Title:       "Viva Framework",
+    Description: "禁用的触发器不显示预览。",
+}).Disabled())`},
 	},
 }
 
@@ -39,6 +94,8 @@ var (
 	hoverCardAnchor = tree.ID(hoverCardUI, "anchor")
 )
 
+// pointerHoverCard keeps the example's typed pointer state for the demo's
+// event tests. The card's hover timing is owned by hovercardview.View.
 func (state *State) pointerHoverCard(event gfx.PointerEvent) gfx.EventResult {
 	if event.Kind != gfx.PointerMove && event.Kind != gfx.PointerExit {
 		return gfx.EventResult{}
@@ -53,29 +110,39 @@ func (state *State) pointerHoverCard(event gfx.PointerEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: open || wasOpen, Repaint: open != wasOpen}
 }
 
+// hoverCardDemo is the demo's page-owned declaration: one card and one stable
+// body function, so a warm paint reuses them instead of allocating a closure
+// and a card every frame.
+type hoverCardDemo struct {
+	card     hovercardview.HoverCard
+	body     func()
+	bodyC    ui.C
+	bodyText string
+}
+
+func (demo *hoverCardDemo) paintBody() {
+	ui.Text(demo.bodyC, demo.bodyText).Muted()
+}
+
 func (state *State) paintHoverCard(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var trigger ui.Box
 	state.drawPage(canvas, theme, size, 760, state.Text("Hover Card · 悬停预览", "Hover Card · Hover preview"), func(c ui.C) {
-		trigger = ui.Button(c, "@viva-framework").Outline().Width(180).Self(ui.Start).Hit(hoverCardAnchor, "@viva-framework")
+		anchor := ui.Button(c, "@viva-framework").Outline().Width(180).Self(ui.Start).Hit(hoverCardAnchor, "@viva-framework")
+		demo := ui.State[hoverCardDemo](c, "hover-card-demo")
+		if demo.body == nil {
+			demo.body = demo.paintBody
+			demo.card.Body = demo.body
+		}
+		demo.bodyC = c
+		demo.bodyText = state.Text("原生 • 保留式 • 关注分配", "Native • Retained • Allocation-aware")
+		demo.card.Anchor = anchor
+		demo.card.Title = state.Text("Viva Framework", "Viva Framework")
+		demo.card.Description = state.Text("Go 优先、GPU 原生的桌面 UI。", "Go-first, GPU-native desktop UI.")
+		demo.card.Width(min(float32(280), size.Width-32))
+		demo.card.Side(hovercardview.Bottom).Align(hovercardview.Center)
+		demo.card.Disabled(state.exampleID == "disabled")
+		if state.exampleID == "sides" {
+			demo.card.Side(hovercardview.Right)
+		}
+		hovercardview.View(c, "@viva-framework", &demo.card)
 	})
-	anchor := trigger.Rect()
-	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
-	side := components.HoverCardBottom
-	align := components.HoverCardAlignStart
-	if state.exampleID == "sides" {
-		side = components.HoverCardRight
-		align = components.HoverCardAlignCenter
-	}
-	card := components.BeginHoverCard(canvas, theme, viewport, anchor, components.HoverCardOptions{Layer: 1, Side: side, Align: align, ContentSize: gfx.Size{Width: min(float32(280), size.Width-32)}, BodyHeight: 24})
-	if state.exampleID == "disabled" {
-		card = card.Disabled()
-	}
-	if state.flags&1 == 0 && canvas.Hovered() != hoverCardAnchor {
-		return
-	}
-	layout := card.Begin("Viva Framework", "Go-first, GPU-native desktop UI.")
-	if layout.Body.Width > 0 {
-		canvas.Label("Native • Retained • Allocation-aware", layout.Body, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground})
-	}
-	card.End()
 }

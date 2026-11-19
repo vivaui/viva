@@ -37,7 +37,21 @@ components.BeginSelect(canvas, theme, disabledBounds, components.SelectOptions{
     TriggerID: tree.ID(page, "disabled"), Label: "Unavailable",
     Placeholder: "Backend unavailable", Disabled: true,
     Size: components.SelectSizeSmall,
-})`, PageSnippet: ""},
+})`, PageSnippet: `backends := []string{"Metal", "Direct3D", "Vulkan"}
+var backend string
+ui.Select(c, &backend, backends, nil).
+    Label("Renderer").Placeholder("Select a backend")
+var unavailable string
+ui.Select(c, &unavailable, backends, nil).
+    Label("Unavailable").Placeholder("Backend unavailable").
+    Disabled(true).Small()`, PageSnippetZh: `backends := []string{"Metal", "Direct3D", "Vulkan"}
+var backend string
+ui.Select(c, &backend, backends, nil).
+    Label("Renderer").Placeholder("Select a backend")
+var unavailable string
+ui.Select(c, &unavailable, backends, nil).
+    Label("Unavailable").Placeholder("Backend unavailable").
+    Disabled(true).Small()`},
 	},
 }
 

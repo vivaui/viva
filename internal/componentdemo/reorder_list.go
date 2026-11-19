@@ -65,5 +65,25 @@ if move.Valid() {
     applyMove(move.From, move.To)
 }
 // Keyboard events can use dragState.Key(event) in the same way.
-_ = result`}},
+_ = result`, PageSnippet: `m.list.Key = func(i int) int { return i }
+m.list.Label = func(i int) string { return m.items[i] }
+m.list.Reorder = m.move
+m.list.Handle = m.handles
+ui.List(c, &m.list, len(m.items), func(row ui.ListRow) {
+    row.Element.Height(48).PadX(12).Gap(12).Items(ui.Center).Children(func() {
+        ui.Icon(row.C, m.gripIcon).Size(16, 16).
+            Hit(m.handles.At(row.Index), "Reorder "+m.items[row.Index])
+        ui.Text(row.C, m.items[row.Index]).Grow(1)
+    })
+}).Label("Shortcuts")`, PageSnippetZh: `m.list.Key = func(i int) int { return i }
+m.list.Label = func(i int) string { return m.items[i] }
+m.list.Reorder = m.move
+m.list.Handle = m.handles
+ui.List(c, &m.list, len(m.items), func(row ui.ListRow) {
+    row.Element.Height(48).PadX(12).Gap(12).Items(ui.Center).Children(func() {
+        ui.Icon(row.C, m.gripIcon).Size(16, 16).
+            Hit(m.handles.At(row.Index), "重新排序 "+m.items[row.Index])
+        ui.Text(row.C, m.items[row.Index]).Grow(1)
+    })
+}).Label("快捷入口")`}},
 }

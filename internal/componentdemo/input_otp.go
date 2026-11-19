@@ -20,14 +20,20 @@ var inputOTPComponent = Component{
     ID: tree.ID(page, "code"), Label: "Verification code", Value: code,
     Slots: 6, GroupSize: 3, HasActiveSlot: true,
     ActiveSlot: min(len(code), 5), ShowCaret: true,
-})`},
+})`, PageSnippet: `code := "482"
+ui.TextField(c, &code, "Verification code", "000000")`, PageSnippetZh: `code := "482"
+ui.TextField(c, &code, "Verification code", "000000")`},
 		{ID: "states", Title: "验证码状态", Description: "选择、输入法组合与错误状态。", Snippet: `components.PaintInputOTP(canvas, theme, bounds, components.InputOTPSnapshot{
     ID: tree.ID(page, "code"), Label: "Verification code", Value: "482901",
     Slots: 6, GroupSize: 3, Invalid: true, Focused: true, ShowCaret: true,
     HasSelection: true, SelectionStart: 1, SelectionEnd: 3,
     HasComposition: true, CompositionStart: 3, CompositionEnd: 5,
     ActiveSlot: 0,
-})`},
+})`, PageSnippet: `// m.code starts as "482901".
+m.code.Invalid = true
+ui.TextFieldID(c, ui.ID(c), &m.code, "Verification code", "000000")`, PageSnippetZh: `// m.code 初始为 "482901"。
+m.code.Invalid = true
+ui.TextFieldID(c, ui.ID(c), &m.code, "Verification code", "000000")`},
 	},
 }
 

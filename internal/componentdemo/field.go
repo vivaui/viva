@@ -35,6 +35,14 @@ field := components.BeginField(canvas, theme, bounds).For(email).
 control := field.Paint("Work email", "Used only for release notifications.", "")
 components.PaintInput(canvas, theme, control, components.InputSnapshot{
     ID: email, Label: "Work email", Value: value,
+})`, PageSnippet: `m.field.Description = "Used only for release notifications."
+// m.email starts as "team@viva.dev".
+ui.FormField(c, &m.field, "Work email").Children(func() {
+    ui.TextField(c, &m.email, "Work email", "")
+})`, PageSnippetZh: `m.field.Description = "Used only for release notifications."
+// m.email starts as "team@viva.dev".
+ui.FormField(c, &m.field, "Work email").Children(func() {
+    ui.TextField(c, &m.email, "Work email", "")
 })`},
 		{ID: "invalid", Title: "错误状态", Description: "必填、无效元数据与无效输入保持一致。", Snippet: `email := tree.ID(page, "email")
 invalid := !strings.Contains(value, "@")

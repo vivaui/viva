@@ -25,15 +25,15 @@ var splitButtonComponent = Component{
 }).Paint()
 primary, menu := result.Clicked()`,
 		PageSnippet: `d := ui.SplitButton(c, ui.SplitButtonSpec{
-    PrimaryID: saveID, MenuID: moreID,
+    PrimaryID: m.saveID, MenuID: m.moreID,
     Label: "Save", MenuLabel: "More save actions",
     Open: m.menuOpen,
 })
 if id, ok := d.Chosen(); ok {
     switch id {
-    case saveID:
+    case m.saveID:
         m.saved++
-    case moreID:
+    case m.moreID:
         m.menuOpen = !m.menuOpen
     }
 }
@@ -46,15 +46,15 @@ if m.menuOpen {
 }
 ui.Text(c, status).Muted()
 ui.Wrap(c, "The primary and menu targets have separate keyboard focus and accessible names.").Muted()`, PageSnippetZh: `d := ui.SplitButton(c, ui.SplitButtonSpec{
-    PrimaryID: saveID, MenuID: moreID,
+    PrimaryID: m.saveID, MenuID: m.moreID,
     Label: "保存", MenuLabel: "更多保存操作",
     Open: m.menuOpen,
 })
 if id, ok := d.Chosen(); ok {
     switch id {
-    case saveID:
+    case m.saveID:
         m.saved++
-    case moreID:
+    case m.moreID:
         m.menuOpen = !m.menuOpen
     }
 }

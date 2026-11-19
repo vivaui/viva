@@ -167,6 +167,10 @@ func ToggleBase(c C, Value *bool, Label string) Box {
 
 func Toggle(c C, Value *bool, Label string) Box { return base.Toggle(c, Value, Label) }
 
+func DisclosureBase(c C, Value *bool, Label string) Box {
+	return base.DisclosureBase(c, Value, Label)
+}
+
 func Control(c C, Label string, h *Handlers) Box { useControls(); return base.Control(c, Label, h) }
 
 func FormField(c C, state *FormFieldState, Label string) Box {
@@ -213,11 +217,6 @@ func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box 
 func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T) string) Box {
 	useSelect()
 	return base.SelectID(c, ID, Value, choices, Label)
-}
-
-func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
-	useSelect()
-	return base.SelectIcon(c, Value, choices, Label, icon)
 }
 
 func SelectBase[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {

@@ -23,8 +23,7 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 360,
     Description: "Changes remain caller-owned until Save.",
 }, func() {
-    ui.Text(c, "Rendering backend")
-    ui.Text(c, "Native GPU")
+    ui.TextField(c, &m.backend, "Rendering backend", "")
 }, func() {
     if ui.Button(c, "Save changes").Clicked() {
         open = false
@@ -34,8 +33,7 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 360,
     Description: "Changes remain caller-owned until Save.",
 }, func() {
-    ui.Text(c, "Rendering backend")
-    ui.Text(c, "Native GPU")
+    ui.TextField(c, &m.backend, "Rendering backend", "")
 }, func() {
     if ui.Button(c, "Save changes").Clicked() {
         open = false
@@ -52,10 +50,9 @@ sheet.End()
 if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := true
 ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerBottom, Size: 230,
-    Description: "Changes remain caller-owned until Save.",
+    Description: "Same API, bottom edge.",
 }, func() {
-    ui.Text(c, "Rendering backend")
-    ui.Text(c, "Native GPU")
+    ui.TextField(c, &m.backend, "Rendering backend", "")
 }, func() {
     if ui.Button(c, "Save changes").Clicked() {
         open = false
@@ -63,10 +60,9 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
 })`, PageSnippetZh: `open := true
 ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerBottom, Size: 230,
-    Description: "Changes remain caller-owned until Save.",
+    Description: "Same API, bottom edge.",
 }, func() {
-    ui.Text(c, "Rendering backend")
-    ui.Text(c, "Native GPU")
+    ui.TextField(c, &m.backend, "Rendering backend", "")
 }, func() {
     if ui.Button(c, "Save changes").Clicked() {
         open = false

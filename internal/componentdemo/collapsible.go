@@ -16,13 +16,47 @@ content := collapsible.Paint("3 build artifacts", open, 112)
 if canvas.Clicked(trigger) {
     open = !open
 }
-canvas.Rounded(content, theme.Metrics.RadiusSurface, theme.Muted)`},
+canvas.Rounded(content, theme.Metrics.RadiusSurface, theme.Muted)`, PageSnippet: `ui.Collapsible(c, &m.builds, "3 build artifacts", func() {
+    for _, line := range []string{
+        "viva-darwin-arm64      3.8 MiB",
+        "viva-windows-amd64     4.1 MiB",
+        "viva-linux-amd64       3.9 MiB",
+    } {
+        ui.Text(c, line).Mono().Muted()
+    }
+})`, PageSnippetZh: `ui.Collapsible(c, &m.builds, "3 个构建产物", func() {
+    for _, line := range []string{
+        "viva-darwin-arm64      3.8 MiB",
+        "viva-windows-amd64     4.1 MiB",
+        "viva-linux-amd64       3.9 MiB",
+    } {
+        ui.Text(c, line).Mono().Muted()
+    }
+})`},
 		{ID: "disabled", Title: "禁用状态", Description: "保持展开快照但禁止触发。", Snippet: `trigger := tree.ID(page, "trigger")
 collapsible := components.BeginCollapsible(canvas, theme, trigger, bounds).Disabled()
 content := collapsible.Paint("3 build artifacts", open, 112)
 if content.Height > 0 {
     canvas.Rounded(content, theme.Metrics.RadiusSurface, theme.Muted)
-}`},
+}`, PageSnippet: `m.builds.Disabled = true
+ui.Collapsible(c, &m.builds, "3 build artifacts", func() {
+    for _, line := range []string{
+        "viva-darwin-arm64      3.8 MiB",
+        "viva-windows-amd64     4.1 MiB",
+        "viva-linux-amd64       3.9 MiB",
+    } {
+        ui.Text(c, line).Mono().Muted()
+    }
+})`, PageSnippetZh: `m.builds.Disabled = true
+ui.Collapsible(c, &m.builds, "3 个构建产物", func() {
+    for _, line := range []string{
+        "viva-darwin-arm64      3.8 MiB",
+        "viva-windows-amd64     4.1 MiB",
+        "viva-linux-amd64       3.9 MiB",
+    } {
+        ui.Text(c, line).Mono().Muted()
+    }
+})`},
 	},
 }
 

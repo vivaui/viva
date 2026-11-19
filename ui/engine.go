@@ -1,8 +1,21 @@
 package ui
 
-import "github.com/vivaui/viva/base"
+import (
+	"github.com/vivaui/viva/base"
+	"github.com/vivaui/viva/style"
+)
 
 // The engine is base's; ui keeps it under the names applications use.
+
+// PopoverSide is the edge of an anchor a popover opens on.
+type PopoverSide = style.PopoverSide
+
+const (
+	PopoverBottom = style.PopoverBottom
+	PopoverTop    = style.PopoverTop
+	PopoverRight  = style.PopoverRight
+	PopoverLeft   = style.PopoverLeft
+)
 
 type AlertDialogDecl = base.AlertDialogDecl
 type AlertDialogSpec = base.AlertDialogSpec

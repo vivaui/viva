@@ -50,7 +50,7 @@ drawer.End()
 if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
 ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 300,
-    Description: "Applies immediately.",
+    Description: "Same modal contract on the right edge.",
 }, func() {
     ui.Text(c, "Native settings.")
 }, func() {
@@ -60,7 +60,7 @@ ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
 })`, PageSnippetZh: `open := true
 ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 300,
-    Description: "Applies immediately.",
+    Description: "Same modal contract on the right edge.",
 }, func() {
     ui.Text(c, "Native settings.")
 }, func() {
@@ -73,7 +73,23 @@ ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
 }).WithHandle().Disabled()
 layout := drawer.Begin("Workspace settings", "Structure remains visible; interaction is off.")
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
-drawer.End()`, PageSnippet: ""},
+drawer.End()`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Disabled: true,
+    Description: "Structure remains visible; interaction is off.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    ui.Button(c, "Save changes").Disabled(true)
+})`, PageSnippetZh: `open := true
+ui.Drawer(c, &open, "工作区设置", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Disabled: true,
+    Description: "结构保持可见，交互已关闭。",
+}, func() {
+    ui.Text(c, "原生设置。")
+}, func() {
+    ui.Button(c, "保存更改").Disabled(true)
+})`},
 	},
 }
 

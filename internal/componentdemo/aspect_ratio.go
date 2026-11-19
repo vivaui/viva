@@ -15,12 +15,24 @@ width := min(size.Width-48, float32(520))
 height := components.AspectRatio(gfx.Rect{Width: width}, ratio).Height
 media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), ratio)
-canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`},
+canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`, PageSnippet: `ui.Column(c).FillWidth().MaxWidth(520).Height(293).Center().
+    Radius(c.Theme().Metrics.RadiusSurface).Background(c.Theme().Muted).Children(func() {
+    ui.Text(c, "16:9 release preview").Muted()
+})`, PageSnippetZh: `ui.Column(c).FillWidth().MaxWidth(520).Height(293).Center().
+    Radius(c.Theme().Metrics.RadiusSurface).Background(c.Theme().Muted).Children(func() {
+    ui.Text(c, "16:9 发布预览").Muted()
+})`},
 		{ID: "square", Title: "方形封面", Description: "同一 API 使用 1:1 比例。", Snippet: `width := min(size.Width-48, float32(250))
 height := components.AspectRatio(gfx.Rect{Width: width}, 1).Height
 media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), 1)
-canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`},
+canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`, PageSnippet: `ui.Column(c).Size(250, 250).Center().
+    Radius(c.Theme().Metrics.RadiusSurface).Background(c.Theme().Muted).Children(func() {
+    ui.Text(c, "1:1 cover").Muted()
+})`, PageSnippetZh: `ui.Column(c).Size(250, 250).Center().
+    Radius(c.Theme().Metrics.RadiusSurface).Background(c.Theme().Muted).Children(func() {
+    ui.Text(c, "1:1 封面").Muted()
+})`},
 	},
 }
 

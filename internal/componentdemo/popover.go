@@ -16,11 +16,11 @@ if trigger.Clicked() {
 }
 if open {
     components.BeginPopover(canvas, theme, viewport, trigger.Rect(), components.PopoverOptions{
-        Layer: 3, Scope: scope, DismissID: dismissID, Side: components.PopoverBottom,
+        Layer: 3, Scope: m.scope, DismissID: m.dismissID, Side: components.PopoverBottom,
         Align: components.PopoverAlignStart, SideOffset: 8, AnchorDismiss: true,
     }).Paint("Native surface", "Clamped to the viewport without timers.")
 }
-if canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := false
+if canvas.Clicked(m.dismissID) { open = false }`, PageSnippet: `open := false
 trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
@@ -28,7 +28,7 @@ if trigger.Clicked() {
 ui.PopoverWith(c, trigger, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
-    Scope: scope, DismissID: dismissID,
+    Scope: m.scope, DismissID: m.dismissID,
 }, &open, func() {})`, PageSnippetZh: `open := false
 trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
@@ -37,14 +37,14 @@ if trigger.Clicked() {
 ui.PopoverWith(c, trigger, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
-    Scope: scope, DismissID: dismissID,
+    Scope: m.scope, DismissID: m.dismissID,
 }, &open, func() {})`},
 		{ID: "custom-body", Title: "自定义内容", Description: "使用 Begin/End 槽位在浮层正文中追加状态。", Snippet: `label := "Diagnostics disabled"
 if enabled {
     label = "Diagnostics enabled"
 }
 popover := components.BeginPopover(canvas, theme, viewport, anchor, components.PopoverOptions{
-    Layer: 3, Scope: scope, DismissID: dismissID, ContentSize: gfx.Size{Width: 288}, BodyHeight: 34,
+    Layer: 3, Scope: m.scope, DismissID: m.dismissID, ContentSize: gfx.Size{Width: 288}, BodyHeight: 34,
 })
 layout := popover.Begin("Build status", "The stable host owns this overlay state.")
 if components.BeginButton(canvas, theme, actionID, layout.Body).Secondary(label).Clicked() {
@@ -59,7 +59,7 @@ enabled := false
 ui.PopoverWith(c, trigger, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
-    Scope: scope, DismissID: dismissID,
+    Scope: m.scope, DismissID: m.dismissID,
 }, &open, func() {
     label := "Diagnostics disabled"
     if enabled {
@@ -77,7 +77,7 @@ enabled := false
 ui.PopoverWith(c, trigger, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
-    Scope: scope, DismissID: dismissID,
+    Scope: m.scope, DismissID: m.dismissID,
 }, &open, func() {
     label := "Diagnostics disabled"
     if enabled {

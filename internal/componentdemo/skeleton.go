@@ -17,7 +17,19 @@ line3 := ui.Slot(c).WidthPercent(64).Height(14)
 components.BeginSkeleton(canvas, theme, title.Rect()).Paint()
 components.BeginSkeleton(canvas, theme, line1.Rect()).Radius(4).Paint()
 components.BeginSkeleton(canvas, theme, line2.Rect()).Radius(4).Paint()
-components.BeginSkeleton(canvas, theme, line3.Rect()).Radius(4).Paint()`},
+components.BeginSkeleton(canvas, theme, line3.Rect()).Radius(4).Paint()`, PageSnippet: `ui.Column(c).FillWidth().MaxWidth(236).Height(22).
+    Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)
+ui.Column(c).Gap(12).Children(func() {
+    ui.Column(c).FillWidth().Height(14).Radius(4).Background(c.Theme().Muted)
+    ui.Column(c).WidthPercent(82).Height(14).Radius(4).Background(c.Theme().Muted)
+    ui.Column(c).WidthPercent(64).Height(14).Radius(4).Background(c.Theme().Muted)
+})`, PageSnippetZh: `ui.Column(c).FillWidth().MaxWidth(236).Height(22).
+    Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)
+ui.Column(c).Gap(12).Children(func() {
+    ui.Column(c).FillWidth().Height(14).Radius(4).Background(c.Theme().Muted)
+    ui.Column(c).WidthPercent(82).Height(14).Radius(4).Background(c.Theme().Muted)
+    ui.Column(c).WidthPercent(64).Height(14).Radius(4).Background(c.Theme().Muted)
+})`},
 		{ID: "profile", Title: "资料卡", Description: "圆形头像与多行资料占位组合。", Snippet: `avatar := ui.Slot(c).Size(56, 56)
 name := ui.Slot(c).Size(172, 16)
 handle := ui.Slot(c).Size(118, 12)
@@ -25,14 +37,50 @@ body := ui.Slot(c).Height(92)
 components.BeginSkeleton(canvas, theme, avatar.Rect()).Circle().Paint()
 components.BeginSkeleton(canvas, theme, name.Rect()).Paint()
 components.BeginSkeleton(canvas, theme, handle.Rect()).Radius(4).Paint()
-components.BeginSkeleton(canvas, theme, body.Rect()).Paint()`},
+components.BeginSkeleton(canvas, theme, body.Rect()).Paint()`, PageSnippet: `ui.Row(c).Gap(16).Children(func() {
+    ui.Column(c).Size(56, 56).Radius(28).Background(c.Theme().Muted)
+    ui.Column(c).Gap(10).Children(func() {
+        ui.Column(c).Size(172, 16).
+            Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)
+        ui.Column(c).Size(118, 12).Radius(4).Background(c.Theme().Muted)
+    })
+})
+ui.Column(c).FillWidth().Height(92).
+    Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)`, PageSnippetZh: `ui.Row(c).Gap(16).Children(func() {
+    ui.Column(c).Size(56, 56).Radius(28).Background(c.Theme().Muted)
+    ui.Column(c).Gap(10).Children(func() {
+        ui.Column(c).Size(172, 16).
+            Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)
+        ui.Column(c).Size(118, 12).Radius(4).Background(c.Theme().Muted)
+    })
+})
+ui.Column(c).FillWidth().Height(92).
+    Radius(c.Theme().Metrics.RadiusControl).Background(c.Theme().Muted)`},
 		{ID: "phases", Title: "显式相位", Description: "由调用方提供固定动画相位；组件自身不启动计时器。", Snippet: `rows := [4]ui.Box{}
 for index := range rows {
     rows[index] = ui.Slot(c).Height(20)
 }
 for index, phase := range [...]float32{0, 0.25, 0.50, 0.75} {
     components.BeginSkeleton(canvas, theme, rows[index].Rect()).Radius(5).Phase(phase).Paint()
-}`},
+}`, PageSnippet: `ui.Column(c).Gap(22).Children(func() {
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(1)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.75)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.5)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.75)
+})`, PageSnippetZh: `ui.Column(c).Gap(22).Children(func() {
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(1)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.75)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.5)
+    ui.Column(c).FillWidth().Height(20).Radius(5).
+        Background(c.Theme().Muted).Opacity(0.75)
+})`},
 	},
 }
 

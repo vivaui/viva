@@ -29,7 +29,7 @@ var imageViewComponent = Component{
 		components.PaintImageView(canvas, theme, gfx.Rect{X: 24, Y: 24, Width: max(0, size.Width-48), Height: max(0, size.Height-48)}, components.ImageViewOptions{Bitmap: *state.imageBitmap, Zoom: zoom})
 	},
 	Examples: []Example{
-		{ID: "fit", Title: "适配视口", Description: "应用提供已解码且有界的像素，组件只负责绘制。", Height: 260, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap})`},
-		{ID: "actual", Title: "一个图像像素对应一个设备像素", Description: "Zoom 1 在分数 DPI 缩放下保持实际像素尺寸。", Height: 260, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap, Zoom: 1})`},
+		{ID: "fit", Title: "适配视口", Description: "应用提供已解码且有界的像素，组件只负责绘制。", Height: 260, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap})`, PageSnippet: `ui.Image(c, m.bitmap).Fill()`, PageSnippetZh: `ui.Image(c, m.bitmap).Fill()`},
+		{ID: "actual", Title: "一个图像像素对应一个设备像素", Description: "Zoom 1 在分数 DPI 缩放下保持实际像素尺寸。", Height: 260, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap, Zoom: 1})`, PageSnippet: `ui.Image(c, m.bitmap).Size(float32(m.bitmap.Width), float32(m.bitmap.Height))`, PageSnippetZh: `ui.Image(c, m.bitmap).Size(float32(m.bitmap.Width), float32(m.bitmap.Height))`},
 	},
 }

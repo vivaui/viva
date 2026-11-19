@@ -21,34 +21,34 @@ ui.Column(c).FillWidth().Pad(components.CardSpacing(theme, size)).Gap(8).
         ui.Text(c, "0").FontSize(28).Bold()
         ui.Divider(c)
         ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
-    })`, PageSnippet: `theme := c.Theme()
-ring := theme.Foreground
+    })`, PageSnippet: `look := c.Theme()
+ring := look.Foreground
 ring.Alpha *= 0.10
 ui.Column(c).FillWidth().Pad(24).Gap(8).
-    Background(theme.Card).Border(1, ring).
-    Radius(theme.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
-        ui.Text(c, "Native preview").FontSize(theme.Metrics.FontSizeM + 2).
+    Background(look.Card).Border(1, ring).
+    Radius(look.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
+        ui.Text(c, "Native preview").FontSize(look.Metrics.FontSizeM + 2).
             Weight(gfx.WeightSemibold)
         ui.Text(c, "Keeps scene nodes and repaints only when content changes.").
-            FontSize(theme.Metrics.FontSizeS).Muted()
+            FontSize(look.Metrics.FontSizeS).Muted()
         ui.Text(c, "0").FontSize(28).Bold()
-        ui.Text(c, "idle GPU submissions").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "idle GPU submissions").FontSize(look.Metrics.FontSizeS).Muted()
         ui.Divider(c)
-        ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
-    })`, PageSnippetZh: `theme := c.Theme()
-ring := theme.Foreground
+        ui.Text(c, "Measured locally").FontSize(look.Metrics.FontSizeS).Muted()
+    })`, PageSnippetZh: `look := c.Theme()
+ring := look.Foreground
 ring.Alpha *= 0.10
 ui.Column(c).FillWidth().Pad(24).Gap(8).
-    Background(theme.Card).Border(1, ring).
-    Radius(theme.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
-        ui.Text(c, "Native preview").FontSize(theme.Metrics.FontSizeM + 2).
+    Background(look.Card).Border(1, ring).
+    Radius(look.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
+        ui.Text(c, "Native preview").FontSize(look.Metrics.FontSizeM + 2).
             Weight(gfx.WeightSemibold)
         ui.Text(c, "保留场景节点，只在内容变化时重绘。").
-            FontSize(theme.Metrics.FontSizeS).Muted()
+            FontSize(look.Metrics.FontSizeS).Muted()
         ui.Text(c, "0").FontSize(28).Bold()
-        ui.Text(c, "idle GPU submissions").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "idle GPU submissions").FontSize(look.Metrics.FontSizeS).Muted()
         ui.Divider(c)
-        ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "Measured locally").FontSize(look.Metrics.FontSizeS).Muted()
     })`},
 		{ID: "compact", Title: "紧凑卡片", Description: "小尺寸使用生产 CardSpacing 缩减内边距。", Snippet: `size := components.CardSizeSmall
 ring := theme.Foreground
@@ -59,34 +59,34 @@ ui.Column(c).FillWidth().Pad(components.CardSpacing(theme, size)).Gap(8).
         ui.Text(c, "Native preview").FontSize(theme.Metrics.FontSizeM).
             Weight(gfx.WeightSemibold)
         ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
-    })`, PageSnippet: `theme := c.Theme()
-ring := theme.Foreground
+    })`, PageSnippet: `look := c.Theme()
+ring := look.Foreground
 ring.Alpha *= 0.10
 ui.Column(c).FillWidth().Pad(16).Gap(8).
-    Background(theme.Card).Border(1, ring).
-    Radius(theme.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
-        ui.Text(c, "Native preview").FontSize(theme.Metrics.FontSizeM).
+    Background(look.Card).Border(1, ring).
+    Radius(look.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
+        ui.Text(c, "Native preview").FontSize(look.Metrics.FontSizeM).
             Weight(gfx.WeightSemibold)
         ui.Text(c, "Keeps scene nodes and repaints only when content changes.").
-            FontSize(theme.Metrics.FontSizeS).Muted()
+            FontSize(look.Metrics.FontSizeS).Muted()
         ui.Text(c, "0").FontSize(28).Bold()
-        ui.Text(c, "idle GPU submissions").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "idle GPU submissions").FontSize(look.Metrics.FontSizeS).Muted()
         ui.Divider(c)
-        ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
-    })`, PageSnippetZh: `theme := c.Theme()
-ring := theme.Foreground
+        ui.Text(c, "Measured locally").FontSize(look.Metrics.FontSizeS).Muted()
+    })`, PageSnippetZh: `look := c.Theme()
+ring := look.Foreground
 ring.Alpha *= 0.10
 ui.Column(c).FillWidth().Pad(16).Gap(8).
-    Background(theme.Card).Border(1, ring).
-    Radius(theme.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
-        ui.Text(c, "Native preview").FontSize(theme.Metrics.FontSizeM).
+    Background(look.Card).Border(1, ring).
+    Radius(look.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).Children(func() {
+        ui.Text(c, "Native preview").FontSize(look.Metrics.FontSizeM).
             Weight(gfx.WeightSemibold)
         ui.Text(c, "保留场景节点，只在内容变化时重绘。").
-            FontSize(theme.Metrics.FontSizeS).Muted()
+            FontSize(look.Metrics.FontSizeS).Muted()
         ui.Text(c, "0").FontSize(28).Bold()
-        ui.Text(c, "idle GPU submissions").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "idle GPU submissions").FontSize(look.Metrics.FontSizeS).Muted()
         ui.Divider(c)
-        ui.Text(c, "Measured locally").FontSize(theme.Metrics.FontSizeS).Muted()
+        ui.Text(c, "Measured locally").FontSize(look.Metrics.FontSizeS).Muted()
     })`},
 	},
 }

@@ -17,13 +17,49 @@ breadcrumb.AddLink(links.At(1), "Viva")
 breadcrumb.AddCurrent("Preview")
 if index, ok := canvas.ClickedIn(links); ok {
     selected = int32(index + 1)
-}`},
+}`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Text(c, "Workspace").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Viva").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Preview")
+})
+ui.Text(c, "Choose a parent path to go back.").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Text(c, "工作区").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Viva").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "预览")
+})
+ui.Text(c, "选择上级路径以返回。").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 		{ID: "overflow", Title: "折叠路径", Description: "长层级使用省略项保持紧凑。", Snippet: `links := tree.Sub(page, tree.Name("link"))
 breadcrumb := components.BeginBreadcrumb(canvas, theme, trail.Rect())
 breadcrumb.AddLink(links.At(0), "Workspace")
 breadcrumb.AddEllipsis(tree.ID(page, "more"))
 breadcrumb.AddLink(links.At(1), "Components")
-breadcrumb.AddCurrent("Breadcrumb")`},
+breadcrumb.AddCurrent("Breadcrumb")`, PageSnippet: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Text(c, "Workspace").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "…").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Components").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Breadcrumb")
+})
+ui.Text(c, "Choose a parent path to go back.").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`, PageSnippetZh: `ui.Row(c).Gap(6).Items(ui.Center).Children(func() {
+    ui.Text(c, "工作区").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "…").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "组件").Muted()
+    ui.Text(c, "›").Muted()
+    ui.Text(c, "Breadcrumb")
+})
+ui.Text(c, "选择上级路径以返回。").
+    FontSize(c.Theme().Metrics.FontSizeS).Muted()`},
 	},
 }
 

@@ -21,13 +21,13 @@ layout := components.BeginItem(canvas, theme, id, bounds).
 canvas.Rounded(layout.Media, 6, theme.Primary)
 if canvas.Clicked(id) {
     selected = !selected
-}`, PageSnippet: `theme := c.Theme()
+}`, PageSnippet: `look := c.Theme()
 trailing := "Open"
 if m.selected {
     trailing = "Selected"
 }
 row := ui.Row(c).FillWidth().Pad(12).Gap(12).Items(ui.Center).Hit(ui.ID(c), "Release notes")
-ui.Row(c).Size(24, 24).Radius(6).Background(theme.Primary)
+ui.Row(c).Size(24, 24).Radius(6).Background(look.Primary)
 ui.Column(c).Grow(1).Gap(2).Children(func() {
     ui.Text(c, "Release notes").Bold()
     ui.Text(c, "Latest runtime changes.").Muted()
@@ -35,13 +35,13 @@ ui.Column(c).Grow(1).Gap(2).Children(func() {
 ui.Text(c, trailing)
 if row.Clicked() {
     m.selected = !m.selected
-}`, PageSnippetZh: `theme := c.Theme()
+}`, PageSnippetZh: `look := c.Theme()
 trailing := "Open"
 if m.selected {
     trailing = "Selected"
 }
 row := ui.Row(c).FillWidth().Pad(12).Gap(12).Items(ui.Center).Hit(ui.ID(c), "Release notes")
-ui.Row(c).Size(24, 24).Radius(6).Background(theme.Primary)
+ui.Row(c).Size(24, 24).Radius(6).Background(look.Primary)
 ui.Column(c).Grow(1).Gap(2).Children(func() {
     ui.Text(c, "Release notes").Bold()
     ui.Text(c, "Latest runtime changes.").Muted()
