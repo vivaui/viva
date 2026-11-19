@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -21,7 +20,14 @@ if handled {
     }
     selected = next
     return gfx.EventResult{Focus: rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
-}`, PageSnippet: `rows := []string{"Production", "Gateway", "Database", "Worker"}
+}`, PageSnippet: `// The page Tree paints the rows; the application owns the keys.
+rows := 1
+if m.expanded {
+    rows = 4
+}
+ui.Tree(c, &m.tree, rows, m.label, nil).TreeKeys(false)
+
+// m.key is the key event's key.
 items := []ui.TreeNavigationItem{
     {Branch: true, Expanded: m.expanded},
     {Depth: 1}, {Depth: 1}, {Depth: 1},
@@ -30,7 +36,7 @@ visible := items[:1]
 if m.expanded {
     visible = items[:]
 }
-next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(rows))
+next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(items))
 if handled {
     switch action {
     case ui.TreeNavigationExpand:
@@ -39,8 +45,15 @@ if handled {
         m.expanded = false
     }
     m.selected = next
-    return gfx.EventResult{Focus: m.rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
-}`, PageSnippetZh: `rows := []string{"Production", "Gateway", "Database", "Worker"}
+    return gfx.EventResult{Focus: m.tree.RowID(next), FocusVisible: true, Handled: true, Repaint: true}
+}`, PageSnippetZh: `// 页面 Tree 负责绘制行，键盘导航由应用决定。
+rows := 1
+if m.expanded {
+    rows = 4
+}
+ui.Tree(c, &m.tree, rows, m.label, nil).TreeKeys(false)
+
+// m.key 是按键事件的键。
 items := []ui.TreeNavigationItem{
     {Branch: true, Expanded: m.expanded},
     {Depth: 1}, {Depth: 1}, {Depth: 1},
@@ -49,7 +62,7 @@ visible := items[:1]
 if m.expanded {
     visible = items[:]
 }
-next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(rows))
+next, action, handled := ui.NavigateTree(visible, m.selected, m.key, len(items))
 if handled {
     switch action {
     case ui.TreeNavigationExpand:
@@ -58,60 +71,98 @@ if handled {
         m.expanded = false
     }
     m.selected = next
-    return gfx.EventResult{Focus: m.rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
+    return gfx.EventResult{Focus: m.tree.RowID(next), FocusVisible: true, Handled: true, Repaint: true}
 }`},
 	},
 }
 
-var (
-	treeNavigationUI         = tree.Feature("tree-navigation")
-	treeNavigationRows       = tree.Sub(treeNavigationUI, tree.Name("row"))
-	treeNavigationDisclosure = tree.ID(treeNavigationUI, "disclosure")
-)
+// treeNavigationDemo is the page Tree's model: the rows, where the keyboard is,
+// and the callbacks that describe and paint them. It lives in a map because the
+// component's key handler runs outside the paint, as treeDemo does.
+type treeNavigationDemo struct {
+	state    ui.TreeState
+	labels   [4]string
+	node     func(int) ui.TreeNode
+	label    func(int) string
+	expanded bool
+	selected int32
+	height   float32
+}
 
-func (state *State) paintTreeNavigation(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	rowHeight := theme.Metrics.ControlHeight
-	var stage ui.Box
-	state.drawPage(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(c ui.C) {
-		stage = ui.Slot(c).FillWidth().Height(rowHeight * 4)
-		caption(c, state.Text("聚焦行后，使用方向键浏览、展开或收起。", "Focus a row and use the arrow keys to move, expand, or collapse."))
-	})
+var treeNavigationDemos = map[*State]*treeNavigationDemo{}
 
-	expanded := state.flags&1 != 0
-	rows := components.BeginTree(canvas, theme, stage.Rect()).RowHeight(rowHeight)
-	for index, label := range [...]string{"Production", "Gateway", "Database", "Worker"} {
-		if index > 0 && !expanded {
-			break
-		}
-		item := components.TreeItem{ID: treeNavigationRows.At(index), Label: label, Selected: state.values[0] == int32(index)}
-		if index == 0 {
-			item.Branch, item.Expanded, item.DisclosureID = true, expanded, treeNavigationDisclosure
-		} else {
-			item.Depth = 1
-		}
-		row := rows.Item(item)
-		canvas.Label(label, row.Content, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-		if canvas.Clicked(item.ID) {
-			state.values[0] = int32(index)
+func treeNavigationDemoFor(state *State) *treeNavigationDemo {
+	if demo := treeNavigationDemos[state]; demo != nil {
+		return demo
+	}
+	demo := &treeNavigationDemo{labels: [4]string{"Production", "Gateway", "Database", "Worker"}}
+	demo.node = demo.describe
+	demo.label = demo.nameOf
+	demo.state.Node = demo.node
+	treeNavigationDemos[state] = demo
+	return demo
+}
+
+func (demo *treeNavigationDemo) nameOf(i int) string { return demo.labels[i] }
+
+func (demo *treeNavigationDemo) describe(i int) ui.TreeNode {
+	node := ui.TreeNode{Height: demo.height}
+	if i == 0 {
+		node.Branch, node.Expanded, node.Selected = true, demo.expanded, demo.selected == 0
+		return node
+	}
+	node.Depth, node.Selected = 1, demo.selected == int32(i)
+	return node
+}
+
+// rowOf is the visible row an identity names, or -1: a row's own hit or the
+// disclosure of a branch.
+func (demo *treeNavigationDemo) rowOf(id gfx.ID) int {
+	if id.IsZero() {
+		return -1
+	}
+	for i := range demo.labels {
+		if demo.state.RowID(i) == id || demo.state.DisclosureID(i) == id {
+			return i
 		}
 	}
-	if canvas.Clicked(treeNavigationDisclosure) {
+	return -1
+}
+
+func (state *State) paintTreeNavigation(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	demo := treeNavigationDemoFor(state)
+	demo.expanded = state.flags&1 != 0
+	demo.selected = state.values[0]
+	demo.height = theme.Metrics.ControlHeight
+	rows := 1
+	if demo.expanded {
+		rows = 4
+	}
+	state.drawPage(canvas, theme, size, 440, state.Text("Tree Navigation · 键盘导航", "Tree Navigation · Keyboard"), func(c ui.C) {
+		ui.Tree(c, &demo.state, rows, demo.label, nil).
+			FillWidth().Height(float32(rows) * demo.height).
+			TreeKeys(false)
+		caption(c, state.Text("聚焦行后，使用方向键浏览、展开或收起。", "Focus a row and use the arrow keys to move, expand, or collapse."))
+	})
+	if i, ok := demo.state.Toggled(); ok && i == 0 {
 		state.flags ^= 1
-		state.values[0] = 0
-		canvas.RequestFocus(treeNavigationRows.At(0))
+	}
+	if i, ok := demo.state.Chosen(); ok {
+		state.values[0] = int32(i)
 	}
 }
 
 func (state *State) keyTreeNavigation(event gfx.KeyEvent) gfx.EventResult {
-	current := listIndex(event.Target, treeNavigationRows)
-	if event.Target == treeNavigationDisclosure {
-		current = 0
+	demo := treeNavigationDemoFor(state)
+	if event.Release || event.Modifiers != 0 {
+		return gfx.EventResult{}
 	}
-	if event.Release || event.Modifiers != 0 || current < 0 {
+	current := demo.rowOf(event.Target)
+	if current < 0 {
 		return gfx.EventResult{}
 	}
 	expanded := state.flags&1 != 0
-	items := [...]components.TreeNavigationItem{
+	items := [...]ui.TreeNavigationItem{
 		{Branch: true, Expanded: expanded}, {Depth: 1}, {Depth: 1}, {Depth: 1},
 	}
 	visible := items[:1]
@@ -128,7 +179,8 @@ func (state *State) keyTreeNavigation(event gfx.KeyEvent) gfx.EventResult {
 	case ui.TreeNavigationCollapse:
 		state.flags &^= 1
 	}
-	changed := action != components.TreeNavigationNone || state.values[0] != int32(next)
+	changed := action != ui.TreeNavigationNone || state.values[0] != int32(next)
 	state.values[0] = int32(next)
-	return gfx.EventResult{Focus: treeNavigationRows.At(next), FocusVisible: true, Handled: true, Repaint: changed}
+	demo.expanded, demo.selected = state.flags&1 != 0, int32(next)
+	return gfx.EventResult{Focus: demo.state.RowID(next), FocusVisible: true, Handled: true, Repaint: changed}
 }

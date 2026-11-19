@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -599,6 +602,81 @@ func TestPageSnippetsNameRealAPIs(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// TestModelFreePageSnippetsCompile compiles every page snippet that does not
+// read the application model. Snippets that use m need a concrete model, so
+// they are checked for parse/API/name use elsewhere; this test proves the rest
+// are real Go against the current page API.
+func TestModelFreePageSnippetsCompile(t *testing.T) {
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages := map[string]string{
+		"ui": "github.com/vivaui/viva/ui", "base": "github.com/vivaui/viva/base",
+		"gfx": "github.com/vivaui/viva/gfx", "text": "github.com/vivaui/viva/text",
+		"style": "github.com/vivaui/viva/style", "window": "github.com/vivaui/viva/window",
+		"codeeditor": "github.com/vivaui/viva/ui/codeeditor", "chartview": "github.com/vivaui/viva/ui/chartview",
+		"calendarview": "github.com/vivaui/viva/ui/calendarview", "carouselview": "github.com/vivaui/viva/ui/carouselview",
+		"markdownview": "github.com/vivaui/viva/ui/markdownview", "columnresizeview": "github.com/vivaui/viva/ui/columnresizeview",
+		"avatareditorview": "github.com/vivaui/viva/ui/avatareditorview", "reordergridview": "github.com/vivaui/viva/ui/reordergridview",
+		"avatarview": "github.com/vivaui/viva/ui/avatarview", "attachmentview": "github.com/vivaui/viva/ui/attachmentview",
+		"messageview": "github.com/vivaui/viva/ui/messageview", "messagescrollerview": "github.com/vivaui/viva/ui/messagescrollerview",
+		"commandview": "github.com/vivaui/viva/ui/commandview", "menubarview": "github.com/vivaui/viva/ui/menubarview",
+		"navigationmenuview": "github.com/vivaui/viva/ui/navigationmenuview", "hovercardview": "github.com/vivaui/viva/ui/hovercardview",
+		"imageview": "github.com/vivaui/viva/ui/imageview", "aspectratioview": "github.com/vivaui/viva/ui/aspectratioview",
+		"skeletonview": "github.com/vivaui/viva/ui/skeletonview", "inputgroupview": "github.com/vivaui/viva/ui/inputgroupview",
+		"inputotpview": "github.com/vivaui/viva/ui/inputotpview", "questionnaireview": "github.com/vivaui/viva/ui/questionnaireview",
+		"metriccardview": "github.com/vivaui/viva/ui/metriccardview", "markerview": "github.com/vivaui/viva/ui/markerview",
+		"sidebarview": "github.com/vivaui/viva/ui/sidebarview", "multiselect": "github.com/vivaui/viva/ui/multiselect",
+		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
+	}
+	wordM := regexp.MustCompile(`\bm\b`)
+	var snippets []string
+	used := map[string]bool{}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			snippet := example.PageSnippet
+			if snippet == "" || wordM.MatchString(snippet) {
+				continue
+			}
+			snippets = append(snippets, fmt.Sprintf("// %s/%s\nfunc snippet%d(c ui.C) {\n%s\n}", component.ID, example.ID, len(snippets), snippet))
+			for name := range packages {
+				if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.`).MatchString(snippet) {
+					used[name] = true
+				}
+			}
+		}
+	}
+	if len(snippets) == 0 {
+		t.Skip("no model-free page snippets")
+	}
+	dir, err := os.MkdirTemp(filepath.Join(root, "build"), "snippetcheck-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	used["ui"] = true
+	var source strings.Builder
+	source.WriteString("package snippetcheck\n\nimport (\n")
+	for name := range used {
+		fmt.Fprintf(&source, "\t%q\n", packages[name])
+	}
+	source.WriteString(")\n\n")
+	source.WriteString(strings.Join(snippets, "\n"))
+	if err := os.WriteFile(filepath.Join(dir, "snippets.go"), []byte(source.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(root, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("go", "build", "./"+filepath.ToSlash(relative))
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("model-free page snippets do not compile: %v\n%s", err, output)
 	}
 }
 

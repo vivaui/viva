@@ -160,3 +160,57 @@ func (state *FormFieldState) paintMessage(d *DrawContext) {
 		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: d.Theme.Success,
 	})
 }
+
+// Label adds a standalone field label: its words in the field title's type (the
+// medium weight at the body size, muted when disabled), with the required marker
+// when Required asks for it. It is the title BeginField paints, without the
+// control or the rows a form field reserves, and it labels a control when given
+// LabelFor, as a Text does:
+//
+//	email := ui.ID(c)
+//	ui.Label(c, "Work email").Required().LabelFor(email)
+//	ui.TextFieldID(c, email, &m.email, "Work email", "")
+//
+// Its width is the words' (plus the marker when Required is called); a later
+// Width, FillWidth or Grow may size it as any element. A disabled Label is
+// muted and does not forward presses to the control it labels.
+func Label(c C, Text string) Box {
+	metrics := c.Theme().Metrics
+	b := c.f.Slot()
+	n := b.N()
+	n.Label = Text
+	n.Size = [2]Dimension{
+		{dimPx, c.Canvas().TextWidthWeight(Text, metrics.FontSizeM, gfx.WeightMedium)},
+		{dimPx, field.TitleHeight(metrics)},
+	}
+	b.DrawOver(paintLabel)
+	return b
+}
+
+// Required appends the required marker BeginField's title has: an asterisk in the
+// danger color after the words. Calling it again changes nothing, and it is only
+// for a Label.
+func (b Box) Required() Box {
+	n := b.N()
+	if n.Kind != kindSlot {
+		panic("ui: Required is for a Label")
+	}
+	if n.Flags&flagRequired != 0 {
+		return b
+	}
+	n.Flags |= flagRequired
+	if n.Size[AxisX].Kind == dimPx {
+		n.Size[AxisX].Value += 3 + b.f.Surface.TextWidthWeight("*", b.f.Palette.Metrics.FontSizeM, gfx.WeightMedium)
+	}
+	return b
+}
+
+// paintLabel paints a Label with the field title's semantics: the shared
+// field.Paint draws the words, the marker and the disabled treatment, and the
+// element itself carries the LabelFor hit.
+func paintLabel(d *DrawContext) {
+	n := d.Node
+	field.Paint(d.Canvas, *d.Theme, field.Layout{Bounds: d.Rect, Label: d.Rect}, field.Spec{
+		Title: n.Label, Required: n.Flags&flagRequired != 0, Disabled: n.Flags&flagDisabled != 0,
+	})
+}

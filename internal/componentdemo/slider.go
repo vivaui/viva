@@ -66,6 +66,8 @@ var (
 	sliderPrimary  = tree.ID(sliderUI, "primary")
 	sliderLower    = tree.ID(sliderUI, "lower")
 	sliderUpper    = tree.ID(sliderUI, "upper")
+	sliderTrack    = tree.ID(sliderUI, "track")
+	sliderValue    = tree.ID(sliderUI, "value")
 	sliderDisabled = tree.ID(sliderUI, "disabled")
 )
 
@@ -233,22 +235,37 @@ func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 	}
 }
 
-// paintSliderRange keeps the range example on the component API: the demo's
-// caller reads both thumbs by the fixed tree IDs below, while a page RangeSlider
-// names its own parts. The page equivalent, with the same localized thumb
-// labels, is the example's PageSnippet.
+// paintSliderRange is the page RangeSlider with caller-named parts: the demo's
+// pointer and key handlers address the two thumbs, the track and the filled
+// value range by the stable tree IDs below, so they read and update the same
+// control the page paints.
 func (state *State) paintSliderRange(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var track ui.Box
+	var price *ui.RangeSliderState
 	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
-		track = ui.Slot(c).Height(16)
-		ui.Text(c, state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
+		price = ui.State[ui.RangeSliderState](c, "price")
+		// State gives a zero RangeSliderState; the example's range is 0..100.
+		price.Min, price.Max, price.Step = 0, 100, 5
+		price.Low, price.High = float32(state.values[0]), float32(state.values[1])
+		price.LowLabel = state.Text("最低价格", "Minimum price")
+		price.HighLabel = state.Text("最高价格", "Maximum price")
+		price.LowValueText = sliderDemoValueText(state.values[0])
+		price.HighValueText = sliderDemoValueText(state.values[1])
+		price.LowID, price.HighID = sliderLower, sliderUpper
+		price.TrackID, price.ValueID = sliderTrack, sliderValue
+		if price.Handlers.Pointer == nil {
+			// The demo owns the drag and the key steps so its caller state and
+			// the page control stay one value; the page routes its named parts
+			// here.
+			price.Handlers.Pointer = state.pointerSlider
+			price.Handlers.Key = state.keySlider
+		}
+		ui.Text(c, state.Text("价格区间", "Price range")).FontSize(theme.Metrics.FontSizeM)
+		ui.RangeSlider(c, price)
 		caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
 	})
-	bounds := track.Rect()
-	if bag := state.slider; bag != nil {
-		bag.placed = bounds
+	if price != nil {
+		state.bag().placed = price.Track()
 	}
-	components.BeginRangeSlider(canvas, theme, bounds, state.bag().thumbs[:]).Step(5).Paint(state.Text("价格区间", "Price range"))
 	if canvas.Clicked(sliderLower) || canvas.Clicked(sliderUpper) {
 		state.toggleSliderRangePreset()
 	}

@@ -4,7 +4,7 @@ package componentdemo
 // documentation site links "Page API source" here when PageUsage exists; a
 // component without a page API links its own source instead.
 var pageSource = map[string]string{
-	"toggle-group":      "base/page_bases.go",
+	"toggle-group":      "ui/togglegroupview/togglegroupview.go",
 	"button":            "base/controls.go",
 	"badge":             "base/badge.go",
 	"checkbox":          "base/controls.go",
@@ -74,7 +74,7 @@ var pageSource = map[string]string{
 	"attachment":        "ui/attachmentview/attachmentview.go",
 	"avatar":            "ui/avatarview/avatarview.go",
 	"breadcrumb":        "base/elements.go",
-	"button-group":      "base/controls.go",
+	"button-group":      "ui/buttongroupview/buttongroupview.go",
 	"command":           "ui/commandview/commandview.go",
 	"icon-hover":        "base/icon_motion.go",
 	"image-view":        "ui/imageview/imageview.go",

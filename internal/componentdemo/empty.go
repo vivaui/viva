@@ -19,12 +19,12 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: 
     ui.Icon(c, m.folderIcon).Size(40, 40).Muted()
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
-    ui.Button(c, "Create project").Self(ui.Start)
+    ui.Button(c, "Create project")
 })`, PageSnippetZh: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
     ui.Icon(c, m.folderIcon).Size(40, 40).Muted()
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
-    ui.Button(c, "Create project").Self(ui.Start)
+    ui.Button(c, "Create project")
 })`},
 		{ID: "icon", Title: "图标容器", Description: "带弱化图标背景的空状态。", Snippet: `data := components.EmptyData{
     Media: components.EmptyMediaIcon, Icon: icon,
@@ -39,14 +39,14 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: 
     })
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
-    ui.Button(c, "Create project").Self(ui.Start)
+    ui.Button(c, "Create project")
 })`, PageSnippetZh: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
     ui.Column(c).Size(56, 56).Center().Radius(28).Background(c.Theme().Muted).Children(func() {
         ui.Icon(c, m.folderIcon).Size(24, 24).Muted()
     })
     ui.Text(c, "No projects yet").FontSize(18).Bold()
     ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
-    ui.Button(c, "Create project").Self(ui.Start)
+    ui.Button(c, "Create project")
 })`},
 	},
 }
@@ -64,7 +64,7 @@ func (state *State) paintEmpty(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 			}
 			ui.Text(c, "No projects yet").FontSize(18).Bold()
 			ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
-			ui.Button(c, "Create project").Self(ui.Start)
+			ui.Button(c, "Create project")
 		})
 	})
 }

@@ -46,10 +46,8 @@ components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapsho
     ID: tree.ID(page, "notes"), Label: "Project description", Value: value,
     DisplayValue: value, Layout: layout,
 })`, PageSnippet: `// m.notes starts as "Type more text and the box grows with it, then scrolls after five rows."
-// m.notesHeight follows the field's ContentHeight, capped at five rows.
-ui.TextArea(c, &m.notes, "Project description", "").Height(m.notesHeight)`, PageSnippetZh: `// m.notes 初始为 "输入更多文字，框会随内容长高，到五行时开始滚动。"。
-// m.notesHeight 由字段的 ContentHeight 决定，最多五行。
-ui.TextArea(c, &m.notes, "项目说明", "").Height(m.notesHeight)`},
+ui.TextArea(c, &m.notes, "Project description", "").AutoGrow(5)`, PageSnippetZh: `// m.notes 初始为 "输入更多文字，框会随内容长高，到五行时开始滚动。"。
+ui.TextArea(c, &m.notes, "项目说明", "").AutoGrow(5)`},
 		{ID: "selection", Title: "选择与输入法", Description: "确定性展示选择区、插入点与组合文本下划线。", Snippet: `value := "Select this text\nComposition text"
 field := ui.Slot(c).Height(142)
 components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapshot{
@@ -136,22 +134,17 @@ func (state *State) paintTextarea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	}
 }
 
-// paintTextareaGrowPage is the page TextArea sized from its own ContentHeight:
-// the field, its rows and its scroll are the page's, and the caller caps the
-// height it asks for at five rows before the box scrolls.
+// paintTextareaGrowPage is the page TextArea sized from its own rows: AutoGrow
+// measures the text the box paints, caps the height at five rows and leaves the
+// rows scrolling inside it past that.
 func (state *State) paintTextareaGrowPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	initial := state.textareaInitialValue()
 	label := state.Text("项目说明", "Project description")
 	state.drawPage(canvas, theme, size, 540, state.Text("Textarea · 多行编辑", "Textarea · Multi-line editing"), func(c ui.C) {
 		field := ui.State[ui.Field](c, "notes")
 		state.bindPageField(field, initial)
-		box := ui.TextAreaID(c, textareaField, field, label, "").ReadOnly(!state.editing)
-		if area := field.GetArea(); area != nil {
-			width := min(size.Width-2*theme.Metrics.PadSurface, float32(540))
-			maxHeight := float32(textareaGrowMaxRows)*(theme.Metrics.FontSizeM+7) + 2*float32(components.TextareaPadY)
-			box.Height(min(area.ContentHeight(c.Canvas(), *c.Theme(), field.Text(), width, false), maxHeight))
-		}
-		caption(c, state.Text("高度由 TextareaLayout.ContentHeight 决定；超过五行后在框内滚动。", "The height comes from TextareaLayout.ContentHeight; after five rows the box scrolls."))
+		ui.TextAreaID(c, textareaField, field, label, "").ReadOnly(!state.editing).AutoGrow(textareaGrowMaxRows)
+		caption(c, state.Text("高度由控件内容决定，最多五行；超过五行后在框内滚动。", "The control is as tall as its text, up to five rows; after that the box scrolls."))
 	})
 }
 

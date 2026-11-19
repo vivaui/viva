@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -26,27 +25,15 @@ ui.TextFieldID(c, emailID, &m.email, "工作邮箱", "team@viva.dev").ReadOnly(t
 		{ID: "states", Title: "标签状态", Description: "普通、必填和禁用状态并列。", Snippet: `components.BeginLabel(canvas, theme, normalBounds).Paint("Display name")
 components.BeginLabel(canvas, theme, requiredBounds).Required().Paint("Organization name")
 components.BeginLabel(canvas, theme, disabledBounds).Required().
-    Disabled().Paint("Disabled field")`, PageSnippet: `displayID := ui.ID(c)
-ui.Text(c, "Display name").LabelFor(displayID)
-ui.TextFieldID(c, displayID, &m.displayName, "Display name", "")
-
-organizationID := ui.ID(c)
-ui.Text(c, "Organization name").LabelFor(organizationID)
-ui.TextFieldID(c, organizationID, &m.organization, "Organization name", "")
-
-disabledID := ui.ID(c)
-ui.Text(c, "Disabled field").LabelFor(disabledID)
-ui.TextFieldID(c, disabledID, &m.disabledField, "Disabled field", "").Disabled(true)`, PageSnippetZh: `displayID := ui.ID(c)
-ui.Text(c, "显示名称").LabelFor(displayID)
-ui.TextFieldID(c, displayID, &m.displayName, "显示名称", "")
-
-organizationID := ui.ID(c)
-ui.Text(c, "组织名称").LabelFor(organizationID)
-ui.TextFieldID(c, organizationID, &m.organization, "组织名称", "")
-
-disabledID := ui.ID(c)
-ui.Text(c, "禁用字段").LabelFor(disabledID)
-ui.TextFieldID(c, disabledID, &m.disabledField, "禁用字段", "").Disabled(true)`},
+    Disabled().Paint("Disabled field")`, PageSnippet: `ui.Column(c).Gap(8).Children(func() {
+    ui.Label(c, "Display name")
+    ui.Label(c, "Organization name").Required()
+    ui.Label(c, "Disabled field").Required().Disabled(true)
+})`, PageSnippetZh: `ui.Column(c).Gap(8).Children(func() {
+    ui.Label(c, "显示名称")
+    ui.Label(c, "组织名称").Required()
+    ui.Label(c, "禁用字段").Required().Disabled(true)
+})`},
 	},
 }
 
@@ -67,13 +54,11 @@ func (state *State) paintLabel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		})
 		return
 	}
-	var rows [3]ui.Box
 	state.drawPage(canvas, theme, size, 560, state.Text("Label · 表单语义", "Label · Form semantics"), func(c ui.C) {
-		for index := range rows {
-			rows[index] = ui.Slot(c).FillWidth().Height(24)
-		}
+		ui.Column(c).FillWidth().Gap(8).Children(func() {
+			ui.Label(c, state.Text("显示名称", "Display name"))
+			ui.Label(c, state.Text("组织名称", "Organization name")).Required()
+			ui.Label(c, state.Text("禁用字段", "Disabled field")).Required().Disabled(true)
+		})
 	})
-	components.BeginLabel(canvas, theme, rows[0].Rect()).Paint(state.Text("显示名称", "Display name"))
-	components.BeginLabel(canvas, theme, rows[1].Rect()).Required().Paint(state.Text("组织名称", "Organization name"))
-	components.BeginLabel(canvas, theme, rows[2].Rect()).Required().Disabled().Paint(state.Text("禁用字段", "Disabled field"))
 }

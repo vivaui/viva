@@ -34,3 +34,7 @@ const (
 	FlagMixed    // a Checkbox that is neither on nor off: some of what it stands for is chosen
 	FlagInvalid  // a control whose value failed validation: the destructive border and ring
 )
+
+// flagRequired marks a page Label that appends the field title's required
+// marker. It is internal: only the page Label reads it.
+const flagRequired uint32 = 1 << 31

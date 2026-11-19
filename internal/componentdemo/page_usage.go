@@ -4,7 +4,7 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
-	"toggle-group":  `ui.Row(c).Gap(0).Children(func() { ui.Toggle(c, &m.left, "Left").Outline(); ui.Toggle(c, &m.right, "Right").Outline() })`,
+	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
 	"card":          `ui.Column(c).Pad(16).Radius(12).Border(1, border)`,
@@ -84,7 +84,7 @@ ui.Table(c, &m.table, ui.TableSpec{
 	"attachment":        `m.attachment.View(c, "product-demo.mov").FillWidth()`,
 	"avatar":            `m.avatar.View(c, "Skyler").Size(64, 64)`,
 	"breadcrumb":        `ui.Row(c).Gap(6).Items(ui.Center).Children(func() { ui.Text(c, "Workspace").Muted(); ui.Text(c, "›").Muted(); ui.Text(c, "Preview") })`,
-	"button-group":      `ui.Row(c).Children(func() { ui.Button(c, "Left").Outline(); ui.Button(c, "Center").Outline(); ui.Button(c, "Right").Outline() })`,
+	"button-group":      `m.buttonGroup.View(c, "Text alignment").FillWidth()`,
 	"command":           `commandview.View(c, "Command", &m.command).FillWidth().Height(220)`,
 	"icon-hover":        `id := ui.ID(c); ui.Icon(c, m.moreIcon).Size(24, 24).Hit(id, "More actions").BindIconHover(ui.BindIconHover(&m.iconHover, id))`,
 	"image-view":        `imageview.View(c, "Fit preview", &m.picture).FillWidth().Height(240)`,

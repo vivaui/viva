@@ -23,15 +23,23 @@ type RangeSliderState struct {
 	// decimal number; a caller that formats them itself keeps them in step with
 	// the values.
 	LowValueText, HighValueText string
+	// LowID, HighID, TrackID and ValueID are the identities of the slider's four
+	// addressable parts, chosen by the caller so a page or a preview can watch
+	// and test them. A zero identity takes one from the control's own parts:
+	// Low, High, Track and Value in that order. A press on the track or on the
+	// filled value range moves the nearer thumb, and the thumbs stay the only
+	// Tab stops.
+	LowID, HighID, TrackID, ValueID gfx.ID
 
 	Handlers Handlers
 	// Paint paints the slider for the Control Draw; ui sets it.
 	Paint func(*DrawContext)
 
-	lowID, highID gfx.ID
-	rect          Rect
-	dragging      int // 1 low, 2 high, 0 none
-	draw          func(*DrawContext)
+	lowID, highID    gfx.ID
+	trackID, valueID gfx.ID
+	rect             Rect
+	dragging         int // 1 low, 2 high, 0 none
+	draw             func(*DrawContext)
 	// valueTexts caches the default decimal text of each thumb, so a steady
 	// paint formats no value again.
 	valueTexts  [2]string
@@ -43,10 +51,36 @@ func NewRangeSliderState(low, high float32) *RangeSliderState {
 	return &RangeSliderState{Low: low, High: high, Min: 0, Max: 100, Step: 1}
 }
 
-// SetTrack records the rectangle and thumb identities of the last paint, for
-// the pointer handlers.
-func (s *RangeSliderState) SetTrack(rect Rect, lowID, highID gfx.ID) {
-	s.rect, s.lowID, s.highID = rect, lowID, highID
+// SetTrack records the rectangle and the four part identities of the last
+// paint, for the pointer handlers. ui resolves the caller's zero identities to
+// the control's parts before calling it.
+func (s *RangeSliderState) SetTrack(rect Rect, lowID, highID, trackID, valueID gfx.ID) {
+	s.rect, s.lowID, s.highID, s.trackID, s.valueID = rect, lowID, highID, trackID, valueID
+}
+
+// Track reports the rectangle the last paint drew the slider in: the thumbs'
+// travel, inset from the control's edge by their own reach so they stay inside
+// the control. A pointer handler of the application's that maps a coordinate to
+// a value (as the demo's does) uses it instead of the element's rectangle.
+func (s *RangeSliderState) Track() Rect { return s.rect }
+
+// AddControlAliases gives each of ids the input of the control whose handlers
+// are h: a key, a pointer event or the wheel aimed at an alias reaches the same
+// Key, Pointer and Scroll as the control's own identity. It is how a range
+// slider lets a caller name its parts outside the control's scope and still
+// have them routed, and ui declares those aliases in the slider's Draw. A zero
+// identity is skipped, and a frame without a page (a bare preview) has nothing
+// to route.
+func AddControlAliases(f *Frame, h *Handlers, ids ...gfx.ID) {
+	if f == nil || f.page == nil || h == nil {
+		return
+	}
+	for _, id := range ids {
+		if id.IsZero() {
+			continue
+		}
+		f.page.controls = append(f.page.controls, controlEntry{ID: id, handlers: h})
+	}
 }
 
 // ThumbLabel returns the accessible name of thumb 0 (Low) or thumb 1 (High):
@@ -165,7 +199,10 @@ func (s *RangeSliderState) Key(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: true, Repaint: true, Focus: event.Target, FocusVisible: true}
 }
 
-// Pointer drags the thumb under the pointer, or the clicked track position.
+// Pointer drags the thumb under the pointer, or the clicked track position. A
+// press on the track or on the filled range moves the nearer thumb there and
+// starts dragging it, as a single Slider's track does; a caller-named track or
+// value identity reaches the same handler through AddControlAliases.
 func (s *RangeSliderState) Pointer(event gfx.PointerEvent) gfx.EventResult {
 	switch event.Kind {
 	case gfx.PointerDown:
@@ -174,6 +211,22 @@ func (s *RangeSliderState) Pointer(event gfx.PointerEvent) gfx.EventResult {
 			s.dragging = 1
 		case s.highID:
 			s.dragging = 2
+		case s.trackID, s.valueID:
+			if event.Target.IsZero() || s.rect.Width <= 0 {
+				return gfx.EventResult{}
+			}
+			value := s.valueAt(event.X)
+			index := 0
+			if (value - s.Low) > (s.High - value) {
+				index = 1
+			}
+			s.dragging = index + 1
+			s.setValue(index, value)
+			focus := s.lowID
+			if index == 1 {
+				focus = s.highID
+			}
+			return gfx.EventResult{Handled: true, Repaint: true, Focus: focus, FocusVisible: true}
 		default:
 			return gfx.EventResult{}
 		}
