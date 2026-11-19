@@ -215,7 +215,7 @@ func menuSize(m *MenuItems) (width, height float32) {
 		width = widthMin
 	}
 	defaultMin := m.MinWidth()
-	if widthMax <= 0 || widthMax >= defaultMin {
+	if width <= 0 || widthMax <= 0 || widthMax >= defaultMin {
 		width = max(width, defaultMin)
 	}
 	if widthMax > 0 && width > widthMax {

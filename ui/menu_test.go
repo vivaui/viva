@@ -504,6 +504,25 @@ func TestMenuRowHeightPacksDropdownItems(t *testing.T) {
 	}
 }
 
+func TestCompactMenuKeepsCustomContentVisible(t *testing.T) {
+	open := true
+	var painted gfx.Rect
+	openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			anchor := ui.Button(c, "More")
+			ui.Menu(c, anchor, &open, func(menu *ui.MenuItems) {
+				menu.WidthRange(0, 112)
+				menu.Content(40, func(_ *gfx.Canvas, bounds gfx.Rect, _ gfx.Theme) {
+					painted = bounds
+				})
+			})
+		})
+	})
+	if painted.Width < 90 || painted.Width > 112 || painted.Height != 40 {
+		t.Fatalf("compact custom content collapsed to %v", painted)
+	}
+}
+
 // Beside opens the menu right of its anchor, its first row level with the anchor
 // rather than under it, and a menu that stops asking for it opens under it again.
 func TestMenuBeside(t *testing.T) {
