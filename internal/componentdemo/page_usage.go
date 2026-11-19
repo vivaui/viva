@@ -24,6 +24,7 @@ var pageUsage = map[string]string{
 	"table":            `ui.Table(c, &m.table, ui.TableSpec{Rows: rows, Columns: columns, Headers: headers})`,
 	"list":             `ui.List(c, &m.list, len(rows), func(row ui.ListRow) { _ = row })`,
 	"tree":             `ui.Tree(c, &m.tree, len(rows), func(i int) string { return rows[i] }, func(i int) {})`,
+	"tree-navigation":  `ui.Tree(c, &m.tree, len(rows), func(i int) string { return rows[i] }, func(i int) {})`,
 	"color-picker":     `ui.ColorPicker(c, &m.picker, &m.color, "Accent")`,
 	"color-swatch":     `ui.ColorSwatch(c, color, selected, "Accent")`,
 	"progress":         `ui.Progress(c, 0.6)`,

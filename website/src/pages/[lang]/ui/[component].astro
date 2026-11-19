@@ -37,10 +37,10 @@ const fallbackUsage = `ui.Control(c, "${page.Title.replaceAll('"', '')}", &m.han
     {page.Examples.map(example => <section class="example-section" aria-labelledby={`example-${example.ID}`}>
       <h3 id={`example-${example.ID}`}>{example.Title}<a class="heading-anchor" href={`#example-${example.ID}`} aria-label={example.Title}>#</a></h3>
       <p class="example-summary">{example.Description}</p>
-      <Preview {locale} componentID={page.ID} title={page.Title} {example} revision={page.Revision} height={example.Height} client:load />
+      <Preview {locale} componentID={page.ID} title={page.Title} example={example.Snippet && !/components\.|Begin/.test(example.Snippet) ? example : {...example, Snippet: undefined}} revision={page.Revision} height={example.Height} client:load />
       {(() => {
         const pageUsage = page.PageUsage || fallbackUsage;
-        const usage = example.Snippet && !example.Snippet.includes('Begin') ? example.Snippet : pageUsage;
+        const usage = example.Snippet && !/components\.|Begin/.test(example.Snippet) ? example.Snippet : pageUsage;
         return <div class="code-block usage-block">
           <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>
           <div class="highlighted-code"><Code code={usage} lang="go" themes={themes} defaultColor={false} /></div>
