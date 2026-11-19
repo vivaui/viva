@@ -40,6 +40,15 @@ type HoverIntent struct {
 	since  time.Time
 }
 
+// TreeDisclosure replaces the chevrons a tree draws for its branches: the icon of a
+// closed and of an open branch, their size, and the width of the column they occupy
+// before the row's content.
+type TreeDisclosure struct {
+	Collapsed, Expanded gfx.Icon
+	Size                float32
+	Slot                float32
+}
+
 // ScrollBarStyle overrides the geometry of a scroll area's bars. Zero fields keep
 // Viva's own values, so an application changes only what it needs.
 type ScrollBarStyle struct {

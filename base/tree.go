@@ -61,6 +61,9 @@ type TreeState struct {
 	c               C
 	rowLabel        func(int) string
 	Content         func(int)
+	// Disclosure replaces the arrows the tree draws for branches and the width of the
+	// column they occupy before the row's content. Nil keeps Viva's defaults.
+	Disclosure *TreeDisclosure
 }
 
 type TreeRow struct {

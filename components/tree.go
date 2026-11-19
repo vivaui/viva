@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -10,11 +11,7 @@ import (
 // before the row's content. Zero fields keep Viva's own chevrons (16 points in a 24
 // point column), so an application that ships IDEA's arrows can use them without
 // moving the rows.
-type TreeDisclosure struct {
-	Collapsed, Expanded gfx.Icon
-	Size                float32
-	Slot                float32
-}
+type TreeDisclosure = base.TreeDisclosure
 
 // Tree paints a compact vertical hierarchy. Applications own the hierarchy,
 // expansion, selection, and scrolling; the component owns indentation,
