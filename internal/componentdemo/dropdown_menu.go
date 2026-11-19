@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -82,38 +81,45 @@ ui.Menu(c, trigger, &open, func(menu *ui.MenuItems) {
 	},
 }
 
-var (
-	dropdownMenuUI     = tree.Feature("dropdown-menu")
-	dropdownMenuToggle = tree.ID(dropdownMenuUI, "compact")
-	// dropdownMenuItem's item i is the i-th plain item of the example.
-	dropdownMenuItem = tree.Sub(dropdownMenuUI, tree.Name("item"))
-)
+// dropdownMenuDemo is the caller-owned state of the page-first Menu.
+type dropdownMenuDemo struct {
+	open, compact, ready bool
+}
 
 func (state *State) paintDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	// Label (32), three rows (96), separator (9), and the surface's 4px padding.
-	height := float32(32 + 3*32 + 9 + 2*4)
+	label := "Account"
 	if state.exampleID != "default" {
-		height = 4*32 + 2*4
+		label = "Team"
 	}
-	var panel ui.Box
 	state.drawPage(canvas, theme, size, 260, "Dropdown Menu · Account", func(c ui.C) {
-		panel = ui.Slot(c).FillWidth().Height(min(height, max(size.Height-84, 120)))
+		demo := ui.State[dropdownMenuDemo](c, "dropdown-menu-demo")
+		if !demo.ready {
+			demo.ready, demo.open = true, true
+		}
+		trigger := ui.Button(c, label).Outline()
+		if trigger.Clicked() {
+			demo.open = !demo.open
+		}
+		ui.Menu(c, trigger, &demo.open, func(menu *ui.MenuItems) {
+			if state.exampleID == "default" {
+				menu.Label("skyler@example.com")
+				menu.Item("Profile").Keys(ui.Primary|ui.Shift, "P")
+				if menu.Item("Compact mode").Checked(demo.compact).Clicked() {
+					demo.compact = !demo.compact
+				}
+				menu.Separator()
+				menu.Item("Sign out").Destructive()
+				return
+			}
+			menu.Sub("Team", func(sub *ui.MenuItems) {
+				sub.Item("Personal").Chosen(true)
+				sub.Item("Organization").Chosen(false)
+			})
+			menu.Item("Unavailable").Disabled(true)
+		})
+		state.flags &^= 1
+		if demo.compact {
+			state.flags |= 1
+		}
 	})
-	menu := components.BeginDropdownMenu(canvas, theme, panel.Rect(), components.DropdownMenuOptions{Layer: 1})
-	if state.exampleID == "default" {
-		menu.AddLabel("skyler@example.com", false)
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(0), Label: "Profile", Shortcut: "⇧⌘P"})
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuToggle, Label: "Compact mode", Kind: components.DropdownMenuCheckbox, Checked: state.flags&1 != 0})
-		menu.AddSeparator()
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(1), Label: "Sign out", Variant: components.DropdownMenuItemDestructive})
-	} else {
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(2), Label: "Team", Kind: components.DropdownMenuSubmenu, Expanded: true})
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(3), Label: "Personal", Kind: components.DropdownMenuRadio, Selected: true})
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(4), Label: "Organization", Kind: components.DropdownMenuRadio})
-		menu.AddItem(components.DropdownMenuItem{ID: dropdownMenuItem.At(5), Label: "Unavailable", Disabled: true})
-	}
-	menu.End()
-	if canvas.Clicked(dropdownMenuToggle) {
-		state.flags ^= 1
-	}
 }

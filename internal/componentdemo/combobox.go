@@ -89,7 +89,11 @@ var (
 
 const comboboxOpenFlag uint64 = 1
 
-func initializeCombobox(state *State) { state.flags |= comboboxOpenFlag }
+func initializeCombobox(state *State) {
+	if state.exampleID != "default" {
+		state.flags |= comboboxOpenFlag
+	}
+}
 
 // comboboxChipRemove's item i removes the i-th chip of the chips example.
 var comboboxChipRemove = tree.Sub(comboboxUI, tree.Name("chip-remove"))
@@ -121,11 +125,46 @@ func (state *State) paintComboboxChips(canvas *gfx.Canvas, theme gfx.Theme, size
 	}
 }
 
+// comboboxDemo is the caller-owned value of the page-first Combobox.
+type comboboxDemo struct {
+	target string
+}
+
+func comboboxValueIndex(target string) int32 {
+	switch target {
+	case "Viva Native":
+		return 1
+	case "WebGPU":
+		return 2
+	case "Headless tests":
+		return 3
+	default:
+		return 0
+	}
+}
+
 func (state *State) paintCombobox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	if state.exampleID == "chips" {
 		state.paintComboboxChips(canvas, theme, size)
 		return
 	}
+	if state.exampleID == "default" {
+		targets := []string{"Viva Native", "WebGPU", "Headless tests"}
+		hints := []string{state.Text("原生桌面", "Native desktop"), state.Text("可选 Web 目标", "Optional web target"), state.Text("无窗口测试", "Windowless testing")}
+		state.drawPage(canvas, theme, size, 420, state.Text("Combobox · 框架", "Combobox · Framework"), func(c ui.C) {
+			demo := ui.State[comboboxDemo](c, "combobox-demo")
+			ui.Combobox(c, &demo.target, targets, nil, state.Text("框架", "Framework")).Clearable().
+				Describe(func(index int) ui.ComboboxOption {
+					return ui.ComboboxOption{Detail: hints[index]}
+				})
+			state.values[0] = comboboxValueIndex(demo.target)
+			ui.Text(c, state.Text("点击输入区域打开选项。", "Click the input to open the options.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		})
+		return
+	}
+	// The empty, invalid and chips examples stay on the canvas API: the page
+	// Combobox starts closed with no caller-owned query, has no invalid state,
+	// and is single-select.
 	values := [...]string{"", "Viva Native", "WebGPU", "Headless tests"}
 	selected := int(state.values[0])
 	query := ""

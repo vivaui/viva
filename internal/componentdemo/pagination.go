@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -95,40 +94,53 @@ func (state *State) initializePagination() {
 
 func (state *State) paintPagination(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	page := state.values[0]
-	var bar ui.Box
+	compact := size.Width-48 < 430
 	state.drawPage(canvas, theme, size, 620, "Results", func(c ui.C) {
 		ui.Text(c, paginationPageStatus(page)).FontSize(theme.Metrics.FontSizeS).Muted()
-		bar = ui.Slot(c).Height(theme.Metrics.ControlHeight)
+		var items [7]ui.PaginationItem
+		count := 0
+		items[count] = ui.PaginationItem{ID: paginationPrevious, Label: "Previous", Kind: ui.PaginationPrevious, Disabled: page == 1}
+		count++
+		if compact {
+			items[count] = ui.PaginationItem{ID: paginationCurrent, Label: paginationPageLabel(page), Kind: ui.PaginationPage, Current: true}
+			count++
+		} else {
+			for visiblePage := int32(1); visiblePage <= 3; visiblePage++ {
+				items[count] = ui.PaginationItem{
+					ID: paginationPage.At(int(visiblePage - 1)), Label: paginationPageLabel(visiblePage),
+					Kind: ui.PaginationPage, Current: page == visiblePage,
+				}
+				count++
+			}
+			items[count] = ui.PaginationItem{Kind: ui.PaginationEllipsis}
+			count++
+			items[count] = ui.PaginationItem{ID: paginationPage.At(4), Label: "8", Kind: ui.PaginationPage, Current: page == 8}
+			count++
+		}
+		items[count] = ui.PaginationItem{ID: paginationNext, Label: "Next", Kind: ui.PaginationNext, Disabled: page == 8}
+		count++
+		bar := ui.Pagination(c, items[:count])
 		caption(c, state.Text("窄视口自动减少页码；当前页保持非交互。", "Narrow viewports show fewer pages; the current page stays non-interactive."))
+		if id, ok := bar.Chosen(); ok {
+			switch id {
+			case paginationPrevious:
+				if page > 1 {
+					state.values[0]--
+				}
+			case paginationNext:
+				if page < 8 {
+					state.values[0]++
+				}
+			default:
+				if index, ok := id.In(paginationPage); ok {
+					state.values[0] = int32(index) + 1
+					if index == 4 {
+						state.values[0] = 8
+					}
+				}
+			}
+		}
 	})
-
-	bounds := bar.Rect()
-	pagination := components.BeginPagination(canvas, theme, bounds)
-	compact := bounds.Width < 430
-	pagination.AddPrevious(paginationPrevious, "Previous", page == 1)
-	if compact {
-		pagination.AddPage(paginationCurrent, paginationPageLabel(page), true)
-	} else {
-		for visiblePage := int32(1); visiblePage <= 3; visiblePage++ {
-			pagination.AddPage(paginationPage.At(int(visiblePage-1)), paginationPageLabel(visiblePage), page == visiblePage)
-		}
-		pagination.AddEllipsis()
-		pagination.AddPage(paginationPage.At(4), "8", page == 8)
-	}
-	pagination.AddNext(paginationNext, "Next", page == 8)
-
-	if canvas.Clicked(paginationPrevious) && page > 1 {
-		state.values[0]--
-	}
-	if canvas.Clicked(paginationNext) && page < 8 {
-		state.values[0]++
-	}
-	if index, ok := canvas.ClickedIn(paginationPage); ok {
-		state.values[0] = int32(index) + 1
-		if index == 4 {
-			state.values[0] = 8
-		}
-	}
 }
 
 func paginationPageLabel(page int32) string {

@@ -73,59 +73,71 @@ type toggleSpecimen struct {
 	invalid, disabled             bool
 }
 
+// togglePageState is the page Toggle's model: the active bits of the toggles a
+// caller keeps (the fixed specimens are seeded each paint).
+type togglePageState struct {
+	values [4]bool
+}
+
 func (state *State) paintToggle(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var specimens [6]toggleSpecimen
-	count := 0
-	height := theme.Metrics.ControlHeight // default size; small and large adjust below
-	add := func(c ui.C, specimen toggleSpecimen, width, extra float32) {
-		specimen.slot = ui.Slot(c).Size(width, height+extra)
-		specimens[count] = specimen
-		count++
+	if state.exampleID == "states" {
+		state.paintToggleStates(canvas, theme, size)
+		return
 	}
 	state.drawPage(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(c ui.C) {
-		ui.Row(c).Gap(12).Children(func() {
-			for index, label := range [...]string{"B", "I", "U"} {
-				add(c, toggleSpecimen{id: toggleItem.At(index), label: label, outline: true, active: state.flags&(1<<index) != 0}, 44, 0)
-			}
-		})
-		switch state.exampleID {
-		case "variants":
+		page := ui.State[togglePageState](c, "toggles")
+		if state.exampleID == "variants" {
 			ui.Row(c).Gap(16).Items(ui.Center).Children(func() {
-				add(c, toggleSpecimen{id: toggleItem.At(3), label: "Small", small: true, active: state.flags&(1<<3) != 0}, 80, -4)
-				add(c, toggleSpecimen{id: toggleLarge, label: "Large", large: true, outline: true, active: true}, 92, 4)
+				page.values[3] = state.flags&(1<<3) != 0
+				if ui.Toggle(c, &page.values[3], "Small").Small().Hit(toggleItem.At(3), "Small").Changed() {
+					if page.values[3] {
+						state.flags |= 1 << 3
+					} else {
+						state.flags &^= 1 << 3
+					}
+				}
+				page.values[1] = true
+				ui.Toggle(c, &page.values[1], "Large").Large().Outline().Hit(toggleLarge, "Large")
 			})
 			caption(c, state.Text("尺寸由显式链式选项决定。", "Size comes from explicit chained options."))
-		case "states":
-			ui.Row(c).Gap(16).Children(func() {
-				add(c, toggleSpecimen{id: toggleInvalid, label: "Invalid", outline: true, active: true, invalid: true}, 96, 0)
-				add(c, toggleSpecimen{id: toggleDisabled, label: "Disabled", outline: true, disabled: true}, 96, 0)
-			})
-		default:
-			caption(c, state.Text("每个按钮独立保存激活位。", "Each button keeps its own active bit."))
+			return
 		}
+		ui.Row(c).Gap(12).Children(func() {
+			for index, label := range [...]string{"B", "I", "U"} {
+				page.values[index] = state.flags&(1<<index) != 0
+				if ui.Toggle(c, &page.values[index], label).Outline().Hit(toggleItem.At(index), label).Changed() {
+					if page.values[index] {
+						state.flags |= 1 << index
+					} else {
+						state.flags &^= 1 << index
+					}
+				}
+			}
+		})
+		ui.Text(c, state.Text("每个按钮独立保存激活位。", "Each button keeps its own active bit.")).Muted()
 	})
+}
 
-	for _, specimen := range specimens[:count] {
+// paintToggleStates keeps the validation example on the canvas API: the page
+// Toggle has no invalid look.
+func (state *State) paintToggleStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var specimens [2]toggleSpecimen
+	state.drawPage(canvas, theme, size, 500, state.Text("Toggle · 双态操作", "Toggle · Two-state action"), func(c ui.C) {
+		ui.Row(c).Gap(16).Children(func() {
+			specimens[0] = toggleSpecimen{id: toggleInvalid, label: "Invalid", outline: true, active: true, invalid: true}
+			specimens[0].slot = ui.Slot(c).Size(96, theme.Metrics.ControlHeight)
+			specimens[1] = toggleSpecimen{id: toggleDisabled, label: "Disabled", outline: true, disabled: true}
+			specimens[1].slot = ui.Slot(c).Size(96, theme.Metrics.ControlHeight)
+		})
+	})
+	for _, specimen := range specimens {
 		toggle := components.BeginToggle(canvas, theme, specimen.id, specimen.slot.Rect(), specimen.active)
-		if specimen.small {
-			toggle = toggle.Small()
-		}
-		if specimen.large {
-			toggle = toggle.Large()
-		}
 		if specimen.invalid {
 			toggle = toggle.Invalid()
 		}
 		if specimen.disabled {
 			toggle = toggle.Disabled()
 		}
-		if specimen.outline {
-			toggle.Outline(specimen.label)
-		} else {
-			toggle.Default(specimen.label)
-		}
-	}
-	if index, ok := canvas.ClickedIn(toggleItem); ok {
-		state.flags ^= 1 << index
+		toggle.Outline(specimen.label)
 	}
 }

@@ -91,25 +91,46 @@ func (state *State) keySegmentedControl(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
+// segmentedPageState is the page Choice's model: the chosen view, and whether
+// the demo has seeded it from State.values.
+type segmentedPageState struct {
+	view string
+	init bool
+}
+
 func (state *State) paintSegmentedControl(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	options := segmentedControlOptions[:]
 	if state.exampleID == "states" {
-		options = segmentedControlStateOptions[:]
+		state.paintSegmentedControlStates(canvas, theme, size)
+		return
 	}
+	views := [...]string{"List", "Board", "Timeline"}
+	state.drawPage(canvas, theme, size, 520, "View", func(c ui.C) {
+		page := ui.State[segmentedPageState](c, "view")
+		if !page.init {
+			page.view, page.init = views[state.values[0]], true
+		}
+		ui.Choice(c, &page.view, views[:], nil)
+		if index := radioPlanIndex(views[:], page.view); index >= 0 {
+			state.values[0] = int32(index)
+		}
+		caption(c, state.Text("方向键通过 typed helper 更新焦点与选择。", "Arrow keys update focus and selection through the typed helper."))
+	})
+}
+
+// paintSegmentedControlStates keeps the per-option disabled example on the
+// canvas API: the page Choice has no per-option disabled state.
+func (state *State) paintSegmentedControlStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	options := segmentedControlStateOptions[:]
 	var live, disabled ui.Box
 	state.drawPage(canvas, theme, size, 520, "View", func(c ui.C) {
 		live = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
-		if state.exampleID == "states" {
-			// The component paints a whole-control disabled specimen in a slot:
-			// it declares its own (inert) hits beside the live control's.
-			disabled = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
-		}
+		// The component paints a whole-control disabled specimen in a slot:
+		// it declares its own (inert) hits beside the live control's.
+		disabled = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
 		caption(c, state.Text("方向键通过 typed helper 更新焦点与选择。", "Arrow keys update focus and selection through the typed helper."))
 	})
 	if id, ok := components.BeginSegmentedControl(canvas, theme, live.Rect(), options, segmentedControlView.At(int(state.values[0]))).Paint().Clicked(); ok {
 		state.values[0] = int32(listIndex(id, segmentedControlView))
 	}
-	if state.exampleID == "states" {
-		components.BeginSegmentedControl(canvas, theme, disabled.Rect(), segmentedControlLockedOptions[:], segmentedControlLocked.At(1)).Disabled().Paint()
-	}
+	components.BeginSegmentedControl(canvas, theme, disabled.Rect(), segmentedControlLockedOptions[:], segmentedControlLocked.At(1)).Disabled().Paint()
 }

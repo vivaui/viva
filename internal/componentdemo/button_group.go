@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -139,45 +138,59 @@ var (
 func (state *State) paintButtonGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	vertical := state.exampleID == "vertical"
 	disabled := state.exampleID == "disabled"
-	var slot ui.Box
+	variants := state.exampleID == "variants"
+	labels := [3]string{
+		state.Text("左对齐", "Left"),
+		state.Text("居中", "Center"),
+		state.Text("右对齐", "Right"),
+	}
+	captions := [3]string{
+		state.Text("当前：左对齐", "Current: Left"),
+		state.Text("当前：居中", "Current: Center"),
+		state.Text("当前：右对齐", "Current: Right"),
+	}
+	if variants {
+		labels = [3]string{state.Text("保存", "Save"), state.Text("删除", "Delete"), state.Text("帮助", "Help")}
+		captions = [3]string{
+			state.Text("当前：保存", "Current: Save"),
+			state.Text("当前：删除", "Current: Delete"),
+			state.Text("当前：帮助", "Current: Help"),
+		}
+	}
+	caption := captions[state.values[0]]
+	if disabled {
+		caption = state.Text("整个操作组已禁用。", "The whole group is disabled.")
+	}
 	state.drawPage(canvas, theme, size, 360, state.Text("Button Group · 对齐方式", "Button Group · Alignment"), func(c ui.C) {
 		if vertical {
-			slot = ui.Slot(c).Size(220, theme.Metrics.ControlHeight*3).Self(ui.Start)
+			ui.Column(c).Children(func() {
+				for index := range labels {
+					button := ui.Button(c, labels[index]).Outline().Hit(buttonGroupItem.At(index), labels[index])
+					if button.Clicked() {
+						state.values[0] = int32(index)
+					}
+				}
+			})
 		} else {
-			slot = ui.Slot(c).FillWidth().MaxWidth(360).Height(theme.Metrics.ControlHeight).Self(ui.Start)
-		}
-		labels := [...]string{
-			state.Text("当前：左对齐", "Current: Left"),
-			state.Text("当前：居中", "Current: Center"),
-			state.Text("当前：右对齐", "Current: Right"),
-		}
-		caption := labels[state.values[0]]
-		if disabled {
-			caption = state.Text("整个操作组已禁用。", "The whole group is disabled.")
+			ui.Row(c).Children(func() {
+				for index := range labels {
+					var button ui.Box
+					switch {
+					case disabled:
+						button = ui.Button(c, labels[index]).Outline().Disabled(true).Hit(buttonGroupItem.At(index), labels[index])
+					case variants && index == 1:
+						button = ui.Button(c, labels[index]).DestructiveOutline().Hit(buttonGroupItem.At(index), labels[index])
+					case variants && index == 2:
+						button = ui.Button(c, labels[index]).Link().Hit(buttonGroupItem.At(index), labels[index])
+					default:
+						button = ui.Button(c, labels[index]).Outline().Hit(buttonGroupItem.At(index), labels[index])
+					}
+					if button.Clicked() {
+						state.values[0] = int32(index)
+					}
+				}
+			})
 		}
 		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
-	var options [3]components.ButtonGroupOption
-	if state.exampleID == "variants" {
-		options = [3]components.ButtonGroupOption{
-			{ID: buttonGroupItem.At(0), Label: state.Text("保存", "Save"), Variant: components.ButtonOutline},
-			{ID: buttonGroupItem.At(1), Label: state.Text("删除", "Delete"), Variant: components.ButtonDestructiveOutline},
-			{ID: buttonGroupItem.At(2), Label: state.Text("帮助", "Help"), Variant: components.ButtonLink},
-		}
-	} else {
-		options = [3]components.ButtonGroupOption{
-			{ID: buttonGroupItem.At(0), Label: state.Text("左对齐", "Left"), Variant: components.ButtonOutline},
-			{ID: buttonGroupItem.At(1), Label: state.Text("居中", "Center"), Variant: components.ButtonOutline},
-			{ID: buttonGroupItem.At(2), Label: state.Text("右对齐", "Right"), Variant: components.ButtonOutline},
-		}
-	}
-	group := components.BeginButtonGroup(canvas, theme, slot.Rect(), options[:])
-	if vertical {
-		group = group.Vertical()
-	} else if disabled {
-		group = group.Disabled()
-	}
-	if id, ok := group.Paint().Clicked(); ok {
-		state.values[0] = int32(listIndex(id, buttonGroupItem))
-	}
 }

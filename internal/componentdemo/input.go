@@ -223,68 +223,123 @@ func (state *State) paintInput(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 	if state.editing {
 		mode = state.Text("平台文本服务 · 支持输入、选区与 IME", "Platform text service · typing, selection and IME")
 	}
-	if state.exampleID == "states" {
+	switch state.exampleID {
+	case "states":
 		mode = state.Text("禁用与只读 · 不连接编辑器", "Disabled and read-only · no editor")
-	}
-	if state.exampleID == "custom" {
+		state.paintInputStates(canvas, theme, size, mode)
+	case "custom":
 		state.paintCustomInputs(canvas, theme, size, mode)
+	default:
+		state.paintInputPage(canvas, theme, size, mode)
+	}
+}
+
+// paintInputPage is the page TextField of the examples whose single field the
+// platform edits: the value lives in the Field the page paints, so the preview
+// and the snippet connect the same editor.
+func (state *State) paintInputPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
+	initial := state.initialInputValue()
+	label, placeholder := "Name", state.Text("输入中文或 English…", "Type in Chinese or English…")
+	invalidExample := state.exampleID == "invalid"
+	if invalidExample {
+		label, placeholder = "Email", "name@example.com"
+	}
+	captionText := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
+	invalid := false
+	if invalidExample {
+		invalid = initial == "" || !strings.Contains(initial, "@")
+		captionText = state.Text("演示校验通过。", "The demo validation passes.")
+		if invalid {
+			captionText = state.Text("请输入含 @ 的非空文本。", "Enter non-empty text containing @.")
+		}
+	}
+	if !state.editing {
+		// Without a platform text service the demo keeps its read-only
+		// snapshot: the page TextField has no read-only state.
+		state.paintInputSnapshot(canvas, theme, size, mode, label, placeholder, initial, invalid, captionText)
 		return
 	}
-	var samples [2]inputSample
-	caption := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
-	if state.exampleID == "states" {
-		samples[0] = inputSample{
-			id: inputDisabled, label: "Disabled", value: state.Text("不可编辑", "Not editable"),
-			disabled: true, themeRadius: true,
-		}
-		samples[1] = inputSample{
-			id: inputReadOnly, label: "Read-only", value: state.Text("Viva · 只读文本", "Viva · read-only text"),
-			readOnly: true, themeRadius: true,
-		}
-		caption = state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")
-	} else {
-		value := state.fieldValue(state.initialInputValue())
-		label, placeholder := "Name", state.Text("输入中文或 English…", "Type in Chinese or English…")
-		invalid := false
-		if state.exampleID == "invalid" {
-			label, placeholder = "Email", "name@example.com"
-			invalid = value == "" || !strings.Contains(value, "@")
-		}
-		samples[0] = inputSample{
-			id: inputEditable, label: label, value: value, placeholder: placeholder, hint: mode,
-			invalid: invalid, readOnly: !state.editing, themeRadius: true,
-		}
-		if state.exampleID == "invalid" {
-			caption = state.Text("演示校验通过。", "The demo validation passes.")
-			if invalid {
-				caption = state.Text("请输入含 @ 的非空文本。", "Enter non-empty text containing @.")
+	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
+		field := ui.State[ui.Field](c, "input")
+		state.bindPageField(field, initial)
+		field.Hint = mode
+		if invalidExample {
+			field.Invalid = field.Text() == "" || !strings.Contains(field.Text(), "@")
+			captionText = state.Text("演示校验通过。", "The demo validation passes.")
+			if field.Invalid {
+				captionText = state.Text("请输入含 @ 的非空文本。", "Enter non-empty text containing @.")
 			}
 		}
+		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+			ui.TextFieldID(c, inputEditable, field, label, placeholder)
+		})
+		ui.Text(c, captionText).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// paintInputSnapshot is the disconnected preview of one input: a read-only
+// snapshot painted by the component, which keeps the demo's rule that a preview
+// without a platform text service never looks editable.
+func (state *State) paintInputSnapshot(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode, label, placeholder, value string, invalid bool, captionText string) {
+	sample := inputSample{
+		id: inputEditable, label: label, value: value, placeholder: placeholder,
+		hint: mode, invalid: invalid, readOnly: true, themeRadius: true,
 	}
 	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
 		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
-		if state.exampleID == "states" {
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "Disabled").FontSize(theme.Metrics.FontSizeM)
-				samples[0].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "Read-only").FontSize(theme.Metrics.FontSizeM)
-				samples[1].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-		} else {
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, samples[0].label).FontSize(theme.Metrics.FontSizeM)
-				samples[0].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-		}
-		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+			sample.box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		})
+		ui.Text(c, captionText).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+	state.paintInputSample(canvas, theme, &sample)
+}
+
+// paintInputStates keeps the disabled and read-only samples on the canvas API:
+// the page TextField has no read-only state.
+func (state *State) paintInputStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
+	var samples [2]inputSample
+	samples[0] = inputSample{
+		id: inputDisabled, label: "Disabled", value: state.Text("不可编辑", "Not editable"),
+		disabled: true, themeRadius: true,
+	}
+	samples[1] = inputSample{
+		id: inputReadOnly, label: "Read-only", value: state.Text("Viva · 只读文本", "Viva · read-only text"),
+		readOnly: true, themeRadius: true,
+	}
+	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
+		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, "Disabled").FontSize(theme.Metrics.FontSizeM)
+			samples[0].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		})
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, "Read-only").FontSize(theme.Metrics.FontSizeM)
+			samples[1].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		})
+		ui.Text(c, state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	for index := range samples {
-		if samples[index].id.IsZero() {
-			continue
-		}
 		state.paintInputSample(canvas, theme, &samples[index])
+	}
+}
+
+// bindPageField binds the demo's platform editor to a page Field, or seeds the
+// Field's own editor with the example's initial text when no platform text
+// service is attached.
+func (state *State) bindPageField(field *ui.Field, initial string) {
+	if state.editing && state.editor != nil {
+		if field.GetEditor() != state.editor {
+			field.Bind(state.editor)
+		}
+		return
+	}
+	if field.GetEditor() == nil {
+		field.SetText(initial)
 	}
 }
 

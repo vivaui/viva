@@ -101,22 +101,45 @@ func formInitial(exampleID string) string {
 }
 
 func (state *State) paintForm(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "message" {
+		state.paintFormMessage(canvas, theme, size)
+		return
+	}
+	initial := formInitial(state.exampleID)
+	state.drawPage(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(c ui.C) {
+		field := ui.State[ui.Field](c, "username")
+		form := ui.State[ui.FormFieldState](c, "field")
+		state.bindPageField(field, initial)
+		form.Description = "This name is visible to collaborators."
+		if state.exampleID == "invalid" {
+			field.Invalid = utf8.RuneCountInString(field.Text()) < 3
+			form.Invalid = field.Invalid
+			form.Error = ""
+			if field.Invalid {
+				form.Error = "Use at least three characters."
+			}
+		}
+		ui.FormField(c, form, "Username").Children(func() {
+			ui.TextFieldID(c, formInput, field, "Username", "")
+		})
+	})
+}
+
+// paintFormMessage keeps the message example on the canvas API: the page
+// FormField has no separate non-error message line.
+func (state *State) paintFormMessage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slot ui.Box
 	state.drawPage(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(c ui.C) {
 		slot = ui.Slot(c).FillWidth().Height(150)
 	})
 	value := state.fieldValue(formInitial(state.exampleID))
-	snapshot := components.FormFieldSnapshot{Label: "Username", Description: "This name is visible to collaborators.", Required: true, ControlID: formInput}
-	if state.exampleID == "message" {
-		snapshot.Message = "Username is available."
-	}
-	if state.exampleID == "invalid" && utf8.RuneCountInString(value) < 3 {
-		snapshot.Invalid = true
-		snapshot.Error = "Use at least three characters."
+	snapshot := components.FormFieldSnapshot{
+		Label: "Username", Description: "This name is visible to collaborators.",
+		Message: "Username is available.", Required: true, ControlID: formInput,
 	}
 	layout := components.PaintFormField(canvas, theme, slot.Rect(), snapshot)
 	input := components.InputSnapshot{
-		ID: formInput, Label: layout.Semantics.Label, Value: value, Hint: layout.Semantics.AssistiveText(), Invalid: layout.Semantics.Invalid,
+		ID: formInput, Label: layout.Semantics.Label, Value: value, Hint: layout.Semantics.AssistiveText(),
 		ReadOnly: !state.editing,
 	}
 	state.paintEditable(canvas, formInput, value, &input)

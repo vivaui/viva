@@ -90,32 +90,43 @@ func fieldInitial(exampleID string) string {
 }
 
 func (state *State) paintField(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "orientations" {
+		state.paintFieldResponsive(canvas, theme, size)
+		return
+	}
+	initial := fieldInitial(state.exampleID)
+	state.drawPage(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(c ui.C) {
+		field := ui.State[ui.Field](c, "email")
+		form := ui.State[ui.FormFieldState](c, "field")
+		state.bindPageField(field, initial)
+		form.Description = "Used only for release notifications."
+		if state.exampleID == "invalid" {
+			field.Invalid = !strings.Contains(field.Text(), "@")
+			form.Invalid = field.Invalid
+			form.Error = ""
+			if field.Invalid {
+				form.Error = "Enter a valid work email."
+			}
+		}
+		ui.FormField(c, form, "Work email").Children(func() {
+			ui.TextFieldID(c, fieldInput, field, "Work email", "")
+		})
+	})
+}
+
+// paintFieldResponsive keeps the orientation example on the canvas API: the
+// page FormField has no responsive orientation option.
+func (state *State) paintFieldResponsive(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slot ui.Box
 	state.drawPage(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(c ui.C) {
 		slot = ui.Slot(c).FillWidth().Height(136)
 	})
-	field := components.BeginField(canvas, theme, slot.Rect()).For(fieldInput)
-	if state.exampleID == "orientations" {
-		field = field.Orientation(components.FieldResponsive)
-	}
+	field := components.BeginField(canvas, theme, slot.Rect()).For(fieldInput).Orientation(components.FieldResponsive)
 	value := state.fieldValue(fieldInitial(state.exampleID))
-	required := state.exampleID == "invalid"
-	invalid := required && !strings.Contains(value, "@")
-	if required {
-		field = field.Required()
-	}
-	if invalid {
-		field = field.Invalid()
-	}
-	errorText := ""
-	if invalid {
-		errorText = "Enter a valid work email."
-	}
-	control := field.Paint("Work email", "Used only for release notifications.", errorText)
 	input := components.InputSnapshot{
-		ID: fieldInput, Label: "Work email", Value: value, Hint: "Used only for release notifications", Invalid: invalid,
+		ID: fieldInput, Label: "Work email", Value: value, Hint: "Used only for release notifications",
 		ReadOnly: !state.editing,
 	}
 	state.paintEditable(canvas, fieldInput, value, &input)
-	components.PaintInput(canvas, theme, control, input)
+	components.PaintInput(canvas, theme, field.Paint("Work email", "Used only for release notifications.", ""), input)
 }
