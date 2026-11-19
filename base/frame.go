@@ -232,6 +232,7 @@ type Frame struct {
 	tooltips    bool               // an element was given a Tooltip: End paints the one the pointer rests on
 	tooltip     any                // the tooltip state the layer above owns: see tooltipOf
 	drawContext DrawContext        // what a Draw callback is handed, reused for the frame
+	pickerCtx   Ctx                // the declaration context a ColorPicker's painter is handed, reused for the frame
 	Gradients   []gradient         // the gradients of the elements that have one
 	Stops       []gfx.GradientStop // their stops, in the order declared
 	paintStops  []gfx.GradientStop // the stops of the gradient being painted, faded

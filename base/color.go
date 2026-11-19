@@ -198,9 +198,13 @@ func (b Box) pickerExtra() *Extra {
 // paintColorPicker draws a ColorPicker's trigger, and its panel while it is open.
 func (f *Frame) PaintColorPicker(n *Node) {
 	extra := &f.Exts[n.Ext]
-	ctx := Ctx{page: f.page, f: f}
-	d := DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.Rect, Label: n.Label}
-	extra.picker.paint(&d, &ctx, n.ID, extra.pickerLook)
+	// The picker's painter is handed the frame's own scratch: a context and a
+	// draw context made here would escape through the call and allocate once
+	// per picker in each paint.
+	f.pickerCtx.page, f.pickerCtx.f = f.page, f
+	d := &f.drawContext
+	*d = DrawContext{Canvas: f.Surface, Theme: &f.Palette, Rect: n.Rect, Label: n.Label}
+	extra.picker.paint(d, &f.pickerCtx, n.ID, extra.pickerLook)
 }
 
 func (s *ColorPickerState) ClosePanel() { s.open, s.restoreFocus = false, true }
