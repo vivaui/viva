@@ -174,6 +174,23 @@ func TestColorSwatchPaintsWithoutAllocating(t *testing.T) {
 	}
 }
 
+// An open picker paints from the frame's own scratch: a context and a draw
+// context made at the call would escape through the painter and allocate once
+// per picker in each paint.
+func TestOpenColorPickerPaintsWithoutAllocating(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(10, 20, 30)
+	d := pickerPage(t, &state, &color)
+	d.click("Accent")
+	if !state.Open() {
+		t.Fatal("the trigger did not open the panel")
+	}
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("a warm open picker paints with %v allocations, want 0", allocs)
+	}
+}
+
 func TestColorPickerLookMethodsApplyToThePickerAndNotToOtherElements(t *testing.T) {
 	var state ui.ColorPickerState
 	color := gfx.RGB(10, 20, 30)
