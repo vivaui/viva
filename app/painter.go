@@ -78,6 +78,7 @@ type painter struct {
 	// allocations alive, so equal pointers mean equal bytes) lets a repaint that
 	// declared the same hits reuse both instead of mirroring the list again.
 	publishedHits      []gfx.Hit
+	semanticDirty      []gfx.ID
 	publishedFocus     gfx.ID
 	publishedTrap      gfx.ID
 	publishedInitial   gfx.ID
@@ -967,8 +968,9 @@ func (painter *painter) publish() (platform.Frame, error) {
 	// field reports to assistive technology is the one the editor holds now.
 	// A repaint that changed neither the hits, the focus, nor the text state
 	// keeps the payload from the previous publish.
-	if !hitStructuresUnchanged || !painter.structuresUnchanged() {
-		painter.syncSemantics()
+	structuresUnchanged := painter.structuresUnchanged()
+	if !hitStructuresUnchanged || !structuresUnchanged {
+		painter.syncSemantics(!hitStructuresUnchanged && structuresUnchanged)
 		painter.recordHitStructures()
 		if !sameAccessibility(painter.accessibility, painter.lastAccess) {
 			painter.lastAccess = append(painter.lastAccess[:0], painter.accessibility...)
@@ -1061,6 +1063,7 @@ func (painter *painter) trim() {
 	painter.focus.Trim()
 	painter.hitScratch = framebuild.TrimCapacity(painter.hitScratch)
 	painter.publishedHits = framebuild.TrimCapacity(painter.publishedHits)
+	painter.semanticDirty = framebuild.TrimCapacity(painter.semanticDirty)
 	painter.publishedReturns = framebuild.TrimCapacity(painter.publishedReturns)
 	painter.accessibility = framebuild.TrimCapacity(painter.accessibility)
 	painter.lastAccess = framebuild.TrimCapacity(painter.lastAccess)
@@ -1549,7 +1552,7 @@ func (painter *painter) recordHitStructures() {
 
 // syncSemantics mirrors the canvas hit list into the retained semantic tree
 // and the flattened accessibility payload.
-func (painter *painter) syncSemantics() {
+func (painter *painter) syncSemantics(incremental bool) {
 	root := painter.semantics.Root()
 	// Blocks are occluders, not targets: they have no accessible meaning. Labels
 	// are no nodes either; their words name the control they label.
@@ -1566,6 +1569,41 @@ func (painter *painter) syncSemantics() {
 	pendingCount := 0
 	trap := painter.canvas.TrappedFocusScope()
 	canvasHits := painter.canvas.Hits()
+	// incremental is set when only the hit list changed: the focus, text state
+	// and view are the same, so a control whose hit and label are unchanged
+	// keeps its accessibility node. Compare the raw hits first and remember the
+	// few ids whose entry may have moved; a structural change, a label-map
+	// fallback or too many dirty ids falls back to the full mirror below.
+	fast := incremental && len(canvasHits) == len(painter.publishedHits)
+	dirty := painter.semanticDirty[:0]
+	if fast {
+		for index := range canvasHits {
+			current, previous := &canvasHits[index], &painter.publishedHits[index]
+			if current.ID != previous.ID || current.IsLabel != previous.IsLabel ||
+				current.Block != previous.Block || current.MovesWindow != previous.MovesWindow ||
+				current.Backdrop != previous.Backdrop {
+				fast = false
+				break
+			}
+			if *current != *previous && !current.ID.IsZero() {
+				known := false
+				for _, id := range dirty {
+					if id == current.ID {
+						known = true
+						break
+					}
+				}
+				if !known {
+					dirty = append(dirty, current.ID)
+					if len(dirty) > 64 {
+						fast = false
+						break
+					}
+				}
+			}
+		}
+	}
+	painter.semanticDirty = dirty
 	for index := range canvasHits {
 		hit := &canvasHits[index]
 		switch {
@@ -1624,6 +1662,36 @@ func (painter *painter) syncSemantics() {
 	}
 	painter.hitScratch = hits
 
+	if fast && labelled && (needsLabelMap || pendingCount > 0) {
+		fast = false
+	}
+	if fast && len(hits) != len(painter.semanticIDs) {
+		fast = false
+	}
+	if fast {
+		focused := painter.focus.Focused()
+		previous := painter.accessibility
+		for index := range hits {
+			dirtyHit := false
+			for _, id := range dirty {
+				if id == hits[index].ID {
+					dirtyHit = true
+					break
+				}
+			}
+			if !dirtyHit {
+				continue
+			}
+			node := painter.accessibilityNode(&hits[index], focused)
+			if index < len(previous) && previous[index] == node {
+				continue
+			}
+			painter.accessibility[index] = node
+			painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], focused))
+		}
+		painter.semanticChanges = painter.semantics.DrainChanges(painter.semanticChanges[:0])
+		return
+	}
 	common := len(painter.semanticIDs)
 	if len(hits) < common {
 		common = len(hits)
