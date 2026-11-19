@@ -56,9 +56,10 @@
 //
 // Multi-selection:
 //   - MultiSelect: `PaintMultiSelect` combines removable chips, a native query
-//     input and a filtered popup. `MultiSelectState` handles multi-selection,
-//     optional item creation, limits and keyboard/IME-safe confirmation. Bind
-//     its Query editor to the application's text-input provider.
+//     input and a filtered popup. The engine's `base.MultiSelectState` handles
+//     multi-selection, optional item creation, limits and keyboard/IME-safe
+//     confirmation; `components.MultiSelectState` is that type. Bind its Query
+//     editor to the application's text-input provider.
 //
 // Actions:
 //   - Avatar editor: `BeginAvatarEditor` paints a crop surface inside
