@@ -265,6 +265,10 @@ var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupport
 // application.
 var ErrWindowSizeUnsupported = errors.New("platform: programmatic window size is unsupported")
 
+// ErrDragPreviewUnsupported means this adapter cannot show the click-through
+// preview window a drag uses; the application keeps its in-window ghost.
+var ErrDragPreviewUnsupported = errors.New("platform: a transparent drag preview is unsupported")
+
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
 // host. The application keeps running; it only has no icon.

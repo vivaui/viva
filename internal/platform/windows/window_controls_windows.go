@@ -45,6 +45,7 @@ const (
 	htBottom      = 15
 	htBottomLeft  = 16
 	htBottomRight = 17
+	htTransparent = ^uintptr(0)
 )
 
 var isZoomed = user.NewProc("IsZoomed")

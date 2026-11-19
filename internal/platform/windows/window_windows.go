@@ -324,6 +324,10 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		// A popup that has no taskbar button and stays above other windows.
 		style = wsPopup
 		extendedStyle = wsExToolWindow | wsExTopmost
+	case platform.WindowPreview:
+		// A preview floats above other windows but never takes focus or input.
+		style = wsPopup
+		extendedStyle = wsExToolWindow | wsExTopmost | wsExNoActivate | wsExTransparent
 	}
 	// DirectComposition owns the client pixels; an opaque redirection bitmap
 	// underneath it would hide the native material.
@@ -392,6 +396,10 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		destroyWindow.Call(state.window)
 		return nil, err
 	}
+	if config.WindowMode == platform.WindowPreview && !state.renderer.usesComposition() {
+		destroyWindow.Call(state.window)
+		return nil, errTransparentPreviewUnavailable
+	}
 	if err := state.renderer.apply(platform.Frame{Update: initialUpdate(len(state.textRectangles)), Rectangles: state.textRectangles, TextLabels: state.textLabels}); err != nil {
 		destroyWindow.Call(state.window)
 		return nil, err
@@ -417,6 +425,13 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		state.placePanel()
 		showWindow.Call(state.window, swShow)
 		setForegroundWindow.Call(state.window)
+	} else if config.WindowMode == platform.WindowPreview {
+		// A window with no redirection bitmap may be shown with an empty update
+		// region. Its retained scene is ready, so make the first paint submit it
+		// instead of treating the empty region as "nothing to draw".
+		state.paintPending = true
+		showWindow.Call(state.window, swShowNoActivate)
+		invalidateRect.Call(state.window, 0, 0)
 	} else {
 		showWindow.Call(state.window, 1)
 	}
@@ -965,6 +980,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.handleCaretTimer(first)
 		return 0
 	case wmNCHitTest:
+		if state.config.WindowMode == platform.WindowPreview {
+			return htTransparent
+		}
 		if state.fullscreen.Load() {
 			return htClient
 		}
