@@ -30,7 +30,11 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 	theme := &f.Palette
 	left := float32(item.Depth) * s.IndentValue(theme)
 	if node.Branch {
-		left += 24 // the chevron, as components.Tree places it
+		slot := float32(24) // the chevron, as components.Tree places it
+		if s.Disclosure != nil && s.Disclosure.Slot > 0 {
+			slot = s.Disclosure.Slot
+		}
+		left += slot
 	}
 	rowBox.Children(func() {
 		b := Row(c).Height(s.HeightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.GetPaint())
@@ -54,6 +58,9 @@ func treeStateDraw(s *TreeState, d *DrawContext) {
 			continue
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.IndentValue(d.Theme))
+		if s.Disclosure != nil {
+			tree = tree.Disclosure(*s.Disclosure)
+		}
 		tree.Item(row.GetItem())
 		if s.DragPtr().GetActive() {
 			s.DragOver(row, d)
