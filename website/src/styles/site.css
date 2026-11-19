@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap');
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
   :root {
@@ -24,7 +25,7 @@
     --viva-accent-border: #e4e4e7;
     --viva-error: #b91c1c;
     --viva-success: #15803d;
-    --viva-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --viva-mono: "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     --viva-radius: 8px;
     --viva-header-height: 56px;
     color-scheme: light;
