@@ -20,6 +20,10 @@ type Example struct {
 
 type Component struct {
 	ID, Title, Category, Summary string
+	// PageUsage is the page-first call site shown above the examples, when this
+	// component has one. Empty means it is a canvas recipe, used inside
+	// ui.Control/Draw or copied by viva add.
+	PageUsage string
 	// Source is the Go file the example calls, relative to the repository root, when
 	// the control is not one of the components package: a page-layer control such as
 	// ui.List. Empty means components/<ID>.go, the component's own file.
@@ -68,6 +72,9 @@ func buildCatalog() []Component {
 		for current := index; current > 0 && componentLess(result[current], result[current-1]); current-- {
 			result[current], result[current-1] = result[current-1], result[current]
 		}
+	}
+	for i := range result {
+		result[i].PageUsage = pageUsage[result[i].ID]
 	}
 	return result
 }

@@ -35,6 +35,7 @@ export interface Page extends Nav {
   InstallCommand: string;
   Sections: Section[];
   Capabilities: Capability[];
+  PageUsage?: string;
 }
 
 export interface Coverage {
