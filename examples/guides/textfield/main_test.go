@@ -11,7 +11,7 @@ import (
 func TestTextField(t *testing.T) {
 	m := &model{}
 	page := ui.NewPage(ui.PageConfig{View: m.page})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 480, Height: 240}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 480, Height: 240}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

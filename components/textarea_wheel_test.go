@@ -17,9 +17,9 @@ func TestTextareaWheelScrollsUntilItsEnd(t *testing.T) {
 	text := strings.Join(lines, "\n")
 	box := newWrapBox(t, 100)
 	box.paint(TextareaSnapshot{Value: text, Caret: 0})
-	center := gfx.Point{X: box.layout.content.X + 4, Y: box.layout.content.Y + 4}
+	center := gfx.Point{X: box.layout.Content.X + 4, Y: box.layout.Content.Y + 4}
 
-	outside := gfx.ScrollEvent{X: box.layout.content.X - 10, Y: center.Y, DeltaY: 30}
+	outside := gfx.ScrollEvent{X: box.layout.Content.X - 10, Y: center.Y, DeltaY: 30}
 	if box.layout.Wheel(outside) {
 		t.Fatal("a wheel outside the text scrolled the box")
 	}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -324,5 +325,23 @@ func BenchmarkScrollAreaHoverBarsPaint(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		paint()
+	}
+}
+
+// A page ScrollState and the component compute one geometry: an application
+// that paints its own bar gets the same tracks and thumb the component would.
+func TestPageScrollStateBarGeometryMatchesTheComponent(t *testing.T) {
+	bounds := gfx.Rect{X: 5, Y: 7, Width: 200, Height: 120}
+	content := gfx.Size{Width: 200, Height: 500}
+	want := BeginScrollArea(nil, gfx.LightTheme(), bounds, content).Offset(0, 90).ScrollbarSize(10).Geometry()
+	state := base.ScrollState{Content: 500, Viewport: 120, ContentWidth: 200, ViewportWidth: 200, Offset: 90}
+	if got := state.BarGeometry(bounds, 10); got != want {
+		t.Fatalf("BarGeometry = %+v, want the component's %+v", got, want)
+	}
+	if got, fallback := state.BarGeometry(bounds, 0), state.BarGeometry(bounds, base.ScrollAreaBarSize); got != fallback {
+		t.Fatalf("a zero bar size is %+v, want the %v pixel default %+v", got, base.ScrollAreaBarSize, fallback)
+	}
+	if allocs := testing.AllocsPerRun(100, func() { state.BarGeometry(bounds, 10) }); allocs != 0 {
+		t.Fatalf("%v allocations per geometry, want 0", allocs)
 	}
 }

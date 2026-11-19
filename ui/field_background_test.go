@@ -44,7 +44,7 @@ func TestFieldBackgroundSnapshotSurvivesTypingAndDropsStaleResult(t *testing.T) 
 		})
 	}})
 	var invalidator app.Invalidator
-	driver, err := app.NewDriver(page.Config(app.Config{
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{
 		Title: "后台文本快照", Width: 480, Height: 240, Invalidator: &invalidator,
 	}), benchCanvas())
 	if err != nil {

@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/window"
 )
 
 func TestCaptionClicksTheSwitch(t *testing.T) {
@@ -27,20 +29,20 @@ func TestCaptionClicksTheSwitch(t *testing.T) {
 }
 
 type host struct {
-	name    string
+	Name    string
 	handled bool
 }
 
 // Filtering the list keeps each checkbox's name on its host: the focused one stays
 // with it, and the key that follows toggles the same host.
 func TestFilterKeepsFocusOnTheSameRow(t *testing.T) {
-	hosts := []host{{name: "a"}, {name: "b"}, {name: "c"}}
+	hosts := []host{{Name: "a"}, {Name: "b"}, {Name: "c"}}
 	hide := ""
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(4).Children(func() {
 			for i := range hosts {
-				if h := &hosts[i]; h.name != hide {
-					ui.Checkbox(c, &h.handled, h.name)
+				if h := &hosts[i]; h.Name != hide {
+					ui.Checkbox(c, &h.handled, h.Name)
 				}
 			}
 		})
@@ -48,8 +50,8 @@ func TestFilterKeepsFocusOnTheSameRow(t *testing.T) {
 	d.click("c")
 	hide = "a"
 	d.repaint()
-	if d.focused() != "c" {
-		t.Fatalf("after the filter the focus is on %q, want c", d.focused())
+	if d.Focused() != "c" {
+		t.Fatalf("after the filter the focus is on %q, want c", d.Focused())
 	}
 	d.key(gfx.KeySpace)
 	if hosts[2].handled || hosts[1].handled {
@@ -182,11 +184,11 @@ func TestFieldChangedReportsAnEditNotSetText(t *testing.T) {
 
 func TestConfigChainsAndKeepsTheRest(t *testing.T) {
 	var tree gfx.Tree
-	terminal := &app.TextInput{}
+	terminal := &window.TextInput{}
 	baseScrolls := 0
 	base := app.Config{
 		Title: "kept", Tree: &tree,
-		TextInput: func(app.TextInputContext) *app.TextInput { return terminal },
+		TextInput: func(window.TextInputContext) *window.TextInput { return terminal },
 		OnScroll: func(gfx.ScrollEvent) gfx.EventResult {
 			baseScrolls++
 			return gfx.EventResult{Handled: true}
@@ -196,7 +198,7 @@ func TestConfigChainsAndKeepsTheRest(t *testing.T) {
 	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() { ui.TextField(c, &field, "Name", "") })
 	}})
-	config := page.Config(base)
+	config := ui.Configure(page, base)
 	if config.Tree != &tree || config.Title != "kept" {
 		t.Fatal("Config did not adopt the base's tree and keep the title")
 	}
@@ -211,10 +213,10 @@ func TestConfigChainsAndKeepsTheRest(t *testing.T) {
 			fieldID = hit.ID
 		}
 	}
-	if input := config.TextInput(app.TextInputContext{ID: fieldID}); input == nil || input == terminal {
+	if input := config.TextInput(window.TextInputContext{ID: fieldID}); input == nil || input == terminal {
 		t.Fatal("the page did not answer for its own field")
 	}
-	if input := config.TextInput(app.TextInputContext{ID: tree.ID(tree.Feature("terminal"), "pty")}); input != terminal {
+	if input := config.TextInput(window.TextInputContext{ID: tree.ID(tree.Feature("terminal"), "pty")}); input != terminal {
 		t.Fatal("a field the page does not own did not reach the base provider")
 	}
 	if config.OnScroll(gfx.ScrollEvent{DeltaY: 10}); baseScrolls != 1 {
@@ -226,7 +228,7 @@ func TestConfigChainsAndKeepsTheRest(t *testing.T) {
 			t.Fatal("a Config with another Tree did not panic")
 		}
 	}()
-	other.Config(base)
+	ui.Configure(other, base)
 }
 
 func TestHiddenFieldGivesNoEditor(t *testing.T) {
@@ -242,7 +244,7 @@ func TestHiddenFieldGivesNoEditor(t *testing.T) {
 	id := d.hit("Name").ID
 	shown = false
 	d.repaint()
-	if input := d.page.TextInput(app.TextInputContext{ID: id}); input != nil {
+	if input := d.page.TextInput(window.TextInputContext{ID: id}); input != nil {
 		t.Fatal("a field the last paint did not declare still gives its editor")
 	}
 }
@@ -280,8 +282,8 @@ func TestPopoverClosesByEscapeAnchorAndOutside(t *testing.T) {
 	d.click("More")
 	d.click("Rename")
 	d.key(gfx.KeyEscape)
-	if open || d.focused() != "More" {
-		t.Fatalf("after Escape open=%v focus=%q, want closed with the trigger focused", open, d.focused())
+	if open || d.Focused() != "More" {
+		t.Fatalf("after Escape open=%v focus=%q, want closed with the trigger focused", open, d.Focused())
 	}
 	d.click("More")
 	d.click("More")
@@ -406,4 +408,51 @@ func TestDeclaringAfterEndPanics(t *testing.T) {
 	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), func(c ui.C) {
 		ui.Slot(c).Size(10, 10).Draw(func(*ui.DrawContext) { ui.Text(c, "late") })
 	})
+}
+
+// A Switch's own recipe wins over the page's Styles.Switch, so one row can keep
+// a control dressed as its old hand-painted switch was.
+func TestSwitchUsesItsOwnRecipe(t *testing.T) {
+	on := true
+	ownLook := func(Palette gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+		look := components.SwitchRecipe(Palette, state, progress)
+		look.Track = gfx.RGB(1, 2, 3)
+		return look
+	}
+	pageTheme := gfx.LightTheme()
+	paint := func(withOwn bool) []gfx.Rectangle {
+		var canvas gfx.Canvas
+		page := ui.NewPage(ui.PageConfig{
+			// A theme of its own: a page without one asks the system appearance,
+			// which must not be asked off the main thread.
+			Theme: &pageTheme,
+			Styles: &ui.Styles{Switch: func(Palette gfx.Theme, state gfx.State, progress float32) components.SwitchLook {
+				look := components.SwitchRecipe(Palette, state, progress)
+				look.Track = gfx.RGB(9, 9, 9)
+				return look
+			}},
+			View: func(c ui.C) {
+				sw := ui.Switch(c, &on, "Go")
+				if withOwn {
+					sw.SwitchRecipe(ownLook)
+				}
+			},
+		})
+		page.Paint(&canvas, gfx.Size{Width: 200, Height: 100})
+		return canvas.Rectangles()
+	}
+	has := func(rects []gfx.Rectangle, Color gfx.Color) bool {
+		for _, r := range rects {
+			if r.Color == Color {
+				return true
+			}
+		}
+		return false
+	}
+	if !has(paint(true), gfx.RGB(1, 2, 3)) {
+		t.Fatal("a Switch did not paint with its own recipe")
+	}
+	if has(paint(false), gfx.RGB(1, 2, 3)) {
+		t.Fatal("a Switch painted with another switch's recipe")
+	}
 }

@@ -52,7 +52,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	m.applyTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &m.theme})
-	return page.Config(app.Config{Title: "Theme", Width: 480, Height: 240})
+	return ui.Configure(page, app.Config{Title: "Theme", Width: 480, Height: 240})
 }
 
 func main() {
