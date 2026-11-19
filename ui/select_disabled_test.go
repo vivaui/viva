@@ -2,18 +2,19 @@ package ui_test
 
 import (
 	"fmt"
-	"github.com/vivaui/viva/components"
 	"testing"
+
+	"github.com/vivaui/viva/components"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
-func openSelect(t *testing.T, size *string, disabled []bool, options ...func(ui.Box) ui.Box) *pageDriver {
+func openSelect(t *testing.T, Size *string, disabled []bool, options ...func(ui.Box) ui.Box) *pageDriver {
 	t.Helper()
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(8).Children(func() {
-			b := ui.Select(c, size, []string{"S", "M", "L"}, nil).Placeholder("Size").DisabledOptions(disabled)
+			b := ui.Select(c, Size, []string{"S", "M", "L"}, nil).Placeholder("Size").DisabledOptions(disabled)
 			for _, option := range options {
 				b = option(b)
 			}
@@ -182,9 +183,9 @@ func TestFieldDisabledIsDimmedAndInert(t *testing.T) {
 	}
 }
 
-var darkSaveRecipe = func(theme gfx.Theme, variant components.ButtonVariant, state gfx.State) components.ButtonLook {
-	theme.Primary, theme.PrimaryForeground = gfx.RGB(24, 24, 27), gfx.RGB(250, 250, 250)
-	return components.ButtonRecipe(theme, variant, state)
+var darkSaveRecipe = func(Palette gfx.Theme, Variant components.ButtonVariant, state gfx.State) components.ButtonLook {
+	Palette.Primary, Palette.PrimaryForeground = gfx.RGB(24, 24, 27), gfx.RGB(250, 250, 250)
+	return components.ButtonRecipe(Palette, Variant, state)
 }
 
 // A Button given its own recipe is painted with it; the others on the page keep the theme's.
@@ -193,10 +194,10 @@ func TestButtonRecipeDressesOnlyThatButton(t *testing.T) {
 		ui.Button(c, "Plain")
 		ui.Button(c, "Dark").ButtonRecipe(darkSaveRecipe)
 	}))
-	fill := func(label string) gfx.Color {
+	fill := func(Label string) gfx.Color {
 		var bounds gfx.Rect
 		for _, h := range d.driver.Snapshot().Hits {
-			if h.Label == label && !h.IsLabel {
+			if h.Label == Label && !h.IsLabel {
 				bounds = h.Bounds
 			}
 		}
@@ -205,7 +206,7 @@ func TestButtonRecipeDressesOnlyThatButton(t *testing.T) {
 				return p.Color
 			}
 		}
-		t.Fatalf("no fill for %s", label)
+		t.Fatalf("no fill for %s", Label)
 		return gfx.Color{}
 	}
 	if fill("Plain") == fill("Dark") {

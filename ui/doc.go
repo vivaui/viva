@@ -12,7 +12,7 @@
 //		})
 //	}
 //
-//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.GetPage())
 //
 // Controls write into the values they are given, a list's rows are keyed with
 // c.Key, a long list is a List, a part that rarely changes a Memo, and Popover and
@@ -30,6 +30,10 @@
 // function of the page (func(c ui.C) ui.Box); a custom control uses Control
 // with Handlers, a custom layout uses CustomLayout, and a preview draws a Page
 // into a canvas region.
+//
+// The styled layer's painters are installed by the constructors as a page
+// declares the features it uses, so an application links only the painters it
+// uses. A host that drives package base directly calls InstallPainters.
 //
 // Layout is CSS flexbox's, from a declaration instead of coordinates.
 // A Row lays its children out left to right, a Column top to bottom, a Stack on

@@ -88,7 +88,7 @@ ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
 
 ### 抽屉
 
-`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面；`Swipe` 在面板内侧边缘加一个把手，拖动它面板随之移向边缘，拖过一半或快速甩出时关闭，否则滑回原位。
+`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` 从窗口一边滑入一个面板，即 shadcn 的 Sheet：标题为空时整个面板都给 body，`NonModal` 让键盘留在背后的页面；`Swipe` 在面板内侧边缘加一个把手，拖动它面板随之移向边缘，拖过一半或快速甩出时关闭，否则滑回原位。`Inset` 让抽屉及其关闭命中避开页面不拥有的条带，例如标题栏。
 
 ### 树
 
@@ -254,7 +254,7 @@ func main() {
 }
 ```
 
-`ui.Scroll(c)` 的偏移量由区域自己的名字保存；在它（或 `ui.List`、`ui.Tree` 返回的区域）上调用 `.ScrollState()`，可读取上一次布局时的 `Offset`、`Content`、`Viewport`，也可以用 `ScrollTo`、`ScrollToEnd` 用代码滚动，比如把选中行滚进视野。每次绘制都重新取，不要保存指针：某次绘制没有声明的区域会忘掉它的偏移量。
+`ui.Scroll(c)` 的偏移量由区域自己的名字保存；在它（或 `ui.List`、`ui.Tree` 返回的区域）上调用 `.ScrollState()`，可读取上一次布局时的 `Offset`、`Content`、`Viewport`，也可以用 `ScrollTo`、`ScrollToEnd` 用代码滚动，比如把选中行滚进视野。每次绘制都重新取，不要保存指针：某次绘制没有声明的区域会忘掉它的偏移量。页面把键盘交给区域时，`ScrollState.Key` 把方向键、翻页键和 Home/End 应用到该区域；应用要自绘滚动条时，`BarGeometry(bounds, barSize)` 计算轨道和滑块。
 
 `.Sideways()` 让区域也能左右滚动：子元素保持各自想要的宽度，最宽的那个决定内容有多宽，所有子元素都按这个宽度排布，区域更宽时按区域的宽度，所以一排标签保持各自的宽度，高亮的行横跨整个宽度。`Paragraph` 在这里不换行。和高度一样，区域的宽度是给它的宽度（在 `Row` 里需要 `Grow`），而不是内容的宽度。水平滚轮，或者按住 Shift 的滚轮，会横向移动它；状态里有 `OffsetX`、`ContentWidth`、`ViewportWidth`、`MaxX` 和 `ScrollToX`。`.Scrollbars()` 在内容溢出的边缘上画细滚动条，指针可以拖动；在滑块旁边按下，滑块会移到那里。
 
@@ -268,7 +268,7 @@ ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
 
 自定义布局用 `ui.CustomLayout(c, &m.masonry)`：容器里的流动子元素由 model 中的 `ui.Layout` 测量和摆放。`MeasureWidth`、`MeasureHeight` 说明内容想要多宽多高，`PlaceWidth`、`PlaceHeight` 给每个子元素尺寸和位置。页面负责 identity、焦点、命中、裁剪和绝对定位子元素；布局拥有子元素的尺寸和位置。`PlaceHeight` 还可以在知道高度后横向移动子元素（masonry 就在这里分列）；页面会一起移动子元素的子树，并按新锚点重新放置它的 popup。滚动和虚拟化请包在 `Scroll`/`List`/`Tree` 里，不要声明在 `Memo` 里。
 
-`c.Bounds()` 和 `c.Canvas()` 给出页面的矩形和画布，用来量文本或组件、读指针和焦点状态；声明和绘制仍走页面。`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。一个应用窗口就是一个 page：`ui.Run` 或 `Page.Config` 接好输入，窗格是同一个 page 里的 keyed 容器，不是第二个 `Page`。当 `Modal` 自动生成的 ID 不合适时，用 `ui.Dialog(c, ui.DialogSpec{...})` 声明由应用自己命名目标的对话框。应用代码不触碰 Page 下面的引擎；组件作者有自己的文档。
+`c.Bounds()` 和 `c.Canvas()` 给出页面的矩形和画布，用来量文本或组件、读指针和焦点状态；声明和绘制仍走页面。`c.Part("word")` 给下一个元素起一个你自己的名字，测试和无头驱动可以用它。一个应用窗口就是一个 page：`ui.Run` 或 `Configure` 接好输入，窗格是同一个 page 里的 keyed 容器，不是第二个 `Page`。当 `Modal` 自动生成的 ID 不合适时，用 `ui.Dialog(c, ui.DialogSpec{...})` 声明由应用自己命名目标的对话框。应用代码不触碰 Page 下面的引擎；组件作者有自己的文档。
 
 `examples/guides/page` 的 fleet 页面（一个选择控件、一个包含八行的滚动区域、每行一个复选框、一个进度条和一个按钮）在 Apple M2 Pro 上声明、布局并绘制用时 9.8 µs，预热后不分配；一千个带 Key 的行是 0.75 ms。两百行的列表每行套一个 `Memo` 后从 271 µs 降到 87 µs，整个列表套一个是 37 µs；复制保留的是上一遍绘制的命令，这两百行约占 0.5 MB（`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`）。
 
@@ -421,7 +421,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
+	return ui.Configure(page, app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {

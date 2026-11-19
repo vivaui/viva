@@ -95,6 +95,51 @@ func TestAlertDialogWithoutHeightFitsItsText(t *testing.T) {
 	}
 }
 
+// A dialog given AlertDialogHeader paints the alert dialog's title: the same size,
+// line box and gap to the description, and the same header height, so a page can
+// draw a confirmation as a dialog and keep the alert's typography.
+func TestDialogWithTheAlertHeaderPaintsTheAlertTitle(t *testing.T) {
+	viewport := gfx.Rect{Width: 900, Height: 700}
+	theme := gfx.LightTheme()
+	metrics := theme.Metrics
+	const title, description = "Discard changes?", "The file keeps its older contents."
+	var alertCanvas, dialogCanvas gfx.Canvas
+	alert := BeginAlertDialog(&alertCanvas, theme, viewport, AlertDialogOptions{ContentSize: gfx.Size{Width: 512}}).
+		Paint(title, description, "Discard", "Cancel")
+	dialog := BeginDialog(&dialogCanvas, theme, viewport, DialogOptions{
+		ContentSize: gfx.Size{Width: 512}, FitBody: true, Header: AlertDialogHeader(metrics),
+	}).Paint(title, description)
+
+	if dialog.Header.Height != alert.Header.Height {
+		t.Errorf("dialog header %v tall, the alert's %v", dialog.Header.Height, alert.Header.Height)
+	}
+	text := func(canvas *gfx.Canvas, value string) gfx.Text {
+		t.Helper()
+		for _, painted := range canvas.Texts() {
+			if painted.Value == value {
+				return painted
+			}
+		}
+		t.Fatalf("no text %q", value)
+		return gfx.Text{}
+	}
+	alertTitle, dialogTitle := text(&alertCanvas, title), text(&dialogCanvas, title)
+	if dialogTitle.Style.Size != alertTitle.Style.Size || dialogTitle.Bounds.Height != alertTitle.Bounds.Height {
+		t.Errorf("dialog title %v in a %v box, the alert's %v in %v",
+			dialogTitle.Style.Size, dialogTitle.Bounds.Height, alertTitle.Style.Size, alertTitle.Bounds.Height)
+	}
+	if dialogTitle.Style.Size != metrics.FontSizeM+5 || dialogTitle.Bounds.Height != metrics.FontSizeM+8 {
+		t.Errorf("title %v in a %v box, want the alert's %v in %v",
+			dialogTitle.Style.Size, dialogTitle.Bounds.Height, metrics.FontSizeM+5, metrics.FontSizeM+8)
+	}
+	alertDescription, dialogDescription := text(&alertCanvas, description), text(&dialogCanvas, description)
+	alertGap := alertDescription.Bounds.Y - (alertTitle.Bounds.Y + alertTitle.Bounds.Height)
+	dialogGap := dialogDescription.Bounds.Y - (dialogTitle.Bounds.Y + dialogTitle.Bounds.Height)
+	if dialogGap != alertGap || dialogGap != alertDialogTitleGap {
+		t.Errorf("dialog gap %v, the alert's %v, want %v", dialogGap, alertGap, alertDialogTitleGap)
+	}
+}
+
 func TestAlertDialogActionVariantStylesOnlyTheConfirmingButton(t *testing.T) {
 	theme := gfx.DarkTheme()
 	viewport := gfx.Rect{Width: 900, Height: 700}

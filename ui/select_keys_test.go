@@ -9,15 +9,15 @@ import (
 
 // selectPage opens a page with one Select and puts the keyboard on its trigger,
 // as Tab does.
-func selectPage(t *testing.T, size *string) *pageDriver {
+func selectPage(t *testing.T, Size *string) *pageDriver {
 	t.Helper()
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
-			ui.Select(c, size, []string{"S", "M", "L"}, nil).Placeholder("Size")
+			ui.Select(c, Size, []string{"S", "M", "L"}, nil).Placeholder("Size")
 		})
 	})
 	d.key(gfx.KeyTab)
-	if got := d.focused(); got != "Size" {
+	if got := d.Focused(); got != "Size" {
 		t.Fatalf("Tab focused %q, want the select's trigger", got)
 	}
 	return d
@@ -29,11 +29,11 @@ func TestSelectOpensAndChoosesFromTheKeyboard(t *testing.T) {
 	size := ""
 	d := selectPage(t, &size)
 	d.key(gfx.KeyEnter)
-	if got := d.focused(); got != "S" {
+	if got := d.Focused(); got != "S" {
 		t.Fatalf("Enter opened the list on %q, want the first option", got)
 	}
 	d.key(gfx.KeyDown)
-	if got := d.focused(); got != "M" {
+	if got := d.Focused(); got != "M" {
 		t.Fatalf("Down focused %q", got)
 	}
 	d.key(gfx.KeyEnter)
@@ -43,7 +43,7 @@ func TestSelectOpensAndChoosesFromTheKeyboard(t *testing.T) {
 	if d.has("S") {
 		t.Fatal("the list stayed open after a keyboard choice")
 	}
-	if got := d.focused(); got != "Size" {
+	if got := d.Focused(); got != "Size" {
 		t.Fatalf("the focus went to %q, want the trigger", got)
 	}
 }
@@ -53,7 +53,7 @@ func TestSelectArrowUpFromTheTriggerStartsAtTheLastOption(t *testing.T) {
 	size := ""
 	d := selectPage(t, &size)
 	d.key(gfx.KeyUp)
-	if got := d.focused(); got != "L" {
+	if got := d.Focused(); got != "L" {
 		t.Fatalf("Up focused %q, want the last option", got)
 	}
 	d.key(gfx.KeyEnter)
@@ -74,7 +74,7 @@ func TestSelectEscapeClosesTheListFromTheKeyboard(t *testing.T) {
 	if d.has("M") {
 		t.Fatal("Escape left the list open")
 	}
-	if got := d.focused(); got != "Size" {
+	if got := d.Focused(); got != "Size" {
 		t.Fatalf("Escape left the focus on %q, want the trigger", got)
 	}
 }

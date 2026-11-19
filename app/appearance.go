@@ -5,28 +5,19 @@ import (
 	"sync/atomic"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/window"
 )
 
 // Appearance is the look the system is set to: light or dark.
-type Appearance uint8
+type Appearance = window.Appearance
 
 const (
 	// AppearanceUnknown means the system does not say: a desktop without a
 	// preference, or a platform that cannot be asked.
-	AppearanceUnknown Appearance = iota
-	AppearanceLight
-	AppearanceDark
+	AppearanceUnknown = window.AppearanceUnknown
+	AppearanceLight   = window.AppearanceLight
+	AppearanceDark    = window.AppearanceDark
 )
-
-func (appearance Appearance) String() string {
-	switch appearance {
-	case AppearanceLight:
-		return "light"
-	case AppearanceDark:
-		return "dark"
-	}
-	return "unknown"
-}
 
 // SystemAppearance reports whether the system is set to a light or a dark look,
 // so an application can follow it until the user picks one. It reads the setting
