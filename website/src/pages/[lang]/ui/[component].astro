@@ -20,7 +20,6 @@ const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
 const sourcePath = page.PageUsage && page.PageSource ? page.PageSource : (page.Source || `components/${sourceFile}`);
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
-const fallbackUsage = `ui.Control(c, "${page.Title.replaceAll('"', '')}", &m.handlers).Draw(paint)`;
 ---
 
 <DocsLayout {locale} title={page.Title} summary={page.Summary} navigation={navigationFor(catalog, page)} currentID={page.ID}>
@@ -33,20 +32,21 @@ const fallbackUsage = `ui.Control(c, "${page.Title.replaceAll('"', '')}", &m.han
       </a>
     </div>
   </div>
+  {page.PageUsage && <section class="doc-section" aria-labelledby="page-api"><h2 id="page-api">{text.pageApi}</h2>
+    <div class="code-block usage-block page-api-block">
+      <div class="code-toolbar"><span>{text.pageApi}</span><CopyButton text={page.PageUsage} label={text.copyUsage} {locale} client:load /></div>
+      <div class="highlighted-code"><Code code={page.PageUsage} lang="go" themes={themes} defaultColor={false} /></div>
+    </div>
+  </section>}
   <div class="doc-section">
     {page.Examples.map(example => <section class="example-section" aria-labelledby={`example-${example.ID}`}>
       <h3 id={`example-${example.ID}`}>{example.Title}<a class="heading-anchor" href={`#example-${example.ID}`} aria-label={example.Title}>#</a></h3>
       <p class="example-summary">{example.Description}</p>
       <Preview {locale} componentID={page.ID} title={page.Title} example={example.Snippet && !/components\.|Begin/.test(example.Snippet) ? example : {...example, Snippet: undefined}} revision={page.Revision} height={example.Height} client:load />
-      {(!example.Snippet || /components\.|Begin/.test(example.Snippet)) && <p class="example-summary">{text.canvasRecipe}</p>}
-      {(() => {
-        const pageUsage = page.PageUsage || fallbackUsage;
-        const usage = example.Snippet && !/components\.|Begin/.test(example.Snippet) ? example.Snippet : pageUsage;
-        return <div class="code-block usage-block">
-          <div class="code-toolbar"><span>{text.pageApi}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>
-          <div class="highlighted-code"><Code code={usage} lang="go" themes={themes} defaultColor={false} /></div>
-        </div>;
-      })()}
+      {example.Snippet && !/components\.|Begin/.test(example.Snippet) ? <div class="code-block usage-block">
+        <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={example.Snippet} label={text.copyUsage} {locale} client:load /></div>
+        <div class="highlighted-code"><Code code={example.Snippet} lang="go" themes={themes} defaultColor={false} /></div>
+      </div> : <p class="example-summary">{text.canvasRecipe}</p>}
     </section>)}
   </div>
   <section class="doc-section" aria-labelledby="installation">
