@@ -1,38 +1,39 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type ButtonLook = style.ButtonLook
 
 // ButtonVariant selects one of the shadcn Vega button treatments. Destructive is
 // Vega's quiet one: a danger-tinted surface with a danger label, not a solid red
 // block.
-type ButtonVariant uint8
+type ButtonVariant = style.Variant
 
 const (
-	ButtonDefault ButtonVariant = iota
-	ButtonDestructive
-	ButtonOutline
-	ButtonSecondary
-	ButtonGhost
-	ButtonLink
-	// ButtonDestructiveOutline is the bordered form of a dangerous action: a danger
-	// colored label on an outline button, tinted with the danger color only under
-	// the pointer. Viva's own variant (shadcn has none), for an action that sits
-	// among ordinary controls such as a settings row.
-	ButtonDestructiveOutline
+	ButtonDefault            = style.VariantDefault
+	ButtonDestructive        = style.VariantDestructive
+	ButtonOutline            = style.VariantOutline
+	ButtonSecondary          = style.VariantSecondary
+	ButtonGhost              = style.VariantGhost
+	ButtonLink               = style.VariantLink
+	ButtonDestructiveOutline = style.VariantDestructiveOutline
 )
 
 // ButtonSize selects one of the official shadcn button sizes.
-type ButtonSize uint8
+type ButtonSize = style.Size
 
 const (
-	ButtonSizeDefault ButtonSize = iota
-	ButtonSizeXSmall
-	ButtonSizeSmall
-	ButtonSizeLarge
-	ButtonSizeIcon
-	ButtonSizeIconXSmall
-	ButtonSizeIconSmall
-	ButtonSizeIconLarge
+	ButtonSizeDefault    = style.SizeDefault
+	ButtonSizeXSmall     = style.SizeXSmall
+	ButtonSizeSmall      = style.SizeSmall
+	ButtonSizeLarge      = style.SizeLarge
+	ButtonSizeIcon       = style.SizeIcon
+	ButtonSizeIconXSmall = style.SizeIconXSmall
+	ButtonSizeIconSmall  = style.SizeIconSmall
+	ButtonSizeIconLarge  = style.SizeIconLarge
 )
 
 // ButtonState carries transient pointer, focus, and validation state for
@@ -682,23 +683,6 @@ func tinted(color gfx.Color, alpha float32, base gfx.Color) gfx.Color {
 }
 
 // ButtonLook is the look of a button of one variant in one state.
-type ButtonLook struct {
-	// Background, Foreground and Border are the colors of the surface, the label and the
-	// icon, and the line. Filled says the background is painted, Bordered the 1px line,
-	// and Underlined the label (a hovered link).
-	Background, Foreground, Border gfx.Color
-	Filled, Bordered, Underlined   bool
-	// Radius is the corner radius of the surface.
-	Radius float32
-	// Shadow is the elevation under the surface; only the outline variant has one.
-	Shadow gfx.ShadowLevel
-	// Ring is the halo of a focused or invalid button, transparent with a zero RingWidth
-	// when there is none. RingOutline says it is drawn as a line over a translucent theme
-	// rather than a disc under the surface.
-	Ring                  gfx.Color
-	RingWidth, RingRadius float32
-	RingOutline           bool
-}
 
 // ButtonRecipe resolves the look of a button. Hovered and Pressed of state are read only
 // when the button is not Disabled; FocusVisible and Invalid add the halo and take the

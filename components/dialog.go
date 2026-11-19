@@ -3,6 +3,8 @@ package components
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -32,16 +34,6 @@ type DialogOptions struct {
 	Header DialogHeader
 }
 
-// DialogHeader is the title's metrics: the size the title is painted at, the line
-// box it takes above the description, and the space between the two. A zero field
-// keeps the overlay dialog's: the body size plus two, one more than that, and the
-// theme's item gap.
-type DialogHeader struct {
-	TitleSize   float32
-	TitleHeight float32
-	TitleGap    float32
-}
-
 // AlertDialogHeader is the header a confirmation takes from components.AlertDialog:
 // a title five steps above the body, a line box eight above it, and a six-pixel gap
 // to the description.
@@ -51,29 +43,6 @@ func AlertDialogHeader(metrics gfx.Metrics) DialogHeader {
 		TitleHeight: alertDialogTitleHeight(metrics),
 		TitleGap:    alertDialogTitleGap,
 	}
-}
-
-// resolve fills the fields the caller left zero with the overlay dialog's.
-func (header DialogHeader) resolve(metrics gfx.Metrics) DialogHeader {
-	if header.TitleSize <= 0 {
-		header.TitleSize = overlayTitleSize(metrics)
-	}
-	if header.TitleHeight <= 0 {
-		header.TitleHeight = header.TitleSize + 1
-	}
-	if header.TitleGap <= 0 {
-		header.TitleGap = metrics.GapItem
-	}
-	return header
-}
-
-// height is the title and, under it, the description's lines.
-func (header DialogHeader) height(metrics gfx.Metrics, descriptionLines int) float32 {
-	height := header.TitleHeight
-	if descriptionLines > 0 {
-		height += header.TitleGap + float32(descriptionLines)*overlayLineHeight(metrics)
-	}
-	return height
 }
 
 // DialogLayout exposes the source-owned slots inside a painted dialog.
@@ -163,6 +132,13 @@ func (dialog Dialog) Layout(description string) DialogLayout {
 // overlayTitleSize is the size of a dialog, sheet or drawer title. Vega sets no
 // size on them, so they inherit the base 16px, two steps above the 14px
 // description; at Viva's 13px body that is FontSizeM+2.
+// alertDialogTitleHeight is the line box of a confirmation's title, which is
+// taller than a dialog's.
+func alertDialogTitleHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 8 }
+
+// alertDialogTitleGap separates the title from the description (`gap-1.5`).
+const alertDialogTitleGap = float32(6)
+
 func overlayTitleSize(metrics gfx.Metrics) float32 { return metrics.FontSizeM + 2 }
 
 // dialogTitleHeight is the line box of the title: Vega's `leading-none`.
@@ -185,8 +161,8 @@ func (dialog Dialog) layout(scratch *overlayLines, description string) (DialogLa
 	padding := metrics.PadSurface + metrics.GapItem
 	width := dialog.contentWidth()
 	lines := overlayWrap(dialog.canvas, scratch, description, metrics.FontSizeM, gfx.WeightRegular, width-2*padding)
-	header := dialog.options.Header.resolve(metrics)
-	headerHeight := header.height(metrics, len(lines))
+	header := dialog.options.Header.Resolve(metrics)
+	headerHeight := header.Height(metrics, len(lines))
 	content := dialog.contentBounds(width, headerHeight)
 	inner := content.Inset(gfx.All(padding))
 	footerHeight := dialogFooterHeight(metrics, dialog.options.ButtonSize)
@@ -240,7 +216,7 @@ func (dialog Dialog) Begin(title, description string) DialogLayout {
 	// The surface is opaque to pointers: pressing its padding must not reach the
 	// dismiss target behind it.
 	dialog.canvas.Block(content)
-	header := dialog.options.Header.resolve(metrics)
+	header := dialog.options.Header.Resolve(metrics)
 
 	dialog.canvas.Label(title, gfx.Rect{X: inner.X, Y: inner.Y, Width: inner.Width, Height: header.TitleHeight}, gfx.TextStyle{
 		Size: header.TitleSize, Weight: gfx.WeightMedium, Color: dialog.theme.PopoverForeground,
@@ -543,3 +519,6 @@ func PopoverRecipe(theme gfx.Theme) PopupLook {
 func popoverRecipe(theme *gfx.Theme) PopupLook {
 	return PopupLook{Fill: theme.Popover, Border: theme.Border, Radius: theme.Metrics.RadiusControl, Shadow: gfx.ShadowMD}
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type DialogHeader = base.DialogHeader

@@ -25,7 +25,7 @@ func newListModel(n int) *listModel {
 	return m
 }
 
-func (m *listModel) view(c ui.C) {
+func (m *listModel) View(c ui.C) {
 	ui.Column(c).Fill().Children(func() {
 		ui.List(c, &m.state, len(m.names), func(row ui.ListRow) {
 			ui.Row(c).Pad(4).Children(func() {
@@ -36,9 +36,9 @@ func (m *listModel) view(c ui.C) {
 	})
 }
 
-func paintedTexts(canvas *gfx.Canvas) map[string]bool {
+func paintedTexts(Surface *gfx.Canvas) map[string]bool {
 	seen := map[string]bool{}
-	for _, text := range canvas.Texts() {
+	for _, text := range Surface.Texts() {
 		seen[text.Value] = true
 	}
 	return seen
@@ -49,7 +49,7 @@ func TestListDeclaresOnlyVisibleRows(t *testing.T) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	for range 2 {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 	buttons := 0
 	for _, hit := range canvas.Hits() {
@@ -60,7 +60,7 @@ func TestListDeclaresOnlyVisibleRows(t *testing.T) {
 	if buttons == 0 || buttons > 30 {
 		t.Fatalf("%d rows declared for a 400 px list", buttons)
 	}
-	if allocs := testing.AllocsPerRun(20, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(20, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a steady list paint allocates %v times", allocs)
 	}
 }
@@ -135,10 +135,10 @@ func TestListRowHeightAtReportsLaidOutRows(t *testing.T) {
 	}
 }
 
-func fmtSscan(value string, i *int) (int, error) {
-	n, err := strconv.Atoi(strings.TrimPrefix(value, "row "))
+func fmtSscan(Value string, i *int) (int, error) {
+	n, err := strconv.Atoi(strings.TrimPrefix(Value, "row "))
 	*i = n
-	if err != nil || !strings.HasPrefix(value, "row ") {
+	if err != nil || !strings.HasPrefix(Value, "row ") {
 		return 0, strconv.ErrSyntax
 	}
 	return 1, nil
@@ -197,7 +197,7 @@ func TestListScrollToLandsOnARowOfVaryingHeight(t *testing.T) {
 	if !d.has(label) {
 		t.Fatalf("row %d is not painted: Visible %v", target, visibleOf(&m.list))
 	}
-	area := d.listArea("Rows")
+	area := d.ListArea("Rows")
 	if top := d.hit(label).Bounds.Y - area.Y; top < -2 || top > 2 {
 		t.Fatalf("row %d is %v px from the top of the list, want it at the top", target, top)
 	}
@@ -252,7 +252,7 @@ func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
 	d.repaint()
 	m.list.ScrollTo(4000, ui.ListStart)
 	d.repaint()
-	d.wheel(d.listArea("Rows"), 0, -50000, 0) // the user scrolls far up while it settles
+	d.wheel(d.ListArea("Rows"), 0, -50000, 0) // the user scrolls far up while it settles
 	d.repaint()
 	d.repaint()
 	if d.has("row 4000") {
@@ -267,7 +267,7 @@ func TestListScrollToLetsGoOfAUserScroll(t *testing.T) {
 type focusRows struct {
 	list    ui.ListState
 	names   []string
-	focused bool
+	Focused bool
 }
 
 func newFocusRows(names ...string) *focusRows {
@@ -283,7 +283,7 @@ func (m *focusRows) page(c ui.C) {
 			row.Element.Height(24).Children(func() { ui.Text(row.C, m.names[row.Index]) })
 		}).Label("Rows").Grow(1)
 		ui.Button(c, "after")
-		m.focused = m.list.HasFocus()
+		m.Focused = m.list.HasFocus()
 	})
 }
 
@@ -292,18 +292,18 @@ func TestListHasFocus(t *testing.T) {
 	m := newFocusRows("alpha", "beta", "gamma")
 	d := openPage(t, m.page)
 	d.repaint()
-	if m.focused || m.list.HasFocus() {
+	if m.Focused || m.list.HasFocus() {
 		t.Fatal("a list nothing has focused reports focus")
 	}
 	d.click("beta")
-	if d.focused() != "beta" {
-		t.Fatalf("clicking beta focused %q", d.focused())
+	if d.Focused() != "beta" {
+		t.Fatalf("clicking beta focused %q", d.Focused())
 	}
-	if !m.focused || !m.list.HasFocus() {
+	if !m.Focused || !m.list.HasFocus() {
 		t.Fatal("the list whose row has the keyboard does not report focus")
 	}
 	d.click("after")
-	if m.focused || m.list.HasFocus() {
+	if m.Focused || m.list.HasFocus() {
 		t.Fatal("the list reports focus with the focus on the button after it")
 	}
 }
@@ -351,8 +351,8 @@ func TestListNameAndNoTypeahead(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != m.names[2] || m.list.Selected() != 2 {
-		t.Fatalf("typing s went to %q (row %d): Label is no longer the text type-ahead matches", d.focused(), m.list.Selected())
+	if d.Focused() != m.names[2] || m.list.Selected() != 2 {
+		t.Fatalf("typing s went to %q (row %d): Label is no longer the text type-ahead matches", d.Focused(), m.list.Selected())
 	}
 
 	m.list.NoTypeahead = true
@@ -360,8 +360,8 @@ func TestListNameAndNoTypeahead(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(0, 's'); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != m.names[0] || m.list.Selected() != 0 {
-		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.focused(), m.list.Selected())
+	if d.Focused() != m.names[0] || m.list.Selected() != 0 {
+		t.Fatalf("typing with NoTypeahead went to %q (row %d)", d.Focused(), m.list.Selected())
 	}
 }
 
@@ -416,10 +416,10 @@ func TestListKeysAreItemNumbers(t *testing.T) {
 func BenchmarkList100k(b *testing.B) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -428,12 +428,12 @@ func BenchmarkList100k(b *testing.B) {
 func BenchmarkListStreamingAppend(b *testing.B) {
 	m := newListModel(100_000)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
 		m.names = append(m.names, "row "+strconv.Itoa(len(m.names)))
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -497,5 +497,17 @@ func TestListReorderDragCancelledByThePlatformDropsNothing(t *testing.T) {
 	}
 	if dropped {
 		t.Fatal("a cancelled press dropped the rows")
+	}
+}
+
+// RowOffset is a row's top in content space, for anchoring when content above
+// it changes.
+func TestListRowOffset(t *testing.T) {
+	var state ui.ListState
+	openPage(t, func(c ui.C) {
+		ui.List(c, &state, 4, func(row ui.ListRow) { row.Element.Height(30) })
+	})
+	if first, second := state.RowOffset(1), state.RowOffset(2); second-first != 30 {
+		t.Fatalf("rows 1 and 2 start %v apart, want 30", second-first)
 	}
 }

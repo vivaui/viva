@@ -48,8 +48,8 @@ func TestPageFieldAppearingAboveKeepsTheTyping(t *testing.T) {
 	needOTP = true
 	d.repaint()
 	d.typeText("cd")
-	if password.Text() != "abcd" || otp.Text() != "" || d.focused() != "Password" {
-		t.Fatalf("password %q code %q focus %q", password.Text(), otp.Text(), d.focused())
+	if password.Text() != "abcd" || otp.Text() != "" || d.Focused() != "Password" {
+		t.Fatalf("password %q code %q focus %q", password.Text(), otp.Text(), d.Focused())
 	}
 }
 
@@ -125,8 +125,8 @@ func TestPageKeyedRowsFollowTheirItems(t *testing.T) {
 	names = []string{"c", "b", "a"}
 	d.repaint()
 	d.key(gfx.KeyEnter)
-	if opened != "b" || d.focused() != "Open b" {
-		t.Fatalf("opened %q focus %q", opened, d.focused())
+	if opened != "b" || d.Focused() != "Open b" {
+		t.Fatalf("opened %q focus %q", opened, d.Focused())
 	}
 }
 
@@ -206,15 +206,15 @@ func TestPagePopoverAndModal(t *testing.T) {
 	})
 	d.click("More")
 	d.click("Delete…")
-	if !confirm || d.focused() != "Delete" {
-		t.Fatalf("confirm=%v focus=%q", confirm, d.focused())
+	if !confirm || d.Focused() != "Delete" {
+		t.Fatalf("confirm=%v focus=%q", confirm, d.Focused())
 	}
 	d.key(gfx.KeyEnter)
 	if deleted != 1 || confirm {
 		t.Fatalf("deleted=%d confirm=%v", deleted, confirm)
 	}
-	if !strings.Contains(d.focused(), "More") {
-		t.Fatalf("focus after closing is %q", d.focused())
+	if !strings.Contains(d.Focused(), "More") {
+		t.Fatalf("focus after closing is %q", d.Focused())
 	}
 }
 
@@ -222,14 +222,14 @@ func TestPageSteadyPaintAllocatesNothing(t *testing.T) {
 	m := newFleetModel()
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	for range 3 {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
-	if allocs := testing.AllocsPerRun(50, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(50, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a steady page allocates %v times", allocs)
 	}
 }
 
-func (m *fleetModel) view(c ui.C) {
+func (m *fleetModel) View(c ui.C) {
 	ui.Column(c).Fill().Pad(22).Gap(14).Children(func() {
 		ui.Text(c, "Fleet check").FontSize(26).Bold()
 		ui.Choice(c, &m.filter, fleetFilters, fleetFilterLabel)
@@ -237,14 +237,14 @@ func (m *fleetModel) view(c ui.C) {
 			for i := range m.hosts {
 				h := &m.hosts[i]
 				ui.Row(c).FillWidth().Pad(12).Gap(12).Children(func() {
-					ui.Text(c, h.name).Bold()
+					ui.Text(c, h.Name).Bold()
 					ui.Text(c, h.addr).Muted()
 					ui.Checkbox(c, &h.handled, "")
 				})
 			}
 		})
 		ui.Row(c).Gap(10).Children(func() {
-			ui.Text(c, m.summary).Muted()
+			ui.Text(c, m.Summary).Muted()
 			if ui.Button(c, "Scan again").Clicked() {
 				m.scans++
 			}
@@ -261,7 +261,7 @@ func BenchmarkPageFleet(b *testing.B) {
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -321,18 +321,18 @@ func BenchmarkRows1000Page(b *testing.B) {
 // elements are: a button
 // showing the chosen option and a popover listing them, with whether it is open
 // kept as the component's own state rather than the caller's.
-func combobox[T comparable](c ui.C, value *T, options []T, label func(T) string) ui.Box {
+func combobox[T comparable](c ui.C, Value *T, options []T, Label func(T) string) ui.Box {
 	var root ui.Box
 	root = ui.Column(c.Part("combobox")).Children(func() {
 		open := ui.State[bool](c, "open")
-		trigger := ui.Button(c.Part("trigger"), label(*value)).Outline()
+		trigger := ui.Button(c.Part("trigger"), Label(*Value)).Outline()
 		if trigger.Clicked() {
 			*open = !*open
 		}
 		ui.Popover(c, trigger, open, func() {
 			for i, option := range options {
-				if ui.Button(c.KeyInt(i), label(option)).Ghost().Clicked() {
-					*value, *open = option, false
+				if ui.Button(c.KeyInt(i), Label(option)).Ghost().Clicked() {
+					*Value, *open = option, false
 				}
 			}
 		})
@@ -353,8 +353,8 @@ func TestPageAutoFocusAndSubmit(t *testing.T) {
 			}
 		})
 	})
-	if d.focused() != "Search" {
-		t.Fatalf("focus on open = %q", d.focused())
+	if d.Focused() != "Search" {
+		t.Fatalf("focus on open = %q", d.Focused())
 	}
 	d.typeText("go")
 	d.key(gfx.KeyEnter)
@@ -363,15 +363,15 @@ func TestPageAutoFocusAndSubmit(t *testing.T) {
 	}
 	d.click("Other")
 	d.repaint()
-	if d.focused() != "Other" {
-		t.Fatalf("AutoFocus took the focus back: %q", d.focused())
+	if d.Focused() != "Other" {
+		t.Fatalf("AutoFocus took the focus back: %q", d.Focused())
 	}
 	shown = false
 	d.repaint()
 	shown = true
 	d.repaint()
-	if d.focused() != "Search" {
-		t.Fatalf("a field shown again did not take the focus: %q", d.focused())
+	if d.Focused() != "Search" {
+		t.Fatalf("a field shown again did not take the focus: %q", d.Focused())
 	}
 }
 
@@ -394,13 +394,13 @@ func TestPagePopoverMoves(t *testing.T) {
 	still := pageTheme
 	still.Transition.Duration = 0
 	for _, test := range []struct {
-		name  string
-		theme *gfx.Theme
-		moves bool
+		Name    string
+		Palette *gfx.Theme
+		moves   bool
 	}{{"moving", &pageTheme, true}, {"still", &still, false}} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			open := false
-			d := openPageWith(t, ui.PageConfig{Theme: test.theme, View: func(c ui.C) {
+			d := openPageWith(t, ui.PageConfig{Theme: test.Palette, View: func(c ui.C) {
 				ui.Column(c).Pad(16).Children(func() {
 					more := ui.Button(c, "More")
 					if more.Clicked() {
@@ -467,8 +467,8 @@ func TestPageTextArea(t *testing.T) {
 		})
 	})
 	d.click("Notes")
-	if d.focused() != "Notes" {
-		t.Fatalf("focus = %q", d.focused())
+	if d.Focused() != "Notes" {
+		t.Fatalf("focus = %q", d.Focused())
 	}
 	d.typeText("one")
 	d.key(gfx.KeyEnter)
@@ -563,7 +563,7 @@ func TestSelectStaysOpenWhenOneAppearsAbove(t *testing.T) {
 // application's own, label and icon both named by functions of the option.
 func TestSelectIconChoosesAnOption(t *testing.T) {
 	type locale struct {
-		name string
+		Name string
 		flag int
 	}
 	flagOf := func(flag int) gfx.Icon {
@@ -575,7 +575,7 @@ func TestSelectIconChoosesAnOption(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			ui.SelectIcon(c, &chosen, locales,
-				func(l locale) string { return l.name },
+				func(l locale) string { return l.Name },
 				func(l locale) gfx.Icon { return flagOf(l.flag) }).Placeholder("Language")
 		})
 	})

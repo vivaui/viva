@@ -9,14 +9,16 @@ import (
 )
 
 // Label is a prepared image placed in the canvas: text the platform's text engine rasterized, or
-// a bitmap, already at device resolution. Pix is premultiplied BGRA like the canvas, unless LCD is
+// a bitmap. Pix is premultiplied BGRA like the canvas, unless LCD is
 // set: then it holds the coverage of each channel of subpixel-antialiased text and an alpha that is
 // their luminance, and the renderer tints it per channel instead.
 type Label struct {
 	Pix    []byte
 	Stride int // bytes per row of Pix
-	Width  int // pixels per row
+	Width  int // destination pixels per row
 	Height int
+	// SourceWidth and SourceHeight are nonzero only for a bitmap sampled into a different size.
+	SourceWidth, SourceHeight int
 	// X and Y are the device pixel of the image's top-left corner in the canvas.
 	X, Y  int
 	Layer uint16
@@ -192,7 +194,7 @@ func (c *Canvas) clearRegion(s render.Scissor, color scene.Color) {
 }
 
 func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
-	if l.Width <= 0 || l.Height <= 0 || len(l.Pix) < (l.Height-1)*l.Stride+l.Width*4 {
+	if l.Width <= 0 || l.Height <= 0 {
 		return
 	}
 	area := intersect(damage, render.Scissor{Left: l.X, Top: l.Y, Right: l.X + l.Width, Bottom: l.Y + l.Height})
@@ -200,6 +202,13 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 		area = intersect(area, l.Clip)
 	}
 	if empty(area) {
+		return
+	}
+	if l.SourceWidth > 0 {
+		drawScaledBitmap(c, area, l)
+		return
+	}
+	if len(l.Pix) < (l.Height-1)*l.Stride+l.Width*4 {
 		return
 	}
 	if !l.LCD {
@@ -219,6 +228,34 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 			continue
 		}
 		drawLCDLabel(c, columns, l, span.Color)
+	}
+}
+
+func drawScaledBitmap(canvas *Canvas, area render.Scissor, label *Label) {
+	width, height := label.SourceWidth, label.SourceHeight
+	if height <= 0 || label.Stride/4 < width || len(label.Pix) < width*4 ||
+		height-1 > (len(label.Pix)-width*4)/label.Stride {
+		return
+	}
+	ratioX, ratioY := float64(width)/float64(label.Width), float64(height)/float64(label.Height)
+	for y := area.Top; y < area.Bottom; y++ {
+		sourceY := min(max((float64(y-label.Y)+0.5)*ratioY-0.5, 0), float64(height-1))
+		upper := int(sourceY)
+		lower := min(upper+1, height-1)
+		weightY := float32(sourceY - float64(upper))
+		for x := area.Left; x < area.Right; x++ {
+			sourceX := min(max((float64(x-label.X)+0.5)*ratioX-0.5, 0), float64(width-1))
+			left := int(sourceX)
+			right := min(left+1, width-1)
+			weightX := float32(sourceX - float64(left))
+			var sample [4]float32
+			for channel := range sample {
+				top := float32(label.Pix[upper*label.Stride+left*4+channel])*(1-weightX) + float32(label.Pix[upper*label.Stride+right*4+channel])*weightX
+				bottom := float32(label.Pix[lower*label.Stride+left*4+channel])*(1-weightX) + float32(label.Pix[lower*label.Stride+right*4+channel])*weightX
+				sample[channel] = (top*(1-weightY) + bottom*weightY) * (1.0 / 255)
+			}
+			over(canvas.Pix, y*canvas.Stride+x*4, sample[2], sample[1], sample[0], sample[3])
+		}
 	}
 }
 

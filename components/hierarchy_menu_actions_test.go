@@ -137,7 +137,7 @@ func TestHierarchyMenuRootActionsShareKeyboardScrollAndTypeahead(t *testing.T) {
 	f.wantAction(t, none)
 	f.key(t, gfx.KeyEnd)
 	last := hierarchyTestHit(t, f.driver, create)
-	if last.Height != 32 || f.menu.scrolls[0].Offset == 0 {
+	if last.Height != 32 || f.menu.Scrolls[0].Offset == 0 {
 		t.Fatalf("End did not reveal the complete final command: %+v", last)
 	}
 	f.key(t, gfx.KeyEnter)
@@ -272,15 +272,15 @@ func TestHierarchyMenuRebuildForgetsInputAndDragState(t *testing.T) {
 	f.key(t, gfx.KeyEnd)
 	bar := hierarchyTestHit(t, f.driver, f.option.ScrollID)
 	result := f.menu.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, Target: f.option.ScrollID, X: bar.X + 2, Y: bar.Y + 2})
-	if !result.Handled || !f.menu.scrolls[0].Dragging() {
+	if !result.Handled || !f.menu.Scrolls[0].Dragging() {
 		t.Fatal("fixture did not start a scrollbar drag")
 	}
 	f.menu.Key(gfx.KeyEvent{Text: "G"}, true)
-	if !f.menu.typeahead.Typing(time.Now()) {
+	if !f.menu.Typeahead.Typing(time.Now()) {
 		t.Fatal("fixture did not start typeahead")
 	}
 	f.menu.Build("/", "", nil, 1, func(int) HierarchyMenuItem { return HierarchyMenuItem{Value: "Fresh"} })
-	if f.menu.scrolls[0].Dragging() || f.menu.scrolls[0].Offset != 0 || f.menu.typeahead.Typing(time.Now()) || f.menu.Depth() != 0 {
+	if f.menu.Scrolls[0].Dragging() || f.menu.Scrolls[0].Offset != 0 || f.menu.Typeahead.Typing(time.Now()) || f.menu.Depth() != 0 {
 		t.Fatal("reopened menu retained drag, scroll, typeahead or a child")
 	}
 	var canvas gfx.Canvas

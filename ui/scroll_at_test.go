@@ -22,7 +22,7 @@ func TestScrollAtRoutesWheelToItsOwnerBeforeAnOuterArea(t *testing.T) {
 	}
 	page := ui.NewPage(ui.PageConfig{Root: "scroll-at-wheel", View: view})
 	calls := 0
-	config := page.Config(app.Config{OnScroll: func(event gfx.ScrollEvent) gfx.EventResult {
+	config := ui.Configure(page, app.Config{OnScroll: func(event gfx.ScrollEvent) gfx.EventResult {
 		calls++
 		offset += event.DeltaY
 		return gfx.EventResult{Handled: true, Repaint: true}

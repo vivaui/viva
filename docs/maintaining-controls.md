@@ -4,6 +4,27 @@ How a control is built, what keeps its two forms the same, and what adding one t
 Written from the code and from the history of earlier additions; where a step is a
 convention rather than something a test checks, it says so.
 
+## Layers
+
+```
+gfx -> style -> base -> ui
+          \-> components   (style recipes; may read base)
+app is the platform loop below ui; it knows nothing of pages.
+```
+
+- `style` carries look values only: variants, sizes, resolved looks and the
+  values painters read. No state machines, no canvas measurement.
+- `base` is the engine: element tree, layout, input/focus routing, control state
+  and behaviour. It never imports `components`, `ui` or `app`. It is published
+  because the styled layer and the recipes copied by `viva add` import it.
+- `components` is the style library: recipes and canvas painters. It may import
+  `base` for the state a copied recipe reads, but not `ui` or `app`.
+- `ui` composes `base` and `components`, installs the painting hooks, and is the
+  application-facing facade. Applications declare pages with `ui.C`.
+
+`internal/layering` checks both forbidden and allowed edges; a new dependency is
+an explicit edit there.
+
 ## Two forms of one control
 
 A control that ships with a look has a **styled form** and a **Base**:
@@ -12,37 +33,43 @@ A control that ships with a look has a **styled form** and a **Base**:
 - `ui.ButtonBase`, `ui.CheckboxBase`, `ui.SelectBase`, … do everything the control does
   (pointer, keyboard, focus, value binding, what assistive technology is told) and paint
   nothing, so an application with a look of its own builds on them and does not copy a
-  behavior. They are in `ui/page_bases.go` (page level) and `ui/bases.go`, `ui/select.go`,
-  `ui/slider.go`, `ui/frame.go`, `ui/field.go` (frame level).
+  behavior. They are in `base/page_bases.go` (page level) and `base/bases.go`,
+  `base/select.go`, `base/slider.go`, `base/frame.go`, `base/field.go` (frame level).
+  Package `ui` forwards the application-facing names.
 
 The two forms are the same control. What differs is the look and nothing else.
 
 ### How that is kept true
 
-- `TestStyledControlsDeclareWhatTheirBasesDeclare` (`ui/base_parity_test.go`) declares each
+- `TestStyledControlsDeclareWhatTheirBasesDeclare` (`base/base_parity_test.go`) declares each
   styled control and its Base in every state a caller can put it in (on, off, disabled,
   chosen) and compares what each tells the pointer, the keyboard and assistive technology:
   role, name, value, checked, mixed, selected, expanded, focusable, disabled, range.
-- `TestEveryPageBaseIsComparedOrExplained` (`ui/base_scan_test.go`) fails for a page Base
+- `TestEveryPageBaseIsComparedOrExplained` (`base/base_scan_test.go`) fails for a page Base
   that is in neither that comparison nor the list of Bases without a styled form, so a new
   Base cannot be added without deciding.
-- `TestEveryRemainingBaseIsItsControlWithoutALook` (`ui/base_contract_test.go`) checks that
+- `TestEveryRemainingBaseIsItsControlWithoutALook` (`base/base_contract_test.go`) checks that
   a Base paints nothing and declares one focusable hit with its role and state.
 
 ### Where the behavior lives
 
 Select, Slider, Input, Textarea and Field are built as `X = XBase` plus the theme's look
 (`flagThemed`), so their behavior is written once. Button, Checkbox, Switch and Tabs are
-separate code paths from their Bases: the styled form is painted by `components.BeginX`,
-which declares the hit itself, and the Base declares it again in `ui/bases.go`. The parity
-test is what keeps those two declarations equal until they share one.
+separate code paths from their Bases: the styled form is painted by the styled layer's
+painter (`ui/controls_paint.go`), which draws the recipe and declares the hit, and the Base
+declares it again in `base/bases.go`. The parity test is what keeps those two declarations
+equal until they share one.
+
+The behavior lives in package `base`, the appearance in package `components`: `base` never
+imports `components`, and the painters (in `ui`) read the engine's state through its
+exported accessors and call the recipes. `internal/layering` enforces the direction.
 
 ## Where a control's look is decided
 
 The look of a control is a recipe in `components` (`components/button.go`, …). Variants and
-sizes of a styled control are chosen in `ui` (for a button, `Box.Outline`, `Box.Small`, and
-the switch in `frame.paintButton`) and drawn by the recipe. A change to how a control looks
-belongs in the recipe; a change to what it does belongs in `ui`.
+sizes of a styled control are declared through `base.Box` (`Box.Outline`, `Box.Small`, …)
+and drawn by the recipe in `ui`'s painter (for a button, `ui/controls_paint.go`). A change
+to how a control looks belongs in the recipe; a change to what it does belongs in `base`.
 
 ## Adding a control
 
@@ -53,15 +80,17 @@ missed.
    for light and dark themes. Run `go generate ./cmd/viva` (the installable copies and
    `cmd/viva/components_gen.go` are generated; `go run ./tools/componentgen -check` fails
    when they are stale).
-2. **Page control** — in `ui`: a node kind and constructor on the frame (`ui/frame.go`), its
-   layout (`ui/layout.go`) and paint (`ui/paint.go`), the page function and its control kind
-   (`ui/elements.go`, `ui/page.go`). Look at how `Switch` is wired and search for `kindSwitch`
-   and `pkSwitch` to see every place a kind appears.
-3. **Base** — add the Base in `ui/bases.go` and `ui/page_bases.go`, and a row for it in
+2. **Page control** — in `base`: a node kind and constructor on the frame (`base/frame.go`),
+   its layout (`base/layout.go`) and paint dispatch (`base/paint.go`), the page function and
+   its control kind (`base/elements.go`, `base/page.go`). The look's painter goes in `ui`
+   (`ui/controls_paint.go`) and is installed through `ui/hooks_install.go`. Look at how
+   `Switch` is wired and search for `kindSwitch` and `pkSwitch` to see every place a kind
+   appears.
+3. **Base** — add the Base in `base/bases.go` and `base/page_bases.go`, and a row for it in
    `TestStyledControlsDeclareWhatTheirBasesDeclare` and `comparedWithTheirStyledForm`.
    `TestEveryPageBaseIsComparedOrExplained` fails until you do.
 4. **Guide and docs** — every exported `Box` method must appear in
-   `cmd/viva/initfiles/AGENTS.md.txt` (`ui/guide_test.go`), and a program shown in a guide is
+   `cmd/viva/initfiles/AGENTS.md.txt` (`base/guide_test.go`), and a program shown in a guide is
    the one in `examples/guides` (`website`: `npm run sync:examples`).
 5. **Catalog** — a demo in `internal/componentdemo`, registered in `state.go` and the
    catalog, so the component browser shows it.

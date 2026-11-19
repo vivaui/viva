@@ -129,3 +129,15 @@ func TestSwitchInvalidPaintsTheDangerRingAndBorder(t *testing.T) {
 		t.Fatalf("invalid switch rectangles = %+v", canvas.Rectangles())
 	}
 }
+
+// HitBounds replaces the enlarged target with the caller's enclosing slot, as
+// Checkbox.HitBounds does.
+func TestSwitchHitBoundsReplacesTheTarget(t *testing.T) {
+	theme := gfx.DarkTheme()
+	var canvas gfx.Canvas
+	slot := gfx.Rect{X: 10, Y: 20, Width: 52, Height: 32}
+	BeginSwitch(&canvas, theme, gfx.Item(1), gfx.Rect{X: 20, Y: 27}, false).HitBounds(slot).Paint()
+	if got := canvas.Hits()[0].Bounds; got != slot {
+		t.Fatalf("switch hit %v, want the slot %v", got, slot)
+	}
+}

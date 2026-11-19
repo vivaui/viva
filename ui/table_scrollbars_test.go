@@ -96,16 +96,16 @@ func TestScrollAreaBarsLingerAfterTheViewMoves(t *testing.T) {
 // overlay without losing the table's geometry, wheel, or horizontal overlay.
 func TestTableHideHoverScrollbarsOmitsOnlyTheAnonymousVerticalThumb(t *testing.T) {
 	for _, test := range []struct {
-		name   string
+		Name   string
 		hide   bool
 		gutter float32
 	}{
-		{name: "default overlay", gutter: 0},
-		{name: "default over a gutter", gutter: 10},
-		{name: "hidden overlay", hide: true, gutter: 0},
-		{name: "hidden overlay over a gutter", hide: true, gutter: 10},
+		{Name: "default overlay", gutter: 0},
+		{Name: "default over a gutter", gutter: 10},
+		{Name: "hidden overlay", hide: true, gutter: 0},
+		{Name: "hidden overlay over a gutter", hide: true, gutter: 10},
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(test.Name, func(t *testing.T) {
 			rows := make(ui.TableRows, 100)
 			for i := range rows {
 				rows[i] = []string{"row", "a", "b", "c"}

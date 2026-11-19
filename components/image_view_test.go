@@ -1,9 +1,10 @@
 package components
 
 import (
-	"github.com/vivaui/viva/gfx"
 	"math"
 	"testing"
+
+	"github.com/vivaui/viva/gfx"
 )
 
 func TestImageViewFitActualSizeAndPanAtDisplayScales(t *testing.T) {

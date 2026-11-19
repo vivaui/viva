@@ -86,6 +86,7 @@ var _ platform.WindowSizer = resultWindow{}
 var _ fullscreenControl = resultWindow{}
 var _ alwaysOnTopControl = resultWindow{}
 var _ shortcutCapturer = resultWindow{}
+var _ titleControl = resultWindow{}
 var _ platform.WindowMover = resultWindow{}
 
 // What OpenWindow looks for in a host's window control.
@@ -114,6 +115,14 @@ func (window resultWindow) SetFullscreen(fullscreen bool) error {
 func (window resultWindow) Fullscreen() bool {
 	control, ok := window.WindowControl.(fullscreenControl)
 	return ok && control.Fullscreen()
+}
+
+func (window resultWindow) SetTitle(title string) error {
+	control, ok := window.WindowControl.(titleControl)
+	if !ok {
+		return fmt.Errorf("%w: window titles", ErrUnsupported)
+	}
+	return control.SetTitle(title)
 }
 
 func (window resultWindow) SetAlwaysOnTop(enabled bool) error {
