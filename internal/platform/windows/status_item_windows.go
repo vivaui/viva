@@ -549,8 +549,13 @@ func (state *windowState) placeAtOrigin(origin gfx.Point) {
 	var info monitorInfo
 	info.Size = uint32(unsafe.Sizeof(info))
 	monitor, _, _ := monitorFromPoint.Call(uintptr(uint32(x+width/2))|uintptr(uint32(y+height/2))<<32, monitorNearest)
-	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
-		x, y, width, height = placedFrame(info.Work, x, y, width, height)
+	// A drag preview goes wherever the pointer is, even half off a screen: the
+	// ghost is not a window the user has to reach. Every other window stays
+	// inside the work area of the monitor it lands on.
+	if state.config.WindowMode != platform.WindowPreview {
+		if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
+			x, y, width, height = placedFrame(info.Work, x, y, width, height)
+		}
 	}
 	// SWP_NOZORDER | SWP_NOACTIVATE: the size too, for a window that did not fit.
 	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), 0x14)
