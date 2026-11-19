@@ -20,7 +20,7 @@
 // initials or the component's geometric fallback.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an State or Group in the model beside its data: its
+// nothing for it. Keep a State or a Group in the model beside its data: its
 // handlers and draw function are made once, so a warm paint allocates nothing.
 // Do not copy one after it has been painted.
 package avatar

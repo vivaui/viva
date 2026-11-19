@@ -29,9 +29,12 @@
 // Clicked reports a click after View, like the component views do.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an State in the model beside its bitmap: its handlers
+// nothing for it. Keep a State in the model beside its bitmap: its handlers
 // and draw function are made once, so a warm paint allocates nothing. Do not
 // copy one after it has been painted.
+//
+// The package shares its name with the standard library's image package; a
+// file that imports both aliases one of them.
 package image
 
 import (
