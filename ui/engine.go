@@ -63,6 +63,13 @@ type Place = base.Place
 type PopoverDecl = base.PopoverDecl
 type PopoverSpec = base.PopoverSpec
 type ScrollState = base.ScrollState
+
+// ScrollAreaGeometry is the complete deterministic layout of one scroll area:
+// its viewport, translated content, tracks, thumbs and corner.
+type ScrollAreaGeometry = base.ScrollAreaGeometry
+
+// ScrollAreaLayout is how those bars are laid out, for LayoutScrollArea.
+type ScrollAreaLayout = base.ScrollAreaLayout
 type SelectDecl = base.SelectDecl
 type SelectState = base.SelectState
 type Selection = base.Selection

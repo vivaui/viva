@@ -290,3 +290,48 @@ func TestScrollPaintsOnWholeLogicalPixels(t *testing.T) {
 		t.Fatalf("after 2.6px the last row is at %v, want 267: the content moved three whole pixels", last.Rect().Y)
 	}
 }
+
+// ScrollState.Key is the keyboard's counterpart of Wheel: a page that owns an
+// area's focus moves it with the arrow keys, a viewport at a time with PageUp and
+// PageDown, and to either end with Home and End, never past them.
+func TestScrollStateKeyScrollsWithinItsContent(t *testing.T) {
+	var view View
+	logPage(&view, false, 10) // ten rows of 30 in 100: Content 300, Max 200
+	state := view.ScrollState(listID)
+	tests := []struct {
+		key  gfx.Key
+		want float32
+	}{
+		{gfx.KeyDown, 32},
+		{gfx.KeyUp, 0},
+		{gfx.KeyPageDown, 90},
+		{gfx.KeyPageUp, 0},
+		{gfx.KeyEnd, 200},
+		{gfx.KeyHome, 0},
+	}
+	for _, test := range tests {
+		result := state.Key(gfx.KeyEvent{Key: test.key}, 32)
+		if !result.Handled || !result.Repaint {
+			t.Errorf("%v: handled %v repaint %v, want both", test.key, result.Handled, result.Repaint)
+		}
+		if state.Offset != test.want {
+			t.Fatalf("%v moved the area to %v, want %v", test.key, state.Offset, test.want)
+		}
+	}
+	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyEnter}, 32); result.Handled {
+		t.Error("Enter is not the area's key")
+	}
+	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyDown, Release: true}, 32); result.Handled || state.Offset != 0 {
+		t.Errorf("a key release moved the area to %v, handled %v", state.Offset, result.Handled)
+	}
+	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyPageDown}, 32); result.Handled && state.Offset != 90 {
+		t.Errorf("a zero step paged to %v, want 90", state.Offset)
+	}
+	state.ScrollTo(state.Max())
+	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyDown}, 32); !result.Handled || result.Repaint {
+		t.Errorf("at the end: handled %v repaint %v, want handled and no repaint", result.Handled, result.Repaint)
+	}
+	if allocs := testing.AllocsPerRun(100, func() { state.Key(gfx.KeyEvent{Key: gfx.KeyUp}, 32) }); allocs != 0 {
+		t.Errorf("%v allocations per key, want 0", allocs)
+	}
+}

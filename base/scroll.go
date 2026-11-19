@@ -215,6 +215,68 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: true, Repaint: s.Offset != before || s.OffsetX != beforeX}
 }
 
+// Key applies the keyboard's scrolling to the area, from the content and viewport
+// of its last layout: Left and Right move a Sideways area by step, Up and Down
+// vertically by step, PageUp and PageDown by a viewport, and Home and End to the
+// start and the end. A step of zero or less is 32 pixels, one line. It reports a
+// recognized key as handled even when the area was already at that end, so the
+// caller stops there rather than looking for another area, and Repaint only when
+// the offsets moved.
+//
+// It is for a page that gives the keyboard to the area itself, as one does to a
+// terminal or a log beside a control: a List and a Table scroll with the arrow
+// keys themselves when they have the focus. Wheel is the pointer's counterpart.
+func (s *ScrollState) Key(event gfx.KeyEvent, step float32) gfx.EventResult {
+	if event.Release {
+		return gfx.EventResult{}
+	}
+	if step <= 0 {
+		step = 32
+	}
+	page := max(s.Viewport*0.9, step)
+	before, beforeX := s.Offset, s.OffsetX
+	switch event.Key {
+	case gfx.KeyLeft:
+		s.OffsetX -= step
+	case gfx.KeyRight:
+		s.OffsetX += step
+	case gfx.KeyUp:
+		s.Offset -= step
+	case gfx.KeyDown:
+		s.Offset += step
+	case gfx.KeyPageUp:
+		s.Offset -= page
+	case gfx.KeyPageDown:
+		s.Offset += page
+	case gfx.KeyHome:
+		s.Offset = 0
+	case gfx.KeyEnd:
+		s.Offset = s.Max()
+	default:
+		return gfx.EventResult{}
+	}
+	s.Offset = min(max(s.Offset, 0), s.Max())
+	s.OffsetX = min(max(s.OffsetX, 0), s.MaxX())
+	s.toEnd = false
+	s.settle()
+	return gfx.EventResult{Handled: true, Repaint: s.Offset != before || s.OffsetX != beforeX}
+}
+
+// BarGeometry is the layout of the area's scrollbars over bounds, for an
+// application that paints its own bar or reads its thumb: the content and
+// viewport are the ones of the last layout, the offsets are the current ones,
+// and barSize is the bars' thickness (ScrollAreaBarSize when zero or less).
+// It paints nothing and allocates nothing; the page's own Scrollbars paint and
+// drag the bars without the application asking for this.
+func (s *ScrollState) BarGeometry(bounds Rect, barSize float32) ScrollAreaGeometry {
+	if barSize <= 0 {
+		barSize = ScrollAreaBarSize
+	}
+	return LayoutScrollArea(bounds, gfx.Size{Width: s.ContentWidth, Height: s.Content}, ScrollAreaLayout{
+		OffsetX: s.OffsetX, OffsetY: s.Offset, BarSize: barSize,
+	})
+}
+
 // Wheel gives a scroll event to the ScrollArea of the page last drawn that the pointer
 // (event.X, event.Y) is over: the innermost one when areas nest, and the next one out
 // when that is already at the end the wheel points to, as a browser does. Areas side

@@ -87,7 +87,7 @@ An element is named by where it is: its kind and its number among the elements o
 
 ### Drawers
 
-`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise.
+`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise. `Inset` keeps the drawer and its dismiss target out of a strip the page does not own, such as a title bar.
 
 ### Trees
 
@@ -253,7 +253,7 @@ func main() {
 }
 ```
 
-`ui.Scroll(c)` keeps its offset by the area's own name; `.ScrollState()` on it (or on the area a `ui.List` or `ui.Tree` returns) has `Offset`, `Content` and `Viewport` as of the last layout, and moves it by program with `ScrollTo` and `ScrollToEnd`, for instance to bring the selected row into view. Ask for it in each paint rather than keeping the pointer: an area a paint does not declare forgets its offset.
+`ui.Scroll(c)` keeps its offset by the area's own name; `.ScrollState()` on it (or on the area a `ui.List` or `ui.Tree` returns) has `Offset`, `Content` and `Viewport` as of the last layout, and moves it by program with `ScrollTo` and `ScrollToEnd`, for instance to bring the selected row into view. Ask for it in each paint rather than keeping the pointer: an area a paint does not declare forgets its offset. `ScrollState.Key` applies the arrow, page and Home/End keys to the area when the page gives it the keyboard, and `BarGeometry(bounds, barSize)` computes the tracks and thumb for an application that paints its own scrollbar.
 
 `.Sideways()` makes the area scroll left and right as well: its children keep the width they ask for, the widest sets how wide the content is, and they are all laid out as wide as that, or as the area where it is wider, so a row of tabs keeps its tabs' widths and a highlighted row runs the whole width. A `Paragraph` does not wrap there. As with its height, the area's width is the one it is given (a `Row` needs `Grow`), not its content's. The horizontal wheel, or the wheel with Shift held, moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX` and `ScrollToX`. `.Scrollbars()` draws thin bars over the edges the content overflows; the pointer drags them, and a press beside a thumb brings it there.
 

@@ -71,6 +71,7 @@ const (
 	Shift              = base.Shift
 	Start              = base.Start
 	Stretch            = base.Stretch
+	ScrollAreaBarSize  = base.ScrollAreaBarSize
 	ToBottom           = base.ToBottom
 	ToBottomLeft       = base.ToBottomLeft
 	ToBottomRight      = base.ToBottomRight
@@ -378,6 +379,12 @@ func NewEffectKeyed[T any, K comparable](run func(context.Context, K) (T, error)
 
 func Effect[T any, K comparable](c C, state *EffectState[T, K], key K) {
 	base.Effect(c, state, key)
+}
+
+// LayoutScrollArea computes a scroll area's bars without painting them: the
+// component and ScrollState.BarGeometry use the same layout.
+func LayoutScrollArea(bounds gfx.Rect, content gfx.Size, layout ScrollAreaLayout) ScrollAreaGeometry {
+	return base.LayoutScrollArea(bounds, content, layout)
 }
 
 // Identity and input.
