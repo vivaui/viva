@@ -55,6 +55,7 @@ const (
 	FocusHorizontal    = base.FocusHorizontal
 	FocusVertical      = base.FocusVertical
 	KindContainer      = base.KindContainer
+	KindToggle         = base.KindToggle
 	KindIcon           = base.KindIcon
 	KindImage          = base.KindImage
 	KindSlot           = base.KindSlot
@@ -163,6 +164,8 @@ func SwitchBase(c C, Value *bool, Label string) Box {
 func ToggleBase(c C, Value *bool, Label string) Box {
 	return base.ToggleBase(c, Value, Label)
 }
+
+func Toggle(c C, Value *bool, Label string) Box { return base.Toggle(c, Value, Label) }
 
 func Control(c C, Label string, h *Handlers) Box { useControls(); return base.Control(c, Label, h) }
 

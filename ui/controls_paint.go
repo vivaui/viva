@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 func paintCheckbox(f *Frame, v ControlView) {
@@ -66,6 +67,27 @@ func paintSwitch(f *Frame, v ControlView) {
 	control.Paint()
 }
 
+func paintToggle(f *Frame, v ControlView) {
+	toggle := components.BeginToggle(f.Surface, f.Palette, v.ID, v.Rect, v.Flags&FlagChecked != 0)
+	if v.Size == style.SizeSmall {
+		toggle = toggle.Small()
+	} else if v.Size == style.SizeLarge {
+		toggle = toggle.Large()
+	}
+	if v.Flags&FlagDisabled != 0 {
+		toggle = toggle.Disabled()
+	}
+	label := v.Text
+	if label == "" {
+		label = v.Label
+	}
+	if v.Variant == style.VariantOutline {
+		toggle.Outline(label)
+	} else {
+		toggle.Default(label)
+	}
+}
+
 func paintInputGroup(f *Frame, v ControlView) {
 	components.PaintInputGroup(f.Surface, f.Palette, v.Rect, base.WidgetsOf(f).GetGroups()[v.Aux])
 }
@@ -115,6 +137,25 @@ func measureControls(f *Frame, n *Node) {
 			control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
 			n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
 		}
+	case KindToggle:
+		toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
+		if n.ButtonSize == style.SizeSmall {
+			toggle = toggle.Small()
+		} else if n.ButtonSize == style.SizeLarge {
+			toggle = toggle.Large()
+		}
+		label := n.Text
+		if label == "" {
+			label = n.Label
+		}
+		toggle = toggle.SizeToFit(label)
+		height := f.Palette.Metrics.ControlHeight
+		if n.ButtonSize == style.SizeSmall {
+			height -= 4
+		} else if n.ButtonSize == style.SizeLarge {
+			height += 4
+		}
+		n.Pref = [2]float32{toggle.BoundsWidth(), height}
 	case KindSegmented:
 		var width float32 = 8
 		for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {

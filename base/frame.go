@@ -28,6 +28,7 @@ const (
 	kindImage       = KindImage
 	kindSplitButton = KindSplitButton
 	kindBadge       = KindBadge
+	kindToggle      = KindToggle
 	kindPagination  = KindPagination
 )
 
@@ -637,6 +638,18 @@ func (f *Frame) Switch(ID gfx.ID, on bool) Box {
 	n.ID = ID
 	if on {
 		n.Flags |= flagChecked
+	}
+	n.Flags |= flagHasHit
+	return b
+}
+
+// Toggle adds a two-state button in the given state; Clicked reports a click.
+func (f *Frame) Toggle(ID gfx.ID, Label string, pressed bool) Box {
+	b := f.Box(kindToggle)
+	n := &f.Nodes[b.i]
+	n.ID, n.Label = ID, Label
+	if pressed {
+		n.Flags |= flagChecked | flagSelected
 	}
 	n.Flags |= flagHasHit
 	return b

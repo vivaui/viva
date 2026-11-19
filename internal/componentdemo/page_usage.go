@@ -48,7 +48,7 @@ ui.Table(c, &m.table, ui.TableSpec{
 	"pagination":       `ui.Pagination(c, items)`,
 	"radio-group":      `ui.RadioGroup(c)`,
 	"choice":           `ui.Choice(c, &m.choice, choices, nameOf)`,
-	"toggle":           `ui.ToggleBase(c, &m.on, "Bold")`,
+	"toggle":           `ui.Toggle(c, &m.on, "Bold").Outline()`,
 	"native-select":    `ui.Select(c, &m.choice, choices, nameOf)`,
 	"single-select":    `ui.Select(c, &m.choice, choices, nameOf)`,
 	"scroll-area":      `ui.Scroll(c).Grow(1).Scrollbars()`,
