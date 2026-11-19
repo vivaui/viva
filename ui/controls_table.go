@@ -2,35 +2,6 @@ package ui
 
 import "github.com/vivaui/viva/base"
 
-// paintControls paints the controls: each kind's look, from package components
-// for the ones that ship with a theme, and from the caller's own painter for
-// the ones it declared. The engine calls it through base.ControlPainter.
-func paintControls(f *Frame, n *Node, r Rect) {
-	if painter := controlPainters[n.Kind]; painter != nil {
-		painter(f, n, r)
-	}
-}
-
-var controlPainters = [...]func(f *Frame, n *Node, r Rect){
-	KindButton:      paintButtonControl,
-	KindCheckbox:    paintCheckboxControl,
-	KindSwitch:      paintSwitchControl,
-	KindInput:       paintInputControl,
-	KindInputGroup:  paintInputGroupControl,
-	KindTextarea:    paintTextareaControl,
-	KindSegmented:   paintSegmentedControl,
-	KindTable:       paintWidgetControl,
-	KindTabs:        paintWidgetControl,
-	KindSelect:      paintWidgetControl,
-	KindProgress:    paintProgressControl,
-	KindSpinner:     paintSpinnerControl,
-	KindSplitter:    paintSplitterControl,
-	KindSplitButton: paintSplitButtonControl,
-	KindBadge:       paintBadgeControl,
-	KindPagination:  paintPaginationControl,
-	KindSlider:      paintSliderControl,
-}
-
 func paintButtonControl(f *Frame, n *Node, _ Rect)      { paintButton(f, n) }
 func paintInputControl(f *Frame, n *Node, _ Rect)       { paintInput(f, n) }
 func paintTextareaControl(f *Frame, n *Node, _ Rect)    { paintTextarea(f, n) }

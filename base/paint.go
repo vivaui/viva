@@ -170,10 +170,20 @@ func (f *Frame) PaintChild(i int32) {
 	}
 }
 
-// controlPainter paints a control's look. The engine paints text, icons, images
-// and slots itself; the controls are a seam a layer above can replace, which is
-// what lets the engine live below the styled controls.
-var ControlPainter func(f *Frame, n *Node, r Rect)
+// The control painters, by Kind: the engine paints text, icons, images and slots
+// itself; a layer above installs the controls' looks, so the engine lives below
+// the styled controls and links only the painter a page uses.
+const controlKindCount = int(KindPagination) + 1
+
+var controlPainters [controlKindCount]func(f *Frame, n *Node, r Rect)
+
+// SetControlPainter installs the look of one control kind. It is a bridge for
+// the styled layer; callers of the page API never need it.
+func SetControlPainter(kind Kind, painter func(f *Frame, n *Node, r Rect)) {
+	if int(kind) < len(controlPainters) {
+		controlPainters[kind] = painter
+	}
+}
 
 // ControlBaseline is the label baseline of a button.
 var ControlBaseline func(f *Frame, n *Node) float32
@@ -198,8 +208,10 @@ func (f *Frame) paintControl(n *Node, r Rect) {
 			f.paintPickerFn(f, n)
 		}
 	default:
-		if ControlPainter != nil {
-			ControlPainter(f, n, r)
+		if int(n.Kind) < len(controlPainters) {
+			if painter := controlPainters[n.Kind]; painter != nil {
+				painter(f, n, r)
+			}
 		}
 	}
 }

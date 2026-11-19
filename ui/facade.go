@@ -115,9 +115,9 @@ func Grid(c C, minCell float32) Box { return base.Grid(c, minCell) }
 
 func CustomLayout(c C, layout Layout) Box { return base.CustomLayout(c, layout) }
 
-func Scroll(c C) Box { return base.Scroll(c) }
+func Scroll(c C) Box { useScroll(); return base.Scroll(c) }
 
-func ScrollAt(c C, offset float32) Box { return base.ScrollAt(c, offset) }
+func ScrollAt(c C, offset float32) Box { useScroll(); return base.ScrollAt(c, offset) }
 
 func Textf(c C, format string, args ...any) Box { return base.Textf(c, format, args...) }
 
@@ -145,19 +145,28 @@ func Button(c C, Label string) Box { return base.Button(c, Label) }
 
 func ButtonBase(c C, Label string) Box { return base.ButtonBase(c, Label) }
 
-func Checkbox(c C, Value *bool, Label string) Box { return base.Checkbox(c, Value, Label) }
+func Checkbox(c C, Value *bool, Label string) Box {
+	return base.Checkbox(c, Value, Label)
+}
 
-func CheckboxBase(c C, Value *bool, Label string) Box { return base.CheckboxBase(c, Value, Label) }
+func CheckboxBase(c C, Value *bool, Label string) Box {
+	return base.CheckboxBase(c, Value, Label)
+}
 
 func Switch(c C, Value *bool, Label string) Box { return base.Switch(c, Value, Label) }
 
-func SwitchBase(c C, Value *bool, Label string) Box { return base.SwitchBase(c, Value, Label) }
+func SwitchBase(c C, Value *bool, Label string) Box {
+	return base.SwitchBase(c, Value, Label)
+}
 
-func ToggleBase(c C, Value *bool, Label string) Box { return base.ToggleBase(c, Value, Label) }
+func ToggleBase(c C, Value *bool, Label string) Box {
+	return base.ToggleBase(c, Value, Label)
+}
 
-func Control(c C, Label string, h *Handlers) Box { return base.Control(c, Label, h) }
+func Control(c C, Label string, h *Handlers) Box { useControls(); return base.Control(c, Label, h) }
 
 func FormField(c C, state *FormFieldState, Label string) Box {
+	useControls()
 	return base.FormField(c, state, Label)
 }
 
@@ -166,58 +175,71 @@ func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box 
 }
 
 func Radio[T comparable](c C, Value *T, option T, Label string) Box {
+	useControls()
 	return base.Radio(c, Value, option, Label)
 }
 
 func RadioID[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
+	useControls()
 	return base.RadioID(c, ID, Value, option, Label)
 }
 
 func RadioBase[T comparable](c C, Value *T, option T, Label string) Box {
+	useControls()
 	return base.RadioBase(c, Value, option, Label)
 }
 
-func RadioGroup(c C) Box { return base.RadioGroup(c) }
+func RadioGroup(c C) Box { useControls(); return base.RadioGroup(c) }
 
 func TabBase[T comparable](c C, Value *T, tab T, Label string) Box {
+	useTabs()
 	return base.TabBase(c, Value, tab, Label)
 }
 
 func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
+	useTabs()
 	return base.Tabs(c, Value, tabs, Label)
 }
 
 func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
+	useSelect()
 	return base.Select(c, Value, choices, Label)
 }
 
 func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T) string) Box {
+	useSelect()
 	return base.SelectID(c, ID, Value, choices, Label)
 }
 
 func SelectIcon[T comparable](c C, Value *T, choices []T, Label func(T) string, icon func(T) gfx.Icon) Box {
+	useSelect()
 	return base.SelectIcon(c, Value, choices, Label, icon)
 }
 
 func SelectBase[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
+	useSelect()
 	return base.SelectBase(c, Value, choices, Label)
 }
 
 func Combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, Label string) Box {
+	useCombo()
 	return base.Combobox(c, Value, choices, nameOf, Label)
 }
 
 func ComboKey(Value string) (index int, isKey bool) { return base.ComboKey(Value) }
 
 func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
+	useColor()
 	return base.ColorSwatch(c, Color, selected, Label)
 }
 
 func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string) Box {
+	useColor()
 	return base.ColorPicker(c, state, Color, Label)
 }
 
 func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label string) Box {
+	useColor()
 	return base.ColorPickerID(c, ID, state, Color, Label)
 }
 
@@ -234,26 +256,32 @@ func Pagination(c C, Items []PaginationItem) Box { return base.Pagination(c, Ite
 // Fields and text entry.
 
 func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
+	useField()
 	return base.TextField(c, Value, Label, placeholder)
 }
 
 func TextFieldID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
+	useField()
 	return base.TextFieldID(c, ID, field, Label, placeholder)
 }
 
 func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
+	useField()
 	return base.TextFieldBase(c, Value, Label, placeholder)
 }
 
 func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
+	useField()
 	return base.TextArea(c, Value, Label, placeholder)
 }
 
 func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
+	useField()
 	return base.TextAreaID(c, ID, field, Label, placeholder)
 }
 
 func Fields(fields ...*Field) func(window.TextInputContext) *window.TextInput {
+	useField()
 	return base.Fields(fields...)
 }
 
@@ -269,39 +297,47 @@ func BindIconHover(state *base.IconHoverState, ID gfx.ID) IconHover {
 
 // Dialogs, menus and other overlays.
 
-func Dialog(c C, spec DialogSpec) Box { return base.Dialog(c, spec) }
+func Dialog(c C, spec DialogSpec) Box { useDialog(); return base.Dialog(c, spec) }
 
-func AlertDialog(c C, spec AlertDialogSpec) Box { return base.AlertDialog(c, spec) }
+func AlertDialog(c C, spec AlertDialogSpec) Box { useAlert(); return base.AlertDialog(c, spec) }
 
 func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func()) bool {
+	useDrawer()
 	return base.Drawer(c, open, title, spec, body, footer)
 }
 
 func Modal(c C, open *bool, title string, body, footer func()) bool {
+	useDialog()
 	return base.Modal(c, open, title, body, footer)
 }
 
 func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
+	useDialog()
 	return base.ModalWith(c, open, title, spec, body, footer)
 }
 
 func Popover(c C, Anchor Box, open *bool, body func()) bool {
+	usePopover()
 	return base.Popover(c, Anchor, open, body)
 }
 
 func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
+	usePopover()
 	return base.PopoverWith(c, Anchor, spec, open, body)
 }
 
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
+	useMenu()
 	base.Menu(c, Anchor, open, body)
 }
 
 func ContextMenu(c C, target Box, body func(*MenuItems)) {
+	useMenu()
 	base.ContextMenu(c, target, body)
 }
 
 func ContextMenuAt(c C, target Box, open *bool, at gfx.Point, body func(*MenuItems)) {
+	useMenu()
 	base.ContextMenuAt(c, target, open, at, body)
 }
 
@@ -312,14 +348,17 @@ func PopupLayer(c C, layer uint16) { base.PopupLayer(c, layer) }
 // Lists, tables, trees and effects.
 
 func List(c C, state *ListState, n int, row func(ListRow)) Box {
+	useScroll()
 	return base.List(c, state, n, row)
 }
 
 func Table(c C, state *TableState, spec TableSpec) Box {
+	useTable()
 	return base.Table(c, state, spec)
 }
 
 func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i int)) Box {
+	useTree()
 	return base.Tree(c, state, n, Label, Content)
 }
 

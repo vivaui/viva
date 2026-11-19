@@ -5,8 +5,10 @@ import (
 	"github.com/vivaui/viva/style"
 )
 
-// The styled layer's painting, measurement and construction, installed once by
-// ui. The engine below never imports the appearance code.
+// The styled layer's painting, measurement and construction. Package ui installs
+// the hooks a page's features need as it declares them, so an application links
+// only the painters it uses; InstallPainters installs all of them for a host
+// that drives base directly. The engine below never imports the appearance code.
 var (
 	PaintSwatch          func(f *Frame, n *Node, r Rect)
 	PaintPickerPanel     func(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, look ColorPickerLook)

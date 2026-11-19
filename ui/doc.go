@@ -31,6 +31,10 @@
 // with Handlers, a custom layout uses CustomLayout, and a preview draws a Page
 // into a canvas region.
 //
+// The styled layer's painters are installed by the constructors as a page
+// declares the features it uses, so an application links only the painters it
+// uses. A host that drives package base directly calls InstallPainters.
+//
 // Layout is CSS flexbox's, from a declaration instead of coordinates.
 // A Row lays its children out left to right, a Column top to bottom, a Stack on
 // top of each other. A child is as large as its content unless it is given a
