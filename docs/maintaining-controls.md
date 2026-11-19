@@ -52,9 +52,11 @@ Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
 `ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
 `ui/togglegroup`, `ui/multiselect`,
 `ui/hierarchypicker`).
-They import only `base`, `components`, `gfx`, `ui` and `window`, own stable
-handlers, and are never imported by package `ui`; importing one is the explicit
-opt-in. Do not add a new directory at the repository root for a page widget.
+They import only the public `base`, `components`, `gfx`, `ui` and `window`
+packages, plus the focused `text` editor for editor-like controls and the root
+`markdown` parser for the Markdown view. They own stable handlers, and are never
+imported by package `ui`; importing one is the explicit opt-in. Do not add a new
+directory at the repository root for a page widget.
 See `private/docs/decisions/0086-opt-in-page-views.md`.
 
 ### Naming and types
