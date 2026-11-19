@@ -10,7 +10,11 @@
     componentID: string; title: string; example: Demo; revision: string; locale: Locale; height?: number;
   } = $props();
   let measuredHeight = $state<number | null>(null);
-  const canvasHeight = $derived(measuredHeight ?? (height && height > 0 ? height : 260));
+  // A declared height is the stage floor: the example reserves room for the
+  // content it can paint later (open menus and popups), so interacting with it
+  // never resizes the documentation layout. Measurement can only grow the
+  // stage when the declared height turns out to be too small.
+  const canvasHeight = $derived(Math.max(measuredHeight ?? 0, height && height > 0 ? height : 0) || 260);
   const text = $derived(messages[locale]);
   let theme = $state<Theme>('light');
   let mounted = $state(false);
