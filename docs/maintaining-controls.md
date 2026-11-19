@@ -25,6 +25,24 @@ app is the platform loop below ui; it knows nothing of pages.
 `internal/layering` checks both forbidden and allowed edges; a new dependency is
 an explicit edit there.
 
+## Page controls, recipes and Begin
+
+There are two authoring paths, and they are not duplicates:
+
+- **Page controls** are `ui.*` or `ui.*Base` + Draw. They own page identity,
+  focus, input and state; the styled painter reuses the components' canvas
+  recipes. `ui` exports no `Begin*`.
+- **Canvas recipes** are `components.Begin*` and their `Paint`/`Layout` methods.
+  They construct a value, paint through `gfx.Canvas` and declare hits; they are
+  used inside a `ui.Control`/`Draw`, for pure measurement, or in source copied by
+  `viva add`. They are not a second page API.
+
+“Zero Begin” is not a goal. A new control that is declarable on a page belongs in
+`ui`; a reusable but heavy composite belongs in an opt-in package that uses
+`ui.Control`; a recipe that only paints stays in `components`. Exceptions that
+may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
+copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
+
 ## Two forms of one control
 
 A control that ships with a look has a **styled form** and a **Base**:

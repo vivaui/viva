@@ -19,6 +19,8 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 A theme is a value, `gfx.LightTheme()` or `gfx.DarkTheme()`. Switching appearance means painting with the other one.
 
+`Begin*` is the style layer's constructor, not a second page API. Declare page controls with `ui.*`, `ui.*Base` and `ui.Control`; use `components.Begin*` inside a `Draw`, for pure measurement, or in source copied by `viva add`. “Zero Begin” is not a goal: the boundary is that page behaviour is not hand-built, not that the painter constructor disappears. Reusable heavy composites such as `multiselect` and `hierarchypicker` are opt-in packages.
+
 ## Tree navigation
 
 `BeginTree` paints rows from an application-owned flattened hierarchy. For keyboard navigation, pass the visible rows' actual depths, expansion state and disabled state to `components.NavigateTree`; do not pass display-clamped indentation as the depth. It returns the next visible index or an expand/collapse action. The application still owns loading children, expansion, selection and focus, so no hidden model or background work is created. Keep the navigation slice as reusable caller-owned scratch when handling keys.
