@@ -117,7 +117,7 @@ func BeginCommand(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options 
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, input, options.Label, gfx.HitOptions{
 			Role: gfx.RoleCombobox, Value: options.Query, Hint: options.Hint,
-			Disabled: options.Disabled, Expanded: true,
+			Disabled: options.Disabled, Expanded: true, Invalid: options.Invalid,
 		})
 	}
 	command.list.popOverlay()

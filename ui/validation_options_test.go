@@ -48,6 +48,49 @@ func TestInvalidPageControlsPaintTheDestructiveBorder(t *testing.T) {
 	}
 }
 
+// A page control marked Invalid also publishes that state on its hit, so the
+// runtime announces it to assistive technology.
+func TestInvalidPageControlsCarryTheSemanticState(t *testing.T) {
+	for _, kind := range []string{"checkbox", "switch", "toggle", "select", "text field", "text area", "combobox"} {
+		t.Run(kind, func(t *testing.T) {
+			var on, active bool
+			size, framework := "M", "Go"
+			var field ui.Field
+			field.Invalid = true
+			d := openPage(t, page(func(c ui.C) {
+				switch kind {
+				case "checkbox":
+					ui.Checkbox(c, &on, "Accept").Invalid(true)
+				case "switch":
+					ui.Switch(c, &on, "Notifications").Invalid(true)
+				case "toggle":
+					ui.Toggle(c, &active, "Bold").Outline().Invalid(true)
+				case "select":
+					ui.Select(c, &size, []string{"S", "M"}, nil).Placeholder("Size").Invalid(true)
+				case "text field":
+					ui.TextFieldID(c, gfx.Item(1), &field, "Email", "")
+				case "text area":
+					ui.TextAreaID(c, gfx.Item(1), &field, "Notes", "")
+				case "combobox":
+					ui.Combobox(c, &framework, []string{"Go", "Rust"}, func(value string) string { return value }, "Framework").Invalid(true)
+				}
+			}))
+			hits := d.driver.Snapshot().Hits
+			if len(hits) == 0 {
+				t.Fatal("no hit was declared")
+			}
+			for _, hit := range hits {
+				if hit.Backdrop || hit.IsLabel {
+					continue
+				}
+				if !hit.Invalid {
+					t.Fatalf("hit %d is not invalid: %+v", hit.ID, hit)
+				}
+			}
+		})
+	}
+}
+
 // DisabledOptions on a page Choice marks just those options unavailable, and a
 // whole-control Disabled makes every option inert.
 func TestChoiceDisablesOptionsFromThePage(t *testing.T) {

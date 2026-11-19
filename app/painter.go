@@ -1688,6 +1688,7 @@ func (painter *painter) accessibilityNode(hit *gfx.Hit, focused gfx.ID) platform
 		Expanded:    hit.Expanded,
 		Multiline:   hit.Multiline,
 		ReadOnly:    hit.ReadOnly,
+		Invalid:     hit.Invalid,
 		Secure:      hit.Secure,
 		Focusable:   hit.Focusable,
 		Expandable:  hit.Expandable,
@@ -1760,6 +1761,7 @@ func semanticNode(hit gfx.Hit, focused gfx.ID) semantic.Node {
 		Expanded:  hit.Expanded,
 		Multiline: hit.Multiline,
 		ReadOnly:  hit.ReadOnly,
+		Invalid:   hit.Invalid,
 		Secure:    hit.Secure,
 	}
 }

@@ -78,7 +78,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 		}
 	}
 	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: canvas.Focused() == o.InputID || open, Invalid: o.Invalid, Disabled: o.Disabled})
-	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, gfx.HitOptions{Role: gfx.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true})
+	canvas.HitWithOptions(o.TriggerID, bounds, o.Label, gfx.HitOptions{Role: gfx.RoleButton, Expanded: open, Disabled: o.Disabled, SkipFocus: true, Invalid: o.Invalid})
 	trigger := gfx.Rect{X: bounds.X + bounds.Width - 28, Y: bounds.Y + (bounds.Height-24)/2, Width: 24, Height: 24}
 	x, right := bounds.X+7, trigger.X-6
 	for i, value := range s.Values() {
@@ -116,7 +116,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 		}
 		inputPaintText(canvas, theme, layout.Input, InputSnapshot{Value: query, Placeholder: placeholder, Disabled: o.Disabled}, false)
 	}
-	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Cursor: gfx.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
+	canvas.HitWithOptions(o.InputID, layout.Input, o.Label, gfx.HitOptions{Role: gfx.RoleCombobox, Value: query, Expanded: open, Disabled: o.Disabled, Invalid: o.Invalid, Cursor: gfx.PointerCursorText, TextBounds: layout.Input, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground, NavigationKeys: true})
 	paintChevron(canvas, &chevronDownIcon, trigger, theme.MutedForeground)
 	if s.FocusInput() {
 		canvas.RequestFocus(o.InputID)

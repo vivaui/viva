@@ -71,7 +71,7 @@ func paintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.
 	if !snapshot.ID.IsZero() {
 		options := gfx.HitOptions{
 			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
-			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true,
+			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true, Invalid: snapshot.Invalid,
 			TextBounds: content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
 		}
 		if snapshot.HideEditorText {

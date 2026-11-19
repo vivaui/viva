@@ -391,6 +391,7 @@ func PaintComboboxChips(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, ch
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, layout.Bounds, options.Label, gfx.HitOptions{
 			Role: gfx.RoleCombobox, Hint: options.Hint, Disabled: options.Disabled, Expanded: options.Open, NavigationKeys: true,
+			Invalid: options.Invalid,
 		})
 	}
 	canvas.PushFocusScope(options.Scope)
@@ -478,6 +479,7 @@ func (combobox Combobox) paintInput() {
 			Description:    options.Detail,
 			Disabled:       options.Disabled,
 			Expanded:       options.Open,
+			Invalid:        options.Invalid,
 			Cursor:         gfx.PointerCursorText,
 			TextBounds:     textRect,
 			TextSize:       combobox.theme.Metrics.FontSizeM,

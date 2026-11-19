@@ -45,7 +45,7 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 	canvas.HitWithOptions(gfx.Item(9), gfx.Rect{X: 4, Y: 5, Width: 60, Height: 20}, "Enable", gfx.HitOptions{Role: gfx.RoleCheckbox, Checked: true})
 	canvas.HitWithOptions(gfx.Item(10), gfx.Rect{X: 4, Y: 40, Width: 60, Height: 20}, "Password", gfx.HitOptions{Role: gfx.RoleTextField, Value: "never", Secure: true})
 	canvas.HitWithOptions(gfx.Item(11), gfx.Rect{X: 4, Y: 70, Width: 120, Height: 30}, "Name", gfx.HitOptions{
-		Role: gfx.RoleTextField, TextBounds: gfx.Rect{X: 16, Y: 70, Width: 96, Height: 30},
+		Role: gfx.RoleTextField, Invalid: true, TextBounds: gfx.Rect{X: 16, Y: 70, Width: 96, Height: 30},
 		TextSize: 12, TextWeight: 600, TextColor: gfx.Color{Red: 0.9, Green: 0.8, Blue: 0.7, Alpha: 1},
 	})
 	canvas.HitWithOptions(gfx.Item(12), gfx.Rect{X: 4, Y: 110, Width: 120, Height: 30}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal, Autofocus: true})

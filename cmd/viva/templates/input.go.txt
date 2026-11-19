@@ -109,7 +109,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 	textBounds := gfx.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
 	canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, gfx.HitOptions{
 		Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
-		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure,
+		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure, Invalid: snapshot.Invalid,
 		NavigationKeys: snapshot.NavigationKeys,
 		TextBounds:     textBounds, TextSize: size, TextWeight: weight, TextColor: platformInk, TextAlignment: snapshot.Alignment,
 		HideNativeOverlays: selfPainted,

@@ -45,6 +45,24 @@ func TestAccessibilityNodesCarryWhatAssistiveTechnologyNeeds(t *testing.T) {
 	}
 }
 
+func TestAccessibilityNodesCarryInvalid(t *testing.T) {
+	var canvas gfx.Canvas
+	config := Config{Title: "invalid", Width: 200, Height: 120}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 24}, "Email", gfx.HitOptions{
+			Role: gfx.RoleTextField, Invalid: true,
+		})
+	}
+	painter := newTestPainter(t, &canvas, config)
+	if len(painter.accessibility) != 1 || !painter.accessibility[0].Invalid {
+		t.Fatalf("accessibility = %+v", painter.accessibility)
+	}
+	node, ok := painter.semantics.Get(painter.semanticIDs[0])
+	if !ok || !node.Invalid {
+		t.Fatalf("semantic node = %+v", node)
+	}
+}
+
 func TestAccessibilityPressClicksOnceAndIgnoresDisabledControls(t *testing.T) {
 	var canvas gfx.Canvas
 	var clicks []gfx.ID

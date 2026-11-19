@@ -62,6 +62,27 @@ func TestTreeDropsUnpublishedCreateDelete(t *testing.T) {
 	}
 }
 
+func TestTreeEmitsInvalidChange(t *testing.T) {
+	tree := New("Viva")
+	field, ok := tree.Add(tree.Root(), Node{Role: RoleTextField, Label: "Email", Focusable: true})
+	if !ok {
+		t.Fatal("failed to add field")
+	}
+	tree.DrainChanges(nil)
+
+	tree.Set(field, Node{Role: RoleTextField, Label: "Email", Focusable: true, Invalid: true})
+	changes := tree.DrainChanges(nil)
+	if len(changes) != 1 || changes[0].ID != field || !changes[0].Node.Invalid {
+		t.Fatalf("invalid change = %+v", changes)
+	}
+
+	tree.Set(field, Node{Role: RoleTextField, Label: "Email", Focusable: true})
+	changes = tree.DrainChanges(changes[:0])
+	if len(changes) != 1 || changes[0].Node.Invalid {
+		t.Fatalf("valid change = %+v", changes)
+	}
+}
+
 func BenchmarkSemanticNoChanges(b *testing.B) {
 	tree, output, _ := benchmarkTree(b, 10_000)
 	b.ReportAllocs()
