@@ -155,6 +155,19 @@ type DropdownMenuOptions struct {
 	// Submenu makes this the content of a submenu, which has a smaller minimum
 	// width (96) than a menu opened by a trigger (128).
 	Submenu bool
+	// RowHeight is the height of an item row. Zero is the theme's control height
+	// (32 at the default density, 26 at the compact one); a menu of many items can
+	// ask for a denser one (24, say). A row with a description still grows to fit
+	// both of its lines, and group labels, separators and everything else keep
+	// their size. An icon never grows past the row.
+	RowHeight float32
+	// Shadow overrides the elevation of the menu's surface, which is shadow-md,
+	// or shadow-lg for a submenu, when this is nil. A level beside a set flag
+	// would leave the zero value ambiguous, because gfx.ShadowNone is the zero
+	// level and "no shadow" is a value as real as "the default": a pointer says
+	// "not given" on its own, as Scroll already does, and keeps the struct to one
+	// field. A level set here wins over the submenu's larger one.
+	Shadow *gfx.ShadowLevel
 	// Unpainted declares the menu's behavior, size and rows but paints none of
 	// it: PaintPanel draws the surface and PaintItem draws each row, both inside
 	// the menu's layer, clipping and focus scope. Hits, focus, the keyboard and
@@ -241,7 +254,7 @@ func BeginDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, opt
 	return DropdownMenu{surface: beginMenuSurface(canvas, theme, bounds, minWidth, menuSurfaceOptions{
 		layer: options.Layer, scope: options.Scope, dismissID: options.DismissID, viewport: options.Viewport, scroll: options.Scroll,
 		key: overlayKey(options.ID, options.DismissID, options.Scope), side: options.Side, submenu: options.Submenu,
-		labelMuted: true, tabCloses: true,
+		labelMuted: true, tabCloses: true, rowHeight: options.RowHeight, shadow: options.Shadow,
 		unpainted: options.Unpainted, paintPanel: options.PaintPanel, paintItem: options.PaintItem,
 	})}
 }
@@ -412,6 +425,9 @@ type menuSurfaceOptions struct {
 	// rowHeight is the height of an item row; zero is the theme's
 	// (menuThemeRowHeight).
 	rowHeight float32
+	// shadow overrides the elevation of the surface; nil keeps shadow-md, or
+	// shadow-lg when submenu is set.
+	shadow *gfx.ShadowLevel
 	// unpainted leaves the surface and rows to paintPanel and paintItem; see
 	// DropdownMenuOptions.Unpainted.
 	unpainted  bool
@@ -495,6 +511,11 @@ func beginMenuSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, minW
 	level := gfx.ShadowMD // shadow-md; a submenu floats higher, shadow-lg
 	if options.submenu {
 		level = gfx.ShadowLG
+	}
+	if options.shadow != nil {
+		// The caller's level wins over both defaults: a surface whose design puts
+		// it at another elevation should not have its submenus silently escalate.
+		level = *options.shadow
 	}
 	if options.unpainted {
 		if options.paintPanel != nil {

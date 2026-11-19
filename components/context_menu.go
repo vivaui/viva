@@ -73,6 +73,9 @@ type ContextMenuOptions struct {
 	// can ask for a denser one (24, say). Group labels, separators and everything
 	// else keep their size. An icon never grows past the row.
 	RowHeight float32
+	// Shadow is DropdownMenuOptions' and means the same: nil keeps shadow-md, or
+	// shadow-lg for a submenu, and a level set here wins over the submenu's.
+	Shadow *gfx.ShadowLevel
 	// Unpainted, PaintPanel and PaintItem are DropdownMenuOptions' and mean the
 	// same: the menu keeps its behavior and the caller draws its surface and rows.
 	Unpainted  bool
@@ -150,7 +153,7 @@ func BeginContextMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, opti
 	return ContextMenu{surface: beginMenuSurface(canvas, theme, bounds, minWidth, menuSurfaceOptions{
 		layer: options.Layer, scope: options.Scope, dismissID: options.DismissID, viewport: options.Viewport, scroll: options.Scroll,
 		key: overlayKey(options.ID, options.DismissID, options.Scope), side: options.Side, submenu: options.Submenu,
-		instant: true, labelMuted: true, rowHeight: options.RowHeight,
+		instant: true, labelMuted: true, rowHeight: options.RowHeight, shadow: options.Shadow,
 		unpainted: options.Unpainted, paintPanel: options.PaintPanel, paintItem: options.PaintItem,
 	})}
 }

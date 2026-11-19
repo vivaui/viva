@@ -221,6 +221,11 @@ type MenubarOverlayOptions struct {
 	// Submenu makes this the content of a submenu, which has a smaller minimum
 	// width (128) than a popup opened from the bar (144).
 	Submenu bool
+	// RowHeight and Shadow are DropdownMenuOptions' and mean the same: a zero row
+	// height keeps the theme's, and a nil shadow keeps shadow-md, or shadow-lg for
+	// a submenu.
+	RowHeight float32
+	Shadow    *gfx.ShadowLevel
 }
 
 // Menubar paints the persistent top-level bar and advances trigger geometry.
@@ -309,7 +314,7 @@ func BeginMenubarContent(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, o
 	return MenubarContent{surface: beginMenuSurface(canvas, theme, bounds, minWidth, menuSurfaceOptions{
 		layer: options.Layer, scope: options.Scope, dismissID: options.DismissID, viewport: options.Viewport, scroll: options.Scroll,
 		key: overlayKey(options.ID, options.DismissID, options.Scope), side: options.Side, submenu: options.Submenu,
-		indicatorLeft: true, tabCloses: true,
+		indicatorLeft: true, tabCloses: true, rowHeight: options.RowHeight, shadow: options.Shadow,
 	})}
 }
 
