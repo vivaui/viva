@@ -438,6 +438,15 @@ func (ime *gtkIME) preeditChanged() {
 	if value == "" && !ime.session {
 		return
 	}
+	// A legacy context can report no preedit after the field already left the
+	// composition: sync resets the context when the field stops composing on its
+	// own, and that reset emits this update while the session is still open. The
+	// editor is not composing, so there is no marked text to clear, and an empty
+	// legacy marked update would replace the selection the click that ended the
+	// composition just made. The pending end settles the session instead.
+	if value == "" && !ime.tentative && !ime.w.text.state.Composing {
+		return
+	}
 	ime.session = true
 	event := platform.TextEvent{Kind: platform.TextSetMarked, Text: value, MarkedSelection: selection}
 	if ime.tentative {
