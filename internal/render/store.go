@@ -477,8 +477,9 @@ func (store *Store) remove(id scene.ID) error {
 }
 
 // rebuild re-flattens the instance list after a structural change the
-// incremental paths cannot express: a deletion, or a shape inserted somewhere
-// other than the root's tail.
+// incremental paths cannot express: a batch mixing deletes with upserts, a
+// shape inserted somewhere other than the root's tail, or an insertion whose
+// previous sibling has no instance.
 //
 // Geometry lives only in the flattened rectangles. A live shape reaches its
 // rectangle through instanceBySlot; a shape this batch inserted carries the

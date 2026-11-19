@@ -387,8 +387,15 @@ func (scene *Scene) detach(current *node) {
 
 // DrainChanges appends coalesced incremental changes to destination.
 func (scene *Scene) DrainChanges(destination []Change) []Change {
-	if cap(scene.shapeScratch) < len(scene.dirty) {
-		scene.shapeScratch = make([]Shape, 0, len(scene.dirty))
+	shapeCount := 0
+	for _, id := range scene.dirty {
+		_, current, ok := scene.node(id)
+		if ok && current.queued && !current.pendingFree && (current.kind == KindTriangle || current.kind == KindShadow) {
+			shapeCount++
+		}
+	}
+	if cap(scene.shapeScratch) < shapeCount {
+		scene.shapeScratch = make([]Shape, 0, shapeCount)
 	} else {
 		scene.shapeScratch = scene.shapeScratch[:0]
 	}
