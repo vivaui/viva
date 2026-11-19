@@ -70,12 +70,12 @@ func (d *pageDriver) advance(duration time.Duration) {
 func center(r gfx.Rect) (float32, float32) { return r.X + r.Width/2, r.Y + r.Height/2 }
 
 // viewWithCard declares one anchored card and returns its hit's label.
-func viewWithCard(delays bool, extra func(*hovercard.HoverCard)) (func(ui.C), string) {
+func viewWithCard(delays bool, extra func(*hovercard.Card)) (func(ui.C), string) {
 	const bodyLabel = "Engine"
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Center().Children(func() {
 			anchor := ui.Button(c, "Profile").Outline().Width(160)
-			card := &hovercard.HoverCard{
+			card := &hovercard.Card{
 				Anchor:      anchor,
 				Title:       "Ada Lovelace",
 				Description: "First programmer.",
@@ -159,7 +159,7 @@ func TestCardUsesTheCallersAnchorGeometry(t *testing.T) {
 	view := func(c ui.C) {
 		ui.Row(c).Fill().Pad(20).Items(ui.Center).Children(func() {
 			anchor := ui.Button(c, "Profile").Outline().Width(80)
-			card := &hovercard.HoverCard{
+			card := &hovercard.Card{
 				Anchor:      anchor,
 				Title:       "Ada Lovelace",
 				Description: "First programmer.",
@@ -195,7 +195,7 @@ func TestCardUsesTheCallersAnchorGeometry(t *testing.T) {
 
 func TestOpenStateIsWrittenToTheCallersValue(t *testing.T) {
 	open := false
-	view, _ := viewWithCard(true, func(card *hovercard.HoverCard) {
+	view, _ := viewWithCard(true, func(card *hovercard.Card) {
 		card.Open = &open
 	})
 	d := openPage(t, view)
@@ -215,7 +215,7 @@ func TestOpenStateIsWrittenToTheCallersValue(t *testing.T) {
 func TestOnOpenChangeReportsHoverTransitions(t *testing.T) {
 	var changes []bool
 	change := func(open bool) { changes = append(changes, open) }
-	view, _ := viewWithCard(true, func(card *hovercard.HoverCard) {
+	view, _ := viewWithCard(true, func(card *hovercard.Card) {
 		card.OnOpenChange = change
 	})
 	d := openPage(t, view)
@@ -230,7 +230,7 @@ func TestOnOpenChangeReportsHoverTransitions(t *testing.T) {
 }
 
 func TestDisabledCardPaintsNothing(t *testing.T) {
-	view, _ := viewWithCard(true, func(card *hovercard.HoverCard) {
+	view, _ := viewWithCard(true, func(card *hovercard.Card) {
 		card.Disabled()
 	})
 	d := openPage(t, view)
@@ -244,7 +244,7 @@ func TestDisabledCardPaintsNothing(t *testing.T) {
 
 func BenchmarkViewWarmPaint(b *testing.B) {
 	open := true
-	card := &hovercard.HoverCard{
+	card := &hovercard.Card{
 		Title:       "Ada Lovelace",
 		Description: "First programmer.",
 		Open:        &open,

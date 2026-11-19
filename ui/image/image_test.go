@@ -14,7 +14,7 @@ var testBitmap = gfx.Bitmap{
 }
 
 type model struct {
-	view    image.Image
+	view    image.State
 	page    *ui.Page
 	canvas  *gfx.Canvas
 	pointer int

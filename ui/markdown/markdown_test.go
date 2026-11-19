@@ -12,7 +12,7 @@ import (
 const source = "## Restarting nginx\n\nCheck the **config** with `nginx -t`, then read the [docs](https://nginx.org/en/docs/).\n\n1. run `systemctl status nginx`\n2. restart it\n"
 
 type model struct {
-	view  markdown.Markdown
+	view  markdown.State
 	input window.TextInput
 
 	target         gfx.ID

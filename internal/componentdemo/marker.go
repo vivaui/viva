@@ -70,7 +70,7 @@ func demoCircle(cx, cy, r float32) []gfx.PathCommand {
 // the phase.
 var (
 	markerDemo     = marker.New()
-	markerVariants [3]marker.Marker
+	markerVariants [3]marker.State
 )
 
 func (state *State) paintMarker(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {

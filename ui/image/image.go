@@ -29,7 +29,7 @@
 // Clicked reports a click after View, like the component views do.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an Image in the model beside its bitmap: its handlers
+// nothing for it. Keep an State in the model beside its bitmap: its handlers
 // and draw function are made once, so a warm paint allocates nothing. Do not
 // copy one after it has been painted.
 package image
@@ -40,10 +40,10 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// Image is one image's caller-owned values and page control. Configure it with
-// the chainable methods, then view it. A new Image fits its bitmap; the zero
+// State is one image's caller-owned values and page control. Configure it with
+// the chainable methods, then view it. A new State fits its bitmap; the zero
 // value paints nothing.
-type Image struct {
+type State struct {
 	bitmap gfx.Bitmap
 	zoom   float32
 	pan    gfx.Point
@@ -66,12 +66,12 @@ type Image struct {
 }
 
 // New returns an empty image view that fits its bitmap in the viewport.
-func New() *Image { return new(Image) }
+func New() *State { return new(State) }
 
 // Reset clears the bitmap, zoom and pan, returning the image to fit. The
 // interaction callbacks are kept, so a page that reconfigures the view every
 // paint does not lose its input wiring.
-func (i *Image) Reset() *Image {
+func (i *State) Reset() *State {
 	i.bitmap = gfx.Bitmap{}
 	i.zoom = 0
 	i.pan = gfx.Point{}
@@ -83,11 +83,11 @@ func (i *Image) Reset() *Image {
 
 // Bitmap is the caller-decoded, immutable picture painted in the viewport.
 // The caller owns Pix and must keep it unchanged while a canvas can retain it.
-func (i *Image) Bitmap(bitmap gfx.Bitmap) *Image { i.bitmap = bitmap; return i }
+func (i *State) Bitmap(bitmap gfx.Bitmap) *State { i.bitmap = bitmap; return i }
 
 // Fit shows the whole image inside the viewport, centered and with its original
 // proportions. It is the default and clears any explicit zoom and pan.
-func (i *Image) Fit() *Image {
+func (i *State) Fit() *State {
 	i.zoom = 0
 	i.pan = gfx.Point{}
 	return i
@@ -95,11 +95,11 @@ func (i *Image) Fit() *Image {
 
 // Actual shows one bitmap pixel per device pixel, independent of the display
 // scale, like the component's Zoom 1. It keeps the current pan.
-func (i *Image) Actual() *Image { i.zoom = 1; return i }
+func (i *State) Actual() *State { i.zoom = 1; return i }
 
 // Zoom sets an explicit scale. A zoom of one is Actual; zero or less fits the
 // viewport. It keeps the current pan.
-func (i *Image) Zoom(zoom float32) *Image {
+func (i *State) Zoom(zoom float32) *State {
 	if zoom < 0 {
 		zoom = 0
 	}
@@ -109,16 +109,16 @@ func (i *Image) Zoom(zoom float32) *Image {
 
 // Pan offsets the scaled image inside the viewport. The component clamps it so
 // the viewport is never left with empty space beside an oversized image.
-func (i *Image) Pan(pan gfx.Point) *Image { i.pan = pan; return i }
+func (i *State) Pan(pan gfx.Point) *State { i.pan = pan; return i }
 
 // View declares the image at c. label names it for assistive technology. The
 // caller must give the box its viewport dimensions: Size, FillWidth with
 // Height, or the layout of the page around it.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, image *Image) ui.Box {
+func View(c ui.C, label string, image *State) ui.Box {
 	if image == nil {
-		panic("image: View needs its Image")
+		panic("image: View needs its State")
 	}
 	image.prepare()
 	return ui.Control(c, label, &image.handlers).Draw(image.drawFn)
@@ -126,11 +126,11 @@ func View(c ui.C, label string, image *Image) ui.Box {
 
 // Clicked reports whether the paint just made delivered a click on the view. It
 // is false in ordinary paints. Ask it after View.
-func (i *Image) Clicked() bool {
+func (i *State) Clicked() bool {
 	return i.hadClick && !i.id.IsZero() && i.clicked == i.id
 }
 
-func (i *Image) prepare() {
+func (i *State) prepare() {
 	if i.prepared {
 		return
 	}
@@ -142,28 +142,28 @@ func (i *Image) prepare() {
 	i.drawFn = i.draw
 }
 
-func (i *Image) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (i *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if i.Pointer == nil {
 		return gfx.EventResult{}
 	}
 	return i.Pointer(event)
 }
 
-func (i *Image) key(event gfx.KeyEvent) gfx.EventResult {
+func (i *State) key(event gfx.KeyEvent) gfx.EventResult {
 	if i.Key == nil {
 		return gfx.EventResult{}
 	}
 	return i.Key(event)
 }
 
-func (i *Image) scroll(event gfx.ScrollEvent) gfx.EventResult {
+func (i *State) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if i.Scroll == nil {
 		return gfx.EventResult{}
 	}
 	return i.Scroll(event)
 }
 
-func (i *Image) draw(d *ui.DrawContext) {
+func (i *State) draw(d *ui.DrawContext) {
 	i.id = d.Node.ID
 	i.clicked, i.hadClick = d.Canvas.ClickTarget()
 	components.PaintImageView(d.Canvas, *d.Theme, d.Rect, components.ImageViewOptions{

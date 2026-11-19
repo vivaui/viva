@@ -99,9 +99,9 @@ func (v *BarChartView) draw(d *ui.DrawContext) {
 	if v.hover.pointer && !d.State.Hovered && !d.State.Pressed {
 		v.hover.clear(&v.State, v.OnHover, true)
 	}
-	chart := v.Chart
-	if chart.Label == "" {
-		chart.Label = v.label
+	data := v.Chart
+	if data.Label == "" {
+		data.Label = v.label
 	}
-	v.hover.plot = components.PaintBarChart(d.Canvas, *d.Theme, d.Rect, d.Node.ID, chart, &v.State)
+	v.hover.plot = components.PaintBarChart(d.Canvas, *d.Theme, d.Rect, d.Node.ID, data, &v.State)
 }

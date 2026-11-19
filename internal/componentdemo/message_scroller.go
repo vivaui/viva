@@ -12,7 +12,7 @@ var messageScrollerComponent = Component{
 	initialize: (*State).initializeMessageScroller,
 	scroll:     (*State).scrollMessageScroller,
 	Examples: []Example{
-		{ID: "default", Title: "消息流", Description: "点击较早/较晚按钮或滚动滚轮，视图把新偏移交给调用方。", Snippet: `stream := &messagescroller.Scroller{
+		{ID: "default", Title: "消息流", Description: "点击较早/较晚按钮或滚动滚轮，视图把新偏移交给调用方。", Snippet: `stream := &messagescroller.State{
     Offset: m.offset,
     EarlierLabel: "Earlier messages", LaterLabel: "Later messages",
     Content: func(c ui.C) {
@@ -88,7 +88,7 @@ stream.OnJump = func(direction messagescroller.Direction, end float32) {
     }
 }
 messagescroller.View(c, "消息流", stream).FillWidth().Height(278)`},
-		{ID: "end", Title: "接近末尾", Description: "初始偏移为 72；较早/较晚按钮都可用，每次把调用方持有的偏移移动 72 像素。", Snippet: `stream := &messagescroller.Scroller{
+		{ID: "end", Title: "接近末尾", Description: "初始偏移为 72；较早/较晚按钮都可用，每次把调用方持有的偏移移动 72 像素。", Snippet: `stream := &messagescroller.State{
     Offset: 72, // near the end of the content
     EarlierLabel: "Earlier messages", LaterLabel: "Later messages",
     Content: func(c ui.C) { /* the same five rows */ },
@@ -141,7 +141,7 @@ var (
 // rebuilt in each paint.
 type messageScrollerDemo struct {
 	state *State
-	view  messagescroller.Scroller
+	view  messagescroller.State
 }
 
 // messageScrollerDemos is keyed by State because the constrained demo model has

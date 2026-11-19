@@ -22,7 +22,7 @@
 // it would for any other frame. An idle placeholder does no work.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Skeleton in the model: its draw function is made once,
+// nothing for it. Keep a State in the model: its draw function is made once,
 // so a warm paint allocates nothing. Do not copy one after it has been painted.
 package skeleton
 
@@ -44,10 +44,10 @@ const (
 	Circle
 )
 
-// Skeleton is one placeholder's caller-owned values and page control. The zero
+// State is one placeholder's caller-owned values and page control. The zero
 // value is a fully opaque Block at no size; set the values through the chained
 // methods and give it a size.
-type Skeleton struct {
+type State struct {
 	kind       Kind
 	width      float32
 	height     float32
@@ -61,12 +61,12 @@ type Skeleton struct {
 }
 
 // New returns an empty Block placeholder.
-func New() *Skeleton { return new(Skeleton) }
+func New() *State { return new(State) }
 
 // Reset returns the placeholder to a fully opaque Block of no size. The draw
 // function is kept, so a page that reconfigures the placeholder every paint
 // allocates nothing.
-func (s *Skeleton) Reset() *Skeleton {
+func (s *State) Reset() *State {
 	s.kind = Block
 	s.width, s.height = 0, 0
 	s.radius, s.radiusSet = 0, false
@@ -75,17 +75,17 @@ func (s *Skeleton) Reset() *Skeleton {
 }
 
 // Block selects the default rounded surface.
-func (s *Skeleton) Block() *Skeleton { s.kind = Block; return s }
+func (s *State) Block() *State { s.kind = Block; return s }
 
 // Text selects the thin text-line placeholder.
-func (s *Skeleton) Text() *Skeleton { s.kind = Text; return s }
+func (s *State) Text() *State { s.kind = Text; return s }
 
 // Circle selects the circular placeholder.
-func (s *Skeleton) Circle() *Skeleton { s.kind = Circle; return s }
+func (s *State) Circle() *State { s.kind = Circle; return s }
 
 // Size sets the placeholder's page box. The page may still override it on the
 // returned ui.Box.
-func (s *Skeleton) Size(width, height float32) *Skeleton {
+func (s *State) Size(width, height float32) *State {
 	if width < 0 {
 		width = 0
 	}
@@ -98,7 +98,7 @@ func (s *Skeleton) Size(width, height float32) *Skeleton {
 
 // Radius overrides the corner radius, clamped at zero. For Circle it overrides
 // the circle radius but keeps the square bounds.
-func (s *Skeleton) Radius(pixels float32) *Skeleton {
+func (s *State) Radius(pixels float32) *State {
 	if pixels < 0 {
 		pixels = 0
 	}
@@ -108,7 +108,7 @@ func (s *Skeleton) Radius(pixels float32) *Skeleton {
 
 // Opacity sets the surface's alpha, 0 to 1. It is a static visual value, not an
 // animation phase; the placeholder never schedules a repaint for it.
-func (s *Skeleton) Opacity(fraction float32) *Skeleton {
+func (s *State) Opacity(fraction float32) *State {
 	if fraction < 0 {
 		fraction = 0
 	}
@@ -120,18 +120,18 @@ func (s *Skeleton) Opacity(fraction float32) *Skeleton {
 }
 
 // View declares the placeholder at c. label names it for assistive technology.
-// The box uses the Skeleton's Size; the page may override its dimensions.
+// The box uses the State's Size; the page may override its dimensions.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, skeleton *Skeleton) ui.Box {
+func View(c ui.C, label string, skeleton *State) ui.Box {
 	if skeleton == nil {
-		panic("skeleton: View needs its Skeleton")
+		panic("skeleton: View needs its State")
 	}
 	skeleton.prepare()
 	return ui.Slot(c).Size(skeleton.width, skeleton.height).Label(label).Draw(skeleton.drawFn)
 }
 
-func (s *Skeleton) prepare() {
+func (s *State) prepare() {
 	if s.prepared {
 		return
 	}
@@ -139,7 +139,7 @@ func (s *Skeleton) prepare() {
 	s.drawFn = s.draw
 }
 
-func (s *Skeleton) draw(d *ui.DrawContext) {
+func (s *State) draw(d *ui.DrawContext) {
 	theme := *d.Theme
 	if s.opacitySet {
 		theme.Muted.Alpha *= s.opacity

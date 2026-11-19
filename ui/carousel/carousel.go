@@ -2,7 +2,7 @@
 // package components. It wraps components.BeginCarousel in a ui.Control, so a
 // page declares a carousel without calling the component itself:
 //
-//	tour := &carousel.Carousel{
+//	tour := &carousel.State{
 //		ItemCount: 3, Index: m.slide,
 //		PreviousID: m.previous, PreviousLabel: "Previous slide",
 //		NextID: m.next, NextLabel: "Next slide",
@@ -28,9 +28,9 @@
 // timer, animation, dragging or inertia: an idle carousel does no work.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Carousel in the model, beside its slides: its handlers
+// nothing for it. Keep a State in the model, beside its slides: its handlers
 // and draw function are made once, so a warm paint allocates nothing. Do not
-// copy a Carousel after it has been declared.
+// copy a State after it has been declared.
 package carousel
 
 import (
@@ -39,7 +39,7 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// Orientation selects the content axis of a Carousel.
+// Orientation selects the content axis of a State.
 type Orientation = components.CarouselOrientation
 
 const (
@@ -50,10 +50,10 @@ const (
 // Geometry is the complete carousel layout handed to Draw.
 type Geometry = components.CarouselGeometry
 
-// Carousel is one carousel's state and page control. Fill the fields from the
-// caller's model every paint; Draw and the callbacks stay as they are and are
-// read when they are needed.
-type Carousel struct {
+// State is one carousel's configuration and page control. Fill the fields from
+// the caller's model every paint; Draw and the callbacks stay as they are and
+// are read when they are needed.
+type State struct {
 	// Orientation selects the content axis. The zero value is horizontal.
 	Orientation components.CarouselOrientation
 	// ItemCount is the number of caller-owned slides.
@@ -100,9 +100,9 @@ type Carousel struct {
 // technology. Give it a size; it is a ui.Control painted through the component.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, carousel *Carousel) ui.Box {
+func View(c ui.C, label string, carousel *State) ui.Box {
 	if carousel == nil {
-		panic("carousel: View needs its Carousel")
+		panic("carousel: View needs its State")
 	}
 	carousel.prepare()
 	carousel.label = label
@@ -112,11 +112,11 @@ func View(c ui.C, label string, carousel *Carousel) ui.Box {
 // Clicked reports whether the paint just made was an event pass delivering a
 // click on id, PreviousID or NextID. It is false in ordinary paints. Ask it
 // after View, where a component's clicks have always been read.
-func (c *Carousel) Clicked(id gfx.ID) bool {
+func (c *State) Clicked(id gfx.ID) bool {
 	return c.hadClick && !id.IsZero() && c.clicked == id
 }
 
-func (c *Carousel) prepare() {
+func (c *State) prepare() {
 	if c.prepared {
 		return
 	}
@@ -127,28 +127,28 @@ func (c *Carousel) prepare() {
 	c.drawFn = c.draw
 }
 
-func (c *Carousel) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (c *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if c.Pointer == nil {
 		return gfx.EventResult{}
 	}
 	return c.Pointer(event)
 }
 
-func (c *Carousel) key(event gfx.KeyEvent) gfx.EventResult {
+func (c *State) key(event gfx.KeyEvent) gfx.EventResult {
 	if c.Key == nil {
 		return gfx.EventResult{}
 	}
 	return c.Key(event)
 }
 
-func (c *Carousel) scroll(event gfx.ScrollEvent) gfx.EventResult {
+func (c *State) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if c.Scroll == nil {
 		return gfx.EventResult{}
 	}
 	return c.Scroll(event)
 }
 
-func (c *Carousel) draw(d *ui.DrawContext) {
+func (c *State) draw(d *ui.DrawContext) {
 	c.clicked, c.hadClick = d.Canvas.ClickTarget()
 
 	viewportExtent := d.Rect.Width
@@ -163,35 +163,35 @@ func (c *Carousel) draw(d *ui.DrawContext) {
 		}
 	}
 
-	carousel := components.BeginCarousel(d.Canvas, *d.Theme, d.Rect, c.ItemCount, c.Index).
+	strip := components.BeginCarousel(d.Canvas, *d.Theme, d.Rect, c.ItemCount, c.Index).
 		Content(extent, offset).
 		Controls(c.PreviousID, c.PreviousLabel, c.NextID, c.NextLabel).
 		Label(c.label)
 	if c.Orientation == components.CarouselVertical {
-		carousel = carousel.Vertical()
+		strip = strip.Vertical()
 	}
 	if c.Disabled {
-		carousel = carousel.Disabled()
+		strip = strip.Disabled()
 	}
-	geometry := carousel.BeginContent()
+	geometry := strip.BeginContent()
 	c.geometry = geometry
 	if c.Draw != nil {
 		c.Draw(d, geometry)
 	}
-	carousel.EndContent()
+	strip.EndContent()
 }
 
 // Geometry is the carousel layout painted last: viewport, translated content,
 // both control bounds and the clamped index. It is zero until View has painted
 // at least once.
-func (c *Carousel) Geometry() components.CarouselGeometry { return c.geometry }
+func (c *State) Geometry() components.CarouselGeometry { return c.geometry }
 
 // ItemBounds maps one slide of an evenly divided content extent to page
 // coordinates: Index along the axis, the viewport extent across it. It returns
 // an empty rectangle for an index outside the item count. Use it in Draw for
 // the common one-slide-per-view layout; a caller with items of different
 // extents maps them from Geometry.Content instead.
-func (c *Carousel) ItemBounds(geometry components.CarouselGeometry, index int) gfx.Rect {
+func (c *State) ItemBounds(geometry components.CarouselGeometry, index int) gfx.Rect {
 	if index < 0 || index >= c.ItemCount || c.ItemCount <= 0 {
 		return gfx.Rect{}
 	}

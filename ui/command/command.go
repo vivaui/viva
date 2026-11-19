@@ -3,28 +3,28 @@
 // caller owns the query, the filtered results, the selection and the scroll
 // position, and the wrapper paints the surface and routes its input.
 //
-//	command := &command.Command{
+//	palette := &command.State{
 //		Query: query, Selected: selected,
 //		Filter: func(query string) { /* rebuild m.results */ },
 //		Choose: func(index int) { /* run m.results[index] */ },
 //	}
-//	command.Clear()
-//	command.Group("Suggestions")
-//	command.Item("Open workspace", "⌘O")
-//	command.Item("Create window", "⌘N")
-//	command.View(c, "Command", command).FillWidth().Height(180)
+//	palette.Clear()
+//	palette.Group("Suggestions")
+//	palette.Item("Open workspace", "⌘O")
+//	palette.Item("Create window", "⌘N")
+//	command.View(c, "Command", palette).FillWidth().Height(180)
 //
 // The query is edited through the platform's text service: the paint that
-// follows a native edit reads it, writes Command.Query and calls Filter, so the
+// follows a native edit reads it, writes State.Query and calls Filter, so the
 // caller filters in one place. Selected is the ordinal of an item row, not of
 // Results: group headings, separators and the empty state take no selection.
 // The wrapper moves it from the pointer and the Up and Down keys, and Enter
 // calls Choose.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Command in the model beside the data it presents: its
+// nothing for it. Keep a State in the model beside the data it presents: its
 // handlers and draw function are made once, so a warm paint allocates nothing.
-// Do not copy a Command after it has been declared.
+// Do not copy a State after it has been declared.
 package command
 
 import (
@@ -65,7 +65,7 @@ type Result struct {
 	Shortcut string
 	Icon     gfx.Icon
 	// Checked paints the persistent check of a chosen command. Selected is the
-	// transient row the pointer and keys move, and is Command.Selected.
+	// transient row the pointer and keys move, and is State.Selected.
 	Checked  bool
 	Disabled bool
 }
@@ -97,11 +97,11 @@ func (o Options) Dialog() Options {
 	return o
 }
 
-// Command is one command palette's caller-owned query, results, selection and
+// State is one command palette's caller-owned query, results, selection and
 // scroll position, with the handlers that route its input. Keep it in the
 // model beside the data it presents; its handlers and draw function point at
-// this value, so do not copy a Command after it has been declared.
-type Command struct {
+// this value, so do not copy a State after it has been declared.
+type State struct {
 	// Query is the text in the input. The wrapper reads every native edit at the
 	// next paint, writes it here and calls Filter. Assigning it between paints
 	// replaces the query without calling Filter; the wrapper then recreates the
@@ -161,9 +161,9 @@ type Command struct {
 // View declares the command palette at c. label names the control for
 // assistive technology. Give it a height; it is a ui.Control painted through
 // the component. Declare it on its own, not inside a Memo.
-func View(c ui.C, label string, command *Command) ui.Box {
+func View(c ui.C, label string, command *State) ui.Box {
 	if command == nil {
-		panic("command: View needs its Command")
+		panic("command: View needs its State")
 	}
 	command.prepare()
 	box := ui.Control(c, label, &command.handlers)
@@ -172,57 +172,57 @@ func View(c ui.C, label string, command *Command) ui.Box {
 }
 
 // View is View for a command the model keeps, so a page reads
-// m.command.View(c, "Command").
-func (command *Command) View(c ui.C, label string) ui.Box {
+// m.command.View(c, "State").
+func (command *State) View(c ui.C, label string) ui.Box {
 	return View(c, label, command)
 }
 
 // Clear removes every result, keeping the slice for the next declaration. It
 // is how a caller rebuilds Results after Filter.
-func (command *Command) Clear() { command.Results = command.Results[:0] }
+func (command *State) Clear() { command.Results = command.Results[:0] }
 
 // Group appends a compact group heading.
-func (command *Command) Group(label string) {
+func (command *State) Group(label string) {
 	command.Results = append(command.Results, Result{Kind: ResultGroup, Label: label})
 }
 
 // Item appends one plain result. Append a Result to Results for a value, hint,
 // icon, check or disabled state.
-func (command *Command) Item(label, shortcut string) {
+func (command *State) Item(label, shortcut string) {
 	command.Results = append(command.Results, Result{Label: label, Shortcut: shortcut})
 }
 
 // Separator appends the divider between two groups.
-func (command *Command) Separator() {
+func (command *State) Separator() {
 	command.Results = append(command.Results, Result{Kind: ResultSeparator})
 }
 
 // Empty appends the centered empty-result state.
-func (command *Command) Empty(label string) {
+func (command *State) Empty(label string) {
 	command.Results = append(command.Results, Result{Kind: ResultEmpty, Label: label})
 }
 
 // InputID is the identity of the query row, a part of the control. It is the
 // hit the platform text service edits and the gallery resolves an editor for.
-func (command *Command) InputID() gfx.ID { return command.handlers.Parts().At(0) }
+func (command *State) InputID() gfx.ID { return command.handlers.Parts().At(0) }
 
 // Bounds returns the command surface geometry of the last paint.
-func (command *Command) Bounds() gfx.Rect { return command.bounds }
+func (command *State) Bounds() gfx.Rect { return command.bounds }
 
 // InputBounds returns the input row's text geometry of the last paint.
-func (command *Command) InputBounds() gfx.Rect { return command.inputBound }
+func (command *State) InputBounds() gfx.Rect { return command.inputBound }
 
 // ItemBounds returns the rectangle of item row index in the last paint, or the
 // empty rectangle when the row was scrolled out or index is not an item.
 // Selected is likewise an item ordinal.
-func (command *Command) ItemBounds(index int) gfx.Rect {
+func (command *State) ItemBounds(index int) gfx.Rect {
 	if index < 0 || index >= len(command.itemBounds) {
 		return gfx.Rect{}
 	}
 	return command.itemBounds[index]
 }
 
-func (command *Command) prepare() {
+func (command *State) prepare() {
 	if command.prepared {
 		return
 	}
@@ -241,11 +241,11 @@ func (command *Command) prepare() {
 // Editor returns the text.Editor the platform edits for Query. A host that
 // resolves text input by identity, without calling Page.TextInput, gives this
 // editor to its provider. It is nil before the first View.
-func (command *Command) Editor() *text.Editor { return command.editor }
+func (command *State) Editor() *text.Editor { return command.editor }
 
 // sync reads the query the platform edited since the last paint, or applies a
 // Query the caller assigned between paints.
-func (command *Command) sync() {
+func (command *State) sync() {
 	if command.Query != command.published {
 		command.editor = text.NewEditor(command.Query)
 		command.published = command.Query
@@ -265,7 +265,7 @@ func (command *Command) sync() {
 	}
 }
 
-func (command *Command) text(context window.TextInputContext) *window.TextInput {
+func (command *State) text(context window.TextInputContext) *window.TextInput {
 	if command.Text != nil {
 		return command.Text(context)
 	}
@@ -273,7 +273,7 @@ func (command *Command) text(context window.TextInputContext) *window.TextInput 
 	return &command.input
 }
 
-func (command *Command) draw(d *ui.DrawContext) {
+func (command *State) draw(d *ui.DrawContext) {
 	command.sync()
 	command.bounds = d.Rect
 	command.itemBounds = command.itemBounds[:0]
@@ -331,7 +331,7 @@ func (command *Command) draw(d *ui.DrawContext) {
 // pick moves the selection onto the row the pointer entered or clicked, as the
 // component's pointer rows do, and keeps the keyboard and the text service on
 // the control when a click lands on a result.
-func (command *Command) pick(d *ui.DrawContext) {
+func (command *State) pick(d *ui.DrawContext) {
 	if command.itemCount() == 0 {
 		return
 	}
@@ -348,7 +348,7 @@ func (command *Command) pick(d *ui.DrawContext) {
 	}
 }
 
-func (command *Command) key(event gfx.KeyEvent) gfx.EventResult {
+func (command *State) key(event gfx.KeyEvent) gfx.EventResult {
 	switch event.Key {
 	case gfx.KeyDown, gfx.KeyUp:
 		if command.itemCount() == 0 {
@@ -372,14 +372,14 @@ func (command *Command) key(event gfx.KeyEvent) gfx.EventResult {
 	return command.Key(event)
 }
 
-func (command *Command) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (command *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if command.Pointer == nil {
 		return gfx.EventResult{}
 	}
 	return command.Pointer(event)
 }
 
-func (command *Command) scroll(event gfx.ScrollEvent) gfx.EventResult {
+func (command *State) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if command.ScrollState.Wheel(event) {
 		return gfx.EventResult{Handled: true, Repaint: true}
 	}
@@ -391,7 +391,7 @@ func (command *Command) scroll(event gfx.ScrollEvent) gfx.EventResult {
 
 // move steps to the next enabled item, wrapping at the ends, and reports
 // whether the selection changed and whether the list had to scroll.
-func (command *Command) move(delta int) (moved, scrolled bool) {
+func (command *State) move(delta int) (moved, scrolled bool) {
 	count := command.itemCount()
 	if count == 0 {
 		return false, false
@@ -426,7 +426,7 @@ func (command *Command) move(delta int) (moved, scrolled bool) {
 	return false, false
 }
 
-func (command *Command) selectItem(item int) {
+func (command *State) selectItem(item int) {
 	if item < 0 || item >= command.itemCount() || item == command.Selected {
 		return
 	}
@@ -440,7 +440,7 @@ func (command *Command) selectItem(item int) {
 	}
 }
 
-func (command *Command) itemCount() int {
+func (command *State) itemCount() int {
 	count := 0
 	for index := range command.Results {
 		if command.Results[index].Kind == ResultItem {
@@ -452,7 +452,7 @@ func (command *Command) itemCount() int {
 
 // itemAt returns item row ordinal, skipping headings, separators and the empty
 // state.
-func (command *Command) itemAt(ordinal int) (Result, bool) {
+func (command *State) itemAt(ordinal int) (Result, bool) {
 	if ordinal < 0 {
 		return Result{}, false
 	}
@@ -469,7 +469,7 @@ func (command *Command) itemAt(ordinal int) (Result, bool) {
 	return Result{}, false
 }
 
-func (command *Command) itemID(ordinal int) gfx.ID {
+func (command *State) itemID(ordinal int) gfx.ID {
 	item, ok := command.itemAt(ordinal)
 	if !ok {
 		return gfx.ID{}
@@ -480,7 +480,7 @@ func (command *Command) itemID(ordinal int) gfx.ID {
 	return command.handlers.Parts().At(ordinal)
 }
 
-func (command *Command) ordinalOf(id gfx.ID) (int, bool) {
+func (command *State) ordinalOf(id gfx.ID) (int, bool) {
 	if id.IsZero() {
 		return 0, false
 	}

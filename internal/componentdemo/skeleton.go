@@ -96,9 +96,9 @@ skeleton.View(c, "75% 不透明", m.line4)`},
 // once, so reconfiguring and declaring the placeholders each paint allocates
 // nothing.
 type skeletonDemo struct {
-	title, line1, line2, line3 skeleton.Skeleton
-	avatar, name, handle, body skeleton.Skeleton
-	opacity                    [4]skeleton.Skeleton
+	title, line1, line2, line3 skeleton.State
+	avatar, name, handle, body skeleton.State
+	opacity                    [4]skeleton.State
 }
 
 // skeletonDemos is keyed by State because the constrained demo model has no

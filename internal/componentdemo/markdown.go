@@ -92,7 +92,7 @@ view.Paint(canvas, components.MarkdownPaint{
 
 // markdownScratch is what the example keeps between paints.
 type markdownScratch struct {
-	view markdown.Markdown
+	view markdown.State
 }
 
 const markdownAnswerZh = "## 重启 nginx\n" +

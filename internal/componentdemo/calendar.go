@@ -37,7 +37,7 @@ if canvas.Clicked(previous) {
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
 previous, next := m.previous, m.next
-cal := &calendar.Calendar{Options: calendar.Options{
+cal := &calendar.State{Options: calendar.Options{
     MonthTitle: "October 2026",
     Weekdays:   [7]string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"},
     Days:       days,
@@ -62,7 +62,7 @@ if cal.Clicked(previous) {
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
 previous, next := m.previous, m.next
-cal := &calendar.Calendar{Options: calendar.Options{
+cal := &calendar.State{Options: calendar.Options{
     MonthTitle: "2026 年 10 月",
     Weekdays:   [7]string{"一", "二", "三", "四", "五", "六", "日"},
     Days:       days,
@@ -95,7 +95,7 @@ components.BeginCalendar(canvas, theme, bounds, components.CalendarOptions{
     {Label: "29"}, {Label: "30"}, {Label: "31"},
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
-cal := &calendar.Calendar{Options: calendar.Options{
+cal := &calendar.State{Options: calendar.Options{
     MonthTitle: "October 2026",
     Weekdays:   [7]string{"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"},
     Days:       days,
@@ -115,7 +115,7 @@ calendar.View(c, "Calendar", cal).FillWidth().MaxWidth(360)`, PageSnippetZh: `da
     {Label: "29"}, {Label: "30"}, {Label: "31"},
     {Label: "1", Outside: true}, {Label: "2", Outside: true},
 }
-cal := &calendar.Calendar{Options: calendar.Options{
+cal := &calendar.State{Options: calendar.Options{
     MonthTitle: "2026 年 10 月",
     Weekdays:   [7]string{"一", "二", "三", "四", "五", "六", "日"},
     Days:       days,
@@ -193,7 +193,7 @@ func newCalendarRangeDays(month [35]components.CalendarDay) [35]components.Calen
 // are made once and point at this value, so it is kept beside the State rather
 // than rebuilt in each paint.
 type calendarDemo struct {
-	view calendar.Calendar
+	view calendar.State
 }
 
 // calendarDemos is keyed by State because the constrained demo model has no

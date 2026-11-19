@@ -62,7 +62,7 @@ func caretCount(canvas *gfx.Canvas) int {
 type model struct {
 	editor *text.Editor
 	field  ui.Field
-	code   inputotp.OTP
+	code   inputotp.State
 }
 
 func (m *model) init() {
@@ -149,7 +149,7 @@ func TestStaticSnapshot(t *testing.T) {
 	theme := testTheme()
 	page := ui.NewPage(ui.PageConfig{Theme: &theme})
 	canvas := new(gfx.Canvas)
-	var code inputotp.OTP
+	var code inputotp.State
 	view := func(c ui.C) {
 		code = *inputotp.New().
 			Value("482").Slots(6).GroupSize(3).

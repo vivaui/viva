@@ -19,7 +19,7 @@ var (
 )
 
 type model struct {
-	bar menubar.Menubar
+	bar menubar.State
 
 	grid bool
 
@@ -50,7 +50,7 @@ func (m *model) view(c ui.C) {
 		Separator().
 		Item(deleteID, "Delete workspace").Destructive()
 	m.bar.Trigger(viewID, "View").Item(reloadID, "Reload")
-	m.bar.View(c, "Menubar").Width(420).Height(36)
+	m.bar.View(c, "State").Width(420).Height(36)
 	if m.bar.Selected == gridID {
 		m.grid = !m.grid
 		m.bar.Selected = gfx.ID{}
@@ -162,7 +162,7 @@ func TestMenubarKeysMoveOpenAndChoose(t *testing.T) {
 	m := &model{}
 	m.bar.Open = fileID
 	page, canvas := openPage(t, m)
-	control := mustHit(t, canvas, "Menubar")
+	control := mustHit(t, canvas, "State")
 	file := mustHit(t, canvas, "File")
 	newRow := mustHit(t, canvas, "New window")
 
@@ -206,7 +206,7 @@ func TestMenubarPointerTranslation(t *testing.T) {
 	m := &model{}
 	m.bar.Open = fileID
 	page, canvas := openPage(t, m)
-	control := mustHit(t, canvas, "Menubar")
+	control := mustHit(t, canvas, "State")
 	page.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Target: control.ID, X: control.Bounds.X + 4, Y: control.Bounds.Y + 4})
 	if m.pointerTarget != control.ID {
 		t.Fatalf("the pointer callback saw %v, want the control", m.pointerTarget)

@@ -157,7 +157,7 @@ var avatarPhoto = func() gfx.Bitmap {
 // State rather than rebuilt in each paint, so their handlers and draw functions
 // are stable and a warm paint allocates nothing.
 type avatarDemo struct {
-	single, small, standard, large, photo *avatar.Avatar
+	single, small, standard, large, photo *avatar.State
 	group                                 *avatar.Group
 }
 
@@ -224,7 +224,7 @@ func (state *State) paintAvatar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 }
 
 // avatarSample declares one labelled avatar of the sizes example.
-func avatarSample(c ui.C, theme gfx.Theme, person *avatar.Avatar, name string, side float32, label string) {
+func avatarSample(c ui.C, theme gfx.Theme, person *avatar.State, name string, side float32, label string) {
 	ui.Column(c).Gap(8).Items(ui.Center).Children(func() {
 		person.View(c, name).Size(side, side)
 		ui.Text(c, label).FontSize(theme.Metrics.FontSizeS).Muted()

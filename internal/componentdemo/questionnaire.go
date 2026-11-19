@@ -102,7 +102,7 @@ var (
 // is kept beside the State rather than rebuilt in each paint, so the handlers
 // are stable and a warm re-declaration allocates nothing.
 type questionnaireDemo struct {
-	view   questionnaire.Questionnaire
+	view   questionnaire.State
 	choose [3]func()
 	toggle [3]func()
 	back   func()

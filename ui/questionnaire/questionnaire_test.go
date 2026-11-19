@@ -63,7 +63,7 @@ func hasText(canvas *gfx.Canvas, value string) bool {
 }
 
 type model struct {
-	question                 questionnaire.Questionnaire
+	question                 questionnaire.State
 	selected                 int
 	backs, skips, nexts      int
 	choose                   [3]func()
@@ -96,7 +96,7 @@ func (m *model) rebuild() {
 
 func (m *model) view(c ui.C) {
 	m.rebuild()
-	m.question.View(c, "Questionnaire").Height(480)
+	m.question.View(c, "State").Height(480)
 }
 
 // The question paints the caller's progress, title, description, labels and
@@ -143,7 +143,7 @@ func TestMultipleChoicesAndActions(t *testing.T) {
 			Back(previousID, "Back", func() { m.backs++ }).
 			Skip(skipID, "Skip", func() { m.skips++ }).
 			Continue(nextID, "Continue", func() { m.nexts++ })
-		m.question.View(c, "Questionnaire").Height(400)
+		m.question.View(c, "State").Height(400)
 	}
 	page, canvas := open(t, view)
 	choice := hit(t, canvas, "Low memory")

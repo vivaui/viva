@@ -20,7 +20,7 @@ var (
 )
 
 type model struct {
-	view    messagescroller.Scroller
+	view    messagescroller.State
 	page    *ui.Page
 	canvas  *gfx.Canvas
 	geom    messagescroller.Geometry
@@ -38,7 +38,7 @@ func (m *model) content(c ui.C) {
 }
 
 func (m *model) wire() {
-	m.view = messagescroller.Scroller{
+	m.view = messagescroller.State{
 		EarlierLabel:   "Earlier messages",
 		LaterLabel:     "Later messages",
 		EarlierID:      testEarlier,

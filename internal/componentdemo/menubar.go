@@ -120,7 +120,7 @@ var (
 	menubarItem = tree.Sub(menubarUI, tree.Name("item"))
 
 	// menubarDemo is the preview's page control. The preview has one menubar.
-	menubarDemo      menubar.Menubar
+	menubarDemo      menubar.State
 	menubarDemoState *State
 )
 

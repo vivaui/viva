@@ -142,7 +142,7 @@ var (
 
 	// navigationMenuDemo is the preview's page control. The preview has one
 	// navigation menu.
-	navigationMenuDemo      navigationmenu.NavigationMenu
+	navigationMenuDemo      navigationmenu.State
 	navigationMenuDemoState *State
 )
 

@@ -14,7 +14,7 @@
 //
 // It is a separate package so an application that does not import it pays
 // nothing for it, and it depends only on the public components, gfx and ui
-// packages. A Message is a value built with chained options; keep no state in
+// packages. A Row is a value built with chained options; keep no state in
 // it, build it from the model in each paint, and View allocates nothing on a
 // warm paint.
 package message
@@ -25,13 +25,13 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// Message is one row's presentation. Its zero value is a start-aligned message
+// Row is one row's presentation. Its zero value is a start-aligned message
 // with no avatar, metadata or body; New is its readable starting point. Every
 // option returns the value, so a call site chains only what it shows:
 //
 //	message.New().End().Name("You").Time("Delivered").Avatar("YO").
 //		Surface(ui.BubblePrimary).Body("Ship the compact variant.")
-type Message struct {
+type Row struct {
 	name     string
 	time     string
 	initials string
@@ -47,39 +47,39 @@ type Message struct {
 }
 
 // New returns an empty start-aligned message whose body is a secondary bubble.
-func New() Message {
-	return Message{surface: ui.BubbleSecondary}
+func New() Row {
+	return Row{surface: ui.BubbleSecondary}
 }
 
 // Start aligns the row to the start of the conversation. It is the zero value's
 // alignment and undoes End.
-func (m Message) Start() Message {
+func (m Row) Start() Row {
 	m.end = false
 	return m
 }
 
 // End aligns the row to the end: the avatar is on the end side and the bubble,
 // metadata and actions hug that edge.
-func (m Message) End() Message {
+func (m Row) End() Row {
 	m.end = true
 	return m
 }
 
 // Name is the sender name in the metadata row above the body.
-func (m Message) Name(name string) Message {
+func (m Row) Name(name string) Row {
 	m.name = name
 	return m
 }
 
 // Time is the timestamp in the metadata row above the body.
-func (m Message) Time(value string) Message {
+func (m Row) Time(value string) Row {
 	m.time = value
 	return m
 }
 
 // Avatar shows a round avatar with the initials, or a muted fallback circle
 // when the initials are empty, at the start or end of the row.
-func (m Message) Avatar(initials string) Message {
+func (m Row) Avatar(initials string) Row {
 	m.initials = initials
 	m.avatar = true
 	return m
@@ -87,7 +87,7 @@ func (m Message) Avatar(initials string) Message {
 
 // AvatarImage shows the bitmap as the avatar instead of initials. The caller
 // owns the image and keeps it in its model.
-func (m Message) AvatarImage(bitmap gfx.Bitmap) Message {
+func (m Row) AvatarImage(bitmap gfx.Bitmap) Row {
 	m.image = bitmap
 	m.avatar = true
 	return m
@@ -96,20 +96,20 @@ func (m Message) AvatarImage(bitmap gfx.Bitmap) Message {
 // ReserveAvatar keeps the avatar column without painting an avatar, as an empty
 // avatar does: consecutive rows of one sender line up with the row that shows
 // it. Avatar takes precedence.
-func (m Message) ReserveAvatar() Message {
+func (m Row) ReserveAvatar() Row {
 	m.reserve = true
 	return m
 }
 
 // Body is the text of the bubble.
-func (m Message) Body(text string) Message {
+func (m Row) Body(text string) Row {
 	m.body = text
 	return m
 }
 
 // Surface selects the bubble's variant. New starts with BubbleSecondary;
 // BubbleGhost draws no surface and no inset.
-func (m Message) Surface(variant ui.BubbleVariant) Message {
+func (m Row) Surface(variant ui.BubbleVariant) Row {
 	m.surface = variant
 	return m
 }
@@ -118,7 +118,7 @@ func (m Message) Surface(variant ui.BubbleVariant) Message {
 // one text: an image, a stack of attachment cards or a rich preview. The
 // callback is declared in the content column, so its own alignment is the
 // caller's. Body is ignored when Content is set.
-func (m Message) Content(content func(ui.C)) Message {
+func (m Row) Content(content func(ui.C)) Row {
 	m.content = content
 	return m
 }
@@ -126,7 +126,7 @@ func (m Message) Content(content func(ui.C)) Message {
 // Actions paints the row's actions below the body, aligned with the message.
 // The callback declares the controls, so their identities and handlers are the
 // caller's own.
-func (m Message) Actions(actions func(ui.C)) Message {
+func (m Row) Actions(actions func(ui.C)) Row {
 	m.actions = actions
 	return m
 }
@@ -136,7 +136,7 @@ func (m Message) Actions(actions func(ui.C)) Message {
 // and actions.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, message Message) ui.Box {
+func View(c ui.C, label string, message Row) ui.Box {
 	metrics := c.Theme().Metrics
 	hasAvatar := message.avatar || message.reserve
 	row := ui.Row(c).Gap(metrics.GapItem).Items(ui.Start)
@@ -165,18 +165,18 @@ func View(c ui.C, label string, message Message) ui.Box {
 
 // Group declares consecutive message rows with the message group gap between
 // them, so consecutive rows of one sender read as one turn. label names the
-// group for assistive technology; give each Message its own Name, Time and
+// group for assistive technology; give each Row its own Name, Time and
 // avatar or ReserveAvatar.
 //
 //	message.Group(c, "Ari", first.ReserveAvatar(), last.Avatar("AR"))
-func Group(c ui.C, label string, messages ...Message) ui.Box {
+func Group(c ui.C, label string, messages ...Row) ui.Box {
 	column := ui.Column(c).Gap(components.MessageGroupGap(c.Theme().Metrics))
 	if label != "" {
 		column = column.HitWith(ui.ID(c), label, gfx.HitOptions{Role: gfx.RoleGroup, SkipFocus: true})
 	}
 	column.Children(func() {
-		for _, message := range messages {
-			View(c, "", message)
+		for _, row := range messages {
+			View(c, "", row)
 		}
 	})
 	return column
@@ -184,7 +184,7 @@ func Group(c ui.C, label string, messages ...Message) ui.Box {
 
 // metadata paints the sender name and timestamp above the body. The name takes
 // the free room so the time sits at the far edge, as a chat header does.
-func metadata(c ui.C, message Message) {
+func metadata(c ui.C, message Row) {
 	look := c.Theme()
 	row := ui.Row(c).Gap(look.Metrics.GapItem).Items(ui.Center)
 	if message.end {
@@ -204,7 +204,7 @@ func metadata(c ui.C, message Message) {
 }
 
 // body paints the caller's content or one bubble.
-func body(c ui.C, message Message) {
+func body(c ui.C, message Row) {
 	if message.content != nil {
 		message.content(c)
 		return
@@ -221,7 +221,7 @@ func body(c ui.C, message Message) {
 }
 
 // actions paints the caller's action row on the message's side.
-func actions(c ui.C, message Message) {
+func actions(c ui.C, message Row) {
 	row := ui.Row(c).Gap(c.Theme().Metrics.GapItem).Items(ui.Center)
 	if message.end {
 		row = row.Justify(ui.End)
@@ -232,7 +232,7 @@ func actions(c ui.C, message Message) {
 }
 
 // avatar paints the initials or image circle, or reserves the column.
-func avatar(c ui.C, message Message, side float32) {
+func avatar(c ui.C, message Row, side float32) {
 	if message.reserve && !message.avatar {
 		ui.Spacer(c).Size(side, side).Shrink(0)
 		return

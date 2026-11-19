@@ -10,7 +10,7 @@ import (
 )
 
 type model struct {
-	block, text, circle, faded skeleton.Skeleton
+	block, text, circle, faded skeleton.State
 	page                       *ui.Page
 	canvas                     *gfx.Canvas
 	theme                      gfx.Theme
@@ -108,7 +108,7 @@ func TestRadiusOverridesCircle(t *testing.T) {
 // Reset returns a placeholder to an opaque Block so a reconfigured page does
 // not keep a stale circle, radius or opacity.
 func TestResetClearsVisualOptions(t *testing.T) {
-	var placeholder skeleton.Skeleton
+	var placeholder skeleton.State
 	placeholder.Circle().Radius(9).Opacity(0.25)
 	placeholder.Reset().Block().Size(30, 12)
 	m := &model{theme: gfx.LightTheme()}

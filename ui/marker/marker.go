@@ -18,7 +18,7 @@
 //
 // It is a separate package so an application that does not import it pays
 // nothing for it, and it depends only on the public components, gfx and ui
-// packages. A Marker belongs to one place on one page: keep one in the model
+// packages. A State belongs to one place on one page: keep one in the model
 // per marker, make its handlers and draw function once, and Reset its
 // declaration in each paint. Do not copy one after it has been painted.
 package marker
@@ -36,9 +36,9 @@ type Variant = components.MarkerVariant
 // Phase is the spinner frame of a progress marker.
 type Phase = components.SpinnerPhase
 
-// Marker is one marker's configuration and its page control. Configure it with
+// State is one marker's configuration and its page control. Configure it with
 // the chainable methods after Reset and before View.
-type Marker struct {
+type State struct {
 	label    string
 	icon     gfx.Icon
 	variant  Variant
@@ -51,10 +51,10 @@ type Marker struct {
 }
 
 // New returns an empty plain marker.
-func New() *Marker { return new(Marker) }
+func New() *State { return new(State) }
 
 // Reset clears the label, icon, variant and progress state.
-func (m *Marker) Reset() *Marker {
+func (m *State) Reset() *State {
 	m.label = ""
 	m.icon = gfx.Icon{}
 	m.variant = components.MarkerDefault
@@ -64,27 +64,27 @@ func (m *Marker) Reset() *Marker {
 }
 
 // Label is the marker's muted content.
-func (m *Marker) Label(label string) *Marker { m.label = label; return m }
+func (m *State) Label(label string) *State { m.label = label; return m }
 
 // Icon paints a 16 pixel leading icon. A zero icon paints none. Progress takes
 // its place when both are set.
-func (m *Marker) Icon(icon gfx.Icon) *Marker { m.icon = icon; return m }
+func (m *State) Icon(icon gfx.Icon) *State { m.icon = icon; return m }
 
 // Separator centers the label between two rules, as a date separator does. It
 // replaces Border.
-func (m *Marker) Separator() *Marker { m.variant = components.MarkerSeparator; return m }
+func (m *State) Separator() *State { m.variant = components.MarkerSeparator; return m }
 
 // Border draws a rule below the row, as a section boundary does. It replaces
 // Separator.
-func (m *Marker) Border() *Marker { m.variant = components.MarkerBorder; return m }
+func (m *State) Border() *State { m.variant = components.MarkerBorder; return m }
 
 // Plain selects the default form with no separator or border.
-func (m *Marker) Plain() *Marker { m.variant = components.MarkerDefault; return m }
+func (m *State) Plain() *State { m.variant = components.MarkerDefault; return m }
 
 // Progress replaces the icon with the spinner frame, as work in progress does.
 // Advancing the phase and scheduling the next frame are the caller's, as for
 // components.MarkerProgress.
-func (m *Marker) Progress(phase Phase) *Marker {
+func (m *State) Progress(phase Phase) *State {
 	m.progress, m.phase = true, phase
 	return m
 }
@@ -94,9 +94,9 @@ func (m *Marker) Progress(phase Phase) *Marker {
 // the border variant; a Width or Height after it overrides that.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, marker *Marker) ui.Box {
+func View(c ui.C, label string, marker *State) ui.Box {
 	if marker == nil {
-		panic("marker: View needs its Marker")
+		panic("marker: View needs its State")
 	}
 	marker.prepare()
 	return ui.Control(c, label, &marker.handlers).
@@ -104,11 +104,11 @@ func View(c ui.C, label string, marker *Marker) ui.Box {
 		Draw(marker.drawFn)
 }
 
-// View declares the marker at c, for a page that keeps the Marker in its
+// View declares the marker at c, for a page that keeps the State in its
 // model.
-func (m *Marker) View(c ui.C, label string) ui.Box { return View(c, label, m) }
+func (m *State) View(c ui.C, label string) ui.Box { return View(c, label, m) }
 
-func (m *Marker) prepare() {
+func (m *State) prepare() {
 	if m.prepared {
 		return
 	}
@@ -116,7 +116,7 @@ func (m *Marker) prepare() {
 	m.drawFn = m.draw
 }
 
-func (m *Marker) draw(d *ui.DrawContext) {
+func (m *State) draw(d *ui.DrawContext) {
 	if m.progress {
 		components.MarkerProgress(d.Canvas, *d.Theme, d.Rect, m.variant, m.phase, m.label)
 		return
@@ -130,7 +130,7 @@ func (m *Marker) draw(d *ui.DrawContext) {
 
 // height is the line the component paints, plus MarkerBorder's padding and
 // rule.
-func (m *Marker) height(theme gfx.Theme) float32 {
+func (m *State) height(theme gfx.Theme) float32 {
 	metrics := theme.Metrics
 	line := metrics.FontSizeM + 7
 	if m.variant == components.MarkerBorder {

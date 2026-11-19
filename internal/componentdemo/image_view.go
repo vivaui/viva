@@ -55,7 +55,7 @@ func (state *State) initializeImageView() {
 // handlers and draw function are stable and a warm paint allocates nothing.
 type imageViewDemo struct {
 	state    *State
-	view     image.Image
+	view     image.State
 	zoom     float32
 	pan      gfx.Point
 	last     gfx.Point

@@ -55,7 +55,7 @@ func open(t testing.TB, view func(ui.C)) (*ui.Page, *gfx.Canvas) {
 }
 
 type model struct {
-	card       attachment.Attachment
+	card       attachment.Card
 	group      attachment.Group
 	cardClicks int
 	actionHits int

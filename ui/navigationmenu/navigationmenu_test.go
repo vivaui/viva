@@ -18,7 +18,7 @@ var (
 )
 
 type model struct {
-	menu navigationmenu.NavigationMenu
+	menu navigationmenu.State
 
 	open     gfx.ID
 	direct   bool

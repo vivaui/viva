@@ -2,10 +2,10 @@
 // avatar groups of package components. A page declares an avatar with typed
 // configuration methods and views it as a ui.Control:
 //
-//	avatar := avatar.New()
+//	person := avatar.New()
 //	...
-//	avatar.Initials("SK").Name("Skyler").Tint(theme.Primary).Diameter(64).Online()
-//	avatar.View(c, "Skyler").Size(64, 64)
+//	person.Initials("SK").Name("Skyler").Tint(theme.Primary).Diameter(64).Online()
+//	person.View(c, "Skyler").Size(64, 64)
 //
 //	group := avatar.NewGroup()
 //	group.Diameter(40).Overlap(8)
@@ -20,7 +20,7 @@
 // initials or the component's geometric fallback.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an Avatar or Group in the model beside its data: its
+// nothing for it. Keep an State or Group in the model beside its data: its
 // handlers and draw function are made once, so a warm paint allocates nothing.
 // Do not copy one after it has been painted.
 package avatar
@@ -49,11 +49,11 @@ const (
 	StatusOffline Status = components.AvatarStatusOffline
 )
 
-// Avatar is one avatar's caller-owned values and page control. Configure it
+// State is one avatar's caller-owned values and page control. Configure it
 // with the chainable methods, then view it. Reset clears the values so a page
 // that reconfigures the avatar every paint does not keep a stale image or
 // initials.
-type Avatar struct {
+type State struct {
 	bitmap   gfx.Bitmap
 	initials string
 	name     string
@@ -68,12 +68,12 @@ type Avatar struct {
 }
 
 // New returns an avatar with the default size and no image, initials or status.
-func New() *Avatar { return new(Avatar) }
+func New() *State { return new(State) }
 
 // Reset clears the image, initials, name, tint, status and explicit diameter,
 // returning the avatar to the default size. Call it at the start of a paint that
 // reconfigures the avatar, then set the values that apply now.
-func (a *Avatar) Reset() *Avatar {
+func (a *State) Reset() *State {
 	a.bitmap = gfx.Bitmap{}
 	a.initials = ""
 	a.name = ""
@@ -86,25 +86,25 @@ func (a *Avatar) Reset() *Avatar {
 
 // Image sets the caller-decoded picture, center-cropped to a circle. It takes
 // precedence over initials when it has pixels.
-func (a *Avatar) Image(bitmap gfx.Bitmap) *Avatar { a.bitmap = bitmap; return a }
+func (a *State) Image(bitmap gfx.Bitmap) *State { a.bitmap = bitmap; return a }
 
 // Initials sets the fallback text painted when Image is empty.
-func (a *Avatar) Initials(value string) *Avatar { a.initials = value; return a }
+func (a *State) Initials(value string) *State { a.initials = value; return a }
 
 // Name is the accessible name of the avatar; it is not painted.
-func (a *Avatar) Name(value string) *Avatar { a.name = value; return a }
+func (a *State) Name(value string) *State { a.name = value; return a }
 
 // Tint fills an initials or geometric fallback. The zero value uses the theme's
-// muted surface, like an untinted Avatar.
-func (a *Avatar) Tint(color gfx.Color) *Avatar { a.tint = color; return a }
+// muted surface, like an untinted State.
+func (a *State) Tint(color gfx.Color) *State { a.tint = color; return a }
 
 // Size selects the component's small, default or large variant: 24, 32 or 40
 // pixels. It clears any explicit Diameter.
-func (a *Avatar) Size(size Size) *Avatar { a.size, a.diameter = size, 0; return a }
+func (a *State) Size(size Size) *State { a.size, a.diameter = size, 0; return a }
 
 // Diameter sets an explicit circle diameter in pixels, overriding Size. The
 // small or large text and status-dot variant is chosen from the diameter.
-func (a *Avatar) Diameter(pixels float32) *Avatar {
+func (a *State) Diameter(pixels float32) *State {
 	if pixels < 0 {
 		pixels = 0
 	}
@@ -113,31 +113,31 @@ func (a *Avatar) Diameter(pixels float32) *Avatar {
 }
 
 // Status sets the typed status dot: online, busy, offline or none.
-func (a *Avatar) Status(status Status) *Avatar { a.status = status; return a }
+func (a *State) Status(status Status) *State { a.status = status; return a }
 
 // Online shows the success status dot.
-func (a *Avatar) Online() *Avatar { a.status = StatusOnline; return a }
+func (a *State) Online() *State { a.status = StatusOnline; return a }
 
 // Busy shows the danger status dot.
-func (a *Avatar) Busy() *Avatar { a.status = StatusBusy; return a }
+func (a *State) Busy() *State { a.status = StatusBusy; return a }
 
 // Offline shows the muted status dot.
-func (a *Avatar) Offline() *Avatar { a.status = StatusOffline; return a }
+func (a *State) Offline() *State { a.status = StatusOffline; return a }
 
 // View declares the avatar at c. label names it for assistive technology. The
 // box is exactly the avatar's diameter square.
 //
 // Declare the view on its own, not inside a Memo.
-func (a *Avatar) View(c ui.C, label string) ui.Box {
+func (a *State) View(c ui.C, label string) ui.Box {
 	if a == nil {
-		panic("avatar: View needs its Avatar")
+		panic("avatar: View needs its State")
 	}
 	a.prepare()
 	side := a.dimension()
 	return ui.Control(c, label, &a.handlers).Size(side, side).Draw(a.drawFn)
 }
 
-func (a *Avatar) prepare() {
+func (a *State) prepare() {
 	if a.prepared {
 		return
 	}
@@ -146,21 +146,21 @@ func (a *Avatar) prepare() {
 	a.drawFn = a.draw
 }
 
-func (a *Avatar) draw(d *ui.DrawContext) {
+func (a *State) draw(d *ui.DrawContext) {
 	components.Avatar(d.Canvas, *d.Theme, d.Rect, components.AvatarData{
 		Name: a.name, Initials: a.initials, Image: a.bitmap, Tint: a.tint,
 		Status: a.status, Size: a.variant(),
 	})
 }
 
-func (a *Avatar) dimension() float32 {
+func (a *State) dimension() float32 {
 	if a.diameter > 0 {
 		return a.diameter
 	}
 	return sizePixels(a.size)
 }
 
-func (a *Avatar) variant() Size {
+func (a *State) variant() Size {
 	if a.diameter > 0 {
 		return variantForPixels(a.diameter)
 	}

@@ -32,7 +32,7 @@ func hitLabelled(canvas *gfx.Canvas, label string) (gfx.Hit, bool) {
 }
 
 type model struct {
-	command     command.Command
+	command     command.State
 	page        *ui.Page
 	canvas      *gfx.Canvas
 	selected    int
@@ -61,7 +61,7 @@ func (m *model) wire() {
 }
 
 func (m *model) viewPage(c ui.C) {
-	command.View(c, "Command", &m.command).Size(480, 210)
+	command.View(c, "State", &m.command).Size(480, 210)
 }
 
 func (m *model) open(t testing.TB) {
@@ -74,7 +74,7 @@ func (m *model) open(t testing.TB) {
 
 func control(t *testing.T, canvas *gfx.Canvas) gfx.Hit {
 	t.Helper()
-	hit, ok := hitLabelled(canvas, "Command")
+	hit, ok := hitLabelled(canvas, "State")
 	if !ok {
 		t.Fatal("the control painted no hit")
 	}

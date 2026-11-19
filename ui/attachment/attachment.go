@@ -26,7 +26,7 @@
 // be called back.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an Attachment or Group in the model beside its data: its
+// nothing for it. Keep an Card or Group in the model beside its data: its
 // handlers and draw function are made once, and Reset keeps the action storage,
 // so a warm paint allocates nothing. Do not copy one after it has been painted.
 package attachment
@@ -76,11 +76,11 @@ type Action struct {
 	OnClick func()
 }
 
-// Attachment is one attachment's caller-owned data and its page control.
+// Card is one attachment's caller-owned data and its page control.
 // Configure it with the chainable methods. Reset clears the values and actions
 // so a page that reconfigures the card every paint starts from a clean card;
 // the action storage is kept.
-type Attachment struct {
+type Card struct {
 	id          gfx.ID
 	title       string
 	meta        string
@@ -102,18 +102,18 @@ type Attachment struct {
 }
 
 // New returns an attachment with the default size, done state and no content.
-func New() *Attachment { return new(Attachment) }
+func New() *Card { return new(Card) }
 
 // Reset clears the identity, content, state, progress, size, orientation and
 // actions, returning the card to the default horizontal, done, full-size card.
 // The action storage is kept so a reset followed by the same actions does not
 // allocate.
-func (a *Attachment) Reset() *Attachment {
+func (a *Card) Reset() *Card {
 	a.resetValues()
 	return a
 }
 
-func (a *Attachment) resetValues() {
+func (a *Card) resetValues() {
 	a.id = gfx.ID{}
 	a.title = ""
 	a.meta = ""
@@ -130,78 +130,78 @@ func (a *Attachment) resetValues() {
 
 // ID is the caller's identity for the card's trigger. A zero ID paints static
 // content; give the card an ID if it should be clickable or read with Clicked.
-func (a *Attachment) ID(id gfx.ID) *Attachment { a.id = id; return a }
+func (a *Card) ID(id gfx.ID) *Card { a.id = id; return a }
 
 // Title is the attachment's first line, truncated with an ellipsis when needed.
-func (a *Attachment) Title(value string) *Attachment { a.title = value; return a }
+func (a *Card) Title(value string) *Card { a.title = value; return a }
 
 // Meta is the attachment's muted second line, such as a size or state summary.
-func (a *Attachment) Meta(value string) *Attachment { a.meta = value; return a }
+func (a *Card) Meta(value string) *Card { a.meta = value; return a }
 
 // File selects the generic file media glyph.
-func (a *Attachment) File() *Attachment { a.kind = File; return a }
+func (a *Card) File() *Card { a.kind = File; return a }
 
 // Image selects the image media glyph.
-func (a *Attachment) Image() *Attachment { a.kind = Image; return a }
+func (a *Card) Image() *Card { a.kind = Image; return a }
 
 // Icon sets a caller-owned glyph painted instead of the kind's placeholder.
-func (a *Attachment) Icon(icon gfx.Icon) *Attachment { a.icon = icon; return a }
+func (a *Card) Icon(icon gfx.Icon) *Card { a.icon = icon; return a }
 
 // State sets the typed transfer state.
-func (a *Attachment) State(state State) *Attachment { a.state = state; return a }
+func (a *Card) State(state State) *Card { a.state = state; return a }
 
 // Progress sets the fraction, 0 to 1, shown along an Uploading card's bottom
 // edge. The zero value draws no bar.
-func (a *Attachment) Progress(progress float32) *Attachment { a.progress = progress; return a }
+func (a *Card) Progress(progress float32) *Card { a.progress = progress; return a }
 
 // Done marks the attachment complete.
-func (a *Attachment) Done() *Attachment { a.state, a.progress = Done, 0; return a }
+func (a *Card) Done() *Card { a.state, a.progress = Done, 0; return a }
 
 // Idle marks the attachment idle, with its dashed outline.
-func (a *Attachment) Idle() *Attachment { a.state, a.progress = Idle, 0; return a }
+func (a *Card) Idle() *Card { a.state, a.progress = Idle, 0; return a }
 
 // Uploading marks the attachment as uploading and sets its progress fraction.
-func (a *Attachment) Uploading(progress float32) *Attachment {
+func (a *Card) Uploading(progress float32) *Card {
 	a.state, a.progress = Uploading, progress
 	return a
 }
 
 // Processing marks the attachment as processing, with no determinate progress.
-func (a *Attachment) Processing() *Attachment { a.state, a.progress = Processing, 0; return a }
+func (a *Card) Processing() *Card { a.state, a.progress = Processing, 0; return a }
 
 // Failed marks the attachment as failed.
-func (a *Attachment) Failed() *Attachment { a.state, a.progress = Error, 0; return a }
+func (a *Card) Failed() *Card { a.state, a.progress = Error, 0; return a }
 
 // Small selects the small attachment size.
-func (a *Attachment) Small() *Attachment { a.size = SizeSmall; return a }
+func (a *Card) Small() *Card { a.size = SizeSmall; return a }
 
 // ExtraSmall selects the extra-small attachment size.
-func (a *Attachment) ExtraSmall() *Attachment { a.size = SizeExtraSmall; return a }
+func (a *Card) ExtraSmall() *Card { a.size = SizeExtraSmall; return a }
 
 // Vertical stacks the media above the text. The default is horizontal.
-func (a *Attachment) Vertical() *Attachment { a.orientation = Vertical; return a }
+func (a *Card) Vertical() *Card { a.orientation = Vertical; return a }
 
 // Disabled paints the card inert without changing its transfer state.
-func (a *Attachment) Disabled() *Attachment { a.disabled = true; return a }
+func (a *Card) Disabled() *Card { a.disabled = true; return a }
 
 // Action adds an icon button. The component paints at most three per card; a
 // zero id is painted but inert. The callback runs after the click is read.
-func (a *Attachment) Action(id gfx.ID, label string, icon gfx.Icon, onClick func()) *Attachment {
+func (a *Card) Action(id gfx.ID, label string, icon gfx.Icon, onClick func()) *Card {
 	a.actions = append(a.actions, Action{ID: id, Label: label, Icon: icon, OnClick: onClick})
 	return a
 }
 
 // OnClick sets the callback run when the card's own trigger is clicked.
-func (a *Attachment) OnClick(fn func()) *Attachment { a.onClick = fn; return a }
+func (a *Card) OnClick(fn func()) *Card { a.onClick = fn; return a }
 
 // View declares the attachment at c. label names the card for assistive
 // technology. The box is the card's natural size; give it a wider box to let
 // the card fill it.
 //
 // Declare the view on its own, not inside a Memo.
-func (a *Attachment) View(c ui.C, label string) ui.Box {
+func (a *Card) View(c ui.C, label string) ui.Box {
 	if a == nil {
-		panic("attachment: View needs its Attachment")
+		panic("attachment: View needs its Card")
 	}
 	a.prepare()
 	size := a.naturalSize(c.Canvas(), *c.Theme())
@@ -210,17 +210,17 @@ func (a *Attachment) View(c ui.C, label string) ui.Box {
 
 // Clicked reports whether the paint just made delivered a click on the card's
 // trigger. It is false in ordinary paints. Ask it after View.
-func (a *Attachment) Clicked() bool {
+func (a *Card) Clicked() bool {
 	return a.hadClick && !a.id.IsZero() && a.clicked == a.id
 }
 
 // ClickedAction reports whether the paint just made delivered a click on the
 // action with id. It is false in ordinary paints or when id is zero.
-func (a *Attachment) ClickedAction(id gfx.ID) bool {
+func (a *Card) ClickedAction(id gfx.ID) bool {
 	return a.hadClick && !id.IsZero() && a.clicked == id
 }
 
-func (a *Attachment) prepare() {
+func (a *Card) prepare() {
 	if a.prepared {
 		return
 	}
@@ -229,7 +229,7 @@ func (a *Attachment) prepare() {
 	a.drawFn = a.draw
 }
 
-func (a *Attachment) draw(d *ui.DrawContext) {
+func (a *Card) draw(d *ui.DrawContext) {
 	a.clicked, a.hadClick = d.Canvas.ClickTarget()
 	a.component(d.Canvas, *d.Theme, a.id, d.Rect).Paint()
 	a.notify(a.clicked, a.hadClick)
@@ -237,12 +237,12 @@ func (a *Attachment) draw(d *ui.DrawContext) {
 
 // naturalSize measures the card the component will paint, including its text,
 // media and actions.
-func (a *Attachment) naturalSize(canvas *gfx.Canvas, theme gfx.Theme) gfx.Size {
+func (a *Card) naturalSize(canvas *gfx.Canvas, theme gfx.Theme) gfx.Size {
 	return a.component(canvas, theme, gfx.ID{}, gfx.Rect{}).Size()
 }
 
 // component builds the component's declaration from the typed configuration.
-func (a *Attachment) component(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect) components.Attachment {
+func (a *Card) component(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, bounds gfx.Rect) components.Attachment {
 	card := components.BeginAttachment(canvas, theme, id, bounds, components.AttachmentData{
 		Name: a.title, Description: a.meta, Kind: a.kind, Icon: a.icon,
 		State: a.state, Size: a.size, Orientation: a.orientation, Progress: a.progress,
@@ -258,7 +258,7 @@ func (a *Attachment) component(canvas *gfx.Canvas, theme gfx.Theme, id gfx.ID, b
 }
 
 // notify runs the callback of the card or action that was clicked.
-func (a *Attachment) notify(clicked gfx.ID, hadClick bool) {
+func (a *Card) notify(clicked gfx.ID, hadClick bool) {
 	if !hadClick || clicked.IsZero() {
 		return
 	}
@@ -283,7 +283,7 @@ func (a *Attachment) notify(clicked gfx.ID, hadClick bool) {
 type Group struct {
 	gap      float32
 	gapSet   bool
-	items    []Attachment
+	items    []Card
 	clicked  gfx.ID
 	hadClick bool
 
@@ -311,9 +311,9 @@ func (g *Group) Gap(pixels float32) *Group {
 
 // Add appends a card and returns it for configuration. A reused card is reset;
 // a new card starts as an empty default card.
-func (g *Group) Add() *Attachment {
+func (g *Group) Add() *Card {
 	if len(g.items) == cap(g.items) {
-		g.items = append(g.items, Attachment{})
+		g.items = append(g.items, Card{})
 	} else {
 		g.items = g.items[:len(g.items)+1]
 		g.items[len(g.items)-1].resetValues()

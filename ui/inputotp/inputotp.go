@@ -25,9 +25,9 @@
 // application identity; SelectAt lets such a runner route a press to a slot.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an OTP in the model beside its editor: its handlers and
+// nothing for it. Keep an State in the model beside its editor: its handlers and
 // draw function are made once, so a warm paint allocates nothing. Do not copy
-// an OTP after it has been declared.
+// an State after it has been declared.
 package inputotp
 
 import (
@@ -54,8 +54,8 @@ const (
 	Alphanumeric Filter = components.InputOTPAlphanumeric
 )
 
-// OTP is one one-time-code field and its page control.
-type OTP struct {
+// State is one one-time-code field and its page control.
+type State struct {
 	field   *ui.Field
 	editor  *text.Editor
 	fieldID gfx.ID
@@ -92,20 +92,20 @@ type OTP struct {
 }
 
 // New returns an empty six-slot code. Give it a field or a static Value.
-func New() *OTP { return &OTP{slots: 6, filter: Digits} }
+func New() *State { return &State{slots: 6, filter: Digits} }
 
 // Bind gives the view the caller-owned field and the editor its slots paint and
 // the platform text service edits. Either may be nil: an editor alone paints
 // the code without a page field, and a field alone paints its text without
 // slot editing. Bind applies the filter and overwrite mode to the editor.
-func (o *OTP) Bind(field *ui.Field, editor *text.Editor) *OTP {
+func (o *State) Bind(field *ui.Field, editor *text.Editor) *State {
 	o.field, o.editor = field, editor
 	o.restrict()
 	return o
 }
 
 // Slots sets how many characters the code has. The default is six.
-func (o *OTP) Slots(count int) *OTP {
+func (o *State) Slots(count int) *State {
 	if count <= 0 {
 		count = 6
 	}
@@ -116,77 +116,77 @@ func (o *OTP) Slots(count int) *OTP {
 
 // GroupSize sets how many slots share one rounded border before a separator.
 // Zero or a value not smaller than Slots paints one group.
-func (o *OTP) GroupSize(size int) *OTP {
+func (o *State) GroupSize(size int) *State {
 	o.group = size
 	return o
 }
 
 // Filter selects which characters may be typed or pasted. The default is
 // Digits.
-func (o *OTP) Filter(filter Filter) *OTP {
+func (o *State) Filter(filter Filter) *State {
 	o.filter = filter
 	o.restrict()
 	return o
 }
 
 // Value is the code painted when there is no editor.
-func (o *OTP) Value(value string) *OTP {
+func (o *State) Value(value string) *State {
 	o.value = value
 	return o
 }
 
 // Invalid paints the error state.
-func (o *OTP) Invalid() *OTP {
+func (o *State) Invalid() *State {
 	o.invalid = true
 	return o
 }
 
 // Disabled paints the code inert.
-func (o *OTP) Disabled() *OTP {
+func (o *State) Disabled() *State {
 	o.disabled = true
 	return o
 }
 
 // ReadOnly paints the code focused but not editable.
-func (o *OTP) ReadOnly() *OTP {
+func (o *State) ReadOnly() *State {
 	o.readOnly = true
 	return o
 }
 
 // Editable clears ReadOnly, for a page that enables editing after the first
 // paint.
-func (o *OTP) Editable() *OTP {
+func (o *State) Editable() *State {
 	o.readOnly = false
 	return o
 }
 
 // Focused shows the focus ring and active slot for a static snapshot.
-func (o *OTP) Focused() *OTP {
+func (o *State) Focused() *State {
 	o.focused = true
 	return o
 }
 
 // ShowCaret shows the caret in the active empty slot of a static snapshot. An
 // editor shows it whenever the slot is focused and the selection is collapsed.
-func (o *OTP) ShowCaret() *OTP {
+func (o *State) ShowCaret() *State {
 	o.showCaret = true
 	return o
 }
 
 // ActiveSlot selects the active slot of a static snapshot.
-func (o *OTP) ActiveSlot(index int) *OTP {
+func (o *State) ActiveSlot(index int) *State {
 	o.activeSlot = index
 	return o
 }
 
 // Select marks the selected slot range of a static snapshot.
-func (o *OTP) Select(start, end int) *OTP {
+func (o *State) Select(start, end int) *State {
 	o.hasSelection, o.selStart, o.selEnd = start != end, start, end
 	return o
 }
 
 // Composition marks the input-method composition range of a static snapshot.
-func (o *OTP) Composition(start, end int) *OTP {
+func (o *State) Composition(start, end int) *State {
 	o.hasCompose, o.compStart, o.compEnd = start != end, start, end
 	return o
 }
@@ -194,7 +194,7 @@ func (o *OTP) Composition(start, end int) *OTP {
 // FieldID gives the field's hit an explicit identity instead of the control's
 // own, for a runner that resolves the platform text service by an application
 // identity.
-func (o *OTP) FieldID(id gfx.ID) *OTP {
+func (o *State) FieldID(id gfx.ID) *State {
 	o.fieldID = id
 	return o
 }
@@ -203,9 +203,9 @@ func (o *OTP) FieldID(id gfx.ID) *OTP {
 // The box is the slots' intrinsic size; give it a width to place it.
 //
 // Declare the view on its own, not inside a Memo.
-func (o *OTP) View(c ui.C, label string) ui.Box {
+func (o *State) View(c ui.C, label string) ui.Box {
 	if o == nil {
-		panic("inputotp: View needs its OTP")
+		panic("inputotp: View needs its State")
 	}
 	o.prepare()
 	o.label = label
@@ -216,11 +216,11 @@ func (o *OTP) View(c ui.C, label string) ui.Box {
 }
 
 // Layout is the slot geometry painted last. It is zero until View has painted.
-func (o *OTP) Layout() components.InputOTPLayout { return o.layout }
+func (o *State) Layout() components.InputOTPLayout { return o.layout }
 
 // Clicked reports whether the paint just made delivered a press on the code.
 // It is false in ordinary paints.
-func (o *OTP) Clicked() bool {
+func (o *State) Clicked() bool {
 	return o.hadClick && !o.paintedID.IsZero() && o.clicked == o.paintedID
 }
 
@@ -228,7 +228,7 @@ func (o *OTP) Clicked() bool {
 // the end when the press is past the last slot. It reports whether it acted.
 // It is for a runner that paints the field under an external identity and routes
 // the press itself; the control's own pointer handler calls the same method.
-func (o *OTP) SelectAt(x float32) bool {
+func (o *State) SelectAt(x float32) bool {
 	if o.editor == nil || o.disabled || o.readOnly || o.layout.Slots == 0 {
 		return false
 	}
@@ -245,7 +245,7 @@ func (o *OTP) SelectAt(x float32) bool {
 	return true
 }
 
-func (o *OTP) restrict() {
+func (o *State) restrict() {
 	if o.editor == nil {
 		return
 	}
@@ -253,14 +253,14 @@ func (o *OTP) restrict() {
 	o.editor.SetOverwrite(true)
 }
 
-func (o *OTP) slotCount() int {
+func (o *State) slotCount() int {
 	if o.slots <= 0 {
 		return 6
 	}
 	return o.slots
 }
 
-func (o *OTP) prepare() {
+func (o *State) prepare() {
 	if o.prepared {
 		return
 	}
@@ -272,7 +272,7 @@ func (o *OTP) prepare() {
 	o.drawFn = o.draw
 }
 
-func (o *OTP) text(window.TextInputContext) *window.TextInput {
+func (o *State) text(window.TextInputContext) *window.TextInput {
 	if o.editor == nil {
 		return nil
 	}
@@ -280,7 +280,7 @@ func (o *OTP) text(window.TextInputContext) *window.TextInput {
 	return &o.input
 }
 
-func (o *OTP) key(event gfx.KeyEvent) gfx.EventResult {
+func (o *State) key(event gfx.KeyEvent) gfx.EventResult {
 	if o.editor == nil || o.disabled || o.readOnly {
 		return gfx.EventResult{}
 	}
@@ -313,7 +313,7 @@ func (o *OTP) key(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: true, Repaint: true}
 }
 
-func (o *OTP) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (o *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if event.Kind != gfx.PointerDown || event.Button != gfx.PointerButtonPrimary {
 		return gfx.EventResult{}
 	}
@@ -326,7 +326,7 @@ func (o *OTP) pointer(event gfx.PointerEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: true, Repaint: true}
 }
 
-func (o *OTP) draw(d *ui.DrawContext) {
+func (o *State) draw(d *ui.DrawContext) {
 	id := o.fieldID
 	if id.IsZero() {
 		id = d.Node.ID

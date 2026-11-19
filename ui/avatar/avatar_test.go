@@ -57,7 +57,7 @@ func open(t testing.TB, view func(ui.C)) (*ui.Page, *gfx.Canvas) {
 // The page declares an avatar, and the component paints the caller's initials,
 // status and exact diameter inside the control's square.
 func TestViewPaintsConfiguredAvatar(t *testing.T) {
-	var person avatar.Avatar
+	var person avatar.State
 	theme := gfx.LightTheme()
 	view := func(c ui.C) {
 		person.Reset().Initials("SK").Name("Skyler").Tint(theme.Primary).Diameter(64).Online()
@@ -79,7 +79,7 @@ func TestViewPaintsConfiguredAvatar(t *testing.T) {
 
 // An image avatar paints the caller's bitmap and does not paint the initials.
 func TestImageAvatarPaintsBitmap(t *testing.T) {
-	var person avatar.Avatar
+	var person avatar.State
 	view := func(c ui.C) {
 		person.Reset().Image(testPhoto).Initials("NO").Diameter(40)
 		person.View(c, "Photo").Size(40, 40)
@@ -137,7 +137,7 @@ func TestGroupOverlapChangesTheExtent(t *testing.T) {
 }
 
 func TestWarmPaintAllocatesNothing(t *testing.T) {
-	var person avatar.Avatar
+	var person avatar.State
 	var group avatar.Group
 	theme := gfx.LightTheme()
 	view := func(c ui.C) {
@@ -157,7 +157,7 @@ func TestWarmPaintAllocatesNothing(t *testing.T) {
 }
 
 func BenchmarkViewPaint(b *testing.B) {
-	var person avatar.Avatar
+	var person avatar.State
 	var group avatar.Group
 	theme := gfx.LightTheme()
 	view := func(c ui.C) {

@@ -31,7 +31,7 @@ func testOptions() calendar.Options {
 }
 
 type model struct {
-	view    calendar.Calendar
+	view    calendar.State
 	page    *ui.Page
 	canvas  *gfx.Canvas
 	target  gfx.ID
@@ -58,7 +58,7 @@ func (m *model) wire() {
 }
 
 func (m *model) viewPage(c ui.C) {
-	calendar.View(c, "Calendar", &m.view).Size(300, 260)
+	calendar.View(c, "State", &m.view).Size(300, 260)
 }
 
 func (m *model) open(t testing.TB) {
@@ -110,7 +110,7 @@ func TestViewPaintsCallerIdentitiesAndRoutesInput(t *testing.T) {
 	m.wire()
 	m.open(t)
 
-	control := hit(t, m.canvas, "Calendar")
+	control := hit(t, m.canvas, "State")
 	if control.Role != gfx.RoleGroup {
 		t.Fatalf("control role = %v, want a group", control.Role)
 	}
@@ -163,9 +163,9 @@ func TestViewLeavesZeroIdentitiesUnpainted(t *testing.T) {
 	options := testOptions()
 	options.Days = options.Days[:2]
 	options.Days[0].ID = gfx.ID{}
-	var view calendar.Calendar
+	var view calendar.State
 	view.Options = options
-	viewPage := func(c ui.C) { calendar.View(c, "Calendar", &view).Size(300, 260) }
+	viewPage := func(c ui.C) { calendar.View(c, "State", &view).Size(300, 260) }
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: viewPage, Theme: &theme})
 	canvas := new(gfx.Canvas)

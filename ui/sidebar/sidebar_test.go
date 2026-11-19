@@ -19,7 +19,7 @@ var (
 )
 
 type model struct {
-	sidebar  sidebar.Sidebar
+	sidebar  sidebar.State
 	selected gfx.ID
 	clicks   int
 }

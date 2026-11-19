@@ -10,7 +10,7 @@
 //		Separator().
 //		Item(deleteID, "Delete workspace").Destructive()
 //	m.menubar.Trigger(viewID, "View").Item(reloadID, "Reload")
-//	m.menubar.View(c, "Menubar").FillWidth().Height(36)
+//	m.menubar.View(c, "State").FillWidth().Height(36)
 //	// After the paint, Selected names the row chosen last.
 //	if m.menubar.Selected == gridID {
 //		m.grid = !m.grid
@@ -27,9 +27,8 @@
 //
 // Declarations are rebuilt every paint: call Reset, declare the triggers and
 // rows in order, then View. The slices keep their capacity, so a warm paint
-// allocates nothing. Keep a Menubar in the model beside its state; its handlers
-// and draw function are made once. Do not copy a Menubar after View has painted
-// it.
+// allocates nothing. Keep a State in the model; its handlers and draw
+// function are made once. Do not copy a State after View has painted it.
 //
 // It is a separate package so an application that does not import it pays
 // nothing for it.
@@ -45,10 +44,10 @@ import (
 // reads through this package alone.
 type Direction = components.Direction
 
-// Menubar is one menubar's caller-owned state, its declarations and its page
+// State is one menubar's caller-owned state, its declarations and its page
 // control. Fill Open and the callbacks from the model; declare the triggers and
 // rows every paint; then call View.
-type Menubar struct {
+type State struct {
 	// Open is the trigger whose menu is open, or zero when the bar is closed.
 	// A trigger click toggles it.
 	Open gfx.ID
@@ -120,7 +119,7 @@ const (
 // Reset forgets the last paint's declarations. Call it before declaring the
 // triggers and rows again; the backing slices stay, so the next paint reuses
 // them.
-func (m *Menubar) Reset() {
+func (m *State) Reset() {
 	m.triggers = m.triggers[:0]
 	m.items = m.items[:0]
 	m.currentTrigger, m.currentItem = -1, -1
@@ -128,7 +127,7 @@ func (m *Menubar) Reset() {
 
 // Trigger declares one top-level trigger. The rows declared after it belong to
 // it until the next Trigger.
-func (m *Menubar) Trigger(id gfx.ID, label string) *Menubar {
+func (m *State) Trigger(id gfx.ID, label string) *State {
 	m.triggers = append(m.triggers, triggerDecl{ID: id, Label: label})
 	m.currentTrigger, m.currentItem = len(m.triggers)-1, -1
 	return m
@@ -136,7 +135,7 @@ func (m *Menubar) Trigger(id gfx.ID, label string) *Menubar {
 
 // Item declares one row of the current trigger. Rows are painted only while
 // their trigger's menu is open.
-func (m *Menubar) Item(id gfx.ID, label string) *Menubar {
+func (m *State) Item(id gfx.ID, label string) *State {
 	if m.currentTrigger < 0 {
 		return m
 	}
@@ -149,7 +148,7 @@ func (m *Menubar) Item(id gfx.ID, label string) *Menubar {
 }
 
 // Separator declares a divider between the current trigger's rows.
-func (m *Menubar) Separator() *Menubar {
+func (m *State) Separator() *State {
 	if m.currentTrigger < 0 {
 		return m
 	}
@@ -160,7 +159,7 @@ func (m *Menubar) Separator() *Menubar {
 
 // Hint sets the accessible hint of the current row, or of the current trigger
 // when no row has been declared since it.
-func (m *Menubar) Hint(hint string) *Menubar {
+func (m *State) Hint(hint string) *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Hint = hint
 		return m
@@ -173,7 +172,7 @@ func (m *Menubar) Hint(hint string) *Menubar {
 
 // Disabled disables the current row, or the current trigger when no row has
 // been declared since it.
-func (m *Menubar) Disabled() *Menubar {
+func (m *State) Disabled() *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Disabled = true
 		return m
@@ -185,7 +184,7 @@ func (m *Menubar) Disabled() *Menubar {
 }
 
 // Shortcut sets the current row's trailing shortcut text.
-func (m *Menubar) Shortcut(shortcut string) *Menubar {
+func (m *State) Shortcut(shortcut string) *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Shortcut = shortcut
 	}
@@ -193,7 +192,7 @@ func (m *Menubar) Shortcut(shortcut string) *Menubar {
 }
 
 // Keys sets the current row's trailing keycaps, replacing Shortcut.
-func (m *Menubar) Keys(keys ...string) *Menubar {
+func (m *State) Keys(keys ...string) *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Keys = keys
 	}
@@ -201,7 +200,7 @@ func (m *Menubar) Keys(keys ...string) *Menubar {
 }
 
 // Value sets the current row's accessible value.
-func (m *Menubar) Value(value string) *Menubar {
+func (m *State) Value(value string) *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Value = value
 	}
@@ -209,7 +208,7 @@ func (m *Menubar) Value(value string) *Menubar {
 }
 
 // Checkbox makes the current row a checkbox with the given checked state.
-func (m *Menubar) Checkbox(checked bool) *Menubar {
+func (m *State) Checkbox(checked bool) *State {
 	if m.currentItem >= 0 {
 		item := &m.items[m.currentItem].Item
 		item.Kind, item.Checked = components.MenubarCheckbox, checked
@@ -218,7 +217,7 @@ func (m *Menubar) Checkbox(checked bool) *Menubar {
 }
 
 // Radio makes the current row a radio option with the given selected state.
-func (m *Menubar) Radio(selected bool) *Menubar {
+func (m *State) Radio(selected bool) *State {
 	if m.currentItem >= 0 {
 		item := &m.items[m.currentItem].Item
 		item.Kind, item.Selected = components.MenubarRadio, selected
@@ -228,7 +227,7 @@ func (m *Menubar) Radio(selected bool) *Menubar {
 
 // Submenu makes the current row a submenu trigger with the given expanded
 // state.
-func (m *Menubar) Submenu(expanded bool) *Menubar {
+func (m *State) Submenu(expanded bool) *State {
 	if m.currentItem >= 0 {
 		item := &m.items[m.currentItem].Item
 		item.Kind, item.Expanded = components.MenubarSubmenu, expanded
@@ -237,7 +236,7 @@ func (m *Menubar) Submenu(expanded bool) *Menubar {
 }
 
 // Destructive paints the current row with the destructive treatment.
-func (m *Menubar) Destructive() *Menubar {
+func (m *State) Destructive() *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Variant = components.MenubarItemDestructive
 	}
@@ -245,7 +244,7 @@ func (m *Menubar) Destructive() *Menubar {
 }
 
 // Inset indents the current row's label, as a submenu row does.
-func (m *Menubar) Inset() *Menubar {
+func (m *State) Inset() *State {
 	if m.currentItem >= 0 {
 		m.items[m.currentItem].Item.Inset = true
 	}
@@ -256,26 +255,26 @@ func (m *Menubar) Inset() *Menubar {
 // technology. Give it the bar's size; the popup is painted above it.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, bar *Menubar) ui.Box {
+func View(c ui.C, label string, bar *State) ui.Box {
 	if bar == nil {
-		panic("menubar: View needs its Menubar")
+		panic("menubar: View needs its State")
 	}
 	bar.prepare()
 	return ui.Control(c, label, &bar.handlers).Draw(bar.drawFn)
 }
 
-// View declares the menubar at c, for a page that keeps the Menubar in its
+// View declares the menubar at c, for a page that keeps the State in its
 // model.
-func (m *Menubar) View(c ui.C, label string) ui.Box { return View(c, label, m) }
+func (m *State) View(c ui.C, label string) ui.Box { return View(c, label, m) }
 
 // Clicked reports whether the paint just made was an event pass delivering a
 // click on id, a trigger or row identity the caller declared. It is false in
 // ordinary paints. Ask it after the paint.
-func (m *Menubar) Clicked(id gfx.ID) bool {
+func (m *State) Clicked(id gfx.ID) bool {
 	return m.hadClick && !id.IsZero() && m.clicked == id
 }
 
-func (m *Menubar) prepare() {
+func (m *State) prepare() {
 	if m.prepared {
 		return
 	}
@@ -285,21 +284,21 @@ func (m *Menubar) prepare() {
 	m.drawFn = m.draw
 }
 
-func (m *Menubar) direction() components.Direction {
+func (m *State) direction() components.Direction {
 	if m.Direction == components.RTL {
 		return components.RTL
 	}
 	return components.LTR
 }
 
-func (m *Menubar) layer() uint16 {
+func (m *State) layer() uint16 {
 	if m.Layer == 0 {
 		return 1
 	}
 	return m.Layer
 }
 
-func (m *Menubar) draw(d *ui.DrawContext) {
+func (m *State) draw(d *ui.DrawContext) {
 	raw, had := d.Canvas.ClickTarget()
 	theme := *d.Theme
 	canvas := d.Canvas
@@ -330,7 +329,7 @@ func (m *Menubar) draw(d *ui.DrawContext) {
 	}
 }
 
-func (m *Menubar) paintContent(d *ui.DrawContext, theme gfx.Theme, trigger int) {
+func (m *State) paintContent(d *ui.DrawContext, theme gfx.Theme, trigger int) {
 	canvas := d.Canvas
 	bounds := m.contentBounds(canvas, theme, d.Rect, trigger)
 	options := components.MenubarOverlayOptions{
@@ -351,7 +350,7 @@ func (m *Menubar) paintContent(d *ui.DrawContext, theme gfx.Theme, trigger int) 
 	content.End()
 }
 
-func (m *Menubar) contentBounds(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, trigger int) gfx.Rect {
+func (m *State) contentBounds(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, trigger int) gfx.Rect {
 	width, height := m.Content.Width, m.Content.Height
 	if width <= 0 || height <= 0 {
 		neededWidth, neededHeight := float32(0), 2*components.DropdownMenuPadding
@@ -396,7 +395,7 @@ func dropdownItem(item components.MenubarItem) components.DropdownMenuItem {
 	}
 }
 
-func (m *Menubar) triggerIndex(id gfx.ID) int {
+func (m *State) triggerIndex(id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}
@@ -408,7 +407,7 @@ func (m *Menubar) triggerIndex(id gfx.ID) int {
 	return -1
 }
 
-func (m *Menubar) itemIndex(id gfx.ID) int {
+func (m *State) itemIndex(id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}
@@ -421,7 +420,7 @@ func (m *Menubar) itemIndex(id gfx.ID) int {
 }
 
 // choose applies the click this paint is delivering.
-func (m *Menubar) choose() {
+func (m *State) choose() {
 	switch index := m.itemIndex(m.clicked); {
 	case m.clicked == m.DismissID && !m.DismissID.IsZero():
 		m.Open = gfx.ID{}
@@ -440,14 +439,14 @@ func (m *Menubar) choose() {
 	}
 }
 
-func (m *Menubar) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (m *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if m.Pointer != nil {
 		return m.Pointer(event)
 	}
 	return gfx.EventResult{}
 }
 
-func (m *Menubar) key(event gfx.KeyEvent) gfx.EventResult {
+func (m *State) key(event gfx.KeyEvent) gfx.EventResult {
 	var result gfx.EventResult
 	if !event.Release && event.Text == "" && event.Key != gfx.KeyUnknown && !event.Key.IsModifier() {
 		focus := event.Target
@@ -482,7 +481,7 @@ func (m *Menubar) key(event gfx.KeyEvent) gfx.EventResult {
 	return result
 }
 
-func (m *Menubar) triggerKey(event gfx.KeyEvent, trigger int) gfx.EventResult {
+func (m *State) triggerKey(event gfx.KeyEvent, trigger int) gfx.EventResult {
 	if trigger < 0 || trigger >= len(m.triggers) {
 		return gfx.EventResult{}
 	}
@@ -508,7 +507,7 @@ func (m *Menubar) triggerKey(event gfx.KeyEvent, trigger int) gfx.EventResult {
 	return result
 }
 
-func (m *Menubar) itemKey(event gfx.KeyEvent, item int) gfx.EventResult {
+func (m *State) itemKey(event gfx.KeyEvent, item int) gfx.EventResult {
 	if item < 0 || item >= len(m.items) || m.items[item].Separator {
 		return gfx.EventResult{}
 	}
@@ -562,7 +561,7 @@ func (m *Menubar) itemKey(event gfx.KeyEvent, item int) gfx.EventResult {
 
 // moveItem returns the next enabled row of the same menu, skipping separators
 // and disabled rows, with wrapping.
-func (m *Menubar) moveItem(from int, key gfx.Key) (int, bool) {
+func (m *State) moveItem(from int, key gfx.Key) (int, bool) {
 	trigger := m.items[from].Trigger
 	if key == gfx.KeyHome || key == gfx.KeyEnd {
 		step, index := 1, -1
@@ -598,12 +597,12 @@ func (m *Menubar) moveItem(from int, key gfx.Key) (int, bool) {
 	return 0, false
 }
 
-func (m *Menubar) usableItem(index, trigger int) bool {
+func (m *State) usableItem(index, trigger int) bool {
 	item := &m.items[index]
 	return item.Trigger == trigger && !item.Separator && !item.Item.Disabled && !item.Item.ID.IsZero()
 }
 
-func (m *Menubar) firstItem(trigger int) (gfx.ID, bool) {
+func (m *State) firstItem(trigger int) (gfx.ID, bool) {
 	for index := range m.items {
 		if m.usableItem(index, trigger) {
 			return m.items[index].Item.ID, true

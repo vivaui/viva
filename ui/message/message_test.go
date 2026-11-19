@@ -10,7 +10,7 @@ import (
 )
 
 type model struct {
-	view   message.Message
+	view   message.Row
 	page   *ui.Page
 	canvas *gfx.Canvas
 	body   int

@@ -143,7 +143,7 @@ var (
 // so their handlers and draw functions are stable and a warm paint allocates
 // nothing.
 type attachmentDemo struct {
-	card, small, cover, failed *attachment.Attachment
+	card, small, cover, failed *attachment.Card
 	group                      *attachment.Group
 	next                       func()
 	remove                     [3]func()

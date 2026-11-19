@@ -14,7 +14,7 @@ var (
 )
 
 type model struct {
-	view     carousel.Carousel
+	view     carousel.State
 	page     *ui.Page
 	canvas   *gfx.Canvas
 	target   gfx.ID

@@ -2,13 +2,13 @@
 // components. It wraps components.BeginCalendar in a ui.Control, so a page
 // declares a calendar without calling the component itself:
 //
-//	month := &calendar.Calendar{Options: calendar.Options{
+//	month := &calendar.State{Options: calendar.Options{
 //		MonthTitle: title, Weekdays: weekdays, Days: days,
 //		PreviousID: previous, NextID: next,
 //		PreviousLabel: "Previous month", NextLabel: "Next month",
 //	}}
 //	...
-//	calendar.View(c, "Calendar", month).FillWidth().MaxWidth(360)
+//	calendar.View(c, "State", month).FillWidth().MaxWidth(360)
 //	if month.Clicked(previous) {
 //		m.month = -1
 //	} else if month.Clicked(next) {
@@ -23,9 +23,9 @@
 // optional callbacks.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Calendar in the model, beside the data it presents:
+// nothing for it. Keep a State in the model, beside the data it presents:
 // its handlers and draw function are made once, so a warm paint allocates
-// nothing. Do not copy a Calendar after it has been declared.
+// nothing. Do not copy a State after it has been declared.
 package calendar
 
 import (
@@ -42,10 +42,10 @@ type Options = components.CalendarOptions
 // Day is one caller-owned cell of the month grid.
 type Day = components.CalendarDay
 
-// Calendar is one calendar's month snapshot and page control. Fill Options from
+// State is one calendar's month snapshot and page control. Fill Options from
 // the caller's typed month data every paint; the callbacks stay as they are and
 // are read when an event arrives.
-type Calendar struct {
+type State struct {
 	// Options is the complete application-owned month snapshot painted next.
 	// The wrapper does not modify it.
 	Options components.CalendarOptions
@@ -69,9 +69,9 @@ type Calendar struct {
 // technology. Give it a size; it is a ui.Control painted through the component.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, calendar *Calendar) ui.Box {
+func View(c ui.C, label string, calendar *State) ui.Box {
 	if calendar == nil {
-		panic("calendar: View needs its Calendar")
+		panic("calendar: View needs its State")
 	}
 	calendar.prepare()
 	return ui.Control(c, label, &calendar.handlers).Draw(calendar.drawFn)
@@ -81,11 +81,11 @@ func View(c ui.C, label string, calendar *Calendar) ui.Box {
 // click on id, one of the caller's own day or navigation identities. It is
 // false in ordinary paints. Ask it after View, where the component's clicks
 // have always been read.
-func (c *Calendar) Clicked(id gfx.ID) bool {
+func (c *State) Clicked(id gfx.ID) bool {
 	return c.hadClick && !id.IsZero() && c.clicked == id
 }
 
-func (c *Calendar) prepare() {
+func (c *State) prepare() {
 	if c.prepared {
 		return
 	}
@@ -96,28 +96,28 @@ func (c *Calendar) prepare() {
 	c.drawFn = c.draw
 }
 
-func (c *Calendar) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (c *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if c.Pointer == nil {
 		return gfx.EventResult{}
 	}
 	return c.Pointer(event)
 }
 
-func (c *Calendar) key(event gfx.KeyEvent) gfx.EventResult {
+func (c *State) key(event gfx.KeyEvent) gfx.EventResult {
 	if c.Key == nil {
 		return gfx.EventResult{}
 	}
 	return c.Key(event)
 }
 
-func (c *Calendar) scroll(event gfx.ScrollEvent) gfx.EventResult {
+func (c *State) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if c.Scroll == nil {
 		return gfx.EventResult{}
 	}
 	return c.Scroll(event)
 }
 
-func (c *Calendar) draw(d *ui.DrawContext) {
+func (c *State) draw(d *ui.DrawContext) {
 	c.clicked, c.hadClick = d.Canvas.ClickTarget()
 	components.BeginCalendar(d.Canvas, *d.Theme, d.Rect, c.Options).Paint()
 }

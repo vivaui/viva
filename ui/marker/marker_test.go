@@ -140,7 +140,7 @@ func TestProgressPaintsSpinnerAndLabel(t *testing.T) {
 }
 
 func TestWarmPaintAllocatesNothing(t *testing.T) {
-	var plain, separator, border, progress marker.Marker
+	var plain, separator, border, progress marker.State
 	view := func(c ui.C) {
 		plain.Reset().Icon(testIcon).Label("Default")
 		plain.View(c, "Default")
@@ -158,7 +158,7 @@ func TestWarmPaintAllocatesNothing(t *testing.T) {
 }
 
 func BenchmarkViewPaint(b *testing.B) {
-	var plain, separator, border, progress marker.Marker
+	var plain, separator, border, progress marker.State
 	view := func(c ui.C) {
 		plain.Reset().Icon(testIcon).Label("Default")
 		plain.View(c, "Default")

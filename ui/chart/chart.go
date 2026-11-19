@@ -148,16 +148,16 @@ func (v *AreaChartView) scroll(event gfx.ScrollEvent) gfx.EventResult {
 
 func (v *AreaChartView) draw(d *ui.DrawContext) {
 	// A pointer that leaves the window without a press gets no exit event: the
-	// repaint that clears the hover is where the chart sees it. A press keeps
+	// repaint that clears the hover is where the data sees it. A press keeps
 	// the pointer until it is released, even outside the window.
 	if v.hover.pointer && !d.State.Hovered && !d.State.Pressed {
 		v.hover.clear(&v.State, v.OnHover, true)
 	}
-	chart := v.Chart
-	if chart.Label == "" {
-		chart.Label = v.label
+	data := v.Chart
+	if data.Label == "" {
+		data.Label = v.label
 	}
-	v.hover.plot = components.PaintAreaChart(d.Canvas, *d.Theme, d.Rect, d.Node.ID, chart, &v.State)
+	v.hover.plot = components.PaintAreaChart(d.Canvas, *d.Theme, d.Rect, d.Node.ID, data, &v.State)
 }
 
 // hoverState is what a view remembers between paints and input events to turn

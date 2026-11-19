@@ -80,7 +80,7 @@ func inputOTPInitial(exampleID string) string {
 // kept beside the State rather than rebuilt in each paint, so the handlers and
 // draw function are stable and a warm paint allocates nothing.
 type inputOTPDemo struct {
-	view  *inputotp.OTP
+	view  *inputotp.State
 	field ui.Field
 	bound bool
 }

@@ -14,7 +14,7 @@
 //		Back(m.previousID, "Back", m.back).
 //		Skip(m.skipID, "Skip", m.skip).
 //		Continue(m.nextID, "Continue", m.next)
-//	question.View(c, "Questionnaire").FillWidth()
+//	question.View(c, "State").FillWidth()
 //
 // Choices and actions are chained; the view paints exactly the Checked values
 // the caller supplies and calls the caller's callback after a click, so the
@@ -23,9 +23,9 @@
 // constructor.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Questionnaire in the model: Reset keeps the choice
+// nothing for it. Keep a State in the model: Reset keeps the choice
 // storage, so re-declaring the same answers every paint allocates nothing.
-// Do not copy a Questionnaire after it has been declared.
+// Do not copy a State after it has been declared.
 package questionnaire
 
 import (
@@ -54,8 +54,8 @@ type action struct {
 	disabled bool
 }
 
-// Questionnaire is one questionnaire item and its page control.
-type Questionnaire struct {
+// State is one questionnaire item and its page control.
+type State struct {
 	progress    string
 	title       string
 	description string
@@ -72,11 +72,11 @@ type Questionnaire struct {
 }
 
 // New returns an empty single-choice question.
-func New() *Questionnaire { return new(Questionnaire) }
+func New() *State { return new(State) }
 
 // Reset clears the text, choices and actions, keeping the choice storage so a
 // page that rebuilds the same question every paint does not allocate.
-func (q *Questionnaire) Reset() *Questionnaire {
+func (q *State) Reset() *State {
 	q.progress, q.title, q.description = "", "", ""
 	q.multiple, q.invalid = false, false
 	q.choices = q.choices[:0]
@@ -86,44 +86,44 @@ func (q *Questionnaire) Reset() *Questionnaire {
 
 // Progress is the caller-formatted line above the question, such as
 // "Question 2 of 5".
-func (q *Questionnaire) Progress(text string) *Questionnaire {
+func (q *State) Progress(text string) *State {
 	q.progress = text
 	return q
 }
 
 // Title is the question.
-func (q *Questionnaire) Title(text string) *Questionnaire {
+func (q *State) Title(text string) *State {
 	q.title = text
 	return q
 }
 
 // Description is the muted line under the title.
-func (q *Questionnaire) Description(text string) *Questionnaire {
+func (q *State) Description(text string) *State {
 	q.description = text
 	return q
 }
 
 // Single selects the radio indicator, the default.
-func (q *Questionnaire) Single() *Questionnaire {
+func (q *State) Single() *State {
 	q.multiple = false
 	return q
 }
 
 // Multiple selects the checkbox indicator.
-func (q *Questionnaire) Multiple() *Questionnaire {
+func (q *State) Multiple() *State {
 	q.multiple = true
 	return q
 }
 
 // Invalid paints the question and its choices as failing validation.
-func (q *Questionnaire) Invalid() *Questionnaire {
+func (q *State) Invalid() *State {
 	q.invalid = true
 	return q
 }
 
 // Choice adds one answer. The view paints Checked as given and runs onSelect,
 // which may be nil, after the click is read.
-func (q *Questionnaire) Choice(id gfx.ID, label string, checked bool, onSelect func()) *Questionnaire {
+func (q *State) Choice(id gfx.ID, label string, checked bool, onSelect func()) *State {
 	if len(q.choices) == cap(q.choices) {
 		q.choices = append(q.choices, Choice{})
 	} else {
@@ -136,7 +136,7 @@ func (q *Questionnaire) Choice(id gfx.ID, label string, checked bool, onSelect f
 }
 
 // Detail sets the description and shortcut badge of the choice added last.
-func (q *Questionnaire) Detail(description, shortcut string) *Questionnaire {
+func (q *State) Detail(description, shortcut string) *State {
 	if len(q.choices) == 0 {
 		return q
 	}
@@ -146,7 +146,7 @@ func (q *Questionnaire) Detail(description, shortcut string) *Questionnaire {
 }
 
 // DisableChoice paints the choice added last inert.
-func (q *Questionnaire) DisableChoice() *Questionnaire {
+func (q *State) DisableChoice() *State {
 	if len(q.choices) > 0 {
 		q.choices[len(q.choices)-1].Disabled = true
 	}
@@ -154,25 +154,25 @@ func (q *Questionnaire) DisableChoice() *Questionnaire {
 }
 
 // Back adds the previous action at the start. An empty label omits it.
-func (q *Questionnaire) Back(id gfx.ID, label string, onClick func()) *Questionnaire {
+func (q *State) Back(id gfx.ID, label string, onClick func()) *State {
 	q.back = action{id: id, label: label, onClick: onClick}
 	return q
 }
 
 // Skip adds the skip action next to Continue. An empty label omits it.
-func (q *Questionnaire) Skip(id gfx.ID, label string, onClick func()) *Questionnaire {
+func (q *State) Skip(id gfx.ID, label string, onClick func()) *State {
 	q.skip = action{id: id, label: label, onClick: onClick}
 	return q
 }
 
 // Continue adds the primary action at the end. An empty label omits it.
-func (q *Questionnaire) Continue(id gfx.ID, label string, onClick func()) *Questionnaire {
+func (q *State) Continue(id gfx.ID, label string, onClick func()) *State {
 	q.next = action{id: id, label: label, onClick: onClick}
 	return q
 }
 
 // DisableContinue paints the Continue action inert.
-func (q *Questionnaire) DisableContinue() *Questionnaire {
+func (q *State) DisableContinue() *State {
 	q.next.disabled = true
 	return q
 }
@@ -182,15 +182,15 @@ func (q *Questionnaire) DisableContinue() *Questionnaire {
 // actions that do not fit are not painted, as in the component.
 //
 // Declare the view on its own, not inside a Memo.
-func (q *Questionnaire) View(c ui.C, label string) ui.Box {
+func (q *State) View(c ui.C, label string) ui.Box {
 	if q == nil {
-		panic("questionnaire: View needs its Questionnaire")
+		panic("questionnaire: View needs its State")
 	}
 	q.prepare()
 	return ui.Control(c, label, &q.handlers).Draw(q.drawFn)
 }
 
-func (q *Questionnaire) prepare() {
+func (q *State) prepare() {
 	if q.prepared {
 		return
 	}
@@ -199,7 +199,7 @@ func (q *Questionnaire) prepare() {
 	q.drawFn = q.draw
 }
 
-func (q *Questionnaire) draw(d *ui.DrawContext) {
+func (q *State) draw(d *ui.DrawContext) {
 	choiceType := components.QuestionnaireRadio
 	if q.multiple {
 		choiceType = components.QuestionnaireCheckbox
@@ -231,7 +231,7 @@ func (q *Questionnaire) draw(d *ui.DrawContext) {
 	q.notify(q.next, d)
 }
 
-func (q *Questionnaire) notify(item action, d *ui.DrawContext) {
+func (q *State) notify(item action, d *ui.DrawContext) {
 	if item.label == "" || item.id.IsZero() || item.disabled {
 		return
 	}

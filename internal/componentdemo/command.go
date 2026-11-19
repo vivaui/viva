@@ -142,7 +142,7 @@ var (
 // and draw function point at this value, so it is kept beside the State rather
 // than rebuilt in each paint.
 type commandDemo struct {
-	command command.Command
+	command command.State
 }
 
 // commandDemos is keyed by State because the constrained demo model has no

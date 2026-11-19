@@ -30,8 +30,8 @@
 //
 // Declarations are rebuilt every paint: call Reset, declare the entries in
 // order, then View. The slices keep their capacity, so a warm paint allocates
-// nothing. Keep a NavigationMenu in the model beside its state; its handlers
-// and draw function are made once. Do not copy one after View has painted it.
+// nothing. Keep a State in the model; its handlers and draw function are made
+// once. Do not copy one after View has painted it.
 //
 // It is a separate package so an application that does not import it pays
 // nothing for it.
@@ -47,10 +47,10 @@ import (
 // navigation menu reads through this package alone.
 type Direction = components.Direction
 
-// NavigationMenu is one navigation menu's caller-owned state, its declarations
+// State is one navigation menu's caller-owned state, its declarations
 // and its page control. Fill Open and the callbacks from the model; declare the
 // entries every paint; then call View.
-type NavigationMenu struct {
+type State struct {
 	// Open is the trigger whose panel is open, or zero when it is closed. A
 	// trigger click toggles it; choosing a link closes it unless DirectContent
 	// is set.
@@ -139,7 +139,7 @@ const (
 
 // Reset forgets the last paint's declarations. Call it before declaring the
 // entries again; the backing slices stay, so the next paint reuses them.
-func (m *NavigationMenu) Reset() {
+func (m *State) Reset() {
 	m.entries = m.entries[:0]
 	m.links = m.links[:0]
 	m.currentEntry, m.currentLink, m.lastTrigger = -1, -1, -1
@@ -147,7 +147,7 @@ func (m *NavigationMenu) Reset() {
 
 // Trigger declares one top-level disclosure. The content links declared after
 // it belong to its panel until the next Trigger.
-func (m *NavigationMenu) Trigger(id gfx.ID, label string) *NavigationMenu {
+func (m *State) Trigger(id gfx.ID, label string) *State {
 	m.entries = append(m.entries, entryDecl{Kind: entryTrigger, Trigger: components.NavigationMenuTrigger{ID: id, Label: label}})
 	m.currentEntry, m.currentLink = len(m.entries)-1, -1
 	m.lastTrigger = m.currentEntry
@@ -155,7 +155,7 @@ func (m *NavigationMenu) Trigger(id gfx.ID, label string) *NavigationMenu {
 }
 
 // Link declares one top-level navigation link.
-func (m *NavigationMenu) Link(id gfx.ID, label string) *NavigationMenu {
+func (m *State) Link(id gfx.ID, label string) *State {
 	m.entries = append(m.entries, entryDecl{Kind: entryLink, Link: components.NavigationMenuLink{ID: id, Label: label}})
 	m.currentEntry, m.currentLink = len(m.entries)-1, -1
 	return m
@@ -163,7 +163,7 @@ func (m *NavigationMenu) Link(id gfx.ID, label string) *NavigationMenu {
 
 // ContentLink declares one described destination in the current trigger's
 // panel.
-func (m *NavigationMenu) ContentLink(id gfx.ID, label string) *NavigationMenu {
+func (m *State) ContentLink(id gfx.ID, label string) *State {
 	if m.lastTrigger < 0 {
 		return m
 	}
@@ -176,7 +176,7 @@ func (m *NavigationMenu) ContentLink(id gfx.ID, label string) *NavigationMenu {
 }
 
 // Separator declares a divider between the current trigger's content links.
-func (m *NavigationMenu) Separator() *NavigationMenu {
+func (m *State) Separator() *State {
 	if m.lastTrigger < 0 {
 		return m
 	}
@@ -187,7 +187,7 @@ func (m *NavigationMenu) Separator() *NavigationMenu {
 
 // Width fixes the current trigger or link width. Zero lets the component
 // measure it.
-func (m *NavigationMenu) Width(width float32) *NavigationMenu {
+func (m *State) Width(width float32) *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Width = width
 		return m
@@ -205,7 +205,7 @@ func (m *NavigationMenu) Width(width float32) *NavigationMenu {
 }
 
 // Hint sets the current entry's accessible hint.
-func (m *NavigationMenu) Hint(hint string) *NavigationMenu {
+func (m *State) Hint(hint string) *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Hint = hint
 		return m
@@ -223,7 +223,7 @@ func (m *NavigationMenu) Hint(hint string) *NavigationMenu {
 }
 
 // Disabled disables the current entry or content link.
-func (m *NavigationMenu) Disabled() *NavigationMenu {
+func (m *State) Disabled() *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Disabled = true
 		return m
@@ -241,7 +241,7 @@ func (m *NavigationMenu) Disabled() *NavigationMenu {
 }
 
 // Value sets the current link's navigation value.
-func (m *NavigationMenu) Value(value string) *NavigationMenu {
+func (m *State) Value(value string) *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Value = value
 		return m
@@ -253,7 +253,7 @@ func (m *NavigationMenu) Value(value string) *NavigationMenu {
 }
 
 // Description sets the current content link's second line.
-func (m *NavigationMenu) Description(description string) *NavigationMenu {
+func (m *State) Description(description string) *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Description = description
 	}
@@ -261,7 +261,7 @@ func (m *NavigationMenu) Description(description string) *NavigationMenu {
 }
 
 // Active marks the current trigger or link as the active destination.
-func (m *NavigationMenu) Active(active bool) *NavigationMenu {
+func (m *State) Active(active bool) *State {
 	if m.currentLink >= 0 && m.currentLink < len(m.links) {
 		m.links[m.currentLink].Link.Active = active
 		return m
@@ -282,26 +282,26 @@ func (m *NavigationMenu) Active(active bool) *NavigationMenu {
 // assistive technology. Give it the bar's size; the panel is painted above it.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, menu *NavigationMenu) ui.Box {
+func View(c ui.C, label string, menu *State) ui.Box {
 	if menu == nil {
-		panic("navigationmenu: View needs its NavigationMenu")
+		panic("navigationmenu: View needs its State")
 	}
 	menu.prepare()
 	return ui.Control(c, label, &menu.handlers).Draw(menu.drawFn)
 }
 
 // View declares the navigation menu at c, for a page that keeps the
-// NavigationMenu in its model.
-func (m *NavigationMenu) View(c ui.C, label string) ui.Box { return View(c, label, m) }
+// State in its model.
+func (m *State) View(c ui.C, label string) ui.Box { return View(c, label, m) }
 
 // Clicked reports whether the paint just made was an event pass delivering a
 // click on id, one of the caller's trigger or link identities. It is false in
 // ordinary paints. Ask it after the paint.
-func (m *NavigationMenu) Clicked(id gfx.ID) bool {
+func (m *State) Clicked(id gfx.ID) bool {
 	return m.hadClick && !id.IsZero() && m.clicked == id
 }
 
-func (m *NavigationMenu) prepare() {
+func (m *State) prepare() {
 	if m.prepared {
 		return
 	}
@@ -311,21 +311,21 @@ func (m *NavigationMenu) prepare() {
 	m.drawFn = m.draw
 }
 
-func (m *NavigationMenu) direction() components.Direction {
+func (m *State) direction() components.Direction {
 	if m.Direction == components.RTL {
 		return components.RTL
 	}
 	return components.LTR
 }
 
-func (m *NavigationMenu) layer() uint16 {
+func (m *State) layer() uint16 {
 	if m.Layer == 0 {
 		return 1
 	}
 	return m.Layer
 }
 
-func (m *NavigationMenu) draw(d *ui.DrawContext) {
+func (m *State) draw(d *ui.DrawContext) {
 	raw, had := d.Canvas.ClickTarget()
 	theme := *d.Theme
 	canvas := d.Canvas
@@ -372,7 +372,7 @@ func (m *NavigationMenu) draw(d *ui.DrawContext) {
 	}
 }
 
-func (m *NavigationMenu) assignTriggerModels() {
+func (m *State) assignTriggerModels() {
 	m.triggerModels = m.triggerModels[:0]
 	if cap(m.entryModel) < len(m.entries) {
 		m.entryModel = make([]int, len(m.entries))
@@ -392,7 +392,7 @@ func (m *NavigationMenu) assignTriggerModels() {
 	}
 }
 
-func (m *NavigationMenu) contentBounds(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, open int) gfx.Rect {
+func (m *State) contentBounds(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, open int) gfx.Rect {
 	x, y := m.Content.X, m.Content.Y
 	if x == 0 && open >= 0 {
 		x = m.anchorX(canvas, theme, bar, open)
@@ -433,7 +433,7 @@ func (m *NavigationMenu) contentBounds(canvas *gfx.Canvas, theme gfx.Theme, bar 
 // anchorX simulates the component's horizontal layout up to the open trigger.
 // The component has no NextTriggerBounds, so the same label measurement is
 // repeated here to place the panel under its trigger.
-func (m *NavigationMenu) anchorX(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, open int) float32 {
+func (m *State) anchorX(canvas *gfx.Canvas, theme gfx.Theme, bar gfx.Rect, open int) float32 {
 	x := bar.X
 	for index := range m.entries {
 		entry := &m.entries[index]
@@ -465,7 +465,7 @@ func entryWidth(canvas *gfx.Canvas, theme gfx.Theme, entry *entryDecl) float32 {
 	return canvas.TextWidthWeight(entry.Link.Label, theme.Metrics.FontSizeM, gfx.WeightMedium) + linkLabelInset
 }
 
-func (m *NavigationMenu) triggerEntry(id gfx.ID) int {
+func (m *State) triggerEntry(id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}
@@ -478,7 +478,7 @@ func (m *NavigationMenu) triggerEntry(id gfx.ID) int {
 	return -1
 }
 
-func (m *NavigationMenu) entryIndex(id gfx.ID) int {
+func (m *State) entryIndex(id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}
@@ -494,7 +494,7 @@ func (m *NavigationMenu) entryIndex(id gfx.ID) int {
 	return -1
 }
 
-func (m *NavigationMenu) linkIndex(id gfx.ID) int {
+func (m *State) linkIndex(id gfx.ID) int {
 	if id.IsZero() {
 		return -1
 	}
@@ -507,7 +507,7 @@ func (m *NavigationMenu) linkIndex(id gfx.ID) int {
 }
 
 // choose applies the click this paint is delivering.
-func (m *NavigationMenu) choose() {
+func (m *State) choose() {
 	switch {
 	case m.clicked == m.DismissID && !m.DismissID.IsZero():
 		m.Open = gfx.ID{}
@@ -539,14 +539,14 @@ func (m *NavigationMenu) choose() {
 	}
 }
 
-func (m *NavigationMenu) pointer(event gfx.PointerEvent) gfx.EventResult {
+func (m *State) pointer(event gfx.PointerEvent) gfx.EventResult {
 	if m.Pointer != nil {
 		return m.Pointer(event)
 	}
 	return gfx.EventResult{}
 }
 
-func (m *NavigationMenu) key(event gfx.KeyEvent) gfx.EventResult {
+func (m *State) key(event gfx.KeyEvent) gfx.EventResult {
 	var result gfx.EventResult
 	if !event.Release && event.Text == "" && event.Key != gfx.KeyUnknown && !event.Key.IsModifier() {
 		focus := event.Target
@@ -591,7 +591,7 @@ func (m *NavigationMenu) key(event gfx.KeyEvent) gfx.EventResult {
 	return result
 }
 
-func (m *NavigationMenu) triggerKey(event gfx.KeyEvent, entry int) gfx.EventResult {
+func (m *State) triggerKey(event gfx.KeyEvent, entry int) gfx.EventResult {
 	if entry < 0 || entry >= len(m.entries) {
 		return gfx.EventResult{}
 	}
@@ -621,7 +621,7 @@ func (m *NavigationMenu) triggerKey(event gfx.KeyEvent, entry int) gfx.EventResu
 	return result
 }
 
-func (m *NavigationMenu) entryLinkKey(event gfx.KeyEvent, entry int) gfx.EventResult {
+func (m *State) entryLinkKey(event gfx.KeyEvent, entry int) gfx.EventResult {
 	if entry < 0 || entry >= len(m.entries) {
 		return gfx.EventResult{}
 	}
@@ -664,7 +664,7 @@ func (m *NavigationMenu) entryLinkKey(event gfx.KeyEvent, entry int) gfx.EventRe
 	return gfx.EventResult{}
 }
 
-func (m *NavigationMenu) contentLinkKey(event gfx.KeyEvent, link int) gfx.EventResult {
+func (m *State) contentLinkKey(event gfx.KeyEvent, link int) gfx.EventResult {
 	if link < 0 || link >= len(m.links) || m.links[link].Separator {
 		return gfx.EventResult{}
 	}
@@ -713,7 +713,7 @@ func (m *NavigationMenu) contentLinkKey(event gfx.KeyEvent, link int) gfx.EventR
 	return gfx.EventResult{}
 }
 
-func (m *NavigationMenu) entryID(index int) gfx.ID {
+func (m *State) entryID(index int) gfx.ID {
 	if index < 0 || index >= len(m.entries) {
 		return gfx.ID{}
 	}
@@ -724,7 +724,7 @@ func (m *NavigationMenu) entryID(index int) gfx.ID {
 	return entry.Link.ID
 }
 
-func (m *NavigationMenu) moveEntry(from int, key gfx.Key) (int, bool) {
+func (m *State) moveEntry(from int, key gfx.Key) (int, bool) {
 	if key == gfx.KeyHome || key == gfx.KeyEnd {
 		step, index := 1, 0
 		if key == gfx.KeyEnd {
@@ -756,7 +756,7 @@ func (m *NavigationMenu) moveEntry(from int, key gfx.Key) (int, bool) {
 	return 0, false
 }
 
-func (m *NavigationMenu) usableEntry(index int) bool {
+func (m *State) usableEntry(index int) bool {
 	if index < 0 || index >= len(m.entries) {
 		return false
 	}
@@ -767,7 +767,7 @@ func (m *NavigationMenu) usableEntry(index int) bool {
 	return !entry.Link.Disabled && !entry.Link.ID.IsZero()
 }
 
-func (m *NavigationMenu) moveContentLink(from int, key gfx.Key) (int, bool) {
+func (m *State) moveContentLink(from int, key gfx.Key) (int, bool) {
 	entry := m.links[from].Entry
 	if key == gfx.KeyHome || key == gfx.KeyEnd {
 		step, index := 1, 0
@@ -800,12 +800,12 @@ func (m *NavigationMenu) moveContentLink(from int, key gfx.Key) (int, bool) {
 	return 0, false
 }
 
-func (m *NavigationMenu) usableContentLink(index, entry int) bool {
+func (m *State) usableContentLink(index, entry int) bool {
 	link := &m.links[index]
 	return link.Entry == entry && !link.Separator && !link.Link.Disabled && !link.Link.ID.IsZero()
 }
 
-func (m *NavigationMenu) firstContentLink(entry int) (gfx.ID, bool) {
+func (m *State) firstContentLink(entry int) (gfx.ID, bool) {
 	for index := range m.links {
 		if m.usableContentLink(index, entry) {
 			return m.links[index].Link.ID, true

@@ -9,7 +9,7 @@
 // every paint:
 //
 //	anchor := ui.Button(c, "@viva-framework").Outline().Width(180)
-//	hovercard.View(c, "@viva-framework", &hovercard.HoverCard{
+//	hovercard.View(c, "@viva-framework", &hovercard.Card{
 //		Anchor:      anchor,
 //		Title:       "Viva Framework",
 //		Description: "Go-first, GPU-native desktop UI.",
@@ -74,11 +74,11 @@ const (
 	surfaceMargin = float32(8)
 )
 
-// HoverCard is one page hover card. Declare it where the anchor is declared;
+// Card is one page hover card. Declare it where the anchor is declared;
 // the view keeps the hover state in the page, so a fresh value each paint is
 // the normal call site. Keep Open in the application's model when the
 // application needs to read or set the open state itself.
-type HoverCard struct {
+type Card struct {
 	// Anchor is the element the card describes, declared before View in the
 	// same paint. The card uses that element's laid-out geometry.
 	Anchor ui.Box
@@ -108,23 +108,23 @@ type HoverCard struct {
 }
 
 // Side selects the anchor edge the card opens on.
-func (card *HoverCard) Side(side Side) *HoverCard { card.side = side; return card }
+func (card *Card) Side(side Side) *Card { card.side = side; return card }
 
 // Align lines the card up with the anchor along its cross axis.
-func (card *HoverCard) Align(align Align) *HoverCard { card.align = align; return card }
+func (card *Card) Align(align Align) *Card { card.align = align; return card }
 
 // Width fixes the card's width; zero keeps DefaultWidth.
-func (card *HoverCard) Width(width float32) *HoverCard { card.width = width; return card }
+func (card *Card) Width(width float32) *Card { card.width = width; return card }
 
 // Delays selects how long the pointer rests before the card opens, and how long
 // it waits after leaving before the card closes. Either may be zero.
-func (card *HoverCard) Delays(open, close time.Duration) *HoverCard {
+func (card *Card) Delays(open, close time.Duration) *Card {
 	card.openDelay, card.closeWait, card.delays = open, close, true
 	return card
 }
 
 // Disabled suppresses the card for a disabled anchor. Disabled() is Disabled(true).
-func (card *HoverCard) Disabled(disabled ...bool) *HoverCard {
+func (card *Card) Disabled(disabled ...bool) *Card {
 	card.disabled = len(disabled) == 0 || disabled[0]
 	return card
 }
@@ -152,13 +152,13 @@ type hoverState struct {
 // one. The anchor must be declared in the same paint and is left as declared
 // unless it has no identity, in which case View gives it one for hover
 // detection.
-func View(c ui.C, label string, card *HoverCard) ui.Box {
+func View(c ui.C, label string, card *Card) ui.Box {
 	if card == nil {
-		panic("hovercard: View needs a HoverCard")
+		panic("hovercard: View needs a Card")
 	}
 	anchor := card.Anchor
 	if !anchor.Valid() {
-		panic("hovercard: HoverCard.Anchor must be declared before View")
+		panic("hovercard: Card.Anchor must be declared before View")
 	}
 	canvas := c.Canvas()
 	state := ui.State[hoverState](c, "hovercard")
@@ -197,7 +197,7 @@ func View(c ui.C, label string, card *HoverCard) ui.Box {
 
 // isOpen is the card's open state: the caller's when it owns one, else the
 // view's own.
-func (state *hoverState) isOpen(card *HoverCard) bool {
+func (state *hoverState) isOpen(card *Card) bool {
 	if card.Open != nil {
 		return *card.Open
 	}
@@ -205,7 +205,7 @@ func (state *hoverState) isOpen(card *HoverCard) bool {
 }
 
 // setOpen changes the open state and reports it to the caller.
-func (state *hoverState) setOpen(card *HoverCard, open bool) {
+func (state *hoverState) setOpen(card *Card, open bool) {
 	if state.isOpen(card) == open {
 		return
 	}
@@ -220,7 +220,7 @@ func (state *hoverState) setOpen(card *HoverCard, open bool) {
 
 // settle advances the hover timing. A remaining wait asks the canvas for one
 // frame at the deadline and for nothing while idle.
-func (state *hoverState) settle(canvas *gfx.Canvas, card *HoverCard, now time.Duration, onAnchor, onContent bool) {
+func (state *hoverState) settle(canvas *gfx.Canvas, card *Card, now time.Duration, onAnchor, onContent bool) {
 	open := state.isOpen(card)
 	if onAnchor || open && onContent {
 		state.pendingClose = false
@@ -256,14 +256,14 @@ func (state *hoverState) settle(canvas *gfx.Canvas, card *HoverCard, now time.Du
 	state.contentRect = gfx.Rect{}
 }
 
-func (card *HoverCard) openWait() time.Duration {
+func (card *Card) openWait() time.Duration {
 	if !card.delays {
 		return DefaultOpenDelay
 	}
 	return max(card.openDelay, 0)
 }
 
-func (card *HoverCard) closeDelay() time.Duration {
+func (card *Card) closeDelay() time.Duration {
 	if !card.delays {
 		return DefaultCloseDelay
 	}
@@ -273,7 +273,7 @@ func (card *HoverCard) closeDelay() time.Duration {
 // declare opens the page popup the card lives in. The popup places its children
 // from the caller's anchor; the card's surface is painted in the popup's place
 // by the component.
-func (state *hoverState) declare(c ui.C, card *HoverCard, label string, contentID gfx.ID, anchor ui.Box) {
+func (state *hoverState) declare(c ui.C, card *Card, label string, contentID gfx.ID, anchor ui.Box) {
 	frame := c.GetF()
 	metrics := c.Theme().Metrics
 	popup := frame.Popup()

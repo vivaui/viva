@@ -22,7 +22,7 @@ if canvas.Clicked(previous) && state.carousel > 0 {
 } else if canvas.Clicked(next) && state.carousel < 2 {
     state.carousel++
 }`, PageSnippet: `slides := []string{"Retained scene", "Localized update", "Idle means idle"}
-car := &carousel.Carousel{
+car := &carousel.State{
     ItemCount: 3, Index: m.slide,
     PreviousID: m.previous, PreviousLabel: "Previous slide",
     NextID: m.next, NextLabel: "Next slide",
@@ -47,7 +47,7 @@ if car.Clicked(m.previous) && m.slide > 0 {
 } else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`, PageSnippetZh: `slides := []string{"保留场景", "本地化更新", "空闲即空闲"}
-car := &carousel.Carousel{
+car := &carousel.State{
     ItemCount: 3, Index: m.slide,
     PreviousID: m.previous, PreviousLabel: "上一张",
     NextID: m.next, NextLabel: "下一张",
@@ -84,7 +84,7 @@ if canvas.Clicked(previous) && state.carousel > 0 {
 } else if canvas.Clicked(next) && state.carousel < 2 {
     state.carousel++
 }`, PageSnippet: `slides := []string{"Retained scene", "Localized update", "Idle means idle"}
-car := &carousel.Carousel{
+car := &carousel.State{
     ItemCount: 3, Index: m.slide,
     Orientation: carousel.Vertical,
     PreviousID: m.previous, PreviousLabel: "Previous slide",
@@ -110,7 +110,7 @@ if car.Clicked(m.previous) && m.slide > 0 {
 } else if car.Clicked(m.next) && m.slide < 2 {
     m.slide++
 }`, PageSnippetZh: `slides := []string{"保留场景", "本地化更新", "空闲即空闲"}
-car := &carousel.Carousel{
+car := &carousel.State{
     ItemCount: 3, Index: m.slide,
     Orientation: carousel.Vertical,
     PreviousID: m.previous, PreviousLabel: "上一张",
@@ -150,7 +150,7 @@ var (
 // than rebuilt in each paint.
 type carouselDemo struct {
 	state *State
-	view  carousel.Carousel
+	view  carousel.State
 }
 
 // carouselDemos is keyed by State because the constrained demo model has no

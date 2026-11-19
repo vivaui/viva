@@ -3,7 +3,7 @@
 // the wheel, the scrollbars, clipping and layout are the engine's, and adds the
 // earlier/later jump controls:
 //
-//	stream := &messagescroller.Scroller{
+//	stream := &messagescroller.State{
 //		Offset:       m.offset,
 //		EarlierLabel: "Earlier messages",
 //		LaterLabel:   "Later messages",
@@ -25,7 +25,7 @@
 // earlier/later button.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep a Scroller in the model with its callbacks set once; the
+// nothing for it. Keep a State in the model with its callbacks set once; the
 // view's handlers are the caller's own, and a warm paint allocates nothing.
 package messagescroller
 
@@ -65,10 +65,10 @@ type Geometry struct {
 	CanEarlier, CanLater bool
 }
 
-// Scroller is one message stream's page control. Fill the fields from the
+// State is one message stream's page control. Fill the fields from the
 // model every paint; callbacks stay as they are and are read when they are
 // needed.
-type Scroller struct {
+type State struct {
 	// Offset is the caller-owned vertical offset painted this frame. The page's
 	// ScrollAt area is declared here, so the caller is the source of truth:
 	// store the offsets OnScroll and OnJump report and write them back.
@@ -109,9 +109,9 @@ type Scroller struct {
 // leaves and clips what does not fit.
 //
 // Declare the view on its own, not inside a Memo.
-func View(c ui.C, label string, scroller *Scroller) ui.Box {
+func View(c ui.C, label string, scroller *State) ui.Box {
 	if scroller == nil {
-		panic("messagescroller: View needs its Scroller")
+		panic("messagescroller: View needs its State")
 	}
 	offset := scroller.Offset
 	if scroller.state != nil && scroller.state.ID == scroller.stateID &&
@@ -157,7 +157,7 @@ func View(c ui.C, label string, scroller *Scroller) ui.Box {
 
 // Geometry is the layout of the stream painted last. It is valid after View in
 // the same paint, beside the other controls that read their result there.
-func (s *Scroller) Geometry() Geometry {
+func (s *State) Geometry() Geometry {
 	state := s.state
 	if state == nil || state.ID != s.stateID || !s.area.Valid() {
 		return Geometry{}
@@ -177,7 +177,7 @@ func (s *Scroller) Geometry() Geometry {
 }
 
 // SettledOffset is the settled offset of the last paint, after clamping.
-func (s *Scroller) SettledOffset() float32 {
+func (s *State) SettledOffset() float32 {
 	if s.state == nil || s.state.ID != s.stateID {
 		return s.Offset
 	}
@@ -185,7 +185,7 @@ func (s *Scroller) SettledOffset() float32 {
 }
 
 // ContentHeight is the content height the area measured at the last paint.
-func (s *Scroller) ContentHeight() float32 {
+func (s *State) ContentHeight() float32 {
 	if s.state == nil || s.state.ID != s.stateID {
 		return 0
 	}
@@ -193,7 +193,7 @@ func (s *Scroller) ContentHeight() float32 {
 }
 
 // ViewportHeight is the visible height the area measured at the last paint.
-func (s *Scroller) ViewportHeight() float32 {
+func (s *State) ViewportHeight() float32 {
 	if s.state == nil || s.state.ID != s.stateID {
 		return 0
 	}
@@ -202,15 +202,15 @@ func (s *Scroller) ViewportHeight() float32 {
 
 // CanEarlier reports whether the earlier jump control does anything at the
 // offset painted last.
-func (s *Scroller) CanEarlier() bool { return s.canEarlier() }
+func (s *State) CanEarlier() bool { return s.canEarlier() }
 
 // CanLater reports whether the later jump control does anything at the offset
 // painted last.
-func (s *Scroller) CanLater() bool { return s.canLater() }
+func (s *State) CanLater() bool { return s.canLater() }
 
 // Contains reports whether a point is inside the scroll area painted last, for
 // a page that gives the wheel to the stream only when it is over it.
-func (s *Scroller) Contains(x, y float32) bool {
+func (s *State) Contains(x, y float32) bool {
 	if !s.area.Valid() {
 		return false
 	}
@@ -224,7 +224,7 @@ func (s *Scroller) Contains(x, y float32) bool {
 // Give it to the page's Config.OnScroll; the area is declared with ScrollAt, so
 // the page itself leaves the wheel to the application. The settled offset is
 // reported to OnScroll, or written to Offset when OnScroll is nil.
-func (s *Scroller) Wheel(event gfx.ScrollEvent) gfx.EventResult {
+func (s *State) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	return s.apply(s.state, func(state *ui.ScrollState) gfx.EventResult {
 		return state.Wheel(event)
 	})
@@ -233,14 +233,14 @@ func (s *Scroller) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // Key applies the keyboard's scrolling to the stream, given to a page that
 // gives the stream the focus. A step of zero or less is one line, 32 pixels;
 // PageUp and PageDown move by a viewport, Home and End to the ends.
-func (s *Scroller) Key(event gfx.KeyEvent, step float32) gfx.EventResult {
+func (s *State) Key(event gfx.KeyEvent, step float32) gfx.EventResult {
 	return s.apply(s.state, func(state *ui.ScrollState) gfx.EventResult {
 		return state.Key(event, step)
 	})
 }
 
 // apply runs one ScrollState input call and reports the offset it settled on.
-func (s *Scroller) apply(state *ui.ScrollState, input func(*ui.ScrollState) gfx.EventResult) gfx.EventResult {
+func (s *State) apply(state *ui.ScrollState, input func(*ui.ScrollState) gfx.EventResult) gfx.EventResult {
 	if state == nil || state.ID != s.stateID {
 		return gfx.EventResult{}
 	}
@@ -254,7 +254,7 @@ func (s *Scroller) apply(state *ui.ScrollState, input func(*ui.ScrollState) gfx.
 
 // toolbar declares the two jump controls. They are present but inert at the
 // ends they cannot leave, so the stream does not change height as it scrolls.
-func (s *Scroller) toolbar(c ui.C) {
+func (s *State) toolbar(c ui.C) {
 	row := ui.Row(c).Gap(c.Theme().Metrics.GapItem)
 	row.Children(func() {
 		if s.EarlierLabel != "" {
@@ -286,7 +286,7 @@ func (s *Scroller) toolbar(c ui.C) {
 
 // jump reports the offset a jump control goes to: the start or the end of the
 // content as of the last paint.
-func (s *Scroller) jump(direction Direction) {
+func (s *State) jump(direction Direction) {
 	target := float32(0)
 	if direction == Later && s.state != nil && s.state.ID == s.stateID {
 		target = s.state.Max()
@@ -300,7 +300,7 @@ func (s *Scroller) jump(direction Direction) {
 
 // reportOffset hands the reader's offset to the model, or keeps it in Offset
 // when the caller did not ask to observe it.
-func (s *Scroller) reportOffset(offset float32) {
+func (s *State) reportOffset(offset float32) {
 	if s.OnScroll != nil {
 		s.OnScroll(offset)
 		return
@@ -308,13 +308,13 @@ func (s *Scroller) reportOffset(offset float32) {
 	s.Offset = offset
 }
 
-func (s *Scroller) canEarlier() bool {
+func (s *State) canEarlier() bool {
 	state := s.state
 	return state != nil && state.ID == s.stateID &&
 		state.Offset > components.MessageScrollerEdgeThreshold
 }
 
-func (s *Scroller) canLater() bool {
+func (s *State) canLater() bool {
 	state := s.state
 	return state != nil && state.ID == s.stateID &&
 		state.Offset < state.Max()-components.MessageScrollerEdgeThreshold
