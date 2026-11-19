@@ -19,7 +19,15 @@ options := []components.ToggleGroupOption{
 group := components.BeginToggleGroup(canvas, theme, bounds, options).Outline().Spacing(0)
 if id, ok := group.Paint().Clicked(); ok {
     selected, _ = id.In(items)
-}`},
+}`, PageSnippet: `ui.Row(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.left, "Left").Outline()
+    ui.Toggle(c, &m.center, "Center").Outline()
+    ui.Toggle(c, &m.right, "Right").Outline()
+})`, PageSnippetZh: `ui.Row(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.left, "左对齐").Outline()
+    ui.Toggle(c, &m.center, "居中").Outline()
+    ui.Toggle(c, &m.right, "右对齐").Outline()
+})`},
 		{ID: "multiple", Title: "文本样式", Description: "每个选项独立切换的多选按钮组。", Snippet: `items := tree.Sub(page, tree.Name("item"))
 options := []components.ToggleGroupOption{
     {ID: items.At(0), Label: "Bold", Active: flags&1 != 0},
@@ -31,7 +39,15 @@ group = group.Spacing(0).SizeToFit()
 if id, ok := group.Paint().Clicked(); ok {
     index, _ := id.In(items)
     flags ^= 1 << index
-}`},
+}`, PageSnippet: `ui.Row(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.bold, "Bold").Outline()
+    ui.Toggle(c, &m.italic, "Italic").Outline()
+    ui.Toggle(c, &m.underline, "Underline").Outline()
+})`, PageSnippetZh: `ui.Row(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.bold, "粗体").Outline()
+    ui.Toggle(c, &m.italic, "斜体").Outline()
+    ui.Toggle(c, &m.underline, "下划线").Outline()
+})`},
 		{ID: "vertical", Title: "纵向与禁用", Description: "纵向描边组，包含一个禁用选项。", Snippet: `items := tree.Sub(page, tree.Name("item"))
 options := []components.ToggleGroupOption{
     {ID: items.At(0), Label: "Left", Active: selected == 0},
@@ -42,7 +58,15 @@ group := components.BeginToggleGroup(canvas, theme, bounds, options).Vertical()
 group = group.Outline().Spacing(1)
 if id, ok := group.Paint().Clicked(); ok {
     selected, _ = id.In(items)
-}`},
+}`, PageSnippet: `ui.Column(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.left, "Left").Outline()
+    ui.Toggle(c, &m.center, "Center").Outline()
+    ui.Toggle(c, &m.right, "Right").Outline()
+})`, PageSnippetZh: `ui.Column(c).Gap(0).Children(func() {
+    ui.Toggle(c, &m.left, "左对齐").Outline()
+    ui.Toggle(c, &m.center, "居中").Outline()
+    ui.Toggle(c, &m.right, "右对齐").Outline()
+})`},
 	},
 }
 

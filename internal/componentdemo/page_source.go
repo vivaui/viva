@@ -4,6 +4,7 @@ package componentdemo
 // documentation site links "Page API source" here when PageUsage exists; a
 // component without a page API links its own source instead.
 var pageSource = map[string]string{
+	"toggle-group":    "base/page_bases.go",
 	"button":          "base/controls.go",
 	"badge":           "base/badge.go",
 	"checkbox":        "base/controls.go",

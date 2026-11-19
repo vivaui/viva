@@ -4,6 +4,7 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"toggle-group":  `ui.Row(c).Gap(0).Children(func() { ui.Toggle(c, &m.left, "Left").Outline(); ui.Toggle(c, &m.right, "Right").Outline() })`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
 	"card":          `ui.Column(c).Pad(16).Radius(12).Border(1, border)`,

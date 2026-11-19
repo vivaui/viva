@@ -40,8 +40,7 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
       {(() => {
         const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
         const localized = locale === 'zh' ? example.PageSnippetZh : example.PageSnippet;
-        const usage = localized || example.PageSnippet || (own ? example.Snippet : '');
-        if (!usage) return <p class="example-summary">{text.canvasRecipe}</p>;
+        const usage = localized || example.PageSnippet || (own ? example.Snippet : '') || `ui.Control(c, "${example.Title.replaceAll('"', '')}", &m.handlers).Draw(paint)`;
         return <div class="code-block usage-block">
           <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>
           <div class="highlighted-code"><Code code={usage} lang="go" themes={themes} defaultColor={false} /></div>
