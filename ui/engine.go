@@ -132,6 +132,7 @@ const (
 	FlagDialog         = base.FlagDialog
 	FlagDisabled       = base.FlagDisabled
 	FlagHasColor       = base.FlagHasColor
+	FlagInvalid        = base.FlagInvalid
 	FlagMixed          = base.FlagMixed
 	FlagMono           = base.FlagMono
 	FlagPopover        = base.FlagPopover

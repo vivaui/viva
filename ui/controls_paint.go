@@ -25,6 +25,9 @@ func paintCheckbox(f *Frame, v ControlView) {
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		checkbox = checkbox.Invalid()
+	}
 	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
 		checkbox = checkbox.Recipe(f.GetStyles().Checkbox)
 	}
@@ -58,6 +61,9 @@ func paintSwitch(f *Frame, v ControlView) {
 	if small {
 		control = control.Small()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		control = control.Invalid()
+	}
 	if v.Label != "" {
 		control = control.Label(v.Label)
 	}
@@ -77,6 +83,9 @@ func paintToggle(f *Frame, v ControlView) {
 	if v.Flags&FlagDisabled != 0 {
 		toggle = toggle.Disabled()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		toggle = toggle.Invalid()
+	}
 	label := v.Text
 	if label == "" {
 		label = v.Label
@@ -94,7 +103,11 @@ func paintInputGroup(f *Frame, v ControlView) {
 
 func paintSegmented(f *Frame, v ControlView) {
 	choice := base.WidgetsOf(f).GetSegmented()[v.Aux]
-	components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected()).Paint()
+	control := components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected())
+	if v.Flags&FlagDisabled != 0 {
+		control = control.Disabled()
+	}
+	control.Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package

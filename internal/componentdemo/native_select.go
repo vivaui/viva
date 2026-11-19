@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -22,40 +21,33 @@ ui.Select(c, &environment, []string{"Development", "Staging", "Production"}, nil
     Label("Environment").Hint("Choose environment")`, PageSnippetZh: `environment := "Production"
 ui.Select(c, &environment, []string{"Development", "Staging", "Production"}, nil).
     Label("Environment").Hint("Choose environment")`},
-		{ID: "states", Title: "选择器状态", Description: "紧凑、无效与禁用触发器。", Snippet: `components.PaintNativeSelect(canvas, theme, smallBounds, components.NativeSelectSnapshot{
-    ID: tree.ID(page, "region"), Label: "Region", Placeholder: "Select a region",
-    Size: components.NativeSelectSmall,
-})
-components.PaintNativeSelect(canvas, theme, invalidBounds, components.NativeSelectSnapshot{
-    ID: tree.ID(page, "team"), Label: "Team", Value: "none",
-    Display: "No team", Invalid: true,
-})
-components.PaintNativeSelect(canvas, theme, disabledBounds, components.NativeSelectSnapshot{
-    ID: tree.ID(page, "plan"), Label: "Plan", Value: "enterprise",
-    Display: "Enterprise", Disabled: true,
-})`, PageSnippet: `regions := []string{"us-east", "eu-west", "ap-south"}
+		{ID: "states", Title: "选择器状态", Description: "紧凑、无效与禁用触发器。", Snippet: `regions := []string{"us-east", "eu-west", "ap-south"}
 teams := []string{"No team"}
 plans := []string{"Enterprise"}
-ui.Select(c, &m.region, regions, nil).Placeholder("Select a region").Small()
-ui.FormField(c, &m.teamField, "Team").Children(func() {
-    ui.Select(c, &m.team, teams, nil).Placeholder("No team")
-})
-ui.Select(c, &m.plan, plans, nil).Disabled(true)`, PageSnippetZh: `regions := []string{"us-east", "eu-west", "ap-south"}
+ui.Select(c, &region, regions, nil).
+    Label("Region").Placeholder("Select a region").Small()
+ui.Select(c, &team, teams, nil).
+    Label("Team").Placeholder("No team").Invalid(team == "")
+plan := "Enterprise"
+ui.Select(c, &plan, plans, nil).Label("Plan").Disabled(true)`, PageSnippet: `regions := []string{"us-east", "eu-west", "ap-south"}
 teams := []string{"No team"}
 plans := []string{"Enterprise"}
-ui.Select(c, &m.region, regions, nil).Placeholder("Select a region").Small()
-ui.FormField(c, &m.teamField, "Team").Children(func() {
-    ui.Select(c, &m.team, teams, nil).Placeholder("No team")
-})
-ui.Select(c, &m.plan, plans, nil).Disabled(true)`},
+ui.Select(c, &m.region, regions, nil).
+    Label("Region").Placeholder("Select a region").Small()
+ui.Select(c, &m.team, teams, nil).
+    Label("Team").Placeholder("No team").Invalid(m.team == "")
+m.plan = "Enterprise"
+ui.Select(c, &m.plan, plans, nil).Label("Plan").Disabled(true)`, PageSnippetZh: `regions := []string{"us-east", "eu-west", "ap-south"}
+teams := []string{"No team"}
+plans := []string{"Enterprise"}
+ui.Select(c, &m.region, regions, nil).
+    Label("Region").Placeholder("Select a region").Small()
+ui.Select(c, &m.team, teams, nil).
+    Label("Team").Placeholder("No team").Invalid(m.team == "")
+m.plan = "Enterprise"
+ui.Select(c, &m.plan, plans, nil).Label("Plan").Disabled(true)`},
 	},
 }
-
-var (
-	nativeSelectUI = tree.Feature("native-select")
-	// nativeSelectTrigger's item i is the i-th trigger of the example.
-	nativeSelectTrigger = tree.Sub(nativeSelectUI, tree.Name("trigger"))
-)
 
 // nativeSelectDemo is the caller-owned value of the page-first Select.
 type nativeSelectDemo struct {
@@ -63,9 +55,16 @@ type nativeSelectDemo struct {
 	ready       bool
 }
 
+// nativeSelectStatesDemo is the caller-owned value of each trigger in the states
+// example. The team Select stays invalid until a value is chosen.
+type nativeSelectStatesDemo struct {
+	region, team, plan string
+	ready              bool
+}
+
 func (state *State) paintNativeSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	environments := []string{"Development", "Staging", "Production"}
 	if state.exampleID == "default" {
-		environments := []string{"Development", "Staging", "Production"}
 		state.drawPage(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(c ui.C) {
 			demo := ui.State[nativeSelectDemo](c, "native-select-demo")
 			if !demo.ready {
@@ -79,17 +78,20 @@ func (state *State) paintNativeSelect(canvas *gfx.Canvas, theme gfx.Theme, size 
 		return
 	}
 
-	// The states example stays on the canvas API: the page Select has no
-	// invalid-trigger state for the "No team" row.
-	var rows [3]ui.Box
+	regions := []string{"us-east", "eu-west", "ap-south"}
+	teams := []string{"No team"}
+	plans := []string{"Enterprise"}
 	state.drawPage(canvas, theme, size, 560, state.Text("Native Select · 系统弹窗", "Native Select · System popup"), func(c ui.C) {
-		rows[0] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight - 4)
-		rows[1] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-		rows[2] = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		demo := ui.State[nativeSelectStatesDemo](c, "native-select-states")
+		if !demo.ready {
+			demo.ready, demo.plan = true, "Enterprise"
+		}
+		ui.Select(c, &demo.region, regions, nil).
+			Label("Region").Placeholder("Select a region").Small().FillWidth()
+		ui.Select(c, &demo.team, teams, nil).
+			Label("Team").Placeholder("No team").Invalid(demo.team == "").FillWidth()
+		ui.Select(c, &demo.plan, plans, nil).Label("Plan").Disabled(true).FillWidth()
 	})
-	components.PaintNativeSelect(canvas, theme, rows[0].Rect(), components.NativeSelectSnapshot{ID: nativeSelectTrigger.At(0), Label: "Region", Placeholder: "Select a region", Size: components.NativeSelectSmall})
-	components.PaintNativeSelect(canvas, theme, rows[1].Rect(), components.NativeSelectSnapshot{ID: nativeSelectTrigger.At(1), Label: "Team", Value: "none", Display: "No team", Invalid: true})
-	components.PaintNativeSelect(canvas, theme, rows[2].Rect(), components.NativeSelectSnapshot{ID: nativeSelectTrigger.At(2), Label: "Plan", Value: "enterprise", Display: "Enterprise", Disabled: true})
 }
 
 func nativeSelectValueIndex(value string) int32 {

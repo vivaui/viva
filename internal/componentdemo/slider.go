@@ -24,9 +24,13 @@ ui.Slider(c, &volume).Range(0, 100).Step(10).Label("音量")`},
 components.BeginRangeSlider(canvas, theme, bounds, thumbs).Step(5).Paint("Price range")`, PageSnippet: `// m.price starts at 25–75.
 price := ui.NewRangeSliderState(25, 75)
 price.Step = 5
+price.LowLabel = "Minimum price"
+price.HighLabel = "Maximum price"
 ui.RangeSlider(c, &price)`, PageSnippetZh: `// m.price 初始为 25–75。
 price := ui.NewRangeSliderState(25, 75)
 price.Step = 5
+price.LowLabel = "最低价格"
+price.HighLabel = "最高价格"
 ui.RangeSlider(c, &price)`},
 		{ID: "states", Title: "方向与禁用", Description: "同时展示竖向滑块与禁用状态。", Snippet: `components.BeginSlider(canvas, theme, tree.ID(page, "volume"), volumeBounds,
     float32(volume)).Vertical().Step(10).Paint("Volume")
@@ -229,8 +233,10 @@ func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 	}
 }
 
-// paintSliderRange keeps the range example on the canvas API: the page
-// RangeSlider paints no caller-supplied thumb labels or value text.
+// paintSliderRange keeps the range example on the component API: the demo's
+// caller reads both thumbs by the fixed tree IDs below, while a page RangeSlider
+// names its own parts. The page equivalent, with the same localized thumb
+// labels, is the example's PageSnippet.
 func (state *State) paintSliderRange(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var track ui.Box
 	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {

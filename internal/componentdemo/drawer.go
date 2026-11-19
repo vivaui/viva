@@ -24,7 +24,7 @@ if !open {
     }
 }
 ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
-    Side: ui.DrawerBottom, Size: 248,
+    Side: ui.DrawerBottom, Size: 248, Swipe: true,
     Description: "Applies immediately.",
 }, func() {
     ui.Text(c, "Native settings.")
@@ -39,7 +39,7 @@ if !open {
     }
 }
 ui.Drawer(c, &open, "工作区设置", ui.DrawerSpec{
-    Side: ui.DrawerBottom, Size: 248,
+    Side: ui.DrawerBottom, Size: 248, Swipe: true,
     Description: "立即生效。",
 }, func() {
     ui.Text(c, "原生设置。")
@@ -150,6 +150,8 @@ func (state *State) paintDrawer(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 		}
 		title, body := state.Text("工作区设置", "Workspace settings"), state.Text("原生设置。", "Native settings.")
 		switch state.exampleID {
+		case "default":
+			spec.Swipe = true
 		case "sides":
 			spec.Side, spec.Size = ui.DrawerRight, 300
 			spec.Description = state.Text("右侧边缘使用相同的模态契约。", "Same modal contract on the right edge.")

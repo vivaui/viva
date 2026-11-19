@@ -115,7 +115,9 @@ func (f *Frame) TextareaBase(snapshot TextareaSnapshot) Box {
 }
 
 // Segmented adds a components.SegmentedControl choosing among options, selected
-// being the ID of the current one. The options slice is kept until End.
+// being the ID of the current one. The options slice is kept until End. An option's
+// own Disabled field marks it unavailable; DisabledOptions marks options of the
+// control the page declared.
 func (f *Frame) Segmented(options []style.SegmentOption, selected gfx.ID) Box {
 	b := f.Box(kindSegmented)
 	n := &f.Nodes[b.i]
@@ -127,7 +129,8 @@ func (f *Frame) Segmented(options []style.SegmentOption, selected gfx.ID) Box {
 // Choice adds a segmented control choosing among labels, selected being the index of
 // the current one (negative for none). Its options are identified by scope.At(0),
 // scope.At(1), ...: declare a scope for it once (tree.Sub(page, tree.Name("theme"))),
-// and read the click with Box.ChosenIndex.
+// and read the click with Box.ChosenIndex. Mark options unavailable with
+// DisabledOptions, one entry per label.
 //
 //	if i, ok := f.Choice(themeScope, themeLabels, m.theme).ChosenIndex(); ok { m.theme = i }
 

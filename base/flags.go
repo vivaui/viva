@@ -32,4 +32,5 @@ const (
 	FlagDrawer   // a Drawer's root: painted by components.Drawer around its children
 	FlagLabelFor // the element is a label of the control its identity names (LabelFor)
 	FlagMixed    // a Checkbox that is neither on nor off: some of what it stands for is chosen
+	FlagInvalid  // a control whose value failed validation: the destructive border and ring
 )

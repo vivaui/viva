@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -82,29 +81,22 @@ if _, acted := m.toaster.Acted(); acted {
 components.PaintToast(canvas, theme, viewport, snapshot, components.ToastOptions{
     Layer: 52, Scope: tree.ID(page, "toast"), DismissID: tree.ID(page, "dismiss"),
     ActionID: tree.ID(page, "action"), ActionLabel: "Continue",
-})`, PageSnippet: `// The page stack has no caller-controlled horizontal offset yet, so this
-// example stays on the canvas painter to show the swipe snapshot exactly.
-m.toaster.Show("Download almost complete", "The horizontal offset comes from the caller's snapshot.", ui.ToastInfo)
-ui.Toasts(c, &m.toaster)`, PageSnippetZh: `// 页面通知堆栈尚不支持调用方提供的横向位移，因此该示例保留 canvas 绘制以如实展示手势快照。
-m.toaster.Show("下载即将完成", "横向位移来自调用方提供的快照。", ui.ToastInfo)
+})`, PageSnippet: `id := m.toaster.ShowAction("Download almost complete", "The horizontal offset comes from the caller's snapshot.", ui.ToastInfo, "Continue")
+m.toaster.Swipe(id, -8)
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `id := m.toaster.ShowAction("下载即将完成", "横向位移来自调用方提供的快照。", ui.ToastInfo, "继续")
+m.toaster.Swipe(id, -8)
 ui.Toasts(c, &m.toaster)`},
 	},
 }
 
 var (
-	toastUI      = tree.Feature("toast")
-	toastDismiss = tree.ID(toastUI, "dismiss")
-	toastAction  = tree.ID(toastUI, "action")
-	toastScope   = tree.ID(toastUI, "toast")
+	toastUI     = tree.Feature("toast")
+	toastAction = tree.ID(toastUI, "action")
 )
 
 func (state *State) initializeToast() { state.flags = 1 }
 
 func (state *State) paintToast(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	if state.exampleID == "swipe" {
-		state.paintToastSwipe(canvas, theme, size)
-		return
-	}
 	state.drawPage(canvas, theme, size, 520, state.Text("Toast · 调用方生命周期", "Toast · Caller lifecycle"), func(c ui.C) {
 		demo := ui.State[toastDemo](c, "toast-demo")
 		if !demo.seeded {
@@ -128,6 +120,18 @@ func (state *State) paintToast(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 				demo.toaster.ShowAction(titles[index], state.Text("激活操作按钮查看下一个语义类型。", "Activate the action button to see the next semantic type."), kinds[index], state.Text("切换", "Switch"))
 				demo.shownType = int32(index)
 			}
+		case "swipe":
+			// The offset is the caller's snapshot: the Toaster paints it as given
+			// and interprets nothing.
+			if demo.shownType < 0 {
+				id := demo.toaster.ShowAction(
+					state.Text("下载即将完成", "Download almost complete"),
+					state.Text("横向位移来自调用方快照。", "The horizontal offset comes from the caller's snapshot."),
+					ui.ToastInfo, state.Text("继续", "Continue"),
+				)
+				demo.toaster.Swipe(id, -8)
+				demo.shownType = 0
+			}
 		default:
 			if demo.shownType < 0 {
 				demo.toaster.ShowAction(savedTitle, savedDescription, ui.ToastSuccess, state.Text("查看", "View"))
@@ -147,31 +151,4 @@ func (state *State) paintToast(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 			state.flags &^= 1
 		}
 	})
-}
-
-// paintToastSwipe draws the caller's horizontal offset, which the page stack
-// cannot carry yet: the toast component takes the snapshot as-is.
-func (state *State) paintToastSwipe(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	open := state.flags&1 != 0
-	state.drawPage(canvas, theme, size, 520, state.Text("Toast · 调用方生命周期", "Toast · Caller lifecycle"), func(c ui.C) {
-		ui.Text(c, state.Text("关闭后重新进入示例可恢复初始快照。", "Re-entering the example after dismissal restores the initial snapshot.")).FontSize(theme.Metrics.FontSizeS).Muted()
-		if !open {
-			ui.Text(c, state.Text("通知已关闭。", "Notification dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
-		}
-	})
-	if !open {
-		return
-	}
-	snapshot := components.ToastSnapshot{
-		Title:       state.Text("下载即将完成", "Download almost complete"),
-		Description: state.Text("横向位移来自调用方快照。", "The horizontal offset comes from the caller's snapshot."),
-		Type:        components.ToastInfo,
-		SwipeX:      -8,
-	}
-	components.PaintToast(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, snapshot, components.ToastOptions{
-		Layer: 52, Scope: toastScope, DismissID: toastDismiss, ActionID: toastAction, ActionLabel: state.Text("继续", "Continue"),
-	})
-	if canvas.Clicked(toastDismiss) {
-		state.flags &^= 1
-	}
 }

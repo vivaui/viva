@@ -20,6 +20,22 @@ type FormFieldState struct {
 	For     gfx.ID
 	// Description is a line of help under the control, above Error, in the muted color.
 	Description string
+	// Message is a success or information line under the control, in the success
+	// color: the confirmation of a field whose value is fine, where Error reports
+	// one that is not. Error wins: while it is set, Message is not painted. The row
+	// is the one the field already reserves for an error, so a message needs no
+	// second control and does not change the field's height.
+	Message string
+	// Required marks the title with the required asterisk and makes the title the
+	// control's label when For is set, as components.BeginField.Required does. The
+	// platform accessibility contract has no separate required state, so the marker
+	// and the label's words carry it.
+	Required bool
+	// Orientation places the title above the control (field.Vertical, the zero
+	// value), beside it (field.Horizontal), or above it while the field is narrow
+	// and beside it when it is wide (field.Responsive). A fixed row has room for the
+	// orientation it is given.
+	Orientation field.Orientation
 
 	Label   string
 	Palette *Theme
@@ -70,7 +86,11 @@ func FormField(c C, state *FormFieldState, Label string) Box {
 // description and error rows, so the field and a painted BeginField have the
 // same height.
 func (state *FormFieldState) spec() field.Spec {
-	return field.Spec{Title: state.Label, Description: state.Description, Error: state.Error, Invalid: state.Invalid, Control: state.For}
+	return field.Spec{
+		Title: state.Label, Description: state.Description, Error: state.Error,
+		Orientation: state.Orientation, Required: state.Required,
+		Invalid: state.Invalid, Control: state.For,
+	}
 }
 
 // MeasureWidth reports no preferred width: a form field takes the width its
@@ -116,4 +136,27 @@ func (state *FormFieldState) draw(d *DrawContext) {
 		return
 	}
 	field.Paint(d.Canvas, *d.Theme, state.layout, state.spec())
+	state.paintMessage(d)
+}
+
+// paintMessage writes Message in the row the shared layout reserves for an error,
+// when no error is there to take it. The line is painted rather than declared as
+// another element: the field owns this row's height already, and a message is
+// text, not a control.
+func (state *FormFieldState) paintMessage(d *DrawContext) {
+	if state.Message == "" || state.Error != "" {
+		return
+	}
+	metrics := d.Theme.Metrics
+	top := state.layout.Control.Y + state.layout.Control.Height
+	if description := state.layout.Description; description.Height > 0 && description.Y >= top {
+		top = description.Y + description.Height
+	}
+	bounds := gfx.Rect{
+		X: state.layout.Control.X, Y: top + field.Gap(metrics),
+		Width: state.layout.Control.Width, Height: field.TextHeight(metrics),
+	}
+	d.Canvas.Label(state.Message, bounds, gfx.TextStyle{
+		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: d.Theme.Success,
+	})
 }

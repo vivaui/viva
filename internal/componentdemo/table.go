@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/ui"
@@ -161,6 +160,7 @@ columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.Table
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"Item", "Status", "Amount"},
+    FitHeadings: true,
     Source:  &bills,
 })
 ui.Text(c, "Item is cut with an ellipsis; Status grew to hold its heading.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
@@ -172,22 +172,11 @@ columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.Table
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"项目", "状态", "金额"},
+    FitHeadings: true,
     Source:  &bills,
 })
 ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Muted()`},
 	},
-}
-
-var (
-	tableUI = tree.Feature("table")
-	// tableRow's item i is the i-th data row.
-	tableRow = tree.Sub(tableUI, tree.Name("row"))
-)
-
-var tableColumns = [...]components.TableColumn{
-	{Width: 112, Alignment: components.TableAlignLeft},
-	{Width: 88, Alignment: components.TableAlignCenter},
-	{Width: 0, Alignment: components.TableAlignRight},
 }
 
 // tableDemo keeps the page Table's selection, row scope and the data the table
@@ -229,29 +218,35 @@ func tableDemoFor(state *State) *tableDemo {
 		caption: state.Text("点击任意数据行以查看交互反馈。", "Click any data row to see its interactive feedback."),
 	}
 	demo.source = ui.TableRows{demo.rows[0][:], demo.rows[1][:], demo.rows[2][:]}
-	if state.exampleID == "alignment" {
+	switch state.exampleID {
+	case "alignment":
 		demo.caption = state.Text("项目左对齐，状态居中，金额右对齐。", "Item is left-aligned, status centered, amount right-aligned.")
+	case "overflow":
+		// The narrow columns are what the heading fit widens: Status is 40
+		// wide as declared and grows to hold its heading.
+		demo.columns[0].Width, demo.columns[1].Width = 96, 40
+		demo.columns[1].Alignment = style.TableAlignLeft
+		demo.caption = state.Text("项目被省略号截断；状态列已长到放得下表头。", "Item is cut with an ellipsis; Status grew to hold its heading.")
 	}
 	tableDemos[state] = demo
 	return demo
 }
 
-// The demo paints the component table (with footer and caption, and a selection
-// bit per row the caller owns) in a slot. ui.Table is the selectable, sortable,
-// scrolling one; the overflow example still needs the component's heading fit,
-// which the page API does not expose.
+// paintTable paints the page Table with its footer, caption and the selection
+// bit the caller owns. The overflow example asks the same table to fit its
+// headings, so fixed columns grow to hold their localized titles.
 func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	if state.exampleID == "overflow" {
-		state.paintTableOverflow(canvas, theme, size)
-		return
-	}
 	demo := tableDemoFor(state)
 	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
-		table := ui.Table(c, &demo.state, ui.TableSpec{
+		spec := ui.TableSpec{
 			Columns: demo.columns,
 			Headers: demo.headers,
 			Source:  &demo.source,
-		})
+		}
+		if state.exampleID == "overflow" {
+			spec.FitHeadings = true
+		}
+		table := ui.Table(c, &demo.state, spec)
 		if state.exampleID == "selection" {
 			if row, ok := table.RowClicked(); ok {
 				demo.state.Select(row)
@@ -267,37 +262,4 @@ func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		ui.Text(c, demo.footer).Muted()
 		ui.Text(c, demo.caption).Muted()
 	})
-}
-
-// paintTableOverflow keeps the component table for the heading-fit example: the
-// page Table takes explicit column widths and does not measure headings.
-func (state *State) paintTableOverflow(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var slot ui.Box
-	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
-		slot = ui.Slot(c).Height(220)
-	})
-	columns := tableColumns
-	columns[0].Width, columns[1].Width = 96, 40
-	header := [...]string{
-		state.Text("项目", "Item"),
-		state.Text("状态", "Status"),
-		state.Text("金额", "Amount"),
-	}
-	components.FitTableHeadings(canvas, theme, columns[:], header[:])
-	table := components.BeginTable(canvas, theme, slot.Rect(), columns[:])
-	table.Header(header[:])
-	rows := [...][3]string{
-		{state.Text("设计系统", "Design system"), state.Text("已支付", "Paid"), "¥ 2,400"},
-		{state.Text("桌面构建", "Desktop build"), state.Text("处理中", "Processing"), "¥ 860"},
-		{state.Text("性能审计", "Performance audit"), state.Text("待付款", "Unpaid"), "¥ 1,280"},
-	}
-	for index := range rows {
-		table.RowAt(tableRow, index, rows[index][:], false)
-	}
-	table.Footer([]string{
-		state.Text("合计", "Total"),
-		state.Text("3 项", "3 items"),
-		"¥ 4,540",
-	})
-	table.Caption(state.Text("项目被省略号截断；状态列已长到放得下表头。", "Item is cut with an ellipsis; Status grew to hold its heading."))
 }

@@ -3,7 +3,6 @@ package componentdemo
 import (
 	"unicode/utf8"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -26,10 +25,12 @@ components.PaintInput(canvas, theme, field.Control, components.InputSnapshot{
     ID: username, Label: field.Semantics.Label,
     Value: value, Hint: field.Semantics.AssistiveText(),
 })`, PageSnippet: `m.field.Description = "This name is visible to collaborators."
+m.field.Required = true
 // m.username starts as "gopher".
 ui.FormField(c, &m.field, "Username").Children(func() {
     ui.TextField(c, &m.username, "Username", "")
 })`, PageSnippetZh: `m.field.Description = "This name is visible to collaborators."
+m.field.Required = true
 // m.username starts as "gopher".
 ui.FormField(c, &m.field, "Username").Children(func() {
     ui.TextField(c, &m.username, "Username", "")
@@ -46,10 +47,14 @@ components.PaintInput(canvas, theme, field.Control, components.InputSnapshot{
     ID: username, Label: field.Semantics.Label,
     Value: value, Hint: field.Semantics.AssistiveText(),
 })`, PageSnippet: `m.field.Description = "This name is visible to collaborators."
+m.field.Message = "Username is available."
+m.field.Required = true
 // m.username starts as "gopher".
 ui.FormField(c, &m.field, "Username").Children(func() {
     ui.TextField(c, &m.username, "Username", "")
 })`, PageSnippetZh: `m.field.Description = "This name is visible to collaborators."
+m.field.Message = "Username is available."
+m.field.Required = true
 // m.username starts as "gopher".
 ui.FormField(c, &m.field, "Username").Children(func() {
     ui.TextField(c, &m.username, "Username", "")
@@ -68,6 +73,7 @@ components.PaintInput(canvas, theme, layout.Control, components.InputSnapshot{
     Hint: layout.Semantics.AssistiveText(), Invalid: layout.Semantics.Invalid,
 })`, PageSnippet: `// m.username starts as "go".
 m.field.Description = "This name is visible to collaborators."
+m.field.Required = true
 m.field.Invalid = utf8.RuneCountInString(m.username) < 3
 if m.field.Invalid {
     m.field.Error = "Use at least three characters."
@@ -76,6 +82,7 @@ ui.FormField(c, &m.field, "Username").Children(func() {
     ui.TextField(c, &m.username, "Username", "")
 })`, PageSnippetZh: `// m.username starts as "go".
 m.field.Description = "This name is visible to collaborators."
+m.field.Required = true
 m.field.Invalid = utf8.RuneCountInString(m.username) < 3
 if m.field.Invalid {
     m.field.Error = "Use at least three characters."
@@ -101,16 +108,17 @@ func formInitial(exampleID string) string {
 }
 
 func (state *State) paintForm(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	if state.exampleID == "message" {
-		state.paintFormMessage(canvas, theme, size)
-		return
-	}
 	initial := formInitial(state.exampleID)
 	state.drawPage(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(c ui.C) {
 		field := ui.State[ui.Field](c, "username")
 		form := ui.State[ui.FormFieldState](c, "field")
 		state.bindPageField(field, initial)
 		form.Description = "This name is visible to collaborators."
+		form.Required = true
+		form.For = formInput
+		if state.exampleID == "message" {
+			form.Message = "Username is available."
+		}
 		if state.exampleID == "invalid" {
 			field.Invalid = utf8.RuneCountInString(field.Text()) < 3
 			form.Invalid = field.Invalid
@@ -120,28 +128,7 @@ func (state *State) paintForm(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size
 			}
 		}
 		ui.FormField(c, form, "Username").Children(func() {
-			ui.TextFieldID(c, formInput, field, "Username", "")
+			ui.TextFieldID(c, formInput, field, "Username", "").ReadOnly(!state.editing)
 		})
 	})
-}
-
-// paintFormMessage keeps the message example on the canvas API: the page
-// FormField has no separate non-error message line.
-func (state *State) paintFormMessage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var slot ui.Box
-	state.drawPage(canvas, theme, size, 560, state.Text("Form · 显式字段状态", "Form · Explicit field state"), func(c ui.C) {
-		slot = ui.Slot(c).FillWidth().Height(150)
-	})
-	value := state.fieldValue(formInitial(state.exampleID))
-	snapshot := components.FormFieldSnapshot{
-		Label: "Username", Description: "This name is visible to collaborators.",
-		Message: "Username is available.", Required: true, ControlID: formInput,
-	}
-	layout := components.PaintFormField(canvas, theme, slot.Rect(), snapshot)
-	input := components.InputSnapshot{
-		ID: formInput, Label: layout.Semantics.Label, Value: value, Hint: layout.Semantics.AssistiveText(),
-		ReadOnly: !state.editing,
-	}
-	state.paintEditable(canvas, formInput, value, &input)
-	components.PaintInput(canvas, theme, layout.Control, input)
 }
