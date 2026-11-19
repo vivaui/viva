@@ -4,6 +4,12 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"empty":            `ui.Column(c).Fill().Center()`,
+	"item":             `ui.Row(c).Gap(8).FillWidth()`,
+	"card":             `ui.Column(c).Pad(16).Radius(12).Border(1, border)`,
+	"label":            `ui.Text(c, "Name").LabelFor(fieldID)`,
+	"kbd":              `ui.Kbd(c, "⌘", "K")`,
+	"tooltip":          `ui.Button(c, "Hover").Hit(id, "Hover").Tooltip("Hint")`,
 	"button":           `ui.Button(c, "Save").Clicked()`,
 	"badge":            `ui.Badge(c, "New")`,
 	"checkbox":         `ui.Checkbox(c, &m.accepted, "Accept")`,
