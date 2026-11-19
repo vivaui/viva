@@ -12,8 +12,18 @@ var progressComponent = Component{
 		{ID: "default", Title: "上传进度", Description: "生产进度条展示一个调用方提供的确定值。", Snippet: `ui.Column(c).Gap(8).Children(func() {
     ui.Text(c, "Uploading assets · 64%").FontSize(theme.Metrics.FontSizeM)
     ui.Progress(c, 0.64)
+})`, PageSnippet: `ui.Column(c).Gap(8).Children(func() {
+    ui.Text(c, "Uploading assets · 64%").FontSize(theme.Metrics.FontSizeM)
+    ui.Progress(c, 0.64)
 })`},
 		{ID: "states", Title: "进度状态", Description: "同时展示空、进行中与完成状态。", Snippet: `labels := [...]string{"Queued", "Compiling", "Complete"}
+values := [...]float32{0, 0.42, 1}
+for index, label := range labels {
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+        ui.Progress(c, values[index])
+    })
+}`, PageSnippet: `labels := [...]string{"Queued", "Compiling", "Complete"}
 values := [...]float32{0, 0.42, 1}
 for index, label := range labels {
     ui.Column(c).Gap(8).Children(func() {

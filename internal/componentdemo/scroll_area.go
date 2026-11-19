@@ -17,7 +17,16 @@ area := components.BeginScrollArea(canvas, theme, viewport, contentSize).
 geometry := area.BeginContent()
 canvas.Label("Window created", geometry.Content,
     gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-area.EndContent()`},
+area.EndContent()`, PageSnippet: `ui.Scroll(c).Height(220).Scrollbars().Children(func() {
+    for _, label := range [...]string{
+        "Window created", "Scene retained", "Layout cache hit", "Text shaped",
+        "Input routed", "Frame submitted", "GPU idle", "Resources released",
+    } {
+        ui.Row(c).Height(50).PadX(12).Items(ui.Center).Children(func() {
+            ui.Text(c, label)
+        })
+    }
+})`},
 		{ID: "both-axes", Title: "双轴内容", Description: "typed 滚动同时更新水平、垂直偏移和角落几何。", Snippet: `contentSize := gfx.Size{Width: viewport.Width + 180, Height: 420}
 area := components.BeginScrollArea(canvas, theme, viewport, contentSize).
     Offset(offsetX, offsetY).
@@ -26,7 +35,16 @@ area := components.BeginScrollArea(canvas, theme, viewport, contentSize).
 geometry := area.BeginContent()
 canvas.Label("Window created", geometry.Content,
     gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-area.EndContent()`},
+area.EndContent()`, PageSnippet: `ui.Scroll(c).Height(220).Sideways().Scrollbars().Children(func() {
+    for _, label := range [...]string{
+        "Window created", "Scene retained", "Layout cache hit", "Text shaped",
+        "Input routed", "Frame submitted", "GPU idle", "Resources released",
+    } {
+        ui.Row(c).Width(c.Bounds().Width + 180).Height(50).PadX(12).Items(ui.Center).Children(func() {
+            ui.Text(c, label)
+        })
+    }
+})`},
 	},
 }
 

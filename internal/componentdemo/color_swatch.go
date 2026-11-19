@@ -13,6 +13,16 @@ var colorSwatchComponent = Component{
 	    Label("Blue").Selected(selected == id).TabStop(selected == id)
 if swatch.Paint().Clicked() {
     selected = id
+}`, PageSnippet: `colors := [...]ui.Color{{}, ui.RGB(33, 196, 94), ui.RGB(59, 130, 245), ui.RGB(240, 69, 69)}
+labels := [...]string{"No color", "Green", "Blue", "Red (disabled)"}
+for index, color := range colors {
+    swatch := ui.ColorSwatch(c, color, m.color == color, labels[index]).TabStop(m.color == color)
+    if index == 3 {
+        swatch = swatch.Disabled(true)
+    }
+    if swatch.Clicked() {
+        m.color = color
+    }
 }`}},
 }
 

@@ -186,5 +186,32 @@ var listComponent = Component{
 m.files.Header = func(i int) bool { return m.files[i].Header }
 m.files.Selection = &m.chosen
 m.files.Reorder = m.move
-m.files.RowWidth = 640`}},
+m.files.RowWidth = 640`, PageSnippet: `theme := c.Theme()
+m.files.Key = func(i int) int { return m.rows[i].ID }
+m.files.Header = func(i int) bool { return m.rows[i].Header }
+m.files.Selection = &m.selection
+m.files.Reorder = m.reorder
+m.files.RowWidth = 640
+ui.Row(c).Clip().Height(24).Children(func() {
+    ui.Row(c).Width(640).PadX(8).Gap(8).Items(ui.Center).ScrollWith(&m.files).Children(func() {
+        ui.Text(c, "Name").Grow(1).Bold()
+        ui.Text(c, "Size").Width(90).TextEnd().Bold()
+        ui.Text(c, "Modified").Width(150).TextEnd().Bold()
+    })
+})
+ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
+    item := m.rows[row.Index]
+    if item.Header {
+        row.Element.Height(32).PadX(8).Background(theme.Muted)
+        ui.Text(row.C, item.Name).Bold()
+        return
+    }
+    row.Element.Height(32).PadX(8).Gap(8).Items(ui.Center)
+    if row.Selected() {
+        row.Element.Background(theme.Accent)
+    }
+    ui.Text(row.C, item.Name).Grow(1).Ellipsis()
+    ui.Text(row.C, item.Size).Width(90).TextEnd().Muted()
+    ui.Text(row.C, item.Date).Width(150).TextEnd().Muted()
+}).Label("Files").Grow(1)`}},
 }

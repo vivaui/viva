@@ -36,14 +36,15 @@ var textareaComponent = Component{
 components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapshot{
     ID: tree.ID(page, "description"), Label: "Project description", Hint: "Supports multiple lines",
     Value: value, DisplayValue: value,
-})`},
+})`, PageSnippet: `notes := "Viva renders with the native GPU. An idle window keeps submitting no frames: with no input, animation, or network events it is not repainted, and no background timer polls.\nThe second paragraph is short."
+ui.TextArea(c, &notes, "Project description", "").Height(142)`},
 		{ID: "grow", Title: "随内容增高", Description: "相当于 shadcn 的 field-sizing-content：高度随文本行数增长，超过上限后在框内滚动并跟随插入点。", Snippet: `width := min(size.Width-48, float32(540))
 height := min(layout.ContentHeight(canvas, theme, value, width, false), float32(5)*20+16)
 field := ui.Slot(c).Height(height)
 components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapshot{
     ID: tree.ID(page, "notes"), Label: "Project description", Value: value,
     DisplayValue: value, Layout: layout,
-})`},
+})`, PageSnippet: ""},
 		{ID: "selection", Title: "选择与输入法", Description: "确定性展示选择区、插入点与组合文本下划线。", Snippet: `value := "Select this text\nComposition text"
 field := ui.Slot(c).Height(142)
 components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapshot{
@@ -51,7 +52,7 @@ components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapsho
     ReadOnly: true, Focused: true, ShowCaret: true, Caret: 16,
     SelectionStart: 0, SelectionEnd: 6,
     CompositionStart: 17, CompositionEnd: len(value),
-})`},
+})`, PageSnippet: ""},
 		{ID: "states", Title: "校验与禁用", Description: "错误、只读与禁用状态并列展示。", Snippet: `var invalid, readOnly ui.Box
 ui.Row(c).Gap(12).Children(func() {
     invalid = ui.Slot(c).Grow(1).Basis(0).Height(104)
@@ -70,7 +71,7 @@ components.PaintTextarea(canvas, theme, readOnly.Rect(), components.TextareaSnap
 components.PaintTextarea(canvas, theme, disabled.Rect(), components.TextareaSnapshot{
     ID: tree.ID(page, "disabled"), Label: "Disabled field", Disabled: true,
     Placeholder: "Currently unavailable",
-})`},
+})`, PageSnippet: ""},
 	},
 }
 

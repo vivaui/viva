@@ -17,7 +17,18 @@ for index, cells := range bills {
     table.Row(rows.At(index), cells[:], false)
 }
 table.Footer([]string{"Total", "3 items", "¥ 4,540"})
-table.Caption("Click any data row to see its interactive feedback.")`},
+table.Caption("Click any data row to see its interactive feedback.")`, PageSnippet: `bills := ui.TableRows{
+    {"Design system", "Paid", "¥ 2,400"},
+    {"Desktop build", "Processing", "¥ 860"},
+    {"Performance audit", "Unpaid", "¥ 1,280"},
+}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"Item", "Status", "Amount"},
+    Source:  &bills,
+})
+ui.Text(c, "Total · 3 items · ¥ 4,540").Muted()
+ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`},
 		{ID: "selection", Title: "选择状态", Description: "点击稳定行 ID 切换调用方持有的选择位。", Snippet: `rows := tree.Sub(page, tree.Name("row"))
 table := components.BeginTable(canvas, theme, bounds, columns)
 table.Header([]string{"Item", "Status", "Amount"})
@@ -27,7 +38,22 @@ for index, cells := range bills {
         flags ^= 1 << index
     }
 }
-table.Footer([]string{"Total", "3 items", "¥ 4,540"})`},
+table.Footer([]string{"Total", "3 items", "¥ 4,540"})`, PageSnippet: `bills := ui.TableRows{
+    {"Design system", "Paid", "¥ 2,400"},
+    {"Desktop build", "Processing", "¥ 860"},
+    {"Performance audit", "Unpaid", "¥ 1,280"},
+}
+table := ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"Item", "Status", "Amount"},
+    Source:  &bills,
+})
+if row, ok := table.RowClicked(); ok {
+    m.table.Select(row)
+}
+if row := m.table.Selected(); row >= 0 {
+    ui.Text(c, "Selected: "+bills[row][0]).Muted()
+}`},
 		{ID: "alignment", Title: "列对齐", Description: "左、中、右三种列内文字对齐。", Snippet: `columns := []components.TableColumn{
     {Width: 112, Alignment: components.TableAlignLeft},
     {Width: 88, Alignment: components.TableAlignCenter},
@@ -38,7 +64,22 @@ table.Header([]string{"Item", "Status", "Amount"})
 for _, cells := range bills {
     table.Row(gfx.ID{}, cells[:], false)
 }
-table.Caption("Item is left-aligned, status centered, amount right-aligned.")`},
+table.Caption("Item is left-aligned, status centered, amount right-aligned.")`, PageSnippet: `bills := ui.TableRows{
+    {"Design system", "Paid", "¥ 2,400"},
+    {"Desktop build", "Processing", "¥ 860"},
+    {"Performance audit", "Unpaid", "¥ 1,280"},
+}
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Alignment: style.TableAlignRight},
+}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"Item", "Status", "Amount"},
+    Source:  &bills,
+})
+ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted()`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
 headings := []string{"Item", "Status", "Amount"}
 components.FitTableHeadings(canvas, theme, columns, headings)
@@ -47,7 +88,18 @@ table.Header(headings)
 for _, cells := range bills {
     table.Row(gfx.ID{}, cells[:], false)
 }
-table.Caption("Item is cut with an ellipsis; Status grew to hold its heading.")`},
+table.Caption("Item is cut with an ellipsis; Status grew to hold its heading.")`, PageSnippet: `bills := ui.TableRows{
+    {"Design system", "Paid", "¥ 2,400"},
+    {"Desktop build", "Processing", "¥ 860"},
+    {"Performance audit", "Unpaid", "¥ 1,280"},
+}
+columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.TableAlignRight}}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"Item", "Status", "Amount"},
+    Source:  &bills,
+})
+ui.Text(c, "Item is cut with an ellipsis; Status grew to hold its heading.").Muted()`},
 	},
 }
 

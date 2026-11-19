@@ -16,11 +16,23 @@ label.Paint("Work email")
 components.PaintInput(canvas, theme, fieldBounds, components.InputSnapshot{
     ID: email, Label: "Work email", Placeholder: "team@viva.dev",
     ReadOnly: true,
-})`},
+})`, PageSnippet: `emailID := ui.ID(c)
+ui.Text(c, "Work email").LabelFor(emailID)
+ui.TextFieldID(c, emailID, &m.email, "Work email", "team@viva.dev")`},
 		{ID: "states", Title: "标签状态", Description: "普通、必填和禁用状态并列。", Snippet: `components.BeginLabel(canvas, theme, normalBounds).Paint("Display name")
 components.BeginLabel(canvas, theme, requiredBounds).Required().Paint("Organization name")
 components.BeginLabel(canvas, theme, disabledBounds).Required().
-    Disabled().Paint("Disabled field")`},
+    Disabled().Paint("Disabled field")`, PageSnippet: `displayID := ui.ID(c)
+ui.Text(c, "Display name").LabelFor(displayID)
+ui.TextFieldID(c, displayID, &m.displayName, "Display name", "")
+
+organizationID := ui.ID(c)
+ui.Text(c, "Organization name").LabelFor(organizationID)
+ui.TextFieldID(c, organizationID, &m.organization, "Organization name", "")
+
+disabledID := ui.ID(c)
+ui.Text(c, "Disabled field").LabelFor(disabledID)
+ui.TextFieldID(c, disabledID, &m.disabledField, "Disabled field", "").Disabled(true)`},
 	},
 }
 

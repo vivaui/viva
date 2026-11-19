@@ -21,6 +21,25 @@ if handled {
     }
     selected = next
     return gfx.EventResult{Focus: rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
+}`, PageSnippet: `rows := []string{"Production", "Gateway", "Database", "Worker"}
+items := []ui.TreeNavigationItem{
+    {Branch: true, Expanded: m.expanded},
+    {Depth: 1}, {Depth: 1}, {Depth: 1},
+}
+visible := items[:1]
+if m.expanded {
+    visible = items[:]
+}
+next, action, handled := ui.NavigateTree(visible, m.selected, event.Key, len(rows))
+if handled {
+    switch action {
+    case ui.TreeNavigationExpand:
+        m.expanded = true
+    case ui.TreeNavigationCollapse:
+        m.expanded = false
+    }
+    m.selected = next
+    return gfx.EventResult{Focus: m.rowIDs[next], FocusVisible: true, Handled: true, Repaint: true}
 }`},
 	},
 }

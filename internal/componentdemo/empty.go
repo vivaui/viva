@@ -18,7 +18,12 @@ var emptyComponent = Component{
 }
 content := components.Empty(canvas, theme, bounds, data)
 components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
-    SizeToFit("Create project").CenterIn(content).Default("Create project")`},
+    SizeToFit("Create project").CenterIn(content).Default("Create project")`, PageSnippet: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
+    ui.Icon(c, folderIcon).Size(40, 40).Color(theme.MutedForeground)
+    ui.Text(c, "No projects yet").FontSize(18).Bold()
+    ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
+    ui.Button(c, "Create project").Self(ui.Start)
+})`},
 		{ID: "icon", Title: "图标容器", Description: "带弱化图标背景的空状态。", Snippet: `data := components.EmptyData{
     Media: components.EmptyMediaIcon, Icon: icon,
     Title: "No projects yet", Description: "Create a project to get started.",
@@ -26,7 +31,14 @@ components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: 
 }
 content := components.Empty(canvas, theme, bounds, data)
 components.BeginButton(canvas, theme, tree.ID(page, "create"), gfx.Rect{Height: content.Height}).
-    SizeToFit("Create project").CenterIn(content).Default("Create project")`},
+    SizeToFit("Create project").CenterIn(content).Default("Create project")`, PageSnippet: `ui.Column(c).Fill().Center().Gap(6).Children(func() {
+    ui.Column(c).Size(56, 56).Center().Radius(28).Background(theme.Muted).Children(func() {
+        ui.Icon(c, folderIcon).Size(24, 24).Color(theme.MutedForeground)
+    })
+    ui.Text(c, "No projects yet").FontSize(18).Bold()
+    ui.Text(c, "Create a project to get started.").FontSize(13).Muted()
+    ui.Button(c, "Create project").Self(ui.Start)
+})`},
 	},
 }
 

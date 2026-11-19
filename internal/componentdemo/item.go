@@ -21,6 +21,20 @@ layout := components.BeginItem(canvas, theme, id, bounds).
 canvas.Rounded(layout.Media, 6, theme.Primary)
 if canvas.Clicked(id) {
     selected = !selected
+}`, PageSnippet: `theme := c.Theme()
+trailing := "Open"
+if m.selected {
+    trailing = "Selected"
+}
+row := ui.Row(c).FillWidth().Pad(12).Gap(12).Items(ui.Center).Hit(ui.ID(c), "Release notes")
+ui.Row(c).Size(24, 24).Radius(6).Background(theme.Primary)
+ui.Column(c).Grow(1).Gap(2).Children(func() {
+    ui.Text(c, "Release notes").Bold()
+    ui.Text(c, "Latest runtime changes.").Muted()
+})
+ui.Text(c, trailing)
+if row.Clicked() {
+    m.selected = !m.selected
 }`},
 		{ID: "variants", Title: "表面与密度", Description: "描边、弱化与紧凑尺寸组合。", Snippet: `components.BeginItem(canvas, theme, row.At(0), rowBounds[0]).
     Variant(components.ItemOutline).Paint("Outline", "Default density", "⌘1")
@@ -29,7 +43,26 @@ components.BeginItem(canvas, theme, row.At(1), rowBounds[1]).
     Paint("Muted", "Small density", "⌘2")
 components.BeginItem(canvas, theme, row.At(2), rowBounds[2]).
     Size(components.ItemSizeExtraSmall).Disabled().
-    Paint("Disabled", "", "Unavailable")`},
+    Paint("Disabled", "", "Unavailable")`, PageSnippet: `ui.Row(c).FillWidth().Pad(12).Gap(12).Items(ui.Center).Children(func() {
+    ui.Column(c).Grow(1).Children(func() {
+        ui.Text(c, "Outline")
+        ui.Text(c, "Default density").Muted()
+    })
+    ui.Text(c, "⌘1")
+})
+ui.Row(c).FillWidth().Pad(8).Gap(8).Items(ui.Center).Children(func() {
+    ui.Column(c).Grow(1).Children(func() {
+        ui.Text(c, "Muted")
+        ui.Text(c, "Small density").Muted()
+    })
+    ui.Text(c, "⌘2")
+})
+ui.Row(c).FillWidth().Pad(6).Gap(6).Items(ui.Center).Disabled(true).Children(func() {
+    ui.Column(c).Grow(1).Children(func() {
+        ui.Text(c, "Disabled")
+    })
+    ui.Text(c, "Unavailable").Muted()
+})`},
 	},
 }
 

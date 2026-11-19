@@ -21,6 +21,20 @@ if expanded {
     hosts.Item(components.TreeItem{ID: tree.ID(page, "gateway"), Label: "Gateway", Depth: 1})
     hosts.Item(components.TreeItem{ID: tree.ID(page, "database"), Label: "Database", Depth: 1})
     hosts.Item(components.TreeItem{ID: tree.ID(page, "worker"), Label: "Worker", Depth: 1})
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: m.expanded}
+    }
+    return ui.TreeNode{Depth: 1}
+}
+rows := 1
+if m.expanded {
+    rows = 4
+}
+ui.Tree(c, &m.tree, rows, func(i int) string { return labels[i] }, nil).Grow(1)
+if _, ok := m.tree.Toggled(); ok {
+    m.expanded = !m.expanded
 }`},
 		{ID: "selection", Title: "选择状态", Description: "点击主机行切换调用方持有的当前项。", Snippet: `hosts := components.BeginTree(canvas, theme, bounds)
 hosts.Item(components.TreeItem{
@@ -33,6 +47,16 @@ for index, name := range [...]string{"Gateway", "Database", "Worker"} {
         ID: id, Label: name, Depth: 1, Selected: selected == index,
     })
     if canvas.Clicked(id) { selected = index }
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true}
+    }
+    return ui.TreeNode{Depth: 1, Selected: i-1 == m.selected}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, nil).Grow(1)
+if i, ok := m.tree.Chosen(); ok {
+    m.selected = i - 1
 }`},
 		{ID: "disabled", Title: "禁用分支", Description: "保留层级和语义，但分组与叶子均不可交互。", Snippet: `hosts := components.BeginTree(canvas, theme, bounds)
 hosts.Item(components.TreeItem{
@@ -43,7 +67,14 @@ for _, name := range [...]string{"Gateway", "Database", "Worker"} {
     hosts.Item(components.TreeItem{
         ID: tree.ID(page, name), Label: name, Depth: 1, Disabled: true,
     })
-}`},
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true, Disabled: true}
+    }
+    return ui.TreeNode{Depth: 1, Disabled: true}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, nil).Grow(1)`},
 	},
 }
 

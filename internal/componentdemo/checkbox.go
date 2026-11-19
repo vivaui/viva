@@ -13,7 +13,7 @@ var checkboxComponent = Component{
 		{ID: "default", Title: "接受条款", Description: "点击切换勾选；语义状态与可见反馈同步。", Snippet: `ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
     ui.Checkbox(c, &accepted, "").Hit(terms, "Accept terms of use")
     ui.Text(c, "Accept terms of use").FontSize(theme.Metrics.FontSizeM)
-})`},
+})`, PageSnippet: `ui.Checkbox(c, &m.accepted, "Accept terms of use")`},
 		{ID: "selection", Title: "多项选择", Description: "三项桌面偏好独立选择，不模拟生产 API 尚未提供的混合态。", Snippet: `boxes := tree.Sub(page, tree.Name("box"))
 for index, label := range [...]string{"Show line numbers", "Format on save", "Restore last window"} {
     checked := selected&(1<<index) != 0
@@ -23,6 +23,9 @@ for index, label := range [...]string{"Show line numbers", "Format on save", "Re
         }
         ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
     })
+}`, PageSnippet: `labels := [...]string{"Show line numbers", "Format on save", "Restore last window"}
+for index := range labels {
+    ui.Checkbox(c, &m.preferences[index], labels[index])
 }`},
 		{ID: "states", Title: "校验与禁用", Description: "必选项未选时显示校验状态，另有两个禁用样本。", Snippet: `boxes := tree.Sub(page, tree.Name("box"))
 box := components.BeginCheckbox(canvas, theme, boxes.At(0), bounds, false).
@@ -31,7 +34,10 @@ if box.Clicked() {
     selected ^= 1
 }
 ui.Checkbox(c, &off, "Disabled · Unchecked").Hit(boxes.At(1), "Disabled · Unchecked").Disabled(true)
-ui.Checkbox(c, &on, "Disabled · Checked").Hit(boxes.At(2), "Disabled · Checked").Disabled(true)`},
+ui.Checkbox(c, &on, "Disabled · Checked").Hit(boxes.At(2), "Disabled · Checked").Disabled(true)`, PageSnippet: `m.on = true
+ui.Checkbox(c, &m.required, "Required: accept terms of use")
+ui.Checkbox(c, &m.off, "Disabled · Unchecked").Disabled(true)
+ui.Checkbox(c, &m.on, "Disabled · Checked").Disabled(true)`},
 	},
 }
 

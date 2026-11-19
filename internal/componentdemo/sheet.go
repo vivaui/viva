@@ -18,7 +18,18 @@ layout := sheet.Begin("Project settings", "Changes remain caller-owned until Sav
 canvas.Label("Rendering backend", layout.Body, labelStyle)
 sheet.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save"})
 sheet.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
+    Side: ui.DrawerRight, Size: 360,
+    Description: "Changes remain caller-owned until Save.",
+}, func() {
+    ui.Text(c, "Rendering backend")
+    ui.Text(c, "Native GPU")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`},
 		{ID: "bottom", Title: "底部面板", Description: "复用同一 API 展示底部边缘布局。", Snippet: `sheet := components.BeginSheet(canvas, theme, viewport, components.SheetOptions{
     Layer: 5, Scope: scope, DismissID: dismissID, CloseID: closeID,
     Side: components.SheetBottom, ContentExtent: min(size.Height*0.62, 230),
@@ -27,7 +38,18 @@ layout := sheet.Begin("Project settings", "Same API, bottom edge.")
 canvas.Label("Native GPU", layout.Body, labelStyle)
 sheet.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
 sheet.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 230,
+    Description: "Changes remain caller-owned until Save.",
+}, func() {
+    ui.Text(c, "Rendering backend")
+    ui.Text(c, "Native GPU")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`},
 	},
 }
 

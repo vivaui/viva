@@ -12,14 +12,22 @@ var switchComponent = Component{
 		{ID: "default", Title: "受控开关", Description: "点击改变目标状态，生产组件使用运行器的帧时钟过渡。", Snippet: `ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
     ui.Switch(c, &enabled, "").Hit(notifications, "Desktop notifications")
     ui.Text(c, "Desktop notifications").FontSize(theme.Metrics.FontSizeM)
-})`},
+})`, PageSnippet: `enabled := false
+ui.Switch(c, &enabled, "Desktop notifications")`},
 		{ID: "sizes", Title: "两种尺寸", Description: "默认与紧凑开关独立受控。", Snippet: `ui.Row(c).Gap(12).Children(func() {
     ui.Switch(c, &normal, "").Hit(defaultID, "Default size")
     ui.Switch(c, &compact, "").Hit(smallID, "Compact size").Small()
+})`, PageSnippet: `normal, compact := false, false
+ui.Row(c).Gap(12).Children(func() {
+    ui.Switch(c, &normal, "Default size")
+    ui.Switch(c, &compact, "Compact size").Small()
 })`},
 		{ID: "states", Title: "启用与禁用", Description: "一个可切换开关和开、关两种禁用状态。", Snippet: `ui.Switch(c, &notify, "").Hit(notifyID, "Desktop notifications")
 ui.Switch(c, &off, "").Hit(offID, "Disabled · Off").Disabled(true)
-ui.Switch(c, &on, "").Hit(onID, "Disabled · On").Disabled(true)`},
+ui.Switch(c, &on, "").Hit(onID, "Disabled · On").Disabled(true)`, PageSnippet: `notifications, off, on := false, false, true
+ui.Switch(c, &notifications, "Desktop notifications")
+ui.Switch(c, &off, "Disabled · Off").Disabled(true)
+ui.Switch(c, &on, "Disabled · On").Disabled(true)`},
 	},
 }
 

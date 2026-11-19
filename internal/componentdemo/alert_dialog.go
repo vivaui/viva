@@ -18,7 +18,12 @@ components.BeginAlertDialog(canvas, theme, viewport, options).
     Paint("Delete this project?", "This cannot be undone.", "Delete", "Cancel")
 if canvas.Clicked(confirmID) || canvas.Clicked(cancelID) {
     open = false
-}`},
+}`, PageSnippet: `ui.AlertDialog(c, ui.AlertDialogSpec{
+    Title: "Permanently delete this project?",
+    Description: "This cannot be undone. Local data will be removed.",
+    Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    ActionLabel: "Delete", CancelLabel: "Cancel",
+})`},
 		{ID: "media", Title: "带媒体的小尺寸", Description: "预留可由调用方绘制的媒体区域。", Snippet: `dialog := components.BeginAlertDialog(canvas, theme, viewport, components.AlertDialogOptions{
     Layer: 8, Scope: scope, ActionID: confirmID, CancelID: cancelID,
     Size: components.AlertDialogSmall,
@@ -26,7 +31,7 @@ if canvas.Clicked(confirmID) || canvas.Clicked(cancelID) {
 layout := dialog.Begin("Replace avatar?", "The new image replaces it.", "Replace", "Cancel")
 canvas.Rounded(layout.Media, min(layout.Media.Width, layout.Media.Height)/2, theme.Muted)
 canvas.LabelCenter("SK", layout.Media, gfx.TextStyle{Size: theme.Metrics.FontSizeM})
-dialog.End()`},
+dialog.End()`, PageSnippet: ""},
 	},
 }
 

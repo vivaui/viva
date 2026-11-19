@@ -24,6 +24,28 @@ var splitButtonComponent = Component{
     Variant: components.ButtonOutline, Open: open,
 }).Paint()
 primary, menu := result.Clicked()`,
+		PageSnippet: `d := ui.SplitButton(c, ui.SplitButtonSpec{
+    PrimaryID: saveID, MenuID: moreID,
+    Label: "Save", MenuLabel: "More save actions",
+    Open: m.menuOpen,
+})
+if id, ok := d.Chosen(); ok {
+    switch id {
+    case saveID:
+        m.saved++
+    case moreID:
+        m.menuOpen = !m.menuOpen
+    }
+}
+status := "Primary: Save · Menu: closed"
+if m.saved > 0 {
+    status = "Primary triggered"
+}
+if m.menuOpen {
+    status += " · Menu: open"
+}
+ui.Text(c, status).Muted()
+ui.Wrap(c, "The primary and menu targets have separate keyboard focus and accessible names.").Muted()`,
 	}},
 }
 

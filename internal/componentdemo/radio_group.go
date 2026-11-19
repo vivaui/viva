@@ -19,7 +19,12 @@ options := []components.RadioOption{
 group := components.BeginRadioGroup(canvas, theme, bounds, options, selected)
 if id, ok := group.Paint().Clicked(); ok {
     selected = id
-}`},
+}`, PageSnippet: `plan := "Team"
+ui.RadioGroup(c).Children(func() {
+    ui.Radio(c, &plan, "Personal", "Personal")
+    ui.Radio(c, &plan, "Team", "Team")
+    ui.Radio(c, &plan, "Enterprise", "Enterprise")
+})`},
 		{ID: "horizontal", Title: "横向选择", Description: "等宽横向选项适合紧凑筛选。", Snippet: `plan := tree.Sub(page, tree.Name("plan"))
 options := []components.RadioOption{
     {ID: plan.At(0), Label: "Personal"},
@@ -29,7 +34,12 @@ options := []components.RadioOption{
 group := components.BeginRadioGroup(canvas, theme, bounds, options, selected)
 if id, ok := group.Horizontal().Paint().Clicked(); ok {
     selected = id
-}`},
+}`, PageSnippet: `plan := "Team"
+ui.Row(c).Gap(12).FocusGroup(ui.FocusHorizontal).Children(func() {
+    ui.Radio(c, &plan, "Personal", "Personal")
+    ui.Radio(c, &plan, "Team", "Team")
+    ui.Radio(c, &plan, "Enterprise", "Enterprise")
+})`},
 		{ID: "states", Title: "禁用与无效", Description: "展示选中、无效和局部禁用语义。", Snippet: `plan := tree.Sub(page, tree.Name("plan"))
 options := []components.RadioOption{
     {ID: plan.At(0), Label: "Personal"},
@@ -39,7 +49,7 @@ options := []components.RadioOption{
 group := components.BeginRadioGroup(canvas, theme, bounds, options, selected)
 if id, ok := group.Paint().Clicked(); ok {
     selected = id
-}`},
+}`, PageSnippet: ""},
 	},
 }
 

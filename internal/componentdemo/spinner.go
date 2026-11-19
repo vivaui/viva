@@ -13,7 +13,10 @@ var spinnerComponent = Component{
 		{ID: "default", Title: "加载状态", Description: "一个官方尺寸的静态相位及状态文字。", Snippet: `// The caller chooses the phase; the spinner schedules no frames.
 icon := ui.Slot(c).Size(24, 24)
 components.PaintSpinner(canvas, theme, icon.Rect(), 2)
-ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)`},
+ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)`, PageSnippet: `ui.Row(c).Gap(14).Items(ui.Center).Children(func() {
+    ui.Spinner(c)
+    ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+})`},
 		{ID: "phases", Title: "八个相位", Description: "同屏展示全部确定性相位，不启动动画循环。", Snippet: `for index := range 8 {
     cell := ui.Slot(c).Size(32, 32)
     components.PaintSpinner(canvas, theme, cell.Rect(), components.SpinnerPhase(index))

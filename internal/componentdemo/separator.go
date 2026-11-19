@@ -15,6 +15,12 @@ for index, label := range rows {
     if index < len(rows)-1 {
         ui.Divider(c)
     }
+}`, PageSnippet: `rows := [...]string{"Profile", "Notifications", "Appearance"}
+for index, label := range rows {
+    ui.Text(c, label)
+    if index < len(rows)-1 {
+        ui.Divider(c)
+    }
 }`},
 		{ID: "vertical", Title: "垂直分组", Description: "在紧凑指标之间使用垂直分隔线。", Snippet: `labels := [...]string{"12 projects", "4 members", "99.9% uptime"}
 ui.Row(c).Height(96).Background(theme.Card).Border(1, theme.Border).
@@ -27,7 +33,17 @@ ui.Row(c).Height(96).Background(theme.Card).Border(1, theme.Border).
                 ui.Divider(c).MarginY(20)
             }
         }
-    })`},
+    })`, PageSnippet: `labels := [...]string{"12 projects", "4 members", "99.9% uptime"}
+ui.Row(c).Height(96).Children(func() {
+    for index, label := range labels {
+        ui.Column(c).Grow(1).Basis(0).Center().Children(func() {
+            ui.Text(c, label)
+        })
+        if index < len(labels)-1 {
+            ui.Divider(c).MarginY(20)
+        }
+    }
+})`},
 	},
 }
 

@@ -50,9 +50,31 @@ selection.SetOptions([]components.MultiSelectOption{
 })
 // Connect the native input provider to &selection.Query.
 // Route input keys to selection.Key(event), clicks to Choose/Remove.
-components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`},
+components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `tags := &multiselect.State{AllowCreate: true, MatchCaseInsensitive: true, Open: true}
+tags.SetOptions([]multiselect.Option{
+    {Value: "development", Label: "Development"},
+    {Value: "testing", Label: "Testing"},
+    {Value: "production", Label: "Production"},
+})
+tags.SetValues([]string{"development"})
+picker := multiselect.New(tags)
+picker.View(c, multiselect.Spec{
+    Label: "Tags", Placeholder: "Select or create tags",
+    EmptyLabel: "No matching options", CreatePrefix: "Create: ",
+}).FillWidth()`},
 		{ID: "disabled", Title: "禁用", Description: "保留已选项，禁止编辑、展开或删除。", Height: 280, Snippet: `options.Disabled = true
-components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`},
+components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `tags := &multiselect.State{AllowCreate: true, MatchCaseInsensitive: true}
+tags.SetOptions([]multiselect.Option{
+    {Value: "development", Label: "Development"},
+    {Value: "testing", Label: "Testing"},
+    {Value: "production", Label: "Production"},
+})
+tags.SetValues([]string{"development"})
+picker := multiselect.New(tags)
+picker.View(c, multiselect.Spec{
+    Label: "Tags", Placeholder: "Select or create tags",
+    EmptyLabel: "No matching options", CreatePrefix: "Create: ",
+}).FillWidth().Disabled(true)`},
 	},
 }
 

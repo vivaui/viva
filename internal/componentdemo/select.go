@@ -24,7 +24,9 @@ for index, label := range []string{"Metal", "Direct3D", "Vulkan"} {
         Selected: value == values[index],
     })
 }
-control.End()`},
+control.End()`, PageSnippet: `var renderer string
+ui.Select(c, &renderer, []string{"Metal", "Direct3D", "Vulkan"}, nil).
+    Label("Renderer").Placeholder("Select a backend")`},
 		{ID: "states", Title: "校验与禁用", Description: "并排展示无效和禁用触发器。", Snippet: `components.BeginSelect(canvas, theme, invalidBounds, components.SelectOptions{
     TriggerID: tree.ID(page, "trigger"), Label: "Renderer",
     Value: "", Placeholder: "Select a backend", Invalid: true,
@@ -33,7 +35,7 @@ components.BeginSelect(canvas, theme, disabledBounds, components.SelectOptions{
     TriggerID: tree.ID(page, "disabled"), Label: "Unavailable",
     Placeholder: "Backend unavailable", Disabled: true,
     Size: components.SelectSizeSmall,
-})`},
+})`, PageSnippet: ""},
 	},
 }
 

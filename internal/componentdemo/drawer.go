@@ -18,7 +18,17 @@ layout := drawer.Begin("Workspace settings", "Applies immediately.")
 canvas.Label("Native settings.", layout.Body, labelStyle)
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save"})
 drawer.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248,
+    Description: "Applies immediately.", Swipe: true,
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`},
 		{ID: "sides", Title: "侧边抽屉", Description: "右侧抽屉使用相同的模态与焦点契约。", Snippet: `drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{
     Layer: 2, Scope: scope, CloseID: closeID,
     Side: components.DrawerRight, ContentExtent: min(300, size.Width*0.78),
@@ -27,13 +37,23 @@ layout := drawer.Begin("Workspace settings", "Same modal contract on the right e
 canvas.Label("Native settings.", layout.Body, labelStyle)
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
 drawer.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerRight, Size: 300,
+    Description: "Applies immediately.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`},
 		{ID: "disabled", Title: "禁用抽屉", Description: "保留可见结构但关闭交互。", Snippet: `drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{
     Layer: 2, Scope: scope, CloseID: closeID, Side: components.DrawerBottom,
 }).WithHandle().Disabled()
 layout := drawer.Begin("Workspace settings", "Structure remains visible; interaction is off.")
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
-drawer.End()`},
+drawer.End()`, PageSnippet: ""},
 	},
 }
 

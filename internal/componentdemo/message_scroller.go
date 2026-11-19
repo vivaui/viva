@@ -20,7 +20,13 @@ for index := range 5 {
 }
 scroller.EndContent()
 if canvas.Clicked(earlier) { offset = max(0, offset-72) }
-if canvas.Clicked(later) { offset = min(144, offset+72) }`},
+if canvas.Clicked(later) { offset = min(144, offset+72) }`, PageSnippet: `ui.Control(c, "Messages", &m.messages).FillWidth().Height(238).Draw(m.paintMessages)
+if ui.Button(c, "Earlier messages").Clicked() {
+    m.offset = max(0, m.offset-72)
+}
+if ui.Button(c, "Later messages").Clicked() {
+    m.offset = min(144, m.offset+72)
+}`},
 		{ID: "end", Title: "接近末尾", Description: "展示偏移、滑块和可用方向变化。", Snippet: `bar := tree.ID(page, "scrollbar")
 earlier, later := tree.ID(page, "earlier"), tree.ID(page, "later")
 scroller := components.BeginMessageScroller(canvas, theme, viewport, 380, offset)
@@ -31,7 +37,14 @@ item := scroller.ItemGeometry(4, 296, 62)
 if item.Visible { canvas.Fill(item.Bounds, theme.Muted) }
 scroller.EndContent()
 if geometry.CanStart && canvas.Clicked(earlier) { offset = max(0, offset-72) }
-if geometry.CanEnd && canvas.Clicked(later) { offset = min(144, offset+72) }`},
+if geometry.CanEnd && canvas.Clicked(later) { offset = min(144, offset+72) }`, PageSnippet: `// m.offset starts at 132, near the end of its 144 range.
+ui.Control(c, "Messages", &m.messages).FillWidth().Height(238).Draw(m.paintMessages)
+if ui.Button(c, "Earlier messages").Clicked() {
+    m.offset = max(0, m.offset-72)
+}
+if ui.Button(c, "Later messages").Clicked() {
+    m.offset = min(144, m.offset+72)
+}`},
 	},
 }
 

@@ -16,21 +16,39 @@ resizable := components.BeginResizable(canvas, theme, handle, bounds, fraction).
     Limits(0.2, 0.8).HandleSize(12).WithHandle().ValueText(valueText)
 layout := resizable.Paint("Resize editor panels")
 canvas.Rounded(layout.First.Inset(gfx.All(8)), 6, theme.Muted)
-canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`},
+canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`, PageSnippet: `split := ui.SplitterState{Pos: 260}
+ui.Row(c).Height(200).Children(func() {
+    ui.Column(c).Width(split.Pos).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "Navigator")
+    })
+    ui.Splitter(c, &split).Mins(120, 200).Label("Resize editor panels")
+    ui.Column(c).Grow(1).Basis(0).Background(c.Theme().CardElevated).Children(func() {
+        ui.Text(c, "Preview")
+    })
+})`},
 		{ID: "vertical", Title: "纵向分栏", Description: "同一生产组件切换为上下堆叠布局。", Snippet: `bounds := stage.Rect()
 handle := tree.ID(page, "split")
 layout := components.BeginResizable(canvas, theme, handle, bounds, fraction).
     Vertical().Limits(0.2, 0.8).HandleSize(12).WithHandle().
     Paint("Resize editor rows")
 canvas.Rounded(layout.First.Inset(gfx.All(8)), 6, theme.Muted)
-canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`},
+canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`, PageSnippet: `split := ui.SplitterState{Pos: 100}
+ui.Column(c).Height(200).Children(func() {
+    ui.Row(c).Height(split.Pos).Background(c.Theme().Muted).Children(func() {
+        ui.Text(c, "Navigator")
+    })
+    ui.Splitter(c, &split).Mins(40, 40).Label("Resize editor rows")
+    ui.Row(c).Grow(1).Basis(0).Background(c.Theme().CardElevated).Children(func() {
+        ui.Text(c, "Preview")
+    })
+})`},
 		{ID: "disabled", Title: "禁用分隔器", Description: "保留布局与抓手，但不允许交互。", Snippet: `bounds := stage.Rect()
 handle := tree.ID(page, "split")
 layout := components.BeginResizable(canvas, theme, handle, bounds, fraction).
     Limits(0.2, 0.8).HandleSize(12).WithHandle().Disabled().
     Paint("Resize editor panels")
 canvas.Rounded(layout.First.Inset(gfx.All(8)), 6, theme.Muted)
-canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`},
+canvas.Rounded(layout.Second.Inset(gfx.All(8)), 6, theme.CardElevated)`, PageSnippet: ""},
 	},
 }
 

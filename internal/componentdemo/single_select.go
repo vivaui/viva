@@ -47,9 +47,13 @@ selection.SetOptions([]components.SingleSelectOption{
 })
 // Bind native input to &selection.Query and keys to selection.Key(event).
 // Route clicks to selection.Choose(index) and selection.Clear().
-components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`},
+components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `group := "Development"
+ui.Select(c, &group, []string{"Development", "Testing", "Production"}, nil).
+    Label("Group").Placeholder("Select or create a group")`},
 		{ID: "disabled", Title: "禁用", Description: "保留当前值，禁止输入和选择。", Height: 280, Snippet: `options.Disabled = true
-components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`},
+components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `group := "Development"
+ui.Select(c, &group, []string{"Development", "Testing", "Production"}, nil).
+    Label("Group").Disabled(true)`},
 	},
 }
 

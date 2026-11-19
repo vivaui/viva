@@ -14,6 +14,9 @@ type Example struct {
 	// Snippet is the call-site code shown beside the example on the
 	// documentation site. Empty means the page omits the usage block.
 	Snippet string
+	// PageSnippet, when set, is the example's page-first code: ui.* calls with
+	// this example's data and state. It takes the place of Snippet on the site.
+	PageSnippet string
 	// Height is the preview height in pixels. Zero uses the page default.
 	Height int
 }
@@ -293,12 +296,11 @@ func (state *State) pageFor(theme gfx.Theme) *ui.Page {
 // The Page is kept on the State: its Tree is the demos' own, its Root names the
 // demo's scope, and its Theme points at the State's field so a density or
 // appearance change reaches the next paint.
-func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, title string, content func(c ui.C)) {
+func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, _ string, content func(c ui.C)) {
 	page := state.pageFor(theme)
 	page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, func(c ui.C) {
 		ui.Column(c).Fill().Pad(theme.Metrics.PadSurface).Items(ui.Center).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
-				ui.Text(c, title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
 				content(c)
 			})
 		})

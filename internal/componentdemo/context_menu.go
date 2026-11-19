@@ -22,7 +22,14 @@ menu.AddSeparator()
 menu.AddItem(components.ContextMenuItem{
     ID: tree.ID(page, "trash"), Label: "Move to trash", Variant: components.ContextMenuItemDestructive,
 })
-if canvas.Clicked(toggleID) { checked = !checked }`},
+if canvas.Clicked(toggleID) { checked = !checked }`, PageSnippet: `area := ui.Row(c).FillWidth().Height(120).Hit(ui.ID(c), "Context menu area")
+ui.ContextMenu(c, area, func(menu *ui.MenuItems) {
+    menu.Item("Open").Keys(ui.Primary, "O")
+    menu.Item("Show details").Checked(false)
+    menu.Sub("Open with", func(sub *ui.MenuItems) {})
+    menu.Separator()
+    menu.Item("Move to trash").Destructive()
+})`},
 		{ID: "states", Title: "菜单状态", Description: "复选、单选、禁用和危险项。", Snippet: `items := tree.Sub(page, tree.Name("item"))
 menu := components.BeginContextMenu(canvas, theme, at, components.ContextMenuOptions{Layer: 1})
 menu.AddLabel("Sort by", true)
@@ -33,7 +40,14 @@ for index, label := range []string{"Name", "Modified"} {
 }
 menu.AddSeparator()
 menu.AddItem(components.ContextMenuItem{ID: items.At(2), Label: "Unavailable action", Disabled: true})
-if index, ok := canvas.ClickedIn(items); ok && index < 2 { sortBy = int(index) }`},
+if index, ok := canvas.ClickedIn(items); ok && index < 2 { sortBy = int(index) }`, PageSnippet: `area := ui.Row(c).FillWidth().Height(120).Hit(ui.ID(c), "Context menu area")
+ui.ContextMenu(c, area, func(menu *ui.MenuItems) {
+    menu.Label("Sort by")
+    menu.Item("Name").Chosen(true)
+    menu.Item("Modified").Chosen(false)
+    menu.Separator()
+    menu.Item("Unavailable action").Disabled(true)
+})`},
 	},
 }
 

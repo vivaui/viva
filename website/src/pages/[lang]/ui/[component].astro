@@ -32,21 +32,20 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
       </a>
     </div>
   </div>
-  {page.PageUsage && <section class="doc-section" aria-labelledby="page-api"><h2 id="page-api">{text.pageApi}</h2>
-    <div class="code-block usage-block page-api-block">
-      <div class="code-toolbar"><span>{text.pageApi}</span><CopyButton text={page.PageUsage} label={text.copyUsage} {locale} client:load /></div>
-      <div class="highlighted-code"><Code code={page.PageUsage} lang="go" themes={themes} defaultColor={false} /></div>
-    </div>
-  </section>}
   <div class="doc-section">
     {page.Examples.map(example => <section class="example-section" aria-labelledby={`example-${example.ID}`}>
       <h3 id={`example-${example.ID}`}>{example.Title}<a class="heading-anchor" href={`#example-${example.ID}`} aria-label={example.Title}>#</a></h3>
       <p class="example-summary">{example.Description}</p>
-      <Preview {locale} componentID={page.ID} title={page.Title} example={example} revision={page.Revision} height={example.Height} client:load />
-      {example.Snippet && <div class="code-block usage-block">
-        <div class="code-toolbar"><span>{text.exampleSource}</span><CopyButton text={example.Snippet} label={text.copyUsage} {locale} client:load /></div>
-        <div class="highlighted-code"><Code code={example.Snippet} lang="go" themes={themes} defaultColor={false} /></div>
-      </div>}
+      <Preview {locale} componentID={page.ID} title={page.Title} example={example.Snippet && /components\.|Begin/.test(example.Snippet) ? {...example, Snippet: undefined} : example} revision={page.Revision} height={example.Height} client:load />
+      {(() => {
+        const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
+        const usage = example.PageSnippet || (own ? example.Snippet : '');
+        if (!usage) return <p class="example-summary">{text.canvasRecipe}</p>;
+        return <div class="code-block usage-block">
+          <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>
+          <div class="highlighted-code"><Code code={usage} lang="go" themes={themes} defaultColor={false} /></div>
+        </div>;
+      })()}
     </section>)}
   </div>
   <section class="doc-section" aria-labelledby="installation">

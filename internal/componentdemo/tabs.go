@@ -16,19 +16,52 @@ options := []components.TabOption{
     {ID: tabs.At(1), Label: "Activity", Icon: activityIcon},
     {ID: tabs.At(2), Label: "Settings", Icon: settingsIcon},
 }
-components.BeginTabs(canvas, theme, bounds, options, options[selected].ID).Paint()`},
+components.BeginTabs(canvas, theme, bounds, options, options[selected].ID).Paint()`, PageSnippet: ""},
 		{ID: "default", Title: "分段标签", Description: "三个稳定 tab ID 驱动关联内容。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
 ui.Tabs(c, &tab, labels, nil)
-ui.Text(c, tab).FontSize(c.Theme().Metrics.FontSizeM)`},
+ui.Text(c, tab).FontSize(c.Theme().Metrics.FontSizeM)`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil)
+switch tab {
+case "Overview":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "Project overview")
+        ui.Wrap(c, "See recent status and key highlights.")
+    })
+case "Activity":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "Recent activity")
+        ui.Wrap(c, "Track saves, builds, and releases.")
+    })
+case "Settings":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "Workspace settings")
+        ui.Wrap(c, "Configure display and local runtime options.")
+    })
+}`},
 		{ID: "line", Title: "线形标签", Description: "透明列表与两像素活动指示条。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
-ui.Tabs(c, &tab, labels, nil).Line()`},
+ui.Tabs(c, &tab, labels, nil).Line()`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil).Line()
+ui.Column(c).Gap(8).Children(func() {
+    ui.Text(c, "Project overview")
+    ui.Wrap(c, "See recent status and key highlights.")
+})`},
 		{ID: "vertical", Title: "纵向标签", Description: "标签纵向排列，内容位于右侧。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
 ui.Row(c).Gap(20).Children(func() {
     ui.Tabs(c, &tab, labels, nil).Line().Vertical().Self(ui.Start)
     ui.Text(c, tab).Grow(1).Basis(0)
+})`, PageSnippet: `labels := []string{"Overview", "Activity", "Settings"}
+tab := labels[0]
+ui.Row(c).Gap(20).Children(func() {
+    ui.Tabs(c, &tab, labels, nil).Line().Vertical().Self(ui.Start)
+    ui.Column(c).Grow(1).Basis(0).Gap(8).Children(func() {
+        ui.Text(c, "Project overview")
+        ui.Wrap(c, "See recent status and key highlights.")
+    })
 })`},
 	},
 }

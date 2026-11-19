@@ -378,3 +378,22 @@ func TestFailedBuildPreservesPublishedPreview(t *testing.T) {
 		t.Fatalf("staging directory leaked: %v, %v", entries, err)
 	}
 }
+
+// Every page-first example snippet is valid Go and stays on the page API: no
+// canvas constructors or components package calls.
+func TestPageSnippetsArePageLevel(t *testing.T) {
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			if example.PageSnippet == "" {
+				continue
+			}
+			if strings.Contains(example.PageSnippet, "components.") || strings.Contains(example.PageSnippet, "Begin") {
+				t.Errorf("%s/%s page snippet uses the canvas API: %q", component.ID, example.ID, example.PageSnippet)
+			}
+			source := "package snippet\nfunc example() {\n" + example.PageSnippet + "\n}\n"
+			if _, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0); err != nil {
+				t.Errorf("%s/%s page snippet does not parse: %v\n%s", component.ID, example.ID, err, example.PageSnippet)
+			}
+		}
+	}
+}

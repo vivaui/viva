@@ -25,6 +25,10 @@ field := components.PaintFormField(canvas, theme, bounds, components.FormFieldSn
 components.PaintInput(canvas, theme, field.Control, components.InputSnapshot{
     ID: username, Label: field.Semantics.Label,
     Value: value, Hint: field.Semantics.AssistiveText(),
+})`, PageSnippet: `m.field.Description = "This name is visible to collaborators."
+// m.username starts as "gopher".
+ui.FormField(c, &m.field, "Username").Children(func() {
+    ui.TextField(c, &m.username, "Username", "")
 })`},
 		{ID: "message", Title: "帮助消息", Description: "字段说明和服务端消息由调用方显式传入。", Snippet: `username := tree.ID(page, "username")
 field := components.PaintFormField(canvas, theme, bounds, components.FormFieldSnapshot{
@@ -50,6 +54,14 @@ layout := components.PaintFormField(canvas, theme, bounds, snapshot)
 components.PaintInput(canvas, theme, layout.Control, components.InputSnapshot{
     ID: username, Label: layout.Semantics.Label, Value: value,
     Hint: layout.Semantics.AssistiveText(), Invalid: layout.Semantics.Invalid,
+})`, PageSnippet: `// m.username starts as "go".
+m.field.Description = "This name is visible to collaborators."
+m.field.Invalid = utf8.RuneCountInString(m.username) < 3
+if m.field.Invalid {
+    m.field.Error = "Use at least three characters."
+}
+ui.FormField(c, &m.field, "Username").Children(func() {
+    ui.TextField(c, &m.username, "Username", "")
 })`},
 	},
 }

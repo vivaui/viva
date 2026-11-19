@@ -24,7 +24,16 @@ if index, ok := canvas.ClickedIn(pages); ok {
     if index == 4 {
         current = 8
     }
-}`},
+}`, PageSnippet: `page := 3
+ui.Pagination(c, []ui.PaginationItem{
+    {ID: ui.ID(c), Label: "Previous", Kind: ui.PaginationPrevious, Disabled: page == 1},
+    {ID: ui.ID(c), Label: "1", Kind: ui.PaginationPage},
+    {ID: ui.ID(c), Label: "2", Kind: ui.PaginationPage},
+    {ID: ui.ID(c), Label: "3", Kind: ui.PaginationPage, Current: true},
+    {Kind: ui.PaginationEllipsis},
+    {ID: ui.ID(c), Label: "8", Kind: ui.PaginationPage},
+    {ID: ui.ID(c), Label: "Next", Kind: ui.PaginationNext, Disabled: page == 8},
+})`},
 		{ID: "boundaries", Title: "边界状态", Description: "第一页禁用上一页，并保留省略号。", Snippet: `pages := tree.Sub(page, tree.Name("page"))
 current := int32(1)
 pagination := components.BeginPagination(canvas, theme, bounds)
@@ -34,7 +43,16 @@ pagination.AddPage(pages.At(1), "2", current == 2)
 pagination.AddPage(pages.At(2), "3", current == 3)
 pagination.AddEllipsis()
 pagination.AddPage(pages.At(4), "8", current == 8)
-pagination.AddNext(tree.ID(page, "next"), "Next", current == 8)`},
+pagination.AddNext(tree.ID(page, "next"), "Next", current == 8)`, PageSnippet: `page := 1
+ui.Pagination(c, []ui.PaginationItem{
+    {ID: ui.ID(c), Label: "Previous", Kind: ui.PaginationPrevious, Disabled: page == 1},
+    {ID: ui.ID(c), Label: "1", Kind: ui.PaginationPage, Current: true},
+    {ID: ui.ID(c), Label: "2", Kind: ui.PaginationPage},
+    {ID: ui.ID(c), Label: "3", Kind: ui.PaginationPage},
+    {Kind: ui.PaginationEllipsis},
+    {ID: ui.ID(c), Label: "8", Kind: ui.PaginationPage},
+    {ID: ui.ID(c), Label: "Next", Kind: ui.PaginationNext, Disabled: page == 8},
+})`},
 	},
 }
 

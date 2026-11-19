@@ -21,18 +21,22 @@ var inputComponent = Component{
 components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: name, Label: "Name", Value: value,
     Placeholder: "Type in Chinese or English…",
-})`},
+})`, PageSnippet: `// m.name starts as "Viva text input".
+ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`},
 		{ID: "placeholder", Title: "空值提示", Description: "空值显示 placeholder；聚焦后由当前平台文本服务显示光标。", Snippet: `field := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: name, Label: "Name", Value: "",
     Placeholder: "Type in Chinese or English…",
-})`},
+})`, PageSnippet: `// m.name is empty.
+ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`},
 		{ID: "invalid", Title: "校验状态", Description: "演示规则：非空文本含 @ 即解除错误，不作为完整邮箱校验。", Snippet: `invalid := value == "" || !strings.Contains(value, "@")
 field := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: email, Label: "Email", Value: value,
     Placeholder: "name@example.com", Invalid: invalid,
-})`},
+})`, PageSnippet: `// m.email starts as "not-an-email".
+m.email.Invalid = !strings.Contains(m.email.Text(), "@")
+ui.TextField(c, &m.email, "Email", "name@example.com")`},
 		{ID: "states", Title: "禁用与只读", Description: "两个固定文本样本均不向平台 provider 暴露 Editor。", Snippet: `disabled := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, disabled.Rect(), components.InputSnapshot{
     ID: disabledID, Label: "Disabled",
@@ -47,7 +51,13 @@ components.PaintInput(canvas, theme, readOnly.Rect(), components.InputSnapshot{
 field := ui.Slot(c).FillWidth().Height(40)
 components.PaintInput(canvas, theme.WithRadius(gfx.RadiusFull), field.Rect(), components.InputSnapshot{
     ID: search, Label: "Search", Value: value, Text: components.InputTextStyle{Size: 16},
-})`},
+})`, PageSnippet: `// m.pill starts as "Radius and size".
+ui.TextField(c, &m.pill, "Pill", "Type in Chinese or English…").
+    FontSize(16).Radius(gfx.RadiusFull)
+// m.square starts as "Smaller text".
+ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2)
+// m.plain starts as "Theme default".
+ui.TextField(c, &m.plain, "Theme", "")`},
 	},
 }
 
