@@ -25,9 +25,9 @@
 // application identity; SelectAt lets such a runner route a press to a slot.
 //
 // It is a separate package so an application that does not import it pays
-// nothing for it. Keep an State in the model beside its editor: its handlers and
+// nothing for it. Keep a State in the model beside its editor: its handlers and
 // draw function are made once, so a warm paint allocates nothing. Do not copy
-// an State after it has been declared.
+// a State after it has been declared.
 package inputotp
 
 import (

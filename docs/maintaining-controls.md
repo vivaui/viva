@@ -32,7 +32,7 @@ There are two authoring paths, and they are not duplicates:
 - **Page controls** are `ui.*` or `ui.*Base` + Draw. They own page identity,
   focus, input and state; the styled painter reuses the components' canvas
   recipes. `ui` exports no `Begin*`.
-- **Canvas recipes** are `components.Begin*` and their `Paint`/`Layout` methods.
+- **Canvas recipes** are the `Begin*` constructors in package `components` and their `Paint`/`Layout` methods.
   They construct a value, paint through `gfx.Canvas` and declare hits; they are
   used inside a `ui.Control`/`Draw`, for pure measurement, or in source copied by
   `viva add`. They are not a second page API.
@@ -52,10 +52,45 @@ Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
 `ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
 `ui/togglegroup`, `ui/multiselect`,
 `ui/hierarchypicker`).
-They import only `base`, `components`, `gfx`, `ui` and `window`, own stable
-handlers, and are never imported by package `ui`; importing one is the explicit
-opt-in. Do not add a new directory at the repository root for a page widget.
+They import only the public `base`, `components`, `gfx`, `ui` and `window`
+packages, plus the focused `text` editor for editor-like controls and the root
+`markdown` parser for the Markdown view. They own stable handlers, and are never
+imported by package `ui`; importing one is the explicit opt-in. Do not add a new
+directory at the repository root for a page widget.
 See `private/docs/decisions/0086-opt-in-page-views.md`.
+
+### Naming and types
+
+An opt-in package is named for the capability, never with a `view` suffix:
+`ui/calendar`, `ui/message`, `ui/chart`. Its exported state types are named by
+role, not by repeating the package: `calendar.State`, `message.Row`,
+`attachment.Card`, `hovercard.Card`. Keep local variables out of the package's
+name (`cal`, `msg`, `pic`); a model field may keep the domain noun
+(`m.calendar`) because a selector never shadows a package. A package exposes
+either `pkg.View(c, label, &state)` or a `state.View(c, label)` method; keep new
+packages to one of the two and document which one.
+
+### Page controls inside a custom slot
+
+A page control declared inside a `ui.Slot` at the rectangle a component painted
+paints the same picture and declares the same control hit. This is the bridge
+for an application surface that keeps its own layout but wants a page control:
+
+```go
+slot := ui.Slot(c).Size(22, 24).Shrink(0)
+slot.Children(func() {
+    ui.Checkbox(c, &copy, "").
+        Absolute().Left(0).Top(0).Size(16, 16).
+        Hit(id, label)
+})
+```
+
+Bind a copy when the application's dispatcher owns the real value, and give the
+control the same identity with `Hit`. `ui/slot_parity_test.go` compares the
+Checkbox, Switch and FormField paths with the `Begin*` constructors in package
+`components` and requires equal rectangles, text and control hits. Do not
+rewrite a whole custom canvas surface into page declarations merely to use a
+page control; keep the surface and move the leaves that fit this pattern.
 
 ## Two forms of one control
 

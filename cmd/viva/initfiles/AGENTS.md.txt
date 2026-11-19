@@ -214,6 +214,28 @@ func (m *model) page(c ui.C) {
   Command on macOS, Control elsewhere); `list.Shortcut(0, "delete")` on a container or control acts only while the
   focus is in it, the innermost one winning. A chord without Primary, Ctrl or Alt is left to a field being typed in.
 
+### Optional page packages
+
+- A heavy or stateful page control is an opt-in package under `github.com/vivaui/viva/ui/<capability>`; import it only
+  when the page uses it. The package name is the capability, never a `view` suffix: `ui/calendar`, `ui/message`,
+  `ui/chart`, `ui/sidebar`. Its state type is named by role, not by repeating the package: `calendar.State`,
+  `message.Row`, `attachment.Card`. Use `cal`, `msg`, `pic` for locals; a model field may keep the noun
+  (`m.calendar`) because a selector never shadows a package.
+- Editors and visuals: `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`,
+  `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
+  `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
+  `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
+  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+- Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others a method on the state
+  (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>`
+  shows which.
+- A page control can sit inside a `ui.Slot` at the rectangle a component painted: keep the slot's size, declare the
+  control with `.Absolute().Left(0).Top(0).Size(...).Hit(id, label)`, and bind a copy (`checked := m.checked`) when the
+  application's dispatcher owns the value. `ui/slot_parity_test.go` keeps this exact for Checkbox, Switch and FormField.
+- Keep a wholly custom surface as `ui.Slot(...).Draw(func(d *ui.DrawContext) { ... })` with `gfx.Canvas` and
+  `Begin*` recipes in package `components`. Its layout and hit model belong to the application; do not rewrite the surface as page
+  declarations merely to use a page control.
+
 ### Forms and fields
 
 - A field shown but not edited takes `.ReadOnly(true)`; it keeps its text and look, takes focus, and refuses typing:

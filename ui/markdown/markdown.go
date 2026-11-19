@@ -1,7 +1,7 @@
-// Package markdown is the opt-in page control for the State renderer of
+// Package markdown is the opt-in page control for the Markdown renderer of
 // package components. It owns the parsed document and the MarkdownView's layout
 // caches, and paints through components.MarkdownView, so a page declares a
-// State document without parsing, laying out or painting it itself:
+// Markdown document without parsing, laying out or painting it itself:
 //
 //	answer := &markdown.State{
 //		Source: message,
@@ -26,6 +26,9 @@
 // nothing for it, and it depends only on the public gfx, components, markdown
 // and ui packages. Keep a State in the model: its handlers and draw function
 // are made once, and do not copy it after View has declared it.
+//
+// The package shares its name with the root markdown parser; a file that
+// imports both aliases one of them.
 package markdown
 
 import (
@@ -36,11 +39,11 @@ import (
 	"github.com/vivaui/viva/window"
 )
 
-// Style sizes the text of a State document. It is components.MarkdownStyle,
-// named here so a page that declares State reads through this package alone.
+// Style sizes the text of a Markdown document. It is components.MarkdownStyle,
+// named here so a page that declares a State reads through this package alone.
 type Style = components.MarkdownStyle
 
-// Look colors a State document. It is components.MarkdownLook.
+// Look colors a Markdown document. It is components.MarkdownLook.
 type Look = components.MarkdownLook
 
 // Selection is a range of the rendered text, in byte offsets.
@@ -80,7 +83,7 @@ const (
 // methods to paint at the call site, and do not copy a State after View has
 // declared it.
 type State struct {
-	// Source is the State text painted next. It is parsed when it changes.
+	// Source is the Markdown text painted next. It is parsed when it changes.
 	Source string
 	// Style sizes the text. It is applied on the next layout; a change to Size,
 	// LineHeight, MonoFace or CodeInset re-lays the document out. A change to
@@ -134,7 +137,7 @@ type layoutKey struct {
 	highlight, imageSet bool
 }
 
-// View declares the State document at c. Give it a height: the control lays
+// View declares the Markdown document at c. Give it a height: the control lays
 // the document out to the width it is given, clips what does not fit, and leaves
 // the height to the caller (Height, Fill or the page's flow). label names the
 // control for assistive technology.
