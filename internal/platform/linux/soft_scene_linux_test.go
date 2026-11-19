@@ -136,3 +136,29 @@ func TestSoftSceneMagnifiedBitmapPanRepaintsTheVisibleRegion(t *testing.T) {
 		t.Fatalf("panned zoom sample = %v, want the green source edge", got)
 	}
 }
+
+func TestSoftSceneShrinksWithASuffixUpdate(t *testing.T) {
+	services, err := newTextServices()
+	if err != nil {
+		t.Skipf("no text services: %v", err)
+	}
+	clear := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	rects := []render.Rectangle{softTestRect(0, 0, 10, 10, scene.Color{Alpha: 1}, 0), softTestRect(10, 0, 10, 10, scene.Color{Alpha: 1}, 0), softTestRect(20, 0, 10, 10, scene.Color{Alpha: 1}, 0)}
+	soft, err := newSoftScene(services, 60, 20, 1, clear, rects, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := soft.applyRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1, Shrink: true}, Rectangles: rects[:2],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(soft.rects) != 2 {
+		t.Fatalf("shrunk rectangles = %d", len(soft.rects))
+	}
+	if err := soft.applyRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1}, Rectangles: rects[:1],
+	}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
+	}
+}

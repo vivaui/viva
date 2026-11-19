@@ -254,6 +254,7 @@ func (renderer *glRenderer) upload(frame platform.Frame) error {
 		return nil
 	}
 	if frame.Update.Count <= 0 {
+		renderer.floats = renderer.floats[:needed]
 		return nil
 	}
 	first, last := frame.Update.First, frame.Update.First+frame.Update.Count

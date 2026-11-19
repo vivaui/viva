@@ -2692,3 +2692,30 @@ func TestGridLinesDrawBoxArcsAsStrokesNotText(t *testing.T) {
 		t.Fatalf("no stroked ring in %+v", frame.Rectangles)
 	}
 }
+
+// Removing one shape is a suffix shrink, not a full renderer rebuild.
+func TestRepaintShrinksWhenAShapeIsRemoved(t *testing.T) {
+	removed := -1
+	config := Config{Title: "shrink", Width: 200, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		for index := 0; index < 3; index++ {
+			if index == removed {
+				continue
+			}
+			canvas.Fill(gfx.Rect{X: float32(index) * 20, Width: 10, Height: 10}, gfx.Color{Alpha: 1})
+		}
+	}
+	var canvas gfx.Canvas
+	painter := newTestPainter(t, &canvas, config)
+	removed = 1
+	frame, err := painter.repaint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Update.Rebuild || !frame.Update.Shrink || frame.Update.Count != 1 || frame.Update.First != 1 {
+		t.Fatalf("shrink update = %+v", frame.Update)
+	}
+	if len(frame.Rectangles) != 2 {
+		t.Fatalf("rectangles = %d, want 2", len(frame.Rectangles))
+	}
+}

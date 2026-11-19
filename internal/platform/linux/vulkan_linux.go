@@ -1277,7 +1277,10 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 			renderer.rebuilds++
 		} else {
 			if len(frame.Rectangles) < len(renderer.rectangles) {
-				return false, fmt.Errorf("linux: rectangle count shrank without rebuild")
+				if !frame.Update.Shrink || frame.Update.First > len(frame.Rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {
+					return false, fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+				}
+				renderer.rectangles = renderer.rectangles[:len(frame.Rectangles)]
 			}
 			if len(frame.Rectangles) > len(renderer.rectangles) {
 				if frame.Update.First > len(renderer.rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {

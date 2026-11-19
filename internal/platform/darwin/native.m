@@ -5395,11 +5395,29 @@ static void viva_set_secure_event_input(BOOL on) {
         viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
         viva_gpu_full_rebuild_count++;
     } else {
+        BOOL shrank = totalCount < _rectangleCount;
+        if (shrank) {
+            if (first + count != totalCount) {
+                return 2;
+            }
+            _rectangleCount = totalCount;
+        }
         if (count == 0) {
+            if (shrank && ![self replaceCompositePlanForRectangles:
+                    _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:_rectangleCount
+                                       textLayers:_textLabelLayers
+                                 textShapesBefore:_textLabelShapesBefore
+                                        textCount:_textLabelCount]) {
+                return 3;
+            }
+            if (render) {
+                [self render];
+            }
             return 0;
         }
         if (_rectangleBuffer == nil || _rectangleClips == NULL || clips == NULL ||
-            totalCount < _rectangleCount ||
             first > totalCount || count > totalCount - first) {
             return 2;
         }
