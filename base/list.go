@@ -927,6 +927,11 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 		// last paint moved: the rows are placed for that end, not for the offset the
 		// area had, which would leave the paint that adds them blank.
 		scroll.Offset = max(state.top(n)-viewport, 0)
+	} else {
+		// Measuring the previous paint can shorten the estimated content. Choose
+		// rows against that extent before layout clamps the old offset; otherwise
+		// the rows declared at the old end are outside the new viewport.
+		scroll.Offset = min(max(scroll.Offset, 0), max(state.top(n)-viewport, 0))
 	}
 	// The rows are placed and hit-tested on whole logical pixels, as the layout
 	// applies them, so a label's native texture survives a fractional scroll.
