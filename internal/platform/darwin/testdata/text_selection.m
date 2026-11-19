@@ -412,6 +412,11 @@ int main(void) {
             assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, NSMaxRange(expected))));
             [view mouseUp:[view mouseEvent:NSEventTypeLeftMouseUp offset:-100 clicks:2]];
             assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, NSMaxRange(expected))));
+
+            [view mouseDown:[view mouseEvent:NSEventTypeLeftMouseDown offset:inside clicks:3]];
+            assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, value.length)));
+            [view mouseUp:[view mouseEvent:NSEventTypeLeftMouseUp offset:inside clicks:3]];
+            assert(NSEqualRanges(view.selectedRange, NSMakeRange(0, value.length)));
         }
 
         [view resetText:@"A中😀B"];

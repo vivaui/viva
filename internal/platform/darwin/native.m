@@ -4454,7 +4454,7 @@ static int viva_navigation_command(SEL selector) {
         NSUInteger index = [self textIndexForEvent:event];
         _textSelectionAnchor = NSMakeRange(index, 0);
         if (event.clickCount >= 2 && _text.length > 0) {
-            if (_textSecure) {
+            if (event.clickCount >= 3 || _textSecure) {
                 _textSelectionAnchor = NSMakeRange(0, _text.length);
             } else {
                 NSAttributedString *value = [[NSAttributedString alloc] initWithString:_text];
