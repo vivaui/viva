@@ -1,9 +1,9 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/menubar"
 )
 
 var menubarComponent = Component{
@@ -22,7 +22,41 @@ if open {
 }
 if canvas.Clicked(file) {
     open = !open
-}`},
+}`,
+			PageSnippet: `// m.menubar.Selected holds the row chosen during the last paint.
+file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
+newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+bar := &m.menubar
+if bar.Selected == showGrid {
+    m.grid = !m.grid
+    bar.Selected = gfx.ID{}
+}
+bar.Reset()
+bar.Trigger(file, "File").
+    Item(newWindow, "New window").Shortcut("⌘N").
+    Item(showGrid, "Show grid").Checkbox(m.grid).
+    Separator().
+    Item(deleteItem, "Delete workspace").Destructive()
+bar.Trigger(view, "View").Item(reload, "Reload")
+bar.Trigger(help, "Help")
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
+			PageSnippetZh: `// m.menubar.Selected 保存上一次绘制中选中的行。
+file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
+newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+bar := &m.menubar
+if bar.Selected == showGrid {
+    m.grid = !m.grid
+    bar.Selected = gfx.ID{}
+}
+bar.Reset()
+bar.Trigger(file, "File").
+    Item(newWindow, "New window").Shortcut("⌘N").
+    Item(showGrid, "Show grid").Checkbox(m.grid).
+    Separator().
+    Item(deleteItem, "Delete workspace").Destructive()
+bar.Trigger(view, "View").Item(reload, "Reload")
+bar.Trigger(help, "Help")
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
 		{ID: "states", Title: "菜单项状态", Description: "复选、禁用和危险菜单项。", Snippet: `options := components.MenubarOverlayOptions{
     Layer: 2, DismissID: tree.ID(page, "file"),
 }
@@ -36,7 +70,41 @@ content.AddItem(components.MenubarItem{
     ID: tree.ID(page, "delete"), Label: "Delete workspace",
     Variant: components.MenubarItemDestructive, Disabled: true,
 })
-content.End()`},
+content.End()`,
+			PageSnippet: `file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
+newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+bar := &m.menubar
+if bar.Selected == showGrid {
+    m.grid = !m.grid
+    bar.Selected = gfx.ID{}
+}
+bar.Reset()
+bar.Open = file
+bar.Trigger(file, "File").
+    Item(newWindow, "New window").Shortcut("⌘N").
+    Item(showGrid, "Show grid").Checkbox(m.grid).
+    Separator().
+    Item(deleteItem, "Delete workspace").Destructive().Disabled()
+bar.Trigger(view, "View").Item(reload, "Reload")
+bar.Trigger(help, "Help").Disabled()
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
+			PageSnippetZh: `file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
+newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+bar := &m.menubar
+if bar.Selected == showGrid {
+    m.grid = !m.grid
+    bar.Selected = gfx.ID{}
+}
+bar.Reset()
+bar.Open = file
+bar.Trigger(file, "File").
+    Item(newWindow, "New window").Shortcut("⌘N").
+    Item(showGrid, "Show grid").Checkbox(m.grid).
+    Separator().
+    Item(deleteItem, "Delete workspace").Destructive().Disabled()
+bar.Trigger(view, "View").Item(reload, "Reload")
+bar.Trigger(help, "Help").Disabled()
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
 	},
 }
 
@@ -47,39 +115,63 @@ var (
 	menubarHelp  = tree.ID(menubarUI, "help")
 	menubarGrid  = tree.ID(menubarUI, "grid")
 	menubarFocus = tree.ID(menubarUI, "focus")
+	menubarDrop  = tree.ID(menubarUI, "dismiss")
 	// menubarItem's item i is the i-th plain item of the menu.
 	menubarItem = tree.Sub(menubarUI, tree.Name("item"))
+
+	// menubarDemo is the preview's page control. The preview has one menubar.
+	menubarDemo      menubar.State
+	menubarDemoState *State
 )
 
 func (state *State) paintMenubar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	open := state.flags&1 != 0 || state.exampleID == "states"
-	var strip ui.Box
+	bar := &menubarDemo
+	if menubarDemoState != state {
+		menubarDemoState = state
+		bar.Open, bar.Selected = gfx.ID{}, gfx.ID{}
+	}
+	open := state.flags&3 != 0 || state.exampleID == "states"
+	bar.Scope = menubarFocus
+	bar.DismissID = menubarDrop
+	bar.Layer = 2
+	if state.exampleID == "states" {
+		bar.Open = menubarFile
+	}
+	bar.Reset()
+	bar.Trigger(menubarFile, "File").
+		Item(menubarItem.At(0), "New window").Shortcut("⌘N").
+		Item(menubarGrid, "Show grid").Checkbox(state.flags&4 != 0).
+		Separator().
+		Item(menubarItem.At(1), "Delete workspace").Destructive()
+	if state.exampleID == "states" {
+		bar.Disabled()
+	}
+	bar.Trigger(menubarView, "View").Item(menubarItem.At(2), "Reload")
+	bar.Trigger(menubarHelp, "Help")
+	if state.exampleID == "states" {
+		bar.Disabled()
+	}
+
 	state.drawPage(canvas, theme, size, 560, state.Text("Menubar · 桌面菜单", "Menubar · Desktop menu"), func(c ui.C) {
-		strip = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 		if !open {
 			ui.Text(c, state.Text("点击 File 查看弹出菜单。", "Click File to open the popup menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		}
+		menubar.View(c, "Menubar", bar).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
-	bounds := strip.Rect()
-	bar := components.BeginMenubar(canvas, theme, bounds)
-	bar.AddTrigger(components.MenubarTrigger{ID: menubarFile, Label: "File", Open: open})
-	bar.AddTrigger(components.MenubarTrigger{ID: menubarView, Label: "View"})
-	bar.AddTrigger(components.MenubarTrigger{ID: menubarHelp, Label: "Help", Disabled: state.exampleID == "states"})
-	if open {
-		// Three 32px rows, a separator, and the surface's 4px top and bottom padding.
-		popup := gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 8, Width: min(bounds.Width, float32(260)), Height: 3*32 + 9 + 2*4}
-		content := components.BeginMenubarContent(canvas, theme, popup, components.MenubarOverlayOptions{Layer: 2, Scope: menubarFocus, DismissID: menubarFile})
-		content.AddItem(components.MenubarItem{ID: menubarItem.At(0), Label: "New window", Shortcut: "⌘N"})
-		content.AddItem(components.MenubarItem{ID: menubarGrid, Label: "Show grid", Kind: components.MenubarCheckbox, Checked: state.flags&2 != 0})
-		content.AddSeparator()
-		content.AddItem(components.MenubarItem{ID: menubarItem.At(1), Label: "Delete workspace", Variant: components.MenubarItemDestructive, Disabled: state.exampleID == "states"})
-		content.End()
+
+	// Mirror the control's caller-owned state into the demo's flags, which the
+	// tests and the caption read.
+	state.flags &^= 3
+	switch bar.Open {
+	case menubarFile:
+		state.flags |= 1
+	case menubarView:
+		state.flags |= 2
 	}
-	// File opens and closes the menu; so does a press outside it (its DismissID).
-	if canvas.Clicked(menubarFile) {
-		state.flags ^= 1
-	}
-	if canvas.Clicked(menubarGrid) {
-		state.flags ^= 2
+	if selected := bar.Selected; !selected.IsZero() {
+		if selected == menubarGrid {
+			state.flags ^= 4
+		}
+		bar.Selected = gfx.ID{}
 	}
 }

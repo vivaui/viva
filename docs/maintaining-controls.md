@@ -25,6 +25,73 @@ app is the platform loop below ui; it knows nothing of pages.
 `internal/layering` checks both forbidden and allowed edges; a new dependency is
 an explicit edit there.
 
+## Page controls, recipes and Begin
+
+There are two authoring paths, and they are not duplicates:
+
+- **Page controls** are `ui.*` or `ui.*Base` + Draw. They own page identity,
+  focus, input and state; the styled painter reuses the components' canvas
+  recipes. `ui` exports no `Begin*`.
+- **Canvas recipes** are the `Begin*` constructors in package `components` and their `Paint`/`Layout` methods.
+  They construct a value, paint through `gfx.Canvas` and declare hits; they are
+  used inside a `ui.Control`/`Draw`, for pure measurement, or in source copied by
+  `viva add`. They are not a second page API.
+
+“Zero Begin” is not a goal. A new control that is declarable on a page belongs in
+`ui`; a reusable but heavy composite belongs in an opt-in package that uses
+`ui.Control`; a recipe that only paints stays in `components`. Exceptions that
+may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
+copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
+
+Opt-in page packages live under `ui/<name>` (`ui/textview`, `ui/codeeditor`, `ui/chart`,
+`ui/calendar`, `ui/carousel`, `ui/markdown`, `ui/columnresize`,
+`ui/avatareditor`, `ui/reordergrid`, `ui/avatar`, `ui/attachment`,
+`ui/message`, `ui/messagescroller`, `ui/command`, `ui/menubar`,
+`ui/navigationmenu`, `ui/hovercard`, `ui/image`, `ui/aspectratio`,
+`ui/skeleton`, `ui/inputgroup`, `ui/inputotp`, `ui/questionnaire`,
+`ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
+`ui/togglegroup`, `ui/multiselect`,
+`ui/hierarchypicker`).
+They import only the public `base`, `components`, `gfx`, `ui` and `window`
+packages, plus the focused `text` editor for editor-like controls and the root
+`markdown` parser for the Markdown view. They own stable handlers, and are never
+imported by package `ui`; importing one is the explicit opt-in. Do not add a new
+directory at the repository root for a page widget.
+See `private/docs/decisions/0086-opt-in-page-views.md`.
+
+### Naming and types
+
+An opt-in package is named for the capability, never with a `view` suffix:
+`ui/calendar`, `ui/message`, `ui/chart`. Its exported state types are named by
+role, not by repeating the package: `calendar.State`, `message.Row`,
+`attachment.Card`, `hovercard.Card`. Keep local variables out of the package's
+name (`cal`, `msg`, `pic`); a model field may keep the domain noun
+(`m.calendar`) because a selector never shadows a package. A package exposes
+either `pkg.View(c, label, &state)` or a `state.View(c, label)` method; keep new
+packages to one of the two and document which one.
+
+### Page controls inside a custom slot
+
+A page control declared inside a `ui.Slot` at the rectangle a component painted
+paints the same picture and declares the same control hit. This is the bridge
+for an application surface that keeps its own layout but wants a page control:
+
+```go
+slot := ui.Slot(c).Size(22, 24).Shrink(0)
+slot.Children(func() {
+    ui.Checkbox(c, &copy, "").
+        Absolute().Left(0).Top(0).Size(16, 16).
+        Hit(id, label)
+})
+```
+
+Bind a copy when the application's dispatcher owns the real value, and give the
+control the same identity with `Hit`. `ui/slot_parity_test.go` compares the
+Checkbox, Switch and FormField paths with the `Begin*` constructors in package
+`components` and requires equal rectangles, text and control hits. Do not
+rewrite a whole custom canvas surface into page declarations merely to use a
+page control; keep the surface and move the leaves that fit this pattern.
+
 ## Two forms of one control
 
 A control that ships with a look has a **styled form** and a **Base**:

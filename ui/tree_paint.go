@@ -12,8 +12,12 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 	f := c.GetF()
 	node := s.Node(i)
 	key := s.GetKey()(i)
+	depth := node.Depth
+	if s.DisplayDepth != nil {
+		depth = s.DisplayDepth(depth)
+	}
 	item := components.TreeItem{
-		ID: s.GetRows().At(key), Label: s.GetRowLabel()(i), Depth: uint8(min(max(node.Depth, 0), 31)),
+		ID: s.GetRows().At(key), Label: s.GetRowLabel()(i), Depth: uint8(min(max(depth, 0), 31)),
 		Branch: node.Branch, Expanded: node.Expanded, Selected: node.Selected, Disabled: node.Disabled,
 	}
 	if node.Branch {

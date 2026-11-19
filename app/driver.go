@@ -1195,7 +1195,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		}
 		snapshot.TextWidths[index] = painter.canvas.TextWidthStyle(text.Value, text.Style)
 	}
-	for _, rectangle := range painter.renderer.Rectangles() {
+	for _, rectangle := range painter.frame.Rectangles() {
 		primitive := Primitive{
 			Bounds: gfx.Rect{X: rectangle.Bounds.X, Y: rectangle.Bounds.Y, Width: rectangle.Bounds.Width, Height: rectangle.Bounds.Height},
 			Color:  gfx.Color{Red: rectangle.Color.Red, Green: rectangle.Color.Green, Blue: rectangle.Color.Blue, Alpha: rectangle.Color.Alpha},
@@ -1224,7 +1224,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		}
 		snapshot.Primitives = append(snapshot.Primitives, primitive)
 	}
-	for _, label := range painter.labels {
+	for _, label := range painter.frame.Labels() {
 		captured := Label{
 			Value:    label.Value,
 			Bounds:   gfx.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},

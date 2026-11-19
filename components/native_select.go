@@ -196,6 +196,7 @@ func PaintNativeSelectSemantics(canvas *gfx.Canvas, bounds gfx.Rect, snapshot Na
 	canvas.HitWithOptions(semantics.ID, bounds, semantics.Label, gfx.HitOptions{
 		Role: gfx.RoleCombobox, Value: semantics.Value, Hint: semantics.Hint,
 		Disabled: semantics.Disabled, ReadOnly: semantics.ReadOnly, Expanded: semantics.Open, Expandable: true,
+		Invalid: semantics.Invalid,
 	})
 }
 

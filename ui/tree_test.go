@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -542,6 +543,65 @@ func TestTreeRowNameLabelsTheRow(t *testing.T) {
 	}
 }
 
+// TreeKeys(false) leaves the navigation keys to the application: the page neither
+// moves the focus nor keeps the key from the host's OnKey.
+func TestTreeKeysLeavesNavigationToTheApplication(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	}}, app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+		keys = append(keys, event.Key)
+		return gfx.EventResult{Handled: true}
+	}})
+	d.click("etc")
+	before := d.Focused()
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != before {
+		t.Fatalf("TreeKeys(false) moved the focus to %q", d.Focused())
+	}
+	if len(keys) != 2 || keys[0] != gfx.KeyRight || keys[1] != gfx.KeyDown {
+		t.Fatalf("the application received %v, want Right then Down", keys)
+	}
+}
+
+// The default keeps the navigation in the page: Right opens a branch and Down
+// moves to its child, and the host's OnKey is not offered the keys.
+func TestTreeKeysDefaultMovesTheFocus(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: m.page},
+		app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+			keys = append(keys, event.Key)
+			return gfx.EventResult{Handled: true}
+		}})
+	d.click("etc")
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != "hosts" {
+		t.Fatalf("Right and Down focused %q, want hosts", d.Focused())
+	}
+	if len(keys) != 0 {
+		t.Fatalf("the page left %v to the application", keys)
+	}
+}
+
+// TreeKeys(false) costs nothing to repaint.
+func TestTreeKeysRepaintAllocates(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}})
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	})
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}
+
 func TestListRowID(t *testing.T) {
 	var state ui.ListState
 	d := openPage(t, func(c ui.C) {
@@ -557,5 +617,35 @@ func TestListRowID(t *testing.T) {
 	}
 	if !found || state.RowID(1) == state.RowID(2) {
 		t.Fatal("RowID(1) is not the identity of the second row's hit")
+	}
+}
+
+// DisplayDepth changes only the indent: a tree that compresses deep rows still
+// has its hierarchy, so Right on a branch moves the focus to its child.
+func TestTreeCompressedIndentKeepsTheHierarchyForKeys(t *testing.T) {
+	labels := []string{"branch", "child", "one", "two"}
+	depths := []int{3, 4, 0, 1}
+	var state ui.TreeState
+	state.Node = func(i int) ui.TreeNode {
+		return ui.TreeNode{Depth: depths[i], Branch: i == 0, Expanded: i == 0}
+	}
+	state.Label = func(i int) string { return labels[i] }
+	state.DisplayDepth = func(int) int { return 0 }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Tree(c, &state, len(labels), state.Label, nil).Grow(1)
+		})
+	})
+	if x, y := d.hit("one").Bounds.X, d.hit("two").Bounds.X; x != y {
+		t.Fatalf("the compressed leaf rows start at %v and %v, want the same indent", x, y)
+	}
+	d.click("branch")
+	d.key(gfx.KeyRight)
+	if got := d.Focused(); got != "child" {
+		t.Fatalf("Right focused %q, want the branch's child", got)
+	}
+	d.key(gfx.KeyLeft)
+	if got := d.Focused(); got != "branch" {
+		t.Fatalf("Left focused %q, want the parent", got)
 	}
 }

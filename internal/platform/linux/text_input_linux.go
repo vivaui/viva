@@ -180,6 +180,12 @@ func (state *linuxTextInput) prepare(frame platform.Frame) (platform.Frame, bool
 	if state.closed {
 		return platform.Frame{}, false, nil
 	}
+	// The native text overlay owns storage sized to the old base. A shrink
+	// would have to resize it while the editor's rows are merged; rebuild the
+	// merged frame instead, which is rare and correct.
+	if frame.Update.Shrink && !frame.Update.Rebuild {
+		frame.Update = render.Update{Count: len(frame.Rectangles), Rebuild: true}
+	}
 	rectanglesChanged := !frame.Update.Empty()
 	labelsChanged := frame.TextLabels != nil
 	if rectanglesChanged {

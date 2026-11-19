@@ -136,6 +136,10 @@ type TextareaLayout struct {
 	size   float32
 	width  float32 // the width rows were wrapped to
 	fitted bool
+	// boxWidth is the outer width the box was last laid out in, which AutoGrow
+	// measures the next time the page lays the box out. It is zero before the
+	// first paint.
+	boxWidth float32
 
 	// What the last paint showed.
 	Painted    bool
@@ -231,6 +235,25 @@ func (layout *TextareaLayout) RowCount(canvas *gfx.Canvas, theme gfx.Theme, text
 func (layout *TextareaLayout) ContentHeight(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool) float32 {
 	rows := layout.RowCount(canvas, theme, text, width, noWrap)
 	return textareaMax(64, float32(rows)*(theme.Metrics.FontSizeM+7)+2*textareaPadY)
+}
+
+// BoxWidth is the outer width the box was last laid out in, which AutoGrow
+// measures the next time the page lays it out. It is zero before the first
+// paint.
+func (layout *TextareaLayout) BoxWidth() float32 { return layout.boxWidth }
+
+// SetBoxWidth records the outer width of a layout, which the page's AutoGrow
+// measurement reads.
+func (layout *TextareaLayout) SetBoxWidth(width float32) { layout.boxWidth = width }
+
+// RequestRelayout has the page lay itself out and paint again within the same
+// Draw: for a measurement that could only be made after the first layout, such
+// as a TextArea whose content height follows the width it was given. A frame
+// that belongs to no page (a bare preview) has nothing to relayout.
+func (f *Frame) RequestRelayout() {
+	if f.page != nil {
+		f.page.retry = true
+	}
 }
 
 // OffsetAt is the byte offset of the caret position nearest to a window point,
@@ -469,6 +492,32 @@ func trimTrailingSpaces(value string) string {
 
 // TextareaPadY is the space above the first row and below the last (py-2).
 const TextareaPadY = 8
+
+// AutoGrow makes a TextArea as tall as the rows its text needs, from the
+// control's 64 pixel minimum up to maxRows rows; past that the box stops
+// growing and the rows scroll inside it. The page measures the rows at the width
+// the box is laid out in and sizes the box before placement, so the text is not
+// measured twice: the same TextareaLayout the paint uses keeps the rows.
+//
+//	ui.TextArea(c, &m.notes, "Notes", "").AutoGrow(5)
+//
+// An explicit Height still fixes the box, as a declared size wins over a
+// measured one, and MaxHeight or MinHeight bound the measured height. It is for
+// a TextArea of a page (one declared with a TextareaLayout); a box without the
+// layout keeps its declared size.
+func (b Box) AutoGrow(maxRows int) Box {
+	n := b.N()
+	if n.Kind != kindTextarea {
+		panic("ui: AutoGrow is for a TextArea")
+	}
+	if maxRows <= 0 {
+		panic("ui: AutoGrow needs at least one row")
+	}
+	// The rows a TextArea may take; a wrapped Text's line limit uses the same
+	// field, and a TextArea never wraps as a declarative Text does.
+	n.MaxLines = int32(maxRows)
+	return b
+}
 
 // TextareaMovementForKey says which movement a key asks for in a multiline
 // editor, and whether it extends the selection (Shift). Home and End, Cmd+Left

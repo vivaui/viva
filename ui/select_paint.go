@@ -30,8 +30,8 @@ func paintSelect(f *Frame, n *Node) {
 	trigger := Rect{X: n.Rect.X, Y: n.Rect.Y, Width: n.Rect.Width, Height: height}
 	options := components.SelectOptions{
 		TriggerID: d.TriggerID(count), Label: n.Label, Placeholder: n.Text, Hint: d.GetHint(),
-		Disabled: n.Flags&FlagDisabled != 0,
-		Layer:    d.GetLayer(), Scope: d.GetScope().At(count + 2), DismissID: d.GetScope().At(count + 1), Viewport: f.GetBounds(),
+		Disabled: n.Flags&FlagDisabled != 0, Invalid: n.Flags&FlagInvalid != 0,
+		Layer: d.GetLayer(), Scope: d.GetScope().At(count + 2), DismissID: d.GetScope().At(count + 1), Viewport: f.GetBounds(),
 	}
 	switch {
 	case n.ButtonSize == components.ButtonSizeXSmall:

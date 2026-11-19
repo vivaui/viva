@@ -13,13 +13,25 @@ var kbdComponent = Component{
 		{ID: "default", Title: "快捷键", Description: "使用生产 KbdGroup 组合平台快捷键。", Snippet: `group := components.BeginKbdGroup(canvas, theme, bounds)
 group.Add("⌘")
 group.Add("⇧")
-group.Add("P")`},
+group.Add("P")`, PageSnippet: `ui.Text(c, "Open the command palette").Muted()
+ui.Kbd(c, "⌘", "⇧", "P")`, PageSnippetZh: `ui.Text(c, "打开命令面板").Muted()
+ui.Kbd(c, "⌘", "⇧", "P")`},
 		{ID: "keys", Title: "常用按键", Description: "单键和长标签均按内容自然伸展。", Snippet: `x := bounds.X
 for _, key := range []string{"Esc", "Enter", "Space", "⌥ Option"} {
     rect := gfx.Rect{X: x, Y: bounds.Y, Height: bounds.Height}
     keycap := components.Kbd(canvas, theme, rect, key)
     x += keycap.Width + 10
-}`},
+}`, PageSnippet: `ui.Row(c).Gap(10).Children(func() {
+    ui.Kbd(c, "Esc")
+    ui.Kbd(c, "Enter")
+    ui.Kbd(c, "Space")
+    ui.Kbd(c, "⌥ Option")
+})`, PageSnippetZh: `ui.Row(c).Gap(10).Children(func() {
+    ui.Kbd(c, "Esc")
+    ui.Kbd(c, "Enter")
+    ui.Kbd(c, "Space")
+    ui.Kbd(c, "⌥ Option")
+})`},
 	},
 }
 

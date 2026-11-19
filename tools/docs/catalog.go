@@ -22,6 +22,8 @@ type Nav struct {
 type Demo struct {
 	ID, Title, Description string
 	Snippet                string `json:"Snippet,omitempty"`
+	PageSnippet            string `json:"PageSnippet,omitempty"`
+	PageSnippetZh          string `json:"PageSnippetZh,omitempty"`
 	Height                 int    `json:"Height,omitempty"`
 }
 
@@ -36,6 +38,10 @@ type Capability struct {
 
 type Page struct {
 	ID, Title, Category, Summary, Revision string
+	// PageUsage is the page-first call site, when the component has one.
+	PageUsage string
+	// PageSource is where PageUsage is implemented; empty uses Source.
+	PageSource string
 	// Source is the Go file the examples call, relative to the repository root:
 	// components/<ID>.go, or ui/list.go for a page-layer control.
 	Source         string
@@ -87,6 +93,8 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		page.ID, page.Title, page.Category, page.Summary = component.ID, component.Title, component.Category, component.Summary
 		page.All, page.Revision = navigation, manifest.Revision
 		page.Source = component.Source
+		page.PageUsage = component.PageUsage
+		page.PageSource = component.PageSource
 		if page.Source == "" {
 			page.Source = "components/" + strings.ReplaceAll(component.ID, "-", "_") + ".go"
 		}
@@ -100,7 +108,7 @@ func loadPages(root string) ([]Page, Manifest, error) {
 			if _, err := componentdemo.New(component.ID, example.ID); err != nil {
 				return nil, manifest, err
 			}
-			page.Examples = append(page.Examples, Demo{example.ID, example.Title, example.Description, example.Snippet, example.Height})
+			page.Examples = append(page.Examples, Demo{example.ID, example.Title, example.Description, example.Snippet, example.PageSnippet, example.PageSnippetZh, example.Height})
 		}
 		pages = append(pages, page)
 	}

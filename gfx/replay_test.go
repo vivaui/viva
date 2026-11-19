@@ -337,6 +337,34 @@ func TestSameAsPreviousSeesADifference(t *testing.T) {
 	})
 }
 
+// An invalid control's hit is part of what a copied span declared: a memo
+// cannot replay the previous paint's hit list when only the invalid state
+// changed.
+func TestSameAsPreviousSeesInvalidChange(t *testing.T) {
+	var canvas Canvas
+	canvas.KeepPrevious(true)
+	var prev Span
+	paintPage(&canvas, 0, func(c *Canvas) {
+		from := c.Mark()
+		paintInvalidPart(c, 20, false)
+		prev = c.SpanSince(from)
+	})
+	paintPage(&canvas, 0, func(c *Canvas) {
+		from := c.Mark()
+		paintInvalidPart(c, 20, true)
+		if c.SameAsPrevious(c.SpanSince(from), prev, 0, 0) {
+			t.Error("a hit that became invalid is reported as the previous paint")
+		}
+	})
+}
+
+func paintInvalidPart(canvas *Canvas, y float32, invalid bool) {
+	canvas.Rounded(Rect{X: 10, Y: y, Width: 80, Height: 30}, 6, RGB(240, 240, 240))
+	canvas.HitWithOptions(Item(int(y)+1), Rect{X: 10, Y: y, Width: 80, Height: 30}, "row", HitOptions{
+		Role: RoleButton, Invalid: invalid,
+	})
+}
+
 // TestMoveSinceMovesAQuadLabel pins that replaying a span at another place
 // carries the label's quad, not only its rasterisation box.
 func TestMoveSinceMovesAQuadLabel(t *testing.T) {
@@ -356,4 +384,32 @@ func TestMoveSinceMovesAQuadLabel(t *testing.T) {
 			t.Fatalf("corner %d = %+v, want %+v", corner, texts[0].Quad[corner], want)
 		}
 	}
+}
+
+// The geometry and color a hit gives the platform text service are part of the
+// span too: a memo cannot replay the previous hit texts when only that
+// geometry changed.
+func TestSameAsPreviousSeesHitTextChange(t *testing.T) {
+	var canvas Canvas
+	canvas.KeepPrevious(true)
+	var prev Span
+	paintPage(&canvas, 0, func(c *Canvas) {
+		from := c.Mark()
+		paintHitTextPart(c, 20, RGB(200, 0, 0))
+		prev = c.SpanSince(from)
+	})
+	paintPage(&canvas, 0, func(c *Canvas) {
+		from := c.Mark()
+		paintHitTextPart(c, 20, RGB(0, 0, 200))
+		if c.SameAsPrevious(c.SpanSince(from), prev, 0, 0) {
+			t.Error("a hit whose text bounds changed is reported as the previous paint")
+		}
+	})
+}
+
+func paintHitTextPart(canvas *Canvas, y float32, color Color) {
+	canvas.Rounded(Rect{X: 10, Y: y, Width: 80, Height: 30}, 6, RGB(240, 240, 240))
+	canvas.HitWithOptions(Item(int(y)+1), Rect{X: 10, Y: y, Width: 80, Height: 30}, "row", HitOptions{
+		Role: RoleTextField, TextBounds: Rect{X: 10, Y: y, Width: 80, Height: 20}, TextSize: 13, TextColor: color,
+	})
 }

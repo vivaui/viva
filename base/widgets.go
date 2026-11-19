@@ -28,8 +28,10 @@ type Widgets struct {
 	alertDialogs    []AlertDialogDecl
 	paginations     []PaginationDecl
 	PaginationItems []style.PaginationItem
-	drawers         []drawerState
-	popovers        []PopoverDecl
+	// TabOptions is the scratch of the tabs that paint icons, one entry per label.
+	TabOptions []TabOption
+	drawers    []drawerState
+	popovers   []PopoverDecl
 	// popoverFocus holds the panels whose InitialFocusID was already asked for.
 	// It outlives reset because a panel is open across paints, and is swept at
 	// the next Begin for the panels the last paint no longer declared.
@@ -62,6 +64,7 @@ func (w *Widgets) reset() {
 	w.inputs, w.groups, w.textareas, w.segmented, w.choices = w.inputs[:0], w.groups[:0], w.textareas[:0], w.segmented[:0], w.choices[:0]
 	w.paginations = w.paginations[:0]
 	w.PaginationItems = w.PaginationItems[:0]
+	w.TabOptions = w.TabOptions[:0]
 	w.popovers, w.drawers = w.popovers[:0], w.drawers[:0]
 	w.splits, w.sliders, w.rows = w.splits[:0], w.sliders[:0], w.rows[:0]
 	w.layer = 0

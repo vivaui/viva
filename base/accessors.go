@@ -263,6 +263,10 @@ func (x *Extra) GetHit() gfx.HitOptions { return x.hit }
 // GetHitOut reads the hitOut of Extra for the styled painting layer.
 func (x *Extra) GetHitOut() [4]float32 { return x.hitOut }
 
+// GetHitExact reads whether a styled control targets its laid-out rectangle for
+// the styled painting layer.
+func (x *Extra) GetHitExact() bool { return x.hitExact }
+
 // GetIcon reads the icon of Extra for the styled painting layer.
 func (x *Extra) GetIcon() gfx.Icon { return x.icon }
 
@@ -757,9 +761,6 @@ func (x *Page) GetHeld() [2]armedButton { return x.held }
 // GetHoverArea reads the hoverArea of Page for the styled painting layer.
 func (x *Page) GetHoverArea() gfx.ID { return x.hoverArea }
 
-// GetIcons reads the icons of Page for the styled painting layer.
-func (x *Page) GetIcons() []gfx.Icon { return x.icons }
-
 // GetIntKeys reads the intKeys of Page for the styled painting layer.
 func (x *Page) GetIntKeys() map[intKey]keyEntry { return x.intKeys }
 
@@ -1210,6 +1211,9 @@ func (x *TableState) GetSortColumn() int32 { return x.sortColumn }
 // GetLabels reads the labels of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetLabels() []string { return x.labels }
 
+// GetIcon reads the icon function of TabsDecl for the styled painting layer.
+func (x *TabsDecl) GetIcon() func(index int) gfx.Icon { return x.icon }
+
 // GetLine reads the line of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetLine() bool { return x.line }
 
@@ -1455,6 +1459,14 @@ func (x *drawerState) GetLayer() uint16 { return x.layer }
 
 // GetSpec reads the spec of drawerState for the styled painting layer.
 func (x *drawerState) GetSpec() DrawerDeclaration { return x.spec }
+
+// GetVerticalValue reads the accessible value of a scroll area's vertical bar for
+// the styled painting layer.
+func (x *ScrollState) GetVerticalValue() string { return x.verticalValue }
+
+// GetHorizontalValue reads the accessible value of a scroll area's horizontal bar
+// for the styled painting layer.
+func (x *ScrollState) GetHorizontalValue() string { return x.horizontalValue }
 
 // GetViewport reads the area the drawer covers, the frame less its spec's Inset.
 func (x *drawerState) GetViewport() Rect { return x.viewport }

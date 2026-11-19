@@ -7,6 +7,7 @@ import (
 type TabsDecl struct {
 	scope    gfx.Scope
 	labels   []string
+	icon     func(index int) gfx.Icon
 	selected int
 	line     bool
 	vertical bool
@@ -35,6 +36,18 @@ func (f *Frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 	n := &f.Nodes[b.i]
 	n.Aux = int32(len(WidgetsOf(f).tabs))
 	WidgetsOf(f).tabs = append(WidgetsOf(f).tabs, TabsDecl{scope: scope, labels: labels, selected: selected})
+	return b
+}
+
+// TabIcons puts an icon before every label of a Tabs strip; icon is asked for
+// each tab's index and may return a zero icon to leave that tab text-only.
+//
+//	ui.Tabs(c, &m.tab, tabs, nil).TabIcons(func(i int) gfx.Icon { return icons[i] })
+func (b Box) TabIcons(icon func(index int) gfx.Icon) Box {
+	n := b.N()
+	if n.Kind == kindTabs && icon != nil {
+		WidgetsOf(b.f).tabs[n.Aux].icon = icon
+	}
 	return b
 }
 

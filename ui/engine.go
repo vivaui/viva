@@ -1,8 +1,21 @@
 package ui
 
-import "github.com/vivaui/viva/base"
+import (
+	"github.com/vivaui/viva/base"
+	"github.com/vivaui/viva/style"
+)
 
 // The engine is base's; ui keeps it under the names applications use.
+
+// PopoverSide is the edge of an anchor a popover opens on.
+type PopoverSide = style.PopoverSide
+
+const (
+	PopoverBottom = style.PopoverBottom
+	PopoverTop    = style.PopoverTop
+	PopoverRight  = style.PopoverRight
+	PopoverLeft   = style.PopoverLeft
+)
 
 type AlertDialogDecl = base.AlertDialogDecl
 type AlertDialogSpec = base.AlertDialogSpec
@@ -64,6 +77,9 @@ type PopoverDecl = base.PopoverDecl
 type PopoverSpec = base.PopoverSpec
 type ScrollState = base.ScrollState
 
+// RangeSliderState is the two values and range of a RangeSlider.
+type RangeSliderState = base.RangeSliderState
+
 // ScrollAreaGeometry is the complete deterministic layout of one scroll area:
 // its viewport, translated content, tracks, thumbs and corner.
 type ScrollAreaGeometry = base.ScrollAreaGeometry
@@ -116,6 +132,7 @@ const (
 	FlagDialog         = base.FlagDialog
 	FlagDisabled       = base.FlagDisabled
 	FlagHasColor       = base.FlagHasColor
+	FlagInvalid        = base.FlagInvalid
 	FlagMixed          = base.FlagMixed
 	FlagMono           = base.FlagMono
 	FlagPopover        = base.FlagPopover

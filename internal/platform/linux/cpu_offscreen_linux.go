@@ -168,6 +168,12 @@ func placeLabel(l platform.TextLabel, scale float32, image labelImage, canvasWid
 	label = raster.Label{Pix: image.pixels, Stride: image.width * 4, Width: image.width, Height: image.height, X: x, Y: y, Layer: l.Layer,
 		ShapesBefore: l.ShapesBefore, LCD: image.lcd, Spans: image.spans,
 		Color: scene.Color{Red: float32(l.Color.Red), Green: float32(l.Color.Green), Blue: float32(l.Color.Blue), Alpha: float32(l.Color.Alpha)}}
+	if len(l.Bitmap) > 0 {
+		label.Width, label.Height = platform.DeviceExtent(l.X, l.Width, scale), platform.DeviceExtent(l.Y, l.Height, scale)
+		if label.Width != image.width || label.Height != image.height {
+			label.SourceWidth, label.SourceHeight = image.width, image.height
+		}
+	}
 	if l.Clipped {
 		left := max(int(math.Floor(float64(l.Clip.X*scale))), 0)
 		top := max(int(math.Floor(float64(l.Clip.Y*scale))), 0)

@@ -58,7 +58,7 @@ func (m *model) page(c ui.C) {
 }
 ```
 
-- A page imports `github.com/vivaui/viva/ui` alone: colors, geometry and the theme are re-exported there (`ui.RGB`, `ui.Rect`, `ui.Theme`, `ui.LightTheme()`). `gfx` is the layer below (canvas, paths, input events, keys, identities); reach for it only to draw or handle input yourself.
+- The core page imports `github.com/vivaui/viva/ui`: colors, geometry and the theme are re-exported there (`ui.RGB`, `ui.Rect`, `ui.Theme`, `ui.LightTheme()`). Optional page packages (`ui/calendar`, `ui/message`, `ui/chart`, …) are imported only when used. `gfx` is the layer below (canvas, paths, input events, keys, identities); reach for it only to draw or handle input yourself.
 - Everything is a function of `ui` taking `c` first, and the chain is the same everywhere: `.Pad`, `.Gap`, `.Grow`, `.Width`, `.Background`, `.Children(func() { ... })`. Containers: `Row`, `Column`, `Stack`, `Grid`, `Flow`, `Scroll`. Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `Checkbox`, `Switch`, `Select`, `Choice`, `Tabs`, `Slider`, `Progress`, `Spinner`, `Splitter`, `Slot`.
 - Lengths are `float32`; sizes are border boxes. A child is as big as its content unless told `Width`/`Height`/`Size`, `Fill`, or `Grow(n)`. In a `Row`, a text field needs `Grow(1)` or `Width`, or it is invisible.
 
@@ -82,6 +82,15 @@ func (m *model) page(c ui.C) {
 - `ui.TextField(c, &m.name, "Name", "placeholder")` binds a `string`; `&m.query` can bind a `ui.Field` when the caret or selection matters. `.Submitted()` is Enter, `.Secure()` a password, `.AutoFocus()`, `.Icon(icon).Action(icon, "Clear")` with `.ActionClicked()`. `ui.TextArea(c, &m.notes, "Notes", "").Height(120)` is several rows. `Config.TextInput` is not needed for typing, caret, selection, clipboard or IME.
 - `ui.FormField(c, &m.proxyField, "Proxy").FillWidth().Children(func() { ... })` is a form row: one title and one control child, in the slot `components.BeginField` uses. Keep the `ui.FormFieldState` beside the value. Tagged structs get the same form from `//go:generate go tool viva form`.
 - `ui.Choice(c, &m.theme, themes, nil)` is a segmented choice and `ui.Tabs(c, &m.tab, tabs, nil)` a tab strip. Both write the value as they are declared; disable them with an `if`, not a chained `.Disabled`. `Tabs`/`Select` also honor `.Disabled` for input; `Choice` does not.
+
+### Optional page packages and custom surfaces
+
+- A heavy or stateful page control lives in an opt-in package under `ui/<capability>`; import it only when the page uses it.
+- Editors and visuals: `ui/textview`, `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`, `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`, `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`, `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`, `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+- The package name is the capability, never a `view` suffix. Name its state type by role, not by repeating the package: `calendar.State`, `message.Row`, `attachment.Card`, `hovercard.Card`. Keep locals out of the package name (`cal`, `msg`, `pic`); a model field may keep the domain noun (`m.calendar`).
+- Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others expose a method on the state (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>` shows which.
+- A page control can sit inside a `ui.Slot` at the rectangle a component painted: keep the slot's size, declare the control with `.Absolute().Left(0).Top(0).Size(...).Hit(id, label)`, and bind a copy when the application's dispatcher owns the value. `ui/slot_parity_test.go` keeps this exact for Checkbox, Switch and FormField.
+- Keep a wholly custom surface as `ui.Slot(...).Draw(...)` with `gfx.Canvas` and `Begin*` recipes in package `components`. Do not rewrite the whole surface as page declarations only for uniformity: its layout and hit model belong to the application.
 
 ### Background work and animation
 

@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -377,4 +381,349 @@ func TestFailedBuildPreservesPublishedPreview(t *testing.T) {
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("staging directory leaked: %v, %v", entries, err)
 	}
+}
+
+// Every page-first example snippet is valid Go and stays on the page API: no
+// canvas constructors or components package calls.
+func TestPageSnippetsArePageLevel(t *testing.T) {
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+				if snippet == "" {
+					continue
+				}
+				if strings.Contains(snippet, "components.") || strings.Contains(snippet, "Begin") {
+					t.Errorf("%s/%s page snippet uses the canvas API: %q", component.ID, example.ID, snippet)
+				}
+				source := "package snippet\nfunc example() {\n" + snippet + "\n}\n"
+				if _, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0); err != nil {
+					t.Errorf("%s/%s page snippet does not parse: %v\n%s", component.ID, example.ID, err, snippet)
+				}
+			}
+			if strings.Contains(example.PageSnippet, "components.") || strings.Contains(example.PageSnippet, "Begin") {
+				t.Errorf("%s/%s page snippet uses the canvas API: %q", component.ID, example.ID, example.PageSnippet)
+			}
+			source := "package snippet\nfunc example() {\n" + example.PageSnippet + "\n}\n"
+			if _, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0); err != nil {
+				t.Errorf("%s/%s page snippet does not parse: %v\n%s", component.ID, example.ID, err, example.PageSnippet)
+			}
+		}
+	}
+}
+
+// TestEveryExampleCarriesLocalizedPageSnippet keeps the preview and the code
+// under it in one language and one authoring model: a canvas-only snippet is
+// not a page call, and an English snippet under a Chinese preview is not the
+// same example.
+func TestEveryExampleCarriesLocalizedPageSnippet(t *testing.T) {
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			if strings.TrimSpace(example.PageSnippet) == "" {
+				t.Errorf("%s/%s has no page snippet", component.ID, example.ID)
+			}
+			if strings.TrimSpace(example.PageSnippetZh) == "" {
+				t.Errorf("%s/%s has no Chinese page snippet", component.ID, example.ID)
+			}
+		}
+	}
+}
+
+// TestPageUsageIsPageLevel parses every component-level PageUsage and rejects
+// the canvas API, so the line above the examples is a real call site too.
+func TestPageUsageIsPageLevel(t *testing.T) {
+	for _, component := range componentdemo.Catalog() {
+		usage := component.PageUsage
+		if usage == "" {
+			continue
+		}
+		if strings.Contains(usage, "components.") || strings.Contains(usage, "Begin") || strings.Contains(usage, "Paint(") {
+			t.Errorf("%s PageUsage uses the canvas API: %q", component.ID, usage)
+		}
+		source := "package snippet\nfunc example(c ui.C, m model) {\n" + usage + "\n}\n"
+		if _, err := parser.ParseFile(token.NewFileSet(), "usage.go", source, 0); err != nil {
+			t.Errorf("%s PageUsage does not parse: %v\n%s", component.ID, err, usage)
+		}
+	}
+}
+
+// TestPageSnippetsHaveNoUndeclaredNames rejects a snippet that reads a name the
+// page function does not declare. Model data must be written m.field, so the
+// snippet shows where it comes from; a bare `highlight` or `desktop` is a
+// canvas-side local that would not compile at a call site.
+func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
+	packages := map[string]bool{
+		"ui": true, "base": true, "gfx": true, "window": true, "text": true,
+		"style": true, "strings": true, "utf8": true, "time": true, "math": true,
+		"codeeditor": true, "chart": true, "calendar": true,
+		"carousel": true, "multiselect": true, "hierarchypicker": true,
+		"markdown": true, "columnresize": true,
+		"hovercard":       true,
+		"sidebar":         true,
+		"marker":          true,
+		"metriccard":      true,
+		"questionnaire":   true,
+		"inputotp":        true,
+		"inputgroup":      true,
+		"skeleton":        true,
+		"aspectratio":     true,
+		"image":           true,
+		"navigationmenu":  true,
+		"menubar":         true,
+		"command":         true,
+		"messagescroller": true,
+		"message":         true,
+		"attachment":      true,
+		"avatar":          true,
+		"avatareditor":    true, "reordergrid": true,
+	}
+	builtin := map[string]bool{
+		"bool": true, "byte": true, "complex64": true, "complex128": true,
+		"error": true, "float32": true, "float64": true, "int": true, "int8": true,
+		"int16": true, "int32": true, "int64": true, "rune": true, "string": true,
+		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
+		"uintptr": true, "any": true, "comparable": true,
+		"true": true, "false": true, "nil": true, "iota": true,
+		"append": true, "cap": true, "clear": true, "close": true, "complex": true,
+		"copy": true, "delete": true, "imag": true, "len": true, "make": true,
+		"max": true, "min": true, "new": true, "panic": true, "print": true,
+		"println": true, "real": true, "recover": true,
+	}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+				if snippet == "" {
+					continue
+				}
+				source := "package snippet\nfunc example(c ui.C, m model) {\n" + snippet + "\n}\n"
+				file, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0)
+				if err != nil {
+					continue // the parse test reports it
+				}
+				for _, ident := range file.Unresolved {
+					if packages[ident.Name] || builtin[ident.Name] || ident.Name == "model" {
+						continue
+					}
+					t.Errorf("%s/%s page snippet reads undeclared %q; write model data as m.%s", component.ID, example.ID, ident.Name, ident.Name)
+				}
+			}
+		}
+	}
+}
+
+// TestPageSnippetsUseCallerNames rejects a snippet that reads a canvas-side
+// local: the snippet is shown inside a page function, where `theme`, `canvas`,
+// `bounds`, `stage`, `page` and `tree` are not defined. A page reads its theme
+// through c.Theme().
+func TestPageSnippetsUseCallerNames(t *testing.T) {
+	forbidden := map[string]bool{"theme": true, "canvas": true, "bounds": true, "stage": true, "page": true, "tree": true}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+				if snippet == "" {
+					continue
+				}
+				source := "package snippet\nfunc example() {\n" + snippet + "\n}\n"
+				file, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0)
+				if err != nil {
+					continue // the parse test reports it
+				}
+				for _, ident := range file.Unresolved {
+					if forbidden[ident.Name] {
+						t.Errorf("%s/%s page snippet uses the canvas-side name %q", component.ID, example.ID, ident.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestPageSnippetsNameRealAPIs rejects a snippet that calls a package function
+// the package does not declare. It does not type-check arguments: a snippet
+// leaves the application's model implicit, so its types are not known here.
+func TestPageSnippetsNameRealAPIs(t *testing.T) {
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages := map[string]map[string]bool{
+		"ui":              exports(t, filepath.Join(root, "ui")),
+		"base":            exports(t, filepath.Join(root, "base")),
+		"components":      exports(t, filepath.Join(root, "components")),
+		"gfx":             exports(t, filepath.Join(root, "gfx")),
+		"window":          exports(t, filepath.Join(root, "window")),
+		"text":            exports(t, filepath.Join(root, "text")),
+		"codeeditor":      exports(t, filepath.Join(root, "ui/codeeditor")),
+		"chart":           exports(t, filepath.Join(root, "ui/chart")),
+		"calendar":        exports(t, filepath.Join(root, "ui/calendar")),
+		"carousel":        exports(t, filepath.Join(root, "ui/carousel")),
+		"multiselect":     exports(t, filepath.Join(root, "ui/multiselect")),
+		"hierarchypicker": exports(t, filepath.Join(root, "ui/hierarchypicker")),
+		"markdown":        exports(t, filepath.Join(root, "ui/markdown")),
+		"columnresize":    exports(t, filepath.Join(root, "ui/columnresize")),
+		"avatareditor":    exports(t, filepath.Join(root, "ui/avatareditor")),
+		"reordergrid":     exports(t, filepath.Join(root, "ui/reordergrid")),
+		"avatar":          exports(t, filepath.Join(root, "ui/avatar")),
+		"attachment":      exports(t, filepath.Join(root, "ui/attachment")),
+		"message":         exports(t, filepath.Join(root, "ui/message")),
+		"messagescroller": exports(t, filepath.Join(root, "ui/messagescroller")),
+		"command":         exports(t, filepath.Join(root, "ui/command")),
+		"menubar":         exports(t, filepath.Join(root, "ui/menubar")),
+		"navigationmenu":  exports(t, filepath.Join(root, "ui/navigationmenu")),
+		"hovercard":       exports(t, filepath.Join(root, "ui/hovercard")),
+	}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+				if snippet == "" {
+					continue
+				}
+				source := "package snippet\nfunc example() {\n" + snippet + "\n}\n"
+				file, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0)
+				if err != nil {
+					continue // the parse test reports it
+				}
+				ast.Inspect(file, func(node ast.Node) bool {
+					selector, ok := node.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					pkg, ok := selector.X.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					names, ok := packages[pkg.Name]
+					if !ok {
+						return true // the model or a local value
+					}
+					if !names[selector.Sel.Name] {
+						t.Errorf("%s/%s page snippet calls %s.%s, which the package does not declare", component.ID, example.ID, pkg.Name, selector.Sel.Name)
+					}
+					return true
+				})
+			}
+		}
+	}
+}
+
+// TestModelFreePageSnippetsCompile compiles every page snippet that does not
+// read the application model. Snippets that use m need a concrete model, so
+// they are checked for parse/API/name use elsewhere; this test proves the rest
+// are real Go against the current page API.
+func TestModelFreePageSnippetsCompile(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("compiling snippets needs the host Go toolchain")
+	}
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages := map[string]string{
+		"ui": "github.com/vivaui/viva/ui", "base": "github.com/vivaui/viva/base",
+		"gfx": "github.com/vivaui/viva/gfx", "text": "github.com/vivaui/viva/text",
+		"style": "github.com/vivaui/viva/style", "window": "github.com/vivaui/viva/window",
+		"codeeditor": "github.com/vivaui/viva/ui/codeeditor", "chart": "github.com/vivaui/viva/ui/chart",
+		"calendar": "github.com/vivaui/viva/ui/calendar", "carousel": "github.com/vivaui/viva/ui/carousel",
+		"markdown": "github.com/vivaui/viva/ui/markdown", "columnresize": "github.com/vivaui/viva/ui/columnresize",
+		"avatareditor": "github.com/vivaui/viva/ui/avatareditor", "reordergrid": "github.com/vivaui/viva/ui/reordergrid",
+		"avatar": "github.com/vivaui/viva/ui/avatar", "attachment": "github.com/vivaui/viva/ui/attachment",
+		"message": "github.com/vivaui/viva/ui/message", "messagescroller": "github.com/vivaui/viva/ui/messagescroller",
+		"command": "github.com/vivaui/viva/ui/command", "menubar": "github.com/vivaui/viva/ui/menubar",
+		"navigationmenu": "github.com/vivaui/viva/ui/navigationmenu", "hovercard": "github.com/vivaui/viva/ui/hovercard",
+		"image": "github.com/vivaui/viva/ui/image", "aspectratio": "github.com/vivaui/viva/ui/aspectratio",
+		"skeleton": "github.com/vivaui/viva/ui/skeleton", "inputgroup": "github.com/vivaui/viva/ui/inputgroup",
+		"inputotp": "github.com/vivaui/viva/ui/inputotp", "questionnaire": "github.com/vivaui/viva/ui/questionnaire",
+		"metriccard": "github.com/vivaui/viva/ui/metriccard", "marker": "github.com/vivaui/viva/ui/marker",
+		"sidebar": "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
+		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
+	}
+	wordM := regexp.MustCompile(`\bm\b`)
+	var snippets []string
+	used := map[string]bool{}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			snippet := example.PageSnippet
+			if snippet == "" || wordM.MatchString(snippet) {
+				continue
+			}
+			snippets = append(snippets, fmt.Sprintf("// %s/%s\nfunc snippet%d(c ui.C) {\n%s\n}", component.ID, example.ID, len(snippets), snippet))
+			for name := range packages {
+				if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.`).MatchString(snippet) {
+					used[name] = true
+				}
+			}
+		}
+	}
+	if len(snippets) == 0 {
+		t.Skip("no model-free page snippets")
+	}
+	dir, err := os.MkdirTemp(filepath.Join(root, "build"), "snippetcheck-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	used["ui"] = true
+	var source strings.Builder
+	source.WriteString("package snippetcheck\n\nimport (\n")
+	for name := range used {
+		fmt.Fprintf(&source, "\t%q\n", packages[name])
+	}
+	source.WriteString(")\n\n")
+	source.WriteString(strings.Join(snippets, "\n"))
+	if err := os.WriteFile(filepath.Join(dir, "snippets.go"), []byte(source.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(root, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("go", "build", "./"+filepath.ToSlash(relative))
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("model-free page snippets do not compile: %v\n%s", err, output)
+	}
+}
+
+// exports is the exported top-level names of one package directory.
+func exports(t *testing.T, dir string) map[string]bool {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	set := token.NewFileSet()
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(set, filepath.Join(dir, name), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, declaration := range file.Decls {
+			switch declaration := declaration.(type) {
+			case *ast.FuncDecl:
+				if declaration.Recv == nil && declaration.Name.IsExported() {
+					names[declaration.Name.Name] = true
+				}
+			case *ast.GenDecl:
+				for _, spec := range declaration.Specs {
+					switch spec := spec.(type) {
+					case *ast.TypeSpec:
+						if spec.Name.IsExported() {
+							names[spec.Name.Name] = true
+						}
+					case *ast.ValueSpec:
+						for _, ident := range spec.Names {
+							if ident.IsExported() {
+								names[ident.Name] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return names
 }

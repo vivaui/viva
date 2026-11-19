@@ -26,6 +26,7 @@ type ControlView struct {
 	Flags    uint32
 	Hit      gfx.HitOptions
 	HasHit   bool
+	Exact    bool // HitExact: the control targets its laid-out rectangle
 	Disabled bool
 	// Color is the element's own text color, when HasColor says it has one.
 	Color    gfx.Color
@@ -42,7 +43,7 @@ func ViewOf(f *Frame, n *Node) ControlView {
 	return ControlView{
 		Kind: n.Kind, Rect: n.Rect, Aux: n.Aux, ID: n.ID, Label: n.Label, Text: n.Text,
 		Font: n.FontSize, Weight: n.Weight, Variant: n.Variant, Size: n.ButtonSize,
-		Flags: n.Flags, Hit: extra.hit, HasHit: n.Flags&flagHasHit != 0,
+		Flags: n.Flags, Hit: extra.hit, HasHit: n.Flags&flagHasHit != 0, Exact: extra.hitExact,
 		Disabled: n.Flags&flagDisabled != 0, Icon: extra.icon,
 		Color: n.Color, HasColor: n.Flags&flagHasColor != 0,
 		SwitchRecipe: extra.switchRecipe,

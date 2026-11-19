@@ -72,6 +72,50 @@ var codeDiffComponent = Component{
     VerticalScrollbarID: vertical,
     HorizontalScrollbarID: horizontal,
 })`,
+		PageSnippet: `server := "server: production\n" +
+    "replicas: 2\n" +
+    "logLevel: info\n" +
+    "timeout: 20s\n" +
+    "healthCheck:\n" +
+    "  enabled: true\n" +
+    "  interval: 10s\n"
+local := "server: production\n" +
+    "replicas: 4\n" +
+    "logLevel: warning\n" +
+    "timeout: 30s\n" +
+    "healthCheck:\n" +
+    "  enabled: true\n" +
+    "  interval: 10s\n" +
+    "  path: /ready\n"
+m.diff.Snapshot.Result = m.align(server, local) // the caller aligns both sides by row
+m.diff.Snapshot.Value = local
+m.diff.Snapshot.Language = "yaml"
+m.diff.Snapshot.Hint = "Edit the right pane; the left pane remains the server baseline."
+m.diff.Snapshot.VerticalScrollbarID = codeeditor.Shown
+m.diff.Snapshot.HorizontalScrollbarID = codeeditor.Shown
+codeeditor.DiffView(c, "Local edited version", &m.diff).Fill()`,
+		PageSnippetZh: `server := "server: production\n" +
+    "replicas: 2\n" +
+    "logLevel: info\n" +
+    "timeout: 20s\n" +
+    "healthCheck:\n" +
+    "  enabled: true\n" +
+    "  interval: 10s\n"
+local := "server: production\n" +
+    "replicas: 4\n" +
+    "logLevel: warning\n" +
+    "timeout: 30s\n" +
+    "healthCheck:\n" +
+    "  enabled: true\n" +
+    "  interval: 10s\n" +
+    "  path: /ready\n"
+m.diff.Snapshot.Result = m.align(server, local) // 调用方按行对齐左右两栏
+m.diff.Snapshot.Value = local
+m.diff.Snapshot.Language = "yaml"
+m.diff.Snapshot.Hint = "编辑右侧文本，左侧保持为服务器基准版本。"
+m.diff.Snapshot.VerticalScrollbarID = codeeditor.Shown
+m.diff.Snapshot.HorizontalScrollbarID = codeeditor.Shown
+codeeditor.DiffView(c, "本地编辑版本", &m.diff).Fill()`,
 	}},
 }
 

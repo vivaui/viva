@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { categoryLabel, componentPath, componentsPath, defaultLocale, isLocale, languagePath, locales, localizePage, messages } from './i18n.ts';
+import { categoryLabel, componentName, componentPath, componentsPath, defaultLocale, isLocale, languagePath, locales, localizePage, messages } from './i18n.ts';
 import type { Catalog } from './types.ts';
 
 const catalog: Catalog = JSON.parse(readFileSync(new URL('../../../build/docs-data/catalog.json', import.meta.url), 'utf8'));
@@ -26,6 +26,12 @@ test('both message dictionaries have exactly the same nonempty keys', () => {
   assert.deepEqual(Object.keys(messages.zh).sort(), Object.keys(messages.en).sort());
   for (const locale of locales) {
     for (const [key, value] of Object.entries(messages[locale])) assert.ok(value.trim(), `${locale}/${key}`);
+  }
+});
+
+test('every component has a Chinese name in the sidebar', () => {
+  for (const page of catalog.pages) {
+    assert.notEqual(componentName('zh', page.ID, '__missing__'), '__missing__', page.ID);
   }
 });
 

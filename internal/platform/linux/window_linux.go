@@ -871,6 +871,13 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbDestroyNotify:
 		return true, nil
 	case xcbMapNotify, xcbUnmapNotify:
+		if kind == xcbMapNotify && (*xcbMapEvent)(event).Window == win.id && state.hidden {
+			// The window manager mapped the window after Hide raced its first
+			// map: ask it to go away again, rather than show a hidden window.
+			win.api.unmapWindow(win.connection, win.id)
+			win.api.flush(win.connection)
+			return false, nil
+		}
 		// Mapped is what the user can see here: the window manager unmaps a minimized window
 		// and one that is on a desktop that is not showing. A compositor can hide a window
 		// that is mapped and covered without telling it; that is not reported.

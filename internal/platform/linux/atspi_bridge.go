@@ -407,6 +407,9 @@ func (bridge *atspiBridge) announceChanges(window *atspiWindow, path string, old
 		state("enabled", !next.Disabled)
 		state("sensitive", !next.Disabled)
 	}
+	if changed&platform.ChangedInvalid != 0 {
+		state("invalid-entry", next.Invalid)
+	}
 	if changed&platform.ChangedToggle != 0 {
 		if old.Mixed != next.Mixed {
 			state("indeterminate", next.Mixed)

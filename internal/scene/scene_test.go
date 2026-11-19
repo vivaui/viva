@@ -229,7 +229,7 @@ func TestSceneLeafChangesKindInPlace(t *testing.T) {
 		t.Fatal("a rectangle did not become a triangle")
 	}
 	changes := graph.DrainChanges(nil)
-	if len(changes) != 1 || changes[0].Kind != KindTriangle || changes[0].Bounds != (Rect{}) || changes[0].Points[2].X != 3 || changes[0].EdgeMask != 5 {
+	if len(changes) != 1 || changes[0].Kind != KindTriangle || changes[0].Bounds != (Rect{}) || changes[0].Shape == nil || changes[0].Shape.Points[2].X != 3 || changes[0].EdgeMask != 5 {
 		t.Fatalf("rectangle to triangle = %+v", changes)
 	}
 	if graph.SetTriangle(id, [3]Point{{X: 1}, {X: 2}, {X: 3}}, Color{Alpha: 1}, 5, Shade{}) {
@@ -239,7 +239,7 @@ func TestSceneLeafChangesKindInPlace(t *testing.T) {
 		t.Fatal("a triangle did not become a rectangle")
 	}
 	changes = graph.DrainChanges(changes[:0])
-	if len(changes) != 1 || changes[0].Kind != KindRectangle || changes[0].Points != ([3]Point{}) || changes[0].Radius != 2 {
+	if len(changes) != 1 || changes[0].Kind != KindRectangle || changes[0].Shape != nil || changes[0].Radius != 2 {
 		t.Fatalf("triangle to rectangle = %+v", changes)
 	}
 	if graph.SetTriangle(graph.Root(), [3]Point{}, Color{}, 0, Shade{}) || graph.SetRectangle(graph.Root(), Rect{}, Color{}) {
@@ -253,8 +253,8 @@ func TestTriangleShadeIsPublishedChangeCheckedAndClearedByARectangle(t *testing.
 	shade := Shade{On: true, Colors: [2]Color{{Red: 1, Alpha: 1}, {Blue: 1, Alpha: 1}}}
 	id, _ := graph.AddTriangle(graph.Root(), points, Color{Green: 1, Alpha: 1}, 0, shade)
 	changes := graph.DrainChanges(nil)
-	if got := changes[len(changes)-1].Shade; got != shade {
-		t.Fatalf("published shade = %+v", got)
+	if changes[len(changes)-1].Shape == nil || changes[len(changes)-1].Shape.Shade != shade {
+		t.Fatalf("published shape = %+v", changes[len(changes)-1].Shape)
 	}
 	if graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade) {
 		t.Fatal("setting the same shaded triangle reported a change")
@@ -265,7 +265,7 @@ func TestTriangleShadeIsPublishedChangeCheckedAndClearedByARectangle(t *testing.
 	graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade)
 	graph.SetRectangle(id, Rect{Width: 4}, Color{Alpha: 1})
 	changes = graph.DrainChanges(changes[:0])
-	if len(changes) != 1 || changes[0].Shade != (Shade{}) {
+	if len(changes) != 1 || changes[0].Shape != nil {
 		t.Fatalf("a rectangle kept the triangle's shade: %+v", changes)
 	}
 }

@@ -29,7 +29,17 @@ ui.Grid(c, cell).Gap(12).Children(func() {
 for index, label := range labels {
     bounds := slots[index].Rect()
     components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
-}`},
+}`, PageSnippet: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "New")
+    ui.Badge(c, "99+").Secondary()
+    ui.Badge(c, "Published").Outline()
+})
+ui.Text(c, "Display only; no click target is declared.").Muted()`, PageSnippetZh: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "New")
+    ui.Badge(c, "99+").Secondary()
+    ui.Badge(c, "已发布").Outline()
+})
+ui.Text(c, "仅展示状态，不声明点击区域。").Muted()`},
 		{ID: "variants", Title: "六种变体", Description: "默认、次要、危险、描边、幽灵与链接外观；均为展示标签。", Snippet: `labels := []string{"Default", "Secondary", "Destructive", "Outline", "Ghost", "Link"}
 variants := []components.BadgeVariant{
     components.BadgeDefault, components.BadgeSecondary, components.BadgeDestructive,
@@ -50,7 +60,21 @@ ui.Grid(c, cell).Gap(12).Children(func() {
 for index, label := range labels {
     bounds := slots[index].Rect()
     components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
-}`},
+}`, PageSnippet: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "Default")
+    ui.Badge(c, "Secondary").Secondary()
+    ui.Badge(c, "Destructive").Destructive()
+    ui.Badge(c, "Outline").Outline()
+    ui.Badge(c, "Ghost").Ghost()
+    ui.Badge(c, "Link").Link()
+})`, PageSnippetZh: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "Default")
+    ui.Badge(c, "Secondary").Secondary()
+    ui.Badge(c, "Destructive").Destructive()
+    ui.Badge(c, "Outline").Outline()
+    ui.Badge(c, "Ghost").Ghost()
+    ui.Badge(c, "Link").Link()
+})`},
 		{ID: "long-text", Title: "长中文", Description: "完整展示长中文及中英混排标签，空间不足时另起一行。", Snippet: `labels := []string{"In review", "This is a long status label", "Viva native component · Published"}
 variants := []components.BadgeVariant{
     components.BadgeSecondary, components.BadgeOutline, components.BadgeDefault,
@@ -70,7 +94,15 @@ ui.Grid(c, cell).Gap(12).Children(func() {
 for index, label := range labels {
     bounds := slots[index].Rect()
     components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
-}`},
+}`, PageSnippet: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "In review").Secondary()
+    ui.Badge(c, "This is a long status label").Outline()
+    ui.Badge(c, "Viva native component · Published")
+})`, PageSnippetZh: `ui.Flow(c).Gap(12).Children(func() {
+    ui.Badge(c, "审核中").Secondary()
+    ui.Badge(c, "这是一条长中文状态标签").Outline()
+    ui.Badge(c, "Viva 原生组件 · 已发布")
+})`},
 	},
 }
 
@@ -92,26 +124,27 @@ func (state *State) paintBadge(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		}
 		variants = []components.BadgeVariant{components.BadgeSecondary, components.BadgeOutline, components.BadgeDefault}
 	}
-	// A badge is as wide as its label. The grid's cell is as wide as the widest
-	// one, so the badges wrap onto new rows when the stage is too narrow for them
-	// side by side; each is a Slot of its natural size that the component paints.
-	cell := float32(0)
-	for _, label := range labels {
-		width, _ := components.BadgeExtent(canvas, theme, label)
-		cell = max(cell, width)
-	}
-	var slots [6]ui.Box
 	state.drawPage(canvas, theme, size, 560, state.Text("Badge · 内容决定宽度", "Badge · Width follows content"), func(c ui.C) {
-		ui.Grid(c, cell).Gap(12).Children(func() {
+		ui.Flow(c).Gap(12).Children(func() {
 			for index, label := range labels {
-				width, height := components.BadgeExtent(canvas, theme, label)
-				slots[index] = ui.Slot(c).Size(width, height).Self(ui.Start)
+				badge := ui.Badge(c, label)
+				switch variants[index] {
+				case components.BadgeSecondary:
+					badge.Secondary()
+				case components.BadgeDestructive:
+					badge.Destructive()
+				case components.BadgeOutline:
+					badge.Outline()
+				case components.BadgeGhost:
+					badge.Ghost()
+				case components.BadgeLink:
+					badge.Link()
+				}
 			}
 		})
-		ui.Text(c, state.Text("仅展示状态，不声明点击区域。", "Display only; no click target is declared.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		if state.exampleID == "default" {
+			ui.Text(c, state.Text("仅展示状态，不声明点击区域。", "Display only; no click target is declared.")).
+				FontSize(theme.Metrics.FontSizeS).Muted()
+		}
 	})
-	for index, label := range labels {
-		bounds := slots[index].Rect()
-		components.PaintBadge(canvas, theme, gfx.Rect{X: bounds.X, Y: bounds.Y}, label, variants[index])
-	}
 }

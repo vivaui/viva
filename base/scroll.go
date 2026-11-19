@@ -59,6 +59,7 @@ type ScrollState struct {
 	// ScrollbarLabels gave them; zero and empty keep the area's own.
 	verticalID, horizontalID       gfx.ID
 	verticalLabel, horizontalLabel string
+	verticalValue, horizontalValue string
 }
 
 // scrollStore keeps the ScrollStates of a view, by the identity of their areas. A slot
@@ -148,6 +149,22 @@ func (s *ScrollState) ScrollTo(offset float32) {
 // ScrollToX scrolls a Sideways area to offset pixels from its left edge, kept in range
 // by the next layout. It has no effect on any other area.
 func (s *ScrollState) ScrollToX(offset float32) { s.OffsetX = max(offset, 0) }
+
+// Following reports whether the area is in follow mode and has not been
+// detached by the user scrolling up: new content then stays in view. It is
+// false for an area that does not follow, and for one the user left.
+func (s *ScrollState) Following() bool { return s.follow && !s.detached }
+
+// Prepend adjusts the offset for content added above (positive delta) or
+// removed above (negative) between paints, so the rows the reader is looking
+// at stay in place. The next layout clamps the result. Follow is unchanged: an
+// area at its end stays at its end.
+func (s *ScrollState) Prepend(delta float32) {
+	if delta == 0 {
+		return
+	}
+	s.Offset = max(s.Offset+delta, 0)
+}
 
 // Follow makes the area keep to its end as content is added, or stop: the
 // imperative form of Box.Follow, for a gesture between paints. A List reads
@@ -385,6 +402,7 @@ func (f *Frame) ScrollArea(ID gfx.ID) Box {
 	state.ID, state.follow, state.sideways, state.bars, state.barSize = ID, false, false, false, 0
 	state.barStyle = ScrollBarStyle{}
 	state.verticalID, state.horizontalID, state.verticalLabel, state.horizontalLabel = gfx.ID{}, gfx.ID{}, "", ""
+	state.verticalValue, state.horizontalValue = "", ""
 	b := f.Scroll(state.Offset)
 	f.Extra(b.i).scrollState = state
 	return b
@@ -483,6 +501,17 @@ func (b Box) ScrollbarSize(Size float32) Box {
 func (b Box) Bars(style ScrollBarStyle) Box {
 	if s := b.areaState(); s != nil {
 		s.barStyle = style
+	}
+	return b
+}
+
+// ScrollbarValues gives the values assistive technology reports for a ScrollArea's
+// bars, as components.ScrollArea's VerticalScrollbar and HorizontalScrollbar do: a
+// percentage, a row's name, or what the bar means. Empty keeps the default, which
+// has no value. Like Scrollbars, it has no effect on a box that is not a ScrollArea.
+func (b Box) ScrollbarValues(vertical, horizontal string) Box {
+	if s := b.areaState(); s != nil {
+		s.verticalValue, s.horizontalValue = vertical, horizontal
 	}
 	return b
 }

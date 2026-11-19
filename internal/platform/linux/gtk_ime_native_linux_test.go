@@ -197,7 +197,16 @@ func (p *gtkIMEProbe) record(name string, failures ...string) {
 func (p *gtkIMEProbe) run() {
 	for _, ending := range []string{"commit", "escape", "reset", "focus-out", "window-focus-out"} {
 		editor := text.NewEditor("abc")
-		editor.SetSelection(text.Range{Start: 1, End: 2})
+		if ending == "escape" {
+			editor.Insert("!")
+			if !editor.Undo() {
+				p.editor = editor
+				p.record(ending, "could not seed redo history")
+				continue
+			}
+		}
+		selection := text.Range{Start: 1, End: 2}
+		editor.SetSelection(text.Range{Start: selection.End, End: selection.Start})
 		p.install(editor, gfx.Item(1))
 		if err := p.compose(); err != nil {
 			p.record(ending, err.Error())
@@ -218,31 +227,44 @@ func (p *gtkIMEProbe) run() {
 				failures = append(failures, err.Error())
 			}
 		case "reset":
-			p.w.g.imReset(p.w.ime.ctx)
+			p.w.ime.callContext(p.w.ime.ctx, p.w.g.imReset)
 		case "focus-out":
 			p.w.g.imFocusOut(p.w.ime.ctx)
 			if !slices.Equal(p.signals, prefix) || editor.String() != "au3A9c" {
 				failures = append(failures, "GtkIMContextSimple focus-out unexpectedly settled preedit")
 			}
-			p.w.g.imReset(p.w.ime.ctx)
+			p.w.ime.callContext(p.w.ime.ctx, p.w.g.imReset)
 		case "window-focus-out":
 			p.w.ime.setFocused(false)
 		}
 		wantSignals := append(prefix, "preedit:", "end")
-		wantText := "ac"
+		wantText := "abc"
+		wantTerminal := platform.TextCancelComposition
 		if ending == "commit" {
 			wantSignals = append(wantSignals, "commit:\u03a9")
 			wantText = "a\u03a9c"
+			wantTerminal = platform.TextInsert
 		}
 		if !slices.Equal(p.signals, wantSignals) || editor.String() != wantText || p.w.text.state.Composing {
 			failures = append(failures, fmt.Sprintf("ending signals=%q text=%q composing=%t", p.signals, editor.String(), p.w.text.state.Composing))
 		}
-		p.record(ending, failures...)
-		if !editor.Undo() || ending == "commit" && editor.String() != "ac" || ending != "commit" && editor.String() != "abc" {
-			p.trials[len(p.trials)-1].failures = append(p.trials[len(p.trials)-1].failures, fmt.Sprintf("first Undo=%q", editor.String()))
+		if len(p.events) == 0 || p.events[len(p.events)-1].Kind != wantTerminal {
+			failures = append(failures, fmt.Sprintf("expected terminal event %d", wantTerminal))
 		}
-		if ending == "commit" && (!editor.Undo() || editor.String() != "abc") {
-			p.trials[len(p.trials)-1].failures = append(p.trials[len(p.trials)-1].failures, fmt.Sprintf("second Undo=%q", editor.String()))
+		p.record(ending, failures...)
+		trial := &p.trials[len(p.trials)-1]
+		if ending == "commit" && !editor.Undo() {
+			trial.failures = append(trial.failures, "commit has no undo unit")
+		}
+		wantRedo := ending == "commit" || ending == "escape"
+		if editor.String() != "abc" || editor.Selection() != selection || editor.Caret() != selection.Start || editor.CanUndo() || editor.CanRedo() != wantRedo {
+			trial.failures = append(trial.failures, fmt.Sprintf("original editor state not restored: text=%q selection=%v caret=%d undo=%t redo=%t", editor.String(), editor.Selection(), editor.Caret(), editor.CanUndo(), editor.CanRedo()))
+		}
+		if ending == "commit" && (!editor.Redo() || editor.String() != wantText) {
+			trial.failures = append(trial.failures, fmt.Sprintf("Redo=%q, want %q", editor.String(), wantText))
+		}
+		if ending == "escape" && (!editor.Redo() || editor.String() != "abc!") {
+			trial.failures = append(trial.failures, fmt.Sprintf("Redo after Escape=%q, want abc!", editor.String()))
 		}
 	}
 	plain := text.NewEditor("abc")

@@ -60,13 +60,33 @@ func (application *Application) OpenDragPreview(config DragPreviewConfig) (*Drag
 		Paint:      config.Paint,
 	}, nil)
 	if err != nil {
+		// A host that cannot show the preview at all keeps the drag going
+		// without it, as the API promises.
+		if errors.Is(err, platform.ErrDragPreviewUnsupported) {
+			return nil, ErrNoDragPreview
+		}
 		return nil, err
 	}
-	if _, ok := window.control.(platform.WindowMover); !ok {
+	if _, ok := previewMover(window.control); !ok {
 		window.Close()
 		return nil, ErrNoDragPreview
 	}
 	return &DragPreview{window: window}, nil
+}
+
+type windowControlUnwrapper interface {
+	unwrapWindowControl() WindowControl
+}
+
+// previewMover unwraps a host wrapper before checking the adapter's capability.
+// A wrapper can forward MoveTo, but it must not make a native window that
+// cannot move look movable.
+func previewMover(control WindowControl) (platform.WindowMover, bool) {
+	if wrapped, ok := control.(windowControlUnwrapper); ok {
+		control = wrapped.unwrapWindowControl()
+	}
+	mover, ok := control.(platform.WindowMover)
+	return mover, ok
 }
 
 // MoveTo puts the picture's top-left at origin, in screen coordinates. Call it
@@ -75,7 +95,7 @@ func (preview *DragPreview) MoveTo(origin gfx.Point) {
 	if preview == nil || preview.window == nil || preview.window.closed.Load() {
 		return
 	}
-	if mover, ok := preview.window.control.(platform.WindowMover); ok {
+	if mover, ok := previewMover(preview.window.control); ok {
 		mover.MoveTo(origin)
 	}
 }

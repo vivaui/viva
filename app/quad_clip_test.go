@@ -31,11 +31,11 @@ func TestQuadClippingPreservesBothBackendPlacements(t *testing.T) {
 				Tint: [4]gfx.Color{white, white, white, white},
 			}, gfx.TextStyle{Size: 14, Color: white})
 			painter := newTestPainter(t, &canvas, Config{Title: "quad clip", Width: 200, Height: 100})
-			if (len(painter.labels) != 0) != test.visible {
-				t.Fatalf("visible=%t, labels=%+v", test.visible, painter.labels)
+			if (len(painter.frame.Labels()) != 0) != test.visible {
+				t.Fatalf("visible=%t, labels=%+v", test.visible, painter.frame.Labels())
 			}
-			if test.visible && (painter.labels[0].Clipped != test.cut || test.cut && painter.labels[0].Clip != clip) {
-				t.Fatalf("clip cut=%t, label=%+v", test.cut, painter.labels[0])
+			if test.visible && (painter.frame.Labels()[0].Clipped != test.cut || test.cut && painter.frame.Labels()[0].Clip != clip) {
+				t.Fatalf("clip cut=%t, label=%+v", test.cut, painter.frame.Labels()[0])
 			}
 		})
 	}

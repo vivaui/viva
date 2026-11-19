@@ -50,9 +50,11 @@ opening one, `viva.toml`, and an `AGENTS.md` describing the programming model.
 platform's own bundle.
 
 Requirements: Go 1.26 or newer (viva fetches it when missing). On macOS the Xcode command-line tools, because
-Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
-Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
-the system libraries at runtime and bundles none of them.
+Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB,
+Pango and Cairo libraries, and a Vulkan loader and driver for GPU acceleration
+(a machine without them draws on the CPU); on Windows, Win32 with Direct3D 11
+and DirectWrite. Viva loads the system libraries at runtime and bundles none of
+them.
 
 The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
@@ -66,7 +68,8 @@ and how to work on the framework rather than with it.
 ## Scope
 
 Viva targets native desktop applications on macOS, Windows, and Linux, and
-treats WebAssembly/Canvas2D as a supported web deployment target. Both targets
+treats WebAssembly as a supported web deployment target, rendered with WebGL2
+and falling back to Canvas2D when WebGL2 is unavailable. Both targets
 share components, input, text, focus and accessibility semantics; capabilities
 the browser does not have are reported through explicit asynchronous APIs and
 `Capability`, never faked. The web target must not add cost to native builds.
@@ -210,8 +213,9 @@ without changing build commands. Unconfigured windows keep the ordinary renderer
 limits, fallback behavior and the platforms actually verified.
 
 Native label renderers draw single-line labels. The browser target runs the same
-components on the Canvas2D backend; see [Web deployment](docs/web-deployment.md)
-for its capability matrix and hosting requirements.
+components on the WebGL2 backend, with Canvas2D as its fallback; see
+[Web deployment](docs/web-deployment.md) for its capability matrix and hosting
+requirements.
 
 ## Run the repository
 
@@ -224,8 +228,9 @@ tools/build_web.sh           # viva build --target web, then serves http://127.0
 go run ./tools/docs -check   # the API and component data the website generates from
 ```
 
-The browser build paints the same Go components through the Canvas2D
-WebAssembly backend. It is a deployment target, not only a gallery: file
+The browser build paints the same Go components through WebGL2, falling back to
+the Canvas2D WebAssembly backend when WebGL2 is unavailable or a context is
+lost. It is a deployment target, not only a gallery: file
 pickers, drops, clipboard, notifications, encrypted secret storage and embedded
 fonts have typed asynchronous APIs. Its visual direction and measured costs are
 recorded in `docs/benchmarks/m3-gallery-style-darwin-arm64.md`.

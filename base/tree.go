@@ -39,6 +39,12 @@ type TreeState struct {
 	Node      func(i int) TreeNode
 	RowHeight float32
 	Indent    float32
+	// DisplayDepth maps a row's Depth to the level the tree indents it by, when
+	// the application compresses deep rows to keep their names in view. Depth
+	// stays the tree's structure, which keyboard movement, typeahead and drops
+	// read, so a compressed indent never makes a child look like a sibling.
+	// Nil indents by Depth itself.
+	DisplayDepth func(depth int) int
 	// CanDrop says whether row from may be dropped at where of row to: a group not
 	// into itself or what is inside it, a row not before a sibling of another kind.
 	// It is asked as the pointer moves; nil makes the rows not draggable.
@@ -64,6 +70,9 @@ type TreeState struct {
 	// Disclosure replaces the arrows the tree draws for branches and the width of the
 	// column they occupy before the row's content. Nil keeps Viva's defaults.
 	Disclosure *TreeDisclosure
+	// customKeys leaves the arrow, Home, End and Page keys to the application
+	// (TreeKeys(false)); it is reset by each declaration.
+	customKeys bool
 }
 
 type TreeRow struct {
@@ -167,6 +176,7 @@ func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i
 	}
 	state.toggled, state.chosen = -1, -1
 	state.dropped = TreeMove{From: -1}
+	state.customKeys = false // TreeKeys(false) sets it again after this declaration
 	state.c, state.rowLabel, state.Content, state.n = c, Label, Content, n
 	state.nameOf, state.f = Label, c.f
 	if state.CanDrop != nil {
@@ -188,6 +198,53 @@ func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i
 	}
 	return area
 }
+
+// TreeKeys controls whether the Tree handles the arrow, Home, End and Page keys
+// itself, moving the keyboard between its rows and opening or closing a branch on
+// Left and Right. false leaves those keys to the application, for a tree whose
+// navigation is its own, such as NavigateTree over the application's rows; the
+// application then moves the focus itself, typically to TreeState.RowID. The
+// default is true. Chain it on the Box Tree returns.
+//
+//	ui.Tree(c, &m.tree, rows, m.label, nil).TreeKeys(false)
+func (b Box) TreeKeys(on bool) Box {
+	b.N()
+	found := false
+	if p := b.f.page; p != nil {
+		for _, s := range p.trees {
+			if s.f != b.f || s.list.area != b.i {
+				continue
+			}
+			found = true
+			s.customKeys = !on
+			if !on {
+				// The List a Tree is built on would otherwise take the arrows
+				// after the Tree leaves them: its keys are the application's too.
+				p.dropListRoute(&s.ListState)
+			}
+			break
+		}
+	}
+	if !found {
+		panic("ui: TreeKeys is for the Tree it is chained on")
+	}
+	return b
+}
+
+// dropListRoute takes state out of the page's list keys, so a Tree whose
+// application owns its navigation does not also have the List it is built on
+// move its focus.
+func (p *Page) dropListRoute(state *ListState) {
+	for i, candidate := range p.listStates {
+		if candidate == state {
+			p.listStates = append(p.listStates[:i], p.listStates[i+1:]...)
+			return
+		}
+	}
+}
+
+// appKeys reports whether the application owns the tree's navigation keys.
+func (s *TreeState) appKeys() bool { return s.customKeys }
 
 // RowID is the identity of visible row i as the last paint named it, by Key when
 // one is set: the target to give the focus (Canvas.RequestFocus), to look up in a
@@ -443,6 +500,11 @@ func (p *Page) TreeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		if current == nil {
 			continue
+		}
+		if s.appKeys() {
+			// The application owns the arrows, Home, End and Page: its own key
+			// handler receives them, as TreeKeys(false) asked.
+			return gfx.EventResult{}, false
 		}
 		i, n := current.index, s.n
 		node := s.Node(i)

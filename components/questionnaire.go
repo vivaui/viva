@@ -251,7 +251,7 @@ func (questionnaire *Questionnaire) AddChoice(choice QuestionnaireChoice) {
 		if questionnaire.typeOf == QuestionnaireCheckbox {
 			role = gfx.RoleCheckbox
 		}
-		canvas.HitWithOptions(choice.ID, bounds, choice.Label, gfx.HitOptions{Role: role, Checked: choice.Checked})
+		canvas.HitWithOptions(choice.ID, bounds, choice.Label, gfx.HitOptions{Role: role, Checked: choice.Checked, Invalid: questionnaire.invalid})
 	}
 }
 
@@ -291,7 +291,9 @@ func (questionnaire *Questionnaire) Input(id gfx.ID, value, placeholder string, 
 		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if interactive {
-		questionnaire.canvas.HitWithLabel(id, bounds, "Questionnaire input")
+		questionnaire.canvas.HitWithOptions(id, bounds, "Questionnaire input", gfx.HitOptions{
+			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, SkipFocus: true, Invalid: questionnaire.invalid,
+		})
 	}
 }
 

@@ -26,6 +26,7 @@ const (
 	KindImage
 	KindSplitButton
 	KindBadge
+	KindToggle
 	KindPagination
 )
 

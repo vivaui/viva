@@ -183,7 +183,7 @@ func PaintInputOTP(canvas *gfx.Canvas, theme gfx.Theme, origin gfx.Rect, snapsho
 	if !snapshot.ID.IsZero() {
 		options := gfx.HitOptions{
 			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
-			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly,
+			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Invalid: snapshot.Invalid,
 		}
 		if snapshot.PlatformInput && !snapshot.Disabled && !snapshot.ReadOnly {
 			// An editor whose text cannot be seen: the slots show the code, and

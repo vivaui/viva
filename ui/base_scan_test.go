@@ -15,7 +15,7 @@ import (
 // and its name here, or, when no styled control is built from it, to withoutStyledForm.
 var comparedWithTheirStyledForm = []string{
 	"ButtonBase", "CheckboxBase", "SwitchBase", "SelectBase", "SliderBase",
-	"TextFieldBase", "TabBase", "RadioBase",
+	"TextFieldBase", "TabBase", "RadioBase", "DisclosureBase",
 }
 
 // withoutStyledForm are the Bases that are not the Base of a control that ships with a look,

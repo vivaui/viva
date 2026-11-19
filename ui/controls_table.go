@@ -15,5 +15,6 @@ func paintBadgeControl(f *Frame, n *Node, _ Rect)       { paintBadge(f, base.Vie
 func paintPaginationControl(f *Frame, n *Node, _ Rect)  { paintPagination(f, base.ViewOf(f, n)) }
 func paintCheckboxControl(f *Frame, n *Node, _ Rect)    { paintCheckbox(f, base.ViewOf(f, n)) }
 func paintSwitchControl(f *Frame, n *Node, _ Rect)      { paintSwitch(f, base.ViewOf(f, n)) }
+func paintToggleControl(f *Frame, n *Node, _ Rect)      { paintToggle(f, base.ViewOf(f, n)) }
 func paintInputGroupControl(f *Frame, n *Node, _ Rect)  { paintInputGroup(f, base.ViewOf(f, n)) }
 func paintSegmentedControl(f *Frame, n *Node, _ Rect)   { paintSegmented(f, base.ViewOf(f, n)) }

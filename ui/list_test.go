@@ -499,3 +499,15 @@ func TestListReorderDragCancelledByThePlatformDropsNothing(t *testing.T) {
 		t.Fatal("a cancelled press dropped the rows")
 	}
 }
+
+// RowOffset is a row's top in content space, for anchoring when content above
+// it changes.
+func TestListRowOffset(t *testing.T) {
+	var state ui.ListState
+	openPage(t, func(c ui.C) {
+		ui.List(c, &state, 4, func(row ui.ListRow) { row.Element.Height(30) })
+	})
+	if first, second := state.RowOffset(1), state.RowOffset(2); second-first != 30 {
+		t.Fatalf("rows 1 and 2 start %v apart, want 30", second-first)
+	}
+}

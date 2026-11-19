@@ -153,6 +153,7 @@ const (
 	pkRadio
 	pkTab
 	pkList
+	pkDisclosure
 	pkKinds
 )
 
@@ -287,7 +288,6 @@ type Page struct {
 	hoverArea   gfx.ID                // the scroll area or self-scrolling table the pointer is on
 	selects     []*SelectState        // the Selects of the last paint, which Wheel scrolls
 	labels      []string              // scratch for Choice's labels
-	icons       []gfx.Icon            // scratch for SelectIcon's icons
 	memos       map[gfx.ID]*memoEntry
 	memoBoxes   []memoBox
 	memoChecks  []memoCheckOf
@@ -781,8 +781,6 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	clear(p.ctx.stateSeq)
 	clear(p.labels)
 	p.labels = p.labels[:0]
-	clear(p.icons)
-	p.icons = p.icons[:0]
 	p.focusPaint = p.focusPaint[:0]
 	for i := range p.held {
 		if id := p.held[i].ID; !id.IsZero() && id != Surface.Pressed() && id != Surface.Focused() {
@@ -1074,7 +1072,7 @@ func (p *Page) TextInput(context window.TextInputContext) *window.TextInput {
 			return &entry.field.input
 		}
 	}
-	if h := p.control(context.ID); h != nil && h.Text != nil {
+	if h := p.controlOf(context.ID); h != nil && h.Text != nil {
 		return h.Text(context)
 	}
 	if p.textRoute != nil {

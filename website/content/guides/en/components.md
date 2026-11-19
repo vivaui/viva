@@ -19,9 +19,41 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 A theme is a value, `gfx.LightTheme()` or `gfx.DarkTheme()`. Switching appearance means painting with the other one.
 
+`Begin*` is the style layer's constructor, not a second page API. Declare page controls with `ui.*`, `ui.*Base` and `ui.Control`; use the `Begin*` recipes in package `components` inside a `Draw`, for pure measurement, or in source copied by `viva add`. “Zero Begin” is not a goal: the boundary is that page behaviour is not hand-built, not that the painter constructor disappears. Reusable heavy composites such as `ui/multiselect` and `ui/hierarchypicker` are opt-in packages.
+
+## Optional page packages
+
+A page control for a heavy or stateful component lives in its own package under `ui/<capability>`. Import it only when the page uses it; the package is the pay-for-use boundary.
+
+- Editors and visuals: `ui/textview`, `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`, `ui/columnresize`, `ui/reordergrid`
+- Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`, `ui/sidebar`, `ui/hovercard`
+- Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`, `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`, `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`
+
+The package name is the capability, never a `view` suffix, and its state type is named by role: `calendar.State`, `message.Row`, `attachment.Card`. Keep locals out of the package name (`cal`, `msg`, `pic`); a model field may keep the noun (`m.calendar`) because a selector never shadows a package.
+
+Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others expose a method on the state (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>` shows which.
+
+```go
+cal := &m.calendar
+calendar.View(c, "Calendar", cal).FillWidth()
+msg := message.New().Name("Ari").Body("Ready")
+message.View(c, "Ari", msg)
+```
+
+A custom surface that keeps its own layout can host a page control in a `ui.Slot` at the rectangle a component painted:
+
+```go
+slot := ui.Slot(c).Size(22, 24).Shrink(0)
+slot.Children(func() {
+    ui.Checkbox(c, &copy, "").Absolute().Left(0).Top(0).Size(16, 16).Hit(id, "Select")
+})
+```
+
+Bind a copy when the application's dispatcher owns the value. Keep the rest of the surface as `Draw`/canvas; do not rewrite it into page declarations only for uniformity. `ui/slot_parity_test.go` keeps the Checkbox, Switch and FormField paths pixel- and hit-identical to the `Begin*` recipes in package `components`.
+
 ## Tree navigation
 
-`BeginTree` paints rows from an application-owned flattened hierarchy. For keyboard navigation, pass the visible rows' actual depths, expansion state and disabled state to `components.NavigateTree`; do not pass display-clamped indentation as the depth. It returns the next visible index or an expand/collapse action. The application still owns loading children, expansion, selection and focus, so no hidden model or background work is created. Keep the navigation slice as reusable caller-owned scratch when handling keys.
+`BeginTree` paints rows from an application-owned flattened hierarchy. For keyboard navigation, pass the visible rows' actual depths, expansion state and disabled state to `ui.NavigateTree`; do not pass display-clamped indentation as the depth. It returns the next visible index or an expand/collapse action. The application still owns loading children, expansion, selection and focus, so no hidden model or background work is created. Keep the navigation slice as reusable caller-owned scratch when handling keys.
 
 ## Charts
 

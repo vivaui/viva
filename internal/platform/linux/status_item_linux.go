@@ -180,6 +180,13 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 		state.hidden = true
 		win.api.unmapWindow(win.connection, win.id)
 		win.api.flush(win.connection)
+		// Hide may arrive before the window manager has mapped a new window: the
+		// unmap is then a no-op and no UnmapNotify follows. Report the window as
+		// hidden now, so no wake paints what the user just hid.
+		if state.config.OnVisibility != nil && state.visible {
+			state.visible = false
+			state.config.OnVisibility(false)
+		}
 	case commandShow:
 		win.api.mapWindow(win.connection, win.id)
 		if win.topmostConfigured.Load() {

@@ -8,8 +8,12 @@ import (
 // paintSwatch draws a ColorSwatch element.
 func paintSwatch(f *Frame, n *Node, r Rect) {
 	extra := &f.Exts[n.Ext]
+	disabled := n.Flags&FlagDisabled != 0
 	swatch := components.BeginColorSwatch(f.Surface, f.Palette, n.ID, r, extra.GetSwatchValue()).Label(n.Label).Selected(extra.GetSwatchChosen()).
-		TabStop(!extra.GetSwatchSkipTab())
+		TabStop(!disabled && !extra.GetSwatchSkipTab())
+	if disabled {
+		swatch = swatch.Disabled()
+	}
 	if extra.GetSwatchFlush() {
 		swatch = swatch.Flush()
 	}
@@ -22,7 +26,7 @@ func ids(s *ColorPickerState, trigger gfx.ID) components.ColorPickerIDs {
 		return components.ColorPickerIDs{Trigger: trigger}
 	}
 	at := s.GetHandlers().GetParts().At
-	return components.ColorPickerIDs{Trigger: trigger, Saturation: at(0), Hue: at(1), Hex: at(3), Clear: at(4), Cancel: at(5), Apply: at(6), Dismiss: at(7)}
+	return components.ColorPickerIDs{Trigger: trigger, Saturation: at(0), Hue: at(1), Alpha: at(2), Hex: at(3), Clear: at(4), Cancel: at(5), Apply: at(6), Dismiss: at(7)}
 }
 
 func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, look ColorPickerLook) {
@@ -51,7 +55,7 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 	}
 	empty = empty || look.GetEmpty()
 	options := components.ColorPickerOptions{
-		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty,
+		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(),
 		RoundTrigger: look.GetRound(), TriggerIcon: look.GetIcon(), SaturationText: s.Summary,
 		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: c.GetF().WidgetLayer() + 2,
 	}
@@ -82,8 +86,10 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 
 func openPanel(s *ColorPickerState) {
 	color := *s.GetTarget()
-	if color.Alpha == 0 {
-		color = Color{Red: 0.231, Green: 0.51, Blue: 0.965, Alpha: 1} // #3B82F6, as the field's placeholder
+	if color.Alpha == 0 { // no color: start from the field's placeholder
+		color = Color{Red: 0.231, Green: 0.51, Blue: 0.965, Alpha: 1} // #3B82F6
+	} else if !s.ShowsAlpha() {
+		color.Alpha = 1
 	}
 	s.SetDraftValue(components.ColorPickerValue{}.WithColor(color))
 	s.SetOpenState(true)

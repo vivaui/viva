@@ -133,27 +133,29 @@ func assertSameGroupCPaint(t testing.TB, expected groupCPaintSnapshot, canvas *g
 
 func TestTreeNavigationPreviewMovesFocusAndHidesCollapsedChildren(t *testing.T) {
 	state := newTestState(t, "tree-navigation", "default")
-	root, child := treeNavigationRows.At(0), treeNavigationRows.At(1)
+	demo := treeNavigationDemoFor(state)
 	var canvas gfx.Canvas
 	paintAt(&canvas, state, testSize)
 	if hasText(&canvas, "Gateway") {
 		t.Fatal("collapsed preview paints a child")
 	}
-	step := func(target gfx.ID, key gfx.Key, want gfx.ID) {
+	step := func(current int, key gfx.Key, want int) {
 		t.Helper()
+		target := demo.state.RowID(current)
 		result := state.Key(gfx.KeyEvent{Target: target, Key: key})
-		if !result.Handled || !result.Repaint || !result.FocusVisible || result.Focus != want {
-			t.Fatalf("key %v: result=%+v, want focus %v and repaint", key, result, want)
-		}
 		paintAt(&canvas, state, testSize)
-		if !findHit(t, &canvas, want).Selected {
+		wantID := demo.state.RowID(want)
+		if !result.Handled || !result.Repaint || !result.FocusVisible || result.Focus != wantID {
+			t.Fatalf("key %v: result=%+v, want focus %v and repaint", key, result, wantID)
+		}
+		if !findHit(t, &canvas, wantID).Selected {
 			t.Fatalf("key %v: the focused row is not selected", key)
 		}
 	}
-	step(root, gfx.KeyRight, root)
-	step(root, gfx.KeyRight, child)
-	step(child, gfx.KeyLeft, root)
-	step(root, gfx.KeyLeft, root)
+	step(0, gfx.KeyRight, 0)
+	step(0, gfx.KeyRight, 1)
+	step(1, gfx.KeyLeft, 0)
+	step(0, gfx.KeyLeft, 0)
 	if hasText(&canvas, "Gateway") {
 		t.Fatal("collapsing from the keyboard did not remove children")
 	}

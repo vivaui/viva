@@ -55,6 +55,24 @@ func TestFullscreenRequestsAndObservedStateAreDistinct(t *testing.T) {
 	}
 }
 
+func TestNativeResultWindowForwardsFullscreenRequests(t *testing.T) {
+	control := &fullscreenTestControl{}
+	window := &Window{control: resultWindow{WindowControl: control}}
+	for _, fullscreen := range []bool{true, false} {
+		if err := window.SetFullscreen(fullscreen); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(control.requests) != 2 || !control.requests[0] || control.requests[1] {
+		t.Fatalf("native fullscreen requests = %v, want [true false]", control.requests)
+	}
+
+	unsupported := &Window{control: resultWindow{WindowControl: &fakeWindow{}}}
+	if err := unsupported.SetFullscreen(true); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("unsupported native window: %v", err)
+	}
+}
+
 func TestFullscreenHostCallbackPublishesBeforeApplicationCallback(t *testing.T) {
 	host := &fakeHost{}
 	application := &Application{host: host}
