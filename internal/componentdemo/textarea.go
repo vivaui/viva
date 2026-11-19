@@ -120,6 +120,10 @@ func (state *State) textareaInitialValue() string {
 }
 
 func (state *State) paintTextarea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "default" {
+		state.paintTextareaPage(canvas, theme, size)
+		return
+	}
 	var slots [3]ui.Box
 	var snapshots [3]components.TextareaSnapshot
 	count := 0
@@ -197,6 +201,21 @@ func (state *State) paintTextarea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 	for index := 0; index < count; index++ {
 		components.PaintTextarea(canvas, theme, slots[index].Rect(), snapshots[index])
 	}
+}
+
+// paintTextareaPage is the page TextArea of the editable example: the value is
+// the Field's, so the platform text service and the preview share one editor.
+func (state *State) paintTextareaPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	initial := state.textareaInitialValue()
+	label := state.Text("项目说明", "Project description")
+	hint := state.Text("支持多行文本", "Supports multiple lines")
+	state.drawPage(canvas, theme, size, 540, state.Text("Textarea · 多行编辑", "Textarea · Multi-line editing"), func(c ui.C) {
+		field := ui.State[ui.Field](c, "notes")
+		state.bindPageField(field, initial)
+		field.Hint = hint
+		ui.TextAreaID(c, textareaField, field, label, "").Height(142)
+		caption(c, state.Text("编辑与 IME 事件由应用持有；换行、行内定位与滚动由 Viva 的 TextareaLayout 负责。", "Editing and IME events stay with the app; TextareaLayout handles wrapping, caret placement, and scrolling."))
+	})
 }
 
 // textareaKey moves the caret by visual row for the arrows, Home, End and the

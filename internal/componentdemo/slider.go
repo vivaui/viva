@@ -190,49 +190,61 @@ func (state *State) sliderForExample() components.Slider {
 }
 
 func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var track, disabled ui.Box
+	if state.exampleID == "range" {
+		state.paintSliderRange(canvas, theme, size)
+		return
+	}
+	var track, live ui.Box
+	var volume *ui.SliderState
 	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
-		switch state.exampleID {
-		case "range":
-			track = ui.Slot(c).Height(16)
-			ui.Text(c, state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
-			caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
-		case "states":
+		volume = ui.State[ui.SliderState](c, "volume")
+		volume.Value = float32(state.values[0])
+		if state.exampleID == "states" {
 			ui.Row(c).Gap(40).Children(func() {
 				ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
-					track = ui.Slot(c).Size(24, 160)
+					live = ui.Slider(c, volume).Range(0, 100).Step(10).Vertical().Height(160).Label(state.Text("音量", "Volume")).Hit(sliderPrimary, state.Text("音量", "Volume"))
 					ui.Text(c, state.Text("竖向", "Vertical")).FontSize(theme.Metrics.FontSizeM)
 				})
 				ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
-					disabled = ui.Slot(c).Height(16)
+					fixed := ui.State[ui.SliderState](c, "fixed")
+					fixed.Value = 64
+					ui.Slider(c, fixed).Range(0, 100).Disabled(true).Label(state.Text("禁用滑块", "Disabled slider"))
 					ui.Text(c, state.Text("禁用", "Disabled")).FontSize(theme.Metrics.FontSizeM).Muted()
 				})
 			})
-		default:
-			track = ui.Slot(c).Height(16)
-			caption(c, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
+			return
 		}
+		track = ui.Slider(c, volume).Range(0, 100).Step(10).Label(state.Text("音量", "Volume")).Hit(sliderPrimary, state.Text("音量", "Volume"))
+		caption(c, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
 	})
+	if state.exampleID == "states" {
+		state.values[0] = int32(volume.Value + 0.5)
+		state.bag().placed = live.Rect()
+	} else {
+		state.values[0] = int32(volume.Value + 0.5)
+		state.bag().placed = track.Rect()
+	}
+	if canvas.Clicked(sliderPrimary) {
+		state.values[0] = (state.values[0] + 10) % 110
+	}
+}
 
+// paintSliderRange keeps the range example on the canvas API: the page
+// RangeSlider paints no caller-supplied thumb labels or value text.
+func (state *State) paintSliderRange(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var track ui.Box
+	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
+		track = ui.Slot(c).Height(16)
+		ui.Text(c, state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
+		caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
+	})
 	bounds := track.Rect()
 	if bag := state.slider; bag != nil {
 		bag.placed = bounds
 	}
-	switch state.exampleID {
-	case "range":
-		components.BeginRangeSlider(canvas, theme, bounds, state.bag().thumbs[:]).Step(5).Paint(state.Text("价格区间", "Price range"))
-		if canvas.Clicked(sliderLower) || canvas.Clicked(sliderUpper) {
-			state.toggleSliderRangePreset()
-		}
-		return
-	case "states":
-		components.BeginSlider(canvas, theme, sliderPrimary, bounds, float32(state.values[0])).Vertical().Step(10).Paint(state.Text("音量", "Volume"))
-		components.BeginSlider(canvas, theme, sliderDisabled, disabled.Rect(), 64).Disabled().Paint(state.Text("禁用滑块", "Disabled slider"))
-	default:
-		components.BeginSlider(canvas, theme, sliderPrimary, bounds, float32(state.values[0])).Step(10).ValueText(sliderDemoValueText(state.values[0])).Paint(state.Text("音量", "Volume"))
-	}
-	if canvas.Clicked(sliderPrimary) {
-		state.values[0] = (state.values[0] + 10) % 110
+	components.BeginRangeSlider(canvas, theme, bounds, state.bag().thumbs[:]).Step(5).Paint(state.Text("价格区间", "Price range"))
+	if canvas.Clicked(sliderLower) || canvas.Clicked(sliderUpper) {
+		state.toggleSliderRangePreset()
 	}
 }
 

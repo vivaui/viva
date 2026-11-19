@@ -115,25 +115,61 @@ func (state *State) keyRadioGroup(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
+// radioPageState is the page RadioGroup's model: the chosen plan, and whether
+// the demo has seeded it from State.values.
+type radioPageState struct {
+	plan string
+	init bool
+}
+
 func (state *State) paintRadioGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	horizontal := state.exampleID == "horizontal" && min(size.Width-48, float32(520)) >= 360
-	// Three control-height rows plus the group's 12px gaps; a horizontal group
-	// keeps the single-row default.
-	height := theme.Metrics.ControlHeight*3 + 24
-	if horizontal {
-		height = theme.Metrics.ControlHeight
+	if state.exampleID == "states" {
+		state.paintRadioGroupStates(canvas, theme, size)
+		return
 	}
-	var slot ui.Box
+	horizontal := state.exampleID == "horizontal" && min(size.Width-48, float32(520)) >= 360
+	plans := [...]string{"Personal", "Team", "Enterprise"}
 	state.drawPage(canvas, theme, size, 520, "Workspace plan", func(c ui.C) {
-		slot = ui.Slot(c).Height(height)
+		page := ui.State[radioPageState](c, "plan")
+		if !page.init {
+			page.plan, page.init = plans[state.values[0]], true
+		}
+		radios := func() {
+			for index, plan := range plans {
+				ui.RadioID(c, radioGroupItem.At(index), &page.plan, plan, plan)
+			}
+		}
+		if horizontal {
+			ui.Row(c).Gap(12).FocusGroup(ui.FocusHorizontal).Children(radios)
+		} else {
+			ui.RadioGroup(c).Children(radios)
+		}
+		if index := radioPlanIndex(plans[:], page.plan); index >= 0 {
+			state.values[0] = int32(index)
+		}
 		caption(c, state.Text("方向键移动焦点并更新调用方选中值。", "Arrow keys move focus and update the caller's selection."))
 	})
+}
 
+func radioPlanIndex(plans []string, plan string) int {
+	for index, option := range plans {
+		if option == plan {
+			return index
+		}
+	}
+	return -1
+}
+
+// paintRadioGroupStates keeps the invalid example on the canvas API: the page
+// Radio has no per-option invalid state.
+func (state *State) paintRadioGroupStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var slot ui.Box
+	state.drawPage(canvas, theme, size, 520, "Workspace plan", func(c ui.C) {
+		slot = ui.Slot(c).Height(theme.Metrics.ControlHeight*3 + 24)
+		caption(c, state.Text("方向键移动焦点并更新调用方选中值。", "Arrow keys move focus and update the caller's selection."))
+	})
 	options := state.radioGroupOptionsFor()
 	group := components.BeginRadioGroup(canvas, theme, slot.Rect(), options[:], radioGroupItem.At(int(state.values[0])))
-	if horizontal {
-		group = group.Horizontal()
-	}
 	group.Paint()
 	if index, ok := canvas.ClickedIn(radioGroupItem); ok {
 		state.values[0] = int32(index)

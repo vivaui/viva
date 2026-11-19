@@ -6,6 +6,13 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+// sonnerDemo is the page-owned toaster of one example, made once so a warm
+// paint reuses the stack and its identities.
+type sonnerDemo struct {
+	toaster ui.Toaster
+	seeded  bool
+}
+
 var sonnerComponent = Component{
 	ID: "sonner", Title: "Sonner", Category: "Feedback", Summary: "调用方管理生命周期的通知堆栈。",
 	paint: (*State).paintSonner, initialize: (*State).initializeSonner,
@@ -18,10 +25,18 @@ toasts := [...]components.SonnerToast{{
     Scope: toast, DismissID: tree.ID(page, "dismiss"),
     ActionID: tree.ID(page, "action"), ActionLabel: "View",
 }}
-components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`, PageSnippet: `if ui.Button(c, "Save project").Clicked() {
+components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`, PageSnippet: `if !m.notified {
+    m.toaster.ShowAction("Project saved", "All local changes are written.", ui.ToastSuccess, "View")
+    m.notified = true
+}
+if ui.Button(c, "Save project").Clicked() {
     m.toaster.ShowAction("Project saved", "All local changes are written.", ui.ToastSuccess, "View")
 }
-ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if ui.Button(c, "保存项目").Clicked() {
+ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if !m.notified {
+    m.toaster.ShowAction("项目已保存", "所有本地更改均已写入。", ui.ToastSuccess, "查看")
+    m.notified = true
+}
+if ui.Button(c, "保存项目").Clicked() {
     m.toaster.ShowAction("项目已保存", "所有本地更改均已写入。", ui.ToastSuccess, "查看")
 }
 ui.Toasts(c, &m.toaster)`},
@@ -35,15 +50,15 @@ toasts := [...]components.SonnerToast{
         Scope: toast.At(2)},
 }
 components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{Layer: 40})`, PageSnippet: `if !m.notified {
-    m.toaster.Show("Project saved", "", ui.ToastSuccess)
-    m.toaster.Show("Update available", "", ui.ToastInfo)
-    m.toaster.Show("Connection lost", "", ui.ToastError)
+    m.toaster.Show("Project saved", "All local changes are written.", ui.ToastSuccess)
+    m.toaster.Show("Update available", "Takes effect after the app restarts.", ui.ToastInfo)
+    m.toaster.Show("Connection lost", "Waiting for the network to recover.", ui.ToastError)
     m.notified = true
 }
 ui.Toasts(c, &m.toaster)`, PageSnippetZh: `if !m.notified {
-    m.toaster.Show("项目已保存", "", ui.ToastSuccess)
-    m.toaster.Show("有可用更新", "", ui.ToastInfo)
-    m.toaster.Show("连接已中断", "", ui.ToastError)
+    m.toaster.Show("项目已保存", "所有本地更改均已写入。", ui.ToastSuccess)
+    m.toaster.Show("有可用更新", "重启应用后生效。", ui.ToastInfo)
+    m.toaster.Show("连接已中断", "正在等待网络恢复。", ui.ToastError)
     m.notified = true
 }
 ui.Toasts(c, &m.toaster)`},
@@ -60,17 +75,20 @@ toasts := [...]components.SonnerToast{
 components.PaintSonner(canvas, theme, viewport, toasts[:], components.SonnerOptions{
     Layer: 40, Expanded: true,
 })`, PageSnippet: `// The stack expands while the pointer rests on it or focus is inside it.
+// A static page cannot hold that hover, so the preview stays on the canvas
+// painter to show the expanded geometry exactly.
 if !m.notified {
-    m.toaster.ShowAction("Project saved", "", ui.ToastSuccess, "View")
-    m.toaster.ShowAction("Update available", "", ui.ToastInfo, "Later")
-    m.toaster.Show("Connection lost", "", ui.ToastError)
+    m.toaster.ShowAction("Project saved", "All local changes are written.", ui.ToastSuccess, "View")
+    m.toaster.ShowAction("Update available", "Takes effect after the app restarts.", ui.ToastInfo, "Later")
+    m.toaster.Show("Connection lost", "Waiting for the network to recover.", ui.ToastError)
     m.notified = true
 }
 ui.Toasts(c, &m.toaster)`, PageSnippetZh: `// 指针停留或焦点在通知堆栈内时，堆栈会展开。
+// 静态页面无法保持悬停，因此该示例保留 canvas 绘制以如实展示展开几何。
 if !m.notified {
-    m.toaster.ShowAction("项目已保存", "", ui.ToastSuccess, "查看")
-    m.toaster.ShowAction("有可用更新", "", ui.ToastInfo, "稍后")
-    m.toaster.Show("连接已中断", "", ui.ToastError)
+    m.toaster.ShowAction("项目已保存", "所有本地更改均已写入。", ui.ToastSuccess, "查看")
+    m.toaster.ShowAction("有可用更新", "重启应用后生效。", ui.ToastInfo, "稍后")
+    m.toaster.Show("连接已中断", "正在等待网络恢复。", ui.ToastError)
     m.notified = true
 }
 ui.Toasts(c, &m.toaster)`},
@@ -88,6 +106,45 @@ var (
 func (state *State) initializeSonner() { state.flags = 0b111 }
 
 func (state *State) paintSonner(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "expanded" {
+		state.paintSonnerExpanded(canvas, theme, size)
+		return
+	}
+	state.drawPage(canvas, theme, size, 520, state.Text("Sonner · 通知堆栈", "Sonner · Notification stack"), func(c ui.C) {
+		demo := ui.State[sonnerDemo](c, "sonner-demo")
+		ui.Text(c, state.Text("生命周期、过期与动画由调用方持有。", "Lifecycle, expiry, and animation belong to the caller.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		if !demo.seeded {
+			demo.seeded = true
+			if state.exampleID == "default" {
+				demo.toaster.ShowAction(state.Text("项目已保存", "Project saved"), state.Text("所有本地更改均已写入。", "All local changes are written."), ui.ToastSuccess, state.Text("查看", "View"))
+			} else {
+				demo.toaster.Show(state.Text("项目已保存", "Project saved"), state.Text("所有本地更改均已写入。", "All local changes are written."), ui.ToastSuccess)
+				demo.toaster.Show(state.Text("有可用更新", "Update available"), state.Text("重启应用后生效。", "Takes effect after the app restarts."), ui.ToastInfo)
+				demo.toaster.Show(state.Text("连接已中断", "Connection lost"), state.Text("正在等待网络恢复。", "Waiting for the network to recover."), ui.ToastError)
+			}
+		}
+		if state.exampleID == "default" {
+			label := state.Text("保存项目", "Save project")
+			if ui.Button(c, label).Self(ui.Start).Hit(sonnerAction.At(0), label).Clicked() {
+				demo.toaster.ShowAction(state.Text("项目已保存", "Project saved"), state.Text("所有本地更改均已写入。", "All local changes are written."), ui.ToastSuccess, state.Text("查看", "View"))
+			}
+		}
+		if demo.toaster.Len() == 0 {
+			ui.Text(c, state.Text("通知已全部关闭。", "All notifications are dismissed.")).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium).Muted()
+		}
+		ui.Toasts(c, &demo.toaster)
+		if demo.toaster.Len() == 0 {
+			state.flags = 0
+		} else {
+			state.flags = 1<<demo.toaster.Len() - 1
+		}
+	})
+}
+
+// paintSonnerExpanded paints the forced expanded geometry, which the page
+// stack only enters while the pointer rests on it or focus is inside it: a
+// static preview cannot hold that hover.
+func (state *State) paintSonnerExpanded(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	toasts := [...]components.SonnerToast{
 		{
 			Snapshot: components.ToastSnapshot{
@@ -117,11 +174,7 @@ func (state *State) paintSonner(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 		},
 	}
 	visible := toasts[:0]
-	limit := len(toasts)
-	if state.exampleID == "default" {
-		limit = 1
-	}
-	for index := 0; index < limit; index++ {
+	for index := range toasts {
 		if state.flags&(1<<index) != 0 {
 			visible = append(visible, toasts[index])
 		}
@@ -136,9 +189,8 @@ func (state *State) paintSonner(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 		return
 	}
 	components.PaintSonner(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, visible, components.SonnerOptions{
-		Layer: 40, Expanded: state.exampleID == "expanded",
+		Layer: 40, Expanded: true,
 	})
-
 	if index, ok := canvas.ClickedIn(sonnerDismiss); ok {
 		state.flags &^= 1 << index
 	}

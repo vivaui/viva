@@ -59,6 +59,9 @@ func (state *State) keyColorSwatch(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
+// paintColorSwatch stays on the canvas API: ui.ColorSwatch paints the same
+// swatches, but Box.Disabled is not forwarded to components.ColorSwatch, so the
+// disabled choice would neither dim nor become inert.
 func (state *State) paintColorSwatch(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	var slots [4]ui.Box
 	state.drawPage(canvas, theme, size, 360, state.Text("连接颜色", "Connection color"), func(c ui.C) {

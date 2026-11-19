@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -18,7 +17,13 @@ layout := sheet.Begin("Project settings", "Changes remain caller-owned until Sav
 canvas.Label("Rendering backend", layout.Body, labelStyle)
 sheet.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save"})
 sheet.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := true
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `m.backend = "Native GPU"
+open := false
+if !open {
+    if ui.Button(c, "Open settings").Clicked() {
+        open = true
+    }
+}
 ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 360,
     Description: "Changes remain caller-owned until Save.",
@@ -28,14 +33,20 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     if ui.Button(c, "Save changes").Clicked() {
         open = false
     }
-})`, PageSnippetZh: `open := true
-ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
+})`, PageSnippetZh: `m.backend = "原生 GPU"
+open := false
+if !open {
+    if ui.Button(c, "打开设置").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "项目设置", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 360,
-    Description: "Changes remain caller-owned until Save.",
+    Description: "保存前更改由调用方持有。",
 }, func() {
-    ui.TextField(c, &m.backend, "Rendering backend", "")
+    ui.TextField(c, &m.backend, "渲染后端", "")
 }, func() {
-    if ui.Button(c, "Save changes").Clicked() {
+    if ui.Button(c, "保存更改").Clicked() {
         open = false
     }
 })`},
@@ -47,7 +58,13 @@ layout := sheet.Begin("Project settings", "Same API, bottom edge.")
 canvas.Label("Native GPU", layout.Body, labelStyle)
 sheet.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
 sheet.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `open := true
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) || canvas.Clicked(dismissID) { open = false }`, PageSnippet: `m.backend = "Native GPU"
+open := false
+if !open {
+    if ui.Button(c, "Open settings").Clicked() {
+        open = true
+    }
+}
 ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     Side: ui.DrawerBottom, Size: 230,
     Description: "Same API, bottom edge.",
@@ -57,14 +74,20 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
     if ui.Button(c, "Save changes").Clicked() {
         open = false
     }
-})`, PageSnippetZh: `open := true
-ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
+})`, PageSnippetZh: `m.backend = "原生 GPU"
+open := false
+if !open {
+    if ui.Button(c, "打开设置").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "项目设置", ui.DrawerSpec{
     Side: ui.DrawerBottom, Size: 230,
-    Description: "Same API, bottom edge.",
+    Description: "同一 API，底部边缘。",
 }, func() {
-    ui.TextField(c, &m.backend, "Rendering backend", "")
+    ui.TextField(c, &m.backend, "渲染后端", "")
 }, func() {
-    if ui.Button(c, "Save changes").Clicked() {
+    if ui.Button(c, "保存更改").Clicked() {
         open = false
     }
 })`},
@@ -74,41 +97,47 @@ ui.Drawer(c, &open, "Project settings", ui.DrawerSpec{
 var (
 	sheetUI      = tree.Feature("sheet")
 	sheetTrigger = tree.ID(sheetUI, "trigger")
-	sheetDismiss = tree.ID(sheetUI, "dismiss")
-	sheetClose   = tree.ID(sheetUI, "close")
 	sheetSave    = tree.ID(sheetUI, "save")
-	sheetScope   = tree.ID(sheetUI, "content")
 )
 
 func (state *State) paintSheet(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	state.drawPage(canvas, theme, size, 560, "Project settings", func(c ui.C) {
-		ui.Text(c, "Edit without leaving this view.").FontSize(theme.Metrics.FontSizeS).Muted()
-		if ui.Button(c, "Open settings").Self(ui.Start).Hit(sheetTrigger, "Open settings").Clicked() {
+		ui.Text(c, state.Text("留在当前视图编辑。", "Edit without leaving this view.")).FontSize(theme.Metrics.FontSizeS).Muted()
+		open := ui.State[bool](c, "open")
+		seeded := ui.State[bool](c, "seeded")
+		backend := ui.State[string](c, "backend")
+		if !*seeded {
+			*open = state.flags&1 != 0
+			*backend = state.Text("原生 GPU", "Native GPU")
+			*seeded = true
+		}
+		if !*open {
+			label := state.Text("打开设置", "Open settings")
+			if ui.Button(c, label).Self(ui.Start).Hit(sheetTrigger, label).Clicked() {
+				*open = true
+			}
+		}
+		spec := ui.DrawerSpec{
+			Side: ui.DrawerRight, Size: 360,
+			Description: state.Text("保存前更改由调用方持有。", "Changes remain caller-owned until Save."),
+		}
+		title := state.Text("项目设置", "Project settings")
+		if state.exampleID == "bottom" {
+			spec.Side, spec.Size = ui.DrawerBottom, 230
+			spec.Description = state.Text("同一 API，底部边缘。", "Same API, bottom edge.")
+		}
+		ui.Drawer(c, open, title, spec, func() {
+			ui.TextField(c, backend, state.Text("渲染后端", "Rendering backend"), "")
+		}, func() {
+			save := state.Text("保存更改", "Save changes")
+			if ui.Button(c, save).Hit(sheetSave, save).Clicked() {
+				*open = false
+			}
+		})
+		if *open {
 			state.flags |= 1
+		} else {
+			state.flags &^= 1
 		}
 	})
-
-	if state.flags&1 == 0 {
-		return
-	}
-	side := components.SheetRight
-	extent := min(size.Width*0.78, float32(360))
-	if state.exampleID == "bottom" {
-		side = components.SheetBottom
-		extent = min(size.Height*0.62, float32(230))
-	}
-	sheet := components.BeginSheet(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, components.SheetOptions{
-		Layer: 5, Scope: sheetScope, DismissID: sheetDismiss, CloseID: sheetClose, Side: side, ContentExtent: extent,
-	})
-	layout := sheet.Begin("Project settings", "Changes remain caller-owned until Save.")
-	canvas.Label("Rendering backend", gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 22}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground})
-	field := gfx.Rect{X: layout.Body.X, Y: layout.Body.Y + 30, Width: layout.Body.Width, Height: theme.Metrics.ControlHeight}
-	canvas.RoundedBorder(field, theme.Metrics.RadiusControl, 1, theme.Border, theme.Input)
-	canvas.Label("Native GPU", gfx.Rect{X: field.X + 12, Y: field.Y, Width: max(field.Width-24, 0), Height: field.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-	sheet.Actions(layout, components.ButtonAction{ID: sheetSave, Label: "Save changes"})
-	sheet.End()
-
-	if canvas.Clicked(sheetDismiss) || canvas.Clicked(sheetClose) || canvas.Clicked(sheetSave) {
-		state.flags &^= 1
-	}
 }

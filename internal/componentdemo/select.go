@@ -65,14 +65,30 @@ var (
 	selectItem = tree.Sub(selectUI, tree.Name("item"))
 )
 
+// selectDemo is the caller-owned value of the page-first Select.
+type selectDemo struct{ value string }
+
 func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID != "states" {
+		backends := []string{"Metal", "Direct3D", "Vulkan"}
+		state.drawPage(canvas, theme, size, 520, "Renderer", func(c ui.C) {
+			demo := ui.State[selectDemo](c, "select-demo")
+			ui.Select(c, &demo.value, backends, nil).
+				Label("Renderer").Placeholder("Select a backend").
+				FillWidth().MaxWidth(280)
+			state.values[0] = selectValueIndex(demo.value)
+			caption(c, state.Text("选中值与开合由应用持有。", "The application owns the selection and open state."))
+		})
+		return
+	}
+
+	// The states example stays on the canvas API: the page Select has no
+	// invalid-trigger state to paint beside the disabled one.
 	var trigger, unavailable ui.Box
 	open := state.flags&1 != 0
 	state.drawPage(canvas, theme, size, 520, "Renderer", func(c ui.C) {
 		trigger = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
-		if state.exampleID == "states" {
-			unavailable = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
-		}
+		unavailable = ui.Slot(c).FillWidth().MaxWidth(280).Height(theme.Metrics.ControlHeight)
 		caption(c, state.Text("选中值与开合由应用持有。", "The application owns the selection and open state."))
 	})
 
@@ -86,7 +102,7 @@ func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 	}
 	selectControl := components.BeginSelect(canvas, theme, bounds, components.SelectOptions{
 		TriggerID: selectTrigger, Label: "Renderer", Value: selectValueLabel(state.values[0]), Placeholder: "Select a backend",
-		Open: open, Invalid: state.exampleID == "states" && state.values[0] == 0,
+		Open: open, Invalid: state.values[0] == 0,
 		Content: gfx.Rect{X: bounds.X, Y: contentY, Width: bounds.Width, Height: contentHeight},
 		Layer:   4, Scope: selectScope, DismissID: selectDismiss,
 	})
@@ -96,7 +112,7 @@ func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 	selectControl.AddItem(components.SelectItem{ID: selectItem.At(2), Label: "Vulkan", Value: "vulkan", Selected: state.values[0] == 3})
 	selectControl.End()
 
-	if state.exampleID == "states" && !open {
+	if !open {
 		components.BeginSelect(canvas, theme, unavailable.Rect(), components.SelectOptions{
 			TriggerID: selectDisabled, Label: "Unavailable", Placeholder: "Backend unavailable", Disabled: true, Size: components.SelectSizeSmall,
 		}).TriggerBounds()
@@ -110,6 +126,19 @@ func (state *State) paintSelect(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Si
 		state.flags ^= 1
 	case canvas.Clicked(selectDismiss):
 		state.flags &^= 1
+	}
+}
+
+func selectValueIndex(value string) int32 {
+	switch value {
+	case "Metal":
+		return 1
+	case "Direct3D":
+		return 2
+	case "Vulkan":
+		return 3
+	default:
+		return 0
 	}
 }
 

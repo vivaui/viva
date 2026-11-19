@@ -113,8 +113,8 @@ var (
 	}
 )
 
-// The specimens are the component's roles themselves, painted in slots: ui.Text
-// would only imitate their size and weight.
+// The specimens are the component's roles, declared with the page's text calls:
+// Paragraph wraps, Text does not, and the role decides size, weight and color.
 func (state *State) paintTypography(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	lines := typographyHierarchy[:]
 	switch state.exampleID {
@@ -123,15 +123,31 @@ func (state *State) paintTypography(canvas *gfx.Canvas, theme gfx.Theme, size gf
 	case "muted":
 		lines = typographyMuted[:]
 	}
-	var slots [len(typographyHierarchy)]ui.Box
 	state.drawPage(canvas, theme, size, 600, state.Text("Typography · 文字角色", "Typography · Text roles"), func(c ui.C) {
 		ui.Column(c).Gap(6).Children(func() {
-			for index, line := range lines {
-				slots[index] = ui.Slot(c).Height(line.height)
+			for _, line := range lines {
+				text := state.Text(line.text, line.english)
+				switch line.role {
+				case components.TypographyH1:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL * 1.5).Weight(gfx.WeightBold)
+				case components.TypographyH2:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
+				case components.TypographyH3:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeL).Weight(gfx.WeightSemibold)
+				case components.TypographyH4:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
+				case components.TypographyLead:
+					ui.Paragraph(c, text, 0).FontSize(theme.Metrics.FontSizeM + 7).Muted()
+				case components.TypographyParagraph:
+					ui.Paragraph(c, text, 0).FontSize(theme.Metrics.FontSizeM + 3)
+				case components.TypographyLarge:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+				case components.TypographySmall:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+				default:
+					ui.Text(c, text).FontSize(theme.Metrics.FontSizeM).Muted()
+				}
 			}
 		})
 	})
-	for index, line := range lines {
-		components.Typography(canvas, theme, slots[index].Rect(), line.role, state.Text(line.text, line.english))
-	}
 }

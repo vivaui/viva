@@ -61,35 +61,54 @@ type checkboxState struct {
 }
 
 func (state *State) paintCheckbox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "states" {
+		state.paintCheckboxStates(canvas, theme, size)
+		return
+	}
 	labels := []string{state.Text("接受使用条款", "Accept terms of use")}
-	switch state.exampleID {
-	case "selection":
+	if state.exampleID == "selection" {
 		labels = []string{
 			state.Text("显示行号", "Show line numbers"),
 			state.Text("保存时格式化", "Format on save"),
 			state.Text("恢复上次窗口", "Restore last window"),
 		}
-	case "states":
-		labels = []string{
-			state.Text("必选：接受使用条款", "Required: accept terms of use"),
-			state.Text("禁用 · 未选择", "Disabled · Unchecked"),
-			state.Text("禁用 · 已选择", "Disabled · Checked"),
-		}
 	}
-	// A required box that is still empty is drawn invalid, which ui's checkbox
-	// has no option for: its square is a Slot the component paints into.
+	caption := state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")
+	if state.exampleID == "default" && state.checkbox.boxes[0] {
+		caption = state.Text("已接受使用条款。", "Terms accepted.")
+	}
+	state.drawPage(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(c ui.C) {
+		for index, label := range labels {
+			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+				ui.Checkbox(c, &state.checkbox.boxes[index], "").Hit(checkboxBox.At(index), label)
+				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+			})
+		}
+		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// paintCheckboxStates keeps the validation example on the canvas API: the page
+// Checkbox has no invalid option, and the components checkbox paints a required
+// box that is still empty in its invalid look into a Slot.
+func (state *State) paintCheckboxStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	labels := []string{
+		state.Text("必选：接受使用条款", "Required: accept terms of use"),
+		state.Text("禁用 · 未选择", "Disabled · Unchecked"),
+		state.Text("禁用 · 已选择", "Disabled · Checked"),
+	}
 	var invalid ui.Box
 	hasInvalid := false
 	state.drawPage(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(c ui.C) {
 		for index, label := range labels {
 			checked := state.checkbox.selected&(1<<index) != 0
-			disabled := state.exampleID == "states" && index > 0
+			disabled := index > 0
 			if disabled {
 				checked = index == 2
 			}
 			ui.Row(c).Gap(12).Items(ui.Center).PadX(12).MarginY(2).Children(func() {
 				state.checkbox.boxes[index] = checked
-				if state.exampleID == "states" && index == 0 && !checked {
+				if index == 0 && !checked {
 					side := components.CheckboxExtent(theme)
 					invalid, hasInvalid = ui.Slot(c).Size(side, side), true
 				} else if ui.Checkbox(c, &state.checkbox.boxes[index], "").Hit(checkboxBox.At(index), label).Disabled(disabled).Clicked() {
@@ -102,11 +121,8 @@ func (state *State) paintCheckbox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Color(color)
 			})
 		}
-		caption := state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")
-		if state.exampleID == "default" && state.checkbox.selected != 0 {
-			caption = state.Text("已接受使用条款。", "Terms accepted.")
-		}
-		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
 	if hasInvalid {
 		bounds := invalid.Rect()

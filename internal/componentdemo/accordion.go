@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -21,7 +20,8 @@ for index, title := range titles {
     if canvas.Clicked(items.At(index)) {
         open ^= 1 << index
     }
-}`, PageSnippet: `ui.Accordion(c, m.faq, []ui.AccordionItem{
+}`, PageSnippet: `m.faq.Multiple = true
+ui.Accordion(c, m.faq, []ui.AccordionItem{
     {Title: "Does it repaint constantly?", Content: func() {
         ui.Text(c, "A new frame is submitted only when content changes.").Muted()
     }},
@@ -31,7 +31,8 @@ for index, title := range titles {
     {Title: "Is it keyboard accessible?", Content: func() {
         ui.Text(c, "Headers declare focusable button semantics.").Muted()
     }},
-})`, PageSnippetZh: `ui.Accordion(c, m.faq, []ui.AccordionItem{
+})`, PageSnippetZh: `m.faq.Multiple = true
+ui.Accordion(c, m.faq, []ui.AccordionItem{
     {Title: "是否持续重绘？", Content: func() {
         ui.Text(c, "仅在内容变化时提交新帧。").Muted()
     }},
@@ -51,6 +52,7 @@ for index, title := range titles {
         canvas.Label(answers[index], content, style)
     }
 }`, PageSnippet: `m.faq.Disabled = true
+m.faq.Multiple = true
 ui.Accordion(c, m.faq, []ui.AccordionItem{
     {Title: "Does it repaint constantly?", Content: func() {
         ui.Text(c, "A new frame is submitted only when content changes.").Muted()
@@ -62,6 +64,7 @@ ui.Accordion(c, m.faq, []ui.AccordionItem{
         ui.Text(c, "Headers declare focusable button semantics.").Muted()
     }},
 })`, PageSnippetZh: `m.faq.Disabled = true
+m.faq.Multiple = true
 ui.Accordion(c, m.faq, []ui.AccordionItem{
     {Title: "是否持续重绘？", Content: func() {
         ui.Text(c, "仅在内容变化时提交新帧。").Muted()
@@ -76,55 +79,58 @@ ui.Accordion(c, m.faq, []ui.AccordionItem{
 	},
 }
 
-var (
-	accordionUI = tree.Feature("accordion")
-	// accordionItem's item i is the i-th disclosure header.
-	accordionItem = tree.Sub(accordionUI, tree.Name("item"))
-)
-
-const accordionContentHeight = 38
-
 func initializeAccordion(state *State) { state.flags = 1 }
 
-func (state *State) paintAccordion(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	titles := [...]string{
+// accordionDemo is one example's page disclosure state and the fixed items it
+// declares. It is kept beside the State rather than rebuilt in each paint, so a
+// warm paint allocates nothing and the content closures stay stable.
+type accordionDemo struct {
+	faq   ui.AccordionState
+	items []ui.AccordionItem
+	c     ui.C
+}
+
+var accordionDemos = map[*State]*accordionDemo{}
+
+func accordionDemoFor(state *State) *accordionDemo {
+	if demo := accordionDemos[state]; demo != nil {
+		return demo
+	}
+	titles := [3]string{
 		state.Text("是否持续重绘？", "Does it repaint constantly?"),
 		state.Text("状态由谁持有？", "Who owns the state?"),
 		state.Text("是否支持键盘？", "Is it keyboard accessible?"),
 	}
-	answers := [...]string{
+	answers := [3]string{
 		state.Text("仅在内容变化时提交新帧。", "A new frame is submitted only when content changes."),
 		state.Text("展开位由应用状态明确持有。", "The expanded state is owned explicitly by the application."),
 		state.Text("标题声明为可聚焦按钮语义。", "Headers declare focusable button semantics."),
 	}
-	// The accordion paints its own rows; the slot reserves the height they take:
-	// every header, a divider between them and the answer of each open item.
-	height := components.AccordionHeaderExtent(theme)*float32(len(titles)) + float32(len(titles)-1)
-	for index := range titles {
-		if state.flags&(1<<index) != 0 {
-			height += accordionContentHeight + 16
-		}
+	demo := &accordionDemo{faq: ui.AccordionState{Open: make([]bool, len(titles)), Multiple: true}}
+	demo.items = []ui.AccordionItem{
+		{Title: titles[0], Content: func() { ui.Text(demo.c, answers[0]).Muted() }},
+		{Title: titles[1], Content: func() { ui.Text(demo.c, answers[1]).Muted() }},
+		{Title: titles[2], Content: func() { ui.Text(demo.c, answers[2]).Muted() }},
 	}
-	var slot ui.Box
+	accordionDemos[state] = demo
+	return demo
+}
+
+func (state *State) paintAccordion(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	demo := accordionDemoFor(state)
+	for index := range demo.faq.Open {
+		demo.faq.Open[index] = state.flags&(1<<index) != 0
+	}
+	demo.faq.Disabled = state.exampleID == "disabled"
 	state.drawPage(canvas, theme, size, 560, state.Text("Accordion · 常见问题", "Accordion · Common questions"), func(c ui.C) {
-		slot = ui.Slot(c).FillWidth().Height(height)
+		demo.c = c
+		ui.Accordion(c, &demo.faq, demo.items)
 	})
-	accordion := components.BeginAccordion(canvas, theme, slot.Rect())
-	disabled := state.exampleID == "disabled"
-	if disabled {
-		accordion = accordion.Disabled()
-	}
-	for index := range titles {
-		open := state.flags&(1<<index) != 0
-		id := accordionItem.At(index)
-		content := accordion.Item(id, titles[index], open, accordionContentHeight)
-		if content.Height > 0 {
-			canvas.Label(answers[index], gfx.Rect{X: content.X, Y: content.Y, Width: content.Width - 20, Height: 24}, gfx.TextStyle{
-				Size: theme.Metrics.FontSizeM, Color: theme.MutedForeground,
-			})
-		}
-		if !disabled && canvas.Clicked(id) {
-			state.flags ^= 1 << index
+	var flags uint64
+	for index, open := range demo.faq.Open {
+		if open {
+			flags |= 1 << index
 		}
 	}
+	state.flags = flags
 }

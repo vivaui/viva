@@ -125,37 +125,49 @@ func (state *State) toggleGroupOptions() [3]components.ToggleGroupOption {
 }
 
 func (state *State) paintToggleGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var group ui.Box
 	vertical := state.exampleID == "vertical"
+	multiple := state.exampleID == "multiple"
+	labels := [...]string{
+		state.Text("左对齐", "Left"),
+		state.Text("居中", "Center"),
+		state.Text("右对齐", "Right"),
+	}
+	if multiple {
+		labels = [...]string{
+			state.Text("粗体", "Bold"),
+			state.Text("斜体", "Italic"),
+			state.Text("下划线", "Underline"),
+		}
+	}
+	captionText := state.Text("单选模式由调用方在点击时替换选择位。", "Single selection: the caller replaces the selected bit on click.")
+	if multiple {
+		captionText = state.Text("多选模式由调用方独立翻转每个选择位。", "Multiple selection: the caller flips each bit independently.")
+	} else if vertical {
+		captionText = state.Text("第三项禁用；上下方向键会自动跳过。", "The third item is disabled; arrow keys skip it.")
+	}
 	state.drawPage(canvas, theme, size, 500, state.Text("Toggle Group · 显式选择", "Toggle Group · Explicit selection"), func(c ui.C) {
+		page := ui.State[togglePageState](c, "group")
+		group := ui.Row(c).Gap(0)
 		if vertical {
-			group = ui.Slot(c).FillWidth().MaxWidth(168).Height(theme.Metrics.ControlHeight * 3).Self(ui.Start)
-			caption(c, state.Text("第三项禁用；上下方向键会自动跳过。", "The third item is disabled; arrow keys skip it."))
-			return
+			group = ui.Column(c).Gap(0).FillWidth().MaxWidth(168).Self(ui.Start)
 		}
-		group = ui.Slot(c).Height(theme.Metrics.ControlHeight)
-		text := state.Text("单选模式由调用方在点击时替换选择位。", "Single selection: the caller replaces the selected bit on click.")
-		if state.exampleID == "multiple" {
-			text = state.Text("多选模式由调用方独立翻转每个选择位。", "Multiple selection: the caller flips each bit independently.")
-		}
-		caption(c, text)
+		group.Children(func() {
+			for index, label := range labels {
+				page.values[index] = state.flags&(1<<index) != 0
+				toggle := ui.Toggle(c, &page.values[index], label).Outline().Hit(toggleGroupItem.At(index), label)
+				if vertical && index == 2 {
+					toggle.Disabled(true)
+				}
+				if toggle.Changed() {
+					bit := uint64(1) << index
+					if multiple {
+						state.flags ^= bit
+					} else {
+						state.flags = bit
+					}
+				}
+			}
+		})
+		caption(c, captionText)
 	})
-
-	options := state.toggleGroupOptions()
-	// The horizontal examples are joined into one control (Spacing(0)); the
-	// multiple-selection one is also sized to its labels, not to the slot.
-	toggleGroup := components.BeginToggleGroup(canvas, theme, group.Rect(), options[:]).Outline().Spacing(0)
-	if vertical {
-		toggleGroup = toggleGroup.Vertical().Spacing(1)
-	} else if state.exampleID == "multiple" {
-		toggleGroup = toggleGroup.SizeToFit()
-	}
-	if id, ok := toggleGroup.Paint().Clicked(); ok {
-		bit := uint64(1) << listIndex(id, toggleGroupItem)
-		if state.exampleID == "multiple" {
-			state.flags ^= bit
-		} else {
-			state.flags = bit
-		}
-	}
 }
