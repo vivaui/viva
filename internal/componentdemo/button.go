@@ -17,7 +17,11 @@ var buttonComponent = Component{
 if ui.Button(c, "Click me").Self(ui.Start).Clicked() {
     m.clicks++
 }
-ui.Text(c, "Click the button, or use Tab / Enter.").Muted()`, Height: 180},
+ui.Text(c, "Click the button, or use Tab / Enter.").Muted()`, PageSnippetZh: `ui.Textf(c, "点击：%d", m.clicks)
+if ui.Button(c, "Click me").Self(ui.Start).Clicked() {
+    m.clicks++
+}
+ui.Text(c, "点击按钮，或用 Tab / Enter 操作。").Muted()`, Height: 180},
 		{ID: "variants", Title: "六种变体", Description: "六种生产按钮外观共享同一个点击计数。", Snippet: `ui.Grid(c, 128).Gap(12).Children(func() {
     ui.Button(c, "Default").Clicked()
     ui.Button(c, "Destructive").Destructive().Clicked()
@@ -46,7 +50,28 @@ ui.Grid(c, 128).Gap(12).Children(func() {
         m.clicks++
     }
 })
-ui.Text(c, "Six appearances; every activation counts.").Muted()`, Height: 230},
+ui.Text(c, "Six appearances; every activation counts.").Muted()`, PageSnippetZh: `ui.Textf(c, "点击：%d", m.clicks)
+ui.Grid(c, 128).Gap(12).Children(func() {
+    if ui.Button(c, "Default").Clicked() {
+        m.clicks++
+    }
+    if ui.Button(c, "Destructive").Destructive().Clicked() {
+        m.clicks++
+    }
+    if ui.Button(c, "Outline").Outline().Clicked() {
+        m.clicks++
+    }
+    if ui.Button(c, "Secondary").Secondary().Clicked() {
+        m.clicks++
+    }
+    if ui.Button(c, "Ghost").Ghost().Clicked() {
+        m.clicks++
+    }
+    if ui.Button(c, "Link").Link().Clicked() {
+        m.clicks++
+    }
+})
+ui.Text(c, "六种外观；每次激活都会计数。").Muted()`, Height: 230},
 		{ID: "disabled", Title: "禁用变体", Description: "六种变体保留禁用语义，不响应点击。", Snippet: `ui.Grid(c, 128).Gap(12).Children(func() {
     ui.Button(c, "Default").Disabled(true).Clicked()
     ui.Button(c, "Destructive").Destructive().Disabled(true).Clicked()
@@ -63,7 +88,16 @@ ui.Grid(c, 128).Gap(12).Children(func() {
     ui.Button(c, "Ghost").Ghost().Disabled(true).Clicked()
     ui.Button(c, "Link").Link().Disabled(true).Clicked()
 })
-ui.Text(c, "All disabled; they neither count nor take focus.").Muted()`, Height: 230},
+ui.Text(c, "All disabled; they neither count nor take focus.").Muted()`, PageSnippetZh: `ui.Textf(c, "点击：%d", m.clicks)
+ui.Grid(c, 128).Gap(12).Children(func() {
+    ui.Button(c, "Default").Disabled(true).Clicked()
+    ui.Button(c, "Destructive").Destructive().Disabled(true).Clicked()
+    ui.Button(c, "Outline").Outline().Disabled(true).Clicked()
+    ui.Button(c, "Secondary").Secondary().Disabled(true).Clicked()
+    ui.Button(c, "Ghost").Ghost().Disabled(true).Clicked()
+    ui.Button(c, "Link").Link().Disabled(true).Clicked()
+})
+ui.Text(c, "全部禁用；不会计数或获得焦点。").Muted()`, Height: 230},
 	},
 }
 

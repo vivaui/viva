@@ -28,6 +28,10 @@ var colorPickerComponent = Component{
 ui.ColorPicker(c, &m.picker, &m.color, "Custom color")
 if m.picker.Applied() {
     m.saved = m.color
+}`, PageSnippetZh: `// m.color starts as #3B82F6.
+ui.ColorPicker(c, &m.picker, &m.color, "自定义颜色")
+if m.picker.Applied() {
+    m.saved = m.color
 }`},
 		{ID: "alpha", Title: "透明度", Description: "可选透明度条和 #RRGGBBAA 输入；棋盘格显示透明部分。", Height: 480, Snippet: `options.ShowAlpha = true
 // Use #RRGGBBAA in the caller-owned text editor.

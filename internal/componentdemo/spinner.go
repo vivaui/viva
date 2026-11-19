@@ -16,6 +16,9 @@ components.PaintSpinner(canvas, theme, icon.Rect(), 2)
 ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)`, PageSnippet: `ui.Row(c).Gap(14).Items(ui.Center).Children(func() {
     ui.Spinner(c)
     ui.Text(c, "Syncing workspace…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+})`, PageSnippetZh: `ui.Row(c).Gap(14).Items(ui.Center).Children(func() {
+    ui.Spinner(c)
+    ui.Text(c, "正在同步工作区…").FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
 })`},
 		{ID: "phases", Title: "八个相位", Description: "同屏展示全部确定性相位，不启动动画循环。", Snippet: `for index := range 8 {
     cell := ui.Slot(c).Size(32, 32)

@@ -28,7 +28,18 @@ ui.Table(c, &m.table, ui.TableSpec{
     Source:  &bills,
 })
 ui.Text(c, "Total · 3 items · ¥ 4,540").Muted()
-ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`},
+ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
+    {"设计系统", "已支付", "¥ 2,400"},
+    {"桌面构建", "处理中", "¥ 860"},
+    {"性能审计", "待付款", "¥ 1,280"},
+}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"项目", "状态", "金额"},
+    Source:  &bills,
+})
+ui.Text(c, "合计 · 3 项 · ¥ 4,540").Muted()
+ui.Text(c, "点击任意数据行以查看交互反馈。").Muted()`},
 		{ID: "selection", Title: "选择状态", Description: "点击稳定行 ID 切换调用方持有的选择位。", Snippet: `rows := tree.Sub(page, tree.Name("row"))
 table := components.BeginTable(canvas, theme, bounds, columns)
 table.Header([]string{"Item", "Status", "Amount"})
@@ -46,6 +57,21 @@ table.Footer([]string{"Total", "3 items", "¥ 4,540"})`, PageSnippet: `bills := 
 table := ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"Item", "Status", "Amount"},
+    Source:  &bills,
+})
+if row, ok := table.RowClicked(); ok {
+    m.table.Select(row)
+}
+if row := m.table.Selected(); row >= 0 {
+    ui.Text(c, "Selected: "+bills[row][0]).Muted()
+}`, PageSnippetZh: `bills := ui.TableRows{
+    {"设计系统", "已支付", "¥ 2,400"},
+    {"桌面构建", "处理中", "¥ 860"},
+    {"性能审计", "待付款", "¥ 1,280"},
+}
+table := ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"项目", "状态", "金额"},
     Source:  &bills,
 })
 if row, ok := table.RowClicked(); ok {
@@ -79,7 +105,22 @@ ui.Table(c, &m.table, ui.TableSpec{
     Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
-ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted()`},
+ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
+    {"设计系统", "已支付", "¥ 2,400"},
+    {"桌面构建", "处理中", "¥ 860"},
+    {"性能审计", "待付款", "¥ 1,280"},
+}
+columns := []style.TableColumn{
+    {Width: 112, Alignment: style.TableAlignLeft},
+    {Width: 88, Alignment: style.TableAlignCenter},
+    {Alignment: style.TableAlignRight},
+}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"项目", "状态", "金额"},
+    Source:  &bills,
+})
+ui.Text(c, "项目左对齐，状态居中，金额右对齐。").Muted()`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
 headings := []string{"Item", "Status", "Amount"}
 components.FitTableHeadings(canvas, theme, columns, headings)
@@ -99,7 +140,18 @@ ui.Table(c, &m.table, ui.TableSpec{
     Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
-ui.Text(c, "Item is cut with an ellipsis; Status grew to hold its heading.").Muted()`},
+ui.Text(c, "Item is cut with an ellipsis; Status grew to hold its heading.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
+    {"设计系统", "已支付", "¥ 2,400"},
+    {"桌面构建", "处理中", "¥ 860"},
+    {"性能审计", "待付款", "¥ 1,280"},
+}
+columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.TableAlignRight}}
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: columns,
+    Headers: []string{"项目", "状态", "金额"},
+    Source:  &bills,
+})
+ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Muted()`},
 	},
 }
 

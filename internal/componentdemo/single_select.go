@@ -49,11 +49,15 @@ selection.SetOptions([]components.SingleSelectOption{
 // Route clicks to selection.Choose(index) and selection.Clear().
 components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `group := "Development"
 ui.Select(c, &group, []string{"Development", "Testing", "Production"}, nil).
-    Label("Group").Placeholder("Select or create a group")`},
+    Label("Group").Placeholder("Select or create a group")`, PageSnippetZh: `group := "开发环境"
+ui.Select(c, &group, []string{"开发环境", "测试环境", "生产环境"}, nil).
+    Label("分组").Placeholder("选择或创建分组")`},
 		{ID: "disabled", Title: "禁用", Description: "保留当前值，禁止输入和选择。", Height: 280, Snippet: `options.Disabled = true
 components.PaintSingleSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `group := "Development"
 ui.Select(c, &group, []string{"Development", "Testing", "Production"}, nil).
-    Label("Group").Disabled(true)`},
+    Label("Group").Disabled(true)`, PageSnippetZh: `group := "开发环境"
+ui.Select(c, &group, []string{"开发环境", "测试环境", "生产环境"}, nil).
+    Label("分组").Disabled(true)`},
 	},
 }
 

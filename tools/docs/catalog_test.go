@@ -384,8 +384,17 @@ func TestFailedBuildPreservesPublishedPreview(t *testing.T) {
 func TestPageSnippetsArePageLevel(t *testing.T) {
 	for _, component := range componentdemo.Catalog() {
 		for _, example := range component.Examples {
-			if example.PageSnippet == "" {
-				continue
+			for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+				if snippet == "" {
+					continue
+				}
+				if strings.Contains(snippet, "components.") || strings.Contains(snippet, "Begin") {
+					t.Errorf("%s/%s page snippet uses the canvas API: %q", component.ID, example.ID, snippet)
+				}
+				source := "package snippet\nfunc example() {\n" + snippet + "\n}\n"
+				if _, err := parser.ParseFile(token.NewFileSet(), "snippet.go", source, 0); err != nil {
+					t.Errorf("%s/%s page snippet does not parse: %v\n%s", component.ID, example.ID, err, snippet)
+				}
 			}
 			if strings.Contains(example.PageSnippet, "components.") || strings.Contains(example.PageSnippet, "Begin") {
 				t.Errorf("%s/%s page snippet uses the canvas API: %q", component.ID, example.ID, example.PageSnippet)

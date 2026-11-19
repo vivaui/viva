@@ -22,19 +22,23 @@ components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: name, Label: "Name", Value: value,
     Placeholder: "Type in Chinese or English…",
 })`, PageSnippet: `// m.name starts as "Viva text input".
-ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`},
+ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`, PageSnippetZh: `// m.name starts as "Viva 文本输入".
+ui.TextField(c, &m.name, "Name", "输入中文或 English…")`},
 		{ID: "placeholder", Title: "空值提示", Description: "空值显示 placeholder；聚焦后由当前平台文本服务显示光标。", Snippet: `field := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: name, Label: "Name", Value: "",
     Placeholder: "Type in Chinese or English…",
 })`, PageSnippet: `// m.name is empty.
-ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`},
+ui.TextField(c, &m.name, "Name", "Type in Chinese or English…")`, PageSnippetZh: `// m.name is empty.
+ui.TextField(c, &m.name, "Name", "输入中文或 English…")`},
 		{ID: "invalid", Title: "校验状态", Description: "演示规则：非空文本含 @ 即解除错误，不作为完整邮箱校验。", Snippet: `invalid := value == "" || !strings.Contains(value, "@")
 field := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     ID: email, Label: "Email", Value: value,
     Placeholder: "name@example.com", Invalid: invalid,
 })`, PageSnippet: `// m.email starts as "not-an-email".
+m.email.Invalid = !strings.Contains(m.email.Text(), "@")
+ui.TextField(c, &m.email, "Email", "name@example.com")`, PageSnippetZh: `// m.email starts as "not-an-email".
 m.email.Invalid = !strings.Contains(m.email.Text(), "@")
 ui.TextField(c, &m.email, "Email", "name@example.com")`},
 		{ID: "states", Title: "禁用与只读", Description: "两个固定文本样本均不向平台 provider 暴露 Editor。", Snippet: `disabled := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
@@ -57,6 +61,12 @@ ui.TextField(c, &m.pill, "Pill", "Type in Chinese or English…").
 // m.square starts as "Smaller text".
 ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2)
 // m.plain starts as "Theme default".
+ui.TextField(c, &m.plain, "Theme", "")`, PageSnippetZh: `// m.pill starts as "圆角与字号".
+ui.TextField(c, &m.pill, "Pill", "输入中文或 English…").
+    FontSize(16).Radius(gfx.RadiusFull)
+// m.square starts as "较小的字号".
+ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2)
+// m.plain starts as "主题默认".
 ui.TextField(c, &m.plain, "Theme", "")`},
 	},
 }

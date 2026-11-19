@@ -61,6 +61,17 @@ picker := multiselect.New(tags)
 picker.View(c, multiselect.Spec{
     Label: "Tags", Placeholder: "Select or create tags",
     EmptyLabel: "No matching options", CreatePrefix: "Create: ",
+}).FillWidth()`, PageSnippetZh: `tags := &multiselect.State{AllowCreate: true, MatchCaseInsensitive: true, Open: true}
+tags.SetOptions([]multiselect.Option{
+    {Value: "开发", Label: "开发"},
+    {Value: "测试", Label: "测试"},
+    {Value: "生产", Label: "生产"},
+})
+tags.SetValues([]string{"开发"})
+picker := multiselect.New(tags)
+picker.View(c, multiselect.Spec{
+    Label: "标签", Placeholder: "选择或输入标签",
+    EmptyLabel: "没有匹配项", CreatePrefix: "创建：",
 }).FillWidth()`},
 		{ID: "disabled", Title: "禁用", Description: "保留已选项，禁止编辑、展开或删除。", Height: 280, Snippet: `options.Disabled = true
 components.PaintMultiSelect(canvas, theme, bounds, &selection, options)`, PageSnippet: `tags := &multiselect.State{AllowCreate: true, MatchCaseInsensitive: true}
@@ -74,6 +85,17 @@ picker := multiselect.New(tags)
 picker.View(c, multiselect.Spec{
     Label: "Tags", Placeholder: "Select or create tags",
     EmptyLabel: "No matching options", CreatePrefix: "Create: ",
+}).FillWidth().Disabled(true)`, PageSnippetZh: `tags := &multiselect.State{AllowCreate: true, MatchCaseInsensitive: true}
+tags.SetOptions([]multiselect.Option{
+    {Value: "开发", Label: "开发"},
+    {Value: "测试", Label: "测试"},
+    {Value: "生产", Label: "生产"},
+})
+tags.SetValues([]string{"开发"})
+picker := multiselect.New(tags)
+picker.View(c, multiselect.Spec{
+    Label: "标签", Placeholder: "选择或输入标签",
+    EmptyLabel: "没有匹配项", CreatePrefix: "创建：",
 }).FillWidth().Disabled(true)`},
 	},
 }

@@ -39,7 +39,8 @@ const sections = page.Sections.filter(section => section.ID !== 'source-ownershi
       <Preview {locale} componentID={page.ID} title={page.Title} example={example.Snippet && /components\.|Begin/.test(example.Snippet) ? {...example, Snippet: undefined} : example} revision={page.Revision} height={example.Height} client:load />
       {(() => {
         const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
-        const usage = example.PageSnippet || (own ? example.Snippet : '');
+        const localized = locale === 'zh' ? example.PageSnippetZh : example.PageSnippet;
+        const usage = localized || example.PageSnippet || (own ? example.Snippet : '');
         if (!usage) return <p class="example-summary">{text.canvasRecipe}</p>;
         return <div class="code-block usage-block">
           <div class="code-toolbar"><span>{text.exampleUsage}</span><CopyButton text={usage} label={text.copyUsage} {locale} client:load /></div>

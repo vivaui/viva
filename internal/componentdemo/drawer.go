@@ -28,6 +28,16 @@ ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
     if ui.Button(c, "Save changes").Clicked() {
         open = false
     }
+})`, PageSnippetZh: `open := true
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248,
+    Description: "Applies immediately.", Swipe: true,
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
 })`},
 		{ID: "sides", Title: "侧边抽屉", Description: "右侧抽屉使用相同的模态与焦点契约。", Snippet: `drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{
     Layer: 2, Scope: scope, CloseID: closeID,
@@ -38,6 +48,16 @@ canvas.Label("Native settings.", layout.Body, labelStyle)
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
 drawer.End()
 if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerRight, Size: 300,
+    Description: "Applies immediately.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`, PageSnippetZh: `open := true
 ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
     Side: ui.DrawerRight, Size: 300,
     Description: "Applies immediately.",

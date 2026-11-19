@@ -37,7 +37,8 @@ components.PaintTextarea(canvas, theme, field.Rect(), components.TextareaSnapsho
     ID: tree.ID(page, "description"), Label: "Project description", Hint: "Supports multiple lines",
     Value: value, DisplayValue: value,
 })`, PageSnippet: `notes := "Viva renders with the native GPU. An idle window keeps submitting no frames: with no input, animation, or network events it is not repainted, and no background timer polls.\nThe second paragraph is short."
-ui.TextArea(c, &notes, "Project description", "").Height(142)`},
+ui.TextArea(c, &notes, "Project description", "").Height(142)`, PageSnippetZh: `notes := "Viva 使用原生 GPU 渲染。空闲时不会持续提交帧：没有输入、动画或网络事件时，窗口不会被重绘，也不会有后台定时器在轮询。\n第二段很短。"
+ui.TextArea(c, &notes, "项目说明", "").Height(142)`},
 		{ID: "grow", Title: "随内容增高", Description: "相当于 shadcn 的 field-sizing-content：高度随文本行数增长，超过上限后在框内滚动并跟随插入点。", Snippet: `width := min(size.Width-48, float32(540))
 height := min(layout.ContentHeight(canvas, theme, value, width, false), float32(5)*20+16)
 field := ui.Slot(c).Height(height)

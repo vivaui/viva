@@ -42,6 +42,29 @@ if open {
     if d.Dismissed() {
         open = false
     }
+}`, PageSnippetZh: `open := false
+result := "等待操作 · Confirm / Cancel"
+if ui.Button(c, "Open dialog").Outline().Clicked() {
+    open = true
+}
+ui.Text(c, result)
+if open {
+    d := ui.Dialog(c, ui.DialogSpec{
+        Title: "保存更改？",
+        Description: "确认后更新本地示例状态。",
+        Width: 440, Scope: scope, CloseID: closeID,
+    })
+    d.Footer(func() {
+        if ui.Button(c, "Cancel").Outline().Clicked() {
+            open, result = false, "已取消 · 未应用更改"
+        }
+        if ui.Button(c, "Confirm").Clicked() {
+            open, result = false, "已确认 · 仅更新示例状态"
+        }
+    })
+    if d.Dismissed() {
+        open = false
+    }
 }`},
 		{ID: "confirm", Title: "确认操作", Description: "初始打开的确认弹窗；Tab 限于弹窗，关闭后可重新打开。", Snippet: `if open {
     d := ui.Dialog(c, ui.DialogSpec{
@@ -71,6 +94,24 @@ if open {
     if d.Dismissed() {
         open = false
     }
+}`, PageSnippetZh: `open := true
+if open {
+    d := ui.Dialog(c, ui.DialogSpec{
+        Title: "保存更改？",
+        Description: "确认后更新本地示例状态。",
+        Width: 440, Scope: scope, CloseID: closeID,
+    })
+    d.Footer(func() {
+        if ui.Button(c, "Cancel").Outline().Clicked() {
+            open = false
+        }
+        if ui.Button(c, "Confirm").Clicked() {
+            open = false
+        }
+    })
+    if d.Dismissed() {
+        open = false
+    }
 }`},
 		{ID: "destructive", Title: "危险操作", Description: "危险按钮仅改变本地示例结果，不删除任何数据。", Snippet: `if open {
     d := ui.Dialog(c, ui.DialogSpec{
@@ -87,6 +128,24 @@ if open {
     d := ui.Dialog(c, ui.DialogSpec{
         Title: "Remove draft?",
         Description: "Demo only; no data is deleted.",
+        Width: 440, Scope: scope, CloseID: closeID,
+    })
+    d.Footer(func() {
+        if ui.Button(c, "Cancel").Outline().Clicked() {
+            open = false
+        }
+        if ui.Button(c, "Confirm").Destructive().Clicked() {
+            open = false
+        }
+    })
+    if d.Dismissed() {
+        open = false
+    }
+}`, PageSnippetZh: `open := true
+if open {
+    d := ui.Dialog(c, ui.DialogSpec{
+        Title: "移除草稿？",
+        Description: "仅作演示，不会删除数据。",
         Width: 440, Scope: scope, CloseID: closeID,
     })
     d.Footer(func() {

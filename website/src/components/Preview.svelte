@@ -101,9 +101,11 @@
 
 <div class="example-demo" bind:this={container}>
   <div class="example-toolbar">
-    <div class="preview-actions">
-      <Button variant="ghost" size="sm" onclick={reset} disabled={!mounted} aria-label={`${text.resetExample}: ${example.Title}`}><Icon name="reset" size={15} />{text.reset}</Button>
-      <Button variant="ghost" size="sm" href={path} target="_blank" rel="noopener noreferrer" aria-label={`${text.openPreview}: ${example.Title}`}><Icon name="arrow" size={15} /><span class="open-preview-label">{text.openPreview}</span></Button>
+    <div class="window-dots" aria-hidden="true"><span class="window-dot window-dot-close"></span><span class="window-dot window-dot-min"></span><span class="window-dot window-dot-max"></span></div>
+    <span class="window-title">{example.Title}</span>
+    <div class="window-actions">
+      <button type="button" class="window-action" onclick={reset} disabled={!mounted} aria-label={`${text.resetExample}: ${example.Title}`} title={text.reset}><Icon name="reset" size={14} /></button>
+      <a class="window-action" href={path} target="_blank" rel="noopener noreferrer" aria-label={`${text.openPreview}: ${example.Title}`} title={text.openPreview}><Icon name="arrow" size={14} /></a>
     </div>
   </div>
   <div class="preview-canvas" style={`height:${canvasHeight}px`} data-state={loadState} aria-label={`${example.Title} ${text.preview}`} aria-busy={mounted && activated && loadState === 'loading'}>

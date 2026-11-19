@@ -32,6 +32,17 @@ ui.Menu(c, trigger, &open, func(menu *ui.MenuItems) {
     menu.Item("Compact mode").Checked(false)
     menu.Separator()
     menu.Item("Sign out").Destructive()
+})`, PageSnippetZh: `open := false
+trigger := ui.Button(c, "Account").Outline()
+if trigger.Clicked() {
+    open = !open
+}
+ui.Menu(c, trigger, &open, func(menu *ui.MenuItems) {
+    menu.Label("skyler@example.com")
+    menu.Item("Profile").Keys(ui.Primary|ui.Shift, "P")
+    menu.Item("Compact mode").Checked(false)
+    menu.Separator()
+    menu.Item("Sign out").Destructive()
 })`},
 		{ID: "states", Title: "选择状态", Description: "复选、单选、子菜单与禁用项。", Snippet: `items := tree.Sub(page, tree.Name("item"))
 menu := components.BeginDropdownMenu(canvas, theme, bounds, components.DropdownMenuOptions{Layer: 1})
@@ -46,6 +57,17 @@ for index, label := range []string{"Personal", "Organization"} {
 menu.AddItem(components.DropdownMenuItem{ID: items.At(3), Label: "Unavailable", Disabled: true})
 menu.End()
 if index, ok := canvas.ClickedIn(items); ok && index > 0 && index < 3 { scope = int(index) }`, PageSnippet: `open := false
+trigger := ui.Button(c, "Team").Outline()
+if trigger.Clicked() {
+    open = !open
+}
+ui.Menu(c, trigger, &open, func(menu *ui.MenuItems) {
+    menu.Sub("Team", func(sub *ui.MenuItems) {
+        sub.Item("Personal").Chosen(true)
+        sub.Item("Organization").Chosen(false)
+    })
+    menu.Item("Unavailable").Disabled(true)
+})`, PageSnippetZh: `open := false
 trigger := ui.Button(c, "Team").Outline()
 if trigger.Clicked() {
     open = !open

@@ -39,6 +39,25 @@ case "Settings":
         ui.Text(c, "Workspace settings")
         ui.Wrap(c, "Configure display and local runtime options.")
     })
+}`, PageSnippetZh: `labels := []string{"概览", "活动", "设置"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil)
+switch tab {
+case "概览":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "项目概览")
+        ui.Wrap(c, "查看近期状态与关键摘要。")
+    })
+case "活动":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "最近活动")
+        ui.Wrap(c, "跟踪保存、构建和发布记录。")
+    })
+case "设置":
+    ui.Column(c).Gap(8).Children(func() {
+        ui.Text(c, "工作区设置")
+        ui.Wrap(c, "配置显示与本地运行选项。")
+    })
 }`},
 		{ID: "line", Title: "线形标签", Description: "透明列表与两像素活动指示条。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
@@ -48,6 +67,12 @@ ui.Tabs(c, &tab, labels, nil).Line()
 ui.Column(c).Gap(8).Children(func() {
     ui.Text(c, "Project overview")
     ui.Wrap(c, "See recent status and key highlights.")
+})`, PageSnippetZh: `labels := []string{"概览", "活动", "设置"}
+tab := labels[0]
+ui.Tabs(c, &tab, labels, nil).Line()
+ui.Column(c).Gap(8).Children(func() {
+    ui.Text(c, "项目概览")
+    ui.Wrap(c, "查看近期状态与关键摘要。")
 })`},
 		{ID: "vertical", Title: "纵向标签", Description: "标签纵向排列，内容位于右侧。", Snippet: `labels := []string{"Overview", "Activity", "Settings"}
 tab := labels[0]
@@ -61,6 +86,14 @@ ui.Row(c).Gap(20).Children(func() {
     ui.Column(c).Grow(1).Basis(0).Gap(8).Children(func() {
         ui.Text(c, "Project overview")
         ui.Wrap(c, "See recent status and key highlights.")
+    })
+})`, PageSnippetZh: `labels := []string{"概览", "活动", "设置"}
+tab := labels[0]
+ui.Row(c).Gap(20).Children(func() {
+    ui.Tabs(c, &tab, labels, nil).Line().Vertical().Self(ui.Start)
+    ui.Column(c).Grow(1).Basis(0).Gap(8).Children(func() {
+        ui.Text(c, "项目概览")
+        ui.Wrap(c, "查看近期状态与关键摘要。")
     })
 })`},
 	},

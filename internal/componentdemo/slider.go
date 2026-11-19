@@ -15,7 +15,8 @@ var sliderComponent = Component{
 if canvas.Clicked(tree.ID(page, "volume")) {
     volume = (volume + 10) % 110
 }`, PageSnippet: `volume := ui.SliderState{Value: 40}
-ui.Slider(c, &volume).Range(0, 100).Step(10).Label("Volume")`},
+ui.Slider(c, &volume).Range(0, 100).Step(10).Label("Volume")`, PageSnippetZh: `volume := ui.SliderState{Value: 40}
+ui.Slider(c, &volume).Range(0, 100).Step(10).Label("音量")`},
 		{ID: "range", Title: "价格区间", Description: "两个稳定 thumb ID 分别接收坐标并约束下限与上限。", Snippet: `thumbs := []components.SliderThumbValue{
     {ID: tree.ID(page, "lower"), Label: "Minimum price", ValueText: "25", Value: 25},
     {ID: tree.ID(page, "upper"), Label: "Maximum price", ValueText: "75", Value: 75},
@@ -34,6 +35,17 @@ ui.Row(c).Gap(40).Children(func() {
     ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
         ui.Slider(c, &fixed).Range(0, 100).Disabled(true).Label("Disabled slider")
         ui.Text(c, "Disabled").Muted()
+    })
+})`, PageSnippetZh: `volume := ui.SliderState{Value: 40}
+fixed := ui.SliderState{Value: 64}
+ui.Row(c).Gap(40).Children(func() {
+    ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
+        ui.Slider(c, &volume).Range(0, 100).Step(10).Vertical().Height(160).Label("音量")
+        ui.Text(c, "竖向")
+    })
+    ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
+        ui.Slider(c, &fixed).Range(0, 100).Disabled(true).Label("禁用滑块")
+        ui.Text(c, "禁用").Muted()
     })
 })`},
 	},

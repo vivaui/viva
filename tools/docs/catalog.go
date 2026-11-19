@@ -23,6 +23,7 @@ type Demo struct {
 	ID, Title, Description string
 	Snippet                string `json:"Snippet,omitempty"`
 	PageSnippet            string `json:"PageSnippet,omitempty"`
+	PageSnippetZh          string `json:"PageSnippetZh,omitempty"`
 	Height                 int    `json:"Height,omitempty"`
 }
 
@@ -107,7 +108,7 @@ func loadPages(root string) ([]Page, Manifest, error) {
 			if _, err := componentdemo.New(component.ID, example.ID); err != nil {
 				return nil, manifest, err
 			}
-			page.Examples = append(page.Examples, Demo{example.ID, example.Title, example.Description, example.Snippet, example.PageSnippet, example.Height})
+			page.Examples = append(page.Examples, Demo{example.ID, example.Title, example.Description, example.Snippet, example.PageSnippet, example.PageSnippetZh, example.Height})
 		}
 		pages = append(pages, page)
 	}

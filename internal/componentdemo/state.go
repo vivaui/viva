@@ -17,6 +17,8 @@ type Example struct {
 	// PageSnippet, when set, is the example's page-first code: ui.* calls with
 	// this example's data and state. It takes the place of Snippet on the site.
 	PageSnippet string
+	// PageSnippetZh is the Chinese site's page-first code for the same example.
+	PageSnippetZh string
 	// Height is the preview height in pixels. Zero uses the page default.
 	Height int
 }

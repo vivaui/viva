@@ -22,6 +22,11 @@ components.Typography(canvas, theme, h4.Rect(), components.TypographyH4, "Headin
     ui.Text(c, "Heading 2").FontSize(theme.Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
     ui.Text(c, "Heading 3").FontSize(theme.Metrics.FontSizeL).Weight(gfx.WeightSemibold)
     ui.Text(c, "Heading 4").FontSize(theme.Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Text(c, "一级标题").FontSize(theme.Metrics.FontSizeL * 1.5).Weight(gfx.WeightBold)
+    ui.Text(c, "二级标题").FontSize(theme.Metrics.FontSizeL + 6).Weight(gfx.WeightSemibold)
+    ui.Text(c, "三级标题").FontSize(theme.Metrics.FontSizeL).Weight(gfx.WeightSemibold)
+    ui.Text(c, "四级标题").FontSize(theme.Metrics.FontSizeM + 7).Weight(gfx.WeightSemibold)
 })`},
 		{ID: "content", Title: "正文角色", Description: "段落、引导、大号与小号正文。", Snippet: `lead := ui.Slot(c).Height(32)
 body := ui.Slot(c).Height(28)
@@ -43,6 +48,15 @@ components.Typography(canvas, theme, small.Rect(),
         FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
     ui.Text(c, "Small · Compact labels and supporting copy").
         FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "原生桌面界面的完整文字系统", 0).
+        FontSize(theme.Metrics.FontSizeM + 7).Muted()
+    ui.Paragraph(c, "段落文字使用主题字号与前景色。", 0).
+        FontSize(theme.Metrics.FontSizeM + 3)
+    ui.Text(c, "Large · 关键说明").
+        FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "Small · 紧凑标签与辅助内容").
+        FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightMedium)
 })`},
 		{ID: "muted", Title: "强调与弱化", Description: "正文、强调文字与弱化说明。", Snippet: `body := ui.Slot(c).Height(32)
 strong := ui.Slot(c).Height(30)
@@ -58,6 +72,13 @@ components.Typography(canvas, theme, note.Rect(),
     ui.Text(c, "Key results use a heavier weight.").
         FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
     ui.Text(c, "Secondary notes use the theme's muted foreground.").
+        FontSize(theme.Metrics.FontSizeM).Muted()
+})`, PageSnippetZh: `ui.Column(c).Gap(6).Children(func() {
+    ui.Paragraph(c, "正文保持清晰、稳定且可读。", 0).
+        FontSize(theme.Metrics.FontSizeM + 3)
+    ui.Text(c, "关键结果使用更高字重。").
+        FontSize(theme.Metrics.FontSizeM + 5).Weight(gfx.WeightSemibold)
+    ui.Text(c, "次要说明使用主题的弱化前景色。").
         FontSize(theme.Metrics.FontSizeM).Muted()
 })`},
 	},

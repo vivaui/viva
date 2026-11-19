@@ -213,5 +213,32 @@ ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
     ui.Text(row.C, item.Name).Grow(1).Ellipsis()
     ui.Text(row.C, item.Size).Width(90).TextEnd().Muted()
     ui.Text(row.C, item.Date).Width(150).TextEnd().Muted()
-}).Label("Files").Grow(1)`}},
+}).Label("Files").Grow(1)`, PageSnippetZh: `theme := c.Theme()
+m.files.Key = func(i int) int { return m.rows[i].ID }
+m.files.Header = func(i int) bool { return m.rows[i].Header }
+m.files.Selection = &m.selection
+m.files.Reorder = m.reorder
+m.files.RowWidth = 640
+ui.Row(c).Clip().Height(24).Children(func() {
+    ui.Row(c).Width(640).PadX(8).Gap(8).Items(ui.Center).ScrollWith(&m.files).Children(func() {
+        ui.Text(c, "名称").Grow(1).Bold()
+        ui.Text(c, "大小").Width(90).TextEnd().Bold()
+        ui.Text(c, "修改时间").Width(150).TextEnd().Bold()
+    })
+})
+ui.List(c, &m.files, len(m.rows), func(row ui.ListRow) {
+    item := m.rows[row.Index]
+    if item.Header {
+        row.Element.Height(32).PadX(8).Background(theme.Muted)
+        ui.Text(row.C, item.Name).Bold()
+        return
+    }
+    row.Element.Height(32).PadX(8).Gap(8).Items(ui.Center)
+    if row.Selected() {
+        row.Element.Background(theme.Accent)
+    }
+    ui.Text(row.C, item.Name).Grow(1).Ellipsis()
+    ui.Text(row.C, item.Size).Width(90).TextEnd().Muted()
+    ui.Text(row.C, item.Date).Width(150).TextEnd().Muted()
+}).Label("文件").Grow(1)`}},
 }

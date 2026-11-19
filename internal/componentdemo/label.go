@@ -18,7 +18,9 @@ components.PaintInput(canvas, theme, fieldBounds, components.InputSnapshot{
     ReadOnly: true,
 })`, PageSnippet: `emailID := ui.ID(c)
 ui.Text(c, "Work email").LabelFor(emailID)
-ui.TextFieldID(c, emailID, &m.email, "Work email", "team@viva.dev")`},
+ui.TextFieldID(c, emailID, &m.email, "Work email", "team@viva.dev")`, PageSnippetZh: `emailID := ui.ID(c)
+ui.Text(c, "工作邮箱").LabelFor(emailID)
+ui.TextFieldID(c, emailID, &m.email, "工作邮箱", "team@viva.dev")`},
 		{ID: "states", Title: "标签状态", Description: "普通、必填和禁用状态并列。", Snippet: `components.BeginLabel(canvas, theme, normalBounds).Paint("Display name")
 components.BeginLabel(canvas, theme, requiredBounds).Required().Paint("Organization name")
 components.BeginLabel(canvas, theme, disabledBounds).Required().
@@ -32,7 +34,17 @@ ui.TextFieldID(c, organizationID, &m.organization, "Organization name", "")
 
 disabledID := ui.ID(c)
 ui.Text(c, "Disabled field").LabelFor(disabledID)
-ui.TextFieldID(c, disabledID, &m.disabledField, "Disabled field", "").Disabled(true)`},
+ui.TextFieldID(c, disabledID, &m.disabledField, "Disabled field", "").Disabled(true)`, PageSnippetZh: `displayID := ui.ID(c)
+ui.Text(c, "显示名称").LabelFor(displayID)
+ui.TextFieldID(c, displayID, &m.displayName, "显示名称", "")
+
+organizationID := ui.ID(c)
+ui.Text(c, "组织名称").LabelFor(organizationID)
+ui.TextFieldID(c, organizationID, &m.organization, "组织名称", "")
+
+disabledID := ui.ID(c)
+ui.Text(c, "禁用字段").LabelFor(disabledID)
+ui.TextFieldID(c, disabledID, &m.disabledField, "禁用字段", "").Disabled(true)`},
 	},
 }
 

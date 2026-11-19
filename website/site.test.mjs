@@ -203,7 +203,7 @@ for (const locale of ['zh', 'en']) {
       assert.doesNotMatch(html, /<select\b/);
       assert.equal([...html.matchAll(/class="example-section"/g)].length, page.Examples.length);
       assert.equal([...html.matchAll(/class="example-demo"/g)].length, page.Examples.length);
-      const withUsage = page.Examples.filter(example => example.PageSnippet || (example.Snippet && !/components\.|Begin/.test(example.Snippet))).length;
+      const withUsage = page.Examples.filter(example => (locale === 'zh' ? example.PageSnippetZh : example.PageSnippet) || example.PageSnippet || (example.Snippet && !/components\.|Begin/.test(example.Snippet))).length;
       assert.equal([...html.matchAll(/class="code-block usage-block"/g)].length, withUsage);
       for (const example of page.Examples) {
         assert.ok(html.includes(`id="example-${example.ID}"`));

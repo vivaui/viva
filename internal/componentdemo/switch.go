@@ -13,7 +13,8 @@ var switchComponent = Component{
     ui.Switch(c, &enabled, "").Hit(notifications, "Desktop notifications")
     ui.Text(c, "Desktop notifications").FontSize(theme.Metrics.FontSizeM)
 })`, PageSnippet: `enabled := false
-ui.Switch(c, &enabled, "Desktop notifications")`},
+ui.Switch(c, &enabled, "Desktop notifications")`, PageSnippetZh: `enabled := false
+ui.Switch(c, &enabled, "桌面通知")`},
 		{ID: "sizes", Title: "两种尺寸", Description: "默认与紧凑开关独立受控。", Snippet: `ui.Row(c).Gap(12).Children(func() {
     ui.Switch(c, &normal, "").Hit(defaultID, "Default size")
     ui.Switch(c, &compact, "").Hit(smallID, "Compact size").Small()
@@ -21,13 +22,20 @@ ui.Switch(c, &enabled, "Desktop notifications")`},
 ui.Row(c).Gap(12).Children(func() {
     ui.Switch(c, &normal, "Default size")
     ui.Switch(c, &compact, "Compact size").Small()
+})`, PageSnippetZh: `normal, compact := false, false
+ui.Row(c).Gap(12).Children(func() {
+    ui.Switch(c, &normal, "默认尺寸")
+    ui.Switch(c, &compact, "紧凑尺寸").Small()
 })`},
 		{ID: "states", Title: "启用与禁用", Description: "一个可切换开关和开、关两种禁用状态。", Snippet: `ui.Switch(c, &notify, "").Hit(notifyID, "Desktop notifications")
 ui.Switch(c, &off, "").Hit(offID, "Disabled · Off").Disabled(true)
 ui.Switch(c, &on, "").Hit(onID, "Disabled · On").Disabled(true)`, PageSnippet: `notifications, off, on := false, false, true
 ui.Switch(c, &notifications, "Desktop notifications")
 ui.Switch(c, &off, "Disabled · Off").Disabled(true)
-ui.Switch(c, &on, "Disabled · On").Disabled(true)`},
+ui.Switch(c, &on, "Disabled · On").Disabled(true)`, PageSnippetZh: `notifications, off, on := false, false, true
+ui.Switch(c, &notifications, "桌面通知")
+ui.Switch(c, &off, "禁用 · 关闭").Disabled(true)
+ui.Switch(c, &on, "禁用 · 开启").Disabled(true)`},
 	},
 }
 

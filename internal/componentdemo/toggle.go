@@ -22,7 +22,12 @@ for index, label := range [...]string{"B", "I", "U"} {
     ui.Toggle(c, &m.italic, "I").Outline()
     ui.Toggle(c, &m.underline, "U").Outline()
 })
-ui.Text(c, "Each button keeps its own active bit.").Muted()`},
+ui.Text(c, "Each button keeps its own active bit.").Muted()`, PageSnippetZh: `ui.Row(c).Gap(12).Children(func() {
+    ui.Toggle(c, &m.bold, "B").Outline()
+    ui.Toggle(c, &m.italic, "I").Outline()
+    ui.Toggle(c, &m.underline, "U").Outline()
+})
+ui.Text(c, "每个按钮独立保存激活位。").Muted()`},
 		{ID: "variants", Title: "外观与尺寸", Description: "默认、描边、小号与大号变体。", Snippet: `small := components.BeginToggle(canvas, theme, tree.ID(page, "small"), bounds, active)
 if small.Small().Default("Small").Clicked() {
     active = !active
@@ -32,11 +37,18 @@ large.Large().Outline("Large")`, PageSnippet: `ui.Row(c).Gap(16).Items(ui.Center
     ui.Toggle(c, &m.small, "Small").Small()
     ui.Toggle(c, &m.large, "Large").Large().Outline()
 })
-ui.Text(c, "Size comes from explicit chained options.").Muted()`},
+ui.Text(c, "Size comes from explicit chained options.").Muted()`, PageSnippetZh: `ui.Row(c).Gap(16).Items(ui.Center).Children(func() {
+    ui.Toggle(c, &m.small, "Small").Small()
+    ui.Toggle(c, &m.large, "Large").Large().Outline()
+})
+ui.Text(c, "尺寸由显式链式选项决定。").Muted()`},
 		{ID: "states", Title: "校验与禁用", Description: "激活、错误和禁用状态。", Snippet: `invalid := tree.ID(page, "invalid")
 components.BeginToggle(canvas, theme, invalid, bounds, true).Invalid().Outline("Invalid")
 disabled := tree.ID(page, "disabled")
 components.BeginToggle(canvas, theme, disabled, bounds, false).Disabled().Outline("Disabled")`, PageSnippet: `ui.Row(c).Gap(16).Children(func() {
+    ui.Toggle(c, &m.invalid, "Invalid").Outline()
+    ui.Toggle(c, &m.disabled, "Disabled").Outline().Disabled(true)
+})`, PageSnippetZh: `ui.Row(c).Gap(16).Children(func() {
     ui.Toggle(c, &m.invalid, "Invalid").Outline()
     ui.Toggle(c, &m.disabled, "Disabled").Outline().Disabled(true)
 })`},

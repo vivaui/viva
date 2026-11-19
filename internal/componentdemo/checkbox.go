@@ -13,7 +13,7 @@ var checkboxComponent = Component{
 		{ID: "default", Title: "接受条款", Description: "点击切换勾选；语义状态与可见反馈同步。", Snippet: `ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
     ui.Checkbox(c, &accepted, "").Hit(terms, "Accept terms of use")
     ui.Text(c, "Accept terms of use").FontSize(theme.Metrics.FontSizeM)
-})`, PageSnippet: `ui.Checkbox(c, &m.accepted, "Accept terms of use")`},
+})`, PageSnippet: `ui.Checkbox(c, &m.accepted, "Accept terms of use")`, PageSnippetZh: `ui.Checkbox(c, &m.accepted, "接受使用条款")`},
 		{ID: "selection", Title: "多项选择", Description: "三项桌面偏好独立选择，不模拟生产 API 尚未提供的混合态。", Snippet: `boxes := tree.Sub(page, tree.Name("box"))
 for index, label := range [...]string{"Show line numbers", "Format on save", "Restore last window"} {
     checked := selected&(1<<index) != 0
@@ -24,6 +24,9 @@ for index, label := range [...]string{"Show line numbers", "Format on save", "Re
         ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
     })
 }`, PageSnippet: `labels := [...]string{"Show line numbers", "Format on save", "Restore last window"}
+for index := range labels {
+    ui.Checkbox(c, &m.preferences[index], labels[index])
+}`, PageSnippetZh: `labels := [...]string{"显示行号", "保存时格式化", "恢复上次窗口"}
 for index := range labels {
     ui.Checkbox(c, &m.preferences[index], labels[index])
 }`},
@@ -37,7 +40,10 @@ ui.Checkbox(c, &off, "Disabled · Unchecked").Hit(boxes.At(1), "Disabled · Unch
 ui.Checkbox(c, &on, "Disabled · Checked").Hit(boxes.At(2), "Disabled · Checked").Disabled(true)`, PageSnippet: `m.on = true
 ui.Checkbox(c, &m.required, "Required: accept terms of use")
 ui.Checkbox(c, &m.off, "Disabled · Unchecked").Disabled(true)
-ui.Checkbox(c, &m.on, "Disabled · Checked").Disabled(true)`},
+ui.Checkbox(c, &m.on, "Disabled · Checked").Disabled(true)`, PageSnippetZh: `m.on = true
+ui.Checkbox(c, &m.required, "必选：接受使用条款")
+ui.Checkbox(c, &m.off, "禁用 · 未选择").Disabled(true)
+ui.Checkbox(c, &m.on, "禁用 · 已选择").Disabled(true)`},
 	},
 }
 

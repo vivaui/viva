@@ -31,6 +31,11 @@ hints := []string{"Native desktop", "Optional web target", "Windowless testing"}
 ui.Combobox(c, &m.target, targets, nil, "Framework").Clearable().
     Describe(func(index int) ui.ComboboxOption {
         return ui.ComboboxOption{Detail: hints[index]}
+    })`, PageSnippetZh: `targets := []string{"Viva Native", "WebGPU", "Headless tests"}
+hints := []string{"原生桌面", "可选 Web 目标", "无窗口测试"}
+ui.Combobox(c, &m.target, targets, nil, "框架").Clearable().
+    Describe(func(index int) ui.ComboboxOption {
+        return ui.ComboboxOption{Detail: hints[index]}
     })`},
 		{ID: "empty", Title: "空结果", Description: "查询无匹配项时显示生产空状态。", Snippet: `combo := components.BeginCombobox(canvas, theme, inputBounds, components.ComboboxOptions{
     InputID: inputID, Label: "Framework", Value: values[selected], Query: "mobile",
@@ -41,7 +46,9 @@ if open {
 }
 combo.End()`, PageSnippet: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests"}
 ui.Combobox(c, &m.framework, frameworks, nil, "Framework").
-    Empty("No matching frameworks")`},
+    Empty("No matching frameworks")`, PageSnippetZh: `frameworks := []string{"Viva Native", "WebGPU", "Headless tests"}
+ui.Combobox(c, &m.framework, frameworks, nil, "框架").
+    Empty("没有匹配的框架")`},
 		{ID: "invalid", Title: "无效状态", Description: "保留选项弹层并突出输入边框。", Snippet: `combo := components.BeginCombobox(canvas, theme, inputBounds, components.ComboboxOptions{
     InputID: inputID, ClearID: clearID, Label: "Framework", Value: values[selected],
     Query: query, Open: open, Invalid: true, Content: content, Scope: scope,

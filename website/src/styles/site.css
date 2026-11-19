@@ -11,6 +11,7 @@
        its artwork. Prefixing keeps third-party page styles out of this theme. */
     --viva-background: #fff;
     --viva-surface: #fafafa;
+    --viva-code-bg: #f4f4f5;
     --viva-surface-hover: #f4f4f5;
     --viva-text: #18181b;
     --viva-doc-secondary: #52525b;
@@ -31,6 +32,7 @@
   :root[data-theme='dark'] {
     --viva-background: #09090b;
     --viva-surface: #111113;
+    --viva-code-bg: #18181b;
     --viva-surface-hover: #27272a;
     --viva-text: #fafafa;
     --viva-doc-secondary: #a1a1aa;
@@ -185,7 +187,17 @@
   .example-section { margin-top: 36px; }
   .example-summary { margin: 8px 0 16px; font-size: 15px; }
   .example-demo { border: 1px solid var(--viva-border); border-radius: 12px; overflow: hidden; background: var(--viva-background); }
-  .example-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--viva-border); }
+  .example-toolbar { position: relative; display: flex; align-items: center; height: 38px; padding: 0 12px; border-bottom: 1px solid var(--viva-border); background: var(--viva-surface); }
+  .window-dots { display: flex; align-items: center; gap: 7px; }
+  .window-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .window-dot-close { background: #ff5f57; }
+  .window-dot-min { background: #febc2e; }
+  .window-dot-max { background: #28c840; }
+  .window-title { position: absolute; left: 50%; transform: translateX(-50%); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--viva-muted); }
+  .window-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  .window-action { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--viva-muted); }
+  .window-action:hover { background: var(--viva-surface-hover); color: var(--viva-text); }
+  .window-action:disabled { opacity: .45; }
   .preview-actions { display: flex; align-items: center; gap: 4px; }
   .preview-canvas { position: relative; height: 260px; background-color: var(--viva-background); background-image: radial-gradient(color-mix(in srgb, var(--viva-border) 55%, transparent) 1px, transparent 1px); background-size: 16px 16px; background-position: 0 0; }
   .preview-mount, .preview-frame { width: 100%; height: 100%; }
@@ -199,8 +211,8 @@
   .copy-result { font-size: 12px; color: var(--viva-success); text-align: right; }
   .copy-result:empty { display: none; }
   .copy-failed { color: var(--viva-error); }
-  .code-block { position: relative; border: 1px solid transparent; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--viva-surface) 72%, var(--viva-background)); transition: border-color .15s ease, background-color .15s ease; }
-  .code-block:hover { border-color: var(--viva-border); background: color-mix(in srgb, var(--viva-surface) 86%, var(--viva-background)); }
+  .code-block { position: relative; border: 1px solid transparent; border-radius: 12px; overflow: hidden; background: var(--viva-code-bg); transition: border-color .15s ease, background-color .15s ease; }
+  .code-block:hover { border-color: var(--viva-border); background: color-mix(in srgb, var(--viva-code-bg) 88%, var(--viva-surface)); }
   .code-toolbar { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; align-items: center; justify-content: flex-end; padding: 0; gap: 0; border: 0; background: transparent; font-size: 0; color: var(--viva-muted); }
   .code-toolbar > span { display: none; }
   .source-code { padding: 20px; overflow: auto; background: var(--viva-surface); font-size: 13px; line-height: 1.8; }
@@ -214,8 +226,8 @@
   .code-copy-button[data-state='copied'] { color: var(--viva-success); }
   .highlighted-code pre { counter-reset: code-line; font-size: 13px; line-height: 1.75; padding: 18px 24px 18px 60px; overflow: auto; max-height: 640px; tab-size: 2; scrollbar-width: thin; background: transparent !important; }
   .highlighted-code code { font-size: inherit; }
-  .highlighted-code .line { display: block; position: relative; white-space: pre; }
-  .highlighted-code .line::before { counter-increment: code-line; content: counter(code-line); position: absolute; left: -38px; width: 26px; text-align: right; color: var(--viva-muted); opacity: .55; user-select: none; pointer-events: none; }
+  .highlighted-code .line { display: inline; }
+  .highlighted-code .line::before { counter-increment: code-line; content: counter(code-line); display: inline-block; width: 24px; margin-left: -38px; margin-right: 14px; text-align: right; color: var(--viva-muted); opacity: .55; user-select: none; pointer-events: none; }
   .highlighted-code pre::-webkit-scrollbar { height: 10px; }
   .highlighted-code pre::-webkit-scrollbar-thumb { background: var(--viva-border); border: 3px solid var(--viva-surface); border-radius: 999px; }
   .usage-block { margin-top: 14px; }

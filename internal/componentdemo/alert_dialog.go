@@ -23,6 +23,11 @@ if canvas.Clicked(confirmID) || canvas.Clicked(cancelID) {
     Description: "This cannot be undone. Local data will be removed.",
     Scope: scope, ActionID: confirmID, CancelID: cancelID,
     ActionLabel: "Delete", CancelLabel: "Cancel",
+})`, PageSnippetZh: `ui.AlertDialog(c, ui.AlertDialogSpec{
+    Title: "永久删除这个项目？",
+    Description: "此操作无法撤销，本地数据将被移除。",
+    Scope: scope, ActionID: confirmID, CancelID: cancelID,
+    ActionLabel: "删除", CancelLabel: "取消",
 })`},
 		{ID: "media", Title: "带媒体的小尺寸", Description: "预留可由调用方绘制的媒体区域。", Snippet: `dialog := components.BeginAlertDialog(canvas, theme, viewport, components.AlertDialogOptions{
     Layer: 8, Scope: scope, ActionID: confirmID, CancelID: cancelID,

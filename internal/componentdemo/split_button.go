@@ -45,7 +45,28 @@ if m.menuOpen {
     status += " · Menu: open"
 }
 ui.Text(c, status).Muted()
-ui.Wrap(c, "The primary and menu targets have separate keyboard focus and accessible names.").Muted()`,
+ui.Wrap(c, "The primary and menu targets have separate keyboard focus and accessible names.").Muted()`, PageSnippetZh: `d := ui.SplitButton(c, ui.SplitButtonSpec{
+    PrimaryID: saveID, MenuID: moreID,
+    Label: "保存", MenuLabel: "更多保存操作",
+    Open: m.menuOpen,
+})
+if id, ok := d.Chosen(); ok {
+    switch id {
+    case saveID:
+        m.saved++
+    case moreID:
+        m.menuOpen = !m.menuOpen
+    }
+}
+status := "主操作：保存 · 菜单：收起"
+if m.saved > 0 {
+    status = "主操作已触发"
+}
+if m.menuOpen {
+    status += " · 菜单：展开"
+}
+ui.Text(c, status).Muted()
+ui.Wrap(c, "主操作与菜单热区各自支持键盘焦点和独立可访问名称。").Muted()`,
 	}},
 }
 

@@ -21,6 +21,8 @@ if open || canvas.Hovered() == trigger {
         Paint("Native synchronous tooltip")
 }`, PageSnippet: `ui.Button(c, "Hover or click").
     Tooltip("Native synchronous tooltip, no background timer").
+    TooltipOn(ui.TooltipTop)`, PageSnippetZh: `ui.Button(c, "悬停或点击").
+    Tooltip("原生同步提示，无后台延时器").
     TooltipOn(ui.TooltipTop)`},
 		{ID: "sides", Title: "四个方向", Description: "同屏展示上、右、下、左四种放置方向。", Snippet: `labels := [...]string{"Top", "Right", "Bottom", "Left"}
 sides := [...]components.TooltipSide{
@@ -34,6 +36,9 @@ for index, anchor := range anchors {
 }`, PageSnippet: `ui.Button(c, "Top").Tooltip("Top").TooltipOn(ui.TooltipTop)
 ui.Button(c, "Right").Tooltip("Right").TooltipOn(ui.TooltipRight)
 ui.Button(c, "Bottom").Tooltip("Bottom").TooltipOn(ui.TooltipBottom)
+ui.Button(c, "Left").Tooltip("Left").TooltipOn(ui.TooltipLeft)`, PageSnippetZh: `ui.Button(c, "Top").Tooltip("Top").TooltipOn(ui.TooltipTop)
+ui.Button(c, "Right").Tooltip("Right").TooltipOn(ui.TooltipRight)
+ui.Button(c, "Bottom").Tooltip("Bottom").TooltipOn(ui.TooltipBottom)
 ui.Button(c, "Left").Tooltip("Left").TooltipOn(ui.TooltipLeft)`},
 		{ID: "clamped", Title: "视口约束", Description: "靠近边缘时将提示内容限制在视口内。", Snippet: `anchor := ui.Slot(c).Size(60, theme.Metrics.ControlHeight).Self(ui.Start).Rect()
 anchor.X, anchor.Width = size.Width-76, 60 // pin the trigger to the window edge
@@ -41,6 +46,8 @@ components.BeginTooltip(canvas, theme, viewport, anchor, components.TooltipOptio
     Layer: 60, Side: components.TooltipBottom, MaxWidth: 176,
 }).Paint("Clamped to the viewport")`, PageSnippet: `ui.Button(c, "Hover or click").Self(ui.End).
     Tooltip("Clamped to the viewport").
+    TooltipOn(ui.TooltipBottom)`, PageSnippetZh: `ui.Button(c, "悬停或点击").Self(ui.End).
+    Tooltip("原生同步提示，无后台延时器").
     TooltipOn(ui.TooltipBottom)`},
 	},
 }

@@ -24,6 +24,10 @@ components.PaintInput(canvas, theme, control, components.InputSnapshot{
 // m.email starts as "team@viva.dev".
 ui.FormField(c, &m.field, "Work email").Children(func() {
     ui.TextField(c, &m.email, "Work email", "")
+})`, PageSnippetZh: `m.field.Description = "Used only for release notifications."
+// m.email starts as "team@viva.dev".
+ui.FormField(c, &m.field, "Work email").Children(func() {
+    ui.TextField(c, &m.email, "Work email", "")
 })`},
 		{ID: "orientations", Title: "响应式方向", Description: "窄窗口垂直，宽窗口切换为水平布局。", Snippet: `email := tree.ID(page, "email")
 field := components.BeginField(canvas, theme, bounds).For(email).
@@ -44,6 +48,14 @@ control := field.Paint("Work email", "Used only for release notifications.", err
 components.PaintInput(canvas, theme, control, components.InputSnapshot{
     ID: email, Label: "Work email", Value: value, Invalid: invalid,
 })`, PageSnippet: `// m.email starts as "team".
+m.field.Description = "Used only for release notifications."
+m.field.Invalid = !strings.Contains(m.email, "@")
+if m.field.Invalid {
+    m.field.Error = "Enter a valid work email."
+}
+ui.FormField(c, &m.field, "Work email").Children(func() {
+    ui.TextField(c, &m.email, "Work email", "")
+})`, PageSnippetZh: `// m.email starts as "team".
 m.field.Description = "Used only for release notifications."
 m.field.Invalid = !strings.Contains(m.email, "@")
 if m.field.Invalid {

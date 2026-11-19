@@ -19,6 +19,8 @@ if canvas.Clicked(tree.ID(page, "environment")) {
     open = !open
 }`, PageSnippet: `environment := "Production"
 ui.Select(c, &environment, []string{"Development", "Staging", "Production"}, nil).
+    Label("Environment").Hint("Choose environment")`, PageSnippetZh: `environment := "Production"
+ui.Select(c, &environment, []string{"Development", "Staging", "Production"}, nil).
     Label("Environment").Hint("Choose environment")`},
 		{ID: "states", Title: "选择器状态", Description: "紧凑、无效与禁用触发器。", Snippet: `components.PaintNativeSelect(canvas, theme, smallBounds, components.NativeSelectSnapshot{
     ID: tree.ID(page, "region"), Label: "Region", Placeholder: "Select a region",
