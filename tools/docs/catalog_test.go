@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -451,27 +454,27 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 	packages := map[string]bool{
 		"ui": true, "base": true, "gfx": true, "window": true, "text": true,
 		"style": true, "strings": true, "utf8": true, "time": true, "math": true,
-		"codeeditor": true, "chartview": true, "calendarview": true,
-		"carouselview": true, "multiselect": true, "hierarchypicker": true,
-		"markdownview": true, "columnresizeview": true,
-		"hovercardview":       true,
-		"sidebarview":         true,
-		"markerview":          true,
-		"metriccardview":      true,
-		"questionnaireview":   true,
-		"inputotpview":        true,
-		"inputgroupview":      true,
-		"skeletonview":        true,
-		"aspectratioview":     true,
-		"imageview":           true,
-		"navigationmenuview":  true,
-		"menubarview":         true,
-		"commandview":         true,
-		"messagescrollerview": true,
-		"messageview":         true,
-		"attachmentview":      true,
-		"avatarview":          true,
-		"avatareditorview":    true, "reordergridview": true,
+		"codeeditor": true, "chart": true, "calendar": true,
+		"carousel": true, "multiselect": true, "hierarchypicker": true,
+		"markdown": true, "columnresize": true,
+		"hovercard":       true,
+		"sidebar":         true,
+		"marker":          true,
+		"metriccard":      true,
+		"questionnaire":   true,
+		"inputotp":        true,
+		"inputgroup":      true,
+		"skeleton":        true,
+		"aspectratio":     true,
+		"image":           true,
+		"navigationmenu":  true,
+		"menubar":         true,
+		"command":         true,
+		"messagescroller": true,
+		"message":         true,
+		"attachment":      true,
+		"avatar":          true,
+		"avatareditor":    true, "reordergrid": true,
 	}
 	builtin := map[string]bool{
 		"bool": true, "byte": true, "complex64": true, "complex128": true,
@@ -543,30 +546,30 @@ func TestPageSnippetsNameRealAPIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	packages := map[string]map[string]bool{
-		"ui":                  exports(t, filepath.Join(root, "ui")),
-		"base":                exports(t, filepath.Join(root, "base")),
-		"components":          exports(t, filepath.Join(root, "components")),
-		"gfx":                 exports(t, filepath.Join(root, "gfx")),
-		"window":              exports(t, filepath.Join(root, "window")),
-		"text":                exports(t, filepath.Join(root, "text")),
-		"codeeditor":          exports(t, filepath.Join(root, "ui/codeeditor")),
-		"chartview":           exports(t, filepath.Join(root, "ui/chartview")),
-		"calendarview":        exports(t, filepath.Join(root, "ui/calendarview")),
-		"carouselview":        exports(t, filepath.Join(root, "ui/carouselview")),
-		"multiselect":         exports(t, filepath.Join(root, "ui/multiselect")),
-		"hierarchypicker":     exports(t, filepath.Join(root, "ui/hierarchypicker")),
-		"markdownview":        exports(t, filepath.Join(root, "ui/markdownview")),
-		"columnresizeview":    exports(t, filepath.Join(root, "ui/columnresizeview")),
-		"avatareditorview":    exports(t, filepath.Join(root, "ui/avatareditorview")),
-		"reordergridview":     exports(t, filepath.Join(root, "ui/reordergridview")),
-		"avatarview":          exports(t, filepath.Join(root, "ui/avatarview")),
-		"attachmentview":      exports(t, filepath.Join(root, "ui/attachmentview")),
-		"messageview":         exports(t, filepath.Join(root, "ui/messageview")),
-		"messagescrollerview": exports(t, filepath.Join(root, "ui/messagescrollerview")),
-		"commandview":         exports(t, filepath.Join(root, "ui/commandview")),
-		"menubarview":         exports(t, filepath.Join(root, "ui/menubarview")),
-		"navigationmenuview":  exports(t, filepath.Join(root, "ui/navigationmenuview")),
-		"hovercardview":       exports(t, filepath.Join(root, "ui/hovercardview")),
+		"ui":              exports(t, filepath.Join(root, "ui")),
+		"base":            exports(t, filepath.Join(root, "base")),
+		"components":      exports(t, filepath.Join(root, "components")),
+		"gfx":             exports(t, filepath.Join(root, "gfx")),
+		"window":          exports(t, filepath.Join(root, "window")),
+		"text":            exports(t, filepath.Join(root, "text")),
+		"codeeditor":      exports(t, filepath.Join(root, "ui/codeeditor")),
+		"chart":           exports(t, filepath.Join(root, "ui/chart")),
+		"calendar":        exports(t, filepath.Join(root, "ui/calendar")),
+		"carousel":        exports(t, filepath.Join(root, "ui/carousel")),
+		"multiselect":     exports(t, filepath.Join(root, "ui/multiselect")),
+		"hierarchypicker": exports(t, filepath.Join(root, "ui/hierarchypicker")),
+		"markdown":        exports(t, filepath.Join(root, "ui/markdown")),
+		"columnresize":    exports(t, filepath.Join(root, "ui/columnresize")),
+		"avatareditor":    exports(t, filepath.Join(root, "ui/avatareditor")),
+		"reordergrid":     exports(t, filepath.Join(root, "ui/reordergrid")),
+		"avatar":          exports(t, filepath.Join(root, "ui/avatar")),
+		"attachment":      exports(t, filepath.Join(root, "ui/attachment")),
+		"message":         exports(t, filepath.Join(root, "ui/message")),
+		"messagescroller": exports(t, filepath.Join(root, "ui/messagescroller")),
+		"command":         exports(t, filepath.Join(root, "ui/command")),
+		"menubar":         exports(t, filepath.Join(root, "ui/menubar")),
+		"navigationmenu":  exports(t, filepath.Join(root, "ui/navigationmenu")),
+		"hovercard":       exports(t, filepath.Join(root, "ui/hovercard")),
 	}
 	for _, component := range componentdemo.Catalog() {
 		for _, example := range component.Examples {
@@ -599,6 +602,84 @@ func TestPageSnippetsNameRealAPIs(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// TestModelFreePageSnippetsCompile compiles every page snippet that does not
+// read the application model. Snippets that use m need a concrete model, so
+// they are checked for parse/API/name use elsewhere; this test proves the rest
+// are real Go against the current page API.
+func TestModelFreePageSnippetsCompile(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("compiling snippets needs the host Go toolchain")
+	}
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	packages := map[string]string{
+		"ui": "github.com/vivaui/viva/ui", "base": "github.com/vivaui/viva/base",
+		"gfx": "github.com/vivaui/viva/gfx", "text": "github.com/vivaui/viva/text",
+		"style": "github.com/vivaui/viva/style", "window": "github.com/vivaui/viva/window",
+		"codeeditor": "github.com/vivaui/viva/ui/codeeditor", "chart": "github.com/vivaui/viva/ui/chart",
+		"calendar": "github.com/vivaui/viva/ui/calendar", "carousel": "github.com/vivaui/viva/ui/carousel",
+		"markdown": "github.com/vivaui/viva/ui/markdown", "columnresize": "github.com/vivaui/viva/ui/columnresize",
+		"avatareditor": "github.com/vivaui/viva/ui/avatareditor", "reordergrid": "github.com/vivaui/viva/ui/reordergrid",
+		"avatar": "github.com/vivaui/viva/ui/avatar", "attachment": "github.com/vivaui/viva/ui/attachment",
+		"message": "github.com/vivaui/viva/ui/message", "messagescroller": "github.com/vivaui/viva/ui/messagescroller",
+		"command": "github.com/vivaui/viva/ui/command", "menubar": "github.com/vivaui/viva/ui/menubar",
+		"navigationmenu": "github.com/vivaui/viva/ui/navigationmenu", "hovercard": "github.com/vivaui/viva/ui/hovercard",
+		"image": "github.com/vivaui/viva/ui/image", "aspectratio": "github.com/vivaui/viva/ui/aspectratio",
+		"skeleton": "github.com/vivaui/viva/ui/skeleton", "inputgroup": "github.com/vivaui/viva/ui/inputgroup",
+		"inputotp": "github.com/vivaui/viva/ui/inputotp", "questionnaire": "github.com/vivaui/viva/ui/questionnaire",
+		"metriccard": "github.com/vivaui/viva/ui/metriccard", "marker": "github.com/vivaui/viva/ui/marker",
+		"sidebar": "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
+		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
+	}
+	wordM := regexp.MustCompile(`\bm\b`)
+	var snippets []string
+	used := map[string]bool{}
+	for _, component := range componentdemo.Catalog() {
+		for _, example := range component.Examples {
+			snippet := example.PageSnippet
+			if snippet == "" || wordM.MatchString(snippet) {
+				continue
+			}
+			snippets = append(snippets, fmt.Sprintf("// %s/%s\nfunc snippet%d(c ui.C) {\n%s\n}", component.ID, example.ID, len(snippets), snippet))
+			for name := range packages {
+				if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.`).MatchString(snippet) {
+					used[name] = true
+				}
+			}
+		}
+	}
+	if len(snippets) == 0 {
+		t.Skip("no model-free page snippets")
+	}
+	dir, err := os.MkdirTemp(filepath.Join(root, "build"), "snippetcheck-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	used["ui"] = true
+	var source strings.Builder
+	source.WriteString("package snippetcheck\n\nimport (\n")
+	for name := range used {
+		fmt.Fprintf(&source, "\t%q\n", packages[name])
+	}
+	source.WriteString(")\n\n")
+	source.WriteString(strings.Join(snippets, "\n"))
+	if err := os.WriteFile(filepath.Join(dir, "snippets.go"), []byte(source.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	relative, err := filepath.Rel(root, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("go", "build", "./"+filepath.ToSlash(relative))
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("model-free page snippets do not compile: %v\n%s", err, output)
 	}
 }
 

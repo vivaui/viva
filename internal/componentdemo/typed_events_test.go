@@ -102,13 +102,8 @@ func TestPointerGeometryUsesResponsiveViewport(t *testing.T) {
 
 	resizable := newTestState(t, "resizable", "horizontal")
 	paintAt(&canvas, resizable, narrow)
-	split := resizable.slider.placed
-	result = resizable.Pointer(gfx.PointerEvent{
-		Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: split.X + split.Width,
-		Viewport: narrow, Target: resizableHandle,
-	})
-	if !result.Handled || resizable.values[0] != 80 {
-		t.Fatalf("responsive resizable result=%+v value=%d", result, resizable.values[0])
+	if position := resizableDemoFor(resizable).state.Pos; position > narrow.Width {
+		t.Fatalf("responsive splitter position %.0f is wider than the window", position)
 	}
 }
 
@@ -131,48 +126,59 @@ func TestResizableUsesCapturedPointerDrag(t *testing.T) {
 	state := newTestState(t, "resizable", "horizontal")
 	var canvas gfx.Canvas
 	paintAt(&canvas, state, testSize)
-	split := state.slider.placed
-	at := func(fraction float32) float32 { return split.X + split.Width*fraction }
-	result := state.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: at(0.7), Target: resizableHandle})
-	if result != (gfx.EventResult{}) || state.values[0] != 50 {
-		t.Fatalf("uncaptured move result=%+v value=%d", result, state.values[0])
+	demo := resizableDemoFor(state)
+	split := findHit(t, &canvas, resizableHandle).Bounds
+	center := split.X + split.Width/2
+	pointer := func(event gfx.PointerEvent) {
+		canvas.BeginPointerPass(event)
+		paintAt(&canvas, state, testSize)
+		canvas.EndPointerPass()
 	}
-	result = state.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: at(0.7), Target: resizableHandle})
-	if !result.Handled || !result.Repaint || result.Focus != resizableHandle || state.values[0] != 70 {
-		t.Fatalf("down result=%+v value=%d", result, state.values[0])
+	// A move without a press does not start a drag.
+	pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: center + 40, Viewport: testSize, Target: resizableHandle})
+	if demo.state.Dragging() || demo.state.Pos != 260 {
+		t.Fatalf("uncaptured move dragged=%t position=%.0f", demo.state.Dragging(), demo.state.Pos)
 	}
-	result = state.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: at(0.2), Target: resizableHandle, Captured: true})
-	if !result.Handled || !result.Repaint || state.values[0] != 20 {
-		t.Fatalf("captured move result=%+v value=%d", result, state.values[0])
+	pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: center, Viewport: testSize, Target: resizableHandle})
+	if !demo.state.Dragging() {
+		t.Fatal("a press on the divider did not start a drag")
 	}
-	click(&canvas, state, resizableHandle)
-	if state.values[0] != 30 {
-		t.Fatalf("click value=%d", state.values[0])
+	pointer(gfx.PointerEvent{Kind: gfx.PointerMove, X: center + 40, Viewport: testSize, Target: resizableHandle, Captured: true})
+	if demo.state.Pos <= 260 {
+		t.Fatalf("captured move left position=%.0f", demo.state.Pos)
+	}
+	pointer(gfx.PointerEvent{Kind: gfx.PointerUp, X: center + 40, Viewport: testSize, Target: resizableHandle, Captured: true})
+	if demo.state.Dragging() {
+		t.Fatal("the drag did not stop on release")
 	}
 }
 
 func TestScrollAreaHandlesOnlyTargetedScroll(t *testing.T) {
 	state := newTestState(t, "scroll-area", "both-axes")
-	if result := state.Scroll(gfx.ScrollEvent{DeltaX: 40, DeltaY: 60, Target: gfx.Item(999)}); result != (gfx.EventResult{}) {
-		t.Fatalf("untargeted result=%+v", result)
-	}
-	result := state.Scroll(gfx.ScrollEvent{DeltaX: 40, DeltaY: 60, Target: scrollAreaViewport, Precise: true})
-	if !result.Handled || !result.Repaint || state.values[1] != 40 || state.values[0] != 60 {
-		t.Fatalf("targeted result=%+v offsets=(%d,%d)", result, state.values[1], state.values[0])
-	}
-	result = state.Scroll(gfx.ScrollEvent{DeltaX: 500, DeltaY: 500, Target: scrollAreaVertical})
-	if !result.Handled || !result.Repaint || state.values[1] != 180 || state.values[0] != 180 {
-		t.Fatalf("clamped result=%+v offsets=(%d,%d)", result, state.values[1], state.values[0])
-	}
-	result = state.Scroll(gfx.ScrollEvent{DeltaX: 10, DeltaY: 10, Target: scrollAreaViewport})
-	if !result.Handled || result.Repaint {
-		t.Fatalf("bounded result=%+v", result)
-	}
 	var canvas gfx.Canvas
 	paintAt(&canvas, state, testSize)
-	click(&canvas, state, scrollAreaVertical)
-	if state.values[0] != 0 {
-		t.Fatalf("vertical click offset=%d", state.values[0])
+	demo := scrollAreaDemoFor(state)
+	if demo.scroller == nil || demo.bounds.Width <= 0 {
+		t.Fatal("the scroll area was not declared")
+	}
+	if result := state.Scroll(gfx.ScrollEvent{DeltaX: 40, DeltaY: 60, Target: gfx.Item(999)}); result != (gfx.EventResult{}) {
+		t.Fatalf("wheel outside the area result=%+v", result)
+	}
+	inside := func(event gfx.ScrollEvent) gfx.ScrollEvent {
+		event.X, event.Y = demo.bounds.X+demo.bounds.Width/2, demo.bounds.Y+demo.bounds.Height/2
+		return event
+	}
+	result := state.Scroll(inside(gfx.ScrollEvent{DeltaX: 40, DeltaY: 60, Target: scrollAreaViewport, Precise: true}))
+	if !result.Handled || !result.Repaint || demo.scroller.OffsetX != 40 || demo.scroller.Offset != 60 {
+		t.Fatalf("wheel inside result=%+v offsets=(%.0f,%.0f)", result, demo.scroller.OffsetX, demo.scroller.Offset)
+	}
+	result = state.Scroll(inside(gfx.ScrollEvent{DeltaX: 500, DeltaY: 500, Target: scrollAreaVertical}))
+	if !result.Handled || !result.Repaint || demo.scroller.OffsetX != demo.scroller.MaxX() || demo.scroller.Offset != demo.scroller.Max() {
+		t.Fatalf("clamped result=%+v offsets=(%.0f,%.0f) max=(%.0f,%.0f)", result, demo.scroller.OffsetX, demo.scroller.Offset, demo.scroller.MaxX(), demo.scroller.Max())
+	}
+	result = state.Scroll(inside(gfx.ScrollEvent{DeltaX: 10, DeltaY: 10, Target: scrollAreaViewport}))
+	if result.Repaint {
+		t.Fatalf("bounded result=%+v", result)
 	}
 }
 
@@ -243,44 +249,48 @@ func TestStandardTabsRouteKeysThroughThePage(t *testing.T) {
 
 func TestContextMenuOpensAtSecondaryPointer(t *testing.T) {
 	state := newTestState(t, "context-menu", "default")
-	state.flags &^= contextMenuOpenMask
-	if result := state.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, Target: contextMenuSurface}); result != (gfx.EventResult{}) {
-		t.Fatalf("primary result=%+v", result)
-	}
-	result := state.Pointer(gfx.PointerEvent{
-		Kind: gfx.PointerDown, Button: gfx.PointerButtonSecondary,
-		X: 420, Y: 180, Target: contextMenuSurface,
-	})
-	if !result.Handled || !result.Repaint || state.flags&contextMenuOpenMask == 0 || state.points[0] != 420 || state.points[1] != 180 {
-		t.Fatalf("secondary result=%+v flags=%d point=%v", result, state.flags, state.points[:2])
-	}
 	var canvas gfx.Canvas
-	click(&canvas, state, contextMenuToggle)
-	if state.flags&1 == 0 || state.flags&contextMenuOpenMask == 0 {
+	paintFrame(&canvas, state, testSize, time.Second, true)
+	area := findHitByLabel(t, &canvas, "上下文菜单区域")
+	deliver := func(button gfx.PointerButton, kind gfx.PointerEventKind) {
+		canvas.DeliverPointer(gfx.PointerEvent{
+			Kind: kind, Button: button, X: 120, Y: 180, Target: area,
+		}, testSize, state.Paint)
+		paintFrame(&canvas, state, testSize, time.Second, true)
+	}
+	deliver(gfx.PointerButtonPrimary, gfx.PointerDown)
+	if hasText(&canvas, "Show details") {
+		t.Fatal("a primary press opened the context menu")
+	}
+	deliver(gfx.PointerButtonSecondary, gfx.PointerDown)
+	if !hasText(&canvas, "Show details") {
+		t.Fatal("a secondary press did not open the context menu")
+	}
+	row := findHitByLabel(t, &canvas, "Show details")
+	click(&canvas, state, row)
+	if state.flags&1 == 0 {
 		t.Fatalf("toggle click flags=%d", state.flags)
 	}
 }
 
 func TestTooltipAndHoverCardUseSynchronousEnterLeave(t *testing.T) {
 	tooltip := newTestState(t, "tooltip", "default")
-	result := tooltip.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, Target: tooltipTrigger})
-	if !result.Handled || !result.Repaint || tooltip.flags&2 == 0 {
-		t.Fatalf("tooltip enter result=%+v flags=%d", result, tooltip.flags)
-	}
-	result = tooltip.Pointer(gfx.PointerEvent{Kind: gfx.PointerExit})
-	if !result.Handled || !result.Repaint || tooltip.flags&2 != 0 {
-		t.Fatalf("tooltip leave result=%+v flags=%d", result, tooltip.flags)
-	}
 	var canvas gfx.Canvas
-	click(&canvas, tooltip, tooltipTrigger)
-	tooltip.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, Target: tooltipTrigger})
-	tooltip.Pointer(gfx.PointerEvent{Kind: gfx.PointerExit})
-	if tooltip.flags&1 == 0 {
-		t.Fatal("pointer leave cleared click-owned tooltip state")
+	paintFrame(&canvas, tooltip, testSize, time.Second, true)
+	findHit(t, &canvas, tooltipTrigger)
+	canvas.SetInteraction(tooltipTrigger, gfx.ID{}, gfx.ID{}, false)
+	paintFrame(&canvas, tooltip, testSize, time.Second, true)
+	if !hasText(&canvas, "原生同步提示，无后台延时器") {
+		t.Fatal("hovering the trigger did not show its tooltip")
+	}
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.ID{}, false)
+	paintFrame(&canvas, tooltip, testSize, time.Second, true)
+	if hasText(&canvas, "原生同步提示，无后台延时器") {
+		t.Fatal("moving the pointer away did not hide the tooltip")
 	}
 
 	hover := newTestState(t, "hover-card", "default")
-	result = hover.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, Target: hoverCardAnchor})
+	result := hover.Pointer(gfx.PointerEvent{Kind: gfx.PointerMove, Target: hoverCardAnchor})
 	if !result.Handled || !result.Repaint || hover.flags&1 == 0 {
 		t.Fatalf("hover enter result=%+v flags=%d", result, hover.flags)
 	}

@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -30,18 +29,17 @@ for index := range labels {
 for index := range labels {
     ui.Checkbox(c, &m.preferences[index], labels[index])
 }`},
-		{ID: "states", Title: "校验与禁用", Description: "必选项未选时显示校验状态，另有两个禁用样本。", Snippet: `boxes := tree.Sub(page, tree.Name("box"))
-box := components.BeginCheckbox(canvas, theme, boxes.At(0), bounds, false).
-    Label("Required: accept terms of use").Invalid().Paint()
-if box.Clicked() {
-    selected ^= 1
-}
-ui.Checkbox(c, &off, "Disabled · Unchecked").Hit(boxes.At(1), "Disabled · Unchecked").Disabled(true)
-ui.Checkbox(c, &on, "Disabled · Checked").Hit(boxes.At(2), "Disabled · Checked").Disabled(true)`, PageSnippet: `m.on = true
-ui.Checkbox(c, &m.required, "Required: accept terms of use")
+		{ID: "states", Title: "校验与禁用", Description: "必选项未选时显示校验状态，另有两个禁用样本。", Snippet: `required := false
+off, on := false, true
+ui.Checkbox(c, &required, "Required: accept terms of use").Invalid(!required)
+ui.Checkbox(c, &off, "Disabled · Unchecked").Disabled(true)
+ui.Checkbox(c, &on, "Disabled · Checked").Disabled(true)`, PageSnippet: `m.required = false
+m.on = true
+ui.Checkbox(c, &m.required, "Required: accept terms of use").Invalid(!m.required)
 ui.Checkbox(c, &m.off, "Disabled · Unchecked").Disabled(true)
-ui.Checkbox(c, &m.on, "Disabled · Checked").Disabled(true)`, PageSnippetZh: `m.on = true
-ui.Checkbox(c, &m.required, "必选：接受使用条款")
+ui.Checkbox(c, &m.on, "Disabled · Checked").Disabled(true)`, PageSnippetZh: `m.required = false
+m.on = true
+ui.Checkbox(c, &m.required, "必选：接受使用条款").Invalid(!m.required)
 ui.Checkbox(c, &m.off, "禁用 · 未选择").Disabled(true)
 ui.Checkbox(c, &m.on, "禁用 · 已选择").Disabled(true)`},
 	},
@@ -61,38 +59,54 @@ type checkboxState struct {
 }
 
 func (state *State) paintCheckbox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "states" {
+		state.paintCheckboxStates(canvas, theme, size)
+		return
+	}
 	labels := []string{state.Text("接受使用条款", "Accept terms of use")}
-	switch state.exampleID {
-	case "selection":
+	if state.exampleID == "selection" {
 		labels = []string{
 			state.Text("显示行号", "Show line numbers"),
 			state.Text("保存时格式化", "Format on save"),
 			state.Text("恢复上次窗口", "Restore last window"),
 		}
-	case "states":
-		labels = []string{
-			state.Text("必选：接受使用条款", "Required: accept terms of use"),
-			state.Text("禁用 · 未选择", "Disabled · Unchecked"),
-			state.Text("禁用 · 已选择", "Disabled · Checked"),
-		}
 	}
-	// A required box that is still empty is drawn invalid, which ui's checkbox
-	// has no option for: its square is a Slot the component paints into.
-	var invalid ui.Box
-	hasInvalid := false
+	caption := state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")
+	if state.exampleID == "default" && state.checkbox.boxes[0] {
+		caption = state.Text("已接受使用条款。", "Terms accepted.")
+	}
+	state.drawPage(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(c ui.C) {
+		for index, label := range labels {
+			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+				ui.Checkbox(c, &state.checkbox.boxes[index], "").Hit(checkboxBox.At(index), label)
+				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+			})
+		}
+		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// paintCheckboxStates keeps the validation example on the page API: the required
+// box is invalid while it is unchecked, and the two fixed rows stay disabled.
+func (state *State) paintCheckboxStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	labels := []string{
+		state.Text("必选：接受使用条款", "Required: accept terms of use"),
+		state.Text("禁用 · 未选择", "Disabled · Unchecked"),
+		state.Text("禁用 · 已选择", "Disabled · Checked"),
+	}
 	state.drawPage(canvas, theme, size, 480, state.Text("Checkbox · 显式选择", "Checkbox · Explicit selection"), func(c ui.C) {
 		for index, label := range labels {
 			checked := state.checkbox.selected&(1<<index) != 0
-			disabled := state.exampleID == "states" && index > 0
+			disabled := index > 0
 			if disabled {
 				checked = index == 2
 			}
 			ui.Row(c).Gap(12).Items(ui.Center).PadX(12).MarginY(2).Children(func() {
 				state.checkbox.boxes[index] = checked
-				if state.exampleID == "states" && index == 0 && !checked {
-					side := components.CheckboxExtent(theme)
-					invalid, hasInvalid = ui.Slot(c).Size(side, side), true
-				} else if ui.Checkbox(c, &state.checkbox.boxes[index], "").Hit(checkboxBox.At(index), label).Disabled(disabled).Clicked() {
+				if ui.Checkbox(c, &state.checkbox.boxes[index], "").
+					Hit(checkboxBox.At(index), label).
+					Invalid(index == 0 && !checked).
+					Disabled(disabled).Clicked() {
 					state.checkbox.selected ^= 1 << index
 				}
 				color := theme.Foreground
@@ -102,18 +116,7 @@ func (state *State) paintCheckbox(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 				ui.Text(c, label).FontSize(theme.Metrics.FontSizeM).Color(color)
 			})
 		}
-		caption := state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")
-		if state.exampleID == "default" && state.checkbox.selected != 0 {
-			caption = state.Text("已接受使用条款。", "Terms accepted.")
-		}
-		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Text(c, state.Text("点击方框，或用 Tab / Space 切换。", "Click the box, or press Tab / Space to toggle.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
 	})
-	if hasInvalid {
-		bounds := invalid.Rect()
-		box := components.BeginCheckbox(canvas, theme, checkboxBox.At(0), gfx.Rect{X: bounds.X, Y: bounds.Y}, false).
-			Label(labels[0]).Invalid().Paint()
-		if box.Clicked() {
-			state.checkbox.selected ^= 1
-		}
-	}
 }

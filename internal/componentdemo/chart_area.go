@@ -6,7 +6,7 @@ import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/chartview"
+	"github.com/vivaui/viva/ui/chart"
 )
 
 var chartAreaComponent = Component{
@@ -31,7 +31,7 @@ chart := components.AreaChart{
 }
 components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
@@ -40,21 +40,21 @@ mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
 transparent := palette.Chart[0]
 transparent.Alpha = 0
-series[0].AreaStyle = &chartview.AreaStyle{
+series[0].AreaStyle = &chart.AreaStyle{
     Opacity: .24,
-    Gradient: &chartview.AreaGradient{From: palette.Chart[0], To: transparent},
+    Gradient: &chart.AreaGradient{From: palette.Chart[0], To: transparent},
 }
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "Monthly visitors area chart", Version: 1,
 }
-chartview.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
@@ -63,19 +63,19 @@ mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
 transparent := palette.Chart[0]
 transparent.Alpha = 0
-series[0].AreaStyle = &chartview.AreaStyle{
+series[0].AreaStyle = &chart.AreaStyle{
     Opacity: .24,
-    Gradient: &chartview.AreaGradient{From: palette.Chart[0], To: transparent},
+    Gradient: &chart.AreaGradient{From: palette.Chart[0], To: transparent},
 }
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "月访问量面积图", Version: 1,
 }
-chartview.View(c, "月访问量面积图", &m.visitors).Height(280)`},
+chart.View(c, "月访问量面积图", &m.visitors).Height(280)`},
 		{ID: "default", Title: "渐变面积", Description: "单序列、平滑曲线和从序列色渐隐的填充。", Height: 320,
 			Snippet: `chart := components.AreaChart{
     Series: []components.ChartSeries{{Key: "desktop", Label: "Desktop", Color: theme.Chart[0]}},
@@ -86,31 +86,31 @@ chartview.View(c, "月访问量面积图", &m.visitors).Height(280)`},
 }
 plot := components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: [][]float32{desktop},
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "Monthly visitors area chart", Version: 1,
 }
-chartview.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: [][]float32{desktop},
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "月访问量面积图", Version: 1,
 }
-chartview.View(c, "月访问量面积图", &m.visitors).Height(280)`},
+chart.View(c, "月访问量面积图", &m.visitors).Height(280)`},
 		{ID: "linear", Title: "折线与数据点", Description: "无填充的折线图，标出每个数据点。", Height: 320,
 			Snippet: `chart := components.AreaChart{
     Series: series, Values: values,
@@ -122,39 +122,39 @@ chartview.View(c, "月访问量面积图", &m.visitors).Height(280)`},
 }
 components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Fill: chartview.FillNone, Dots: true,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridBoth,
-    Legend: chartview.LegendBottom,
+    Fill: chart.FillNone, Dots: true,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridBoth,
+    Legend: chart.LegendBottom,
     Label: "Monthly visitors line chart", Version: 1,
 }
-chartview.View(c, "Monthly visitors line chart", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors line chart", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Fill: chartview.FillNone, Dots: true,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridBoth,
-    Legend: chartview.LegendBottom,
+    Fill: chart.FillNone, Dots: true,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridBoth,
+    Legend: chart.LegendBottom,
     Label: "月访问量折线图", Version: 1,
 }
-chartview.View(c, "月访问量折线图", &m.visitors).Height(280)`},
+chart.View(c, "月访问量折线图", &m.visitors).Height(280)`},
 		{ID: "step", Title: "阶梯曲线", Description: "每个值保持到相邻两点的中点。", Height: 320,
 			Snippet: `chart := components.AreaChart{
     Series: series, Values: values,
@@ -164,37 +164,37 @@ chartview.View(c, "月访问量折线图", &m.visitors).Height(280)`},
 }
 components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveStep, Fill: chartview.FillSolid,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Curve: chart.CurveStep, Fill: chart.FillSolid,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "Monthly visitors step chart", Version: 1,
 }
-chartview.View(c, "Monthly visitors step chart", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors step chart", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveStep, Fill: chartview.FillSolid,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Curve: chart.CurveStep, Fill: chart.FillSolid,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "月访问量阶梯图", Version: 1,
 }
-chartview.View(c, "月访问量阶梯图", &m.visitors).Height(280)`},
+chart.View(c, "月访问量阶梯图", &m.visitors).Height(280)`},
 		{ID: "stacked", Title: "堆叠", Description: "按序列顺序自下而上堆叠，纵轴随总量缩放。", Height: 320,
 			Snippet: `chart := components.AreaChart{
     Series: series, Values: values,
@@ -206,39 +206,39 @@ chartview.View(c, "月访问量阶梯图", &m.visitors).Height(280)`},
 }
 components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveNatural, Stack: chartview.StackStacked,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveNatural, Stack: chart.StackStacked,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "Stacked monthly visitors", Version: 1,
 }
-chartview.View(c, "Stacked monthly visitors", &m.visitors).Height(280)`,
+chart.View(c, "Stacked monthly visitors", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveNatural, Stack: chartview.StackStacked,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveNatural, Stack: chart.StackStacked,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "堆叠月访问量", Version: 1,
 }
-chartview.View(c, "堆叠月访问量", &m.visitors).Height(280)`},
+chart.View(c, "堆叠月访问量", &m.visitors).Height(280)`},
 		{ID: "expanded", Title: "百分比堆叠", Description: "每个横坐标归一到 100%，纵轴以百分比标注。", Height: 320,
 			Snippet: `chart := components.AreaChart{
     Series: series, Values: values,
@@ -248,37 +248,37 @@ chartview.View(c, "堆叠月访问量", &m.visitors).Height(280)`},
 }
 components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Stack: chartview.StackExpand,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Stack: chart.StackExpand,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "Monthly visitors share", Version: 1,
 }
-chartview.View(c, "Monthly visitors share", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors share", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Stack: chartview.StackExpand,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
+    Stack: chart.StackExpand,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
     Label: "月访问量占比", Version: 1,
 }
-chartview.View(c, "月访问量占比", &m.visitors).Height(280)`},
+chart.View(c, "月访问量占比", &m.visitors).Height(280)`},
 		{ID: "interactive", Title: "悬停与键盘", Description: "指针或方向键移动悬停点，提示框按边缘自动翻转。", Height: 320,
 			Snippet: `plot := components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)
 // From the pointer: state.Hover(plot.IndexAt(event.X)), and state.Clear() on exit.
@@ -287,19 +287,19 @@ if index, ok := components.ChartStepForKey(event.Key, current, plot.Count()); ok
     state.Hover(index)
 }`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "Monthly visitors area chart", Version: 1,
 }
 // The view turns the pointer and the arrow keys into the hovered point.
@@ -309,21 +309,21 @@ m.visitors.OnHover = func(index int, active bool) {
         m.inspected = -1
     }
 }
-chartview.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
+chart.View(c, "Monthly visitors area chart", &m.visitors).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.visitors.Chart = chartview.AreaChart{
+m.visitors.Chart = chart.AreaChart{
     Series: series, Values: values,
-    Curve: chartview.CurveMonotone,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Curve: chart.CurveMonotone,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "月访问量面积图", Version: 1,
 }
 // 视图把指针和方向键映射为悬停点。
@@ -333,7 +333,7 @@ m.visitors.OnHover = func(index int, active bool) {
         m.inspected = -1
     }
 }
-chartview.View(c, "月访问量面积图", &m.visitors).Height(280)`},
+chart.View(c, "月访问量面积图", &m.visitors).Height(280)`},
 	},
 }
 
@@ -351,37 +351,37 @@ var chartBarComponent = Component{
 }
 plot := components.PaintBarChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.bars.Chart = chartview.BarChart{
+m.bars.Chart = chart.BarChart{
     Series: series, Values: values,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "Monthly visitors bar chart", Version: 1,
 }
-chartview.Bar(c, "Monthly visitors bar chart", &m.bars).Height(280)`,
+chart.Bar(c, "Monthly visitors bar chart", &m.bars).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.bars.Chart = chartview.BarChart{
+m.bars.Chart = chart.BarChart{
     Series: series, Values: values,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "月访问量柱状图", Version: 1,
 }
-chartview.Bar(c, "月访问量柱状图", &m.bars).Height(280)`},
+chart.Bar(c, "月访问量柱状图", &m.bars).Height(280)`},
 		{ID: "stacked", Title: "堆叠柱状图", Description: "同一类别的序列叠成一根柱，只有最上端圆角。", Height: 320,
 			Snippet: `chart := components.BarChart{
     Series: series, Values: values,
@@ -391,39 +391,39 @@ chartview.Bar(c, "月访问量柱状图", &m.bars).Height(280)`},
 }
 components.PaintBarChart(canvas, theme, bounds, chartID, chart, &state)`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "Desktop", Color: palette.Chart[0]},
     {Key: "mobile", Label: "Mobile", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.bars.Chart = chartview.BarChart{
+m.bars.Chart = chart.BarChart{
     Series: series, Values: values,
-    Stack: chartview.StackStacked,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Stack: chart.StackStacked,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "Stacked monthly visitors", Version: 1,
 }
-chartview.Bar(c, "Stacked monthly visitors", &m.bars).Height(280)`,
+chart.Bar(c, "Stacked monthly visitors", &m.bars).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "desktop", Label: "桌面端", Color: palette.Chart[0]},
     {Key: "mobile", Label: "移动端", Color: palette.Chart[1]},
 }
 desktop := []float32{186, 305, 237, 73, 209, 214}
 mobile := []float32{80, 200, 120, 190, 130, 140}
 values := [][]float32{desktop, mobile}
-m.bars.Chart = chartview.BarChart{
+m.bars.Chart = chart.BarChart{
     Series: series, Values: values,
-    Stack: chartview.StackStacked,
-    XAxis: chartview.Axis{Format: m.formatMonth},
-    Grid:  chartview.GridHorizontal,
-    Legend: chartview.LegendBottom,
+    Stack: chart.StackStacked,
+    XAxis: chart.Axis{Format: m.formatMonth},
+    Grid:  chart.GridHorizontal,
+    Legend: chart.LegendBottom,
     Label: "堆叠月访问量", Version: 1,
 }
-chartview.Bar(c, "堆叠月访问量", &m.bars).Height(280)`},
+chart.Bar(c, "堆叠月访问量", &m.bars).Height(280)`},
 	},
 }
 
@@ -450,22 +450,22 @@ for i := range samples {
 for _, spike := range [...]int{23_000, 61_500, 88_800} {
     samples[spike] += 60
 }
-keep := chartview.Downsample(nil, nil, samples, 400)
+keep := chart.Downsample(nil, nil, samples, 400)
 x := make([]float32, len(keep))
 reduced := make([]float32, len(keep))
 for i, index := range keep {
     x[i] = float32(index)
     reduced[i] = samples[index]
 }
-m.cpu.Chart = chartview.AreaChart{
-    Series: []chartview.Series{{Key: "cpu", Label: "CPU samples", Color: palette.Chart[2]}},
+m.cpu.Chart = chart.AreaChart{
+    Series: []chart.Series{{Key: "cpu", Label: "CPU samples", Color: palette.Chart[2]}},
     X: x, Values: [][]float32{reduced},
-    Fill: chartview.FillSolid, Curve: chartview.CurveLinear, StrokeWidth: 1.5,
-    XAxis: chartview.Axis{Linear: true, Ticks: 6},
-    Grid:  chartview.GridHorizontal,
+    Fill: chart.FillSolid, Curve: chart.CurveLinear, StrokeWidth: 1.5,
+    XAxis: chart.Axis{Linear: true, Ticks: 6},
+    Grid:  chart.GridHorizontal,
     Label: "CPU samples", Version: 1,
 }
-chartview.View(c, "CPU samples", &m.cpu).Height(280)`,
+chart.View(c, "CPU samples", &m.cpu).Height(280)`,
 			PageSnippetZh: `palette := c.Theme()
 samples := make([]float32, 100_000)
 for i := range samples {
@@ -475,22 +475,22 @@ for i := range samples {
 for _, spike := range [...]int{23_000, 61_500, 88_800} {
     samples[spike] += 60
 }
-keep := chartview.Downsample(nil, nil, samples, 400)
+keep := chart.Downsample(nil, nil, samples, 400)
 x := make([]float32, len(keep))
 reduced := make([]float32, len(keep))
 for i, index := range keep {
     x[i] = float32(index)
     reduced[i] = samples[index]
 }
-m.cpu.Chart = chartview.AreaChart{
-    Series: []chartview.Series{{Key: "cpu", Label: "CPU 采样", Color: palette.Chart[2]}},
+m.cpu.Chart = chart.AreaChart{
+    Series: []chart.Series{{Key: "cpu", Label: "CPU 采样", Color: palette.Chart[2]}},
     X: x, Values: [][]float32{reduced},
-    Fill: chartview.FillSolid, Curve: chartview.CurveLinear, StrokeWidth: 1.5,
-    XAxis: chartview.Axis{Linear: true, Ticks: 6},
-    Grid:  chartview.GridHorizontal,
+    Fill: chart.FillSolid, Curve: chart.CurveLinear, StrokeWidth: 1.5,
+    XAxis: chart.Axis{Linear: true, Ticks: 6},
+    Grid:  chart.GridHorizontal,
     Label: "CPU 采样", Version: 1,
 }
-chartview.View(c, "CPU 采样", &m.cpu).Height(280)`},
+chart.View(c, "CPU 采样", &m.cpu).Height(280)`},
 	},
 }
 
@@ -523,9 +523,9 @@ type chartDemoState struct {
 	series [2]components.ChartSeries
 	values [2][]float32
 	// The generic Chart example's container and its caller-owned geometry.
-	container chartview.Container
-	tooltip   chartview.Tooltip
-	rows      [2]chartview.TooltipRow
+	container chart.Container
+	tooltip   chart.Tooltip
+	rows      [2]chart.TooltipRow
 	heights   [8]float32
 }
 
@@ -534,9 +534,9 @@ func (state *State) initializeChart() {
 	switch state.componentID {
 	case "chart":
 		demo.heights = [...]float32{0.42, 0.28, 0.60, 0.36, 0.72, 0.48, 0.88, 0.62}
-		demo.rows = [2]chartview.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}}
+		demo.rows = [2]chart.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}}
 		demo.tooltip.Rows = demo.rows[:]
-		demo.container.Options = chartview.ContainerOptions{Legend: chartview.LegendBottom}
+		demo.container.Options = chart.ContainerOptions{Legend: chart.LegendBottom}
 		// The draw function is made once, with the model, so a warm paint does
 		// not allocate it again.
 		demo.container.Draw = demo.drawChartBars
@@ -563,7 +563,7 @@ func (state *State) initializeChart() {
 
 // drawChartBars paints the generic Chart example's custom commit bars inside the
 // container's plot.
-func (demo *chartDemoState) drawChartBars(d *ui.DrawContext, layout chartview.Layout) {
+func (demo *chartDemoState) drawChartBars(d *ui.DrawContext, layout chart.Layout) {
 	plot := layout.PlotBounds
 	baseline := plot.Y + plot.Height - 14
 	barWidth := min(float32(30), (plot.Width-40)/8)
@@ -625,53 +625,53 @@ func (state *State) paintChartArea(canvas *gfx.Canvas, theme gfx.Theme, size gfx
 	demo := state.chart
 	demo.fill(theme, state.english)
 	series := demo.series[:]
-	chart := components.AreaChart{
+	area := components.AreaChart{
 		Series: series, Values: demo.values[:],
 		XAxis: components.ChartAxis{Format: state.chartMonthFormat()}, Grid: components.ChartGridHorizontal,
-		Label:   state.Text("月访问量面积图", "Monthly visitors area chart"),
+		Label:   state.Text("月访问量面积图", "Monthly visitors area area"),
 		Version: 1,
 	}
-	title := state.Text("面积图 · 月访问量", "Area chart · Monthly visitors")
+	title := state.Text("面积图 · 月访问量", "Area area · Monthly visitors")
 	switch state.exampleID {
 	case "area-style":
 		demo.areaGradient = components.ChartAreaGradient{From: theme.Chart[0], To: theme.Chart[0]}
 		demo.areaGradient.To.Alpha = 0
 		demo.areaStyle = components.ChartAreaStyle{Opacity: .24, Gradient: &demo.areaGradient}
 		series[0].AreaStyle = &demo.areaStyle
-		chart.Curve, chart.Legend = components.ChartCurveMonotone, components.ChartLegendBottom
+		area.Curve, area.Legend = components.ChartCurveMonotone, components.ChartLegendBottom
 	case "default":
-		chart.Series, chart.Values = series[:1], chart.Values[:1]
-		chart.Curve = components.ChartCurveMonotone
+		area.Series, area.Values = series[:1], area.Values[:1]
+		area.Curve = components.ChartCurveMonotone
 	case "linear":
-		chart.Fill, chart.Dots, chart.Grid, chart.Legend = components.ChartFillNone, true, components.ChartGridBoth, components.ChartLegendBottom
+		area.Fill, area.Dots, area.Grid, area.Legend = components.ChartFillNone, true, components.ChartGridBoth, components.ChartLegendBottom
 	case "step":
-		chart.Curve, chart.Fill = components.ChartCurveStep, components.ChartFillSolid
+		area.Curve, area.Fill = components.ChartCurveStep, components.ChartFillSolid
 	case "stacked":
-		chart.Curve, chart.Stack, chart.Legend = components.ChartCurveNatural, components.ChartStackStacked, components.ChartLegendBottom
+		area.Curve, area.Stack, area.Legend = components.ChartCurveNatural, components.ChartStackStacked, components.ChartLegendBottom
 	case "expanded":
-		chart.Stack, chart.Curve = components.ChartStackExpand, components.ChartCurveMonotone
+		area.Stack, area.Curve = components.ChartStackExpand, components.ChartCurveMonotone
 	case "interactive":
-		chart.Curve, chart.Legend = components.ChartCurveMonotone, components.ChartLegendBottom
+		area.Curve, area.Legend = components.ChartCurveMonotone, components.ChartLegendBottom
 	}
 	state.chartFrame(canvas, theme, size, title, func(bounds gfx.Rect) {
-		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
+		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, area, &demo.chart)
 	})
 }
 
 func (state *State) paintChartBar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	demo := state.chart
 	demo.fill(theme, state.english)
-	chart := components.BarChart{
+	bars := components.BarChart{
 		Series: demo.series[:], Values: demo.values[:],
 		XAxis: components.ChartAxis{Format: state.chartMonthFormat()}, Grid: components.ChartGridHorizontal,
-		Legend: components.ChartLegendBottom, Label: state.Text("月访问量柱状图", "Monthly visitors bar chart"),
+		Legend: components.ChartLegendBottom, Label: state.Text("月访问量柱状图", "Monthly visitors bar bars"),
 		Version: 1,
 	}
 	if state.exampleID == "stacked" {
-		chart.Stack = components.ChartStackStacked
+		bars.Stack = components.ChartStackStacked
 	}
-	state.chartFrame(canvas, theme, size, state.Text("柱状图 · 月访问量", "Bar chart · Monthly visitors"), func(bounds gfx.Rect) {
-		demo.plot = components.PaintBarChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
+	state.chartFrame(canvas, theme, size, state.Text("柱状图 · 月访问量", "Bar bars · Monthly visitors"), func(bounds gfx.Rect) {
+		demo.plot = components.PaintBarChart(canvas, theme, bounds, chartDemoPlot, bars, &demo.chart)
 	})
 }
 
@@ -680,7 +680,7 @@ func (state *State) paintChartDownsample(canvas *gfx.Canvas, theme gfx.Theme, si
 	label := state.Text("CPU 采样", "CPU samples")
 	demo.series[0] = components.ChartSeries{Key: "cpu", Label: label, Color: theme.Chart[2]}
 	demo.values[0] = demo.y
-	chart := components.AreaChart{
+	samples := components.AreaChart{
 		Series: demo.series[:1],
 		X:      demo.x, Values: demo.values[:1],
 		Fill: components.ChartFillSolid, Curve: components.ChartCurveLinear, StrokeWidth: 1.5,
@@ -689,7 +689,7 @@ func (state *State) paintChartDownsample(canvas *gfx.Canvas, theme gfx.Theme, si
 	}
 	title := state.Text("降采样 · 100,000 点 → 400 点", "Downsample · 100,000 points → 400")
 	state.chartFrame(canvas, theme, size, title, func(bounds gfx.Rect) {
-		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, chart, &demo.chart)
+		demo.plot = components.PaintAreaChart(canvas, theme, bounds, chartDemoPlot, samples, &demo.chart)
 	})
 }
 

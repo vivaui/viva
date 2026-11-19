@@ -3,7 +3,6 @@ package componentdemo
 import (
 	"strings"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -36,10 +35,12 @@ control := field.Paint("Work email", "Used only for release notifications.", "")
 components.PaintInput(canvas, theme, control, components.InputSnapshot{
     ID: email, Label: "Work email", Value: value,
 })`, PageSnippet: `m.field.Description = "Used only for release notifications."
+m.field.Orientation = ui.FieldResponsive
 // m.email starts as "team@viva.dev".
 ui.FormField(c, &m.field, "Work email").Children(func() {
     ui.TextField(c, &m.email, "Work email", "")
 })`, PageSnippetZh: `m.field.Description = "Used only for release notifications."
+m.field.Orientation = ui.FieldResponsive
 // m.email starts as "team@viva.dev".
 ui.FormField(c, &m.field, "Work email").Children(func() {
     ui.TextField(c, &m.email, "Work email", "")
@@ -57,6 +58,7 @@ components.PaintInput(canvas, theme, control, components.InputSnapshot{
     ID: email, Label: "Work email", Value: value, Invalid: invalid,
 })`, PageSnippet: `// m.email starts as "team".
 m.field.Description = "Used only for release notifications."
+m.field.Required = true
 m.field.Invalid = !strings.Contains(m.email, "@")
 if m.field.Invalid {
     m.field.Error = "Enter a valid work email."
@@ -65,6 +67,7 @@ ui.FormField(c, &m.field, "Work email").Children(func() {
     ui.TextField(c, &m.email, "Work email", "")
 })`, PageSnippetZh: `// m.email starts as "team".
 m.field.Description = "Used only for release notifications."
+m.field.Required = true
 m.field.Invalid = !strings.Contains(m.email, "@")
 if m.field.Invalid {
     m.field.Error = "Enter a valid work email."
@@ -90,32 +93,27 @@ func fieldInitial(exampleID string) string {
 }
 
 func (state *State) paintField(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var slot ui.Box
+	initial := fieldInitial(state.exampleID)
 	state.drawPage(canvas, theme, size, 600, state.Text("Field · 结构化字段", "Field · Structured field"), func(c ui.C) {
-		slot = ui.Slot(c).FillWidth().Height(136)
+		field := ui.State[ui.Field](c, "email")
+		form := ui.State[ui.FormFieldState](c, "field")
+		state.bindPageField(field, initial)
+		form.Description = "Used only for release notifications."
+		form.For = fieldInput
+		if state.exampleID == "orientations" {
+			form.Orientation = ui.FieldResponsive
+		}
+		if state.exampleID == "invalid" {
+			field.Invalid = !strings.Contains(field.Text(), "@")
+			form.Invalid = field.Invalid
+			form.Required = true
+			form.Error = ""
+			if field.Invalid {
+				form.Error = "Enter a valid work email."
+			}
+		}
+		ui.FormField(c, form, "Work email").Children(func() {
+			ui.TextFieldID(c, fieldInput, field, "Work email", "").ReadOnly(!state.editing)
+		})
 	})
-	field := components.BeginField(canvas, theme, slot.Rect()).For(fieldInput)
-	if state.exampleID == "orientations" {
-		field = field.Orientation(components.FieldResponsive)
-	}
-	value := state.fieldValue(fieldInitial(state.exampleID))
-	required := state.exampleID == "invalid"
-	invalid := required && !strings.Contains(value, "@")
-	if required {
-		field = field.Required()
-	}
-	if invalid {
-		field = field.Invalid()
-	}
-	errorText := ""
-	if invalid {
-		errorText = "Enter a valid work email."
-	}
-	control := field.Paint("Work email", "Used only for release notifications.", errorText)
-	input := components.InputSnapshot{
-		ID: fieldInput, Label: "Work email", Value: value, Hint: "Used only for release notifications", Invalid: invalid,
-		ReadOnly: !state.editing,
-	}
-	state.paintEditable(canvas, fieldInput, value, &input)
-	components.PaintInput(canvas, theme, control, input)
 }

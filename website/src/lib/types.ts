@@ -9,6 +9,8 @@ export interface Demo {
   Title: string;
   Description: string;
   Snippet?: string;
+  PageSnippet?: string;
+  PageSnippetZh?: string;
   Height?: number;
 }
 

@@ -23,7 +23,7 @@ export function languagePath(locale: Locale, currentID: string): string {
 
 const english = {
   skip: 'Skip to content', home: 'Viva documentation home',
-  components: 'Components', componentsSummary: 'All components, grouped by category.',
+  components: 'Components', componentsSummary: 'Every component in the library, indexed by name.',
   language: 'Documentation language', darkTheme: 'Dark theme', light: 'Light', dark: 'Dark',
   browse: 'Browse components', search: 'Search components', searchPlaceholder: 'Search…',
   noMatches: 'No matching components. Try another name or category.', matches: 'matching components',
@@ -47,7 +47,7 @@ const english = {
 
 const chinese: typeof english = {
   skip: '跳转到正文', home: 'Viva 文档首页',
-  components: '组件', componentsSummary: '全部组件，按分类浏览。',
+  components: '组件', componentsSummary: '组件库的全部组件，按名称索引。',
   language: '文档语言', darkTheme: '深色主题', light: '浅色', dark: '深色',
   browse: '浏览组件', search: '搜索组件', searchPlaceholder: '搜索组件…',
   noMatches: '没有匹配的组件，试试名称或分类。', matches: '个匹配组件',
@@ -279,14 +279,6 @@ const ownership: Omit<Section, 'ID'> = {
   Items: ['每个示例的重置仅创建新的预览实例，不修改生产组件。', '源码指纹标识 Go 构建输入，不是发布版本或跨平台一致性承诺。', 'Astro 开发服务在 Go 源码变更后重新编译并刷新页面。失败时保留上次成功预览；部署后的静态网站必须重新构建发布。'],
 };
 
-const genericChineseSections: Record<string, Omit<Section, 'ID'>> = {
-  usage: {
-    Title: '源码组件用法',
-    Text: '此预览直接调用生产 Go 组件。稳定 ID、值与打开状态仍由应用持有；组件只负责绘制并声明交互语义。',
-    Items: ['标题旁的源码链接列出了全部选项与视觉决策。', '请使用原生命令验证系统文本、焦点、无障碍与平台集成。', '浏览器预览验证共享布局和场景行为，不代表原生性能。'],
-  },
-};
-
 function englishLabel(value: string): string {
   return value.split('-').map(word => word ? word[0].toUpperCase() + word.slice(1) : word).join(' ');
 }
@@ -301,7 +293,7 @@ export function localizePage(page: Page, locale: Locale): Page {
   return { ...page, Summary: locale === 'en' ? translation?.summary ?? `${page.Title} source-owned component states rendered by the production Go API.` : page.Summary, Examples: examples,
     Sections: page.Sections.map(section => {
       if (locale === 'en') return section;
-      const translated = section.ID === 'source-ownership' ? ownership : chineseSections[page.ID]?.[section.ID] ?? genericChineseSections[section.ID];
+      const translated = section.ID === 'source-ownership' ? ownership : chineseSections[page.ID]?.[section.ID];
       if (!translated) throw new Error(`Missing section translation: ${page.ID}/${section.ID}`);
       return { ID: section.ID, ...translated };
     }),
@@ -310,7 +302,7 @@ export function localizePage(page: Page, locale: Locale): Page {
         macOS: ['原生预览', 'AppKit + Metal。请在本机验证系统字体、焦点与可访问性。'],
         Windows: ['实验性', '原生运行器通过交叉编译；本文档不是 Windows 真机验证报告。'],
         Linux: ['暂不可用', '当前 Linux 后端尚不能运行这些 Canvas 组件示例。'],
-		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['Canvas2D 预览', '同一份 Go 示例编译为 WASM，不是 HTML/CSS 仿制，不能据此推断原生性能。'],
+		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['WebGL2 预览（Canvas2D 回退）', '同一份 Go 示例编译为 WASM，优先用 WebGL2 绘制，不可用时回退 Canvas2D；不是 HTML/CSS 仿制，不能据此推断原生性能。'],
       };
       if (!translated[capability.Platform]) throw new Error(`Missing platform translation: ${capability.Platform}`);
       return { Platform: capability.Platform, Status: translated[capability.Platform][0], Detail: translated[capability.Platform][1] };

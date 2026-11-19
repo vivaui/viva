@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/imageview"
+	"github.com/vivaui/viva/ui/image"
 )
 
 var imageViewComponent = Component{
@@ -13,25 +13,25 @@ var imageViewComponent = Component{
 	Examples: []Example{
 		{ID: "fit", Title: "适配视口", Description: "应用提供已解码且有界的像素；页面控件把整张图居中放进调用方给出的视口。", Height: 300, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap})`, PageSnippet: `// m.bitmap is the caller-decoded 160 × 100 image.
 m.picture.Reset().Bitmap(m.bitmap).Fit()
-imageview.View(c, "Fit preview", m.picture).FillWidth().Height(240)`, PageSnippetZh: `// m.bitmap 是调用方已解码的 160 × 100 图像。
+image.View(c, "Fit preview", m.picture).FillWidth().Height(240)`, PageSnippetZh: `// m.bitmap 是调用方已解码的 160 × 100 图像。
 m.picture.Reset().Bitmap(m.bitmap).Fit()
-imageview.View(c, "适配预览", m.picture).FillWidth().Height(240)`},
+image.View(c, "适配预览", m.picture).FillWidth().Height(240)`},
 		{ID: "actual", Title: "一个图像像素对应一个设备像素", Description: "Actual 在分数 DPI 缩放下保持实际像素尺寸；视口由页面用 Size 给出。", Height: 300, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{Bitmap: bitmap, Zoom: 1})`, PageSnippet: `// m.bitmap is 160 × 100 bitmap pixels; Actual is one per device pixel.
 m.picture.Reset().Bitmap(m.bitmap).Actual()
-imageview.View(c, "Actual pixels", m.picture).Size(160, 100)`, PageSnippetZh: `// m.bitmap 是 160 × 100 位图像素；Actual 让一个位图像素对应一个设备像素。
+image.View(c, "Actual pixels", m.picture).Size(160, 100)`, PageSnippetZh: `// m.bitmap 是 160 × 100 位图像素；Actual 让一个位图像素对应一个设备像素。
 m.picture.Reset().Bitmap(m.bitmap).Actual()
-imageview.View(c, "实际像素", m.picture).Size(160, 100)`},
+image.View(c, "实际像素", m.picture).Size(160, 100)`},
 		{ID: "zoom-pan", Title: "缩放与平移", Description: "显式 Zoom 与 Pan 让大图超出视口并由组件裁剪；Pointer 与 Scroll 交给应用处理拖动和滚轮缩放。", Height: 300, Snippet: `components.PaintImageView(canvas, theme, bounds, components.ImageViewOptions{
     Bitmap: bitmap, Zoom: 2, Pan: gfx.Point{X: 18, Y: -12},
 })`, PageSnippet: `// m.zoom and m.pan are the application's zoom and pan state.
 m.picture.Reset().Bitmap(m.bitmap).Zoom(m.zoom).Pan(m.pan)
 m.picture.Pointer = m.dragImage
 m.picture.Scroll = m.zoomImage
-imageview.View(c, "Zoom and pan", m.picture).FillWidth().Height(240)`, PageSnippetZh: `// m.zoom 和 m.pan 是应用的缩放与平移状态。
+image.View(c, "Zoom and pan", m.picture).FillWidth().Height(240)`, PageSnippetZh: `// m.zoom 和 m.pan 是应用的缩放与平移状态。
 m.picture.Reset().Bitmap(m.bitmap).Zoom(m.zoom).Pan(m.pan)
 m.picture.Pointer = m.dragImage
 m.picture.Scroll = m.zoomImage
-imageview.View(c, "缩放与平移", m.picture).FillWidth().Height(240)`},
+image.View(c, "缩放与平移", m.picture).FillWidth().Height(240)`},
 	},
 }
 
@@ -55,7 +55,7 @@ func (state *State) initializeImageView() {
 // handlers and draw function are stable and a warm paint allocates nothing.
 type imageViewDemo struct {
 	state    *State
-	view     imageview.Image
+	view     image.State
 	zoom     float32
 	pan      gfx.Point
 	last     gfx.Point
@@ -83,13 +83,13 @@ func (state *State) paintImageView(canvas *gfx.Canvas, theme gfx.Theme, size gfx
 		switch state.exampleID {
 		case "actual":
 			demo.view.Reset().Bitmap(*state.imageBitmap).Actual()
-			imageview.View(c, state.Text("实际像素", "Actual pixels"), &demo.view).Size(160, 100)
+			image.View(c, state.Text("实际像素", "Actual pixels"), &demo.view).Size(160, 100)
 		case "zoom-pan":
 			demo.view.Reset().Bitmap(*state.imageBitmap).Zoom(demo.zoom).Pan(demo.pan)
-			imageview.View(c, state.Text("缩放与平移", "Zoom and pan"), &demo.view).FillWidth().Height(240)
+			image.View(c, state.Text("缩放与平移", "Zoom and pan"), &demo.view).FillWidth().Height(240)
 		default:
 			demo.view.Reset().Bitmap(*state.imageBitmap).Fit()
-			imageview.View(c, state.Text("适配预览", "Fit preview"), &demo.view).FillWidth().Height(240)
+			image.View(c, state.Text("适配预览", "Fit preview"), &demo.view).FillWidth().Height(240)
 		}
 	})
 }

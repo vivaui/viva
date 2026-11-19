@@ -169,6 +169,12 @@ jobs:
           GOOS=js GOARCH=wasm go build \
             ./cmd/component-preview ./cmd/gallery-web \
             ./examples/guides/hello ./examples/guides/webview
+      # The docs previews and the gallery build through the same public command
+      # an application uses, so a break in the deployment path fails here.
+      - name: build the public web entry points
+        run: |
+          go run ./cmd/viva build --target web ./cmd/component-preview -o build/component-preview-web
+          go run ./cmd/viva build --target web ./cmd/gallery-web -o build/gallery-web
 
   # The real browser gate. It builds the fixture and drives it through the
   # three engines in parallel with the wasm tests above; most of its elapsed
@@ -197,12 +203,14 @@ jobs:
           tools/webcheck/node_modules/.bin/playwright install --with-deps chromium firefox webkit
       # Each engine gets its own step so a failure names the engine that broke
       # and the others still report their own result.
-      - name: drive the browser verification page (chromium)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium
+      - name: drive the browser verification page (chromium, WebGL2)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium --renderer webgl2
+      - name: drive the browser verification page (chromium, Canvas2D fallback)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium --renderer canvas2d
       - name: drive the browser verification page (firefox)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser firefox
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser firefox --renderer auto
       - name: drive the browser verification page (webkit)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser webkit
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser webkit --renderer auto
 
   # The whole test suite except the packages that carry darwin-only files, split
   # over several runners. .github/scripts/test-packages.sh decides what this

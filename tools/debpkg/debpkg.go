@@ -55,6 +55,10 @@ type Package struct {
 	// FileTypes are the document types the application opens.
 	FileTypes []mimeinfo.Type
 	Depends   []string
+	// Recommends are packages that improve the application without being
+	// required to run it, such as a GPU driver where the program falls back
+	// to a CPU renderer.
+	Recommends []string
 	// Program is the executable's bytes.
 	Program []byte
 	// Icons are the hicolor sizes, from linuxicon.Render; none for no icon.
@@ -113,9 +117,11 @@ func (pkg Package) check() error {
 			return fmt.Errorf("debpkg: %q is not a web address", pkg.Homepage)
 		}
 	}
-	for _, dependency := range pkg.Depends {
-		if dependency == "" || strings.ContainsAny(dependency, ",\r\n") {
-			return fmt.Errorf("debpkg: %q is not one dependency", dependency)
+	for _, dependencies := range [][]string{pkg.Depends, pkg.Recommends} {
+		for _, dependency := range dependencies {
+			if dependency == "" || strings.ContainsAny(dependency, ",\r\n") {
+				return fmt.Errorf("debpkg: %q is not one dependency", dependency)
+			}
 		}
 	}
 	for _, icon := range pkg.Icons {
@@ -164,6 +170,9 @@ func (pkg Package) Control(files []tarball.File) ([]byte, error) {
 	field("Installed-Size", fmt.Sprint(installedKiB(files)))
 	if len(pkg.Depends) > 0 {
 		field("Depends", strings.Join(pkg.Depends, ", "))
+	}
+	if len(pkg.Recommends) > 0 {
+		field("Recommends", strings.Join(pkg.Recommends, ", "))
 	}
 	field("Section", "utils")
 	field("Priority", "optional")

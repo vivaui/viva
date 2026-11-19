@@ -3,21 +3,21 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/messageview"
+	"github.com/vivaui/viva/ui/message"
 )
 
 var messageComponent = Component{
 	ID: "message", Title: "Message", Category: "Communication", Summary: "带头像、元数据与可组合正文槽的消息行。",
 	paint: (*State).paintMessage, initialize: (*State).initializeMessage,
 	Examples: []Example{
-		{ID: "default", Title: "收到的消息", Description: "页面视图组合头像、名称、时间、正文与操作，正文使用 ui.Bubble。", Snippet: `messageview.View(c, "Ari", messageview.New().
+		{ID: "default", Title: "收到的消息", Description: "页面视图组合头像、名称、时间、正文与操作，正文使用 ui.Bubble。", Snippet: `message.View(c, "Ari", message.New().
     Name("Ari · Design").Time("09:42").Avatar("AR").
     Body("Native preview ready.").
     Actions(func(c ui.C) {
         if ui.Button(c, "Copy").Ghost().Small().Clicked() {
             state.copied = true
         }
-    }))`, PageSnippet: `messageview.View(c, "Ari", messageview.New().
+    }))`, PageSnippet: `message.View(c, "Ari", message.New().
     Name("Ari · Design").Time("09:42").Avatar("AR").
     Body("Native preview ready.").
     Actions(func(c ui.C) {
@@ -28,7 +28,7 @@ var messageComponent = Component{
         if ui.Button(c, label).Ghost().Small().Clicked() {
             m.copied = true
         }
-    }))`, PageSnippetZh: `messageview.View(c, "Ari", messageview.New().
+    }))`, PageSnippetZh: `message.View(c, "Ari", message.New().
     Name("Ari · 设计").Time("09:42").Avatar("AR").
     Body("原生预览已就绪。").
     Actions(func(c ui.C) {
@@ -40,42 +40,42 @@ var messageComponent = Component{
             m.copied = true
         }
     }))`},
-		{ID: "alignment", Title: "双向消息", Description: "Start 与 End 互为镜像：结束方向的头像在末尾，气泡与元数据靠右。", Snippet: `messageview.View(c, "Ari", messageview.New().
+		{ID: "alignment", Title: "双向消息", Description: "Start 与 End 互为镜像：结束方向的头像在末尾，气泡与元数据靠右。", Snippet: `message.View(c, "Ari", message.New().
     Name("Ari · Design").Time("09:42").Avatar("AR").
     Body("Native preview ready."))
-messageview.View(c, "You", messageview.New().End().
+message.View(c, "You", message.New().End().
     Name("You").Time("Delivered").Avatar("YO").
-    Surface(ui.BubblePrimary).Body("Ship the compact variant."))`, PageSnippet: `messageview.View(c, "Ari", messageview.New().
+    Surface(ui.BubblePrimary).Body("Ship the compact variant."))`, PageSnippet: `message.View(c, "Ari", message.New().
     Name("Ari · Design").Time("09:42").Avatar("AR").
     Body("Native preview ready."))
-messageview.View(c, "You", messageview.New().End().
+message.View(c, "You", message.New().End().
     Name("You").Time("Delivered").Avatar("YO").
-    Surface(ui.BubblePrimary).Body("Ship the compact variant."))`, PageSnippetZh: `messageview.View(c, "Ari", messageview.New().
+    Surface(ui.BubblePrimary).Body("Ship the compact variant."))`, PageSnippetZh: `message.View(c, "Ari", message.New().
     Name("Ari · 设计").Time("09:42").Avatar("AR").
     Body("原生预览已就绪。"))
-messageview.View(c, "我", messageview.New().End().
+message.View(c, "我", message.New().End().
     Name("我").Time("已送达").Avatar("YO").
     Surface(ui.BubblePrimary).Body("发布紧凑变体。"))`},
-		{ID: "group", Title: "连续消息", Description: "同一发送者的连续行只预留头像位，最后一行显示头像与时间。", Snippet: `messageview.Group(c, "Ari",
-    messageview.New().ReserveAvatar().
+		{ID: "group", Title: "连续消息", Description: "同一发送者的连续行只预留头像位，最后一行显示头像与时间。", Snippet: `message.Group(c, "Ari",
+    message.New().ReserveAvatar().
         Body("Native preview is ready."),
-    messageview.New().ReserveAvatar().
+    message.New().ReserveAvatar().
         Body("I checked the narrow window too."),
-    messageview.New().Avatar("AR").Time("09:42").
+    message.New().Avatar("AR").Time("09:42").
         Body("Ship it when the gate is green."),
-)`, PageSnippet: `messageview.Group(c, "Ari",
-    messageview.New().ReserveAvatar().
+)`, PageSnippet: `message.Group(c, "Ari",
+    message.New().ReserveAvatar().
         Body("Native preview is ready."),
-    messageview.New().ReserveAvatar().
+    message.New().ReserveAvatar().
         Body("I checked the narrow window too."),
-    messageview.New().Avatar("AR").Time("09:42").
+    message.New().Avatar("AR").Time("09:42").
         Body("Ship it when the gate is green."),
-)`, PageSnippetZh: `messageview.Group(c, "Ari",
-    messageview.New().ReserveAvatar().
+)`, PageSnippetZh: `message.Group(c, "Ari",
+    message.New().ReserveAvatar().
         Body("原生预览已就绪。"),
-    messageview.New().ReserveAvatar().
+    message.New().ReserveAvatar().
         Body("我也检查了窄窗口。"),
-    messageview.New().Avatar("AR").Time("09:42").
+    message.New().Avatar("AR").Time("09:42").
         Body("门禁通过后就发布。"),
 )`},
 	},
@@ -86,26 +86,26 @@ func (state *State) paintMessage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 	state.drawPage(canvas, theme, size, 600, state.Text("Message · 对话组合", "Message · Conversation"), func(c ui.C) {
 		switch state.exampleID {
 		case "alignment":
-			messageview.View(c, state.Text("收到的消息", "Incoming message"), messageview.New().
+			message.View(c, state.Text("收到的消息", "Incoming message"), message.New().
 				Name(state.Text("Ari · 设计", "Ari · Design")).
 				Time("09:42").Avatar("AR").
 				Body(state.Text("原生预览已就绪。", "Native preview ready."))).FillWidth()
-			messageview.View(c, state.Text("发送的消息", "Outgoing message"), messageview.New().End().
+			message.View(c, state.Text("发送的消息", "Outgoing message"), message.New().End().
 				Name(state.Text("我", "You")).
 				Time(state.Text("已送达", "Delivered")).Avatar("YO").
 				Surface(ui.BubblePrimary).
 				Body(state.Text("发布紧凑变体。", "Ship the compact variant."))).FillWidth()
 		case "group":
-			messageview.Group(c, state.Text("连续消息", "Consecutive messages"),
-				messageview.New().ReserveAvatar().
+			message.Group(c, state.Text("连续消息", "Consecutive messages"),
+				message.New().ReserveAvatar().
 					Body(state.Text("原生预览已就绪。", "Native preview is ready.")),
-				messageview.New().ReserveAvatar().
+				message.New().ReserveAvatar().
 					Body(state.Text("我也检查了窄窗口。", "I checked the narrow window too.")),
-				messageview.New().Avatar("AR").Time("09:42").
+				message.New().Avatar("AR").Time("09:42").
 					Body(state.Text("门禁通过后就发布。", "Ship it when the gate is green.")),
 			).FillWidth()
 		default:
-			messageview.View(c, state.Text("消息", "Message"), messageview.New().
+			message.View(c, state.Text("消息", "Message"), message.New().
 				Name(state.Text("Ari · 设计", "Ari · Design")).
 				Time("09:42").Avatar("AR").
 				Body(state.Text("原生预览已就绪。", "Native preview ready.")).

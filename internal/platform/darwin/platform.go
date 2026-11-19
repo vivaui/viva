@@ -544,7 +544,8 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 	for index, node := range nodes {
 		label := C.CString(node.Label)
 		value := C.CString(node.Value)
-		hint := C.CString(node.Hint)
+		hintText := darwinAccessibilityHint(node)
+		hint := C.CString(hintText)
 		description := C.CString(node.Description)
 		strings = append(strings, unsafe.Pointer(label), unsafe.Pointer(value), unsafe.Pointer(hint), unsafe.Pointer(description))
 		selectionStart, selectionEnd, textLength := nativeSelection(node)
@@ -559,7 +560,7 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 			value:        value,
 			value_length: C.size_t(len(node.Value)),
 			hint:         hint,
-			hint_length:  C.size_t(len(node.Hint)),
+			hint_length:  C.size_t(len(hintText)),
 			focused:      C.int(boolInt(node.Focused)),
 			disabled:     C.int(boolInt(node.Disabled)),
 			checked:      C.int(boolInt(node.Checked)),
@@ -593,6 +594,19 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 	// The native side copies labels into NSString during the update call, so
 	// callers free these strings once that call has returned.
 	return memory, strings
+}
+
+// darwinAccessibilityHint is the help text AppKit announces for a node. AppKit
+// has no invalid-form accessibility property, so an invalid control says so in
+// its hint rather than dropping the state.
+func darwinAccessibilityHint(node AccessibilityNode) string {
+	if !node.Invalid {
+		return node.Hint
+	}
+	if node.Hint == "" {
+		return "Invalid entry"
+	}
+	return node.Hint + ". Invalid entry"
 }
 
 // nativeSelection is a node's selection in the UTF-16 units AppKit counts text

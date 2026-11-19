@@ -105,7 +105,8 @@ func Button(c C, Label string) Box {
 // Checkbox adds a checkbox showing *value, flipped by a click, with label beside it.
 // The click writes *value when Clicked or Changed is first read on the box, or else
 // when the paint ends; reading *value earlier in that paint sees the previous value,
-// and a Disabled declared after the box still holds.
+// and a Disabled declared after the box still holds. Invalid(true) gives it the
+// destructive validation look.
 func Checkbox(c C, Value *bool, Label string) Box {
 	b := c.f.Checkbox(c.page.boundID(pkCheckbox, unsafe.Pointer(Value)), *Value)
 	if Label != "" {
@@ -165,10 +166,11 @@ func pick[T comparable](c C, b Box, Value *T, options []T, index int, ok bool) {
 
 // Choice is a segmented control over options, *value the chosen one; a click sets
 // it. The options are of the value's type, so a choice of the wrong kind does not
-// compile; label names them, or is nil for options that are strings.
+// compile; label names them, or is nil for options that are strings. Mark an
+// option as unavailable with DisabledOptions, one entry per choice:
 //
 //	ui.Choice(c, &m.theme, []Theme{Light, Dark}, Theme.String)
-//	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil)
+//	ui.Choice(c, &m.size, []string{"S", "M", "L"}, nil).DisabledOptions([]bool{false, false, true})
 func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	p := c.page
 	scope := p.BoundScope(pkChoice, unsafe.Pointer(Value))
@@ -195,7 +197,8 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 
 // Select is a drop-down over choices, *value the chosen one (Placeholder shows while
 // it is none of them); picking an option sets it. Whether its list is open is the
-// Select's own state.
+// Select's own state. Invalid(true) marks the value as failing validation and
+// DisabledOptions marks options unavailable.
 func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
 	return selectOf(c, Value, choices, Label, nil, false, gfx.ID{})
 }

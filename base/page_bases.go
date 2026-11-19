@@ -64,7 +64,8 @@ func ToggleBase(c C, Value *bool, Label string) Box {
 
 // Toggle is a two-state button with the theme's look: it flips *value, and to
 // assistive technology it is a button that is pressed or not. Outline chooses
-// the bordered treatment; ToggleBase is the same without a look.
+// the bordered treatment; Invalid(true) gives it the destructive validation look;
+// ToggleBase is the same without a look.
 func Toggle(c C, Value *bool, Label string) Box {
 	b := c.f.Toggle(c.page.boundID(pkToggle, unsafe.Pointer(Value)), Label, *Value).Label(Label)
 	c.f.bindBool(b, Value)

@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/aspectratioview"
+	"github.com/vivaui/viva/ui/aspectratio"
 )
 
 var aspectRatioComponent = Component{
@@ -16,13 +16,13 @@ height := components.AspectRatio(gfx.Rect{Width: width}, ratio).Height
 media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), ratio)
 canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`, PageSnippet: `m.media.Ratio(16, 9)
-aspectratioview.View(c, "16:9 release preview", m.media, func() {
+aspectratio.View(c, "16:9 release preview", m.media, func() {
     ui.Column(c).Center().Radius(c.Theme().Metrics.RadiusSurface).
         Background(c.Theme().Muted).Children(func() {
         ui.Text(c, "16:9 release preview").Muted()
     })
 }).FillWidth().MaxWidth(480)`, PageSnippetZh: `m.media.Ratio(16, 9)
-aspectratioview.View(c, "16:9 发布预览", m.media, func() {
+aspectratio.View(c, "16:9 发布预览", m.media, func() {
     ui.Column(c).Center().Radius(c.Theme().Metrics.RadiusSurface).
         Background(c.Theme().Muted).Children(func() {
         ui.Text(c, "16:9 发布预览").Muted()
@@ -33,13 +33,13 @@ height := components.AspectRatio(gfx.Rect{Width: width}, 1).Height
 media := ui.Slot(c).Size(width, height)
 bounds := components.AspectRatio(media.Rect(), 1)
 canvas.Rounded(bounds, theme.Metrics.RadiusSurface, theme.Muted)`, PageSnippet: `m.media.Ratio(1, 1)
-aspectratioview.View(c, "1:1 cover", m.media, func() {
+aspectratio.View(c, "1:1 cover", m.media, func() {
     ui.Column(c).Center().Radius(c.Theme().Metrics.RadiusSurface).
         Background(c.Theme().Muted).Children(func() {
         ui.Text(c, "1:1 cover").Muted()
     })
 }).FillWidth().MaxWidth(240)`, PageSnippetZh: `m.media.Ratio(1, 1)
-aspectratioview.View(c, "1:1 封面", m.media, func() {
+aspectratio.View(c, "1:1 封面", m.media, func() {
     ui.Column(c).Center().Radius(c.Theme().Metrics.RadiusSurface).
         Background(c.Theme().Muted).Children(func() {
         ui.Text(c, "1:1 封面").Muted()
@@ -52,7 +52,7 @@ aspectratioview.View(c, "1:1 封面", m.media, func() {
 // rather than rebuilt in each paint, so the layout is reused and a warm paint
 // allocates nothing.
 type aspectRatioDemo struct {
-	box aspectratioview.Box
+	box aspectratio.Box
 }
 
 // aspectRatioDemos is keyed by State because the constrained demo model has no
@@ -63,7 +63,7 @@ func aspectRatioDemoFor(state *State) *aspectRatioDemo {
 	if demo := aspectRatioDemos[state]; demo != nil {
 		return demo
 	}
-	demo := &aspectRatioDemo{box: *aspectratioview.New()}
+	demo := &aspectRatioDemo{box: *aspectratio.New()}
 	aspectRatioDemos[state] = demo
 	return demo
 }
@@ -78,7 +78,7 @@ func (state *State) paintAspectRatio(canvas *gfx.Canvas, theme gfx.Theme, size g
 	}
 	demo.box.Ratio(ratioWidth, ratioHeight)
 	state.drawPage(canvas, theme, size, 520, title, func(c ui.C) {
-		aspectratioview.View(c, title, &demo.box, func() {
+		aspectratio.View(c, title, &demo.box, func() {
 			ui.Column(c).Center().
 				Radius(theme.Metrics.RadiusSurface).
 				Background(theme.Muted).

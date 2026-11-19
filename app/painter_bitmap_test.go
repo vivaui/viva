@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/framebuild"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -25,10 +26,10 @@ func TestBitmapPaintIsRetainedAndClippedWithoutPixelCopies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(painter.labels) != 2 || !painter.labels[0].BitmapUpload {
-		t.Fatalf("labels = %+v", painter.labels)
+	if len(painter.frame.Labels()) != 2 || !painter.frame.Labels()[0].BitmapUpload {
+		t.Fatalf("labels = %+v", painter.frame.Labels())
 	}
-	label := painter.labels[0]
+	label := painter.frame.Labels()[0]
 	if label.X != 10 || label.Y != 10 || label.Width != 20 || label.Height != 20 || label.BitmapWidth != 2 || label.BitmapHeight != 2 {
 		t.Fatalf("clipped bitmap label = %+v", label)
 	}
@@ -89,8 +90,8 @@ func TestBitmapPixelsFollowTheLabelAndNotThePictureOrder(t *testing.T) {
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	previous := append([]int32(nil), painter.lastLabelImage...)
-	previousImages := append([]gfx.Image(nil), painter.lastImages...)
+	previous := append([]int32(nil), painter.frame.LastLabelImages()...)
+	previousImages := append([]gfx.Image(nil), painter.frame.LastImages()...)
 	// The icon is gone and the page's copy is whole again: both pictures move up
 	// one image place, while the labels keep the places the text gives them.
 	showIcon = false
@@ -102,14 +103,14 @@ func TestBitmapPixelsFollowTheLabelAndNotThePictureOrder(t *testing.T) {
 	if frame.TextLabels == nil {
 		t.Fatal("the clipped picture changed but no labels were sent")
 	}
-	current := append([]int32(nil), painter.labelImage...)
-	currentImages := append([]gfx.Image(nil), painter.clippedImages...)
+	current := append([]int32(nil), painter.frame.LabelImages()...)
+	currentImages := append([]gfx.Image(nil), painter.frame.ClippedImages()...)
 	for index, label := range frame.TextLabels {
 		if len(label.Bitmap) == 0 || label.BitmapUpload {
 			continue
 		}
 		if index >= len(previous) || previous[index] < 0 || int(previous[index]) >= len(previousImages) ||
-			!sameImageBitmap(currentImages[current[index]], previousImages[previous[index]]) {
+			!framebuild.SameImageBitmap(currentImages[current[index]], previousImages[previous[index]]) {
 			t.Fatalf("label %d at %v,%v omits its pixels though the label in its place showed no such picture",
 				index, label.X, label.Y)
 		}
@@ -155,7 +156,7 @@ func TestInitialBitmapUploadAfterPreparationPaint(test *testing.T) {
 				test.Fatal(err)
 			}
 			found := false
-			for _, label := range painter.labels {
+			for _, label := range painter.frame.Labels() {
 				if label.BitmapID == bitmap.ID {
 					found = true
 					if !label.BitmapUpload {
@@ -242,10 +243,10 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 		t.Fatal(err)
 	}
 	layers := func() (rectangles, labels []uint16) {
-		for _, rectangle := range painter.renderer.Rectangles() {
+		for _, rectangle := range painter.frame.Rectangles() {
 			rectangles = append(rectangles, rectangle.Layer)
 		}
-		for _, label := range painter.labels {
+		for _, label := range painter.frame.Labels() {
 			labels = append(labels, label.Layer)
 		}
 		return
@@ -254,8 +255,8 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 	if !slices.Equal(rectangles, []uint16{1, 601, math.MaxUint16}) || !slices.Equal(labels, []uint16{0, 1}) {
 		t.Fatalf("with a backdrop: rectangles %v, labels %v", rectangles, labels)
 	}
-	if painter.labels[0].BitmapID != 7 || painter.labels[0].BitmapWidth != 4 {
-		t.Fatalf("backdrop label = %+v", painter.labels[0])
+	if painter.frame.Labels()[0].BitmapID != 7 || painter.frame.Labels()[0].BitmapWidth != 4 {
+		t.Fatalf("backdrop label = %+v", painter.frame.Labels()[0])
 	}
 
 	backdrop = false
@@ -324,7 +325,7 @@ func TestOnlyChangedBitmapsCrossTheNativeBoundary(t *testing.T) {
 		}
 		return count
 	}
-	if got := uploads(painter.labels); got != 6 {
+	if got := uploads(painter.frame.Labels()); got != 6 {
 		t.Fatalf("first frame uploads %d bitmaps, want all 6", got)
 	}
 	// A patch inside the first tile: one upload, the other five stay on the GPU.
@@ -373,7 +374,7 @@ func TestDevicePixelBitmapsKeepTheirDevicePixelsAtFractionalScales(t *testing.T)
 				t.Fatal(err)
 			}
 			covered := 0
-			for _, label := range painter.labels {
+			for _, label := range painter.frame.Labels() {
 				if len(label.Bitmap) == 0 {
 					continue
 				}

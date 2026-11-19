@@ -469,6 +469,10 @@ type HitOptions struct {
 	Expandable bool
 	Multiline  bool
 	ReadOnly   bool
+	// Invalid marks a control whose value failed validation, for the runtime to
+	// announce to assistive technology (aria-invalid). The control's own
+	// appearance is the recipe's; this is its semantic state.
+	Invalid bool
 	// Secure marks a password field. Its Value is always dropped so no
 	// accessibility, mirroring, or reload path can expose it, and the runtime
 	// masks what the platform text service draws.
@@ -611,8 +615,10 @@ type Hit struct {
 	Expandable bool
 	Multiline  bool
 	ReadOnly   bool
-	Secure     bool
-	Focusable  bool
+	// Invalid is HitOptions.Invalid.
+	Invalid   bool
+	Secure    bool
+	Focusable bool
 	// Description, Level, PosInSet, SetSize, Live and Range are the
 	// HitOptions fields of the same names.
 	Description       string
@@ -1657,7 +1663,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		SecondaryWhenDisabled: options.Disabled && options.SecondaryWhenDisabled,
 		Checked:               options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,
-		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Secure: options.Secure,
+		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Invalid: options.Invalid, Secure: options.Secure,
 		Description: options.Description, Level: options.Level, PosInSet: options.PosInSet, SetSize: options.SetSize,
 		Live: options.Live, Range: options.Range,
 		Focusable: focusable, SkipTab: focusable && options.SkipTab, Autofocus: options.Autofocus && focusable, IsLabel: options.label, Backdrop: options.Backdrop,

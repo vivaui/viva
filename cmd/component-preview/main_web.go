@@ -7,9 +7,9 @@ import (
 	"strings"
 	"syscall/js"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/componentdemo"
-	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/internal/previewmeasure"
 )
 
@@ -45,6 +45,19 @@ func main() {
 	}
 	state.SetDark(theme == "dark")
 	state.EnableTextEditing()
+	appearance := gfx.LightTheme()
+	if theme == "dark" {
+		appearance = gfx.DarkTheme()
+	}
+	var previewInput app.TextInput
+	resolveInput := func(context app.TextInputContext) *app.TextInput {
+		editor, supported := state.Editor(context.ID)
+		if !supported {
+			return nil
+		}
+		previewInput = app.TextInput{Editor: editor}
+		return &previewInput
+	}
 	ready := false
 	lastHeight := 0
 	var forward func(deltaX, deltaY float32)
@@ -52,8 +65,13 @@ func main() {
 	if embedded {
 		forward = forwardWheel
 	}
-	err = web.Run(web.Config{
+	err = app.RunCanvas(app.Config{
 		Title: "Viva · " + component + " · Web preview", Width: 760, Height: 380,
+		ClearColor: app.Color{
+			Red: float64(appearance.Background.Red), Green: float64(appearance.Background.Green),
+			Blue: float64(appearance.Background.Blue), Alpha: 1,
+		},
+		Tree: componentdemo.Tree(),
 		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
 			state.Paint(canvas, size)
 			if height := previewmeasure.Content(canvas, size); embedded && height > 0 && height != lastHeight {
@@ -67,8 +85,8 @@ func main() {
 		},
 		OnPointer: state.Pointer, OnKey: state.Key, OnScroll: state.Scroll,
 		ForwardWheel: forward,
-		TextInput:    web.EditorInputs(state.Editor),
-	})
+		TextInput:    resolveInput,
+	}, nil)
 	if err != nil {
 		reportPreview("viva-preview-error", err.Error())
 	}

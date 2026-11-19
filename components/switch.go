@@ -184,7 +184,7 @@ func (switchControl Switch) Paint() SwitchResult {
 		}
 		switchControl.canvas.HitWithOptions(switchControl.id, hitBounds, switchControl.label, gfx.HitOptions{
 			Role: gfx.RoleSwitch, Disabled: switchControl.disabled,
-			Checked: switchControl.checked,
+			Checked: switchControl.checked, Invalid: switchControl.invalid,
 		})
 	}
 	return result

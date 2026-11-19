@@ -25,6 +25,9 @@ func paintCheckbox(f *Frame, v ControlView) {
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		checkbox = checkbox.Invalid()
+	}
 	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
 		checkbox = checkbox.Recipe(f.GetStyles().Checkbox)
 	}
@@ -58,6 +61,9 @@ func paintSwitch(f *Frame, v ControlView) {
 	if small {
 		control = control.Small()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		control = control.Invalid()
+	}
 	if v.Label != "" {
 		control = control.Label(v.Label)
 	}
@@ -77,6 +83,9 @@ func paintToggle(f *Frame, v ControlView) {
 	if v.Flags&FlagDisabled != 0 {
 		toggle = toggle.Disabled()
 	}
+	if v.Flags&FlagInvalid != 0 {
+		toggle = toggle.Invalid()
+	}
 	label := v.Text
 	if label == "" {
 		label = v.Label
@@ -94,7 +103,11 @@ func paintInputGroup(f *Frame, v ControlView) {
 
 func paintSegmented(f *Frame, v ControlView) {
 	choice := base.WidgetsOf(f).GetSegmented()[v.Aux]
-	components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected()).Paint()
+	control := components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected())
+	if v.Flags&FlagDisabled != 0 {
+		control = control.Disabled()
+	}
+	control.Paint()
 }
 
 // measureControls measures the controls: each kind's geometry, from package
@@ -176,6 +189,20 @@ func measureControls(f *Frame, n *Node) {
 		n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
 		if n.Flags&FlagThemed != 0 {
 			n.Pref = [2]float32{0, 64}
+		}
+		if n.MaxLines > 0 {
+			// AutoGrow: the rows measured by the same layout the paint will use,
+			// capped at n.MaxLines rows and never below the control's minimum.
+			// The width is the one the last layout gave the box, which the first
+			// paint records and then asks for before it is shown.
+			snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
+			if layout := snapshot.Layout; layout != nil {
+				if width := layout.BoxWidth(); width > 0 {
+					height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
+					maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
+					n.Pref[AxisY] = max(64, min(height, maxHeight))
+				}
+			}
 		}
 	case KindTable, KindTabs, KindSelect:
 		f.MeasureWidget(n)
@@ -261,11 +288,24 @@ func paintInput(f *Frame, n *Node) {
 // paintTextarea paints the rows of a Textarea or TextareaBase inside the element's Pad and
 // Border, as paintInput does for a line.
 func paintTextarea(f *Frame, n *Node) {
+	snapshot := base.WidgetsOf(f).GetTextareas()[n.Aux]
+	if n.MaxLines > 0 {
+		if layout := snapshot.Layout; layout != nil {
+			// AutoGrow measured the last width the layout gave this box. The
+			// first time the box is laid out there is no such width yet: record
+			// it and ask the page to lay out once more so the displayed frame is
+			// already the right height.
+			if layout.BoxWidth() != n.Rect.Width {
+				f.RequestRelayout()
+			}
+			layout.SetBoxWidth(n.Rect.Width)
+		}
+	}
 	if n.Flags&FlagHasColor != 0 {
 		theme := f.Palette
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), snapshot)
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), snapshot)
 }

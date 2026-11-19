@@ -50,6 +50,7 @@ const (
 	uiaSizeOfSetProperty           = 30153
 	uiaLiveSettingProperty         = 30135
 	uiaFullDescriptionProperty     = 30159
+	uiaIsDataValidForFormProperty  = 30186
 	uiaHeadingLevelProperty        = 30173
 
 	// UIA_HeadingLevel1Id is 80051; "none" is one below it.
@@ -517,6 +518,7 @@ var propertyOrder = [...]struct {
 	{uiaSelectionStateProperty, platform.ChangedSelected},
 	{uiaToggleStateProperty, platform.ChangedToggle},
 	{uiaFullDescriptionProperty, platform.ChangedDescription},
+	{uiaIsDataValidForFormProperty, platform.ChangedInvalid},
 	{uiaRangeValueValueProperty, platform.ChangedRange},
 	{uiaHeadingLevelProperty, platform.ChangedLevel},
 	{uiaPositionInSetProperty, platform.ChangedPosition},
@@ -1207,6 +1209,10 @@ func propertyVariant(property int32, node platform.AccessibilityNode) (variant, 
 		return stringVariant(node.Hint)
 	case uiaFullDescriptionProperty:
 		return stringVariant(node.Description)
+	// UIA names "this control's value is acceptable" rather than "invalid", so
+	// the Viva Invalid flag is inverted for IsDataValidForForm.
+	case uiaIsDataValidForFormProperty:
+		return booleanVariant(!node.Invalid), true
 	case uiaAutomationIDProperty:
 		if node.ID.IsZero() {
 			return variant{}, false

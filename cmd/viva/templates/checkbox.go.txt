@@ -147,6 +147,7 @@ func (checkbox Checkbox) Paint() CheckboxResult {
 		checkbox.canvas.HitWithOptions(checkbox.id, hitBounds, checkbox.label, gfx.HitOptions{
 			Role: gfx.RoleCheckbox, Disabled: checkbox.disabled,
 			Checked: checkbox.checked && !checkbox.indeterminate, Mixed: checkbox.indeterminate,
+			Invalid: checkbox.invalid,
 		})
 	}
 	return result

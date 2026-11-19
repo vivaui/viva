@@ -216,6 +216,7 @@ const (
 	ChangedLive
 	ChangedSelection
 	ChangedBounds
+	ChangedInvalid
 )
 
 // DiffAccessibility returns the properties that differ between old and next.
@@ -244,5 +245,6 @@ func DiffAccessibility(old, next AccessibilityNode) AccessibilityChange {
 	set(old.Live != next.Live, ChangedLive)
 	set(old.Selection != next.Selection, ChangedSelection)
 	set(old.X != next.X || old.Y != next.Y || old.Width != next.Width || old.Height != next.Height, ChangedBounds)
+	set(old.Invalid != next.Invalid, ChangedInvalid)
 	return changes
 }

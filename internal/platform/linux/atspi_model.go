@@ -265,6 +265,7 @@ func atspiStates(node platform.AccessibilityNode) [2]uint32 {
 		set(!node.Multiline, atspiStateSingleLine)
 	}
 	set(node.Role == platform.A11yRoleCombobox, atspiStateHasPopup)
+	set(node.Invalid, atspiStateInvalidEntry)
 	return [2]uint32{uint32(bits), uint32(bits >> 32)}
 }
 

@@ -5,9 +5,7 @@ import "github.com/vivaui/viva/internal/componentdemo"
 func documentation() map[string]Page {
 	pages := make(map[string]Page, len(componentdemo.Catalog()))
 	for _, component := range componentdemo.Catalog() {
-		pages[component.ID] = Page{Sections: []Section{
-			{ID: "usage", Title: "Source-owned usage", Text: "This preview calls the production Go component directly. Stable IDs, values and open state remain owned by the application; the component only paints and declares interaction semantics.", Items: []string{"Read the linked component source for every option and visual decision.", "Use the native command to verify system text, focus, accessibility and platform integration.", "The browser preview validates shared layout and scene behavior, not native performance."}},
-		}}
+		pages[component.ID] = Page{}
 	}
 	overrides := map[string]Page{
 		"list": {Sections: []Section{
@@ -58,7 +56,7 @@ func documentation() map[string]Page {
 			{Platform: "macOS", Status: "Native preview", Detail: "AppKit + Metal. Run locally to check system fonts, focus and accessibility."},
 			{Platform: "Windows", Status: "Experimental", Detail: "Native runner cross-builds; this documentation is not a Windows hardware-validation report."},
 			{Platform: "Linux", Status: "Not available", Detail: "The current Linux backend cannot run these Canvas component examples."},
-			{Platform: "Web", Status: "Canvas2D preview", Detail: "The same Go example compiled to WASM, not HTML/CSS imitation. Native performance and system integration are not measured here."},
+			{Platform: "Web", Status: "WebGL2 preview", Detail: "The same Go example compiled to WASM, drawn with WebGL2 and falling back to Canvas2D; not HTML/CSS imitation. Native performance and system integration are not measured here."},
 		}
 		if id == "input" {
 			page.Capabilities[3] = Capability{Platform: "Web", Status: "Interactive text input", Detail: "Browser typing, selection and IME connect to the same caller-owned Go editor used by the native preview."}

@@ -534,7 +534,9 @@ type AccessibilityNode struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
-	Secure    bool
+	// Invalid marks a control whose value failed validation.
+	Invalid bool
+	Secure  bool
 	// Focusable marks a node the keyboard can reach.
 	Focusable bool
 	// Expandable marks a node that opens and closes: Expanded says which.

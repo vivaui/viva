@@ -5,7 +5,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/inputgroupview"
+	"github.com/vivaui/viva/ui/inputgroup"
 )
 
 var inputGroupComponent = Component{
@@ -27,12 +27,12 @@ var inputGroupComponent = Component{
         Label: "Clear domain",
     },
 })`, PageSnippet: `// m.domain starts as "viva.dev".
-group := inputgroupview.New(&m.domain).
+group := inputgroup.New(&m.domain).
     Placeholder("project-name").
     Prefix("https://").
     Action(m.clearID, m.crossIcon, "Clear domain", m.clearDomain)
 group.View(c, "Project domain").FillWidth()`, PageSnippetZh: `// m.domain 初始为 "viva.dev"。
-group := inputgroupview.New(&m.domain).
+group := inputgroup.New(&m.domain).
     Placeholder("project-name").
     Prefix("https://").
     Action(m.clearID, m.crossIcon, "清除域名", m.clearDomain)
@@ -48,12 +48,12 @@ group.View(c, "Project domain").FillWidth()`},
         Kind: components.InputGroupSlotKbd, Text: "⌘↵",
     },
 })`, PageSnippet: `// m.description starts as "Ship the component gallery.\nAdd the keyboard shortcuts."
-group := inputgroupview.New(&m.description).
+group := inputgroup.New(&m.description).
     Multiline().
     BlockStart("Release description").
     BlockKbd("⌘↵")
 group.View(c, "Release description").FillWidth()`, PageSnippetZh: `// m.description 初始为 "发布组件画廊。\n补充键盘快捷键。"。
-group := inputgroupview.New(&m.description).
+group := inputgroup.New(&m.description).
     Multiline().
     BlockStart("发布说明").
     BlockKbd("⌘↵")
@@ -71,22 +71,22 @@ if canvas.Clicked(reveal) {
     revealed = !revealed
 }`, PageSnippet: `// m.password starts as "viva.dev"; it is secure until m.reveal runs.
 m.password.Secure = m.passwordHidden
-password := inputgroupview.New(&m.password).
+password := inputgroup.New(&m.password).
     Action(m.revealID, m.eyeIcon, "Show password", m.reveal).
     Small()
 password.View(c, "Password").FillWidth()
 // m.search starts as "viva".
-search := inputgroupview.New(&m.search).
+search := inputgroup.New(&m.search).
     Prefix("Search").
     Spinner(m.spinnerPhase)
 search.View(c, "Search").FillWidth()`, PageSnippetZh: `// m.password 初始为 "viva.dev"；m.reveal 运行前保持密文。
 m.password.Secure = m.passwordHidden
-password := inputgroupview.New(&m.password).
+password := inputgroup.New(&m.password).
     Action(m.revealID, m.eyeIcon, "显示密码", m.reveal).
     Small()
 password.View(c, "Password").FillWidth()
 // m.search 初始为 "viva"。
-search := inputgroupview.New(&m.search).
+search := inputgroup.New(&m.search).
     Prefix("搜索").
     Spinner(m.spinnerPhase)
 search.View(c, "Search").FillWidth()`},
@@ -108,22 +108,22 @@ locked := components.InputGroupSnapshot{
 }
 components.PaintInputGroup(canvas, theme, lockedBounds, locked)`, PageSnippet: `// m.email starts as "viva.dev"; m.locked starts as "locked".
 m.email.Invalid = true
-email := inputgroupview.New(&m.email).
+email := inputgroup.New(&m.email).
     Prefix("@").
     Button(m.inviteID, "Invite", m.invite).
     DisableAction()
 email.View(c, "Project domain").FillWidth()
 m.locked.Disabled = true
-locked := inputgroupview.New(&m.locked)
+locked := inputgroup.New(&m.locked)
 locked.View(c, "Project domain").FillWidth()`, PageSnippetZh: `// m.email 初始为 "viva.dev"；m.locked 初始为 "locked"。
 m.email.Invalid = true
-email := inputgroupview.New(&m.email).
+email := inputgroup.New(&m.email).
     Prefix("@").
     Button(m.inviteID, "Invite", m.invite).
     DisableAction()
 email.View(c, "Project domain").FillWidth()
 m.locked.Disabled = true
-locked := inputgroupview.New(&m.locked)
+locked := inputgroup.New(&m.locked)
 locked.View(c, "Project domain").FillWidth()`},
 	},
 }
@@ -161,9 +161,9 @@ func inputGroupInitial(exampleID string) string {
 // They are kept beside the State rather than rebuilt in each paint, so the
 // handlers and draw functions are stable and a warm paint allocates nothing.
 type inputGroupDemo struct {
-	group  *inputgroupview.Group
-	search *inputgroupview.Group
-	locked *inputgroupview.Group
+	group  *inputgroup.Group
+	search *inputgroup.Group
+	locked *inputgroup.Group
 
 	field       ui.Field
 	searchField ui.Field
@@ -186,33 +186,33 @@ func (state *State) initializeInputGroup() {
 	demo.field.SetText(inputGroupInitial(state.exampleID))
 	switch state.exampleID {
 	case "addons":
-		demo.group = inputgroupview.New(&demo.field).
+		demo.group = inputgroup.New(&demo.field).
 			FieldID(inputGroupField).
 			Multiline().
 			BlockStart("Release description").
 			BlockKbd("⌘↵")
 	case "buttons":
-		demo.group = inputgroupview.New(&demo.field).
+		demo.group = inputgroup.New(&demo.field).
 			FieldID(inputGroupField).
 			Action(inputGroupReveal, inputGroupEyeIcon, "Show password", demo.reveal).
 			Small()
 		demo.searchField.SetText("viva")
-		demo.search = inputgroupview.New(&demo.searchField).
+		demo.search = inputgroup.New(&demo.searchField).
 			FieldID(inputGroupSearchID).
 			Prefix("Search").
 			Spinner(0)
 	case "states":
-		demo.group = inputgroupview.New(&demo.field).
+		demo.group = inputgroup.New(&demo.field).
 			FieldID(inputGroupField).
 			Prefix("@").
 			Button(inputGroupInvite, "Invite", nil).
 			DisableAction()
 		demo.lockedField.SetText("locked")
 		demo.lockedField.Disabled = true
-		demo.locked = inputgroupview.New(&demo.lockedField).
+		demo.locked = inputgroup.New(&demo.lockedField).
 			FieldID(inputGroupLocked)
 	default:
-		demo.group = inputgroupview.New(&demo.field).
+		demo.group = inputgroup.New(&demo.field).
 			FieldID(inputGroupField).
 			Placeholder("project-name").
 			Prefix("https://").

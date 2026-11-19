@@ -36,6 +36,13 @@ type Field struct {
 	// reach, as components.Input does for a disabled input. It is the application's to set
 	// and clear, as Secure is.
 	Disabled bool
+	// ReadOnly keeps the field's ordinary look and its value visible, but takes no
+	// edits: the platform is given no editor for it, so typing, pasting and input
+	// methods leave it alone, and no caret is painted. It still takes the focus, as
+	// components.Input's read-only field does, so the value can be read and its text
+	// cursor seen. It is the application's to set and clear, as Disabled is; a field
+	// bound to a string takes Box.ReadOnly instead.
+	ReadOnly bool
 	// Hint is the description assistive technology reads after the field's name and value, for
 	// what they do not say. It is the application's to set and clear, as Secure is.
 	Hint string
@@ -104,6 +111,17 @@ func (field *Field) SetText(Value string) {
 	field.seen = editor.String() // the program's own change is not an edit
 }
 
+// Select selects the runes [start, end) of the field, placing the caret at end,
+// as a drag or Shift-click does. A field painted read-only shows the selection
+// without offering an editor. Like SetText, it must run on the window thread.
+// The page shows the selection in the next paint.
+//
+//	m.preview.Select(0, 6)
+//	ui.TextFieldID(c, id, &m.preview, "Preview", "").ReadOnly(true)
+func (field *Field) Select(start, end int) {
+	field.ensure().SetSelection(text.Range{Start: start, End: end})
+}
+
 // Field adds a text field for field, named id (a stable identity from your Tree),
 // with an accessible label and placeholder. It is Input with the snapshot taken from
 // the field: focus, platform editing and the caret are filled in for you.
@@ -119,6 +137,38 @@ func (f *Frame) Field(field *Field, ID gfx.ID, Label, placeholder string) Box {
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
 func (f *Frame) FieldBase(field *Field, ID gfx.ID, Label, placeholder string) Box {
 	return f.InputBase(field.Snapshot(f, ID, Label, placeholder))
+}
+
+// ReadOnly makes the TextField or TextArea of the box read-only:
+// ReadOnly(true) keeps its ordinary look and its value visible, but gives the
+// platform no editor, paints no caret and applies no edit, as Field.ReadOnly
+// does from the field's own state. It still takes the focus, so the value stays
+// readable and selectable. ReadOnly(false) offers editing again.
+//
+//	ui.TextField(c, &m.token, "Token", "").ReadOnly(true)
+//	ui.TextArea(c, &m.notes, "Notes", "").Height(120).ReadOnly(m.archived)
+//
+// It is the chained form for a field bound to a string; a *Field sets
+// Field.ReadOnly where the model is made.
+func (b Box) ReadOnly(readOnly bool) Box {
+	n := b.N()
+	switch n.Kind {
+	case kindInput:
+		snapshot := &WidgetsOf(b.f).inputs[n.Aux]
+		snapshot.ReadOnly = readOnly
+		if readOnly {
+			snapshot.ShowCaret = false
+		}
+	case kindTextarea:
+		snapshot := &WidgetsOf(b.f).textareas[n.Aux]
+		snapshot.ReadOnly = readOnly
+		if readOnly {
+			snapshot.ShowCaret = false
+		}
+	default:
+		panic("ui: ReadOnly is for a TextField or TextArea")
+	}
+	return b
 }
 
 // Submitted reports whether this paint is delivering Enter pressed in the text field the
@@ -220,7 +270,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
 	snapshot := InputSnapshot{
-		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, Hint: field.Hint,
+		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, ReadOnly: field.ReadOnly, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the
@@ -234,7 +284,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 	// itself needs, and what the platform's own presentation of them does without.
 	snapshot.Caret = editor.ByteOffset(editor.Caret())
 	snapshot.SelectionStart, snapshot.SelectionEnd = editor.ByteOffset(selection.Start), editor.ByteOffset(selection.End)
-	snapshot.ShowCaret = focused && selection.Start == selection.End
+	snapshot.ShowCaret = focused && selection.Start == selection.End && !field.ReadOnly
 	if editor.SelectionCount() > 1 {
 		// A field bound to a multi-selection editor paints every selection; the
 		// platform's own editor behind it still sees only the primary one. The
@@ -263,6 +313,7 @@ func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Bo
 	field.rows = true
 	return f.Textarea(TextareaSnapshot{
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
+		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
 		SelectionRanges:  input.SelectionRanges,

@@ -1,8 +1,8 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -79,7 +79,8 @@ if row, ok := table.RowClicked(); ok {
 }
 if row := m.table.Selected(); row >= 0 {
     ui.Text(c, "Selected: "+bills[row][0]).Muted()
-}`, PageSnippetZh: `bills := ui.TableRows{
+}
+ui.Text(c, "Total · 3 items · ¥ 4,540").Muted()`, PageSnippetZh: `bills := ui.TableRows{
     {"设计系统", "已支付", "¥ 2,400"},
     {"桌面构建", "处理中", "¥ 860"},
     {"性能审计", "待付款", "¥ 1,280"},
@@ -99,7 +100,8 @@ if row, ok := table.RowClicked(); ok {
 }
 if row := m.table.Selected(); row >= 0 {
     ui.Text(c, "Selected: "+bills[row][0]).Muted()
-}`},
+}
+ui.Text(c, "合计 · 3 项 · ¥ 4,540").Muted()`},
 		{ID: "alignment", Title: "列对齐", Description: "左、中、右三种列内文字对齐。", Snippet: `columns := []components.TableColumn{
     {Width: 112, Alignment: components.TableAlignLeft},
     {Width: 88, Alignment: components.TableAlignCenter},
@@ -158,6 +160,7 @@ columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.Table
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"Item", "Status", "Amount"},
+    FitHeadings: true,
     Source:  &bills,
 })
 ui.Text(c, "Item is cut with an ellipsis; Status grew to hold its heading.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
@@ -169,67 +172,94 @@ columns := []style.TableColumn{{Width: 96}, {Width: 40}, {Alignment: style.Table
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
     Headers: []string{"项目", "状态", "金额"},
+    FitHeadings: true,
     Source:  &bills,
 })
 ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Muted()`},
 	},
 }
 
-var (
-	tableUI = tree.Feature("table")
-	// tableRow's item i is the i-th data row.
-	tableRow = tree.Sub(tableUI, tree.Name("row"))
-)
-
-var tableColumns = [...]components.TableColumn{
-	{Width: 112, Alignment: components.TableAlignLeft},
-	{Width: 88, Alignment: components.TableAlignCenter},
-	{Width: 0, Alignment: components.TableAlignRight},
+// tableDemo keeps the page Table's selection, row scope and the data the table
+// reads each paint. The slices live here because the page retains the spec, so a
+// warm paint allocates nothing.
+type tableDemo struct {
+	state   ui.TableState
+	rows    [3][3]string
+	source  ui.TableRows
+	columns []style.TableColumn
+	headers []string
+	footer  string
+	caption string
 }
 
-// The demo paints the component table (with footer and caption, and a selection
-// bit per row the caller owns) in a slot: ui.Table is the selectable, sortable,
-// scrolling one.
-func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var slot ui.Box
-	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
-		slot = ui.Slot(c).Height(220)
-	})
-	columns := tableColumns
-	header := [...]string{
-		state.Text("项目", "Item"),
-		state.Text("状态", "Status"),
-		state.Text("金额", "Amount"),
+var tableDemos = map[*State]*tableDemo{}
+
+func tableDemoFor(state *State) *tableDemo {
+	if demo := tableDemos[state]; demo != nil {
+		return demo
 	}
-	if state.exampleID == "overflow" {
-		columns[0].Width, columns[1].Width = 96, 40
-		components.FitTableHeadings(canvas, theme, columns[:], header[:])
+	demo := &tableDemo{
+		rows: [3][3]string{
+			{state.Text("设计系统", "Design system"), state.Text("已支付", "Paid"), "¥ 2,400"},
+			{state.Text("桌面构建", "Desktop build"), state.Text("处理中", "Processing"), "¥ 860"},
+			{state.Text("性能审计", "Performance audit"), state.Text("待付款", "Unpaid"), "¥ 1,280"},
+		},
+		columns: []style.TableColumn{
+			{Width: 112, Alignment: style.TableAlignLeft},
+			{Width: 88, Alignment: style.TableAlignCenter},
+			{Width: 0, Alignment: style.TableAlignRight},
+		},
+		headers: []string{
+			state.Text("项目", "Item"),
+			state.Text("状态", "Status"),
+			state.Text("金额", "Amount"),
+		},
+		footer:  state.Text("合计 · 3 项 · ¥ 4,540", "Total · 3 items · ¥ 4,540"),
+		caption: state.Text("点击任意数据行以查看交互反馈。", "Click any data row to see its interactive feedback."),
 	}
-	table := components.BeginTable(canvas, theme, slot.Rect(), columns[:])
-	table.Header(header[:])
-	rows := [...][3]string{
-		{state.Text("设计系统", "Design system"), state.Text("已支付", "Paid"), "¥ 2,400"},
-		{state.Text("桌面构建", "Desktop build"), state.Text("处理中", "Processing"), "¥ 860"},
-		{state.Text("性能审计", "Performance audit"), state.Text("待付款", "Unpaid"), "¥ 1,280"},
-	}
-	for index := range rows {
-		selected := state.exampleID == "selection" && state.flags&(1<<index) != 0
-		if table.RowAt(tableRow, index, rows[index][:], selected) {
-			state.flags ^= 1 << index
-		}
-	}
-	footer := [...]string{
-		state.Text("合计", "Total"),
-		state.Text("3 项", "3 items"),
-		"¥ 4,540",
-	}
-	table.Footer(footer[:])
-	caption := state.Text("点击任意数据行以查看交互反馈。", "Click any data row to see its interactive feedback.")
+	demo.source = ui.TableRows{demo.rows[0][:], demo.rows[1][:], demo.rows[2][:]}
 	switch state.exampleID {
 	case "alignment":
-		caption = state.Text("项目左对齐，状态居中，金额右对齐。", "Item is left-aligned, status centered, amount right-aligned.")
+		demo.caption = state.Text("项目左对齐，状态居中，金额右对齐。", "Item is left-aligned, status centered, amount right-aligned.")
 	case "overflow":
-		caption = state.Text("项目被省略号截断；状态列已长到放得下表头。", "Item is cut with an ellipsis; Status grew to hold its heading.")
+		// The narrow columns are what the heading fit widens: Status is 40
+		// wide as declared and grows to hold its heading.
+		demo.columns[0].Width, demo.columns[1].Width = 96, 40
+		demo.columns[1].Alignment = style.TableAlignLeft
+		demo.caption = state.Text("项目被省略号截断；状态列已长到放得下表头。", "Item is cut with an ellipsis; Status grew to hold its heading.")
 	}
-	table.Caption(caption)
+	tableDemos[state] = demo
+	return demo
+}
+
+// paintTable paints the page Table with its footer, caption and the selection
+// bit the caller owns. The overflow example asks the same table to fit its
+// headings, so fixed columns grow to hold their localized titles.
+func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	demo := tableDemoFor(state)
+	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
+		spec := ui.TableSpec{
+			Columns: demo.columns,
+			Headers: demo.headers,
+			Source:  &demo.source,
+		}
+		if state.exampleID == "overflow" {
+			spec.FitHeadings = true
+		}
+		table := ui.Table(c, &demo.state, spec)
+		if state.exampleID == "selection" {
+			if row, ok := table.RowClicked(); ok {
+				demo.state.Select(row)
+			}
+			state.flags = 0
+			if selected := demo.state.Selected(); selected >= 0 {
+				state.flags = 1 << selected
+				ui.Text(c, "Selected: "+demo.rows[selected][0]).Muted()
+			}
+			ui.Text(c, demo.footer).Muted()
+			return
+		}
+		ui.Text(c, demo.footer).Muted()
+		ui.Text(c, demo.caption).Muted()
+	})
 }

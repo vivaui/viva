@@ -4,7 +4,7 @@ import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/chartview"
+	"github.com/vivaui/viva/ui/chart"
 )
 
 var chartComponent = Component{
@@ -21,13 +21,13 @@ for i, scale := range []float32{0.42, 0.28, 0.60, 0.36, 0.72, 0.48, 0.88, 0.62} 
     canvas.Rounded(bar, 3, series[i%2].Color)
 }`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "native", Label: "Native", Color: palette.Chart[0]},
     {Key: "web", Label: "Web", Color: palette.Chart[1]},
 }
 heights := [...]float32{0.42, 0.28, 0.60, 0.36, 0.72, 0.48, 0.88, 0.62}
 // Set once, when the model is created; ContainerView calls it every paint.
-m.commits.Draw = func(d *ui.DrawContext, layout chartview.Layout) {
+m.commits.Draw = func(d *ui.DrawContext, layout chart.Layout) {
     plot := layout.PlotBounds
     baseline := plot.Y + plot.Height - 14
     barWidth := min(float32(30), (plot.Width-40)/8)
@@ -41,16 +41,16 @@ m.commits.Draw = func(d *ui.DrawContext, layout chartview.Layout) {
     d.Canvas.Fill(gfx.Rect{X: plot.X, Y: baseline, Width: plot.Width, Height: 1}, d.Theme.Border)
 }
 m.commits.Series = series
-m.commits.Options = chartview.ContainerOptions{Legend: chartview.LegendBottom}
-chartview.ContainerView(c, "Commits", &m.commits).Height(244)`,
+m.commits.Options = chart.ContainerOptions{Legend: chart.LegendBottom}
+chart.ContainerView(c, "Commits", &m.commits).Height(244)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "native", Label: "原生", Color: palette.Chart[0]},
     {Key: "web", Label: "网页", Color: palette.Chart[1]},
 }
 heights := [...]float32{0.42, 0.28, 0.60, 0.36, 0.72, 0.48, 0.88, 0.62}
 // 创建模型时设置一次；ContainerView 在每次绘制时调用它。
-m.commits.Draw = func(d *ui.DrawContext, layout chartview.Layout) {
+m.commits.Draw = func(d *ui.DrawContext, layout chart.Layout) {
     plot := layout.PlotBounds
     baseline := plot.Y + plot.Height - 14
     barWidth := min(float32(30), (plot.Width-40)/8)
@@ -64,8 +64,8 @@ m.commits.Draw = func(d *ui.DrawContext, layout chartview.Layout) {
     d.Canvas.Fill(gfx.Rect{X: plot.X, Y: baseline, Width: plot.Width, Height: 1}, d.Theme.Border)
 }
 m.commits.Series = series
-m.commits.Options = chartview.ContainerOptions{Legend: chartview.LegendBottom}
-chartview.ContainerView(c, "提交次数", &m.commits).Height(244)`},
+m.commits.Options = chart.ContainerOptions{Legend: chart.LegendBottom}
+chart.ContainerView(c, "提交次数", &m.commits).Height(244)`},
 		{ID: "tooltip", Title: "数据提示", Description: "在同一系列元数据上绘制生产 Tooltip。",
 			Snippet: `layout := components.PaintChartContainer(canvas, theme, bounds, series,
     components.ChartContainerOptions{Legend: components.ChartLegendBottom})
@@ -77,31 +77,31 @@ components.PaintChartTooltip(canvas, theme, anchor, series, rows,
         Label: "Week 4", Indicator: components.ChartTooltipDot, Layer: 4,
     })`,
 			PageSnippet: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "native", Label: "Native", Color: palette.Chart[0]},
     {Key: "web", Label: "Web", Color: palette.Chart[1]},
 }
 m.commits.Series = series
-m.commits.Options = chartview.ContainerOptions{Legend: chartview.LegendBottom}
-m.commitsTip = chartview.Tooltip{
-    Rows: []chartview.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}},
-    Options: chartview.TooltipOptions{Label: "Week 4", Indicator: chartview.TooltipDot},
+m.commits.Options = chart.ContainerOptions{Legend: chart.LegendBottom}
+m.commitsTip = chart.Tooltip{
+    Rows: []chart.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}},
+    Options: chart.TooltipOptions{Label: "Week 4", Indicator: chart.TooltipDot},
 }
 m.commits.Tooltip = &m.commitsTip
-chartview.ContainerView(c, "Commits", &m.commits).Height(244)`,
+chart.ContainerView(c, "Commits", &m.commits).Height(244)`,
 			PageSnippetZh: `palette := c.Theme()
-series := []chartview.Series{
+series := []chart.Series{
     {Key: "native", Label: "原生", Color: palette.Chart[0]},
     {Key: "web", Label: "网页", Color: palette.Chart[1]},
 }
 m.commits.Series = series
-m.commits.Options = chartview.ContainerOptions{Legend: chartview.LegendBottom}
-m.commitsTip = chartview.Tooltip{
-    Rows: []chartview.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}},
-    Options: chartview.TooltipOptions{Label: "第 4 周", Indicator: chartview.TooltipDot},
+m.commits.Options = chart.ContainerOptions{Legend: chart.LegendBottom}
+m.commitsTip = chart.Tooltip{
+    Rows: []chart.TooltipRow{{Series: 0, Value: "42"}, {Series: 1, Value: "28"}},
+    Options: chart.TooltipOptions{Label: "第 4 周", Indicator: chart.TooltipDot},
 }
 m.commits.Tooltip = &m.commitsTip
-chartview.ContainerView(c, "提交次数", &m.commits).Height(244)`},
+chart.ContainerView(c, "提交次数", &m.commits).Height(244)`},
 	},
 }
 
@@ -113,13 +113,13 @@ func (state *State) paintChart(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		native, web = "Native", "Web"
 		title, label = "Chart · Last four weeks", "Commits"
 	}
-	demo.series = [2]chartview.Series{
+	demo.series = [2]chart.Series{
 		{Key: "native", Label: native, Color: theme.Chart[0]},
 		{Key: "web", Label: web, Color: theme.Chart[1]},
 	}
 	demo.container.Series = demo.series[:]
-	demo.tooltip.Options = chartview.TooltipOptions{
-		Label: state.Text("第 4 周", "Week 4"), Indicator: chartview.TooltipDot,
+	demo.tooltip.Options = chart.TooltipOptions{
+		Label: state.Text("第 4 周", "Week 4"), Indicator: chart.TooltipDot,
 	}
 	if state.exampleID == "tooltip" {
 		demo.container.Tooltip = &demo.tooltip
@@ -132,7 +132,7 @@ func (state *State) paintChart(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		ui.Column(c).FillWidth().Pad(components.CardSpacing(theme, components.CardSizeSmall)).
 			Background(theme.Card).Border(1, ring).Radius(theme.Metrics.RadiusSurface + 4).Shadow(gfx.ShadowXS).
 			Children(func() {
-				chartview.ContainerView(c, label, &demo.container).Height(244)
+				chart.ContainerView(c, label, &demo.container).Height(244)
 			})
 	})
 }

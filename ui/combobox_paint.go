@@ -14,6 +14,7 @@ func comboStateDraw(s *ComboState, d *DrawContext) {
 		ScrollID: ids.Scroll, OptionIDs: ids.GetOptions(),
 		Label: s.Label, Placeholder: s.GetPlaceholder(), EmptyLabel: s.GetEmpty(), CreatePrefix: s.GetCreatePrefix(),
 		Viewport: s.GetF().GetBounds(), Layer: max(s.GetLayer(), s.GetF().GetPopupLayer()), Disabled: n.Flags&FlagDisabled != 0,
+		Invalid: s.Invalid,
 	}
 	if s.GetClearable() {
 		if s.GetClearLabelOf() != s.Label {

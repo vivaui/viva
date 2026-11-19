@@ -1,14 +1,13 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 var tooltipComponent = Component{
 	ID: "tooltip", Title: "Tooltip", Category: "Overlay", Summary: "由调用方决定开启时机的同步提示浮层。",
-	paint: (*State).paintTooltip, pointer: (*State).pointerTooltip,
+	paint: (*State).paintTooltip,
 	Examples: []Example{
 		{ID: "default", Title: "悬停提示", Description: "悬停或点击触发器显示顶部提示。", Snippet: `trigger := tree.ID(page, "trigger")
 canvas.HitWithOptions(trigger, anchor, "Show tooltip", gfx.HitOptions{Role: gfx.RoleButton})
@@ -47,7 +46,7 @@ components.BeginTooltip(canvas, theme, viewport, anchor, components.TooltipOptio
 }).Paint("Clamped to the viewport")`, PageSnippet: `ui.Button(c, "Hover or click").Self(ui.End).
     Tooltip("Clamped to the viewport").
     TooltipOn(ui.TooltipBottom)`, PageSnippetZh: `ui.Button(c, "悬停或点击").Self(ui.End).
-    Tooltip("原生同步提示，无后台延时器").
+    Tooltip("限制在视口内").
     TooltipOn(ui.TooltipBottom)`},
 	},
 }
@@ -57,70 +56,32 @@ var (
 	tooltipTrigger = tree.ID(tooltipUI, "trigger")
 )
 
-func (state *State) pointerTooltip(event gfx.PointerEvent) gfx.EventResult {
-	if event.Kind != gfx.PointerMove && event.Kind != gfx.PointerExit {
-		return gfx.EventResult{}
-	}
-	open := event.Kind == gfx.PointerMove && event.Target == tooltipTrigger
-	wasOpen := state.flags&2 != 0
-	if open {
-		state.flags |= 2
-	} else {
-		state.flags &^= 2
-	}
-	return gfx.EventResult{Handled: open || wasOpen, Repaint: open != wasOpen}
-}
-
 func (state *State) paintTooltip(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
-	var anchors [4]ui.Box
 	state.drawPage(canvas, theme, size, 520, state.Text("Tooltip · 同步浮层", "Tooltip · Synchronous overlay"), func(c ui.C) {
 		if state.exampleID == "sides" {
-			// A cross with room between the anchors: each tooltip points away
-			// from the cross instead of over a neighbouring button.
+			// A cross with room between the controls: each tip opens away from
+			// the cross instead of over a neighbouring button.
 			ui.Column(c).Gap(44).Items(ui.Center).Children(func() {
-				anchors[0] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
+				ui.Button(c, "Top").Tooltip("Top").TooltipOn(ui.TooltipTop)
 				ui.Row(c).Gap(180).Children(func() {
-					anchors[3] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
-					anchors[1] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
+					ui.Button(c, "Left").Tooltip("Left").TooltipOn(ui.TooltipLeft)
+					ui.Button(c, "Right").Tooltip("Right").TooltipOn(ui.TooltipRight)
 				})
-				anchors[2] = ui.Slot(c).Size(64, theme.Metrics.ControlHeight)
+				ui.Button(c, "Bottom").Tooltip("Bottom").TooltipOn(ui.TooltipBottom)
 			})
 			return
 		}
-		anchors[0] = ui.Slot(c).Size(128, theme.Metrics.ControlHeight).Self(ui.Start)
+		label := state.Text("悬停或点击", "Hover or click")
+		if state.exampleID == "clamped" {
+			// The point of this example is a trigger at the window's edge; the
+			// page clamps the tip inside the viewport.
+			ui.Button(c, label).Self(ui.End).Hit(tooltipTrigger, label).
+				Tooltip(state.Text("限制在视口内", "Clamped to the viewport")).TooltipOn(ui.TooltipBottom)
+			return
+		}
+		ui.Button(c, label).Self(ui.Start).Hit(tooltipTrigger, label).
+			Tooltip(state.Text("原生同步提示，无后台延时器", "Native synchronous tooltip, no background timer")).
+			TooltipOn(ui.TooltipTop)
 		caption(c, state.Text("开启策略和延时由调用方决定。", "Open policy and delay are caller-owned."))
 	})
-
-	if state.exampleID == "sides" {
-		sides := [...]components.TooltipSide{components.TooltipTop, components.TooltipRight, components.TooltipBottom, components.TooltipLeft}
-		labels := [...]string{"Top", "Right", "Bottom", "Left"}
-		for index, slot := range anchors {
-			anchor := slot.Rect()
-			canvas.RoundedBorder(anchor, theme.Metrics.RadiusControl, 1, theme.Border, theme.Background)
-			canvas.LabelCenter(labels[index], anchor, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Weight: gfx.WeightMedium, Color: theme.Foreground})
-			components.BeginTooltip(canvas, theme, viewport, anchor, components.TooltipOptions{Layer: uint16(60 + index), Side: sides[index], MaxWidth: 96}).Paint(labels[index])
-		}
-		return
-	}
-	anchor := anchors[0].Rect()
-	if state.exampleID == "clamped" {
-		// The point of this example is an anchor at the window's edge; keep the
-		// trigger wide enough for its label and let the tooltip clamp itself.
-		anchor.Width = 128
-		anchor.X = size.Width - anchor.Width - 12
-	}
-	canvas.RoundedBorder(anchor, theme.Metrics.RadiusControl, 1, theme.Border, theme.Background)
-	canvas.LabelCenter(state.Text("悬停或点击", "Hover or click"), anchor, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground})
-	canvas.HitWithOptions(tooltipTrigger, anchor, state.Text("显示提示", "Show tooltip"), gfx.HitOptions{Role: gfx.RoleButton})
-	if canvas.Clicked(tooltipTrigger) {
-		state.flags ^= 1
-	}
-	if state.flags&3 != 0 || canvas.Hovered() == tooltipTrigger {
-		side := components.TooltipTop
-		if state.exampleID == "clamped" {
-			side = components.TooltipBottom
-		}
-		components.BeginTooltip(canvas, theme, viewport, anchor, components.TooltipOptions{Layer: 60, Side: side, MaxWidth: 176}).Paint(state.Text("原生同步提示，无后台延时器", "Native synchronous tooltip, no background timer"))
-	}
 }

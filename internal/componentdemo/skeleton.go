@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/skeletonview"
+	"github.com/vivaui/viva/ui/skeleton"
 )
 
 var skeletonComponent = Component{
@@ -18,23 +18,23 @@ components.BeginSkeleton(canvas, theme, title.Rect()).Paint()
 components.BeginSkeleton(canvas, theme, line1.Rect()).Radius(4).Paint()
 components.BeginSkeleton(canvas, theme, line2.Rect()).Radius(4).Paint()
 components.BeginSkeleton(canvas, theme, line3.Rect()).Radius(4).Paint()`, PageSnippet: `m.title.Reset().Block().Size(236, 22).Opacity(1)
-skeletonview.View(c, "Title line", m.title)
+skeleton.View(c, "Title line", m.title)
 ui.Column(c).FillWidth().MaxWidth(236).Gap(12).Children(func() {
     m.line1.Reset().Text().Size(236, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "Body line 1", m.line1)
+    skeleton.View(c, "Body line 1", m.line1)
     m.line2.Reset().Text().Size(193, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "Body line 2", m.line2)
+    skeleton.View(c, "Body line 2", m.line2)
     m.line3.Reset().Text().Size(151, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "Body line 3", m.line3)
+    skeleton.View(c, "Body line 3", m.line3)
 })`, PageSnippetZh: `m.title.Reset().Block().Size(236, 22).Opacity(1)
-skeletonview.View(c, "标题行", m.title)
+skeleton.View(c, "标题行", m.title)
 ui.Column(c).FillWidth().MaxWidth(236).Gap(12).Children(func() {
     m.line1.Reset().Text().Size(236, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "正文行 1", m.line1)
+    skeleton.View(c, "正文行 1", m.line1)
     m.line2.Reset().Text().Size(193, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "正文行 2", m.line2)
+    skeleton.View(c, "正文行 2", m.line2)
     m.line3.Reset().Text().Size(151, 14).Radius(4).Opacity(1)
-    skeletonview.View(c, "正文行 3", m.line3)
+    skeleton.View(c, "正文行 3", m.line3)
 })`},
 		{ID: "profile", Title: "资料卡", Description: "圆形头像与多行资料占位组合；每种占位都由同一个 New 加上链式选项声明。", Snippet: `avatar := ui.Slot(c).Size(56, 56)
 name := ui.Slot(c).Size(172, 16)
@@ -47,25 +47,25 @@ components.BeginSkeleton(canvas, theme, body.Rect()).Paint()`, PageSnippet: `m.a
 m.name.Reset().Block().Size(172, 16).Opacity(1)
 m.handle.Reset().Text().Size(118, 12).Opacity(1)
 ui.Row(c).Gap(16).Children(func() {
-    skeletonview.View(c, "Avatar placeholder", m.avatar)
+    skeleton.View(c, "Avatar placeholder", m.avatar)
     ui.Column(c).Gap(10).Children(func() {
-        skeletonview.View(c, "Name placeholder", m.name)
-        skeletonview.View(c, "Handle placeholder", m.handle)
+        skeleton.View(c, "Name placeholder", m.name)
+        skeleton.View(c, "Handle placeholder", m.handle)
     })
 })
 m.body.Reset().Block().Size(236, 92).Opacity(1)
-skeletonview.View(c, "Body placeholder", m.body)`, PageSnippetZh: `m.avatar.Reset().Circle().Size(56, 56).Opacity(1)
+skeleton.View(c, "Body placeholder", m.body)`, PageSnippetZh: `m.avatar.Reset().Circle().Size(56, 56).Opacity(1)
 m.name.Reset().Block().Size(172, 16).Opacity(1)
 m.handle.Reset().Text().Size(118, 12).Opacity(1)
 ui.Row(c).Gap(16).Children(func() {
-    skeletonview.View(c, "头像占位", m.avatar)
+    skeleton.View(c, "头像占位", m.avatar)
     ui.Column(c).Gap(10).Children(func() {
-        skeletonview.View(c, "姓名占位", m.name)
-        skeletonview.View(c, "账号占位", m.handle)
+        skeleton.View(c, "姓名占位", m.name)
+        skeleton.View(c, "账号占位", m.handle)
     })
 })
 m.body.Reset().Block().Size(236, 92).Opacity(1)
-skeletonview.View(c, "正文占位", m.body)`},
+skeleton.View(c, "正文占位", m.body)`},
 		{ID: "opacity", Title: "显式不透明度", Description: "四行占位使用不同的静态不透明度；组件自身不启动计时器，也不伪造动画相位。", Snippet: `rows := [4]ui.Box{}
 for index := range rows {
     rows[index] = ui.Slot(c).Size(236, 20)
@@ -75,20 +75,20 @@ for index, opacity := range [...]float32{1, 0.75, 0.5, 0.75} {
     color.Alpha *= opacity
     canvas.Rounded(rows[index].Rect(), 5, color)
 }`, PageSnippet: `m.line1.Reset().Text().Size(236, 20).Radius(5).Opacity(1)
-skeletonview.View(c, "Line at 100%", m.line1)
+skeleton.View(c, "Line at 100%", m.line1)
 m.line2.Reset().Text().Size(236, 20).Radius(5).Opacity(0.75)
-skeletonview.View(c, "Line at 75%", m.line2)
+skeleton.View(c, "Line at 75%", m.line2)
 m.line3.Reset().Text().Size(236, 20).Radius(5).Opacity(0.5)
-skeletonview.View(c, "Line at 50%", m.line3)
+skeleton.View(c, "Line at 50%", m.line3)
 m.line4.Reset().Text().Size(236, 20).Radius(5).Opacity(0.75)
-skeletonview.View(c, "Line at 75%", m.line4)`, PageSnippetZh: `m.line1.Reset().Text().Size(236, 20).Radius(5).Opacity(1)
-skeletonview.View(c, "100% 不透明", m.line1)
+skeleton.View(c, "Line at 75%", m.line4)`, PageSnippetZh: `m.line1.Reset().Text().Size(236, 20).Radius(5).Opacity(1)
+skeleton.View(c, "100% 不透明", m.line1)
 m.line2.Reset().Text().Size(236, 20).Radius(5).Opacity(0.75)
-skeletonview.View(c, "75% 不透明", m.line2)
+skeleton.View(c, "75% 不透明", m.line2)
 m.line3.Reset().Text().Size(236, 20).Radius(5).Opacity(0.5)
-skeletonview.View(c, "50% 不透明", m.line3)
+skeleton.View(c, "50% 不透明", m.line3)
 m.line4.Reset().Text().Size(236, 20).Radius(5).Opacity(0.75)
-skeletonview.View(c, "75% 不透明", m.line4)`},
+skeleton.View(c, "75% 不透明", m.line4)`},
 	},
 }
 
@@ -96,9 +96,9 @@ skeletonview.View(c, "75% 不透明", m.line4)`},
 // once, so reconfiguring and declaring the placeholders each paint allocates
 // nothing.
 type skeletonDemo struct {
-	title, line1, line2, line3 skeletonview.Skeleton
-	avatar, name, handle, body skeletonview.Skeleton
-	opacity                    [4]skeletonview.Skeleton
+	title, line1, line2, line3 skeleton.State
+	avatar, name, handle, body skeleton.State
+	opacity                    [4]skeleton.State
 }
 
 // skeletonDemos is keyed by State because the constrained demo model has no
@@ -124,13 +124,13 @@ func (state *State) paintSkeleton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 			demo.handle.Reset().Text().Size(118, 12).Opacity(1)
 			demo.body.Reset().Block().Size(236, 92).Opacity(1)
 			ui.Row(c).Gap(16).Children(func() {
-				skeletonview.View(c, state.Text("头像占位", "Avatar placeholder"), &demo.avatar)
+				skeleton.View(c, state.Text("头像占位", "Avatar placeholder"), &demo.avatar)
 				ui.Column(c).Gap(10).Children(func() {
-					skeletonview.View(c, state.Text("姓名占位", "Name placeholder"), &demo.name)
-					skeletonview.View(c, state.Text("账号占位", "Handle placeholder"), &demo.handle)
+					skeleton.View(c, state.Text("姓名占位", "Name placeholder"), &demo.name)
+					skeleton.View(c, state.Text("账号占位", "Handle placeholder"), &demo.handle)
 				})
 			})
-			skeletonview.View(c, state.Text("正文占位", "Body placeholder"), &demo.body)
+			skeleton.View(c, state.Text("正文占位", "Body placeholder"), &demo.body)
 		case "opacity":
 			for index, opacity := range [...]float32{1, 0.75, 0.5, 0.75} {
 				demo.opacity[index].Reset().Text().Size(236, 20).Radius(5).Opacity(opacity)
@@ -143,7 +143,7 @@ func (state *State) paintSkeleton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 			}
 			ui.Column(c).Gap(22).Children(func() {
 				for index := range demo.opacity {
-					skeletonview.View(c, labels[index], &demo.opacity[index])
+					skeleton.View(c, labels[index], &demo.opacity[index])
 				}
 			})
 		default:
@@ -151,11 +151,11 @@ func (state *State) paintSkeleton(canvas *gfx.Canvas, theme gfx.Theme, size gfx.
 			demo.line1.Reset().Text().Size(236, 14).Radius(4).Opacity(1)
 			demo.line2.Reset().Text().Size(193, 14).Radius(4).Opacity(1)
 			demo.line3.Reset().Text().Size(151, 14).Radius(4).Opacity(1)
-			skeletonview.View(c, state.Text("标题行", "Title line"), &demo.title)
+			skeleton.View(c, state.Text("标题行", "Title line"), &demo.title)
 			ui.Column(c).FillWidth().MaxWidth(236).Gap(12).Children(func() {
-				skeletonview.View(c, state.Text("正文行 1", "Body line 1"), &demo.line1)
-				skeletonview.View(c, state.Text("正文行 2", "Body line 2"), &demo.line2)
-				skeletonview.View(c, state.Text("正文行 3", "Body line 3"), &demo.line3)
+				skeleton.View(c, state.Text("正文行 1", "Body line 1"), &demo.line1)
+				skeleton.View(c, state.Text("正文行 2", "Body line 2"), &demo.line2)
+				skeleton.View(c, state.Text("正文行 3", "Body line 3"), &demo.line3)
 			})
 		}
 	})

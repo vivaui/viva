@@ -16,7 +16,8 @@ func (s *ColorPickerState) SetHexText(value string) {
 // ColorSwatch adds a circular color choice, a radio button in a group of them: color is
 // what it shows (a transparent color is "no color", drawn as a slash), selected rings
 // it, and label names it for assistive technology. A click is Clicked; the application
-// owns the choice. It is as wide and tall as its Size, 28 when it has none.
+// owns the choice. It is as wide and tall as its Size, 28 when it has none. Disabled
+// makes it dimmed and inert, as it does for the other controls.
 //
 //	if ui.ColorSwatch(c.Key(name), color, m.color == color, name).Clicked() { m.color = color }
 func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
@@ -58,6 +59,7 @@ func (b Box) TabStop(on bool) Box {
 // closed.
 type ColorPickerState struct {
 	open, restoreFocus, applied bool
+	showAlpha                   bool
 	draft                       ColorPickerValue
 	hexEditor                   text.Editor
 	hex                         Field
@@ -71,6 +73,10 @@ type ColorPickerState struct {
 
 // Open reports whether the picker's panel is open.
 func (s *ColorPickerState) Open() bool { return s.open }
+
+// ShowsAlpha reports whether the picker offers an opacity bar and reads and writes
+// #RRGGBBAA, as ShowAlpha set it.
+func (s *ColorPickerState) ShowsAlpha() bool { return s.showAlpha }
 
 // Draft is the color being staged while the panel is open, which follows the plane, the
 // hue bar and the hex field as they change and is not yet the application's: a preview
@@ -104,7 +110,8 @@ type ColorPickerLook struct {
 // color is staged while the panel is open and written to *color on Apply (Enter in the
 // hex field); Cancel, Escape and a press outside leave it as it was. A transparent
 // *color is no color, which Clear sets. The box is the 32 pixel trigger; Applied
-// reports a change. RoundTrigger, TriggerIcon, NoColor and PanelLabels change how it looks.
+// reports a change. RoundTrigger, TriggerIcon, NoColor and PanelLabels change how it
+// looks, and ShowAlpha adds an opacity bar and #RRGGBBAA input.
 //
 //	ui.ColorPicker(c, &m.picker, &m.accent, "Accent")
 //	if m.picker.Applied() { m.save() }
@@ -178,11 +185,21 @@ func (b Box) NoColor(empty bool) Box {
 }
 
 // PanelLabels overrides the words of a ColorPicker's panel: its title, the plane, the hue
-// bar, the hex field and the buttons. A label left empty keeps its default. Other
-// elements ignore it.
+// bar, the alpha bar, the hex field and the buttons. A label left empty keeps its
+// default. Other elements ignore it.
 func (b Box) PanelLabels(labels ColorPickerLabels) Box {
 	if extra := b.pickerExtra(); extra != nil {
 		extra.pickerLook.labels = labels
+	}
+	return b
+}
+
+// ShowAlpha makes a ColorPicker offer an opacity bar and read and write #RRGGBBAA,
+// so the chosen color keeps its alpha; without it a picked color is opaque. Other
+// elements ignore it.
+func (b Box) ShowAlpha(show bool) Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.picker.showAlpha = show
 	}
 	return b
 }
@@ -221,7 +238,7 @@ func (s *ColorPickerState) ApplyDraft() {
 func (s *ColorPickerState) SetDraftValue(v ColorPickerValue) {
 	s.draft = v
 	var buf [9]byte
-	value := string(v.AppendHex(buf[:0], false))
+	value := string(v.AppendHex(buf[:0], s.showAlpha))
 	if s.hexEditor.String() != value {
 		s.hexEditor = text.Editor{}
 		s.hexEditor.Insert(value)
@@ -280,7 +297,7 @@ func (s *ColorPickerState) syncHex() {
 		return
 	}
 	s.seen = value
-	color, valid := ParseColorHex(value, false)
+	color, valid := ParseColorHex(value, s.showAlpha)
 	s.invalid = !valid
 	if valid {
 		s.draft = s.draft.WithColor(color)

@@ -216,6 +216,8 @@ func (m *model) page(c ui.C) {
 
 ### Forms and fields
 
+- A field shown but not edited takes `.ReadOnly(true)`; it keeps its text and look, takes focus, and refuses typing:
+  `ui.TextField(c, &m.release, "Version", "").ReadOnly(true)`.
 - Text fields that just work: `ui.TextField(c, &m.name, "Name", "placeholder")` binds a string of the model, and
   `ui.TextField(c, &m.query, "Search", "")` binds a `ui.Field` when the program reads the caret or selection too
   (`m.query.Secure = true` for that field). Typing, caret, selection, clipboard and input methods work; the page's

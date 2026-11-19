@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/inputotpview"
+	"github.com/vivaui/viva/ui/inputotp"
 )
 
 var inputOTPComponent = Component{
@@ -21,17 +21,17 @@ var inputOTPComponent = Component{
     Slots: 6, GroupSize: 3, HasActiveSlot: true,
     ActiveSlot: min(len(code), 5), ShowCaret: true,
 })`, PageSnippet: `// m.codeEditor starts as "482"; m.codeField is bound to it.
-code := inputotpview.New().
+code := inputotp.New().
     Bind(&m.codeField, m.codeEditor).
     Slots(6).
     GroupSize(3).
-    Filter(inputotpview.Digits)
+    Filter(inputotp.Digits)
 code.View(c, "Verification code")`, PageSnippetZh: `// m.codeEditor 初始为 "482"；m.codeField 已绑定到它。
-code := inputotpview.New().
+code := inputotp.New().
     Bind(&m.codeField, m.codeEditor).
     Slots(6).
     GroupSize(3).
-    Filter(inputotpview.Digits)
+    Filter(inputotp.Digits)
 code.View(c, "Verification code")`},
 		{ID: "states", Title: "验证码状态", Description: "选择、输入法组合与错误状态。", Snippet: `components.PaintInputOTP(canvas, theme, bounds, components.InputOTPSnapshot{
     ID: tree.ID(page, "code"), Label: "Verification code", Value: "482901",
@@ -41,14 +41,14 @@ code.View(c, "Verification code")`},
     ActiveSlot: 0,
 })`, PageSnippet: `// m.codeEditor starts as "482901" with slots 1–3 selected.
 m.codeEditor.SetSelection(text.Range{Start: 1, End: 3})
-code := inputotpview.New().
+code := inputotp.New().
     Bind(&m.codeField, m.codeEditor).
     Slots(6).
     GroupSize(3).
     Invalid()
 code.View(c, "Verification code")`, PageSnippetZh: `// m.codeEditor 初始为 "482901"，槽位 1–3 选中。
 m.codeEditor.SetSelection(text.Range{Start: 1, End: 3})
-code := inputotpview.New().
+code := inputotp.New().
     Bind(&m.codeField, m.codeEditor).
     Slots(6).
     GroupSize(3).
@@ -80,7 +80,7 @@ func inputOTPInitial(exampleID string) string {
 // kept beside the State rather than rebuilt in each paint, so the handlers and
 // draw function are stable and a warm paint allocates nothing.
 type inputOTPDemo struct {
-	view  *inputotpview.OTP
+	view  *inputotp.State
 	field ui.Field
 	bound bool
 }
@@ -94,7 +94,7 @@ func (state *State) initializeInputOTP() {
 		state.values[0] = int32(len(inputOTPInitial("default")))
 	}
 	demo := &inputOTPDemo{
-		view: inputotpview.New().
+		view: inputotp.New().
 			FieldID(inputOTPField).
 			Slots(inputOTPSlots).
 			GroupSize(3),
@@ -111,7 +111,7 @@ func inputOTPDemoFor(state *State) *inputOTPDemo {
 		return demo
 	}
 	demo := &inputOTPDemo{
-		view: inputotpview.New().
+		view: inputotp.New().
 			FieldID(inputOTPField).
 			Slots(inputOTPSlots).
 			GroupSize(3),

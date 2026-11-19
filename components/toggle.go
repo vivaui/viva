@@ -161,7 +161,7 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 	if !toggle.id.IsZero() {
 		toggle.canvas.HitWithOptions(toggle.id, toggle.bounds, label, gfx.HitOptions{
 			Role: gfx.RoleButton, Disabled: toggle.disabled, Checked: toggle.active,
-			Selected: toggle.active,
+			Selected: toggle.active, Invalid: toggle.invalid,
 		})
 	}
 	return result

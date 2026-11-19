@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/framebuild"
 	"github.com/vivaui/viva/internal/scene"
 )
 
@@ -15,36 +16,36 @@ func storeMatchesCanvas(t *testing.T, painter *painter, painted []gfx.Color, ste
 	t.Helper()
 	var rects, triangles int
 	var order []gfx.Color
-	for _, primitive := range painter.renderer.Rectangles() {
+	for _, primitive := range painter.frame.Rectangles() {
 		var color gfx.Color
 		if primitive.Kind == scene.KindTriangle {
-			if triangles >= len(painter.clippedPaths) {
-				t.Fatalf("step %d: the store holds more triangles than the canvas painted (%d)", step, len(painter.clippedPaths))
+			if triangles >= len(painter.frame.ClippedTriangles()) {
+				t.Fatalf("step %d: the store holds more triangles than the canvas painted (%d)", step, len(painter.frame.ClippedTriangles()))
 			}
-			want := sceneTriangle(painter.clippedPaths[triangles])
+			want := framebuild.SceneTriangle(painter.frame.ClippedTriangles()[triangles])
 			if primitive.Points != want.Points || primitive.Color != want.Color {
 				t.Fatalf("step %d: stored triangle %d = %+v, canvas painted %+v", step, triangles, primitive.Points, want.Points)
 			}
 			triangles++
-			color = painter.clippedPaths[triangles-1].Color
+			color = painter.frame.ClippedTriangles()[triangles-1].Color
 		} else {
-			if rects >= len(painter.clipped) {
-				t.Fatalf("step %d: the store holds more rectangles than the canvas painted (%d)", step, len(painter.clipped))
+			if rects >= len(painter.frame.ClippedRectangles()) {
+				t.Fatalf("step %d: the store holds more rectangles than the canvas painted (%d)", step, len(painter.frame.ClippedRectangles()))
 			}
-			want := sceneRectangle(painter.clipped[rects])
+			want := framebuild.SceneRectangle(painter.frame.ClippedRectangles()[rects])
 			if primitive.Bounds != want.Bounds || primitive.Color != want.Color || primitive.Radius != want.Radius {
 				t.Fatalf("step %d: stored rectangle %d = %+v, canvas painted %+v", step, rects, primitive.Bounds, want.Bounds)
 			}
 			rects++
-			color = painter.clipped[rects-1].Color
+			color = painter.frame.ClippedRectangles()[rects-1].Color
 		}
 		if len(order) == 0 || order[len(order)-1] != color {
 			order = append(order, color)
 		}
 	}
-	if rects != len(painter.clipped) || triangles != len(painter.clippedPaths) {
+	if rects != len(painter.frame.ClippedRectangles()) || triangles != len(painter.frame.ClippedTriangles()) {
 		t.Fatalf("step %d: store has %d rectangles and %d triangles, canvas painted %d and %d",
-			step, rects, triangles, len(painter.clipped), len(painter.clippedPaths))
+			step, rects, triangles, len(painter.frame.ClippedRectangles()), len(painter.frame.ClippedTriangles()))
 	}
 	// Every shape was painted in a color of its own, so the colors in store
 	// order, one per run, are the shapes in store order.
@@ -166,22 +167,22 @@ func TestInsertingAShapeMidPageTouchesOnlyThatShape(t *testing.T) {
 		}
 	}
 	painter := newTestPainter(t, &canvas, config)
-	shapes := len(painter.order)
+	shapes := painter.frame.OrderLen()
 
 	for _, want := range []bool{true, false, true} {
 		highlighted = want
 		if _, err := painter.resize(size(800, 600)); err != nil {
 			t.Fatal(err)
 		}
-		if len(painter.changes) != 1 {
-			t.Fatalf("highlighted=%v: %d scene changes for one shape among %d", want, len(painter.changes), shapes)
+		if len(painter.frame.Changes()) != 1 {
+			t.Fatalf("highlighted=%v: %d scene changes for one shape among %d", want, len(painter.frame.Changes()), shapes)
 		}
 		total := shapes
 		if highlighted {
 			total++
 		}
-		if len(painter.renderer.Rectangles()) != total {
-			t.Fatalf("highlighted=%v: renderer holds %d shapes, want %d", highlighted, len(painter.renderer.Rectangles()), total)
+		if len(painter.frame.Rectangles()) != total {
+			t.Fatalf("highlighted=%v: renderer holds %d shapes, want %d", highlighted, len(painter.frame.Rectangles()), total)
 		}
 	}
 }

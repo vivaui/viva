@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/markerview"
+	"github.com/vivaui/viva/ui/marker"
 )
 
 var markerComponent = Component{
@@ -69,8 +69,8 @@ func demoCircle(cx, cy, r float32) []gfx.PathCommand {
 // shows a fixed frame: the demo schedules no frames, an application advances
 // the phase.
 var (
-	markerDemo     = markerview.New()
-	markerVariants [3]markerview.Marker
+	markerDemo     = marker.New()
+	markerVariants [3]marker.State
 )
 
 func (state *State) paintMarker(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {

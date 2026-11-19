@@ -3,7 +3,6 @@ package componentdemo
 import (
 	"strings"
 
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
@@ -52,28 +51,24 @@ components.PaintInput(canvas, theme, readOnly.Rect(), components.InputSnapshot{
     Value: "Viva · read-only text", ReadOnly: true,
 })`, PageSnippet: `// m.disabled starts as "Not editable"; m.readOnly as "Viva · read-only text".
 m.disabled.Disabled = true
-ui.TextFieldID(c, ui.ID(c), &m.disabled, "Disabled", "")
-ui.TextFieldID(c, ui.ID(c), &m.readOnly, "Read-only", "")`, PageSnippetZh: `// m.disabled 初始为 "不可编辑"；m.readOnly 初始为 "Viva · 只读文本"。
+ui.TextField(c, &m.disabled, "Disabled", "")
+ui.TextField(c, &m.readOnly, "Read-only", "").ReadOnly(true)`, PageSnippetZh: `// m.disabled 初始为 "不可编辑"；m.readOnly 初始为 "Viva · 只读文本"。
 m.disabled.Disabled = true
-ui.TextFieldID(c, ui.ID(c), &m.disabled, "Disabled", "")
-ui.TextFieldID(c, ui.ID(c), &m.readOnly, "Read-only", "")`},
+ui.TextField(c, &m.disabled, "Disabled", "")
+ui.TextField(c, &m.readOnly, "Read-only", "").ReadOnly(true)`},
 		{ID: "custom", Title: "圆角与字号", Description: "单个输入框用 Radius 和 FontSize 拥有自己的圆角与字号，光标、选区随字号缩放，旁边的输入框不受影响。", Snippet: `// A field's theme and text size belong to the call: the others keep theirs.
 field := ui.Slot(c).FillWidth().Height(40)
 components.PaintInput(canvas, theme.WithRadius(gfx.RadiusFull), field.Rect(), components.InputSnapshot{
     ID: search, Label: "Search", Value: value, Text: components.InputTextStyle{Size: 16},
 })`, PageSnippet: `// m.pill starts as "Radius and size".
-ui.TextField(c, &m.pill, "Pill", "Type in Chinese or English…").
-    FontSize(16).Radius(gfx.RadiusFull)
-// m.square starts as "Smaller text".
-ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2)
-// m.plain starts as "Theme default".
-ui.TextField(c, &m.plain, "Theme", "")`, PageSnippetZh: `// m.pill starts as "圆角与字号".
-ui.TextField(c, &m.pill, "Pill", "输入中文或 English…").
-    FontSize(16).Radius(gfx.RadiusFull)
-// m.square starts as "较小的字号".
-ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2)
-// m.plain starts as "主题默认".
-ui.TextField(c, &m.plain, "Theme", "")`},
+ui.TextField(c, &m.pill, "Pill", "").FontSize(16).Radius(gfx.RadiusFull)
+// m.square starts as "Smaller text"; m.plain as "Theme default".
+ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2).ReadOnly(true)
+ui.TextField(c, &m.plain, "Theme", "").ReadOnly(true)`, PageSnippetZh: `// m.pill starts as "圆角与字号".
+ui.TextField(c, &m.pill, "Pill", "").FontSize(16).Radius(gfx.RadiusFull)
+// m.square starts as "较小的字号"; m.plain as "主题默认"。
+ui.TextField(c, &m.square, "Square", "").FontSize(12).Radius(2).ReadOnly(true)
+ui.TextField(c, &m.plain, "Theme", "").ReadOnly(true)`},
 	},
 }
 
@@ -158,172 +153,126 @@ func (state *State) fieldValue(initial string) string {
 	return state.editor.String()
 }
 
-// platformFocused reports whether the platform text service currently owns the
-// field: it is editable, has the focus and has text to show. An empty field
-// keeps painting its placeholder and caret.
-func (state *State) platformFocused(canvas *gfx.Canvas, value string) bool {
-	return state.editing && canvas.Focused() == state.fieldID && value != ""
-}
-
-// paintEditable fills what the component paints itself for the example's
-// editable single-line field: HideEditorText keeps the platform's text, caret
-// and selection out of the picture, and the caret, selection and composition
-// come from the same Go editor the platform edits. The value is then drawn by
-// one renderer, so it cannot move when the platform's editor appears.
-func (state *State) paintEditable(canvas *gfx.Canvas, id gfx.ID, value string, snapshot *components.InputSnapshot) {
-	snapshot.HideEditorText = true
-	if !state.editing || state.editor == nil || canvas.Focused() != id {
-		return
-	}
-	selection := state.editor.Selection()
-	snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
-	snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
-	snapshot.ShowCaret = selection.Start == selection.End
-	if marked, composing := state.editor.Composition(); composing {
-		snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
-	}
-	snapshot.Blink = &state.blink
-}
-
-// inputSample is one field a demo declares: the Slot that gives it its place,
-// and the snapshot the component paints into the laid-out rectangle. A Page
-// has no raw InputSnapshot control yet, so the demo lays the field out as a
-// Slot and the component, which owns the look, hit and caret, paints it.
-type inputSample struct {
-	box         ui.Box
-	id          gfx.ID
-	label       string
-	value       string
-	placeholder string
-	hint        string
-	invalid     bool
-	disabled    bool
-	readOnly    bool
-	radius      float32
-	themeRadius bool
-	fontSize    float32
-}
-
-func (state *State) paintInputSample(canvas *gfx.Canvas, theme gfx.Theme, sample *inputSample) {
-	snapshot := components.InputSnapshot{
-		ID: sample.id, Label: sample.label, Value: sample.value,
-		Placeholder: sample.placeholder, Hint: sample.hint,
-		Invalid: sample.invalid, Disabled: sample.disabled, ReadOnly: sample.readOnly,
-	}
-	snapshot.Text.Size = sample.fontSize
-	state.paintEditable(canvas, sample.id, sample.value, &snapshot)
-	if !sample.themeRadius {
-		theme = theme.WithRadius(sample.radius)
-	}
-	components.PaintInput(canvas, theme, sample.box.Rect(), snapshot)
-}
-
 func (state *State) paintInput(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
 	mode := state.Text("Web / 原生文本服务 · 连接同一个 Go Editor", "Web / native text service · one Go Editor")
 	if state.editing {
 		mode = state.Text("平台文本服务 · 支持输入、选区与 IME", "Platform text service · typing, selection and IME")
 	}
-	if state.exampleID == "states" {
+	switch state.exampleID {
+	case "states":
 		mode = state.Text("禁用与只读 · 不连接编辑器", "Disabled and read-only · no editor")
-	}
-	if state.exampleID == "custom" {
+		state.paintInputStates(canvas, theme, size, mode)
+	case "custom":
 		state.paintCustomInputs(canvas, theme, size, mode)
-		return
-	}
-	var samples [2]inputSample
-	caption := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
-	if state.exampleID == "states" {
-		samples[0] = inputSample{
-			id: inputDisabled, label: "Disabled", value: state.Text("不可编辑", "Not editable"),
-			disabled: true, themeRadius: true,
-		}
-		samples[1] = inputSample{
-			id: inputReadOnly, label: "Read-only", value: state.Text("Viva · 只读文本", "Viva · read-only text"),
-			readOnly: true, themeRadius: true,
-		}
-		caption = state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")
-	} else {
-		value := state.fieldValue(state.initialInputValue())
-		label, placeholder := "Name", state.Text("输入中文或 English…", "Type in Chinese or English…")
-		invalid := false
-		if state.exampleID == "invalid" {
-			label, placeholder = "Email", "name@example.com"
-			invalid = value == "" || !strings.Contains(value, "@")
-		}
-		samples[0] = inputSample{
-			id: inputEditable, label: label, value: value, placeholder: placeholder, hint: mode,
-			invalid: invalid, readOnly: !state.editing, themeRadius: true,
-		}
-		if state.exampleID == "invalid" {
-			caption = state.Text("演示校验通过。", "The demo validation passes.")
-			if invalid {
-				caption = state.Text("请输入含 @ 的非空文本。", "Enter non-empty text containing @.")
-			}
-		}
-	}
-	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
-		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
-		if state.exampleID == "states" {
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "Disabled").FontSize(theme.Metrics.FontSizeM)
-				samples[0].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, "Read-only").FontSize(theme.Metrics.FontSizeM)
-				samples[1].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-		} else {
-			ui.Column(c).Gap(6).Children(func() {
-				ui.Text(c, samples[0].label).FontSize(theme.Metrics.FontSizeM)
-				samples[0].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-			})
-		}
-		ui.Text(c, caption).FontSize(theme.Metrics.FontSizeS).Muted()
-	})
-	for index := range samples {
-		if samples[index].id.IsZero() {
-			continue
-		}
-		state.paintInputSample(canvas, theme, &samples[index])
+	default:
+		state.paintInputPage(canvas, theme, size, mode)
 	}
 }
 
-// paintCustomInputs shows three fields in one column: a pill with larger text, a
-// squarer one with smaller text, and one with the theme's own radius and size.
-// Only the first is connected to the editor; the others are read-only samples.
-func (state *State) paintCustomInputs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
-	value := state.fieldValue(state.Text("圆角与字号", "Radius and size"))
-	samples := [3]inputSample{
-		{
-			id: inputEditable, label: "Pill", value: value,
-			placeholder: state.Text("输入中文或 English…", "Type in Chinese or English…"), hint: mode,
-			readOnly: !state.editing, radius: gfx.RadiusFull, fontSize: 16,
-		},
-		{
-			id: inputSquare, label: "Square", value: state.Text("较小的字号", "Smaller text"),
-			readOnly: true, radius: 2, fontSize: 12,
-		},
-		{
-			id: inputPlain, label: "Theme", value: state.Text("主题默认", "Theme default"),
-			readOnly: true, themeRadius: true,
-		},
+// paintInputPage is the page TextField of the single-field examples: the value
+// lives in the Field the page paints, so the preview and the snippet connect the
+// same editor. Without a platform text service the field is read-only: it keeps
+// its value and ordinary look, and takes no edits.
+func (state *State) paintInputPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
+	initial := state.initialInputValue()
+	label, placeholder := "Name", state.Text("输入中文或 English…", "Type in Chinese or English…")
+	invalidExample := state.exampleID == "invalid"
+	if invalidExample {
+		label, placeholder = "Email", "name@example.com"
 	}
+	captionText := state.Text("Web 与原生预览均连接同一个 Go Editor。", "The Web and native previews connect the same Go Editor.")
 	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
+		field := ui.State[ui.Field](c, "input")
+		state.bindPageField(field, initial)
+		field.Hint = mode
+		if invalidExample {
+			field.Invalid = field.Text() == "" || !strings.Contains(field.Text(), "@")
+			captionText = state.Text("演示校验通过。", "The demo validation passes.")
+			if field.Invalid {
+				captionText = state.Text("请输入含 @ 的非空文本。", "Enter non-empty text containing @.")
+			}
+		}
+		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
+			ui.TextFieldID(c, inputEditable, field, label, placeholder).ReadOnly(!state.editing)
+		})
+		ui.Text(c, captionText).FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// paintInputStates shows a disabled field and a read-only one as page
+// TextFields: the disabled field is dimmed and unavailable, the read-only field
+// keeps its ordinary look and value but takes no edits, and neither reaches a
+// platform editor.
+func (state *State) paintInputStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
+	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
+		disabled := state.pageFieldText(c, "disabled", state.Text("不可编辑", "Not editable"))
+		disabled.Disabled = true
+		readOnly := state.pageFieldText(c, "read-only", state.Text("Viva · 只读文本", "Viva · read-only text"))
+		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, "Disabled").FontSize(theme.Metrics.FontSizeM)
+			ui.TextFieldID(c, inputDisabled, disabled, "Disabled", "")
+		})
+		ui.Column(c).Gap(6).Children(func() {
+			ui.Text(c, "Read-only").FontSize(theme.Metrics.FontSizeM)
+			ui.TextFieldID(c, inputReadOnly, readOnly, "Read-only", "").ReadOnly(true)
+		})
+		ui.Text(c, state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")).
+			FontSize(theme.Metrics.FontSizeS).Muted()
+	})
+}
+
+// pageFieldText is the page Field kept under name with initial as its text. A
+// field the example does not edit is seeded once and keeps what the model gives
+// it, so its visible value survives repaints.
+func (state *State) pageFieldText(c ui.C, name, initial string) *ui.Field {
+	field := ui.State[ui.Field](c, name)
+	if field.GetEditor() == nil {
+		field.SetText(initial)
+	}
+	return field
+}
+
+// bindPageField binds the demo's platform editor to a page Field, or seeds the
+// Field's own editor with the example's initial text when no platform text
+// service is attached.
+func (state *State) bindPageField(field *ui.Field, initial string) {
+	if state.editing && state.editor != nil {
+		if field.GetEditor() != state.editor {
+			field.Bind(state.editor)
+		}
+		return
+	}
+	if field.GetEditor() == nil {
+		field.SetText(initial)
+	}
+}
+
+// paintCustomInputs shows three page TextFields in one column: a pill with
+// larger text, a squarer one with smaller text, and one with the theme's own
+// radius and size. Only the first is connected to the editor; the others are
+// read-only.
+func (state *State) paintCustomInputs(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, mode string) {
+	state.drawPage(canvas, theme, size, 440, state.Text("Input · 文本输入", "Input · Text input"), func(c ui.C) {
+		pill := ui.State[ui.Field](c, "pill")
+		state.bindPageField(pill, state.Text("圆角与字号", "Radius and size"))
+		square := state.pageFieldText(c, "square", state.Text("较小的字号", "Smaller text"))
+		plain := state.pageFieldText(c, "plain", state.Text("主题默认", "Theme default"))
 		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "RadiusFull · 16").FontSize(theme.Metrics.FontSizeM)
-			samples[0].box = ui.Slot(c).FillWidth().Height(40)
+			ui.TextFieldID(c, inputEditable, pill, "Pill", state.Text("输入中文或 English…", "Type in Chinese or English…")).
+				FontSize(16).Radius(gfx.RadiusFull).ReadOnly(!state.editing)
 		})
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Radius 2 · 12").FontSize(theme.Metrics.FontSizeM)
-			samples[1].box = ui.Slot(c).FillWidth().Height(28)
+			ui.TextFieldID(c, inputSquare, square, "Square", "").FontSize(12).Radius(2).ReadOnly(true)
 		})
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Theme").FontSize(theme.Metrics.FontSizeM)
-			samples[2].box = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+			ui.TextFieldID(c, inputPlain, plain, "Theme", "").ReadOnly(true)
 		})
 	})
-	for index := range samples {
-		state.paintInputSample(canvas, theme, &samples[index])
-	}
 }

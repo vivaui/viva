@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -539,6 +540,65 @@ func TestTreeRowNameLabelsTheRow(t *testing.T) {
 			t.Fatalf("the menu at x %v renamed %q", at, m.renamed)
 		}
 		m.renamed = ""
+	}
+}
+
+// TreeKeys(false) leaves the navigation keys to the application: the page neither
+// moves the focus nor keeps the key from the host's OnKey.
+func TestTreeKeysLeavesNavigationToTheApplication(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	}}, app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+		keys = append(keys, event.Key)
+		return gfx.EventResult{Handled: true}
+	}})
+	d.click("etc")
+	before := d.Focused()
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != before {
+		t.Fatalf("TreeKeys(false) moved the focus to %q", d.Focused())
+	}
+	if len(keys) != 2 || keys[0] != gfx.KeyRight || keys[1] != gfx.KeyDown {
+		t.Fatalf("the application received %v, want Right then Down", keys)
+	}
+}
+
+// The default keeps the navigation in the page: Right opens a branch and Down
+// moves to its child, and the host's OnKey is not offered the keys.
+func TestTreeKeysDefaultMovesTheFocus(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: m.page},
+		app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+			keys = append(keys, event.Key)
+			return gfx.EventResult{Handled: true}
+		}})
+	d.click("etc")
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != "hosts" {
+		t.Fatalf("Right and Down focused %q, want hosts", d.Focused())
+	}
+	if len(keys) != 0 {
+		t.Fatalf("the page left %v to the application", keys)
+	}
+}
+
+// TreeKeys(false) costs nothing to repaint.
+func TestTreeKeysRepaintAllocates(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}})
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	})
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
 

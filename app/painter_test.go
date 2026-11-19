@@ -410,11 +410,11 @@ func TestPainterInitialSyncPublishesCanvas(t *testing.T) {
 	canvas.Label("Viva", gfx.Rect{X: 2, Y: 2, Width: 40, Height: 12}, gfx.TextStyle{Size: 12})
 
 	painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 100, Height: 100})
-	if len(painter.renderer.Rectangles()) != 1 {
-		t.Fatalf("renderer rectangles = %+v", painter.renderer.Rectangles())
+	if len(painter.frame.Rectangles()) != 1 {
+		t.Fatalf("renderer rectangles = %+v", painter.frame.Rectangles())
 	}
-	if len(painter.labels) != 1 || painter.labels[0].Value != "Viva" {
-		t.Fatalf("labels = %+v", painter.labels)
+	if len(painter.frame.Labels()) != 1 || painter.frame.Labels()[0].Value != "Viva" {
+		t.Fatalf("labels = %+v", painter.frame.Labels())
 	}
 }
 
@@ -716,8 +716,8 @@ func TestRepaintShrinkingListRemovesSceneNodes(t *testing.T) {
 	if !frame.Update.Empty() {
 		t.Fatalf("resize after initial shrink produced work: %+v", frame.Update)
 	}
-	if len(painter.renderer.Rectangles()) != 1 {
-		t.Fatalf("renderer kept %d rectangles", len(painter.renderer.Rectangles()))
+	if len(painter.frame.Rectangles()) != 1 {
+		t.Fatalf("renderer kept %d rectangles", len(painter.frame.Rectangles()))
 	}
 }
 
@@ -1158,8 +1158,8 @@ func TestScrollClampsAtZeroAndRepaints(t *testing.T) {
 	if paints != 2 {
 		t.Fatalf("productive scroll repainted %d times, want initial + 1", paints)
 	}
-	if len(painter.clipped) != 1 || painter.clipped[0].Bounds.Y != -14 {
-		t.Fatalf("scrolled rectangle = %+v", painter.clipped)
+	if len(painter.frame.ClippedRectangles()) != 1 || painter.frame.ClippedRectangles()[0].Bounds.Y != -14 {
+		t.Fatalf("scrolled rectangle = %+v", painter.frame.ClippedRectangles())
 	}
 }
 
@@ -1176,7 +1176,7 @@ func TestClipKeepsCutRectanglesWholeAndDropsHiddenShapesAndText(t *testing.T) {
 	canvas.Fill(gfx.Rect{X: 80, Y: 40, Width: 10, Height: 10}, gfx.Color{Alpha: 1})
 	painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 100, Height: 100})
 
-	instances := painter.renderer.Rectangles()
+	instances := painter.frame.Rectangles()
 	if len(instances) != 3 {
 		t.Fatalf("renderer holds %d rectangles, want the cut one, the inside one and the unclipped one: %+v", len(instances), instances)
 	}
@@ -1188,8 +1188,8 @@ func TestClipKeepsCutRectanglesWholeAndDropsHiddenShapesAndText(t *testing.T) {
 			t.Errorf("rectangle %d carries a clip it does not need: %+v", index, instances[index])
 		}
 	}
-	if len(painter.clippedTexts) != 1 || painter.clippedTexts[0].Value != "visible" {
-		t.Fatalf("clipped texts = %+v", painter.clippedTexts)
+	if len(painter.frame.ClippedTexts()) != 1 || painter.frame.ClippedTexts()[0].Value != "visible" {
+		t.Fatalf("clipped texts = %+v", painter.frame.ClippedTexts())
 	}
 }
 
@@ -1209,7 +1209,7 @@ func TestPartlyClippedLabelsCarryTheirClipToThePlatform(t *testing.T) {
 	painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 100, Height: 120})
 
 	got := map[string]platform.TextLabel{}
-	for _, label := range painter.labels {
+	for _, label := range painter.frame.Labels() {
 		got[label.Value] = label
 	}
 	if _, sent := got["gone"]; sent || len(got) != 4 {
@@ -1242,7 +1242,7 @@ func TestClippedStrokeReachesTheRendererWholeWithItsClip(t *testing.T) {
 	painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 100, Height: 100})
 
 	painted := canvas.Triangles()
-	instances := painter.renderer.Rectangles()
+	instances := painter.frame.Rectangles()
 	if len(painted) != 6 || len(instances) != 4 {
 		t.Fatalf("canvas painted %d triangles and the renderer holds %d, want 6 and 4", len(painted), len(instances))
 	}
@@ -1269,7 +1269,7 @@ func TestVectorFringeKeepsItsClip(t *testing.T) {
 			canvas.DrawPath(gfx.NewPath(10, 10, gfx.MoveTo(x/scale, 2), gfx.LineTo(8, 2), gfx.LineTo(x/scale, 8), gfx.ClosePath()), clip, gfx.PathStyle{Fill: gfx.Color{Alpha: 1}})
 			canvas.Unclip()
 			painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 10, Height: 10})
-			instances := painter.renderer.Rectangles()
+			instances := painter.frame.Rectangles()
 			if len(instances) == 0 {
 				t.Fatal("visible fringe was culled")
 			}
@@ -1755,8 +1755,8 @@ func TestRepaintRecoloringRectanglesBehindShrinkingTrianglesRefreshesEverything(
 	if len(canvas.Triangles()) >= trianglesBefore {
 		t.Fatal("the triangle list did not shrink; the test is not exercising what it claims")
 	}
-	if painter.resyncs != 0 {
-		t.Fatalf("the renderer rejected the batch and had to be rebuilt %d times", painter.resyncs)
+	if painter.frame.Resyncs() != 0 {
+		t.Fatalf("the renderer rejected the batch and had to be rebuilt %d times", painter.frame.Resyncs())
 	}
 	want := scene.Color{Red: 0.1, Green: 0.1, Blue: 0.15, Alpha: 1}
 	if len(frame.Rectangles) != len(canvas.Rectangles())+len(canvas.Triangles()) {
@@ -1782,14 +1782,14 @@ func TestRepaintRebuildsRenderStateThatDisagreesWithTheScene(t *testing.T) {
 	}
 	painter := newTestPainter(t, &canvas, config)
 
-	painter.renderer = render.Store{} // forget every node the scene believes was published
+	*painter.frame.Store() = render.Store{} // forget every node the scene believes was published
 	tint = gfx.Color{Red: 0.2, Green: 0.4, Blue: 0.6, Alpha: 1}
 	frame, err := painter.repaint()
 	if err != nil {
 		t.Fatalf("repaint: %v", err)
 	}
-	if painter.resyncs != 1 {
-		t.Fatalf("resyncs = %d, want exactly one rebuild", painter.resyncs)
+	if painter.frame.Resyncs() != 1 {
+		t.Fatalf("resyncs = %d, want exactly one rebuild", painter.frame.Resyncs())
 	}
 	if !frame.Update.Rebuild || len(frame.Rectangles) != 2 {
 		t.Fatalf("update=%+v instances=%d, want a full rebuild of both rectangles", frame.Update, len(frame.Rectangles))
@@ -2313,7 +2313,7 @@ func TestShadowsReachTheRendererAndRepaintWithoutChangePerformsNoWork(t *testing
 	paint(&canvas, gfx.Size{})
 	painter := newTestPainter(t, &canvas, Config{Title: "test", Width: 100, Height: 100, Paint: paint})
 
-	instances := painter.renderer.Rectangles()
+	instances := painter.frame.Rectangles()
 	if len(instances) != 5 {
 		t.Fatalf("renderer holds %d instances, want the page, the two layers of the large shadow, the surface and the shadow that reaches in: %+v", len(instances), instances)
 	}
@@ -2364,7 +2364,7 @@ func TestAShapeBecomingAShadowKeepsItsPlace(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		instances := painter.renderer.Rectangles()
+		instances := painter.frame.Rectangles()
 		if len(instances) != 3 || instances[1].Kind != want {
 			t.Fatalf("instances = %+v, want the middle one to be kind %d", instances, want)
 		}
@@ -2502,8 +2502,8 @@ func TestPainterDropsLabelsWithoutAreaOrFontSize(t *testing.T) {
 		canvas.Label("visible", gfx.Rect{Width: 40, Height: 12}, gfx.TextStyle{Size: 12})
 	}
 	painter := newTestPainter(t, &canvas, config)
-	if len(painter.labels) != 1 || painter.labels[0].Value != "visible" {
-		t.Fatalf("labels = %+v, want only the visible one", painter.labels)
+	if len(painter.frame.Labels()) != 1 || painter.frame.Labels()[0].Value != "visible" {
+		t.Fatalf("labels = %+v, want only the visible one", painter.frame.Labels())
 	}
 	if _, err := painter.repaint(); err != nil {
 		t.Fatalf("repaint failed: %v", err)
@@ -2531,11 +2531,11 @@ func TestPainterDropsSubpixelAndClippedImages(t *testing.T) {
 		canvas.DrawBitmap(bitmap, gfx.Rect{X: 10, Y: 10, Width: 20, Height: 20})
 	}
 	painter := newTestPainter(t, &canvas, config)
-	if len(painter.labels) != 1 {
-		t.Fatalf("labels count = %d, want 1; labels = %+v", len(painter.labels), painter.labels)
+	if len(painter.frame.Labels()) != 1 {
+		t.Fatalf("labels count = %d, want 1; labels = %+v", len(painter.frame.Labels()), painter.frame.Labels())
 	}
-	if painter.labels[0].Width <= 0 || painter.labels[0].Height <= 0 {
-		t.Fatalf("visible image label has non-positive dimensions: %+v", painter.labels[0])
+	if painter.frame.Labels()[0].Width <= 0 || painter.frame.Labels()[0].Height <= 0 {
+		t.Fatalf("visible image label has non-positive dimensions: %+v", painter.frame.Labels()[0])
 	}
 	if _, err := painter.repaint(); err != nil {
 		t.Fatalf("repaint failed: %v", err)

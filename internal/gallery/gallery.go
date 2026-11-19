@@ -184,8 +184,12 @@ func (state *State) openPage(page int) {
 // and owns the offset itself.
 func (state *State) Scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if slot, local, ok := state.decodeExample(event.Target); ok && slot < len(state.live) {
+		view := &state.live[slot]
+		event.X -= view.origin.X
+		event.Y -= view.origin.Y
+		event.Viewport = view.size
 		event.Target = local
-		if result := state.live[slot].demo.Scroll(event); result.Handled {
+		if result := view.demo.Scroll(event); result.Handled {
 			return liftResult(result, slot)
 		}
 	}

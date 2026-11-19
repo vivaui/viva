@@ -3,7 +3,7 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/menubarview"
+	"github.com/vivaui/viva/ui/menubar"
 )
 
 var menubarComponent = Component{
@@ -39,7 +39,7 @@ bar.Trigger(file, "File").
     Item(deleteItem, "Delete workspace").Destructive()
 bar.Trigger(view, "View").Item(reload, "Reload")
 bar.Trigger(help, "Help")
-menubarview.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
 			PageSnippetZh: `// m.menubar.Selected 保存上一次绘制中选中的行。
 file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
 newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
@@ -56,7 +56,7 @@ bar.Trigger(file, "File").
     Item(deleteItem, "Delete workspace").Destructive()
 bar.Trigger(view, "View").Item(reload, "Reload")
 bar.Trigger(help, "Help")
-menubarview.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
 		{ID: "states", Title: "菜单项状态", Description: "复选、禁用和危险菜单项。", Snippet: `options := components.MenubarOverlayOptions{
     Layer: 2, DismissID: tree.ID(page, "file"),
 }
@@ -87,7 +87,7 @@ bar.Trigger(file, "File").
     Item(deleteItem, "Delete workspace").Destructive().Disabled()
 bar.Trigger(view, "View").Item(reload, "Reload")
 bar.Trigger(help, "Help").Disabled()
-menubarview.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`,
 			PageSnippetZh: `file, view, help := ui.ID(c), ui.ID(c), ui.ID(c)
 newWindow, showGrid, deleteItem, reload := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
 bar := &m.menubar
@@ -104,7 +104,7 @@ bar.Trigger(file, "File").
     Item(deleteItem, "Delete workspace").Destructive().Disabled()
 bar.Trigger(view, "View").Item(reload, "Reload")
 bar.Trigger(help, "Help").Disabled()
-menubarview.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
+menubar.View(c, "Menubar", bar).FillWidth().Height(c.Theme().Metrics.ControlHeight)`},
 	},
 }
 
@@ -120,7 +120,7 @@ var (
 	menubarItem = tree.Sub(menubarUI, tree.Name("item"))
 
 	// menubarDemo is the preview's page control. The preview has one menubar.
-	menubarDemo      menubarview.Menubar
+	menubarDemo      menubar.State
 	menubarDemoState *State
 )
 
@@ -156,7 +156,7 @@ func (state *State) paintMenubar(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		if !open {
 			ui.Text(c, state.Text("点击 File 查看弹出菜单。", "Click File to open the popup menu.")).FontSize(theme.Metrics.FontSizeS).Muted()
 		}
-		menubarview.View(c, "Menubar", bar).FillWidth().Height(theme.Metrics.ControlHeight)
+		menubar.View(c, "Menubar", bar).FillWidth().Height(theme.Metrics.ControlHeight)
 	})
 
 	// Mirror the control's caller-owned state into the demo's flags, which the

@@ -261,6 +261,7 @@ func (group RadioGroup) Paint() RadioGroupResult {
 				Role: gfx.RoleRadio, Value: option.Label,
 				Disabled: group.disabled || option.Disabled,
 				Checked:  selected, Selected: selected,
+				Invalid: option.Invalid,
 				SkipTab: option.ID != group.tabStop,
 			})
 		}

@@ -4,7 +4,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
-	"github.com/vivaui/viva/ui/commandview"
+	"github.com/vivaui/viva/ui/command"
 )
 
 var commandComponent = Component{
@@ -60,7 +60,7 @@ m.command.Item("Open workspace", "⌘O")
 m.command.Item("Create window", "⌘N")
 m.command.Separator()
 m.command.Item("Pin current view", "")
-commandview.View(c, "Command", &m.command).FillWidth().Height(180)`,
+command.View(c, "Command", &m.command).FillWidth().Height(180)`,
 			PageSnippetZh: `m.command.Filter = func(query string) {
     // 在这里按 query 重新过滤 m.results，并重建 m.command.Results。
 }
@@ -76,7 +76,7 @@ m.command.Item("打开工作区", "⌘O")
 m.command.Item("新建窗口", "⌘N")
 m.command.Separator()
 m.command.Item("固定当前视图", "")
-commandview.View(c, "命令", &m.command).FillWidth().Height(180)`},
+command.View(c, "命令", &m.command).FillWidth().Height(180)`},
 		{ID: "dialog", Title: "对话框尺寸", Description: "更宽松的命令面板行高和已选状态。", Height: 320, Snippet: `results := tree.Sub(page, tree.Name("item"))
 command := components.BeginCommand(canvas, theme, bounds, components.CommandOptions{
     InputID: inputID, Query: "open", Placeholder: "Type a command…",
@@ -99,7 +99,7 @@ m.command.Item("Create window", "⌘N")
 m.command.Separator()
 m.command.Item("Pin current view", "")
 // A Result appended with Disabled: true is painted inert.
-commandview.View(c, "Command", &m.command).FillWidth().Height(220)`,
+command.View(c, "Command", &m.command).FillWidth().Height(220)`,
 			PageSnippetZh: `m.command.Options = m.command.Options.Dialog()
 m.command.Query = "open"
 m.command.Selected = 0
@@ -110,7 +110,7 @@ m.command.Item("新建窗口", "⌘N")
 m.command.Separator()
 m.command.Item("固定当前视图", "")
 // 追加 Disabled: true 的 Result 会绘制为不可用行。
-commandview.View(c, "命令", &m.command).FillWidth().Height(220)`},
+command.View(c, "命令", &m.command).FillWidth().Height(220)`},
 		{ID: "empty", Title: "空结果", Description: "使用生产空结果行而不伪造列表。", Height: 210, Snippet: `command := components.BeginCommand(canvas, theme, bounds, components.CommandOptions{
     InputID: inputID, Query: query, Placeholder: "Type a command…", Layer: 1,
 })
@@ -120,12 +120,12 @@ command.End()`,
 m.command.Selected = 0
 m.command.Clear()
 m.command.Empty("No commands found")
-commandview.View(c, "Command", &m.command).FillWidth().Height(112)`,
+command.View(c, "Command", &m.command).FillWidth().Height(112)`,
 			PageSnippetZh: `m.command.Query = ""
 m.command.Selected = 0
 m.command.Clear()
 m.command.Empty("没有找到命令")
-commandview.View(c, "命令", &m.command).FillWidth().Height(112)`},
+command.View(c, "命令", &m.command).FillWidth().Height(112)`},
 	},
 }
 
@@ -142,7 +142,7 @@ var (
 // and draw function point at this value, so it is kept beside the State rather
 // than rebuilt in each paint.
 type commandDemo struct {
-	command commandview.Command
+	command command.State
 }
 
 // commandDemos is keyed by State because the constrained demo model has no
@@ -181,34 +181,34 @@ func (state *State) paintCommand(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		height = 36 + 68 + 4
 	}
 	state.drawPage(canvas, theme, size, 520, state.Text("Command · 快速操作", "Command · Quick actions"), func(c ui.C) {
-		command := &demo.command
-		command.Clear()
+		panel := &demo.command
+		panel.Clear()
 		if state.exampleID == "empty" {
-			command.Empty(state.Text("没有找到命令", "No commands found"))
+			panel.Empty(state.Text("没有找到命令", "No commands found"))
 		} else {
-			command.Group(state.Text("建议", "Suggestions"))
-			command.Results = append(command.Results, commandview.Result{
+			panel.Group(state.Text("建议", "Suggestions"))
+			panel.Results = append(panel.Results, command.Result{
 				ID: commandItem.At(0), Label: state.Text("打开工作区", "Open workspace"), Shortcut: "⌘O",
 			})
-			command.Results = append(command.Results, commandview.Result{
+			panel.Results = append(panel.Results, command.Result{
 				ID: commandItem.At(1), Label: state.Text("新建窗口", "Create window"), Shortcut: "⌘N",
 			})
-			command.Results = append(command.Results, commandview.Result{Kind: commandview.ResultSeparator})
-			command.Results = append(command.Results, commandview.Result{
+			panel.Results = append(panel.Results, command.Result{Kind: command.ResultSeparator})
+			panel.Results = append(panel.Results, command.Result{
 				ID:       commandItem.At(2),
 				Label:    state.Text("固定当前视图", "Pin current view"),
-				Checked:  command.Selected == 2,
+				Checked:  panel.Selected == 2,
 				Disabled: state.exampleID == "dialog",
 			})
 		}
-		commandview.View(c, state.Text("命令", "Command"), command).
+		command.View(c, state.Text("命令", "Command"), panel).
 			FillWidth().Height(min(height, max(size.Height-84, 120)))
 		if state.editing {
 			// The query row is a part of the control; the demo's fixed-field text
 			// service edits the page control's own editor, so typing reaches Query
 			// and Filter exactly as it does for a page that calls Page.TextInput.
-			state.fieldID = command.InputID()
-			state.editor = command.Editor()
+			state.fieldID = panel.InputID()
+			state.editor = panel.Editor()
 		}
 	})
 }

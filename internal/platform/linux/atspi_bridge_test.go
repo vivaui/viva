@@ -123,6 +123,30 @@ func TestAtspiTreeFollowsContainersAndSurvivesShifts(t *testing.T) {
 	}
 }
 
+func TestAtspiPublishesInvalidEntry(t *testing.T) {
+	nodes := []platform.AccessibilityNode{{ID: gfx.Item(1), Role: platform.A11yRoleTextField, Label: "Email", Focusable: true, Invalid: true}}
+	test := newTestBridge(nodes)
+	answer := test.call(test.path(0), atspiIfaceAccessible, "GetState", nil)
+	d := dbus.NewDecoder(answer.body)
+	d.ArrayLength(4)
+	low, high := d.Uint32(), d.Uint32()
+	if bits := uint64(high)<<32 | uint64(low); bits&(1<<atspiStateInvalidEntry) == 0 {
+		t.Fatalf("invalid field state = %b", bits)
+	}
+
+	test.signals = nil
+	test.update(test.window, []platform.AccessibilityNode{{ID: gfx.Item(1), Role: platform.A11yRoleTextField, Label: "Email", Focusable: true}})
+	var cleared bool
+	for _, signal := range test.signals {
+		if signal.member == "StateChanged" && signal.detail == "invalid-entry" && signal.detail1 == 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatalf("no invalid-entry cleared event: %v", test.signals)
+	}
+}
+
 func TestAtspiStatesAndRolesFromNodes(t *testing.T) {
 	test := newTestBridge(demoNodes())
 	state := func(index int) uint64 {
