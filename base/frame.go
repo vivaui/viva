@@ -187,6 +187,7 @@ type Extra struct {
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to
 	maxPct        [2]float32       // MaxWidthPercent and MaxHeightPercent; zero is none
 	hitOut        [4]float32       // how far the hit region reaches beyond the rectangle: top, right, bottom, left
+	hitExact      bool             // a styled control targets its laid-out rectangle, not its enlarged desktop target
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
 	within        Rect             // what a Popup is kept inside, when not the frame; empty for the frame
 	moves         bool             // the element's rectangle moves a custom-titlebar window (MovesWindow)

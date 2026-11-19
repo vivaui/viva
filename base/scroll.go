@@ -149,6 +149,22 @@ func (s *ScrollState) ScrollTo(offset float32) {
 // by the next layout. It has no effect on any other area.
 func (s *ScrollState) ScrollToX(offset float32) { s.OffsetX = max(offset, 0) }
 
+// Following reports whether the area is in follow mode and has not been
+// detached by the user scrolling up: new content then stays in view. It is
+// false for an area that does not follow, and for one the user left.
+func (s *ScrollState) Following() bool { return s.follow && !s.detached }
+
+// Prepend adjusts the offset for content added above (positive delta) or
+// removed above (negative) between paints, so the rows the reader is looking
+// at stay in place. The next layout clamps the result. Follow is unchanged: an
+// area at its end stays at its end.
+func (s *ScrollState) Prepend(delta float32) {
+	if delta == 0 {
+		return
+	}
+	s.Offset = max(s.Offset+delta, 0)
+}
+
 // Follow makes the area keep to its end as content is added, or stop: the
 // imperative form of Box.Follow, for a gesture between paints. A List reads
 // whether it follows when it is declared, before the Box it returns can say

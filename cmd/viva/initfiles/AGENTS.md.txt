@@ -142,7 +142,8 @@ func (m *model) page(c ui.C) {
   scrollbar the page paints itself; `.ScrollbarValues(vertical, horizontal)` is the value assistive technology reads for them. The page gives the
   wheel to the area under the pointer (the innermost, or the next one out when that is at its end), so side-by-side
   columns and nested lists each scroll alone. `.Follow(true)` keeps a log or chat at its end until the user scrolls
-  up (and again when they scroll back down; `.Follow(m.autoScroll)` makes it a switch); `Pinned()` says the next
+  up (and again when they scroll back down; `.Follow(m.autoScroll)` makes it a switch); `Following()` says whether it is
+  attached to the end now, `Prepend(delta)` keeps the reader's rows in place when content above changes, and `Pinned()` says the next
   layout puts it at its end before `Offset` has caught up. `.Sideways()` scrolls left and right too (`OffsetX`,
   `ContentWidth`, `ViewportWidth`, `MaxX()` and `ScrollToX(px)`), and `.Scrollbars()` draws draggable bars over the
   overflowing edges. The bars are the hover style: they appear while the pointer is over the area or the view
@@ -782,4 +783,4 @@ empty state, dimmable section) are under
   declare overlapping interactive things in the order you want them to win.
 - A `Border` is inside the box (as CSS `border-box`): it takes its width out of the padding area.
   `Stroke(width, color)` draws the same line but takes no room. `HitOutset(top, right, bottom, left)` makes the
-  click region reach beyond the painted rectangle (an inset rounded row that clicks across its whole width).
+  click region reach beyond the painted rectangle (an inset rounded row that clicks across its whole width). `HitExact()` makes a Checkbox or Switch's click target its laid-out slot instead of the enlarged target around its square or track.

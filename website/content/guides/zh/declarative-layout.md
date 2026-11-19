@@ -36,7 +36,7 @@ func (m *model) page(c ui.C) {
 - `Flow()` 是会换行的 Row：子元素保持各自的宽度从左到右排列，放不下下一个时就换到新的一行，和 CSS 的 `flex-wrap` 一样。每一行像 Row 一样分配自己的空间，所以 `Grow` 和 `Justify` 对每一行单独生效，`Items` 在各自的行内对齐子元素。`Gap` 是子元素之间的间距，也是行与行之间的间距，除非用 `LineGap` 另行设置。会换行的标签、徽章和工具栏都用 Flow。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。
 
-控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。任何元素都可以用 `Hit(id, label)` 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
+控件就是 `components` 里的那些，外观完全一致：`Button`（以及 `Outline`、`Ghost`、`Secondary`、`Destructive`、`Small` 等变体）、`Checkbox`、`Switch`、`Icon`、`Divider`。`Clicked()` 在声明控件的地方读取：它只在递送这次点击的那一遍里为真。固定槽位里的 Checkbox 或 Switch 可以用 `.HitExact()` 让整个槽位成为点击目标。任何元素都可以用 `Hit(id, label)` 变成指针目标； 成为指针目标；它在指针悬停、按下和获得焦点时的样子用 `Hover`、`Pressed` 和 `Focus` 声明（见下文）。
 
 ## 页面：ui.C
 
@@ -254,7 +254,7 @@ func main() {
 }
 ```
 
-`ui.Scroll(c)` 的偏移量由区域自己的名字保存；在它（或 `ui.List`、`ui.Tree` 返回的区域）上调用 `.ScrollState()`，可读取上一次布局时的 `Offset`、`Content`、`Viewport`，也可以用 `ScrollTo`、`ScrollToEnd` 用代码滚动，比如把选中行滚进视野。每次绘制都重新取，不要保存指针：某次绘制没有声明的区域会忘掉它的偏移量。页面把键盘交给区域时，`ScrollState.Key` 把方向键、翻页键和 Home/End 应用到该区域；应用要自绘滚动条时，`BarGeometry(bounds, barSize)` 计算轨道和滑块。
+`ui.Scroll(c)` 的偏移量由区域自己的名字保存；在它（或 `ui.List`、`ui.Tree` 返回的区域）上调用 `.ScrollState()`，可读取上一次布局时的 `Offset`、`Content`、`Viewport`，也可以用 `ScrollTo`、`ScrollToEnd` 用代码滚动，比如把选中行滚进视野。每次绘制都重新取，不要保存指针：某次绘制没有声明的区域会忘掉它的偏移量。`Following()` 表示区域当前是否跟随末端；上方内容增减时，`Prepend(delta)` 让读者正在看的内容保持原位；`List` 的 `RowOffset(row)` 给出行的顶部位置，用于锚定。页面把键盘交给区域时，`ScrollState.Key` 把方向键、翻页键和 Home/End 应用到该区域；应用要自绘滚动条时，`BarGeometry(bounds, barSize)` 计算轨道和滑块。
 
 `.Sideways()` 让区域也能左右滚动：子元素保持各自想要的宽度，最宽的那个决定内容有多宽，所有子元素都按这个宽度排布，区域更宽时按区域的宽度，所以一排标签保持各自的宽度，高亮的行横跨整个宽度。`Paragraph` 在这里不换行。和高度一样，区域的宽度是给它的宽度（在 `Row` 里需要 `Grow`），而不是内容的宽度。水平滚轮，或者按住 Shift 的滚轮，会横向移动它；状态里有 `OffsetX`、`ContentWidth`、`ViewportWidth`、`MaxX` 和 `ScrollToX`。`.Scrollbars()` 在内容溢出的边缘上画细滚动条，指针可以拖动；在滑块旁边按下，滑块会移到那里。`.ScrollbarValues(vertical, horizontal)` 给出无障碍读到的值。
 

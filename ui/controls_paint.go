@@ -18,6 +18,9 @@ func paintCheckbox(f *Frame, v ControlView) {
 		f.PaintCaptionView(v, bounds)
 	}
 	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
+	if v.Exact {
+		checkbox = checkbox.HitBounds(v.Rect)
+	}
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
 	}
@@ -43,6 +46,9 @@ func paintSwitch(f *Frame, v ControlView) {
 		f.PaintCaptionView(v, bounds)
 	}
 	control := components.BeginSwitch(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
+	if v.Exact {
+		control = control.HitBounds(v.Rect)
+	}
 	if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.GetStyles() != nil && f.GetStyles().Switch != nil {

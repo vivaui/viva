@@ -24,16 +24,17 @@ const switchSlotChecked uint8 = 0
 // thumb and fades the track over the theme's Transition; the caller still
 // passes only the destination state.
 type Switch struct {
-	canvas   *gfx.Canvas
-	theme    gfx.Theme
-	id       gfx.ID
-	bounds   gfx.Rect
-	label    string
-	checked  bool
-	focused  bool
-	invalid  bool
-	size     SwitchSize
-	disabled bool
+	canvas    *gfx.Canvas
+	theme     gfx.Theme
+	id        gfx.ID
+	bounds    gfx.Rect
+	label     string
+	hitBounds gfx.Rect
+	checked   bool
+	focused   bool
+	invalid   bool
+	size      SwitchSize
+	disabled  bool
 	// recipe, when set, replaces SwitchRecipe; see Button.Recipe.
 	recipe func(gfx.Theme, gfx.State, float32) SwitchLook
 }
@@ -95,6 +96,15 @@ type SwitchResult struct {
 // Clicked reports whether this paint is delivering a click on the control.
 func (result SwitchResult) Clicked() bool {
 	return result.canvas != nil && result.canvas.Clicked(result.id)
+}
+
+// HitBounds makes an enclosing label or selection card activate this switch.
+// The visual track keeps its normal position and size; zero bounds use the
+// default enlarged target. The rect replaces the track's target rather than
+// adding to it and must contain the track.
+func (switchControl Switch) HitBounds(bounds gfx.Rect) Switch {
+	switchControl.hitBounds = bounds
+	return switchControl
 }
 
 // SwitchHitExtent is the width and height of the interaction region Paint
@@ -168,6 +178,9 @@ func (switchControl Switch) Paint() SwitchResult {
 		hitBounds := gfx.Rect{
 			X: switchControl.bounds.X - 12, Y: switchControl.bounds.Y - 8,
 			Width: switchControl.bounds.Width + 24, Height: switchControl.bounds.Height + 16,
+		}
+		if switchControl.hitBounds.Width > 0 && switchControl.hitBounds.Height > 0 {
+			hitBounds = switchControl.hitBounds
 		}
 		switchControl.canvas.HitWithOptions(switchControl.id, hitBounds, switchControl.label, gfx.HitOptions{
 			Role: gfx.RoleSwitch, Disabled: switchControl.disabled,

@@ -263,6 +263,10 @@ func (x *Extra) GetHit() gfx.HitOptions { return x.hit }
 // GetHitOut reads the hitOut of Extra for the styled painting layer.
 func (x *Extra) GetHitOut() [4]float32 { return x.hitOut }
 
+// GetHitExact reads whether a styled control targets its laid-out rectangle for
+// the styled painting layer.
+func (x *Extra) GetHitExact() bool { return x.hitExact }
+
 // GetIcon reads the icon of Extra for the styled painting layer.
 func (x *Extra) GetIcon() gfx.Icon { return x.icon }
 
