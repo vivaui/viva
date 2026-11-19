@@ -1,6 +1,7 @@
 package components
 
 import (
+	"math"
 	"time"
 
 	"github.com/vivaui/viva/gfx"
@@ -171,6 +172,7 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 	tooltip.canvas.PushLayer(tooltip.options.Layer)
 	tooltip.canvas.BeginPresence(overlayKey(tooltip.options.ID), overlaySurfacePart,
 		popupPresence(tooltip.theme, tooltipDuration, side), popupPivot(content, side, tooltip.anchor))
+	arrowSide := tooltipSideOf(side)
 	if style.BorderSize > 0 && style.Border != (gfx.Color{}) {
 		// The border is a ring behind the body, so the body keeps its own corners.
 		ring := gfx.Rect{
@@ -178,12 +180,17 @@ func (tooltip Tooltip) Paint(label string) gfx.Rect {
 			Width: content.Width + style.BorderSize*2, Height: content.Height + style.BorderSize*2,
 		}
 		tooltip.canvas.Rounded(ring, radius+style.BorderSize, style.Border)
+		// The arrow, filled with the body, covers the ring where it leaves the body,
+		// so the border goes on around the arrow instead: the same arrow with its
+		// slanted edges pushed out by the border width, painted before the body so
+		// its base stays hidden under it.
+		tooltip.paintArrow(content, arrowSide, radius, style.Border, style.BorderSize)
 	}
 	tooltip.canvas.Rounded(content, radius, background)
 	overlayParagraph(tooltip.canvas, lines, gfx.Rect{X: content.X + padX, Y: content.Y + padY, Width: content.Width - 2*padX}, lineHeight, gfx.TextStyle{
 		Size: fontSize, Weight: gfx.WeightRegular, Color: text,
 	}, false)
-	tooltip.paintArrow(content, tooltipSideOf(side), radius, background)
+	tooltip.paintArrow(content, arrowSide, radius, background, 0)
 	tooltip.canvas.EndPresence()
 	tooltip.canvas.PopLayer()
 	return content
@@ -232,12 +239,20 @@ const (
 // renderers feather; the triangle has no shared tessellation edges.
 const tooltipArrowEdges = uint8(1<<3 - 1)
 
-// paintArrow points the body at its trigger in fill, the body's own surface, keeping the
-// base clear of a corner of the given radius.
-func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius float32, fill gfx.Color) {
+// paintArrow points the body at its trigger in fill, keeping the base clear of a corner
+// of the given radius. grow moves the two slanted edges out by that distance, for the
+// border under the arrow; the base stays on its line inside the body.
+func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius float32, fill gfx.Color, grow float32) {
 	// Center on the trigger, but keep the base on the flat part of the body so
 	// it never straddles a rounded corner after the body was clamped on screen.
-	half := tooltipArrowBase / 2
+	half, depth := tooltipArrowBase/2, tooltipArrowDepth
+	if grow > 0 {
+		// An edge moved out by grow moves the tip out by grow over the sine of
+		// the tip's half angle and the base end by grow over its cosine.
+		height := tooltipArrowDepth + tooltipArrowInset
+		edge := float32(math.Hypot(float64(half), float64(height)))
+		half, depth = half+grow*edge/height, depth+grow*edge/half
+	}
 	var points [3]gfx.Point
 	switch side {
 	case TooltipRight:
@@ -246,7 +261,7 @@ func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius flo
 		points = [3]gfx.Point{
 			{X: base, Y: center - half},
 			{X: base, Y: center + half},
-			{X: content.X - tooltipArrowDepth, Y: center},
+			{X: content.X - depth, Y: center},
 		}
 	case TooltipBottom:
 		center := tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
@@ -254,7 +269,7 @@ func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius flo
 		points = [3]gfx.Point{
 			{X: center - half, Y: base},
 			{X: center + half, Y: base},
-			{X: center, Y: content.Y - tooltipArrowDepth},
+			{X: center, Y: content.Y - depth},
 		}
 	case TooltipLeft:
 		center := tooltipArrowCenter(tooltip.anchor.Y+tooltip.anchor.Height/2, content.Y, content.Height, radius)
@@ -262,7 +277,7 @@ func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius flo
 		points = [3]gfx.Point{
 			{X: base, Y: center - half},
 			{X: base, Y: center + half},
-			{X: content.X + content.Width + tooltipArrowDepth, Y: center},
+			{X: content.X + content.Width + depth, Y: center},
 		}
 	default:
 		center := tooltipArrowCenter(tooltip.anchor.X+tooltip.anchor.Width/2, content.X, content.Width, radius)
@@ -270,7 +285,7 @@ func (tooltip Tooltip) paintArrow(content gfx.Rect, side TooltipSide, radius flo
 		points = [3]gfx.Point{
 			{X: center - half, Y: base},
 			{X: center + half, Y: base},
-			{X: center, Y: content.Y + content.Height + tooltipArrowDepth},
+			{X: center, Y: content.Y + content.Height + depth},
 		}
 	}
 	tooltip.canvas.AppendTriangle(gfx.Triangle{
