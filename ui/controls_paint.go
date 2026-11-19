@@ -3,6 +3,8 @@ package ui
 import (
 	"math"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -59,11 +61,11 @@ func paintSwitch(f *Frame, v ControlView) {
 }
 
 func paintInputGroup(f *Frame, v ControlView) {
-	components.PaintInputGroup(f.Surface, f.Palette, v.Rect, WidgetsOf(f).GetGroups()[v.Aux])
+	components.PaintInputGroup(f.Surface, f.Palette, v.Rect, base.WidgetsOf(f).GetGroups()[v.Aux])
 }
 
 func paintSegmented(f *Frame, v ControlView) {
-	choice := WidgetsOf(f).GetSegmented()[v.Aux]
+	choice := base.WidgetsOf(f).GetSegmented()[v.Aux]
 	components.BeginSegmentedControl(f.Surface, f.Palette, v.Rect, choice.GetOptions(), choice.GetSelected()).Paint()
 }
 
@@ -89,7 +91,7 @@ func measureControls(f *Frame, n *Node) {
 		n.Pref = [2]float32{w, h}
 	case KindSplitButton:
 		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
-		trigger := WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
+		trigger := base.WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
 		if trigger <= 0 {
 			trigger = SplitButtonTrigger
 		}
@@ -109,7 +111,7 @@ func measureControls(f *Frame, n *Node) {
 		}
 	case KindSegmented:
 		var width float32 = 8
-		for _, option := range WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
+		for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
 			width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
 		}
 		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
@@ -120,7 +122,7 @@ func measureControls(f *Frame, n *Node) {
 		}
 	case KindInputGroup:
 		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
-		if n.Kind == KindInputGroup && WidgetsOf(f).GetGroups()[n.Aux].Multiline {
+		if n.Kind == KindInputGroup && base.WidgetsOf(f).GetGroups()[n.Aux].Multiline {
 			n.Pref[AxisY] = 64
 		}
 	case KindTextarea:
@@ -184,7 +186,7 @@ func paintInput(f *Frame, n *Node) {
 	// What it says of its alignment is the same, but a field is start-aligned unless it says
 	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
 	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
-	snapshot := WidgetsOf(f).GetInputs()[n.Aux]
+	snapshot := base.WidgetsOf(f).GetInputs()[n.Aux]
 	if n.TextEnd {
 		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
 			snapshot.Alignment = gfx.AlignEnd
@@ -215,8 +217,8 @@ func paintTextarea(f *Frame, n *Node) {
 	if n.Flags&FlagHasColor != 0 {
 		theme := f.Palette
 		theme.Foreground = n.Color
-		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), WidgetsOf(f).GetTextareas()[n.Aux])
+		components.PaintTextareaContent(f.Surface, theme, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
 		return
 	}
-	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), WidgetsOf(f).GetTextareas()[n.Aux])
+	components.PaintTextareaContent(f.Surface, f.Palette, n.Rect, f.ContentRect(n), base.WidgetsOf(f).GetTextareas()[n.Aux])
 }

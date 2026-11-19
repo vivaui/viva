@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 )
 
@@ -33,7 +34,7 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 	}
 	rowBox.Children(func() {
 		b := Row(c).Height(s.HeightOf(node, theme)).Shrink(0).PadRight(8).PadLeft(left).Gap(theme.Metrics.GapItem).Items(Center).Draw(s.GetPaint())
-		s.SetDeclaredRows(append(s.GetDeclared(), NewTreeRow(i, key, b.GetI(), b.GetGen(), item)))
+		s.SetDeclaredRows(append(s.GetDeclared(), base.NewTreeRow(i, key, b.GetI(), b.GetGen(), item)))
 		b.Children(func() {
 			if s.Content != nil {
 				s.Content(i)

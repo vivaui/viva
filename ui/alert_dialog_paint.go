@@ -1,13 +1,14 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 )
 
 // paintAlertDialog paints a confirmation: components.AlertDialog owns its scrim,
 // surface, title, description, actions, focus trap and Escape target.
 func paintAlertDialog(f *Frame, n *Node) {
-	d := &WidgetsOf(f).GetAlertDialogs()[n.Aux]
+	d := &base.WidgetsOf(f).GetAlertDialogs()[n.Aux]
 	spec := d.SpecPtr()
 	options := components.AlertDialogOptions{
 		Layer: d.GetLayer(), Scope: spec.Scope,

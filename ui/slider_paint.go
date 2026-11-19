@@ -1,13 +1,14 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
 
 func paintSlider(f *Frame, n *Node) {
 	f.SettleSlider(n)
-	d := &WidgetsOf(f).GetSliders()[n.Aux]
+	d := &base.WidgetsOf(f).GetSliders()[n.Aux]
 	s := d.GetState()
 	s.SetArea(n.Rect)
 	if n.Flags&FlagThemed == 0 {

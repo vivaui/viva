@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -53,27 +54,27 @@ func framePopover(f *Frame, Anchor Box, spec PopoverSpec) Box {
 	n := b.N()
 	n.Flags |= FlagPopover
 	f.SetPaintPopoverFn(paintPopover)
-	n.Aux = int32(len(WidgetsOf(f).GetPopovers()))
-	WidgetsOf(f).SetPopovers(append(WidgetsOf(f).GetPopovers(), NewPopoverDecl(spec, Anchor.GetI(), WidgetsOf(f).GetLayer())))
+	n.Aux = int32(len(base.WidgetsOf(f).GetPopovers()))
+	base.WidgetsOf(f).SetPopovers(append(base.WidgetsOf(f).GetPopovers(), base.NewPopoverDecl(spec, Anchor.GetI(), base.WidgetsOf(f).GetLayer())))
 	return b
 }
 
 // paintPopover paints a Popover's root inside the layer and focus scope it opens: the
 // press outside, the anchor's press and Escape go to its DismissID.
 func paintPopover(f *Frame, i int32, n *Node) {
-	d := &WidgetsOf(f).GetPopovers()[n.Aux]
+	d := &base.WidgetsOf(f).GetPopovers()[n.Aux]
 	spec := d.SpecPtr()
 	canvas := f.Surface
 	layer := max(d.GetLayer(), f.GetPopupLayer(), widgetLayerBase) + 2
 	canvas.PushLayer(layer)
 	canvas.PushFocusScope(spec.Scope)
 	canvas.ReturnFocus(spec.Scope)
-	if !spec.InitialFocusID.IsZero() && !WidgetsOf(f).PopoverAsked(PopoverFocusAskFor(spec)) {
+	if !spec.InitialFocusID.IsZero() && !base.WidgetsOf(f).PopoverAsked(PopoverFocusAskFor(spec)) {
 		// As AutoFocus is: the keyboard is asked for as the panel opens, not on
 		// every paint, so moving the focus inside the panel stays where the user
 		// put it.
 		canvas.RequestFocus(spec.InitialFocusID)
-		WidgetsOf(f).SetPopoverFocus(append(WidgetsOf(f).GetPopoverFocus(), PopoverFocusAskFor(spec)))
+		base.WidgetsOf(f).SetPopoverFocus(append(base.WidgetsOf(f).GetPopoverFocus(), PopoverFocusAskFor(spec)))
 	}
 	if !spec.DismissID.IsZero() {
 		pass := !spec.ConsumeOutsidePress
@@ -88,15 +89,15 @@ func paintPopover(f *Frame, i int32, n *Node) {
 	}
 	// The panel is opaque to the pointer: a press on its padding does not reach the page.
 	canvas.Block(n.Rect)
-	savedLayer := WidgetsOf(f).GetLayer()
-	WidgetsOf(f).SetLayer(layer)
+	savedLayer := base.WidgetsOf(f).GetLayer()
+	base.WidgetsOf(f).SetLayer(layer)
 	n.Flags &^= FlagPopover
 	presence, pivot := components.PopupMotion(f.Palette, n.Rect, f.Nodes[d.Anchor].Rect)
 	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
 	f.PaintChild(i)
 	canvas.EndPresence()
 	f.Nodes[i].Flags |= FlagPopover
-	WidgetsOf(f).SetLayer(savedLayer)
+	base.WidgetsOf(f).SetLayer(savedLayer)
 	if !spec.DismissID.IsZero() {
 		canvas.SetEscapeTarget(spec.DismissID)
 	}

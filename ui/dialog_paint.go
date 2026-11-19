@@ -44,8 +44,8 @@ func frameDialog(f *Frame, spec DialogSpec) Box {
 	r := root.N()
 	r.Dir = base.DirectionStack
 	r.Flags |= FlagDialog
-	r.Aux = int32(len(WidgetsOf(f).GetDialogs()))
-	d := NewDialogDecl(spec, layer)
+	r.Aux = int32(len(base.WidgetsOf(f).GetDialogs()))
+	d := base.NewDialogDecl(spec, layer)
 	root.Children(func() {
 		surface := f.Column().Width(width).MaxWidth(max(f.GetBounds().Width-32, 1)).MaxHeight(max(f.GetBounds().Height-32, 1)).Self(Center).Pad(padding)
 		switch {
@@ -60,14 +60,14 @@ func frameDialog(f *Frame, spec DialogSpec) Box {
 			d.SetFooter(f.Row().Height(geometry.Footer.Height).Gap(gap).Justify(End).Items(Center).GetI())
 		})
 	})
-	WidgetsOf(f).SetDialogs(append(WidgetsOf(f).GetDialogs(), d))
+	base.WidgetsOf(f).SetDialogs(append(base.WidgetsOf(f).GetDialogs(), d))
 	return root
 }
 
 // paintDialog paints a Dialog's root: components.Dialog's scrim and surface, then the
 // body and footer inside the layer and focus scope it opens, then its modal bookkeeping.
 func paintDialog(f *Frame, n *Node) {
-	d := &WidgetsOf(f).GetDialogs()[n.Aux]
+	d := &base.WidgetsOf(f).GetDialogs()[n.Aux]
 	surface := f.Nodes[n.First].Rect
 	dialog := components.BeginDialog(f.Surface, f.Palette, n.Rect, components.DialogOptions{
 		Layer: d.GetLayer(), Scope: d.GetSpec().Scope, DismissID: d.GetSpec().DismissID, CloseID: d.GetSpec().CloseID,

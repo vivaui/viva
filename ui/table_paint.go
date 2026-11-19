@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -13,7 +14,7 @@ func paintTableRows(f *Frame, t *TableDecl, rows Rect, First, Last int, top, con
 	canvas := f.Surface
 	table := components.BeginTable(canvas, f.Palette, rows, t.GetSpec().Columns).
 		RowHeight(rowHeight).FontSize(t.GetSpec().FontSize).CellPadding(t.GetSpec().CellPadding)
-	w := WidgetsOf(f)
+	w := base.WidgetsOf(f)
 	if cap(w.GetCells()) < len(t.GetSpec().Columns) {
 		w.SetCells(make([]string, len(t.GetSpec().Columns)))
 	}
@@ -96,8 +97,8 @@ func paintTableScrollbars(f *Frame, t *TableDecl, r, body Rect, Content gfx.Size
 func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight float32) {
 	canvas := f.Surface
 	bounds := Rect{X: r.X, Y: r.Y, Width: r.Width, Height: headerHeight}
-	cells := components.TableCellBounds(t.GetSpec().Columns, bounds, WidgetsOf(f).GetRects()[:0])
-	WidgetsOf(f).SetRectsCells(cells[:0])
+	cells := components.TableCellBounds(t.GetSpec().Columns, bounds, base.WidgetsOf(f).GetRects()[:0])
+	base.WidgetsOf(f).SetRectsCells(cells[:0])
 	hover := f.Palette.Hover
 	for column, cell := range cells {
 		if column < len(t.GetSpec().Sortable) && t.GetSpec().Sortable[column] && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column) {

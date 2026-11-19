@@ -1,11 +1,12 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 )
 
 func paintTabs(f *Frame, n *Node) {
-	t := &WidgetsOf(f).GetTabs()[n.Aux]
+	t := &base.WidgetsOf(f).GetTabs()[n.Aux]
 	// The strip is as tall as the element: an explicit height is the trigger's,
 	// and the line variant's measured height keeps the room for its indicator
 	// below the triggers.

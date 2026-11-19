@@ -5,7 +5,6 @@ import (
 
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/style"
 	"github.com/vivaui/viva/window"
 )
 
@@ -210,8 +209,6 @@ func Combobox[T comparable](c C, Value *T, choices []T, nameOf func(T) string, L
 
 func ComboKey(Value string) (index int, isKey bool) { return base.ComboKey(Value) }
 
-func OptionDisabled(disabled []bool, i int) bool { return base.OptionDisabled(disabled, i) }
-
 func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
 	return base.ColorSwatch(c, Color, selected, Label)
 }
@@ -223,8 +220,6 @@ func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string) Box {
 func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label string) Box {
 	return base.ColorPickerID(c, ID, state, Color, Label)
 }
-
-func Summary(v base.ColorPickerValue) string { return base.Summary(v) }
 
 func Slider(c C, state *SliderState) Box { return base.Slider(c, state) }
 
@@ -276,10 +271,6 @@ func BindIconHover(state *base.IconHoverState, ID gfx.ID) IconHover {
 
 func Dialog(c C, spec DialogSpec) Box { return base.Dialog(c, spec) }
 
-func NewDialogDecl(spec DialogSpec, layer uint16) DialogDecl {
-	return base.NewDialogDecl(spec, layer)
-}
-
 func AlertDialog(c C, spec AlertDialogSpec) Box { return base.AlertDialog(c, spec) }
 
 func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func()) bool {
@@ -300,10 +291,6 @@ func Popover(c C, Anchor Box, open *bool, body func()) bool {
 
 func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
 	return base.PopoverWith(c, Anchor, spec, open, body)
-}
-
-func NewPopoverDecl(spec PopoverSpec, anchor int32, layer uint16) PopoverDecl {
-	return base.NewPopoverDecl(spec, anchor, layer)
 }
 
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
@@ -336,10 +323,6 @@ func Tree(c C, state *TreeState, n int, Label func(i int) string, Content func(i
 	return base.Tree(c, state, n, Label, Content)
 }
 
-func NewTreeRow(index, key int, node int32, gen uint32, item style.TreeItem) TreeRow {
-	return base.NewTreeRow(index, key, node, gen, item)
-}
-
 func Memo[T comparable](c C, Value T, fn func()) Box { return base.Memo(c, Value, fn) }
 
 func MemoCheck(on bool) { base.MemoCheck(on) }
@@ -363,8 +346,6 @@ func Effect[T any, K comparable](c C, state *EffectState[T, K], key K) {
 func ID(c C) gfx.ID { return base.ID(c) }
 
 func NewPage(config PageConfig) *Page { return base.NewPage(config) }
-
-func WidgetsOf(f *Frame) *Widgets { return base.WidgetsOf(f) }
 
 func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
 	return base.Shortcut(c, modifiers, key)

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -32,7 +33,7 @@ func drawerDeclComponent(spec *DrawerDecl, Surface *gfx.Canvas, Palette Theme, b
 // paintDrawer paints a Drawer's root: the scrim, the panel and its header, then the
 // body and footer inside the layer and focus scope it opens.
 func paintDrawer(f *Frame, n *Node) {
-	d := &WidgetsOf(f).GetDrawers()[n.Aux]
+	d := &base.WidgetsOf(f).GetDrawers()[n.Aux]
 	drawer := drawerComponent(d.SpecPtr(), f.Surface, f.Palette, n.Rect, d.GetLayer())
 	if n.Flags&FlagDisabled != 0 {
 		drawer = drawer.Disabled()

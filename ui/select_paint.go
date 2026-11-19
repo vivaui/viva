@@ -1,11 +1,12 @@
 package ui
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 )
 
 func measureSelect(f *Frame, n *Node) {
-	d := &WidgetsOf(f).GetSelects()[n.Aux]
+	d := &base.WidgetsOf(f).GetSelects()[n.Aux]
 	widest := d.GetState().WidestOption(f.Surface, d.GetLabels(), f.Palette.Metrics.FontSizeM)
 	height := f.Palette.Metrics.ControlHeight
 	switch {
@@ -18,7 +19,7 @@ func measureSelect(f *Frame, n *Node) {
 }
 
 func paintSelect(f *Frame, n *Node) {
-	d := &WidgetsOf(f).GetSelects()[n.Aux]
+	d := &base.WidgetsOf(f).GetSelects()[n.Aux]
 	count := len(d.GetLabels())
 	// A Select is as tall as it measures unless the application gave it a height,
 	// which then sizes the trigger itself.
@@ -69,16 +70,16 @@ func paintSelect(f *Frame, n *Node) {
 		control.AddScrollUp(d.GetScope().At(count+3), first == 0)
 	}
 	// The rows' rectangles are kept for the frame, for a list the caller paints (Part).
-	d.SetRects(int32(len(WidgetsOf(f).GetRows())))
+	d.SetRects(int32(len(base.WidgetsOf(f).GetRows())))
 	for range count {
-		WidgetsOf(f).SetRows(append(WidgetsOf(f).GetRows(), Rect{}))
+		base.WidgetsOf(f).SetRows(append(base.WidgetsOf(f).GetRows(), Rect{}))
 	}
 	for index := first; index < first+visible && index < count; index++ {
-		item := components.SelectItem{ID: d.GetScope().At(index), Label: d.GetLabels()[index], Selected: index == d.GetSelected(), Disabled: OptionDisabled(d.GetDisabled(), index)}
+		item := components.SelectItem{ID: d.GetScope().At(index), Label: d.GetLabels()[index], Selected: index == d.GetSelected(), Disabled: base.OptionDisabled(d.GetDisabled(), index)}
 		if index < len(d.GetIcons()) {
 			item.Icon = d.GetIcons()[index]
 		}
-		WidgetsOf(f).GetRows()[int(d.GetRects())+index] = control.AddItem(item)
+		base.WidgetsOf(f).GetRows()[int(d.GetRects())+index] = control.AddItem(item)
 	}
 	if visible < count {
 		control.AddScrollDown(d.GetScope().At(count+4), first+visible >= count)
