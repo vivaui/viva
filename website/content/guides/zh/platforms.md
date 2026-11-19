@@ -26,9 +26,9 @@ Win32 事件、带预编译着色器的 Direct3D 11、用于测量的 DirectWrit
 
 ## Linux
 
-通过动态加载的系统 XCB、Vulkan、Pango 和 Cairo 使用 X11，事件循环是阻塞式的，空闲时不重绘。
+通过动态加载的系统 XCB、Pango 和 Cairo 使用 X11，有 GPU 驱动时再用 Vulkan；事件循环是阻塞式的，空闲时不重绘。
 
-- X11，使用系统自带的 XCB 和 Vulkan 库。
+- X11，使用系统自带的 XCB、Pango 和 Cairo 库；Vulkan 加载库和驱动提供 GPU 加速，缺失时用 CPU 渲染。
 - Pango 与 Cairo 负责文字。
 - 可打包为带安装脚本的 `tar.gz` 或 `.deb`。
 - 文件对话框、打开 URL 和通知使用已安装的桌面工具，见[系统集成](/zh/docs/system-integration/)。

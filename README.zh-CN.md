@@ -32,7 +32,7 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 `viva init` 会写一个可直接运行的项目：一个窗口、一个不用打开窗口就能驱动它的测试、`viva.toml`，以及一份描述编程模型的 `AGENTS.md`。`viva build` 把发布程序写到 `build/`，`viva package` 写出平台自己的包。
 
-环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB 和 Vulkan 加载库的 X11；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
+环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB、Pango 和 Cairo 库的 X11，Vulkan 加载库和驱动用于 GPU 加速，缺失时窗口用 CPU 渲染；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
 当前版本是 `v0.6.5`；要固定版本就写明（`@v0.6.5`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 

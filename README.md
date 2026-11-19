@@ -50,9 +50,11 @@ opening one, `viva.toml`, and an `AGENTS.md` describing the programming model.
 platform's own bundle.
 
 Requirements: Go 1.26 or newer (viva fetches it when missing). On macOS the Xcode command-line tools, because
-Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
-Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
-the system libraries at runtime and bundles none of them.
+Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB,
+Pango and Cairo libraries, and a Vulkan loader and driver for GPU acceleration
+(a machine without them draws on the CPU); on Windows, Win32 with Direct3D 11
+and DirectWrite. Viva loads the system libraries at runtime and bundles none of
+them.
 
 The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in

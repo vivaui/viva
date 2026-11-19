@@ -26,9 +26,9 @@ Win32 events, Direct3D 11 with embedded precompiled shaders, DirectWrite for mea
 
 ## Linux
 
-X11 through dynamically loaded system XCB, Vulkan, Pango and Cairo, with a blocking event loop that does no idle redraw.
+X11 through dynamically loaded system XCB, Pango and Cairo, and Vulkan when a GPU driver is available, with a blocking event loop that does no idle redraw.
 
-- X11 with the system's XCB and Vulkan libraries.
+- X11 with the system's XCB, Pango and Cairo libraries; a Vulkan loader and driver add GPU acceleration, and the CPU renderer covers a machine without them.
 - Pango and Cairo for text.
 - Packaging to a `tar.gz` with an install script, or a `.deb`.
 - File dialogs, URL opening and notifications use installed desktop utilities; see [System integration](/en/docs/system-integration/).
