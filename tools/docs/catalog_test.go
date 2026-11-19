@@ -610,6 +610,9 @@ func TestPageSnippetsNameRealAPIs(t *testing.T) {
 // they are checked for parse/API/name use elsewhere; this test proves the rest
 // are real Go against the current page API.
 func TestModelFreePageSnippetsCompile(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("compiling snippets needs the host Go toolchain")
+	}
 	root, err := findRoot()
 	if err != nil {
 		t.Fatal(err)
