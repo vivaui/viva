@@ -50,10 +50,18 @@ func framePopover(f *Frame, Anchor Box, spec PopoverSpec) Box {
 		b.BelowBox(Anchor, offset, align)
 	}
 	b.N().PlaceShift = spec.AlignOffset
-	b.Width(width).Pad(metrics.PadSurface).Gap(metrics.GapItem).
+	padding := spec.Padding
+	if padding <= 0 {
+		padding = metrics.PadSurface
+	}
+	b.Width(width).Pad(padding).Gap(metrics.GapItem).
 		Background(look.Fill).Border(1, look.Border).Radius(look.Radius).Shadow(look.Shadow)
 	// Within the frame less the margin the components keep from its edges.
-	b.Within(f.GetBounds().Inset(gfx.All(8)))
+	margin := spec.Margin
+	if margin <= 0 {
+		margin = 8
+	}
+	b.Within(f.GetBounds().Inset(gfx.All(margin)))
 	n := b.N()
 	n.Flags |= FlagPopover
 	f.SetPaintPopoverFn(paintPopover)
@@ -95,10 +103,14 @@ func paintPopover(f *Frame, i int32, n *Node) {
 	savedLayer := base.WidgetsOf(f).GetLayer()
 	base.WidgetsOf(f).SetLayer(layer)
 	n.Flags &^= FlagPopover
-	presence, pivot := components.PopupMotion(f.Palette, n.Rect, f.Nodes[d.Anchor].Rect)
-	canvas.BeginPresence(spec.Scope, 0, presence, pivot)
+	if !spec.Instant {
+		presence, pivot := components.PopupMotion(f.Palette, n.Rect, f.Nodes[d.Anchor].Rect)
+		canvas.BeginPresence(spec.Scope, 0, presence, pivot)
+	}
 	f.PaintChild(i)
-	canvas.EndPresence()
+	if !spec.Instant {
+		canvas.EndPresence()
+	}
 	f.Nodes[i].Flags |= FlagPopover
 	base.WidgetsOf(f).SetLayer(savedLayer)
 	if !spec.DismissID.IsZero() {

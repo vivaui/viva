@@ -34,7 +34,11 @@ func drawerDeclComponent(spec *DrawerDecl, Surface *gfx.Canvas, Palette Theme, b
 // body and footer inside the layer and focus scope it opens.
 func paintDrawer(f *Frame, n *Node) {
 	d := &base.WidgetsOf(f).GetDrawers()[n.Aux]
-	drawer := drawerComponent(d.SpecPtr(), f.Surface, f.Palette, n.Rect, d.GetLayer())
+	bounds := d.GetViewport()
+	if bounds.Width <= 0 || bounds.Height <= 0 {
+		bounds = n.Rect
+	}
+	drawer := drawerComponent(d.SpecPtr(), f.Surface, f.Palette, bounds, d.GetLayer())
 	if n.Flags&FlagDisabled != 0 {
 		drawer = drawer.Disabled()
 	}

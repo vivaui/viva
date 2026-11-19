@@ -126,3 +126,62 @@ func TestPopoverCanBeAHoverPreview(t *testing.T) {
 		t.Fatal("Escape closed a hover preview")
 	}
 }
+
+// Margin is the room the panel keeps from the window's edges as it shifts to fit:
+// a page that does not own the title strip asks for more than the default 8.
+func TestPopoverMarginKeepsClearOfTheWindowEdge(t *testing.T) {
+	x := func(margin float32) float32 {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+				anchor := ui.Button(c, "Anchor").Width(100)
+				ui.PopoverWith(c, anchor, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, Width: 200, Margin: margin}, &open, func() {
+					body = ui.Column(c).FillWidth().Height(40)
+				})
+			})
+		})
+		return body.Rect().X
+	}
+	if tight, roomy := x(8), x(40); roomy != tight-32 {
+		t.Fatalf("a margin of 40 put the panel at %v against %v at 8, want 32 to the left", roomy, tight)
+	}
+}
+
+// Padding insets the panel's content from its surface: a menu-like panel gives a
+// smaller one so its rows line up with the menus around it.
+func TestPopoverPaddingInsetsTheBody(t *testing.T) {
+	x := func(padding float32) float32 {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			anchor := ui.Button(c, "Anchor")
+			ui.PopoverWith(c, anchor, ui.PopoverSpec{Width: 200, Padding: padding}, &open, func() {
+				body = ui.Column(c).FillWidth().Height(40)
+			})
+		})
+		return body.Rect().X
+	}
+	if tight, roomy := x(4), x(20); roomy != tight+16 {
+		t.Fatalf("a padding of 20 put the body at %v against %v at 4, want 16 further in", roomy, tight)
+	}
+}
+
+// Instant only removes the entrance motion: the panel and its body keep the same
+// geometry as an animated one.
+func TestPopoverInstantKeepsTheLayout(t *testing.T) {
+	rect := func(instant bool) gfx.Rect {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			anchor := ui.Button(c, "Anchor")
+			ui.PopoverWith(c, anchor, ui.PopoverSpec{Width: 200, Instant: instant}, &open, func() {
+				body = ui.Column(c).FillWidth().Height(40)
+			})
+		})
+		return body.Rect()
+	}
+	if animated, instant := rect(false), rect(true); instant != animated {
+		t.Fatalf("instant body %+v, animated %+v", instant, animated)
+	}
+}

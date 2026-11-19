@@ -73,7 +73,7 @@ func main() {
 
 ## 弹出框
 
-`ui.Popover(c, anchor, &open, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`ui.PopoverWith` 接受 `ui.PopoverSpec`，可以指定方向、对齐和宽度。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
+`ui.Popover(c, anchor, &open, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`ui.PopoverWith` 接受 `ui.PopoverSpec`，可以指定方向、对齐、宽度、内容内边距、与窗口边缘保持的边距（未设置时为 8），以及 `Instant`：无入场动画地打开，适合随用户输入在光标下出现的列表。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
 
 在面板外按下或按 Escape 会把 `open` 设为 false。这次按下随后会传给指针下方的控件，与网页里的 popover 一致：一次点击另一个按钮，既关闭菜单，也按下那个按钮。在锚点上按下只会关闭面板，所以切换 `open` 的触发按钮不会在同一次点击里又把它打开。焦点回到面板打开前的位置。`Popover` 报告关闭它的那一遍绘制；必须保持打开的面板在那里把 `open` 改回 true。
 

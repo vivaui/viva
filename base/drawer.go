@@ -36,6 +36,10 @@ type DrawerSpec struct {
 	NonModal     bool
 	InitialFocus gfx.ID
 	Swipe        bool
+	// Inset confines the drawer and its dismiss target to the window less these
+	// edges, as a page leaves a title strip or a status bar it does not own out
+	// of an overlay. Zero covers the whole window.
+	Inset gfx.Insets
 }
 
 // Drawer shows a panel that slides in from an edge of the window while *open, as
@@ -138,7 +142,7 @@ func (d *DrawerDeclaration) swipe(f *Frame, s *DrawerSwipe) bool {
 	}
 	if event, ok := canvas.PointerOn(d.handle); ok {
 		// The pointer's travel toward the edge, and how far the panel reaches from it.
-		content := d.Boxes(canvas, f.Palette, f.bounds, 0).Content
+		content := d.Boxes(canvas, f.Palette, f.bounds.Inset(d.Inset), 0).Content
 		toward, extent := event.Y, content.Height
 		switch d.Side {
 		case DrawerTop:
@@ -178,15 +182,18 @@ func (d *DrawerDeclaration) swipe(f *Frame, s *DrawerSwipe) bool {
 
 type drawerState struct {
 	spec         DrawerDeclaration
+	viewport     Rect
 	body, footer int32 // the parts declared into; footer is -1 without one
 	layer        uint16
 }
 
 // drawer declares a Drawer's root: an element over the whole frame holding the
-// body and footer at the rectangles components.Drawer gives them.
+// body and footer at the rectangles components.Drawer gives them. The drawer
+// itself covers the frame less its spec's Inset.
 func (f *Frame) Drawer(spec DrawerDeclaration, footer bool) Box {
 	layer := f.WidgetLayer() + 2
-	layout := spec.Boxes(f.Surface, f.Palette, f.bounds, layer)
+	viewport := f.bounds.Inset(spec.Inset)
+	layout := spec.Boxes(f.Surface, f.Palette, viewport, layer)
 	body := layout.Body
 	switch {
 	case spec.title == "":
@@ -202,7 +209,7 @@ func (f *Frame) Drawer(spec DrawerDeclaration, footer bool) Box {
 		f.paintDrawerFn = PaintDrawer
 	}
 	r.Aux = int32(len(WidgetsOf(f).drawers))
-	d := drawerState{spec: spec, layer: layer, footer: -1}
+	d := drawerState{spec: spec, viewport: viewport, layer: layer, footer: -1}
 	// A Stack's children sit at its top left; the margin moves each to its rectangle.
 	place := func(b Box, r Rect) Box {
 		return b.Size(r.Width, r.Height).Self(Start).MarginTop(r.Y - f.bounds.Y).MarginLeft(r.X - f.bounds.X)

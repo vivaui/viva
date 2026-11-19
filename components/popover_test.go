@@ -219,3 +219,22 @@ func TestSubmenuPlacementFollowsTheRow(t *testing.T) {
 		t.Fatalf("flipped placement = %+v", flipped)
 	}
 }
+
+// Margin is the room the panel keeps from the viewport's edges as it is shifted
+// to fit, and zero keeps the default 8.
+func TestPopoverMarginInsetFromTheViewport(t *testing.T) {
+	viewport := gfx.Rect{Width: 480, Height: 480}
+	anchor := gfx.Rect{X: 380, Y: 400, Width: 100, Height: 32}
+	placed := func(margin float32) gfx.Rect {
+		var canvas gfx.Canvas
+		return BeginPopover(&canvas, gfx.LightTheme(), viewport, anchor, PopoverOptions{
+			Side: PopoverBottom, Align: PopoverAlignStart, ContentSize: gfx.Size{Width: 200, Height: 40}, Margin: margin,
+		}).Paint("", "").Content
+	}
+	if got := placed(0); got.X != 272 {
+		t.Fatalf("the default margin put the panel at %v, want 272", got.X)
+	}
+	if got := placed(40); got.X != 240 {
+		t.Fatalf("a margin of 40 put the panel at %v, want 240", got.X)
+	}
+}

@@ -413,11 +413,15 @@ func popoverHeader(c C, spec PopoverSpec) {
 	// The panel's gap is GapItem; a header is a surface padding above its body, as
 	// components.Popover has it.
 	gap := c.f.Palette.Metrics
+	padding := spec.Padding
+	if padding <= 0 {
+		padding = gap.PadSurface
+	}
 	weight := spec.TitleWeight
 	if weight == 0 {
 		weight = gfx.WeightMedium
 	}
-	Column(c).FillWidth().Gap(4).MarginBottom(gap.PadSurface - gap.GapItem).Children(func() {
+	Column(c).FillWidth().Gap(4).MarginBottom(padding - gap.GapItem).Children(func() {
 		if spec.Title != "" {
 			Text(c, spec.Title).Weight(weight)
 		}

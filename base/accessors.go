@@ -1451,6 +1451,9 @@ func (x *drawerState) GetLayer() uint16 { return x.layer }
 // GetSpec reads the spec of drawerState for the styled painting layer.
 func (x *drawerState) GetSpec() DrawerDeclaration { return x.spec }
 
+// GetViewport reads the area the drawer covers, the frame less its spec's Inset.
+func (x *drawerState) GetViewport() Rect { return x.viewport }
+
 // GetField reads the field of fieldEntry for the styled painting layer.
 func (x *fieldEntry) GetField() *Field { return x.field }
 

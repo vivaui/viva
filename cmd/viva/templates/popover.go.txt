@@ -84,6 +84,9 @@ type PopoverOptions struct {
 	// A non-modal popover asks the runtime directly (Canvas.RequestFocus); the
 	// request is honored once, so it does not steal focus back afterwards.
 	InitialFocusID gfx.ID
+	// Margin is the space the panel keeps from the edges of the viewport as it
+	// is placed and flipped, 8 when zero.
+	Margin float32
 }
 
 // PopoverLayout exposes the content and body slots.
@@ -255,9 +258,13 @@ func (popover Popover) contentBounds(width, headerHeight float32) (gfx.Rect, Ove
 	if offset == 0 {
 		offset = 4
 	}
+	margin := popover.options.Margin
+	if margin <= 0 {
+		margin = 8
+	}
 	return PlaceOverlay(popover.anchor, gfx.Size{Width: width, Height: height}, popover.viewport, OverlayPlacement{
 		Side: OverlaySide(popover.options.Side), Align: OverlayAlign(popover.options.Align),
-		SideOffset: offset, AlignOffset: popover.options.AlignOffset, Margin: 8,
+		SideOffset: offset, AlignOffset: popover.options.AlignOffset, Margin: margin,
 	})
 }
 

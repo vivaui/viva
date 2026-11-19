@@ -37,6 +37,18 @@ type PopoverSpec struct {
 	// Width is the panel's width, 288 when zero; its height fits what is in it
 	// (give the body a Height to fix it).
 	Width float32
+	// Padding insets the panel's content from its surface, the theme's PadSurface
+	// when zero. A menu-like panel gives components.DropdownMenuPadding so its rows
+	// line up with the menus around it.
+	Padding float32
+	// Margin is the space the panel keeps from the edges of the window as it
+	// flips and shifts to stay inside it, 8 when zero. A panel that must stay
+	// clear of a title strip the page does not own gives a larger margin.
+	Margin float32
+	// Instant opens the panel without the entrance motion, as a list that
+	// appears under the cursor as the user types has no travel of its own. The
+	// layout is the animated panel's.
+	Instant bool
 	// Radius overrides the panel's corner radius; zero keeps the popover recipe's.
 	// A hover card, painted with components.PopupRecipe, is rounder than a popover.
 	Radius float32
