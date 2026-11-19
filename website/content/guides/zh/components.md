@@ -19,7 +19,35 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 主题是一个值，`gfx.LightTheme()` 或 `gfx.DarkTheme()`。切换外观就是改用另一个主题绘制。
 
-`Begin*` 是样式层的构造器，不是第二套页面 API。页面控件用 `ui.*`、`ui.*Base` 和 `ui.Control` 声明；`components.Begin*` 用于 `Draw` 内部、纯测量或 `viva add` 复制出的源码。“零 Begin”不是目标：边界是页面行为不再手拼，而不是绘制构造器消失。`ui/multiselect`、`ui/hierarchypicker` 这类可复用的重型复合控件走 opt-in 包。
+`Begin*` 是样式层的构造器，不是第二套页面 API。页面控件用 `ui.*`、`ui.*Base` 和 `ui.Control` 声明；`components` 包里的 `Begin*` 用于 `Draw` 内部、纯测量或 `viva add` 复制出的源码。“零 Begin”不是目标：边界是页面行为不再手拼，而不是绘制构造器消失。`ui/multiselect`、`ui/hierarchypicker` 这类可复用的重型复合控件走 opt-in 包。
+
+## 可选页面包
+
+重功能或有状态的页面控件放在 `ui/<能力名>` 的独立包里。用到才 import；包本身就是按需付费的边界。
+
+- 编辑器与可视化：`ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
+- 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
+- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`
+
+包名是能力名，没有 `view` 后缀；状态类型按角色命名，不重复包名：`calendar.State`、`message.Row`、`attachment.Card`。局部变量避让包名（`cal`、`msg`、`pic`）；model 字段可以保留领域名词（`m.calendar`），因为选择器不会遮蔽包。
+
+```go
+cal := &m.calendar
+calendar.View(c, "Calendar", cal).FillWidth()
+msg := message.New().Name("Ari").Body("Ready")
+message.View(c, "Ari", msg)
+```
+
+保留自己布局的自定义表面可以在 `ui.Slot` 里、按组件原来的矩形放一个页面控件：
+
+```go
+slot := ui.Slot(c).Size(22, 24).Shrink(0)
+slot.Children(func() {
+    ui.Checkbox(c, &copy, "").Absolute().Left(0).Top(0).Size(16, 16).Hit(id, "Select")
+})
+```
+
+应用自己的 dispatcher 管理真实值时，绑定一个副本。表面其余部分继续用 `Draw`/canvas；不要为了统一把整个表面改成页面声明。`ui/slot_parity_test.go` 保证 Checkbox、Switch、FormField 这条路径与 `components` 包里的 `Begin*` 的像素和 hit 一致。
 
 ## 树形导航
 
