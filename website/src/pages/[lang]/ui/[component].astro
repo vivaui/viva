@@ -74,7 +74,7 @@ const optionalImports = {
         const own = example.Snippet && !/components\.|Begin/.test(example.Snippet);
         const localized = locale === 'zh' ? example.PageSnippetZh : example.PageSnippet;
         const usage = localized || example.PageSnippet || (own ? example.Snippet : '');
-        if (!usage.trim()) throw new Error(`No page usage for ${page.ID}/${example.ID} (${locale})`);
+        if (!usage || !usage.trim()) throw new Error(`No page usage for ${page.ID}/${example.ID} (${locale})`);
         const imports = Object.entries(optionalImports)
           .filter(([name]) => new RegExp(`\\b${name}\\.`).test(usage))
           .map(([, path]) => `import "${path}"`);
