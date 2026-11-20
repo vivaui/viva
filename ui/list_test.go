@@ -135,6 +135,33 @@ func TestListRowHeightAtReportsLaidOutRows(t *testing.T) {
 	}
 }
 
+// The first paint estimates unseen rows at 32 px. Once its 24 px rows are
+// measured, a wheel to the old end must use the new extent before choosing rows.
+func TestListWheelClampsToTheMeasuredExtent(t *testing.T) {
+	var state ui.ListState
+	state.Label = func(i int) string { return "row " + strconv.Itoa(i) }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.List(c, &state, 400, func(row ui.ListRow) {
+				row.Element.Height(24).Children(func() {
+					ui.Text(row.C, "row "+strconv.Itoa(row.Index))
+				})
+			}).Label("Rows").Grow(1)
+		})
+	})
+	area := d.ListArea("Rows")
+	if err := d.driver.Scroll(gfx.ScrollEvent{X: area.X + 20, Y: area.Y + 20, DeltaY: 20000, Precise: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !d.has("row 399") {
+		t.Fatalf("the end is blank after scrolling: Visible %v", visibleOf(&state))
+	}
+	bottom := d.hit("row 399").Bounds
+	if gap := area.Y + area.Height - bottom.Y - bottom.Height; gap < -1 || gap > 1 {
+		t.Fatalf("last row is %v px from the end of the viewport", gap)
+	}
+}
+
 func fmtSscan(Value string, i *int) (int, error) {
 	n, err := strconv.Atoi(strings.TrimPrefix(Value, "row "))
 	*i = n
