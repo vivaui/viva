@@ -26,9 +26,14 @@ func paintTabs(f *Frame, n *Node) {
 		widgets := base.WidgetsOf(f)
 		labels := t.GetLabels()
 		widgets.TabOptions = widgets.TabOptions[:0]
+		iconOnly := t.GetIconOnly()
 		for index, label := range labels {
+			glyph := icon(index)
 			widgets.TabOptions = append(widgets.TabOptions, base.TabOption{
-				ID: t.GetScope().At(index), Label: label, Icon: icon(index),
+				ID: t.GetScope().At(index), Label: label, Icon: glyph,
+				// An icon-only strip still needs a glyph to paint; a zero one
+				// leaves the tab text-only, as TabIconOnly documents.
+				IconOnly: iconOnly && (len(glyph.Commands) > 0 || len(glyph.Layers) > 0),
 			})
 		}
 		selected := gfx.ID{}

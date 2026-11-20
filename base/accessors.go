@@ -1209,6 +1209,9 @@ func (x *TabsDecl) GetLabels() []string { return x.labels }
 // GetIcon reads the icon function of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetIcon() func(index int) gfx.Icon { return x.icon }
 
+// GetIconOnly reads the iconOnly of TabsDecl for the styled painting layer.
+func (x *TabsDecl) GetIconOnly() bool { return x.iconOnly }
+
 // GetLine reads the line of TabsDecl for the styled painting layer.
 func (x *TabsDecl) GetLine() bool { return x.line }
 
