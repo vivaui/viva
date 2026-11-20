@@ -66,9 +66,15 @@ int main(void) {
             }
             check(viva_application_update_icon(icon) == 1, "Dock update accepted");
             NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[[NSApp applicationIconImage] TIFFRepresentation]];
-            NSColor *pixel = [[rep colorAtX:9 y:9] colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
-            check(pixel != nil && (color == 0 ? pixel.redComponent > 0.9 && pixel.blueComponent < 0.1
-                                              : pixel.blueComponent > 0.9 && pixel.redComponent < 0.1),
+            NSColor *pixel = [[rep colorAtX:rep.pixelsWide / 2 y:rep.pixelsHigh / 2]
+                             colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
+            int matches = pixel != nil && (color == 0 ? pixel.redComponent > 0.9 && pixel.blueComponent < 0.1
+                                                       : pixel.blueComponent > 0.9 && pixel.redComponent < 0.1);
+            if (!matches) {
+                fprintf(stderr, "Dock image %ldx%ld center: %s\n", (long)rep.pixelsWide, (long)rep.pixelsHigh,
+                        [[pixel description] UTF8String]);
+            }
+            check(matches,
                   "Dock stores the new pixels, including a second change");
         }
         [NSApp setApplicationIconImage:originalIcon];
