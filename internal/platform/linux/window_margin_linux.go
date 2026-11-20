@@ -169,6 +169,11 @@ func (win *window) setFrameExtents(margin uint32) {
 // around it, so a press in the rest of the margin goes to the window behind.
 // The extension is optional; without it the whole window takes input.
 func (win *window) updateInputRegion() {
+	// A drag preview stays input-transparent across ConfigureNotify events.
+	// Restoring the regular zero-margin region would intercept its own drop.
+	if win.preview {
+		return
+	}
 	if win.margin == 0 {
 		if win.shapeRectangles != nil {
 			rectangle := [4]uint16{0, 0, uint16(win.width), uint16(win.height)}

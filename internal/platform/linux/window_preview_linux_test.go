@@ -48,6 +48,26 @@ func TestPreviewNativeX11Contract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer owner.close()
+	var setFocus func(uintptr, uint8, uint32, uint32) xcbVoidCookie
+	var getFocus func(uintptr) xcbVoidCookie
+	var focusReply func(uintptr, xcbVoidCookie, *unsafe.Pointer) unsafe.Pointer
+	purego.RegisterLibFunc(&setFocus, owner.api.library, "xcb_set_input_focus")
+	purego.RegisterLibFunc(&getFocus, owner.api.library, "xcb_get_input_focus")
+	purego.RegisterLibFunc(&focusReply, owner.api.library, "xcb_get_input_focus_reply")
+	setFocus(owner.connection, 0, owner.id, 0)
+	checkFocus := func() {
+		t.Helper()
+		result := focusReply(owner.connection, getFocus(owner.connection), nil)
+		if result == nil {
+			t.Fatal("missing keyboard focus reply")
+		}
+		focus := *(*uint32)(unsafe.Add(result, 8))
+		owner.api.free(result)
+		if focus != owner.id {
+			t.Fatalf("keyboard focus=%d, want owner %d", focus, owner.id)
+		}
+	}
+	checkFocus()
 	config := platform.Config{Width: 80, Height: 40, WindowMode: platform.WindowPreview, HasOrigin: true, Origin: gfx.Point{X: 20, Y: 30}}
 	if unavailable, err := openWindow(config); !errors.Is(err, platform.ErrDragPreviewUnsupported) {
 		if unavailable != nil {
@@ -86,6 +106,8 @@ func TestPreviewNativeX11Contract(t *testing.T) {
 	if override != 1 {
 		t.Fatalf("preview override_redirect=%d", override)
 	}
+	// A resize/configure notification must not restore a normal input region.
+	win.updateInputRegion()
 	var rectangles func(uintptr, uint32, uint8) xcbVoidCookie
 	purego.RegisterLibFunc(&rectangles, win.shapeLibrary, "xcb_shape_get_rectangles")
 	purego.RegisterLibFunc(&reply, win.shapeLibrary, "xcb_shape_get_rectangles_reply")
@@ -119,4 +141,5 @@ func TestPreviewNativeX11Contract(t *testing.T) {
 	if x != 40 || y != 50 {
 		t.Fatalf("origin=%d,%d", x, y)
 	}
+	checkFocus()
 }
