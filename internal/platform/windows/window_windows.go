@@ -538,6 +538,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmApplyAppearance:
 		state.settingsChanged()
 		return 0
+	case wmDragEnded:
+		state.cancelPress()
+		return 0
 	case wmClipboardUpdate:
 		notifyClipboardChange()
 		return 0

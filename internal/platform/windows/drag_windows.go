@@ -56,6 +56,10 @@ const (
 	// DATADIR_GET enumerates the formats GetData reads.
 	dataDirGet = 1
 	lindexNone = -1
+	// wmDragEnded is posted to the window once a file drag's loop has ended. The
+	// press that started the drag is then cancelled after the handler that started
+	// it returns. Its number is the next free one after wmSetTitle (0x8053).
+	wmDragEnded = 0x8054
 )
 
 var doDragDrop = ole.NewProc("DoDragDrop")
@@ -433,6 +437,13 @@ func StartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEf
 	// collector cannot follow until DoDragDrop let them go.
 	runtime.KeepAlive(data)
 	runtime.KeepAlive(source)
+	// A drop or a cancel means the drag loop ran, and that loop took the button's
+	// release, so the window never sees it and the application's press stays open.
+	// The message is posted, not sent: the handler that started the drag is still
+	// on the stack, and the application must not be called back from inside it.
+	if uint32(status) == dragdropSDrop || uint32(status) == dragdropSCancel {
+		postMessage.Call(state.window, wmDragEnded, 0, 0)
+	}
 	if err := hresult(status); err != nil {
 		return platform.DragEffectNone, err
 	}
