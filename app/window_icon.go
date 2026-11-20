@@ -20,6 +20,33 @@ type WindowIcon struct {
 	RGBA []byte
 }
 
+type windowIconControl interface {
+	SetIcon(WindowIcon) error
+}
+
+// SetIcon replaces the running window's taskbar and task-switcher icon. On
+// macOS it replaces the application's Dock icon, including in an .app bundle;
+// on Wayland the compositor may keep the desktop entry's icon. Calls are safe
+// from any goroutine. The pixels are copied before returning. An empty or
+// invalid icon changes nothing; unsupported hosts return ErrUnsupported.
+func (window *Window) SetIcon(icon WindowIcon) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("app: window is closed")
+	}
+	if err := icon.validate(); err != nil {
+		return err
+	}
+	if icon.Size == 0 {
+		return fmt.Errorf("app: window icon must not be empty")
+	}
+	control, ok := window.control.(windowIconControl)
+	if !ok {
+		return fmt.Errorf("%w: window icons", ErrUnsupported)
+	}
+	icon.RGBA = append([]byte(nil), icon.RGBA...)
+	return control.SetIcon(icon)
+}
+
 // StatusIcon is the picture as a status-area icon of size pixels, in the form
 // the platform's status area expects. macOS tints its icons to the menu bar, so
 // there it is the picture's mark alone, a template; Windows and Linux show an

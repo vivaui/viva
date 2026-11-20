@@ -193,6 +193,12 @@ type Window interface {
 	Frame() (gfx.Rect, bool)
 }
 
+// WindowIconSetter updates a running window's desktop icon. The caller owns
+// validation and transfers an immutable copy of the pixels to the adapter.
+type WindowIconSetter interface {
+	SetIcon(WindowIcon) error
+}
+
 // WindowMover is implemented by the windows of an adapter that can put a window
 // somewhere without the user dragging it. MoveTo puts the top-left of the
 // content area at origin, in the screen coordinates of Window.Frame. It is

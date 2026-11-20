@@ -3,11 +3,26 @@
 package linux
 
 import (
+	"fmt"
 	"math"
+	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func (w *gtkWindow) SetIcon(icon platform.WindowIcon) error {
+	if w == nil || w.app == nil {
+		return fmt.Errorf("linux: window is closed")
+	}
+	w.app.enqueue(func() {
+		if !w.closed {
+			w.config.Icon = icon
+			w.setIcon()
+		}
+	})
+	return nil
+}
 
 // setIcon gives the window the application's picture where the desktop shows one (the title bar and
 // the task switcher on X11; Wayland takes the icon of the application's desktop entry instead).
@@ -17,12 +32,17 @@ func (w *gtkWindow) setIcon() {
 		return
 	}
 	g := w.g
-	var newFromData func(data *byte, colorspace, alpha, bits, width, height, stride int32, destroy, destroyData uintptr) uintptr
+	var newPixbuf func(colorspace, alpha, bits, width, height int32) uintptr
+	var pixbufPixels func(uintptr) *byte
+	var pixbufStride func(uintptr) int32
 	library, err := purego.Dlopen("libgdk_pixbuf-2.0.so.0", purego.RTLD_NOW|purego.RTLD_GLOBAL)
-	if err != nil || !g.lookup(&newFromData, "gdk_pixbuf_new_from_data") {
+	if err != nil {
 		return
 	}
-	_ = library
+	defer purego.Dlclose(library)
+	if !g.lookup(&newPixbuf, "gdk_pixbuf_new") || !g.lookup(&pixbufPixels, "gdk_pixbuf_get_pixels") || !g.lookup(&pixbufStride, "gdk_pixbuf_get_rowstride") {
+		return
+	}
 	var list uintptr
 	var pixbufs []uintptr
 	for _, size := range netWMIconSizes {
@@ -35,9 +55,16 @@ func (w *gtkWindow) setIcon() {
 		if !tile.Valid() {
 			continue
 		}
-		w.iconData = append(w.iconData, tile.RGBA)
-		pixbuf := newFromData(&tile.RGBA[0], 0, 1, 8, int32(tile.Size), int32(tile.Size), int32(tile.Size*4), 0, 0)
+		pixbuf := newPixbuf(0, 1, 8, int32(tile.Size), int32(tile.Size))
 		if pixbuf != 0 {
+			// GTK can retain a pixbuf after the window replaces its icon. Give
+			// it native-owned pixels instead of retaining Go slices indefinitely
+			// or releasing them while another GTK object still reads them.
+			stride := int(pixbufStride(pixbuf))
+			pixels := unsafe.Slice(pixbufPixels(pixbuf), (tile.Size-1)*stride+tile.Size*4)
+			for row := 0; row < tile.Size; row++ {
+				copy(pixels[row*stride:row*stride+tile.Size*4], tile.RGBA[row*tile.Size*4:(row+1)*tile.Size*4])
+			}
 			pixbufs = append(pixbufs, pixbuf)
 			list = g.listAppend(list, pixbuf)
 		}

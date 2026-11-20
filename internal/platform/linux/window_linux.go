@@ -38,6 +38,8 @@ type window struct {
 	// has not written to the window yet.
 	titleMu        sync.Mutex
 	pendingTitle   string
+	iconMu         sync.Mutex
+	pendingIcon    platform.WindowIcon
 	moveResizeAtom uint32
 	cursor         uint32
 	// themed is the cursor theme's loader, tried once.
@@ -208,6 +210,7 @@ const (
 	commandSetSize
 	commandSetTitle
 	commandPost
+	commandSetIcon
 )
 
 type nativeWindow struct {

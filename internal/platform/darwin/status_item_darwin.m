@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#import <dispatch/dispatch.h>
 
 #include <string.h>
 
@@ -215,23 +216,35 @@ static NSMutableArray<VivaStatusItem *> *viva_status_items;
 static void viva_status_item_remove_now(void *item);
 static void viva_status_items_remove_all(void);
 
-int viva_application_set_icon(viva_status_icon icon) {
-    @autoreleasepool {
-        /* A bundle's own icon is the application's; this is for a program run
-         * from a build directory, which the Dock would show as a plain
-         * executable. */
-        if ([[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"]) {
-            return 0;
+int viva_application_update_icon(viva_status_icon icon) {
+    __block int result = 0;
+    void (^work)(void) = ^{
+        @autoreleasepool {
+            /* The Dock draws an icon at up to 128 points, on a 2x screen from twice
+             * the pixels, so the image is declared at half its pixel size. */
+            NSImage *image = viva_icon_image(icon, icon.size / 2.0);
+            if (image == nil) {
+                return;
+            }
+            [NSApp setApplicationIconImage:image];
+            result = 1;
         }
-        /* The Dock draws an icon at up to 128 points, on a 2x screen from twice
-         * the pixels, so the image is declared at half its pixel size. */
-        NSImage *image = viva_icon_image(icon, icon.size / 2.0);
-        if (image == nil) {
-            return 0;
-        }
-        [NSApp setApplicationIconImage:image];
-        return 1;
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
     }
+    return result;
+}
+
+int viva_application_set_icon(viva_status_icon icon) {
+    /* At startup a bundle keeps its packaged icon. Explicit user changes use
+     * viva_application_update_icon and apply to bundled applications too. */
+    if ([[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"]) {
+        return 0;
+    }
+    return viva_application_update_icon(icon);
 }
 
 void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu) {

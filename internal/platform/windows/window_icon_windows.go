@@ -1,6 +1,11 @@
 package windows
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"fmt"
+	"sync"
+
+	"github.com/vivaui/viva/internal/platform"
+)
 
 const (
 	wmSetIcon = 0x0080
@@ -11,6 +16,38 @@ const (
 )
 
 var sendMessage = user.NewProc("SendMessageW")
+
+const wmUpdateIcon = 0x8055 // after wmDragEnded
+
+type iconRequest struct {
+	mu   sync.Mutex
+	icon platform.WindowIcon
+}
+
+func (window *nativeWindow) SetIcon(icon platform.WindowIcon) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("windows: window is closed")
+	}
+	request := &window.state.pendingIcon
+	request.mu.Lock()
+	request.icon = icon
+	request.mu.Unlock()
+	if ok, _, err := postMessage.Call(window.state.window, wmUpdateIcon, 0, 0); ok == 0 {
+		return fmt.Errorf("windows: request icon: %w", err)
+	}
+	return nil
+}
+
+func (state *windowState) applyIcon() {
+	request := &state.pendingIcon
+	request.mu.Lock()
+	icon := request.icon
+	request.icon = platform.WindowIcon{}
+	request.mu.Unlock()
+	if icon.Valid() && state.window != 0 {
+		state.setIcons(icon)
+	}
+}
 
 // setIcons gives the window the application's picture: the small one for its
 // title bar and the big one for the taskbar button and Alt+Tab. Windows asks
@@ -33,8 +70,12 @@ func (state *windowState) setIcons(icon platform.WindowIcon) {
 		if err != nil {
 			continue
 		}
+		previous := state.icons[kind]
 		state.icons[kind] = handle
 		sendMessage.Call(state.window, wmSetIcon, uintptr(kind), handle)
+		if previous != 0 {
+			destroyIcon.Call(previous)
+		}
 	}
 }
 
