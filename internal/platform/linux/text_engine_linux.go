@@ -108,7 +108,7 @@ func (engine *textEngine) RasterizeText(value string, style gfx.TextStyle, scale
 			Red: float64(style.Color.Red), Green: float64(style.Color.Green),
 			Blue: float64(style.Color.Blue), Alpha: float64(style.Color.Alpha),
 		},
-	}, scale, width, height, false)
+	}, scale, 0, width, height, false)
 	if err != nil {
 		return gfx.Bitmap{}, err
 	}

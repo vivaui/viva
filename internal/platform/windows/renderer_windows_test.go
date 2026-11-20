@@ -417,12 +417,12 @@ func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
 		t.Fatal("one more typed character changed the texture width, so every key would make a new texture")
 	}
 	label := labelTexture{label: platform.TextLabel{Value: "x", Mono: true, Runs: runs, CellWidth: cell, Width: 100 * cell, Height: 20, FontSize: 12}}
-	skip, width, ok := label.window(scale)
+	skip, width, ok := label.window(scale, 0)
 	if !ok || skip != 0 || width != ink {
 		t.Fatalf("window = %d, %d, %v, want 0, %d, true", skip, width, ok, ink)
 	}
 	label.label.Width = 4
-	if _, width, _ = label.window(scale); width > 4*scale {
+	if _, width, _ = label.window(scale, 0); width > 4*scale {
 		t.Fatalf("a narrow label got a texture %d wide, wider than itself", width)
 	}
 }
