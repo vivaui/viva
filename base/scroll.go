@@ -29,6 +29,9 @@ import (
 // ViewportWidth are its horizontal Offset, Content and Viewport, MaxX and ScrollToX its
 // Max and ScrollTo. In any other area OffsetX is 0 and ContentWidth is ViewportWidth.
 type ScrollState struct {
+	// scope is the focus scope the area was last painted in. While a focus trap
+	// is up, a wheel reaches only the areas in that scope, as a press does.
+	scope    gfx.ID
 	Offset   float32
 	Content  float32 // the height of everything inside, as of the last layout
 	Viewport float32 // the height of the area itself, less its padding
@@ -310,9 +313,18 @@ func (View *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	if f == nil {
 		return gfx.EventResult{}
 	}
+	// A focus trap covers the areas painted outside its scope: the pointer does not
+	// reach them, so neither does the wheel, however they lie under the pointer.
+	trap := gfx.ID{}
+	if f.Surface != nil {
+		trap = f.Surface.TrappedFocusScope()
+	}
 	for i := len(f.Nodes) - 1; i >= 0; i-- {
 		n := &f.Nodes[i]
 		if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil {
+			continue
+		}
+		if !trap.IsZero() && f.Exts[n.Ext].scrollState.scope != trap {
 			continue
 		}
 		if !f.ContainsPoint(i, event.X, event.Y) {
