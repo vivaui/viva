@@ -178,6 +178,7 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 		}
 	case commandHide:
 		state.hidden = true
+		state.exposed = false
 		win.api.unmapWindow(win.connection, win.id)
 		win.api.flush(win.connection)
 		// Hide may arrive before the window manager has mapped a new window: the
@@ -188,6 +189,8 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 			state.config.OnVisibility(false)
 		}
 	case commandShow:
+		state.hidden = false
+		win.setUserTime(state.application.lastUserTime)
 		win.api.mapWindow(win.connection, win.id)
 		if win.topmostConfigured.Load() {
 			action := uint32(0)
@@ -197,7 +200,7 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 			win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.above, 0, sourceApp})
 		}
 		if state.config.WindowMode != platform.WindowPanel {
-			if err := win.requestActivation(); err != nil {
+			if err := state.requestActivation(); err != nil {
 				return err
 			}
 		}
@@ -214,16 +217,32 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 	return nil
 }
 
-// requestActivation asks the window manager to bring this window forward, as a
-// pager does: with a _NET_ACTIVE_WINDOW message to the root window.
-func (win *window) requestActivation() error {
+func (win *window) setUserTime(timestamp uint32) {
+	if timestamp != 0 && win.userTimeAtom != 0 {
+		win.api.changeProperty(win.connection, xcbPropertyReplace, win.id, win.userTimeAtom, xcbAtomCardinal, 32, 1, unsafe.Pointer(&timestamp))
+	}
+}
+
+// Send the user action along with the request. A focus-stealing policy may
+// reject a transfer between two application windows without this information.
+func (state *linuxWindowState) requestActivation() error {
+	win := state.win
 	active, err := win.api.atom(win.connection, "_NET_ACTIVE_WINDOW")
 	if err != nil {
 		return err
 	}
-	event := xcbClientEvent{ResponseType: xcbClientMessage, Format: 32, Window: win.id, Type: active}
-	event.Data[0] = 1 // the request comes from an application
-	win.api.sendEvent(win.connection, 0, win.screen.Root, xcbEventSubstructureRedirect|xcbEventSubstructureNotify, (*byte)(unsafe.Pointer(&event)))
+	const xcbAtomWindow = 33
+	var requestor uint32
+	if data, ok := win.tracker.property(win.screen.Root, active, xcbAtomWindow); ok && len(data) == 4 {
+		id := binary.LittleEndian.Uint32(data)
+		for _, other := range state.application.windows {
+			if other.win.id == id {
+				requestor = id
+				break
+			}
+		}
+	}
+	win.sendToRoot(active, [5]uint32{sourceApp, state.application.lastUserTime, requestor})
 	return nil
 }
 
