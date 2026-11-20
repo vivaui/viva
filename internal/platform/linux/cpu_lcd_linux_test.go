@@ -62,7 +62,7 @@ func TestCPUGridLCDLabelKeepsItsRunColors(t *testing.T) {
 			{Column: 1, Bytes: 1, Cells: 1, Color: gfx.RGB(0, 0, 255)},
 		},
 	}
-	image, ok, err := rasterizeLabel(services, label, 1, true)
+	image, ok, err := rasterizeLabel(services, label, 1, 0, labelImage{}, true)
 	if err != nil || !ok {
 		t.Fatalf("rasterize: ok=%v err=%v", ok, err)
 	}

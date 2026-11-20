@@ -19,13 +19,114 @@ func DeviceExtent(logical, length, scale float32) int {
 	return DevicePosition(logical+length, 0, scale) - DevicePosition(logical, 0, scale)
 }
 
+// LabelTextureLimit is the widest and tallest texture a label is rasterized into, in
+// device pixels: the 2D texture limit of the Direct3D 11 and Vulkan devices Viva runs
+// on, and the limit native.m keeps for Metal. LabelTexturePixels bounds the pixels of
+// one such texture.
+const (
+	LabelTextureLimit  = 16384
+	LabelTexturePixels = 16 * 1024 * 1024
+)
+
+// LabelTextureWidth is the widest texture a label height device pixels high is
+// rasterized into: LabelTextureLimit, narrowed for a tall label so that its texture
+// stays within LabelTexturePixels. It is 0 for a label too tall for any texture,
+// which is not drawn.
+func LabelTextureWidth(height int) int {
+	if height <= 0 || height > LabelTextureLimit {
+		return 0
+	}
+	return min(LabelTextureLimit, LabelTexturePixels/height)
+}
+
+// LabelTextureFits reports whether a label texture width by height device pixels is
+// one a backend allocates: width is at most LabelTextureWidth(height). It is tested
+// without a division, as renderers ask it of every label every frame.
+func LabelTextureFits(width, height int) bool {
+	return width > 0 && height > 0 && width <= LabelTextureLimit && height <= LabelTextureLimit && width*height <= LabelTexturePixels
+}
+
+// LabelVisibleColumns is the part of a label full device pixels wide, drawn at device
+// column origin, that the device columns from left to right show: the columns from
+// first to last, counted from the label's left edge. ok is false when they show none.
+func LabelVisibleColumns(origin, full, left, right int) (first, last int, ok bool) {
+	first = min(max(left-origin, 0), full)
+	last = min(max(right-origin, 0), full)
+	return first, last, last > first
+}
+
+// WideLabelWindow chooses the device columns that the texture of a label full columns
+// wide, more than one texture of limit columns holds, is rasterized from: the columns
+// from skip to skip+width of the label. The columns from left to right, with left
+// below right, are the ones that can be seen, and haveSkip and haveWidth the window of
+// the texture the label has, or a width of 0 when it has none.
+//
+// A texture that still holds every column that can be seen is kept, so a scroll inside
+// it does not rasterize the line again. Otherwise the visible columns are kept with as
+// much margin on both sides as they are wide, so a scroll of up to their width keeps
+// the new texture; at an end of the label the margin goes to the other side. This is
+// the window viva_label_window in native.m chooses. Visible columns wider than limit
+// keep their first limit columns: these backends draw one texture per label, and a
+// viewport is wider than limit only for a label so tall that its limit is narrowed.
+func WideLabelWindow(full, limit, left, right, haveSkip, haveWidth int) (skip, width int) {
+	if haveWidth > 0 && haveWidth <= limit && haveSkip <= left && right <= haveSkip+haveWidth && haveSkip+haveWidth <= full {
+		return haveSkip, haveWidth
+	}
+	span := right - left
+	if span >= limit {
+		return left, limit
+	}
+	margin := min(span, (limit-span)/2)
+	width = span + 2*margin
+	skip = max(left-margin, 0)
+	if skip+width > full {
+		skip = full - width
+	}
+	return skip, width
+}
+
+// WideTextLabelWindow is the window a text label's texture is rasterized from when one
+// texture cannot hold the whole label. The label is full device columns wide and height
+// high, drawn at the device column DevicePosition puts it at, on a target viewport device
+// columns wide, or 0 when the caller has none. The columns that can be seen are the
+// viewport's, cut to the label's clip; haveSkip and haveWidth are the window of the
+// texture the label has, a width of 0 when it has none (see WideLabelWindow). wide is
+// false for a label one texture holds whole, which is left to the caller. A wide label
+// is not drawn, ok false, when none of it can be seen or it is too tall for any texture:
+// an error for it would stop the window drawing anything.
+func WideTextLabelWindow(label TextLabel, scale float32, full, height, viewport, haveSkip, haveWidth int) (skip, width int, wide, ok bool) {
+	limit := LabelTextureWidth(height)
+	if full <= limit {
+		return 0, full, false, full > 0
+	}
+	if limit <= 0 {
+		return 0, 0, true, false
+	}
+	origin := DevicePosition(label.X, label.OriginX, scale)
+	left, right := 0, origin+full
+	if viewport > 0 {
+		right = min(right, viewport)
+	}
+	if label.Clipped {
+		left = max(left, int(math.Floor(float64(label.Clip.X*scale))))
+		right = min(right, int(math.Ceil(float64((label.Clip.X+label.Clip.Width)*scale))))
+	}
+	first, last, visible := LabelVisibleColumns(origin, full, left, right)
+	if !visible {
+		return 0, 0, true, false
+	}
+	skip, width = WideLabelWindow(full, limit, first, last, haveSkip, haveWidth)
+	return skip, width, true, true
+}
+
 // LabelWindow is the part of a label's texture that a clip can show, in device
 // pixels: the columns from skip to skip+width of a texture drawn at origin, whose
 // whole width is full, when the clip covers left to right. A clip that starts left
 // of the label keeps the whole texture. One that starts inside it skips the columns
 // it cuts, so a long scrolled line costs its visible width, not its whole width,
 // without moving the text by a fraction of a device pixel. ok is false when the
-// clip shows none of those columns.
+// clip shows none of those columns. It is for a label no wider than its texture
+// limit; a wider one takes the window WideLabelWindow chooses.
 func LabelWindow(origin, full, left, right int) (skip, width int, ok bool) {
 	if full <= 0 || right <= left {
 		return 0, 0, false

@@ -83,14 +83,14 @@ type labelBatch struct {
 // add queues a label. It reports false when the label's pixels would differ
 // from the per-label path, and full when the batch bitmap could not hold it;
 // the caller then flushes and tries the label again.
-func (batch *labelBatch) add(label *labelTexture, scale float32, allowLCD bool) (added, full bool, err error) {
-	skip, width, ok := label.window(scale)
+func (batch *labelBatch) add(label *labelTexture, scale float32, viewport int, allowLCD bool) (added, full bool, err error) {
+	skip, width, ok := label.window(scale, viewport)
 	if !ok {
 		return false, false, nil
 	}
 	height := int(math.Ceil(float64(label.label.Height * scale)))
-	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 {
-		return false, false, nil // the per-label path reports the bounded-size error
+	if !platform.LabelTextureFits(width, height) {
+		return false, false, nil // the per-label path leaves it without a texture
 	}
 	size := label.label.FontSize * scale
 	if size <= 0 || math.IsNaN(float64(size)) || math.IsInf(float64(size), 0) {
@@ -228,7 +228,7 @@ func (batch *labelBatch) draw(renderer *renderer, items []labelBatchItem, pack b
 
 // prepareLabels rasterizes the proportional labels that changed this frame in
 // batches. Labels it leaves untouched are drawn by the per-label path in draw.
-func (renderer *renderer) prepareLabels(scale float32) error {
+func (renderer *renderer) prepareLabels(scale float32, viewport int) error {
 	if renderer.noLabelBatch {
 		return nil
 	}
@@ -248,17 +248,14 @@ func (renderer *renderer) prepareLabels(scale float32) error {
 			len(label.label.Bitmap) > 0 || label.label.Mono || len(label.label.Runs) > 0 {
 			continue
 		}
-		skip, windowWidth, shown := label.window(scale)
-		if !shown {
+		skip, windowWidth, shown := label.window(scale, viewport)
+		if !shown || !renderer.needsRaster(label, scale, skip, windowWidth) {
 			continue
 		}
-		if !(label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth || renderer.pictureChanged(label, scale, skip, windowWidth)) {
+		if renderer.reuseLabelPicture(label, scale, viewport) {
 			continue
 		}
-		if renderer.reuseLabelPicture(label, scale) {
-			continue
-		}
-		_, full, err := batch.add(label, scale, allowLCD)
+		_, full, err := batch.add(label, scale, viewport, allowLCD)
 		if err != nil {
 			return err
 		}
@@ -267,7 +264,7 @@ func (renderer *renderer) prepareLabels(scale float32) error {
 			if err := flush(); err != nil {
 				return err
 			}
-			if _, _, err := batch.add(label, scale, allowLCD); err != nil {
+			if _, _, err := batch.add(label, scale, viewport, allowLCD); err != nil {
 				return err
 			}
 		}
