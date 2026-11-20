@@ -3,10 +3,8 @@ package windows
 import (
 	"fmt"
 	"math"
-	"syscall"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -188,6 +186,8 @@ type directRasterizer struct {
 	owner            platform.GridOwner // which run owns which column of a grid label
 	ink              []platform.GridInk // how far each run's glyphs reach past its cells
 	inkCache         map[inkKey]platform.GridInk
+	formats          map[gridFormatKey]uintptr
+	shaped           map[gridLayoutKey]*gridLayout
 	gdi              *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
 	directOnly       bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }
@@ -232,6 +232,7 @@ func (rasterizer *directRasterizer) close() {
 		rasterizer.gdi.close()
 		rasterizer.gdi = nil
 	}
+	rasterizer.releaseGridCache()
 	rasterizer.releaseFontFallbacks()
 	release(&rasterizer.factory)
 }
@@ -521,36 +522,13 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
 func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
-	format, err := rasterizer.services.formatMono(family, size, weight, run.Italic)
+	formatKey, format, err := rasterizer.gridFormat(family, size, weight, run.Italic, fallback)
 	if err != nil {
 		return err
 	}
-	defer release(&format)
-	setFontFallback(format, fallback)
-	units, err := syscall.UTF16FromString(piece)
+	shaped, err := rasterizer.gridShaped(formatKey, format, piece, run, span, pitch)
 	if err != nil {
 		return err
-	}
-	var layout uintptr
-	if err := hresult(rasterizer.services.createLayout(rasterizer.services.write, &units[0], uint32(len(units)-1), format, 1<<20, 1<<20, &layout)); err != nil {
-		return fmt.Errorf("windows: lay out grid text: %w", err)
-	}
-	defer release(&layout)
-	var metrics textMetrics
-	if err := hresult(comCall(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
-		return err
-	}
-	var line lineMetrics
-	var lines uint32
-	if err := hresult(comCall(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&line)), 1, uintptr(unsafe.Pointer(&lines)))); err != nil && lines == 0 {
-		return err
-	}
-	all := uint64(len(units)-1) << 32
-	if run.Underline {
-		comCall(layout, writeSetUnderline, 1, uintptr(all))
-	}
-	if run.Strike {
-		comCall(layout, writeSetStrikethrough, 1, uintptr(all))
 	}
 	x := left
 	scaled := false
@@ -567,28 +545,15 @@ func (rasterizer *directRasterizer) drawRun(target *directTarget, family string,
 		// it is used only when the widths differ.
 		// Terminal padding occupies cells too. Width excludes trailing spaces
 		// and would stretch a short command across its following blank cells.
-		scaled = metrics.WidthTrailing > 0 && span > 0 && metrics.WidthTrailing != span
+		scaled = shaped.metrics.WidthTrailing > 0 && span > 0 && shaped.metrics.WidthTrailing != span
 		if scaled {
-			scale := span / metrics.WidthTrailing
+			scale := span / shaped.metrics.WidthTrailing
 			target.setTransform(d2dMatrix{M11: scale, M22: 1, DX: left * (1 - scale)})
 		}
-	case pitch > 0 && printableASCII(piece):
-		// Every character stands on its cell, whatever the advance of the font.
-		advance := metrics.WidthTrailing / float32(len(units)-1)
-		if reduction := advance - pitch; reduction != 0 {
-			var extended uintptr
-			if comCall(layout, 0, uintptr(unsafe.Pointer(&writeLayout1IID)), uintptr(unsafe.Pointer(&extended))) == 0 && extended != 0 {
-				if rasterizer.spacing == nil {
-					purego.RegisterFunc(&rasterizer.spacing, vtable(extended, writeSetCharacterSpacing))
-				}
-				rasterizer.spacing(extended, 0, -reduction, 0, all)
-				release(&extended)
-			}
-		}
 	case run.Cells > 0 && isSingleCharacter(piece):
-		x = left + (span-metrics.Width)/2
+		x = left + (span-shaped.metrics.Width)/2
 	}
-	target.draw(x, baseline-line.Baseline, layout, d2dEnableColorFont)
+	target.draw(x, baseline-shaped.line.Baseline, shaped.layout, d2dEnableColorFont)
 	if scaled {
 		target.setTransform(identityMatrix)
 	}
