@@ -26,9 +26,10 @@ Win32 events, Direct3D 11 with embedded precompiled shaders, DirectWrite for mea
 
 ## Linux
 
-X11 through dynamically loaded system XCB, Pango and Cairo, and Vulkan when a GPU driver is available, with a blocking event loop that does no idle redraw.
+X11 through dynamically loaded system XCB, Pango and Cairo, and Vulkan when a GPU driver is available, with a blocking event loop that does no idle redraw. The default build is an X11 client, so a Wayland session runs it through XWayland; an opt-in GTK 3 shell is a native Wayland client instead.
 
 - X11 with the system's XCB, Pango and Cairo libraries; a Vulkan loader and driver add GPU acceleration, and the CPU renderer covers a machine without them.
+- `-tags vivagtk` builds the GTK 3 shell: on a Wayland session it is a native client drawn at the compositor's fractional scale, and on X11 it runs through GTK. GTK owns the window, the pointer, the keyboard and the input method; Viva draws the content with the CPU rasterizer, so this build does not use Vulkan. The system's GTK 3 must be installed at run time, and the public API is the same.
 - Pango and Cairo for text.
 - Packaging to a `tar.gz` with an install script, or a `.deb`.
 - File dialogs, URL opening and notifications use installed desktop utilities; see [System integration](/en/docs/system-integration/).

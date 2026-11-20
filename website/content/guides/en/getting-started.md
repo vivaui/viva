@@ -9,7 +9,7 @@ group: start
 
 - **Go 1.26 or newer.** If you use the `viva` command and have none, it downloads one for you; see [Build and package](/en/docs/build-and-package/).
 - **macOS:** the Xcode command-line tools. Viva reaches Cocoa and Metal through cgo.
-- **Linux:** X11 with the system XCB, Pango and Cairo libraries. A Vulkan loader and driver are recommended for GPU acceleration; without them Viva draws on the CPU.
+- **Linux:** X11 with the system XCB, Pango and Cairo libraries, or native Wayland with the opt-in GTK 3 shell (`-tags vivagtk`, with GTK 3 installed). A Vulkan loader and driver are recommended for GPU acceleration; without them Viva draws on the CPU.
 - **Windows:** Win32 with the system Direct3D 11 and DirectWrite libraries.
 
 ## Add Viva to a project

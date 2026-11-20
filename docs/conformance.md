@@ -93,7 +93,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 
 | Gap | Platform | Reason |
 | --- | --- | --- |
-| Native Wayland | Linux | Only XCB is spoken; a Wayland session runs through XWayland. A second window system, input stack and frame is a project of its own. |
+| Native Wayland in the default build | Linux | Only XCB is spoken, so a Wayland session runs through XWayland; speaking Wayland directly — a window system, input stack and frame of Viva's own — is a project of its own. The opt-in GTK 3 shell (`-tags vivagtk`, see [Platforms](../website/content/guides/en/platforms.md)) is a native Wayland client instead: GTK owns the window, the seat and the input method, and Viva draws into a subsurface. |
 | Smooth scrolling (`Precise`) | Linux | It needs XInput2 valuators, and a window that selects XI2 events stops receiving the core pointer events, so the whole pointer path would move. The test machine's Xvnc has no scroll valuator, so the code could not be verified; none was added. |
 | Text Services Framework | Windows | IMM32 is used (candidate placement, reconversion, clause styling). TSF means implementing `ITextStoreACP`; not done. |
 | Toast notifications | Windows | They need a Start-menu shortcut carrying an AppUserModelID, and NSIS cannot write that property without a plugin. A balloon is shown instead. The process AppUserModelID is set only when the application sets `Config.Class`, so a pinned shortcut and its window group together. |
@@ -114,6 +114,11 @@ Windows is a physical Windows 11 machine with a real GPU; Linux is KDE Plasma on
 X11 with software Vulkan. macOS is arm64; Intel Macs, their GPUs, IME and text
 rasterization are not part of that matrix. The Linux machine's software renderer
 is evidence for behavior, not for GPU performance.
+
+The scenarios run against the default XCB build. The GTK 3 shell is vetted and
+tested with `-tags vivagtk`: its contracts and the GTK input-method path run under
+X11 in CI, and its Wayland-only paths — the subsurface, the seat and the input
+regions — run in the text-input workflow against a nested weston compositor.
 
 ## Machines without a GPU
 
