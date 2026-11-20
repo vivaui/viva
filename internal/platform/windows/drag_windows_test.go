@@ -140,6 +140,10 @@ func TestTheFormatEnumeratorListsTheDropList(t *testing.T) {
 		t.Errorf("Next after Skip = %#x with %d formats, want S_FALSE with 0", status, fetched)
 	}
 	comCall(enum, 5)
+	if status := uint32(comCall(enum, 4, 2)); status != sFalse {
+		t.Errorf("Skip(2) with one format = %#x, want S_FALSE", status)
+	}
+	comCall(enum, 5)
 	var clone uintptr
 	if status := uint32(comCall(enum, 6, uintptr(unsafe.Pointer(&clone)))); status != sOK || clone == 0 {
 		t.Fatalf("Clone = %#x, want S_OK with an enumerator", status)

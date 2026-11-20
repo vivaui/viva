@@ -49,7 +49,7 @@ const MaxDragFiles = platform.MaxClipboardFiles
 // The files are not read here, and nothing is copied when the drag starts: a
 // target that takes a copy or a move reads the paths while the drop happens, so
 // the files must still be where they are when the user lets go. The paths must be
-// absolute, local and free of NUL, and at most MaxDragFiles are accepted.
+// absolute and free of NUL, and at most MaxDragFiles are accepted.
 //
 // Windows starts an OLE drag (IDropSource and IDataObject, DoDragDrop), so it is
 // called on the event-loop thread, from the handler of the pointer event that

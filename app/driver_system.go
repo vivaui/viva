@@ -155,7 +155,7 @@ func driverStartFileDrag(paths []string, allowed platform.DragEffect) (platform.
 // offers one, then a link, then a move, and takes nothing when the application
 // offers nothing or the drag ends without a drop. The slice is the driver's own;
 // do not modify it.
-func (driver *Driver) DraggedFiles() ([]string, platform.DragEffect) {
+func (driver *Driver) DraggedFiles() ([]string, FileDragEffect) {
 	return driver.system.dragFiles, driver.system.dragTaken
 }
 

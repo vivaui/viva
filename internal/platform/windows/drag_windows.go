@@ -357,10 +357,13 @@ func enumSkip(this, count uintptr) uintptr {
 	if uint32(count) == 0 {
 		return sOK
 	}
-	if enum.at != 0 {
+	// Skipping past the end moves to the end and reports S_FALSE, as the
+	// enumerator contract asks, when fewer formats remain than were asked for.
+	left := 1 - enum.at
+	enum.at = 1
+	if uint32(count) > left {
 		return sFalse
 	}
-	enum.at = 1
 	return sOK
 }
 
