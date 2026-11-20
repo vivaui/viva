@@ -102,7 +102,7 @@ viva package --program ./notes-signed           # 打包你自己构建或签名
 | Windows | NSIS 安装程序（需要 `makensis`），或 `.zip` |
 | Linux | 带安装脚本的 `tar.gz`、`.deb`，或 Arch 二进制包用的 `PKGBUILD` 与 `.SRCINFO` |
 
-`PKGBUILD` 把程序装到 `/opt/<name>-bin`，链接到 `/usr/bin`，并安装菜单项、图标和文档类型；它不构建任何东西，所以写它不需要 Arch 机器。它的源是那个 `tar.gz`：默认 makepkg 在 `PKGBUILD` 旁边找它，`--pkgbuild-url` 则给出已发布归档的地址（写成 `tar.gz::<url>`，保留文件名）。每个架构写到各自的目录，因为一个目录只有一个 `PKGBUILD`。除每个 Viva 应用都需要的 XCB、Pango、Cairo 和 fontconfig 包之外，应用还需要别的库时，用 `[linux] arch_depends` 列出；Vulkan 加载库建议安装以获得 GPU 加速。
+`PKGBUILD` 把程序装到 `/opt/<name>-bin`，链接到 `/usr/bin`，并安装菜单项、图标和文档类型；它不构建任何东西，所以写它不需要 Arch 机器。它的源是那个 `tar.gz`：默认 makepkg 在 `PKGBUILD` 旁边找它，`--pkgbuild-url` 则给出已发布归档的地址（写成 `tar.gz::<url>`，保留文件名）。每个架构写到各自的目录，因为一个目录只有一个 `PKGBUILD`。除每个 Viva 应用都需要的 XCB、Pango、Cairo 和 fontconfig 包之外，应用还需要别的库时，用 `[linux] arch_depends` 列出。`.deb` 和 RPM 会推荐光标主题库和 Vulkan 加载库——前者让光标跟随桌面的主题和大小，后者提供 GPU 加速；PKGBUILD 把它们列为 optdepends，按需安装。
 
 **签名是可选的。** 什么都不配置就什么都不签：macOS 会阻止下载的应用包，Windows SmartScreen 会对安装程序给出警告。`--program` 的存在就是为了让你自己先构建、签名，再打包这个确定的可执行文件。
 
