@@ -50,6 +50,8 @@ func (state *windowState) setTaskbarIcon(path string) error {
 		return err
 	}
 	defer release(&store)
+	// Also clear a partially applied update if a later SetValue fails.
+	state.taskbarIconSet = true
 	for _, property := range []struct {
 		id   uint32
 		text string
@@ -61,7 +63,6 @@ func (state *windowState) setTaskbarIcon(path string) error {
 			return err
 		}
 	}
-	state.taskbarIconSet = true
 	return nil // HWND property stores apply SetValue immediately; no Commit.
 }
 
