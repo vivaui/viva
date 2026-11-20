@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"math"
-
 	"github.com/vivaui/viva/base"
 
 	"github.com/vivaui/viva/components"
@@ -115,15 +113,7 @@ func paintSegmented(f *Frame, v ControlView) {
 func measureControls(f *Frame, n *Node) {
 	switch n.Kind {
 	case KindButton:
-		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).WithIcon(f.Exts[n.Ext].GetIcon())
-		if d := n.Size[AxisY]; d.Kind == DimPx {
-			button = button.Height(d.Value) // an icon button is as wide as it is tall
-		}
-		button = button.SizeToFit(n.Label)
-		n.Pref = [2]float32{button.BoundsWidth(), button.BoundsHeight()}
-		if n.ButtonSize >= components.ButtonSizeIcon {
-			n.Pref[AxisX] = n.Pref[AxisY]
-		}
+		n.Pref = measureButton(f, n)
 	case KindBadge:
 		w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
 		n.Pref = [2]float32{w, h}
@@ -217,40 +207,68 @@ func measureControls(f *Frame, n *Node) {
 	}
 }
 
+// buttonWeight is the weight of a button's label: the one the element asks for, or the
+// medium weight the control has.
+func buttonWeight(n *Node) float32 {
+	if n.Weight > 0 {
+		return n.Weight
+	}
+	return gfx.WeightMedium
+}
+
+// measureButton is the size a button that paints its own label and icon is laid out at:
+// its size's height, and its content's width inside the element's Pad (which is the
+// recipe's, the size's padding, unless the caller set it). A Height of the element's
+// is the button's height, and an icon alone is as wide as it is tall. Padded down the
+// side by the caller, it grows to hold its label and the padding.
+func measureButton(f *Frame, n *Node) [2]float32 {
+	height, _, fontSize, _ := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	if n.ButtonSize >= components.ButtonSizeIcon {
+		return [2]float32{height, height} // an icon button is as wide as it is tall
+	}
+	width := n.PadX() + f.Surface.TextWidthWeight(n.Label, fontSize, buttonWeight(n))
+	if icon := f.Exts[n.Ext].GetIcon(); len(icon.Commands) > 0 || len(icon.Layers) > 0 {
+		width += style.ButtonIconExtent(height)
+		if n.Label != "" {
+			width += n.Gap
+		}
+	}
+	if n.Flags&FlagSetPad != 0 {
+		height = max(height, fontSize+7+n.PadY())
+	}
+	return [2]float32{width, height}
+}
+
+// buttonContentArea is the room a button's content is centered in: the height inside its
+// Pad and Border, and across, the widest span centered where the content is, which is
+// the whole button when it is padded the same on both sides. The padding is not taken out
+// of a label's width, so a label wider than a narrow button still centers on it.
+func buttonContentArea(f *Frame, n *Node) Rect {
+	content := f.ContentRect(n)
+	center := content.X + content.Width/2
+	half := min(center-n.Rect.X, n.Rect.X+n.Rect.Width-center)
+	return Rect{X: center - half, Y: content.Y, Width: 2 * half, Height: content.Height}
+}
+
+// paintButton paints the content of a button that paints its own: its icon and its label,
+// in the room its Pad and Border leave. The surface is the element's, dressed by the
+// button's recipe before this runs, and the label takes the color the recipe gives it in
+// the state the button is in unless the element has one of its own.
 func paintButton(f *Frame, n *Node) {
-	r := n.Rect
 	extra := &f.Exts[n.Ext]
-	button := components.BeginButton(f.Surface, f.Palette, n.ID, Rect{X: r.X, Y: r.Y, Width: r.Width}).Size(n.ButtonSize).
-		WithIcon(extra.GetIcon()).IconTransform(extra.GetIconTransform())
-	if f.GetStyles() != nil && f.GetStyles().Button != nil {
-		button = button.Recipe(f.GetStyles().Button)
-	}
-	if extra.GetButtonRecipe() != nil {
-		button = button.Recipe(extra.GetButtonRecipe())
-	}
-	// A button is as tall as its size says unless the element was given more or less
-	// room: a Height, or a Grow along a column. It then fills that room.
-	if h := r.Height; h > 0 && math.Abs(float64(h-button.BoundsHeight())) > 0.01 {
-		button = button.Height(h)
-	}
-	if n.Flags&FlagDisabled != 0 {
-		button = button.Disabled()
-	}
-	switch n.Variant {
-	case components.ButtonSecondary:
-		button.Secondary(n.Label)
-	case components.ButtonOutline:
-		button.Outline(n.Label)
-	case components.ButtonGhost:
-		button.Ghost(n.Label)
-	case components.ButtonLink:
-		button.Link(n.Label)
-	case components.ButtonDestructive:
-		button.Destructive(n.Label)
-	case components.ButtonDestructiveOutline:
-		button.DestructiveOutline(n.Label)
-	default:
-		button.Default(n.Label)
+	_, _, fontSize, iconOnly := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
+	hint := components.PaintButtonContent(f.Surface, buttonContentArea(f, n), components.ButtonContent{
+		Label: n.Label, Icon: extra.GetIcon(), IconTransform: extra.GetIconTransform(),
+		FontSize: fontSize, Weight: buttonWeight(n), Color: n.Color, Gap: n.Gap, Height: n.Rect.Height,
+		IconOnly: iconOnly, Underlined: f.GetButtonLook().Underlined,
+	})
+	if !n.ID.IsZero() {
+		f.Surface.HitWithOptions(n.ID, n.Rect, n.Label, gfx.HitOptions{
+			Role: gfx.RoleButton, Disabled: n.Flags&FlagDisabled != 0, Hint: hint,
+		})
 	}
 }
 

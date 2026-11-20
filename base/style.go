@@ -282,15 +282,30 @@ type resolved struct {
 	ringWidth, Opacity              float32
 	shadow                          gfx.ShadowLevel
 	dashed                          bool
+	// borderWidth is the width the border is drawn at: the element's own, or a themed
+	// control's recipe's, which never takes room. splitBorder says to paint the fill
+	// and then the line over it even where one shape could paint both.
+	borderWidth float32
+	splitBorder bool
+	// ringFilled paints the ring as a disc under the element rather than a line around
+	// it, and a nonzero ringLine is the width the line is drawn at: how a control's
+	// recipe draws its focus ring over an opaque page and over a translucent one.
+	ringFilled bool
+	ringLine   float32
 }
 
 func (f *Frame) resolve(n *Node, Extra *Extra) resolved {
 	s := resolved{
 		Background: n.Background, border: Extra.border, Color: n.Color, ring: Extra.ring,
 		ringWidth: Extra.ringWidth, Opacity: 1 - Extra.fade, shadow: Extra.shadow, dashed: Extra.borderDashed,
+		borderWidth: n.BorderWidth,
 	}
 	if n.Flags&flagThemed != 0 {
 		f.themedDefaults(n, Extra, &s)
+	} else if f.hasInherited && n.Flags&flagHasColor == 0 && (n.Kind == kindText || n.Kind == kindIcon) {
+		// What a themed button holds takes the color its recipe gives its label, in every
+		// state, unless the content has a color of its own.
+		s.Color = f.inherited
 	}
 	if Extra.States == 0 {
 		return s
@@ -374,7 +389,14 @@ func (f *Frame) paintRing(r Rect, Radius float32, s *resolved) {
 	if Radius > 0 {
 		Radius += w
 	}
-	f.Surface.RoundedOutline(outer, Radius, w, color)
+	switch {
+	case s.ringFilled:
+		f.Surface.Rounded(outer, Radius, color)
+	case s.ringLine > 0:
+		f.Surface.RoundedOutline(outer, Radius, s.ringLine, color)
+	default:
+		f.Surface.RoundedOutline(outer, Radius, w, color)
+	}
 }
 
 // paintGradient draws the gradient of an element over its whole rectangle.
