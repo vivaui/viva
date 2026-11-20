@@ -98,7 +98,7 @@ func (button SplitButton) Paint() SplitButtonResult {
 	if button.options.Disabled {
 		style.foreground.Alpha *= 0.50
 	}
-	paintButtonLabel(button.canvas, button.options.Label, geometry.Primary, theme.Metrics.FontSizeM, style)
+	paintButtonLabel(button.canvas, button.options.Label, geometry.Primary, theme.Metrics.FontSizeM, gfx.WeightMedium, style)
 	icon := button.options.Icon
 	if len(icon.Commands) == 0 && len(icon.Layers) == 0 {
 		icon = chevronDownIcon

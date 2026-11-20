@@ -17,9 +17,12 @@
 // runtime activates the focused action with Enter or Space. The group itself is
 // a non-focusable group region named by View's label.
 //
-// The caller owns everything mutable. Selected names the action painted with
-// the secondary treatment, and a click does not change it: OnClick receives the
-// action's index and identity, like the form control a page updates itself.
+// The caller owns everything mutable. Item(...).Icon(icon) adds a leading glyph;
+// IconOnly keeps the item's label as its accessible name and tooltip without
+// painting it. Selected names the action painted with the secondary treatment
+// and exposes that selection to assistive technology. A click does not change it:
+// OnClick receives the action's index and identity, like the form control a page
+// updates itself.
 // Clicked reports the same pair for a caller that reads after the paint.
 //
 // Declarations are rebuilt every paint: call Reset, declare the actions in
@@ -64,9 +67,11 @@ type Group struct {
 
 // action is one declared item. The zero Variant is the default look.
 type action struct {
-	id      gfx.ID
-	label   string
-	variant components.ButtonVariant
+	id       gfx.ID
+	label    string
+	variant  components.ButtonVariant
+	icon     gfx.Icon
+	iconOnly bool
 }
 
 // New returns a button group with no actions and no selection.
@@ -89,6 +94,23 @@ func (g *Group) Reset() *Group {
 // id declares an inert surface with no pointer or keyboard target.
 func (g *Group) Item(id gfx.ID, label string) *Group {
 	g.items = append(g.items, action{id: id, label: label, variant: components.ButtonDefault})
+	return g
+}
+
+// Icon sets the leading glyph of the action declared last.
+func (g *Group) Icon(icon gfx.Icon) *Group {
+	if n := len(g.items); n > 0 {
+		g.items[n-1].icon = icon
+	}
+	return g
+}
+
+// IconOnly hides the visible label of the action declared last, keeping it as
+// the accessible name and tooltip. Give that action an Icon.
+func (g *Group) IconOnly() *Group {
+	if n := len(g.items); n > 0 {
+		g.items[n-1].iconOnly = true
+	}
 	return g
 }
 
@@ -232,6 +254,7 @@ func (g *Group) draw(d *ui.DrawContext) {
 		}
 		options = append(options, components.ButtonGroupOption{
 			ID: item.id, Label: item.label, Variant: variant,
+			Icon: item.icon, IconOnly: item.iconOnly, Selected: index == selected,
 		})
 	}
 	g.options = options

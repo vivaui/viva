@@ -29,9 +29,23 @@ func (b Box) N() *Node {
 	return &b.f.Nodes[b.i]
 }
 
+// The sides of Pad a caller set, as Node.PadSet holds them.
+const (
+	padTop uint8 = 1 << iota
+	padRight
+	padBottom
+	padLeft
+)
+
 // Children declares what is inside the element. fn runs at once, and is not kept.
+//
+// A Button given Children holds what they declare in place of its label and icon: it is
+// the button's row, with the theme's look, its focus and its keyboard, around content of
+// the caller's own, and Pad, Gap, Items and the rest are the row's.
 func (b Box) Children(fn func()) Box {
-	b.N()
+	if b.N().Kind == kindButton {
+		b.f.buttonHoldsChildren(b.i)
+	}
 	saved := b.f.Parent
 	b.f.Parent = b.i
 	b.N().Flags |= flagChildren
@@ -172,36 +186,36 @@ func (b Box) Shrink(v float32) Box {
 func (b Box) Pad(v float32) Box { return b.PadSides(v, v, v, v) }
 func (b Box) PadX(v float32) Box {
 	n := b.N()
-	n.Pad[1], n.Pad[3], n.Flags = v, v, n.Flags|flagSetPad
+	n.Pad[1], n.Pad[3], n.Flags, n.PadSet = v, v, n.Flags|flagSetPad, n.PadSet|padRight|padLeft
 	return b
 }
 func (b Box) PadY(v float32) Box {
 	n := b.N()
-	n.Pad[0], n.Pad[2], n.Flags = v, v, n.Flags|flagSetPad
+	n.Pad[0], n.Pad[2], n.Flags, n.PadSet = v, v, n.Flags|flagSetPad, n.PadSet|padTop|padBottom
 	return b
 }
 func (b Box) PadTop(v float32) Box {
 	n := b.N()
 	n.Pad[0] = v
-	n.Flags |= flagSetPad
+	n.Flags, n.PadSet = n.Flags|flagSetPad, n.PadSet|padTop
 	return b
 }
 func (b Box) PadRight(v float32) Box {
 	n := b.N()
 	n.Pad[1] = v
-	n.Flags |= flagSetPad
+	n.Flags, n.PadSet = n.Flags|flagSetPad, n.PadSet|padRight
 	return b
 }
 func (b Box) PadBottom(v float32) Box {
 	n := b.N()
 	n.Pad[2] = v
-	n.Flags |= flagSetPad
+	n.Flags, n.PadSet = n.Flags|flagSetPad, n.PadSet|padBottom
 	return b
 }
 func (b Box) PadLeft(v float32) Box {
 	n := b.N()
 	n.Pad[3] = v
-	n.Flags |= flagSetPad
+	n.Flags, n.PadSet = n.Flags|flagSetPad, n.PadSet|padLeft
 	return b
 }
 func (b Box) Margin(v float32) Box  { return b.MarginSides(v, v, v, v) }
@@ -225,7 +239,7 @@ func (b Box) MarginLeft(v float32) Box {
 }
 func (b Box) PadSides(top, right, bottom, left float32) Box {
 	n := b.N()
-	n.Pad, n.Flags = [4]float32{top, right, bottom, left}, n.Flags|flagSetPad
+	n.Pad, n.Flags, n.PadSet = [4]float32{top, right, bottom, left}, n.Flags|flagSetPad, padTop|padRight|padBottom|padLeft
 	return b
 }
 func (b Box) MarginSides(top, right, bottom, left float32) Box {
