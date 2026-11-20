@@ -29,18 +29,23 @@ var linuxRuntimeDepends = []string{
 	"libfontconfig1", "libpango-1.0-0", "libpangocairo-1.0-0", "libglib2.0-0",
 }
 
-// linuxRuntimeRecommends add GPU acceleration without being required: the CPU
-// renderer draws the window when the loader or a Vulkan driver is missing.
-var linuxRuntimeRecommends = []string{"libvulkan1"}
+// linuxRuntimeRecommends are the optional capabilities an install gets by
+// default: pointers that follow the desktop's cursor theme and size through
+// libxcb-cursor, and GPU acceleration through the Vulkan loader. Both have a
+// fallback — the X cursor font's fixed glyph and the CPU renderer — so neither
+// is required to start, but without the cursor library a HiDPI desktop shows a
+// pointer many times smaller than its own.
+var linuxRuntimeRecommends = []string{"libxcb-cursor0", "libvulkan1"}
 
 // linuxArchRuntimeDepends are the same libraries under Arch's names.
 var linuxArchRuntimeDepends = []string{
 	"libxcb", "cairo", "fontconfig", "pango", "glib2",
 }
 
-// linuxArchRuntimeRecommends are the GPU packages under Arch's names. Arch's
+// linuxArchRuntimeRecommends are the optional packages under Arch's names. Arch's
 // optdepends carry their reason, which pacman shows.
 var linuxArchRuntimeRecommends = []string{
+	"libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph",
 	"vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU",
 }
 
@@ -55,8 +60,9 @@ var linuxRPMRuntimeDepends = []string{
 	"libpangocairo-1.0.so.0()(64bit)", "libgobject-2.0.so.0()(64bit)",
 }
 
-// linuxRPMRuntimeRecommends are the GPU capabilities RPM recommends.
-var linuxRPMRuntimeRecommends = []string{"libvulkan.so.1()(64bit)"}
+// linuxRPMRuntimeRecommends are the optional capabilities RPM recommends: the
+// cursor theme library and the GPU loader.
+var linuxRPMRuntimeRecommends = []string{"libxcb-cursor.so.0()(64bit)", "libvulkan.so.1()(64bit)"}
 
 // linuxApplication describes the application for the Debian and RPM packages:
 // both install the same files, so they share one description.

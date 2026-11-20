@@ -130,10 +130,9 @@ func (button Button) Height(height float32) Button {
 }
 
 // FontSize paints the label size points instead of the size the button's size
-// gives, for a button that sits among text of its own size. The height, the
-// padding and the corner radius stay those of the size; a label grows the
-// button's width through SizeToFit and Paint as usual. A size of zero or less
-// is the size's own.
+// gives, for a button that sits among text of its own size. The padding and
+// corner radius stay the size's; its natural height grows if the label needs it.
+// An explicit Height stays fixed. A size of zero or less is the size's own.
 func (button Button) FontSize(size float32) Button {
 	button.fontSize = max(size, 0)
 	return button
@@ -398,31 +397,27 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	} else if style.filled {
 		button.canvas.Rounded(button.bounds, radius, style.background)
 	}
-	hint := ""
-	if button.hasIcon() {
-		size := min(buttonIconExtent(height), button.bounds.Width)
-		width := size
-		if !iconOnly && label != "" {
-			width = min(button.bounds.Width, width+buttonIconGap+button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium))
+	area := button.bounds
+	_, padding, _, _ := button.geometry()
+	if !iconOnly && padding > 0 {
+		content := gfx.Rect{X: area.X + padding, Y: area.Y, Width: max(area.Width-2*padding, 0), Height: area.Height}
+		need := button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium)
+		if button.hasIcon() {
+			need += buttonIconExtent(height)
+			if label != "" {
+				need += buttonIconGap
+			}
 		}
-		x := button.bounds.X + (button.bounds.Width-width)/2
-		if size > 0 {
-			button.canvas.DrawIconTransformed(
-				button.icon,
-				gfx.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size},
-				style.foreground,
-				button.iconTransform,
-			)
+		if content.Width > 0 && need > content.Width {
+			button.canvas.Clip(content)
+			defer button.canvas.Unclip()
 		}
-		if iconOnly {
-			hint = label
-		} else if label != "" {
-			text := gfx.Rect{X: x + size + buttonIconGap, Y: button.bounds.Y, Width: max(0, width-size-buttonIconGap), Height: height}
-			paintButtonLabel(button.canvas, label, text, fontSize, gfx.WeightMedium, style)
-		}
-	} else {
-		paintButtonLabel(button.canvas, label, button.bounds, fontSize, gfx.WeightMedium, style)
 	}
+	hint := PaintButtonContent(button.canvas, area, ButtonContent{
+		Label: label, Icon: button.icon, IconTransform: button.iconTransform,
+		FontSize: fontSize, Weight: gfx.WeightMedium, Color: style.foreground,
+		Gap: buttonIconGap, Height: height, IconOnly: iconOnly, Underlined: style.underlined,
+	})
 	if !button.id.IsZero() {
 		button.canvas.HitWithOptions(button.id, button.bounds, label, gfx.HitOptions{
 			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint, Invalid: button.state.Invalid,
@@ -438,6 +433,9 @@ func (button Button) geometry() (height, padding, fontSize float32, iconOnly boo
 	}
 	if button.fontSize > 0 {
 		fontSize = button.fontSize
+	}
+	if button.height <= 0 && !iconOnly {
+		height = max(height, fontSize+7)
 	}
 	return height, padding, fontSize, iconOnly
 }

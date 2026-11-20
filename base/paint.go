@@ -2,6 +2,7 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	controlstyle "github.com/vivaui/viva/style"
 )
 
 func (f *Frame) PaintChild(i int32) {
@@ -48,7 +49,7 @@ func (f *Frame) PaintChild(i int32) {
 		s.scope = canvas.FocusScope()
 	}
 	style := f.resolve(n, extra)
-	if n.Kind == kindContainer && n.Flags&flagThemed != 0 {
+	if n.Kind == kindButton && n.Flags&flagChildren != 0 {
 		defer func(color Color, has bool) { f.inherited, f.hasInherited = color, has }(f.inherited, f.hasInherited)
 		f.inherited, f.hasInherited = style.Color, true
 	}
@@ -113,7 +114,7 @@ func (f *Frame) PaintChild(i int32) {
 		group = canvas.Mark()
 	}
 	// A ColorSwatch declares its own hit, as a radio, under whatever id Hit gave it.
-	if hasHit && !extra.swatch && (n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
+	if hasHit && !extra.swatch && (n.Kind == kindButton || n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.Flags&flagLabelFor != 0 {
@@ -124,10 +125,18 @@ func (f *Frame) PaintChild(i int32) {
 			canvas.HitLabel(n.ID, hit, text, n.Flags&flagDisabled != 0)
 		} else {
 			options := extra.hit
+			if n.Kind == kindButton {
+				if options.Role == 0 {
+					options.Role = gfx.RoleButton
+				}
+				if options.Hint == "" && n.ButtonSize >= controlstyle.SizeIcon {
+					options.Hint = n.Label
+				}
+			}
 			// Disabled on the element is the control's own: a Base that was told it is
 			// unavailable says so to assistive technology and leaves the Tab order,
 			// as the control with a look does.
-			options.Disabled = options.Disabled || n.Flags&flagDisabled != 0
+			options.Disabled = options.Disabled || f.Disabled(n)
 			canvas.HitWithOptions(n.ID, hit, n.Label, options)
 		}
 	}
@@ -145,6 +154,15 @@ func (f *Frame) PaintChild(i int32) {
 	}
 	n.Color = color
 
+	disableContents := n.Kind == kindButton && n.Flags&flagChildren != 0 && f.Disabled(n)
+	var contentsMark gfx.Mark
+	if disableContents {
+		contentsMark = canvas.Mark()
+	}
+	clipContents := n.Kind == kindButton && n.Flags&flagChildren != 0
+	if clipContents {
+		canvas.Clip(f.ContentRect(n))
+	}
 	var hooks drawHooks
 	if extra.Draws != 0 {
 		hooks = f.Draws[extra.Draws-1]
@@ -160,6 +178,12 @@ func (f *Frame) PaintChild(i int32) {
 	}
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
+	}
+	if clipContents {
+		canvas.Unclip()
+	}
+	if disableContents {
+		canvas.DisableHitsSince(contentsMark)
 	}
 	if s := extra.scrollState; s != nil && s.bars && canvas != nil {
 		f.paintBarsFn(f, n, s) // over the content, inside the area's clip
@@ -218,9 +242,69 @@ func (f *Frame) paintControl(n *Node, r Rect) {
 		if int(n.Kind) < len(controlPainters) {
 			if painter := controlPainters[n.Kind]; painter != nil {
 				painter(f, n, r)
+				return
 			}
 		}
+		requireInstall(n.Kind, "painter")
 	}
+}
+
+// engineKind is a kind the engine paints, measures or lays out itself, so no
+// layer above installs a painter or a measurer for it.
+func engineKind(k Kind) bool {
+	switch k {
+	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
+		return true
+	}
+	return false
+}
+
+// controlNames names the kinds a styled layer installs, in Kind order.
+var controlNames = [...]string{
+	KindContainer:   "Container",
+	KindText:        "Text",
+	KindSpacer:      "Spacer",
+	KindButton:      "Button",
+	KindCheckbox:    "Checkbox",
+	KindSwitch:      "Switch",
+	KindIcon:        "Icon",
+	KindSlot:        "Slot",
+	KindInput:       "Input",
+	KindInputGroup:  "InputGroup",
+	KindTextarea:    "Textarea",
+	KindSegmented:   "Segmented",
+	KindTable:       "Table",
+	KindTabs:        "Tabs",
+	KindSelect:      "Select",
+	KindProgress:    "Progress",
+	KindSpinner:     "Spinner",
+	KindSplitter:    "Splitter",
+	KindSlider:      "Slider",
+	KindImage:       "Image",
+	KindSplitButton: "SplitButton",
+	KindBadge:       "Badge",
+	KindToggle:      "Toggle",
+	KindPagination:  "Pagination",
+}
+
+// controlName is the name a diagnostic calls the kind by.
+func controlName(k Kind) string {
+	if int(k) < len(controlNames) && controlNames[k] != "" {
+		return controlNames[k]
+	}
+	return "Control"
+}
+
+// requireInstall stops a control that would otherwise paint or measure nothing:
+// the styled layer installs each control kind as the page declares it, and a
+// host that drives package base directly installs every one with
+// ui.InstallPainters. A missing installation is a wiring bug, not an empty
+// control, so it panics with the kind's name instead of drawing silence.
+func requireInstall(k Kind, what string) {
+	if engineKind(k) || int(k) >= len(controlPainters) {
+		return
+	}
+	panic("ui: a " + controlName(k) + " has no " + what + " installed: a host that drives package base directly must call ui.InstallPainters(); a page that declares controls through ui.* functions installs each kind as it is declared")
 }
 
 func (f *Frame) paintText(n *Node) {

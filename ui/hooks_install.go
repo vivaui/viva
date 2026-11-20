@@ -12,56 +12,135 @@ import (
 // installs the hooks of the features it declares, so an application links only
 // the painters it uses. InstallPainters installs all of them, for a host that
 // drives base directly or for the engine's own tests.
-var installControls, installField, installSelect, installTabs, installTable, installTree,
-	installMenu, installDialog, installAlert, installDrawer, installPopover, installColor, installCombo, installScroll sync.Once
+var installButton, installBadge, installPagination, installSplitButton,
+	installCheckbox, installSwitch, installToggle, installSegmented,
+	installTextEntry, installIndicators, installSplitter, installSlider,
+	installTooltip, installField, installSelect, installTabs, installTable,
+	installTree, installMenu, installDialog, installAlert, installDrawer,
+	installPopover, installColor, installCombo, installScroll sync.Once
 
-func init() { useControls() }
+// useTooltip installs the tooltip painter. Any element can be given a tooltip,
+// so a page asks for it once when it is made rather than through a control.
+func useTooltip() { installTooltip.Do(func() { base.PaintTooltip = paintTooltip }) }
 
-func useControls() {
-	installControls.Do(func() {
+func useButton() {
+	installButton.Do(func() {
 		base.SetControlPainter(KindButton, paintButtonControl)
-		base.SetControlPainter(KindCheckbox, paintCheckboxControl)
-		base.SetControlPainter(KindSwitch, paintSwitchControl)
-		base.SetControlPainter(KindToggle, paintToggleControl)
-		base.SetControlPainter(KindInput, paintInputControl)
-		base.SetControlPainter(KindInputGroup, paintInputGroupControl)
-		base.SetControlPainter(KindTextarea, paintTextareaControl)
-		base.SetControlPainter(KindSegmented, paintSegmentedControl)
-		base.SetControlPainter(KindProgress, paintProgressControl)
-		base.SetControlPainter(KindSpinner, paintSpinnerControl)
-		base.SetControlPainter(KindSplitter, paintSplitterControl)
-		base.SetControlPainter(KindSlider, paintSliderControl)
-		base.SetControlPainter(KindSplitButton, paintSplitButtonControl)
-		base.SetControlPainter(KindBadge, paintBadgeControl)
-		base.SetControlPainter(KindPagination, paintPaginationControl)
-		base.ControlMeasurer = measureControls
+		base.SetControlMeasurer(KindButton, measureButtonNode)
 		base.ControlBaseline = controlBaseline
 		base.ButtonLookFn = frameButtonLook
+	})
+}
+
+func useBadge() {
+	installBadge.Do(func() {
+		base.SetControlPainter(KindBadge, paintBadgeControl)
+		base.SetControlMeasurer(KindBadge, measureBadgeNode)
+	})
+}
+
+func usePagination() {
+	installPagination.Do(func() {
+		base.SetControlPainter(KindPagination, paintPaginationControl)
+		base.SetControlMeasurer(KindPagination, measurePaginationNode)
+	})
+}
+
+func useSplitButton() {
+	installSplitButton.Do(func() {
+		base.SetControlPainter(KindSplitButton, paintSplitButtonControl)
+		base.SetControlMeasurer(KindSplitButton, measureSplitButtonNode)
+	})
+}
+
+func useCheckbox() {
+	installCheckbox.Do(func() {
+		base.SetControlPainter(KindCheckbox, paintCheckboxControl)
+		base.SetControlMeasurer(KindCheckbox, measureCheckboxNode)
+	})
+}
+
+func useSwitch() {
+	installSwitch.Do(func() {
+		base.SetControlPainter(KindSwitch, paintSwitchControl)
+		base.SetControlMeasurer(KindSwitch, measureSwitchNode)
+	})
+}
+
+func useToggle() {
+	installToggle.Do(func() {
+		base.SetControlPainter(KindToggle, paintToggleControl)
+		base.SetControlMeasurer(KindToggle, measureToggleNode)
+	})
+}
+
+func useSegmented() {
+	installSegmented.Do(func() {
+		base.SetControlPainter(KindSegmented, paintSegmentedControl)
+		base.SetControlMeasurer(KindSegmented, measureSegmentedNode)
+	})
+}
+
+// useTextEntry installs the looks and measurements of the text-entry controls:
+// a single-line field, a field with addons, and the rows of a textarea.
+func useTextEntry() {
+	installTextEntry.Do(func() {
+		base.SetControlPainter(KindInput, paintInputControl)
+		base.SetControlMeasurer(KindInput, measureInputNode)
+		base.SetControlPainter(KindInputGroup, paintInputGroupControl)
+		base.SetControlMeasurer(KindInputGroup, measureInputGroupNode)
+		base.SetControlPainter(KindTextarea, paintTextareaControl)
+		base.SetControlMeasurer(KindTextarea, measureTextareaNode)
+	})
+}
+
+func useIndicators() {
+	installIndicators.Do(func() {
+		base.SetControlPainter(KindProgress, paintProgressControl)
+		base.SetControlMeasurer(KindProgress, measureProgressNode)
+		base.SetControlPainter(KindSpinner, paintSpinnerControl)
+		base.SetControlMeasurer(KindSpinner, measureSpinnerNode)
+	})
+}
+
+func useSplitter() {
+	installSplitter.Do(func() {
+		base.SetControlPainter(KindSplitter, paintSplitterControl)
+		base.SetControlMeasurer(KindSplitter, measureSplitterNode)
+	})
+}
+
+func useSlider() {
+	installSlider.Do(func() {
+		base.SetControlPainter(KindSlider, paintSliderControl)
+		base.SetControlMeasurer(KindSlider, measureSliderNode)
 		base.SliderPointer = sliderPointer
-		base.PaintTooltip = paintTooltip
 	})
 }
 
 func useField() {
-	useControls()
+	useTextEntry()
 	installField.Do(func() { base.EntryLook = frameTextEntryLook; base.PaintAddons = paintAddons })
 }
 func useSelect() {
-	useControls()
 	installSelect.Do(func() {
 		base.SetControlPainter(KindSelect, paintWidgetControl)
+		base.SetControlMeasurer(KindSelect, measureWidgetNode)
 		base.PaintSelect = paintSelect
 		base.MeasureSelect = measureSelect
 	})
 }
 func useTabs() {
-	useControls()
-	installTabs.Do(func() { base.SetControlPainter(KindTabs, paintWidgetControl); base.PaintTabs = paintTabs })
+	installTabs.Do(func() {
+		base.SetControlPainter(KindTabs, paintWidgetControl)
+		base.SetControlMeasurer(KindTabs, measureWidgetNode)
+		base.PaintTabs = paintTabs
+	})
 }
 func useTable() {
-	useControls()
 	installTable.Do(func() {
 		base.SetControlPainter(KindTable, paintWidgetControl)
+		base.SetControlMeasurer(KindTable, measureWidgetNode)
 		base.PaintTableRows = paintTableRows
 		base.PaintTableHeaderRow = paintTableHeaderRow
 		base.PaintTableScrollbars = paintTableScrollbars
@@ -84,15 +163,26 @@ func usePopover() { installPopover.Do(func() { base.BuildPopover = framePopover 
 func useColor() {
 	installColor.Do(func() { base.PaintSwatch = paintSwatch; base.PaintPickerPanel = paintColorPickerPanel })
 }
-func useCombo()  { useControls(); installCombo.Do(func() { base.PaintCombo = comboStateDraw }) }
+func useCombo()  { useField(); installCombo.Do(func() { base.PaintCombo = comboStateDraw }) }
 func useScroll() { installScroll.Do(func() { base.PaintScrollbars = paintScrollbars }) }
 
 // InstallPainters installs every painter the styled layer owns. Applications
 // get what they use from the ui constructors; this is for a host that drives
 // base directly, and for the engine's tests.
 func InstallPainters() {
-	useControls()
+	useButton()
+	useBadge()
+	usePagination()
+	useSplitButton()
+	useCheckbox()
+	useSwitch()
+	useToggle()
+	useSegmented()
 	useField()
+	useIndicators()
+	useSplitter()
+	useSlider()
+	useTooltip()
 	useSelect()
 	useTabs()
 	useTable()

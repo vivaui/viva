@@ -108,109 +108,129 @@ func paintSegmented(f *Frame, v ControlView) {
 	control.Paint()
 }
 
-// measureControls measures the controls: each kind's geometry, from package
-// components for the ones that ship with a theme.
-func measureControls(f *Frame, n *Node) {
-	switch n.Kind {
-	case KindButton:
-		n.Pref = measureButton(f, n)
-	case KindBadge:
-		w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
-		n.Pref = [2]float32{w, h}
-	case KindPagination:
-		w, h := components.PaginationExtent(f.Surface, f.Palette, f.PaginationItems(n))
-		n.Pref = [2]float32{w, h}
-	case KindSplitButton:
-		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
-		trigger := base.WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
-		if trigger <= 0 {
-			trigger = SplitButtonTrigger
-		}
-		n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
-	case KindCheckbox:
-		w, h := components.CheckboxHitExtent(f.Palette)
-		n.Pref = [2]float32{w, h}
-		if n.Text != "" {
-			n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
-		}
-	case KindSwitch:
-		w, h := components.SwitchHitExtent(f.Palette, n.Flags&FlagSmall != 0)
-		n.Pref = [2]float32{w, h}
-		if n.Text != "" {
-			control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
-			n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
-		}
-	case KindToggle:
-		toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
-		if n.ButtonSize == style.SizeSmall {
-			toggle = toggle.Small()
-		} else if n.ButtonSize == style.SizeLarge {
-			toggle = toggle.Large()
-		}
-		label := n.Text
-		if label == "" {
-			label = n.Label
-		}
-		toggle = toggle.SizeToFit(label)
-		height := f.Palette.Metrics.ControlHeight
-		if n.ButtonSize == style.SizeSmall {
-			height -= 4
-		} else if n.ButtonSize == style.SizeLarge {
-			height += 4
-		}
-		n.Pref = [2]float32{toggle.BoundsWidth(), height}
-	case KindSegmented:
-		var width float32 = 8
-		for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
-			width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
-		}
-		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
-	case KindInput:
-		n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
-		if n.Flags&FlagThemed != 0 {
-			n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
-		}
-	case KindInputGroup:
-		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
-		if n.Kind == KindInputGroup && base.WidgetsOf(f).GetGroups()[n.Aux].Multiline {
-			n.Pref[AxisY] = 64
-		}
-	case KindTextarea:
-		n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
-		if n.Flags&FlagThemed != 0 {
-			n.Pref = [2]float32{0, 64}
-		}
-		if n.MaxLines > 0 {
-			// AutoGrow: the rows measured by the same layout the paint will use,
-			// capped at n.MaxLines rows and never below the control's minimum.
-			// The width is the one the last layout gave the box, which the first
-			// paint records and then asks for before it is shown.
-			snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
-			if layout := snapshot.Layout; layout != nil {
-				if width := layout.BoxWidth(); width > 0 {
-					height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
-					maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
-					n.Pref[AxisY] = max(64, min(height, maxHeight))
-				}
-			}
-		}
-	case KindTable, KindTabs, KindSelect:
-		f.MeasureWidget(n)
-	case KindProgress:
-		n.Pref = [2]float32{ProgressWidth, ProgressHeight}
-	case KindSpinner:
-		n.Pref = [2]float32{16, 16}
-	case KindSplitter:
-		f.MeasureSplitter(n)
-	case KindSlider:
-		f.MeasureSlider(n)
+// measureButtonNode sizes a button that paints its own label and icon.
+func measureButtonNode(f *Frame, n *Node) { n.Pref = measureButton(f, n) }
+
+// measureBadgeNode gives a Badge the extent its component wants.
+func measureBadgeNode(f *Frame, n *Node) {
+	w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
+	n.Pref = [2]float32{w, h}
+}
+
+// measurePaginationNode gives a Pagination the extent its items want.
+func measurePaginationNode(f *Frame, n *Node) {
+	w, h := components.PaginationExtent(f.Surface, f.Palette, f.PaginationItems(n))
+	n.Pref = [2]float32{w, h}
+}
+
+// measureSplitButtonNode gives a SplitButton its label's width and its trigger.
+func measureSplitButtonNode(f *Frame, n *Node) {
+	button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
+	trigger := base.WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
+	if trigger <= 0 {
+		trigger = SplitButtonTrigger
+	}
+	n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
+}
+
+func measureCheckboxNode(f *Frame, n *Node) {
+	w, h := components.CheckboxHitExtent(f.Palette)
+	n.Pref = [2]float32{w, h}
+	if n.Text != "" {
+		n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
 	}
 }
+
+func measureSwitchNode(f *Frame, n *Node) {
+	w, h := components.SwitchHitExtent(f.Palette, n.Flags&FlagSmall != 0)
+	n.Pref = [2]float32{w, h}
+	if n.Text != "" {
+		control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
+		n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
+	}
+}
+
+func measureToggleNode(f *Frame, n *Node) {
+	toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
+	if n.ButtonSize == style.SizeSmall {
+		toggle = toggle.Small()
+	} else if n.ButtonSize == style.SizeLarge {
+		toggle = toggle.Large()
+	}
+	label := n.Text
+	if label == "" {
+		label = n.Label
+	}
+	toggle = toggle.SizeToFit(label)
+	height := f.Palette.Metrics.ControlHeight
+	if n.ButtonSize == style.SizeSmall {
+		height -= 4
+	} else if n.ButtonSize == style.SizeLarge {
+		height += 4
+	}
+	n.Pref = [2]float32{toggle.BoundsWidth(), height}
+}
+
+func measureSegmentedNode(f *Frame, n *Node) {
+	var width float32 = 8
+	for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
+		width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
+	}
+	n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
+}
+
+func measureInputNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
+	if n.Flags&FlagThemed != 0 {
+		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
+	}
+}
+
+func measureInputGroupNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
+	if base.WidgetsOf(f).GetGroups()[n.Aux].Multiline {
+		n.Pref[AxisY] = 64
+	}
+}
+
+func measureTextareaNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
+	if n.Flags&FlagThemed != 0 {
+		n.Pref = [2]float32{0, 64}
+	}
+	if n.MaxLines > 0 {
+		// AutoGrow: the rows measured by the same layout the paint will use,
+		// capped at n.MaxLines rows and never below the control's minimum.
+		// The width is the one the last layout gave the box, which the first
+		// paint records and then asks for before it is shown.
+		snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
+		if layout := snapshot.Layout; layout != nil {
+			if width := layout.BoxWidth(); width > 0 {
+				height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
+				maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
+				n.Pref[AxisY] = max(64, min(height, maxHeight))
+			}
+		}
+	}
+}
+
+// measureWidgetNode gives a Table, Tabs or Select the size its widget wants.
+func measureWidgetNode(f *Frame, n *Node) { f.MeasureWidget(n) }
+
+func measureProgressNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{ProgressWidth, ProgressHeight}
+}
+
+func measureSpinnerNode(f *Frame, n *Node) { n.Pref = [2]float32{16, 16} }
+
+func measureSplitterNode(f *Frame, n *Node) { f.MeasureSplitter(n) }
+
+func measureSliderNode(f *Frame, n *Node) { f.MeasureSlider(n) }
 
 // buttonWeight is the weight of a button's label: the one the element asks for, or the
 // medium weight the control has.
 func buttonWeight(n *Node) float32 {
-	if n.Weight > 0 {
+	if n.WeightSet || n.Weight != 0 {
 		return n.Weight
 	}
 	return gfx.WeightMedium
@@ -223,6 +243,9 @@ func buttonWeight(n *Node) float32 {
 // side by the caller, it grows to hold its label and the padding.
 func measureButton(f *Frame, n *Node) [2]float32 {
 	height, _, fontSize, _ := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
 	if d := n.Size[AxisY]; d.Kind == DimPx {
 		height = d.Value
 	}
@@ -236,9 +259,11 @@ func measureButton(f *Frame, n *Node) [2]float32 {
 			width += n.Gap
 		}
 	}
-	if n.Flags&FlagSetPad != 0 {
-		height = max(height, fontSize+7+n.PadY())
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
 	}
+	height = max(height, leading+n.PadY())
 	return [2]float32{width, height}
 }
 
@@ -256,20 +281,35 @@ func buttonContentArea(f *Frame, n *Node) Rect {
 // paintButton paints the content of a button that paints its own: its icon and its label,
 // in the room its Pad and Border leave. The surface is the element's, dressed by the
 // button's recipe before this runs, and the label takes the color the recipe gives it in
-// the state the button is in unless the element has one of its own.
+// the state the button is in unless the element has one of its own. Content the caller
+// makes wider than the room inside the padding is cut at the content edge.
 func paintButton(f *Frame, n *Node) {
+	if n.Flags&FlagChildren != 0 {
+		return
+	}
 	extra := &f.Exts[n.Ext]
 	_, _, fontSize, iconOnly := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
-	hint := components.PaintButtonContent(f.Surface, buttonContentArea(f, n), components.ButtonContent{
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	area := buttonContentArea(f, n)
+	room := f.ContentRect(n)
+	need := f.Surface.TextWidthWeight(n.Label, fontSize, buttonWeight(n))
+	if icon := extra.GetIcon(); len(icon.Commands) != 0 || len(icon.Layers) != 0 {
+		need += style.ButtonIconExtent(n.Rect.Height)
+		if n.Label != "" {
+			need += n.Gap
+		}
+	}
+	if room.Width > 0 && need > room.Width {
+		f.Surface.Clip(room)
+		defer f.Surface.Unclip()
+	}
+	components.PaintButtonContent(f.Surface, area, components.ButtonContent{
 		Label: n.Label, Icon: extra.GetIcon(), IconTransform: extra.GetIconTransform(),
 		FontSize: fontSize, Weight: buttonWeight(n), Color: n.Color, Gap: n.Gap, Height: n.Rect.Height,
 		IconOnly: iconOnly, Underlined: f.GetButtonLook().Underlined,
 	})
-	if !n.ID.IsZero() {
-		f.Surface.HitWithOptions(n.ID, n.Rect, n.Label, gfx.HitOptions{
-			Role: gfx.RoleButton, Disabled: n.Flags&FlagDisabled != 0, Hint: hint,
-		})
-	}
 }
 
 func paintInput(f *Frame, n *Node) {

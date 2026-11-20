@@ -124,6 +124,14 @@ See the [v0.6.0 migration notes](releases/0.6.0.md#迁移--migration) for custom
 controls, layout and host routing. When jumping from an older version, also
 apply the v0.4.0 and v0.3.0 changes below.
 
+A host that drives `package base` directly, through `base.NewPage` and a
+`base.View`/`base.Frame` (the `ui.View` and `ui.Frame` aliases are the same
+type), must call `ui.InstallPainters()` once. The `ui.*` constructors install
+each control kind as a page declares it, which is what lets an application link
+only the controls it uses; a control declared from `package base` without that
+installation now stops the page with a diagnostic naming the control, instead
+of laying it out or painting it as nothing.
+
 #### Custom renderers: block elements become cell glyphs
 
 The former `ui.ReplaceBlockElements` function and `ui.Canvas.BlockRectangles`

@@ -165,7 +165,7 @@ func TestPackageLinuxMakesADeb(t *testing.T) {
 	text := string(control["./control"])
 	for _, want := range []string{
 		"Package: fixture-notes\n", "Version: 2.0.1\n", "Architecture: amd64\n", "Maintainer: Ann Lee <ann@example.com>\n",
-		"Depends: libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Recommends: libvulkan1\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
+		"Depends: libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Recommends: libxcb-cursor0, libvulkan1\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("control lacks %q:\n%s", want, text)
@@ -279,8 +279,8 @@ func TestPackageLinuxMakesAnRPM(t *testing.T) {
 
 // dlopen dependencies do not appear in the program's ELF headers. RPM must request
 // their shared-library capabilities so a clean installation has the text and XCB
-// libraries; the GPU loader is recommended, because the CPU renderer covers a
-// machine without it.
+// libraries; the cursor theme library and the GPU loader are recommended, because
+// the X cursor font and the CPU renderer cover a machine without them.
 func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 	for _, arch := range []struct{ goarch, rpm string }{{"amd64", "x86_64"}, {"arm64", "aarch64"}} {
 		t.Run(arch.goarch, func(t *testing.T) {
@@ -306,8 +306,10 @@ func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 				t.Error("RPM hard-requires the GPU loader, which the CPU renderer does not need")
 			}
 			recommends := rpmRecommendedCapabilities(t, data)
-			if !slices.Contains(recommends, "libvulkan.so.1()(64bit)") {
-				t.Errorf("RPM does not recommend the GPU loader, has %v", recommends)
+			for _, capability := range []string{"libxcb-cursor.so.0()(64bit)", "libvulkan.so.1()(64bit)"} {
+				if !slices.Contains(recommends, capability) {
+					t.Errorf("RPM does not recommend %s, has %v", capability, recommends)
+				}
 			}
 			for _, library := range []string{
 				"libpangoft2-1.0.so.0", "libxcb-cursor.so.0", "libxcb-randr.so.0",
@@ -477,22 +479,22 @@ func TestDebDepends(t *testing.T) {
 }
 
 func TestDebRecommends(t *testing.T) {
-	if got := strings.Join(debRecommends(nil), ", "); got != "libvulkan1" {
+	if got := strings.Join(debRecommends(nil), ", "); got != "libxcb-cursor0, libvulkan1" {
 		t.Errorf("recommends = %q", got)
 	}
-	// A manifest that requires the loader itself keeps it out of Recommends.
-	if got := debRecommends([]string{"libvulkan1 (>= 1.3)"}); len(got) != 0 {
-		t.Errorf("recommends = %v, want none", got)
+	// A manifest that requires a package itself keeps it out of Recommends.
+	if got := strings.Join(debRecommends([]string{"libxcb-cursor0", "libvulkan1 (>= 1.3)"}), ", "); got != "" {
+		t.Errorf("recommends = %q, want none", got)
 	}
 }
 
 func TestArchOptDepends(t *testing.T) {
 	optional := archOptDepends(nil)
-	if len(optional) != 1 || !strings.HasPrefix(optional[0], "vulkan-icd-loader: ") {
+	if len(optional) != 2 || !strings.HasPrefix(optional[0], "libxcb-cursor: ") || !strings.HasPrefix(optional[1], "vulkan-icd-loader: ") {
 		t.Errorf("optdepends = %v", optional)
 	}
-	// A manifest that depends on the loader itself keeps it out of optdepends.
-	if got := archOptDepends([]string{"vulkan-icd-loader"}); len(got) != 0 {
+	// A manifest that depends on a package itself keeps it out of optdepends.
+	if got := archOptDepends([]string{"libxcb-cursor", "vulkan-icd-loader"}); len(got) != 0 {
 		t.Errorf("optdepends = %v, want none", got)
 	}
 }
@@ -559,7 +561,7 @@ func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
 		"pkgver='2.0.1'",
 		"arch=('x86_64')",
 		"depends=('fontconfig' 'pango' 'glib2' 'libxcb>=1.16' 'cairo' 'extra-lib')",
-		"optdepends=('vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU')",
+		"optdepends=('libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph' 'vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU')",
 		"source=('fixture-notes-2.0.1-linux-amd64.tar.gz')",
 		"sha256sums=('" + hex.EncodeToString(digest[:]) + "')",
 		"_icon_size=256",
@@ -575,7 +577,12 @@ func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib", "\toptdepends = vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU", "pkgname = fixture-notes-bin"} {
+	for _, want := range []string{
+		"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib",
+		"\toptdepends = libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph",
+		"\toptdepends = vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU",
+		"pkgname = fixture-notes-bin",
+	} {
 		if !strings.Contains(string(srcinfo), want) {
 			t.Errorf("the .SRCINFO lacks %q:\n%s", want, srcinfo)
 		}

@@ -54,26 +54,25 @@ func (f *Frame) applyRecipes() {
 			if n.Kind == kindTextarea && n.MinS[AxisY] == 0 {
 				n.MinS[AxisY] = 64 // the official minimum height
 			}
-		case kindButton, kindContainer:
+		case kindButton:
 			f.applyButtonRecipe(n)
 		}
 	}
 }
 
-// applyButtonRecipe gives a themed button the measurements its size and recipe have: the
-// corners and the padding either side of its content. It is a button whether it paints its
-// own label and icon (a kindButton) or holds children (a container Children turned it
-// into). What the caller set (Radius, Pad on a side) is left alone, so a button is
-// restyled with the calls any element takes. Its border is not a measurement: it is drawn
-// over the control's edge, as a focus border is, so the recipe's never takes room.
+// applyButtonRecipe supplies layout defaults while the control keeps its button
+// kind. Caller-owned content uses the same typography as the default label.
 func (f *Frame) applyButtonRecipe(n *Node) {
 	theme := f.RecipeTheme(n, &f.scratch.theme)
 	if n.Flags&flagHasRadius == 0 {
 		n.Radius = f.buttonLook(n, theme, gfx.State{}).Radius
 	}
-	_, padding, _, iconOnly := style.ButtonGeometry(theme.Metrics, n.ButtonSize)
-	if iconOnly && n.Kind == kindButton {
-		padding = 0 // the icon alone is centered in a square
+	height, padding, fontSize, iconOnly := style.ButtonGeometry(theme.Metrics, n.ButtonSize)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if iconOnly {
+		padding = 0
 	}
 	if n.PadSet&padRight == 0 {
 		n.Pad[1] = padding
@@ -81,17 +80,47 @@ func (f *Frame) applyButtonRecipe(n *Node) {
 	if n.PadSet&padLeft == 0 {
 		n.Pad[3] = padding
 	}
-	if n.Kind != kindContainer || n.Size[AxisY].Kind != dimAuto {
+	if n.Flags&flagChildren == 0 {
 		return
 	}
-	// A button that holds children is as tall as its size says, as a shadcn button is, and
-	// grows with its content only once the caller has padded it.
-	height, _, _, _ := style.ButtonGeometry(theme.Metrics, n.ButtonSize)
-	if n.Flags&flagSetPad != 0 {
-		n.MinS[AxisY] = max(n.MinS[AxisY], height)
-		return
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
 	}
-	n.Size[AxisY] = Dimension{dimPx, height}
+	f.buttonTextDefaults(n, fontSize, weight, n.LineH)
+	if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
+		n.MinS[AxisY] = height
+	}
+}
+
+// Explicit child typography wins over the button's inherited defaults. A
+// nested control owns its own defaults rather than borrowing the outer label's.
+func (f *Frame) buttonTextDefaults(parent *Node, fontSize, weight, lineHeight float32) {
+	for i := parent.First; i >= 0; i = f.Nodes[i].Next {
+		n := &f.Nodes[i]
+		if n.Kind == kindButton {
+			continue
+		}
+		font, stroke, leading := fontSize, weight, lineHeight
+		if n.FontSet {
+			font = n.FontSize
+		} else if n.Kind == kindText {
+			n.FontSize = font
+		}
+		if n.WeightSet {
+			stroke = n.Weight
+		} else if n.Kind == kindText {
+			n.Weight = stroke
+		}
+		if n.LineH > 0 {
+			leading = n.LineH
+		} else if n.Kind == kindText {
+			n.LineH = leading
+		}
+		if n.First >= 0 {
+			f.buttonTextDefaults(n, font, stroke, leading)
+		}
+	}
 }
 
 // themedDefaults fills in, for the state the element is in now, the colors of the resolved
@@ -99,7 +128,7 @@ func (f *Frame) applyButtonRecipe(n *Node) {
 func (f *Frame) themedDefaults(n *Node, Extra *Extra, s *resolved) {
 	var state gfx.State
 	switch n.Kind {
-	case kindButton, kindContainer:
+	case kindButton:
 		f.themedButtonDefaults(n, Extra, s)
 		return
 	case kindInput:
@@ -182,7 +211,7 @@ func (f *Frame) themedButtonDefaults(n *Node, Extra *Extra, s *resolved) {
 	if c := f.Surface; c != nil && !n.ID.IsZero() {
 		state = gfx.State{Hovered: c.Hovered() == n.ID, Pressed: c.Pressed() == n.ID, FocusVisible: c.FocusVisible() == n.ID}
 	}
-	state.Disabled = n.Flags&flagDisabled != 0
+	state.Disabled = f.Disabled(n)
 	look := f.buttonLook(n, theme, state)
 	f.buttonPainted = look
 	if n.Flags&flagSetBackground == 0 {
@@ -222,12 +251,16 @@ func (f *Frame) themedButtonDefaults(n *Node, Extra *Extra, s *resolved) {
 	}
 }
 
-// buttonHoldsChildren turns a button that is given children into the row that holds them:
-// the same themed element, with the same size, variant, recipe and keyboard, whose content
-// is the caller's and is laid out as any container's is.
-func (f *Frame) buttonHoldsChildren(i int32) {
-	f.Nodes[i].Kind = kindContainer
-	if e := f.Extra(i); e.hit.Role == 0 {
-		e.hit.Role = gfx.RoleButton
+// Disabled includes disabled ancestors, so rebuilding a descendant cannot
+// reactivate a click or focus stop inside an unavailable control.
+func (f *Frame) Disabled(n *Node) bool {
+	for {
+		if n.Flags&flagDisabled != 0 {
+			return true
+		}
+		if n.Parent < 0 {
+			return false
+		}
+		n = &f.Nodes[n.Parent]
 	}
 }

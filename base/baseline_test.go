@@ -41,6 +41,43 @@ func TestButtonBaselineMatchesItsLabelRow(t *testing.T) {
 	}
 }
 
+// Caller-owned button content keeps its actual text baseline when a row asks
+// for baseline alignment, rather than using the bottom edge of the button.
+func TestButtonChildrenBaselineMatchesItsText(t *testing.T) {
+	canvas := testCanvas()
+	var view View
+	var sibling, label Box
+	f := view.Begin(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 80})
+	f.Row().Height(80).Items(Baseline).Children(func() {
+		sibling = f.Text("Text").FontSize(20)
+		f.Button(save, "Save").FontSize(20).Children(func() {
+			label = f.Text("Save")
+		})
+	})
+	f.End()
+	got := canvas.LabelBaseline(label.Rect(), gfx.TextStyle{Size: 20})
+	want := canvas.LabelBaseline(sibling.Rect(), gfx.TextStyle{Size: 20})
+	if d := got - want; d > 0.01 || d < -0.01 {
+		t.Fatalf("caller-owned button text baseline %v, sibling baseline %v", got, want)
+	}
+}
+
+func TestDisabledButtonCannotAutofocusDescendants(t *testing.T) {
+	var view View
+	f := view.Begin(testCanvas(), gfx.LightTheme(), gfx.Rect{Width: 400, Height: 80})
+	blocked, available := gfx.Item(101), gfx.Item(102)
+	row := f.Row().Children(func() {
+		f.Button(save, "Disabled").Disabled(true).Children(func() {
+			f.Button(blocked, "Nested")
+		})
+		f.Button(available, "Available")
+	})
+	if got := f.FirstControl(row.i); got != available {
+		t.Fatalf("dialog autofocus candidate = %v, want enabled sibling %v", got, available)
+	}
+	f.End()
+}
+
 // A Mono text stands on its own font's baseline and a proportional one on
 // LabelBaseline's row; Baseline alignment lines the two rows up anyway, so a
 // code line and the prose beside it share one baseline.
