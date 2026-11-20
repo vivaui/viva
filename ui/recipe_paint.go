@@ -13,3 +13,15 @@ func frameTextEntryLook(f *Frame, Palette *Theme, state gfx.State) components.Te
 	}
 	return components.TextEntryRecipe(*Palette, state)
 }
+
+// frameButtonLook is the recipe a themed button is dressed with: its own ButtonRecipe, else
+// the page's Styles.Button, else the theme's.
+func frameButtonLook(f *Frame, n *Node, Palette *Theme, state gfx.State) components.ButtonLook {
+	if recipe := f.Exts[n.Ext].GetButtonRecipe(); recipe != nil {
+		return recipe(*Palette, n.Variant, state)
+	}
+	if f.GetStyles() != nil && f.GetStyles().Button != nil {
+		return f.GetStyles().Button(*Palette, n.Variant, state)
+	}
+	return components.ButtonRecipe(*Palette, n.Variant, state)
+}

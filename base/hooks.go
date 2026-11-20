@@ -31,6 +31,7 @@ var (
 	PaintTreeRow         func(s *TreeState, i int, box Box)
 	TreeDraw             func(s *TreeState, d *DrawContext)
 	EntryLook            func(f *Frame, palette *Theme, state gfx.State) style.TextEntryLook
+	ButtonLookFn         func(f *Frame, n *Node, palette *Theme, state gfx.State) style.ButtonLook
 	SliderPointer        func(f *Frame, n *Node, s *SliderState)
 	BuildDialog          func(f *Frame, spec DialogSpec) Box
 	BuildPopover         func(f *Frame, anchor Box, spec PopoverSpec) Box
@@ -144,6 +145,15 @@ func (f *Frame) Popover(anchor Box, spec PopoverSpec) Box {
 		return BuildPopover(f, anchor, spec)
 	}
 	return Box{}
+}
+
+// buttonLook is the look the theme's recipe gives the button element n in a state: the
+// element's own ButtonRecipe, else the page's Styles.Button, else the theme's.
+func (f *Frame) buttonLook(n *Node, palette *Theme, state gfx.State) style.ButtonLook {
+	if ButtonLookFn != nil {
+		return ButtonLookFn(f, n, palette, state)
+	}
+	return style.ButtonLook{}
 }
 
 func (f *Frame) TextEntryLook(palette *Theme, state gfx.State) style.TextEntryLook {

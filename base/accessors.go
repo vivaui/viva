@@ -2136,3 +2136,7 @@ func NewTreeRow(index, key int, node int32, gen uint32, item style.TreeItem) Tre
 
 // SetRectsCells writes the cell rectangle scratch of Widgets.
 func (x *Widgets) SetRectsCells(v []Rect) { x.rects = v }
+
+// GetButtonLook reads the look the recipe gave the themed button being painted, for the
+// styled painting layer that paints its content.
+func (x *Frame) GetButtonLook() style.ButtonLook { return x.buttonPainted }

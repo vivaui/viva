@@ -36,6 +36,7 @@ func useControls() {
 		base.SetControlPainter(KindPagination, paintPaginationControl)
 		base.ControlMeasurer = measureControls
 		base.ControlBaseline = controlBaseline
+		base.ButtonLookFn = frameButtonLook
 		base.SliderPointer = sliderPointer
 		base.PaintTooltip = paintTooltip
 	})

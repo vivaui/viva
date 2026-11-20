@@ -48,6 +48,10 @@ func (f *Frame) PaintChild(i int32) {
 		s.scope = canvas.FocusScope()
 	}
 	style := f.resolve(n, extra)
+	if n.Kind == kindContainer && n.Flags&flagThemed != 0 {
+		defer func(color Color, has bool) { f.inherited, f.hasInherited = color, has }(f.inherited, f.hasInherited)
+		f.inherited, f.hasInherited = style.Color, true
+	}
 	// What the element is drawn with fades with it and with what it is inside; the
 	// controls inside it are painted with a theme faded the same way.
 	parentOpacity, parentTheme := f.Opacity, Theme{}
@@ -68,8 +72,8 @@ func (f *Frame) PaintChild(i int32) {
 		canvas.ElevateFaded(r, n.Radius, style.shadow, f.Opacity)
 	}
 	switch {
-	case n.BorderWidth > 0 && !style.dashed && extra.gradient == 0 && f.Opacity >= 1 && background.Alpha >= 1:
-		canvas.RoundedBorder(r, n.Radius, n.BorderWidth, border, background)
+	case style.borderWidth > 0 && !style.dashed && !style.splitBorder && extra.gradient == 0 && f.Opacity >= 1 && background.Alpha >= 1:
+		canvas.RoundedBorder(r, n.Radius, style.borderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
 		// gradient or a faded fill would show through. For those the fill, then the
@@ -86,11 +90,11 @@ func (f *Frame) PaintChild(i int32) {
 		if extra.gradient != 0 {
 			f.paintGradient(n, extra)
 		}
-		if n.BorderWidth > 0 {
+		if style.borderWidth > 0 {
 			if style.dashed {
-				canvas.DashedRoundedOutline(n.Rect, n.Radius, n.BorderWidth, border)
+				canvas.DashedRoundedOutline(n.Rect, n.Radius, style.borderWidth, border)
 			} else {
-				canvas.RoundedOutline(r, n.Radius, n.BorderWidth, border)
+				canvas.RoundedOutline(r, n.Radius, style.borderWidth, border)
 			}
 		}
 	}
