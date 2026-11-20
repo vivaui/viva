@@ -6860,6 +6860,20 @@ static void viva_set_secure_event_input(BOOL on) {
     [self placeTrafficLights];
 }
 
+// Redraw the custom titlebar's native buttons on activation so a stale inactive
+// appearance can be refreshed without waiting for mouse tracking to repaint it.
+- (void)windowDidBecomeKey:(NSNotification *)notification {
+    if (notification.object != _window || _windowMode != VIVA_WINDOW_CUSTOM_TITLEBAR) {
+        return;
+    }
+    [self keepTrafficLightsCentered];
+    const size_t buttonCount = sizeof(viva_traffic_buttons) / sizeof(viva_traffic_buttons[0]);
+    for (size_t index = 0; index < buttonCount; index++) {
+        NSView *button = [_window standardWindowButton:viva_traffic_buttons[index]];
+        [button setNeedsDisplay:YES];
+    }
+}
+
 /* AppKit reports some of the buttons' moves a turn of the run loop late, so the
  * resize itself is also a moment to place them. */
 - (void)windowDidResize:(NSNotification *)notification {
