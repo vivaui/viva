@@ -23,6 +23,13 @@ void viva_web_back(void *web);
 void viva_web_forward(void *web);
 void viva_web_eval(void *web, const char *script);
 void viva_web_focus(void *web);
+// viva_web_title is the title of the page's current document, as a malloc'd UTF-8 string which the
+// caller frees, and an empty string when it has none. viva_web_can_go_back,
+// viva_web_can_go_forward and viva_web_is_loading answer the page's history and its loading, 1 or 0.
+char *viva_web_title(void *web);
+int viva_web_can_go_back(void *web);
+int viva_web_can_go_forward(void *web);
+int viva_web_is_loading(void *web);
 void viva_web_set_top_corner_radius(void *web, double radius);
 // viva_web_close closes the page. Its unanswered scheme requests are let go too.
 void viva_web_close(void *web);

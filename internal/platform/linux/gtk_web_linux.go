@@ -34,6 +34,12 @@ type webKit struct {
 	reload            func(view uintptr)
 	goBack, goForward func(view uintptr)
 	getURI            func(view uintptr) uintptr
+	// The page's own state: its document's title, and whether its history and its loading are
+	// where they are.
+	getTitle          func(view uintptr) uintptr
+	canGoBack         func(view uintptr) int32
+	canGoForward      func(view uintptr) int32
+	isLoading         func(view uintptr) int32
 	getContext        func(view uintptr) uintptr
 	setZoom           func(view uintptr, level float64)
 	registerScheme    func(context uintptr, scheme *byte, callback, data, destroy uintptr)
@@ -142,7 +148,10 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			{&k.managerAddScript, "webkit_user_content_manager_add_script"}, {&k.scriptNew, "webkit_user_script_new"},
 			{&k.viewNew, "webkit_web_view_new_with_user_content_manager"}, {&k.loadURI, "webkit_web_view_load_uri"},
 			{&k.loadHTML, "webkit_web_view_load_html"}, {&k.reload, "webkit_web_view_reload"}, {&k.goBack, "webkit_web_view_go_back"},
-			{&k.goForward, "webkit_web_view_go_forward"}, {&k.getURI, "webkit_web_view_get_uri"}, {&k.getContext, "webkit_web_view_get_context"}, {&k.setZoom, "webkit_web_view_set_zoom_level"},
+			{&k.goForward, "webkit_web_view_go_forward"}, {&k.getURI, "webkit_web_view_get_uri"},
+			{&k.getTitle, "webkit_web_view_get_title"}, {&k.canGoBack, "webkit_web_view_can_go_back"},
+			{&k.canGoForward, "webkit_web_view_can_go_forward"}, {&k.isLoading, "webkit_web_view_is_loading"},
+			{&k.getContext, "webkit_web_view_get_context"}, {&k.setZoom, "webkit_web_view_set_zoom_level"},
 			{&k.registerScheme, "webkit_web_context_register_uri_scheme"}, {&k.schemeURI, "webkit_uri_scheme_request_get_uri"},
 			{&k.schemeFinish, "webkit_uri_scheme_request_finish"}, {&k.schemeFinishError, "webkit_uri_scheme_request_finish_error"},
 			{&k.jscString, "jsc_value_to_string"},
@@ -252,6 +261,11 @@ type gtkWebView struct {
 	// at is where the widget is, in widget units; zoom is the page's zoom.
 	at   viewPlace
 	zoom float64
+	// failed is a navigation the load-failed signal already reported: the load-changed that follows
+	// it ends the same load, and must not be reported twice. refused is a navigation the
+	// application's Navigate cancelled, whose interruption the application already answered.
+	failed  bool
+	refused bool
 }
 
 // viewPlace is a rectangle in the overlay's units.
@@ -427,6 +441,7 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	g.widgetSetVAlign(v.widget, 1)
 	g.overlayAdd(w.overlay, v.widget)
 	g.connect(v.widget, "load-changed", cb.webLoad, v.handle)
+	g.connect(v.widget, "load-failed", cb.webFailed, v.handle)
 	g.connect(v.widget, "focus-in-event", cb.event, w.id)
 	g.connect(v.widget, "focus-out-event", cb.event, w.id)
 	g.connect(v.widget, "decide-policy", cb.webDecide, v.handle)
@@ -521,6 +536,29 @@ func (v *gtkWebView) Forward() {
 	if !v.closed {
 		v.k.goForward(v.widget)
 	}
+}
+
+// Title is the title of the page's current document, which the engine keeps for the widget: empty
+// before it has one, and once the page has closed.
+func (v *gtkWebView) Title() string {
+	if v.closed {
+		return ""
+	}
+	return goString(v.k.getTitle(v.widget))
+}
+
+// CanGoBack and CanGoForward ask the engine about the page's history.
+func (v *gtkWebView) CanGoBack() bool {
+	return !v.closed && v.k.canGoBack(v.widget) != 0
+}
+
+func (v *gtkWebView) CanGoForward() bool {
+	return !v.closed && v.k.canGoForward(v.widget) != 0
+}
+
+// IsLoading is the engine's own answer for the load it is in the middle of.
+func (v *gtkWebView) IsLoading() bool {
+	return !v.closed && v.k.isLoading(v.widget) != 0
 }
 
 func (v *gtkWebView) Eval(script string) {
@@ -630,20 +668,66 @@ func (v *gtkWebView) message(result uintptr) {
 	v.config.OnMessage(goString(text))
 }
 
+// report tells the application one step of a navigation, with the title the page has at that step
+// and, when the step ends a load that failed, why it failed.
+func (v *gtkWebView) report(phase platform.WebLoadPhase, address string, code platform.WebLoadError, description string) {
+	if v.closed || v.config.OnLoad == nil {
+		return
+	}
+	v.config.OnLoad(platform.WebLoad{
+		Phase: phase, URL: address, Title: v.Title(), Code: code, Description: description,
+	})
+}
+
 // loadChanged follows the page's navigation.
 func (v *gtkWebView) loadChanged(event int32) {
-	if v.closed || v.config.OnLoad == nil {
+	if v.closed {
 		return
 	}
 	address := goString(v.k.getURI(v.widget))
 	switch event {
 	case webLoadStarted:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadStarted, URL: address})
+		v.failed, v.refused = false, false
+		v.report(platform.WebLoadStarted, address, platform.WebLoadNoError, "")
 	case webLoadCommitted:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadCommitted, URL: address})
+		v.report(platform.WebLoadCommitted, address, platform.WebLoadNoError, "")
 	case webLoadFinished:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadFinished, URL: address})
+		// A load-failed already reported this load's end, and the interruption of a navigation the
+		// application refused is the answer the application gave.
+		failed, refused := v.failed, v.refused
+		v.failed, v.refused = false, false
+		if failed || refused {
+			return
+		}
+		v.report(platform.WebLoadFinished, address, platform.WebLoadNoError, "")
 	}
+}
+
+// gerror is the part of a GError this package reads: the code names the failure and the message is
+// the engine's own words for it.
+type gerror struct {
+	domain  uint32
+	code    int32
+	message uintptr
+}
+
+// loadFailed reports a navigation the engine could not load, with the reason it gave. The load ends
+// here: the load-changed that follows it ends the same load, and is not reported again.
+func (v *gtkWebView) loadFailed(uri, failure uintptr) {
+	if v.closed {
+		return
+	}
+	v.failed = true
+	if v.refused {
+		v.refused = false
+		return
+	}
+	code, description := platform.WebLoadUnknownError, ""
+	if failure != 0 {
+		err := (*gerror)(unsafePointer(failure))
+		code, description = platform.WebLoadErrorFromWebKitError(err.code), goString(err.message)
+	}
+	v.report(platform.WebLoadFinished, goString(uri), code, description)
 }
 
 // navigationAllowed asks the application whether the view may make a navigation. An application
@@ -680,8 +764,12 @@ func (v *gtkWebView) decidePolicy(decision uintptr, kind int32) uintptr {
 	}
 	address := goString(k.uriRequestURI(k.actionRequest(action)))
 	if v.navigationAllowed(address, true, gesture) {
+		v.refused = false
 		k.decisionUse(decision)
 	} else {
+		// A refused navigation that was already loading is interrupted by the engine, which reports
+		// the interruption as a failed load: the application answered it, so it is not reported.
+		v.refused = true
 		k.decisionIgnore(decision)
 	}
 	return 1

@@ -318,7 +318,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, capturePress, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, capturePress, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webFailed, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -449,6 +449,14 @@ func callbacks() *gtkCallbacks {
 			webLoad: purego.NewCallback(func(view, event, handle uintptr) uintptr {
 				if v := webViews[handle]; v != nil {
 					v.loadChanged(int32(event))
+				}
+				return 0
+			}),
+			// gboolean load-failed(view, WebKitLoadEvent, failing URI, GError, handle). The engine
+			// shows its own error page, so the signal is left unhandled after it is read.
+			webFailed: purego.NewCallback(func(view, event, uri, failure, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					v.loadFailed(uri, failure)
 				}
 				return 0
 			}),

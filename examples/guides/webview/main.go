@@ -52,15 +52,22 @@ func (m *model) open() {
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(8).Gap(8).Children(func() {
 		ui.Row(c).Gap(8).Items(ui.Center).Children(func() {
-			if ui.Button(c, "Back").Outline().Clicked() && m.view != nil {
+			// The page answers for its own history and title, and this paint asks it: Back and
+			// Forward are greyed out where the page has nowhere to go, and the label follows it.
+			title, canGoBack, canGoForward := "", false, false
+			if m.view != nil {
+				title, canGoBack, canGoForward = m.view.Title(), m.view.CanGoBack(), m.view.CanGoForward()
+			}
+			if ui.Button(c, "Back").Outline().Disabled(!canGoBack).Clicked() && m.view != nil {
 				m.view.Back()
 			}
-			if ui.Button(c, "Forward").Outline().Clicked() && m.view != nil {
+			if ui.Button(c, "Forward").Outline().Disabled(!canGoForward).Clicked() && m.view != nil {
 				m.view.Forward()
 			}
 			if ui.Button(c, "Reload").Outline().Clicked() && m.view != nil {
 				m.view.Reload()
 			}
+			ui.Text(c, title).Muted()
 			menu := ui.Button(c, "Menu").Outline()
 			if menu.Clicked() {
 				m.menuOpen = !m.menuOpen

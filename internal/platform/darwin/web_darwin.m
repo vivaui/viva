@@ -11,7 +11,7 @@
 
 // What the page does reaches Go through these (web_darwin.go).
 extern void vivaWebMessage(uintptr_t handle, uint32_t id, char *utf8);
-extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url);
+extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url, char *domain, int code, char *description);
 extern int vivaWebNavigate(uintptr_t handle, uint32_t id, char *url, int mainFrame, int userGesture);
 extern int vivaWebNewWindow(uintptr_t handle, uint32_t id, char *url);
 extern int vivaWebDownload(uintptr_t handle, uint32_t id, char *url);
@@ -80,7 +80,18 @@ static uint64_t viva_web_next_request;
 
 - (void)notify:(WKWebView *)web phase:(int)phase {
     NSString *address = web.URL.absoluteString;
-    vivaWebLoad(_handle, _id, phase, (char *)(address != nil ? address.UTF8String : ""));
+    vivaWebLoad(_handle, _id, phase, (char *)(address != nil ? address.UTF8String : ""), NULL, 0, NULL);
+}
+
+// reportFailure reports a navigation the engine could not load, with the reason it gave: the domain
+// and code of its error, and the engine's own words for it.
+- (void)reportFailure:(WKWebView *)web error:(NSError *)error {
+    NSString *address = web.URL.absoluteString;
+    vivaWebLoad(_handle, _id, 2,
+                (char *)(address != nil ? address.UTF8String : ""),
+                (char *)(error.domain != nil ? error.domain.UTF8String : ""),
+                (int)error.code,
+                (char *)(error.localizedDescription != nil ? error.localizedDescription.UTF8String : ""));
 }
 
 // The application answers before the request leaves the engine: a refused navigation fetches
@@ -211,14 +222,12 @@ static uint64_t viva_web_next_request;
 
 - (void)webView:(WKWebView *)web didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     (void)navigation;
-    (void)error;
-    [self notify:web phase:2];
+    [self reportFailure:web error:error];
 }
 
 - (void)webView:(WKWebView *)web didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     (void)navigation;
-    (void)error;
-    [self notify:web phase:2];
+    [self reportFailure:web error:error];
 }
 
 // finishTask answers task and lets it go. headers is the header block Go resolved: one "Name: value"
@@ -653,6 +662,34 @@ void viva_web_focus(void *web) {
             [view.window makeFirstResponder:view];
         }
     });
+}
+
+char *viva_web_title(void *web) {
+    __block char *title = NULL;
+    viva_web_main(^{
+        NSString *text = [(VivaWebView *)web title];
+        const char *utf8 = text != nil ? text.UTF8String : "";
+        title = strdup(utf8 != NULL ? utf8 : "");
+    });
+    return title;
+}
+
+int viva_web_can_go_back(void *web) {
+    __block int can = 0;
+    viva_web_main(^{ can = [(VivaWebView *)web canGoBack] ? 1 : 0; });
+    return can;
+}
+
+int viva_web_can_go_forward(void *web) {
+    __block int can = 0;
+    viva_web_main(^{ can = [(VivaWebView *)web canGoForward] ? 1 : 0; });
+    return can;
+}
+
+int viva_web_is_loading(void *web) {
+    __block int loading = 0;
+    viva_web_main(^{ loading = [(VivaWebView *)web isLoading] ? 1 : 0; });
+    return loading;
 }
 
 void viva_web_close(void *web) {

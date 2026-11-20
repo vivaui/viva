@@ -183,10 +183,57 @@ const (
 	WebLoadFinished
 )
 
+// WebLoadError is why a navigation did not load the page, in the terms every engine can be held to:
+// the engines name the same failures differently, so a failed load reads the same way on every
+// platform. WebLoadNoError is a navigation that loaded.
+type WebLoadError = platform.WebLoadError
+
+const (
+	// WebLoadNoError is a navigation that loaded.
+	WebLoadNoError = platform.WebLoadNoError
+	// WebLoadUnknownError is a navigation the engine reports as failed without saying why, or with
+	// a reason Viva does not classify; WebLoad.Description carries whatever the engine said.
+	WebLoadUnknownError = platform.WebLoadUnknownError
+	// WebLoadCancelled is a navigation that was stopped: by the engine, or by a policy that
+	// interrupted the load it was part of.
+	WebLoadCancelled = platform.WebLoadCancelled
+	// WebLoadTimeout is a server that did not answer in time.
+	WebLoadTimeout = platform.WebLoadTimeout
+	// WebLoadHostNotFound is a name that did not resolve.
+	WebLoadHostNotFound = platform.WebLoadHostNotFound
+	// WebLoadServerUnreachable is a host that could not be reached: no route, or a connection that
+	// was refused.
+	WebLoadServerUnreachable = platform.WebLoadServerUnreachable
+	// WebLoadConnectionLost is a connection that broke while the page was arriving, or a machine
+	// with no network at all.
+	WebLoadConnectionLost = platform.WebLoadConnectionLost
+	// WebLoadBadServerResponse is an answer the engine could not read as HTTP, or one that broke its
+	// own framing.
+	WebLoadBadServerResponse = platform.WebLoadBadServerResponse
+	// WebLoadBadCertificate is a TLS certificate the engine refused, or a client certificate the
+	// server refused.
+	WebLoadBadCertificate = platform.WebLoadBadCertificate
+	// WebLoadRedirectFailed is a redirect the engine could not follow.
+	WebLoadRedirectFailed = platform.WebLoadRedirectFailed
+	// WebLoadAuthenticationRequired is a server or proxy that stopped the navigation for credentials
+	// the engine did not have.
+	WebLoadAuthenticationRequired = platform.WebLoadAuthenticationRequired
+)
+
 // WebLoad is one step of a page's navigation.
 type WebLoad struct {
 	Phase WebLoadPhase
 	URL   string
+	// Title is the title of the document the engine holds at this step: empty before a page has
+	// one, and still the title of the document being left at WebLoadStarted.
+	Title string
+	// Code is why the navigation failed, when Phase is WebLoadFinished and the page did not load;
+	// WebLoadNoError when it did, and at every earlier step.
+	// Description is the engine's own message for it, when the engine gives one: WebView2 names a
+	// status and no text, so it is empty on Windows. An application that shows a failed load reads
+	// Description when it is not empty and Code otherwise, which names the failure as well.
+	Code        WebLoadError
+	Description string
 }
 
 // WebView is one open page.
@@ -251,7 +298,10 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	}
 	if config.OnLoad != nil {
 		platformConfig.OnLoad = func(load platform.WebLoad) {
-			config.OnLoad(WebLoad{Phase: WebLoadPhase(load.Phase), URL: load.URL})
+			config.OnLoad(WebLoad{
+				Phase: WebLoadPhase(load.Phase), URL: load.URL, Title: load.Title,
+				Code: WebLoadError(load.Code), Description: load.Description,
+			})
 			host.requestPaint()
 		}
 	}
@@ -289,6 +339,20 @@ func (view *WebView) Reload() { view.native.Reload() }
 // Back and Forward move through the page's history.
 func (view *WebView) Back()    { view.native.Back() }
 func (view *WebView) Forward() { view.native.Forward() }
+
+// Title is the title of the page's current document: empty before the engine has one, and after the
+// page closes. It is what the engine reports when it is asked, which can change after WebLoad
+// reports WebLoadFinished, so a toolbar reads it on the paint it draws for.
+func (view *WebView) Title() string { return view.native.Title() }
+
+// CanGoBack and CanGoForward report whether the page's history has an entry each way, which is what
+// a Back or a Forward button is disabled by.
+func (view *WebView) CanGoBack() bool    { return view.native.CanGoBack() }
+func (view *WebView) CanGoForward() bool { return view.native.CanGoForward() }
+
+// IsLoading reports whether the page is loading a navigation: true from the step the engine starts
+// one until it finishes or fails, which is when WebLoad reports WebLoadStarted and WebLoadFinished.
+func (view *WebView) IsLoading() bool { return view.native.IsLoading() }
 
 // Eval runs a script in the page. The result is not read back: have the script post a message.
 func (view *WebView) Eval(script string) { view.native.Eval(script) }

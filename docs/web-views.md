@@ -46,6 +46,16 @@ scheme, a message in each direction and a menu that stands over the page.
   engine's failed load. macOS (`NSHTTPURLResponse`) and Windows (`CreateWebResourceResponse`) answer with
   the full response. The feature was tested on macOS in a real WKWebView page; Linux (WebKitGTK) and Windows
   (WebView2) were type-checked only, because no engine of either was available.
+- The page answers for its own state: `Title` is the engine's title for the document it has now,
+  `CanGoBack` and `CanGoForward` say whether its history has an entry each way, and `IsLoading` says
+  whether a navigation is in flight. They are read from the engine when they are asked, not cached, so
+  a toolbar that draws Back, Forward and a title follows the page by reading them on the paint it draws
+  for.
+- `OnLoad` reports each step of a navigation (`WebLoadStarted`, `WebLoadCommitted`, `WebLoadFinished`)
+  with the address as you wrote it and the title the engine has at that step. The step that ends a load
+  that failed carries `Code`, a `WebLoadError` that names the same failures on every engine, and
+  `Description`, the engine's own words for it. A navigation your `Navigate` refused is not reported:
+  that is the answer you gave, and the engine's interruption of it would be the same thing twice.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - `Navigate` decides a navigation before it starts, the application's own `Load` included: the
@@ -143,14 +153,22 @@ The decisions are the engine's own, and each one has a limit worth knowing:
   from the navigation type: a link click and a form submission are gestures, a script's navigation is not.
   A form submitted by a script therefore reads as a gesture, and a redirect keeps the gesture that started
   it. Downloads need macOS 11.3 (`WKDownload`); on an older system a download response is refused rather
-  than saved, and `Download` is not asked.
+  than saved, and `Download` is not asked. A failed load arrives as an `NSError`: `WebLoad.Code` is mapped
+  from its domain and code, and `WebLoad.Description` is the system's own message, which is localized.
 - **Linux**: WebKitGTK's navigation action names no target frame (there is no way from the action to
   the frame), so `WebNavigation.MainFrame` is always true here and a subframe cannot be told apart from
   the main frame. The decision still cancels the right request. The redirect flag needs WebKitGTK 2.20;
   on an older engine a redirect keeps the gesture of the request that led to it. WebKitGTK starts a
   download for a response it treats as a download (an attachment, or a type it cannot show); the
-  application decides it in `decide-destination`, before the body is written.
+  application decides it in `decide-destination`, before the body is written. A failed load arrives as a
+  `GError` from `load-failed`: `WebLoad.Code` is mapped from its code and `WebLoad.Description` is the
+  engine's message. A certificate the engine refuses reaches the load as a cancellation rather than
+  `WebLoadBadCertificate`, because the TLS error signal is the engine's own to answer.
 - **Windows**: `DownloadStarting` needs `ICoreWebView2_4`. A runtime older than that (2021) cannot report a
   download before it starts, so `Download` is not asked and the engine saves the file its own way in the
   user's downloads folder; a warning through `diag` says so once, when the page opens. `NewWindow` and
-  `Navigate` are on the base interface and are always available.
+  `Navigate` are on the base interface and are always available. `WebLoad.Code` is mapped from
+  `WebErrorStatus`, which carries no text: `WebLoad.Description` is empty here, so show `Code`. The base
+  interface has no property for `IsLoading`, so the page follows `NavigationStarting` and
+  `NavigationCompleted` instead: it becomes true on the turn of the window's thread that reports the
+  navigation's start, not inside the call to `Load` itself.
