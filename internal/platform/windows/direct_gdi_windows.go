@@ -60,6 +60,7 @@ type gdiGridRasterizer struct {
 	fonts   map[gdiFontKey]uintptr
 	text    []uint16 // the characters of the run being drawn
 	spacing []int32  // the advance of each of them
+	noBatch bool     // draw each piece on its own; tests compare it with one call a pass
 }
 
 func (rasterizer *gdiGridRasterizer) close() {
@@ -164,6 +165,15 @@ func (rasterizer *gdiGridRasterizer) draw(pieces []gridPiece, light bool, pitch 
 	gdiSetTextAlign.Call(bitmap.dc, 24) // TA_LEFT | TA_BASELINE
 	var stock uintptr
 	var drawErr error
+	// A line whose pieces all use one GDI font is drawn in one ExtTextOut: a colorizer
+	// changes a log line's color at every word or cell, and a call per run is what made
+	// such a line expensive. Every character is still drawn at its cell; only the columns
+	// of the pieces this pass reads are taken from the bitmap, and printable ASCII ink
+	// stays inside its cell.
+	if !rasterizer.noBatch && rasterizer.drawWhole(bitmap, pieces, light, pitch, baseline) {
+		gdiFlush.Call()
+		return bitmap, nil
+	}
 	for index := range pieces {
 		piece := &pieces[index]
 		if piece.font == 0 || isLight(piece.color) != light || piece.text == "" {
@@ -224,8 +234,91 @@ func (rasterizer *gdiGridRasterizer) drawPiece(bitmap *textBitmap, piece *gridPi
 	return nil
 }
 
+// drawWhole draws a pass's pieces in one ExtTextOut when they all use one GDI font.
+// A colorizer changes a log line's colour at every word or cell, and a call per run is
+// what made such a line expensive. Only the pieces of this pass are written into the
+// string — the other passes' cells are spaces — so a glyph never sees ink of another
+// brightness, and every character still starts at the cell drawPiece would put it on.
+// It reports false when a piece needs another font, or DirectWrite.
+func (rasterizer *gdiGridRasterizer) drawWhole(bitmap *textBitmap, pieces []gridPiece, light bool, pitch float32, baseline int) bool {
+	font := uintptr(0)
+	pass := 0
+	end := 0
+	for index := range pieces {
+		piece := &pieces[index]
+		if piece.font == 0 || isLight(piece.color) != light {
+			continue
+		}
+		if piece.text == "" || !printableASCII(piece.text) {
+			return false
+		}
+		if font == 0 {
+			font = piece.font
+		} else if piece.font != font {
+			return false
+		}
+		pass++
+		end = max(end, int(piece.run.Column+piece.run.Cells))
+	}
+	if pass == 0 || end <= 0 {
+		return false
+	}
+	if cap(rasterizer.text) < end {
+		rasterizer.text = make([]uint16, end)
+	}
+	text := rasterizer.text[:end]
+	for index := range text {
+		text[index] = ' '
+	}
+	if cap(rasterizer.spacing) < end {
+		rasterizer.spacing = make([]int32, end)
+	}
+	spacing := rasterizer.spacing[:end]
+	for index := range spacing {
+		spacing[index] = 0
+	}
+	// cursor is where the advances written so far leave the string: each piece starts at
+	// the x drawPiece rounds its cell column to, and the gap cells before it take up the
+	// difference.
+	cursor := 0
+	step := float64(pitch)
+	for index := range pieces {
+		piece := &pieces[index]
+		if piece.font == 0 || isLight(piece.color) != light {
+			continue
+		}
+		column := int(piece.run.Column)
+		left := float64(piece.left)
+		start := int(math.Floor(left + 0.5))
+		if column > 0 {
+			spacing[column-1] += int32(start - cursor)
+		}
+		edge := start
+		for offset := 0; offset < len(piece.text); offset++ {
+			if at := column + offset; at >= 0 && at < len(text) {
+				text[at] = uint16(piece.text[offset])
+			}
+			next := int(math.Floor(left + float64(offset+1)*step + 0.5))
+			if offset < len(piece.text)-1 {
+				spacing[column+offset] = int32(next - edge)
+			}
+			edge = next
+		}
+		cursor = start
+		for offset := 0; offset < len(piece.text)-1; offset++ {
+			cursor += int(spacing[column+offset])
+		}
+	}
+	previous, _, _ := selectObject.Call(bitmap.dc, font)
+	defer selectObject.Call(bitmap.dc, previous)
+	drawn, _, _ := gdiExtTextOut.Call(bitmap.dc, 0, uintptr(int32(baseline)), 0, 0,
+		uintptr(unsafe.Pointer(&text[0])), uintptr(len(text)), uintptr(unsafe.Pointer(&spacing[0])))
+	return drawn != 0
+}
+
 // useGDI sets the font of every piece that GDI draws, and clears it for the others. size is
 // the device size of the line.
+
 func (rasterizer *directRasterizer) useGDI(pieces []gridPiece, family string, size float32, width, height int) error {
 	emHeight := int32(math.Floor(float64(size) + 0.5))
 	if rasterizer.directOnly || emHeight < 1 {

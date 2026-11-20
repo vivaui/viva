@@ -123,6 +123,7 @@ type Node struct {
 	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
 	OutOfFlow            uint8 // absolute positioning: see absolute.go
+	PadSet               uint8 // the sides of Pad the caller set, bit i for Pad[i]: a themed control's recipe pads the rest
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
@@ -219,29 +220,35 @@ type Extra struct {
 // gives the frame the declarations. Tests and previews that need the engine
 // paint through a View; applications do not reach a frame.
 type Frame struct {
-	Surface     *gfx.Canvas
-	Palette     Theme
-	styles      *Styles // the page's recipe overrides; nil keeps the theme's
-	Nodes       []Node
-	addons      []FieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
-	Images      []gfx.Bitmap       // what each Image element draws, indexed by its aux
-	Exts        []Extra            // exts[0] is never written: an element without extras points at it
-	Floats      []int32            // the Popups, which belong to no container
-	States      []stateLooks       // what Hover, Pressed and Focus declared, by element
-	Draws       []drawHooks        // what Draw and DrawOver declared, by element
-	memoDepth   int                // how many Memos of a page are recording what is declared now
-	page        *Page              // the page declaring this frame; nil for a frame of the application's
-	tooltips    bool               // an element was given a Tooltip: End paints the one the pointer rests on
-	tooltip     any                // the tooltip state the layer above owns: see tooltipOf
-	drawContext DrawContext        // what a Draw callback is handed, reused for the frame
-	pickerCtx   Ctx                // the declaration context a ColorPicker's painter is handed, reused for the frame
-	Gradients   []gradient         // the gradients of the elements that have one
-	Stops       []gfx.GradientStop // their stops, in the order declared
-	paintStops  []gfx.GradientStop // the stops of the gradient being painted, faded
-	Opacity     float32            // the product of the opacities of the elements being painted
-	popupLayer  uint16             // the canvas layer the Popups are painted on
-	nativeMark  int                // how many native views the canvas had when the page began
-	Binds       []bindDecl         // the bound controls, see bind.go
+	Surface *gfx.Canvas
+	Palette Theme
+	styles  *Styles // the page's recipe overrides; nil keeps the theme's
+	// buttonPainted is the look the recipe gave the themed button being painted, for the
+	// painter of its content; inherited is the color the content of a themed button takes
+	// unless it has one, while hasInherited says there is one.
+	buttonPainted style.ButtonLook
+	inherited     Color
+	hasInherited  bool
+	Nodes         []Node
+	addons        []FieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
+	Images        []gfx.Bitmap       // what each Image element draws, indexed by its aux
+	Exts          []Extra            // exts[0] is never written: an element without extras points at it
+	Floats        []int32            // the Popups, which belong to no container
+	States        []stateLooks       // what Hover, Pressed and Focus declared, by element
+	Draws         []drawHooks        // what Draw and DrawOver declared, by element
+	memoDepth     int                // how many Memos of a page are recording what is declared now
+	page          *Page              // the page declaring this frame; nil for a frame of the application's
+	tooltips      bool               // an element was given a Tooltip: End paints the one the pointer rests on
+	tooltip       any                // the tooltip state the layer above owns: see tooltipOf
+	drawContext   DrawContext        // what a Draw callback is handed, reused for the frame
+	pickerCtx     Ctx                // the declaration context a ColorPicker's painter is handed, reused for the frame
+	Gradients     []gradient         // the gradients of the elements that have one
+	Stops         []gfx.GradientStop // their stops, in the order declared
+	paintStops    []gfx.GradientStop // the stops of the gradient being painted, faded
+	Opacity       float32            // the product of the opacities of the elements being painted
+	popupLayer    uint16             // the canvas layer the Popups are painted on
+	nativeMark    int                // how many native views the canvas had when the page began
+	Binds         []bindDecl         // the bound controls, see bind.go
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
@@ -615,7 +622,11 @@ func (f *Frame) Button(ID gfx.ID, Label string) Box {
 	b := f.Box(kindButton)
 	n := &f.Nodes[b.i]
 	n.ID, n.Label = ID, Label
-	n.Flags |= flagHasHit
+	n.Flags |= flagHasHit | flagThemed
+	// What a button holds, once Children gives it content of its own, is a row centered
+	// on both axes with the gap an icon keeps from its label, as a ButtonBase's is. Each
+	// is the element's to change with the call any element takes.
+	n.Dir, n.Items, n.Justify, n.Gap = row, Center, Center, style.ButtonIconGap
 	return b
 }
 

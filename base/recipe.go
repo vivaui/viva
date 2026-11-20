@@ -2,6 +2,7 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // A control declared with the theme's look (Input, and the controls that follow it) is a
@@ -53,8 +54,44 @@ func (f *Frame) applyRecipes() {
 			if n.Kind == kindTextarea && n.MinS[AxisY] == 0 {
 				n.MinS[AxisY] = 64 // the official minimum height
 			}
+		case kindButton, kindContainer:
+			f.applyButtonRecipe(n)
 		}
 	}
+}
+
+// applyButtonRecipe gives a themed button the measurements its size and recipe have: the
+// corners and the padding either side of its content. It is a button whether it paints its
+// own label and icon (a kindButton) or holds children (a container Children turned it
+// into). What the caller set (Radius, Pad on a side) is left alone, so a button is
+// restyled with the calls any element takes. Its border is not a measurement: it is drawn
+// over the control's edge, as a focus border is, so the recipe's never takes room.
+func (f *Frame) applyButtonRecipe(n *Node) {
+	theme := f.RecipeTheme(n, &f.scratch.theme)
+	if n.Flags&flagHasRadius == 0 {
+		n.Radius = f.buttonLook(n, theme, gfx.State{}).Radius
+	}
+	_, padding, _, iconOnly := style.ButtonGeometry(theme.Metrics, n.ButtonSize)
+	if iconOnly && n.Kind == kindButton {
+		padding = 0 // the icon alone is centered in a square
+	}
+	if n.PadSet&padRight == 0 {
+		n.Pad[1] = padding
+	}
+	if n.PadSet&padLeft == 0 {
+		n.Pad[3] = padding
+	}
+	if n.Kind != kindContainer || n.Size[AxisY].Kind != dimAuto {
+		return
+	}
+	// A button that holds children is as tall as its size says, as a shadcn button is, and
+	// grows with its content only once the caller has padded it.
+	height, _, _, _ := style.ButtonGeometry(theme.Metrics, n.ButtonSize)
+	if n.Flags&flagSetPad != 0 {
+		n.MinS[AxisY] = max(n.MinS[AxisY], height)
+		return
+	}
+	n.Size[AxisY] = Dimension{dimPx, height}
 }
 
 // themedDefaults fills in, for the state the element is in now, the colors of the resolved
@@ -62,6 +99,9 @@ func (f *Frame) applyRecipes() {
 func (f *Frame) themedDefaults(n *Node, Extra *Extra, s *resolved) {
 	var state gfx.State
 	switch n.Kind {
+	case kindButton, kindContainer:
+		f.themedButtonDefaults(n, Extra, s)
+		return
 	case kindInput:
 		snapshot := &WidgetsOf(f).inputs[n.Aux]
 		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
@@ -94,7 +134,7 @@ func (f *Frame) Focused(n *Node) bool {
 // control's edge, not taken out of the area the text is centered in.
 func (f *Frame) ContentRect(n *Node) Rect {
 	r := n.Rect
-	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
+	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 && (n.Kind == kindInput || n.Kind == kindTextarea) {
 		x, y := textEntryInsets(f.RecipeTheme(n, &f.scratch.theme), n.Kind)
 		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
 	}
@@ -130,4 +170,64 @@ func textEntryInsets(Palette *Theme, k Kind) (x, y float32) {
 		y = TextareaPadY
 	}
 	return x, y
+}
+
+// themedButtonDefaults fills in, for the state the button is in now, what the recipe gives
+// the resolved look and the element did not set itself: the fill, the border and its width,
+// the shadow, the ring and the color of its content. A Hover, Pressed or Focus look applies
+// over them as it does over any element.
+func (f *Frame) themedButtonDefaults(n *Node, Extra *Extra, s *resolved) {
+	theme := f.RecipeTheme(n, &f.scratch.theme)
+	var state gfx.State
+	if c := f.Surface; c != nil && !n.ID.IsZero() {
+		state = gfx.State{Hovered: c.Hovered() == n.ID, Pressed: c.Pressed() == n.ID, FocusVisible: c.FocusVisible() == n.ID}
+	}
+	state.Disabled = n.Flags&flagDisabled != 0
+	look := f.buttonLook(n, theme, state)
+	f.buttonPainted = look
+	if n.Flags&flagSetBackground == 0 {
+		s.Background = gfx.Color{}
+		if look.Filled {
+			s.Background = look.Background
+		}
+	}
+	// Over an opaque page a filled border is flattened onto it and painted as one shape
+	// (RoundedBorder); over a translucent one the fill goes down whole and the line over it.
+	bordered := look.Bordered && look.Filled
+	if bordered && theme.Background.Alpha >= 1 {
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = s.Background.Over(theme.Background)
+		}
+		look.Border = look.Border.Over(theme.Background)
+	}
+	if n.Flags&flagSetBorder == 0 {
+		s.border = look.Border
+		if bordered {
+			s.borderWidth = 1
+			s.splitBorder = theme.Background.Alpha < 1
+		}
+	}
+	if n.Flags&flagSetShadow == 0 {
+		s.shadow = look.Shadow
+	}
+	if Extra.ringWidth <= 0 && look.RingWidth > 0 {
+		s.ring, s.ringWidth = look.Ring, look.RingWidth
+		s.ringFilled, s.ringLine = !look.RingOutline, 0
+		if look.RingOutline {
+			s.ringLine = 2
+		}
+	}
+	if n.Flags&flagHasColor == 0 {
+		s.Color = look.Foreground
+	}
+}
+
+// buttonHoldsChildren turns a button that is given children into the row that holds them:
+// the same themed element, with the same size, variant, recipe and keyboard, whose content
+// is the caller's and is laid out as any container's is.
+func (f *Frame) buttonHoldsChildren(i int32) {
+	f.Nodes[i].Kind = kindContainer
+	if e := f.Extra(i); e.hit.Role == 0 {
+		e.hit.Role = gfx.RoleButton
+	}
 }
