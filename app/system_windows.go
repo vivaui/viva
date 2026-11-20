@@ -17,6 +17,10 @@ func nativeClipboardFiles() ([]string, error) { return windowsplatform.Clipboard
 
 func nativeSetClipboardFiles(paths []string) error { return windowsplatform.SetClipboardFiles(paths) }
 
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	return windowsplatform.StartFileDrag(paths, allowed)
+}
+
 func nativeReduceMotion() bool { return windowsplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.

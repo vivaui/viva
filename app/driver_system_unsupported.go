@@ -2,6 +2,8 @@
 
 package app
 
+import "github.com/vivaui/viva/internal/platform"
+
 func markNonNativeSystemUsed() {}
 
 func driverClipboardText() (string, error, bool) { return "", nil, false }
@@ -21,6 +23,10 @@ func driverClipboardImage() (png []byte, err error, handled bool) { return nil, 
 func driverClipboardFiles() (paths []string, err error, handled bool) { return nil, nil, false }
 
 func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
+
+func driverStartFileDrag([]string, platform.DragEffect) (platform.DragEffect, error, bool) {
+	return platform.DragEffectNone, nil, false
+}
 
 func driverSetClipboardHTML(string, string) (error, bool) { return nil, false }
 
