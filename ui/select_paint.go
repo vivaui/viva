@@ -8,6 +8,9 @@ import (
 func measureSelect(f *Frame, n *Node) {
 	d := &base.WidgetsOf(f).GetSelects()[n.Aux]
 	widest := d.GetState().WidestOption(f.Surface, d.GetLabels(), f.Palette.Metrics.FontSizeM)
+	if len(d.GetIcons()) > 0 {
+		widest += components.SelectIconSpan
+	}
 	height := f.Palette.Metrics.ControlHeight
 	switch {
 	case n.ButtonSize == components.ButtonSizeXSmall:

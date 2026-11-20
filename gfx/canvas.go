@@ -1843,6 +1843,10 @@ func (canvas *Canvas) TrapFocus(scope ID) {
 	}
 }
 
+// FocusScope returns the focus scope the next paint primitive is declared in, or
+// zero outside any scope.
+func (canvas *Canvas) FocusScope() ID { return canvas.currentFocusScope() }
+
 // TrappedFocusScope returns the top-most active focus trap.
 func (canvas *Canvas) TrappedFocusScope() ID {
 	return canvas.trappedScope

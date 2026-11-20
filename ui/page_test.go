@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -589,6 +590,28 @@ func TestSelectIconsChooseAnOption(t *testing.T) {
 	d.click("日本語")
 	if chosen != locales[2] {
 		t.Fatalf("chose %+v, want %+v", chosen, locales[2])
+	}
+}
+
+// A Select with icons is measured wide enough for them: the component paints an
+// icon before the value, so the trigger must not squeeze the label into it.
+func TestSelectWithIconsMeasuresTheIconSpan(t *testing.T) {
+	labels := []string{"One", "Two"}
+	chosen := "One"
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound,
+		Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 20)}}
+	measure := func(icons []gfx.Icon) float32 {
+		d := openPage(t, func(c ui.C) {
+			ui.Row(c).Pad(16).Children(func() {
+				ui.Select(c, &chosen, labels, func(label string) string { return label }).
+					Placeholder("Language").Icons(icons)
+			})
+		})
+		return d.hit("Language").Bounds.Width
+	}
+	bare, withIcon := measure(nil), measure([]gfx.Icon{icon, icon})
+	if withIcon-bare != components.SelectIconSpan {
+		t.Fatalf("a select with icons measured %g, without %g; want %d wider", withIcon, bare, components.SelectIconSpan)
 	}
 }
 

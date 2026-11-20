@@ -20,6 +20,10 @@ func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardF
 
 func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }
 
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	return darwinplatform.StartFileDrag(paths, allowed)
+}
+
 func nativeReduceMotion() bool { return darwinplatform.ReduceMotion() }
 
 // nativeTextEngine is the platform's text engine; nil keeps the reference metrics.

@@ -26,9 +26,10 @@ Win32 事件、带预编译着色器的 Direct3D 11、用于测量的 DirectWrit
 
 ## Linux
 
-通过动态加载的系统 XCB、Pango 和 Cairo 使用 X11，有 GPU 驱动时再用 Vulkan；事件循环是阻塞式的，空闲时不重绘。
+通过动态加载的系统 XCB、Pango 和 Cairo 使用 X11，有 GPU 驱动时再用 Vulkan；事件循环是阻塞式的，空闲时不重绘。默认构建是 X11 客户端，在 Wayland 会话里经由 XWayland 运行；可选的 GTK 3 外壳则是原生 Wayland 客户端。
 
 - X11，使用系统自带的 XCB、Pango 和 Cairo 库；Vulkan 加载库和驱动提供 GPU 加速，缺失时用 CPU 渲染。
+- `-tags vivagtk` 构建 GTK 3 外壳：在 Wayland 会话里是原生客户端，按合成器要求的分数缩放绘制；在 X11 下经由 GTK 运行。窗口、指针、键盘和输入法交给 GTK，内容由 Viva 的 CPU 光栅器绘制，所以这个构建不用 Vulkan。运行环境需要安装系统的 GTK 3，公开 API 与默认构建相同。
 - Pango 与 Cairo 负责文字。
 - 可打包为带安装脚本的 `tar.gz` 或 `.deb`。
 - 文件对话框、打开 URL 和通知使用已安装的桌面工具，见[系统集成](/zh/docs/system-integration/)。

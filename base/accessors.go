@@ -57,6 +57,9 @@ func (x *ColorPickerState) GetHexEditor() text.Editor { return x.hexEditor }
 // GetInvalid reads the invalid of ColorPickerState for the styled painting layer.
 func (x *ColorPickerState) GetInvalid() bool { return x.invalid }
 
+// GetLayer reads the layer of ColorPickerState for the styled painting layer.
+func (x *ColorPickerState) GetLayer() uint16 { return x.layer }
+
 // GetLayout reads the layout of ColorPickerState for the styled painting layer.
 func (x *ColorPickerState) GetLayout() ColorPickerLayout { return x.layout }
 

@@ -72,7 +72,8 @@ func (application *Application) OnOpenURL(handler func(url string)) {
 // on the event-loop thread, also for documents that arrived while the
 // application was starting. Call it from the startup callback.
 //
-// macOS delivers documents to the running program. Windows and Linux start the
+// macOS delivers documents to the running program, as a path even when the
+// system handed the document over as a file URL. Windows and Linux start the
 // program with the path as an argument instead; package app/singleinstance
 // carries it to the running copy, and the program reads it from its arguments
 // at launch. Where the system delivers nothing, the handler is never called.

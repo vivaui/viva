@@ -67,8 +67,12 @@ type ColorPickerState struct {
 	invalid                     bool
 	handlers                    Handlers
 	layout                      ColorPickerLayout
-	target                      *Color
-	Bound                       bool
+	// layer is where the panel paints: the layer the picker was declared on, plus
+	// two, captured then so a picker inside a Dialog's body keeps its panel over
+	// the dialog rather than under the page the dialog covers.
+	layer  uint16
+	target *Color
+	Bound  bool
 }
 
 // Open reports whether the picker's panel is open.
@@ -134,6 +138,7 @@ func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string
 		ID = p.ControlID(pkControl)
 	}
 	s.target = Color
+	s.layer = c.f.WidgetLayer() + 2
 	if !s.Bound {
 		s.hex.Bind(&s.hexEditor)
 		s.handlers.Key, s.handlers.Pointer = s.key, s.pointer

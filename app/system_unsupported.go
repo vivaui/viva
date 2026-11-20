@@ -47,3 +47,10 @@ func nativeAppearance() Appearance { return AppearanceUnknown }
 func nativeWatchAppearance() {}
 
 func nativeSetAppearance(Appearance) {}
+
+// nativeStartFileDrag is the Web-independent fallback: a target with neither a
+// window the platform can drag from nor the Web's own drag has no way to take
+// files out of one.
+func nativeStartFileDrag([]string, FileDragEffect) (FileDragEffect, error) {
+	return FileDragNone, ErrUnsupported
+}

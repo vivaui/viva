@@ -226,3 +226,33 @@ func TestColorSwatchTakesTheApplicationsIDWithHit(t *testing.T) {
 		t.Fatalf("the swatch declares %d hits under its id, want 1", n)
 	}
 }
+
+// A picker declared inside a Dialog keeps its panel over the dialog: the panel
+// is on the layer the picker was declared on, not on the page's layer that the
+// dialog's scrim covers, so its controls stay clickable while it is open.
+func TestColorPickerPanelStandsAboveItsDialog(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(10, 20, 30)
+	const dialogLayer = 600
+	d := openPage(t, func(c ui.C) {
+		dialog := ui.Dialog(c, ui.DialogSpec{Title: "Pick a color", Width: 480, Layer: dialogLayer})
+		dialog.Body(func() {
+			ui.Column(c).Pad(16).Children(func() {
+				ui.ColorPicker(c, &state, &color, "Accent")
+			})
+		})
+	})
+	d.click("Accent")
+	if !state.Open() {
+		t.Fatal("the trigger did not open the panel")
+	}
+	if panel := d.hit("OK"); panel.Layer <= dialogLayer {
+		t.Fatalf("the panel's controls paint at layer %d, over the dialog's %d", panel.Layer, dialogLayer)
+	}
+	d.click("Hex color")
+	state.SetHexText("#FF0000")
+	d.click("OK")
+	if state.Open() || color != gfx.RGB(255, 0, 0) {
+		t.Fatalf("open=%v color=%v, want the panel's Apply to reach the picker", state.Open(), color)
+	}
+}

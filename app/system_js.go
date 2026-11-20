@@ -39,6 +39,10 @@ func nativeClipboardFiles() ([]string, error) { return nil, ErrUnsupported }
 
 func nativeSetClipboardFiles([]string) error { return ErrUnsupported }
 
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	return webplatform.StartFileDrag(paths, allowed)
+}
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	return nil, webSystemError("read clipboard image", webplatform.ClipboardImagePNG())
 }
