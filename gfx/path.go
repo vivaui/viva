@@ -434,7 +434,7 @@ func (canvas *Canvas) strokeContourOverlapping(points []Point, closed bool, half
 		intoFirst := direction(points[1], first)
 		outLast := direction(points[count-2], last)
 		canvas.appendCapGeometry(first, intoFirst, half, cap, color)
-		canvas.appendCapGeometry(last, negate(outLast), half, cap, color)
+		canvas.appendCapGeometry(last, outLast, half, cap, color)
 	}
 }
 

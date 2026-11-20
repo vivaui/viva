@@ -92,6 +92,10 @@ const (
 	selectIconGap  = 8
 )
 
+// SelectIconSpan is the room an icon takes before a select's value or an
+// option's label: the icon and the gap after it.
+const SelectIconSpan = selectIconSize + selectIconGap
+
 // selectTriggerSize is the height of a trigger and the type step of its value.
 // Only the extra-small step changes the type, as in Button: a compact control
 // keeps the body size and just gets shorter.
@@ -301,8 +305,8 @@ func (selectControl Select) paintTrigger() {
 		inset := selectControl.theme.Metrics.TextInsetX()
 		textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
 		if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
-			textX += selectIconSize + selectIconGap
-			textWidth -= selectIconSize + selectIconGap
+			textX += SelectIconSpan
+			textWidth -= SelectIconSpan
 		}
 		canvas.Label(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 			Size: selectControl.textSize, Weight: gfx.WeightRegular, Color: foreground,
@@ -331,8 +335,8 @@ func (selectControl *Select) paintItem(bounds gfx.Rect, item SelectItem) {
 		foreground := look.Foreground
 		textX, textWidth := bounds.X+8, bounds.Width-40
 		if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
-			textX += selectIconSize + selectIconGap
-			textWidth -= selectIconSize + selectIconGap
+			textX += SelectIconSpan
+			textWidth -= SelectIconSpan
 		}
 		selectControl.canvas.Label(item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 			Size: selectControl.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,

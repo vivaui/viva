@@ -44,6 +44,9 @@ func (f *Frame) PaintChild(i int32) {
 	r := n.Rect
 	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
+	if s := extra.scrollState; s != nil && canvas != nil {
+		s.scope = canvas.FocusScope()
+	}
 	style := f.resolve(n, extra)
 	// What the element is drawn with fades with it and with what it is inside; the
 	// controls inside it are painted with a theme faded the same way.

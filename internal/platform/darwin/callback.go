@@ -1281,7 +1281,9 @@ func rectangleUpdateError(status int) error {
 
 //export vivaOpenURL
 func vivaOpenURL(url *C.char) {
-	deliverOpenURL(C.GoString(url))
+	if url != nil {
+		routeOpenURL(C.GoString(url))
+	}
 }
 
 //export vivaApplicationQuitRequested

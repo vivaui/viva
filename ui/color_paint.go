@@ -57,7 +57,7 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 	options := components.ColorPickerOptions{
 		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(),
 		RoundTrigger: look.GetRound(), TriggerIcon: look.GetIcon(), SaturationText: s.Summary,
-		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: c.GetF().WidgetLayer() + 2,
+		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: s.GetLayer(),
 	}
 	if s.GetOpen() {
 		options.Scope = s.GetHandlers().GetParts().At(8)

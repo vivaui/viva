@@ -344,12 +344,18 @@ func (state *windowState) beginsCaptionPress(x, y int32) bool {
 // window move. The application is told the pointer left, which cancels its
 // press, because the system's loop swallows the button release.
 func (state *windowState) dragCaption(x, y int32) {
-	if state.config.OnPointer != nil {
-		frame, err := state.config.OnPointer(platform.PointerEvent{Kind: platform.PointerExit})
-		state.frame(frame, err)
-	}
+	state.cancelPress()
 	releaseCapture.Call()
 	screen := point{X: x, Y: y}
 	clientToScreen.Call(state.window, uintptr(unsafe.Pointer(&screen)))
 	sendMessage.Call(state.window, wmNCLButtonDown, htCaption, uintptr(uint16(screen.X))|uintptr(uint16(screen.Y))<<16)
+}
+
+// cancelPress tells the application its press is over. The application is told
+// the pointer left, the same event a window sees when the pointer leaves it.
+func (state *windowState) cancelPress() {
+	if state.config.OnPointer != nil {
+		frame, err := state.config.OnPointer(platform.PointerEvent{Kind: platform.PointerExit})
+		state.frame(frame, err)
+	}
 }
