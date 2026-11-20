@@ -133,71 +133,76 @@ func Icon(c C, icon gfx.Icon) Box { return base.Icon(c, icon) }
 
 func Image(c C, bitmap gfx.Bitmap) Box { return base.Image(c, bitmap) }
 
-func Progress(c C, fraction float32) Box { return base.Progress(c, fraction) }
+func Progress(c C, fraction float32) Box { useIndicators(); return base.Progress(c, fraction) }
 
-func Spinner(c C) Box { return base.Spinner(c) }
+func Spinner(c C) Box { useIndicators(); return base.Spinner(c) }
 
 func Kbd(c C, keys ...string) Box { return base.Kbd(c, keys...) }
 
 // Controls and their bases.
 
-func Badge(c C, Label string) Box { return base.Badge(c, Label) }
+func Badge(c C, Label string) Box { useBadge(); return base.Badge(c, Label) }
 
-func Button(c C, Label string) Box { return base.Button(c, Label) }
+func Button(c C, Label string) Box { useButton(); return base.Button(c, Label) }
 
-func ButtonBase(c C, Label string) Box { return base.ButtonBase(c, Label) }
+func ButtonBase(c C, Label string) Box { useButton(); return base.ButtonBase(c, Label) }
 
 func Checkbox(c C, Value *bool, Label string) Box {
+	useCheckbox()
 	return base.Checkbox(c, Value, Label)
 }
 
 func CheckboxBase(c C, Value *bool, Label string) Box {
+	useCheckbox()
 	return base.CheckboxBase(c, Value, Label)
 }
 
-func Switch(c C, Value *bool, Label string) Box { return base.Switch(c, Value, Label) }
+func Switch(c C, Value *bool, Label string) Box { useSwitch(); return base.Switch(c, Value, Label) }
 
 func SwitchBase(c C, Value *bool, Label string) Box {
+	useSwitch()
 	return base.SwitchBase(c, Value, Label)
 }
 
 func ToggleBase(c C, Value *bool, Label string) Box {
+	useToggle()
 	return base.ToggleBase(c, Value, Label)
 }
 
-func Toggle(c C, Value *bool, Label string) Box { return base.Toggle(c, Value, Label) }
+func Toggle(c C, Value *bool, Label string) Box { useToggle(); return base.Toggle(c, Value, Label) }
 
 func DisclosureBase(c C, Value *bool, Label string) Box {
+	useToggle()
 	return base.DisclosureBase(c, Value, Label)
 }
 
-func Control(c C, Label string, h *Handlers) Box { useControls(); return base.Control(c, Label, h) }
+func Control(c C, Label string, h *Handlers) Box { return base.Control(c, Label, h) }
 
 func FormField(c C, state *FormFieldState, Label string) Box {
-	useControls()
 	return base.FormField(c, state, Label)
 }
 
 func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
+	useSegmented()
 	return base.Choice(c, Value, choices, Label)
 }
 
 func Radio[T comparable](c C, Value *T, option T, Label string) Box {
-	useControls()
+	useCheckbox()
 	return base.Radio(c, Value, option, Label)
 }
 
 func RadioID[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
-	useControls()
+	useCheckbox()
 	return base.RadioID(c, ID, Value, option, Label)
 }
 
 func RadioBase[T comparable](c C, Value *T, option T, Label string) Box {
-	useControls()
+	useCheckbox()
 	return base.RadioBase(c, Value, option, Label)
 }
 
-func RadioGroup(c C) Box { useControls(); return base.RadioGroup(c) }
+func RadioGroup(c C) Box { return base.RadioGroup(c) }
 
 func TabBase[T comparable](c C, Value *T, tab T, Label string) Box {
 	useTabs()
@@ -246,9 +251,9 @@ func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label 
 	return base.ColorPickerID(c, ID, state, Color, Label)
 }
 
-func Slider(c C, state *SliderState) Box { return base.Slider(c, state) }
+func Slider(c C, state *SliderState) Box { useSlider(); return base.Slider(c, state) }
 
-func SliderBase(c C, state *SliderState) Box { return base.SliderBase(c, state) }
+func SliderBase(c C, state *SliderState) Box { useSlider(); return base.SliderBase(c, state) }
 
 // NewRangeSliderState returns a range slider holding low and high.
 func NewRangeSliderState(low, high float32) *RangeSliderState {
@@ -274,11 +279,11 @@ func RangeSlider(c C, state *RangeSliderState) Box {
 		Draw(state.DrawFunc())
 }
 
-func Splitter(c C, state *SplitterState) Box { return base.Splitter(c, state) }
+func Splitter(c C, state *SplitterState) Box { useSplitter(); return base.Splitter(c, state) }
 
-func SplitButton(c C, spec SplitButtonSpec) Box { return base.SplitButton(c, spec) }
+func SplitButton(c C, spec SplitButtonSpec) Box { useSplitButton(); return base.SplitButton(c, spec) }
 
-func Pagination(c C, Items []PaginationItem) Box { return base.Pagination(c, Items) }
+func Pagination(c C, Items []PaginationItem) Box { usePagination(); return base.Pagination(c, Items) }
 
 // Fields and text entry.
 
@@ -434,7 +439,7 @@ func NavigateTree(items []TreeNavigationItem, current int, key gfx.Key, pageRows
 
 func ID(c C) gfx.ID { return base.ID(c) }
 
-func NewPage(config PageConfig) *Page { return base.NewPage(config) }
+func NewPage(config PageConfig) *Page { useTooltip(); return base.NewPage(config) }
 
 func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
 	return base.Shortcut(c, modifiers, key)

@@ -94,9 +94,10 @@ const (
 // without the garbage collector seeing it. Anything with two numbers, one for
 // each axis, is indexed by axisX or axisY, so the layout is written once.
 type Node struct {
-	Kind  Kind
-	Dir   direction
-	Flags uint32
+	Kind   Kind
+	Dir    direction
+	PadSet uint8 // bit i records Pad[i] explicitly set; fits existing header alignment
+	Flags  uint32
 
 	Parent, First, Last, Next int32
 
@@ -123,7 +124,6 @@ type Node struct {
 	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
 	OutOfFlow            uint8 // absolute positioning: see absolute.go
-	PadSet               uint8 // the sides of Pad the caller set, bit i for Pad[i]: a themed control's recipe pads the rest
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
@@ -146,10 +146,13 @@ type Node struct {
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	GrowNow, ShrinkNow  float32
 	Base, Want, Bounded float32 // while flexible lengths are resolved
-	Frozen              bool
-	Rect                Rect
-	Band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
-	FocusScope          gfx.ID // the focus scope the subtree paints in, when it is not the page's
+	// FontSet and WeightSet distinguish inherited defaults from explicit text
+	// styling, including the valid zero value of regular weight.
+	FontSet, WeightSet bool
+	Frozen             bool
+	Rect               Rect
+	Band               uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
+	FocusScope         gfx.ID // the focus scope the subtree paints in, when it is not the page's
 }
 
 // placement says where a Popup goes.
