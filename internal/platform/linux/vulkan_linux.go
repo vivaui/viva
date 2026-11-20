@@ -964,7 +964,7 @@ func (renderer *vulkanRenderer) createScenePipelines(extent vkExtent2D) error {
 			return err
 		}
 	}
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(extent.Width, extent.Height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(extent)
@@ -1302,7 +1302,7 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 		}
 	}
 	renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.text.labels, renderer.text.order, renderer.compositingBatches)
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -1360,7 +1360,7 @@ func (renderer *vulkanRenderer) setScaleOnce(scale float32) error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before scale change"); err != nil {
 		return err
 	}
-	if err := renderer.text.upload(renderer, scale); err != nil {
+	if err := renderer.text.upload(renderer, scale, renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height})

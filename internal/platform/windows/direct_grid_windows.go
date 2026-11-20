@@ -18,12 +18,14 @@ type gridPiece struct {
 }
 
 // gridPieces splits a fixed-pitch label into its runs. A label without runs is one piece
-// of the label's own color and weight.
-func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch float32) []gridPiece {
+// of the label's own color and weight. skip is the whole device columns of the line left of
+// the texture the pieces are drawn into: each piece stands that much further left, so the
+// glyphs keep the columns they have when the whole line is drawn.
+func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch float32, skip int) []gridPiece {
 	rasterizer.pieces = rasterizer.pieces[:0]
 	if len(label.Runs) == 0 {
 		rasterizer.pieces = append(rasterizer.pieces, gridPiece{
-			text: label.Value, weight: label.Weight, index: -1,
+			text: label.Value, weight: label.Weight, index: -1, left: -float32(skip),
 			color: d2dColor{R: float32(label.Color.Red), G: float32(label.Color.Green), B: float32(label.Color.Blue), A: float32(label.Color.Alpha)},
 		})
 		return rasterizer.pieces
@@ -42,7 +44,7 @@ func (rasterizer *directRasterizer) gridPieces(label platform.TextLabel, pitch f
 		rasterizer.pieces = append(rasterizer.pieces, gridPiece{
 			text: text, run: run, weight: run.Weight,
 			color: d2dColor{R: run.Color.Red, G: run.Color.Green, B: run.Color.Blue, A: run.Color.Alpha},
-			left:  float32(run.Column) * pitch, span: float32(run.Cells) * pitch, index: index,
+			left:  float32(run.Column)*pitch - float32(skip), span: float32(run.Cells) * pitch, index: index,
 		})
 	}
 	return rasterizer.pieces
@@ -66,15 +68,17 @@ type colorSpan struct {
 // and drawing a saturated color twice for the brightness of each channel would double the
 // cost of the terminal for a difference nobody sees. Runs stand on cells of the grid, so the
 // columns of one run never hold the glyphs of another except for the last pixel the
-// ClearType filter spills over.
-func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLabel, scale float32, width, height int) error {
+// ClearType filter spills over. skip is as for grid: the columns a run owns are planned along
+// the whole line, as its neighbours' ink reaches, and then moved onto the texture.
+func (rasterizer *directRasterizer) gridLCD(pixels []byte, label platform.TextLabel, scale float32, width, height, skip int) error {
 	family := monoFamily(label.MonoFace)
 	fallback := rasterizer.fontFallback(label.MonoFace)
 	size := label.FontSize * scale
 	pitch := label.CellWidth * scale
 	baseline := float32(platform.TextBaseline(label, height, scale))
-	pieces := rasterizer.gridPieces(label, pitch)
-	columns := rasterizer.ownedColumns(label, pieces, family, fallback, size, pitch, width)
+	pieces := rasterizer.gridPieces(label, pitch, skip)
+	columns := rasterizer.ownedColumns(label, pieces, family, fallback, size, pitch, skip+width)
+	platform.ShiftGridSpans(columns, skip, width)
 	if err := rasterizer.useGDI(pieces, family, size, width, height); err != nil {
 		return err
 	}
