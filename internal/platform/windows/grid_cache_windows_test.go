@@ -119,3 +119,47 @@ func cacheBenchLine(cells, runs int) platform.TextLabel {
 	}
 	return label
 }
+
+// TestGDIBatchKeepsPixels is the batching's correctness check: a row drawn in one GDI
+// call per brightness pass must have the very pixels of the same row drawn piece by
+// piece, or a colorizer's line would shimmer every time it entered the viewport.
+func TestGDIBatchKeepsPixels(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	label := cacheBenchLine(100, 70)
+	batched, err := newDirectRasterizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer batched.close()
+	piecewise, err := newDirectRasterizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer piecewise.close()
+	piecewise.gdi = &gdiGridRasterizer{noBatch: true}
+	got, lcd, err := batched.rasterize(label, 1, 800, 20, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, wantLCD, err := piecewise.rasterize(label, 1, 800, 20, true, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lcd != wantLCD {
+		t.Fatalf("batched rasterization lcd=%v, piecewise %v", lcd, wantLCD)
+	}
+	if !bytes.Equal(got, want) {
+		different, maxDelta := 0, 0
+		for index := range got {
+			if delta := int(got[index]) - int(want[index]); delta != 0 {
+				different++
+				if delta < 0 {
+					delta = -delta
+				}
+				maxDelta = max(maxDelta, delta)
+			}
+		}
+		t.Fatalf("batched row differs from piecewise in %d bytes (max delta %d)", different, maxDelta)
+	}
+}
