@@ -210,7 +210,7 @@ func TestClipboardEncodingHelpers(t *testing.T) {
 	}
 }
 
-func TestSetCursorShapeAppliesAndReleasesCursor(t *testing.T) {
+func TestSetCursorShapeAppliesAndReleasesEveryFallbackGlyph(t *testing.T) {
 	var nextID uint32 = 40
 	var fontName string
 	var sourceGlyph, maskGlyph uint16
@@ -256,17 +256,23 @@ func TestSetCursorShapeAppliesAndReleasesCursor(t *testing.T) {
 	activeWindow.Store(win)
 	t.Cleanup(func() { activeWindow.Store(nil) })
 
-	if err := SetCursorShape(2); err != nil {
-		t.Fatal(err)
-	}
-	if fontName != "cursor" || sourceGlyph != 60 || maskGlyph != 61 {
-		t.Fatalf("cursor font = %q, glyphs = %d/%d", fontName, sourceGlyph, maskGlyph)
-	}
-	if requests != 3 || cursorValue != 42 || win.cursor != 42 {
-		t.Fatalf("requests = %d, applied = %d, retained = %d", requests, cursorValue, win.cursor)
-	}
-	if !reflect.DeepEqual(freed, []uint32{9}) {
-		t.Fatalf("freed cursors = %v", freed)
+	glyphs := []uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88, 58}
+	for shape, glyph := range glyphs {
+		nextID, fontName, sourceGlyph, maskGlyph = 40, "", 0, 0
+		cursorValue, freed, requests = 0, nil, 0
+		win.cursor = 9
+		if err := SetCursorShape(uint8(shape)); err != nil {
+			t.Fatalf("cursor %d: %v", shape, err)
+		}
+		if fontName != "cursor" || sourceGlyph != glyph || maskGlyph != glyph+1 {
+			t.Fatalf("cursor %d: font = %q, glyphs = %d/%d", shape, fontName, sourceGlyph, maskGlyph)
+		}
+		if requests != 3 || cursorValue != 42 || win.cursor != 42 {
+			t.Fatalf("cursor %d: requests = %d, applied = %d, retained = %d", shape, requests, cursorValue, win.cursor)
+		}
+		if !reflect.DeepEqual(freed, []uint32{9}) {
+			t.Fatalf("cursor %d: freed cursors = %v", shape, freed)
+		}
 	}
 }
 
