@@ -1108,10 +1108,27 @@ func (p *Page) PointerOver(r Rect) bool {
 	return p != nil && p.pointerIn && pointInRect(p.pointer.X, p.pointer.Y, r)
 }
 
-// Wheel scrolls an open Select, else the scroll area under the pointer, and gives
-// an event neither takes to the OnScroll Config was given. It is the Config's
-// OnScroll; a host that draws a page into a region calls it itself.
+// Wheel routes the wheel through the page and gives an event no route takes to
+// the OnScroll Config was given. It is the Config's OnScroll; a host that draws a
+// page into a region calls it itself, and a host whose own OnScroll hands the
+// wheel to the page gives RouteWheel instead, so the page does not fall back into
+// the handler already routing it.
 func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
+	if result := p.RouteWheel(event); result.Handled || result.Repaint {
+		return result
+	}
+	if p.baseScroll != nil {
+		return p.baseScroll(event)
+	}
+	return gfx.EventResult{}
+}
+
+// RouteWheel scrolls an open Select, a TextArea under the pointer, or the scroll
+// area or sideways list under it, and reports an event none of them takes as not
+// handled. It is the page's own routing without the OnScroll fallback: a host
+// that forwards a wheel to the page from its own OnScroll calls this, so the page
+// cannot hand the same event back to the handler that is already routing it.
+func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {
 			return result
@@ -1173,9 +1190,6 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	if panel >= 0 && !manual {
 		return gfx.EventResult{Handled: true} // what the panel covers is out of the wheel's reach
-	}
-	if p.baseScroll != nil {
-		return p.baseScroll(event)
 	}
 	return gfx.EventResult{}
 }

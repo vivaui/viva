@@ -119,6 +119,64 @@ func TestTabsReportTheClickedTabAndTheContentFollowsTheIndex(t *testing.T) {
 	}
 }
 
+// A strip too narrow for its labels paints only the icons TabIcons gives it,
+// while the labels remain the names a tab is reached and read by.
+func TestIconOnlyTabsPaintTheirIconsAndKeepTheirNames(t *testing.T) {
+	theme := gfx.LightTheme()
+	icons := []gfx.Icon{
+		{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 20)}},
+		{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 12), gfx.LineTo(20, 12)}},
+		{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(12, 4), gfx.LineTo(12, 20)}},
+	}
+	flexed, direct := testCanvas(), testCanvas()
+	var view View
+	view.Draw(flexed, theme, gfx.Rect{Width: 40, Height: 108}, func(f *Frame) {
+		f.Column().Children(func() {
+			f.Tabs(tabsScope, tabLabels, 1).
+				TabIcons(func(index int) gfx.Icon { return icons[index] }).
+				TabIconOnly().Vertical().Height(108)
+		})
+	})
+	options := make([]TabOption, len(tabLabels))
+	for index, label := range tabLabels {
+		options[index] = TabOption{ID: tabsScope.At(index), Label: label, Icon: icons[index], IconOnly: true}
+	}
+	components.BeginTabs(direct, theme, gfx.Rect{Width: 40, Height: 108}, options, options[1].ID).Vertical().Paint()
+	sameCanvas(t, "icon-only", flexed, direct)
+	if texts := flexed.Texts(); len(texts) != 0 {
+		t.Fatalf("an icon-only strip painted %d labels, want none", len(texts))
+	}
+	for index, label := range tabLabels {
+		if hit := hitByID(flexed, tabsScope.At(index)); hit.Label != label || hit.Hint != label {
+			t.Errorf("tab %d is named %q and hinted %q, want %q", index, hit.Label, hit.Hint, label)
+		}
+	}
+}
+
+// A tab of an icon-only strip whose icon is zero keeps its label: the strip
+// would otherwise show an empty trigger.
+func TestAnIconOnlyTabWithoutAnIconKeepsItsLabel(t *testing.T) {
+	theme := gfx.LightTheme()
+	icon := gfx.Icon{ViewBox: 24, Stroke: 2, Commands: []gfx.PathCommand{gfx.MoveTo(4, 4), gfx.LineTo(20, 20)}}
+	canvas := testCanvas()
+	var view View
+	view.Draw(canvas, theme, gfx.Rect{Width: 40, Height: 108}, func(f *Frame) {
+		f.Column().Children(func() {
+			f.Tabs(tabsScope, tabLabels, 1).
+				TabIcons(func(index int) gfx.Icon {
+					if index == 0 {
+						return gfx.Icon{}
+					}
+					return icon
+				}).TabIconOnly().Vertical().Height(108)
+		})
+	})
+	texts := canvas.Texts()
+	if len(texts) != 1 || texts[0].Value != tabLabels[0] {
+		t.Fatalf("texts = %v, want only %q", texts, tabLabels[0])
+	}
+}
+
 func TestTabsAllocateNothingOnceWarm(t *testing.T) {
 	var view View
 	canvas := testCanvas()

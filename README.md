@@ -56,7 +56,7 @@ Pango and Cairo libraries, and a Vulkan loader and driver for GPU acceleration
 and DirectWrite. Viva loads the system libraries at runtime and bundles none of
 them.
 
-The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
+The current release is `v0.6.6`; name it explicitly (`@v0.6.6`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in

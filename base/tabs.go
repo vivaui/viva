@@ -11,6 +11,7 @@ type TabsDecl struct {
 	selected int
 	line     bool
 	vertical bool
+	iconOnly bool
 }
 
 // tabHeight is the height of one trigger of a components.Tabs; the line variant
@@ -51,6 +52,20 @@ func (b Box) TabIcons(icon func(index int) gfx.Icon) Box {
 	return b
 }
 
+// TabIconOnly hides the labels of a Tabs strip and paints only the icons that
+// TabIcons gives it, for a strip too narrow to hold its labels. The labels stay
+// the tabs' accessible names and their hover hints, as components.TabOption.IconOnly
+// keeps them. A tab whose icon function returns a zero icon keeps its label, since
+// there would be nothing to see otherwise.
+//
+//	ui.Tabs(c, &m.tab, tabs, nil).TabIcons(icons).TabIconOnly().Vertical()
+func (b Box) TabIconOnly() Box {
+	if n := b.N(); n.Kind == kindTabs {
+		WidgetsOf(b.f).tabs[n.Aux].iconOnly = true
+	}
+	return b
+}
+
 // Line makes a Tabs strip the transparent variant with an underline under the active
 // tab. Vertical stacks its tabs in a column, with the line at their trailing edge.
 func (b Box) Line() Box {
@@ -84,8 +99,20 @@ func (b Box) TabClicked() (int, bool) {
 func (f *Frame) measureTabs(n *Node) {
 	t := &WidgetsOf(f).tabs[n.Aux]
 	var widest float32
-	for _, label := range t.labels {
-		widest = max(widest, f.Surface.TextWidthWeight(label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium))
+	for index, label := range t.labels {
+		width := f.Surface.TextWidthWeight(label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium)
+		if t.icon != nil {
+			icon := t.icon(index)
+			if len(icon.Commands) > 0 || len(icon.Layers) > 0 {
+				if t.iconOnly {
+					// The label is the tab's accessible name, not its face.
+					width = f.Palette.Metrics.FontSizeM
+				} else {
+					width += f.Palette.Metrics.FontSizeM + 6
+				}
+			}
+		}
+		widest = max(widest, width)
 	}
 	count := float32(len(t.labels))
 	var gap float32
