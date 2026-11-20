@@ -368,7 +368,7 @@ func (renderer *cpuWindowRenderer) refreshText() error { return renderer.scene.r
 
 func (renderer *cpuWindowRenderer) forgetSurfaceCapabilities() {}
 
-func (renderer *cpuWindowRenderer) alpha() bool { return renderer.margin > 0 }
+func (renderer *cpuWindowRenderer) alpha() bool { return renderer.depth == 32 }
 
 func (renderer *cpuWindowRenderer) frameMargin() uint32 { return renderer.margin }
 

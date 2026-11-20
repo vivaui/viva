@@ -69,7 +69,9 @@ func newWindowPainter(win *window, scale float32, clear platform.Color, rectangl
 	cpu := func() (windowRenderer, error) {
 		return newCPUWindowRenderer(win, scale, clear, rectangles, labels)
 	}
-	if softwareRenderingRequested() {
+	// The small drag surface needs reliable per-pixel alpha even on older
+	// Mesa drivers. It is painted once; moving it does not repaint its pixels.
+	if win.preview || softwareRenderingRequested() {
 		return cpu()
 	}
 	if cpuRendererPreferred.Load() && !vulkanRenderingRequested() {
