@@ -193,10 +193,12 @@ type windowsApplication struct {
 	taskbar      uintptr
 	taskbarTried bool
 	// posts are the functions other goroutines handed to Post; they are drained
-	// on the event-loop thread. postWake coalesces the messages that wake it.
-	postMu   sync.Mutex
-	posts    []func()
-	postWake atomic.Bool
+	// on the event-loop thread. postWake coalesces the messages that wake it,
+	// and wakeWindow is the message-only window that carries the wake.
+	postMu     sync.Mutex
+	posts      []func()
+	postWake   atomic.Bool
+	wakeWindow atomic.Uintptr
 }
 
 type nativeWindow struct {
@@ -265,6 +267,12 @@ func RunApplication(start platform.ApplicationStart) error {
 	application := &windowsApplication{className: name, instance: instance}
 	thread, _, _ := getCurrentThread.Call()
 	application.thread = uint32(thread)
+	// The wake window exists before start, so work posted from the start
+	// callback has somewhere to wake the loop even while a modal loop runs.
+	if err := application.openWakeWindow(); err != nil {
+		return err
+	}
+	defer application.closeWakeWindow()
 	defer application.closeStatus()
 	defer application.closeOLE()
 	if err := start(application); err != nil {
