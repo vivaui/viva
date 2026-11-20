@@ -146,6 +146,7 @@ type renderer struct {
 	compositingBatches                                           []compositingBatch
 	color                                                        platform.Color
 	capacity, width, height                                      int
+	bufferWidth, bufferHeight                                    int
 	submissions, rebuilds, partials, labelRebuilds               uint64
 	labelBatches                                                 uint64
 	// noLabelBatch makes a frame rasterize each changed label on its own, as
@@ -556,10 +557,21 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 	if width <= 0 || height <= 0 {
 		return nil
 	}
-	if renderer.width != width || renderer.height != height || renderer.target == 0 {
+	needsResize := renderer.target == 0 || renderer.bufferWidth < width || renderer.bufferHeight < height
+	if (sync != 0 || renderer.usesComposition()) && (renderer.bufferWidth != width || renderer.bufferHeight != height) {
+		needsResize = true
+	}
+	if needsResize {
 		comCall(renderer.context, 33, 0, 0, 0)
 		release(&renderer.target)
-		if err := hresult(comCall(renderer.swap, 13, 0, uintptr(width), uintptr(height), 0, 0)); err != nil {
+		comCall(renderer.context, 111) // Flush outstanding GPU commands before ResizeBuffers
+		targetWidth, targetHeight := width, height
+		if sync == 0 && !renderer.usesComposition() {
+			// Allocate with 64-pixel headroom during live resize so growing doesn't reallocate on every pixel.
+			targetWidth = max(width, (width+63)&^63)
+			targetHeight = max(height, (height+63)&^63)
+		}
+		if err := hresult(comCall(renderer.swap, 13, 0, uintptr(targetWidth), uintptr(targetHeight), 0, 0)); err != nil {
 			return fmt.Errorf("resize swap chain: %w", err)
 		}
 		var back uintptr
@@ -571,8 +583,9 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 		if err := hresult(status); err != nil {
 			return err
 		}
-		renderer.width, renderer.height = width, height
+		renderer.bufferWidth, renderer.bufferHeight = targetWidth, targetHeight
 	}
+	renderer.width, renderer.height = width, height
 	if err := renderer.draw(width, height, scale); err != nil {
 		return err
 	}
@@ -744,6 +757,7 @@ func (renderer *renderer) releaseDevice() {
 	renderer.labelPictures.evict(0)
 	renderer.labelPictures = labelPictureCache{}
 	renderer.capacity, renderer.width, renderer.height = 0, 0, 0
+	renderer.bufferWidth, renderer.bufferHeight = 0, 0
 	renderer.releaseComposition()
 	for _, object := range [...]*uintptr{&renderer.target, &renderer.swap, &renderer.view, &renderer.buffer, &renderer.constants, &renderer.blend, &renderer.textBlend, &renderer.raster, &renderer.sampler, &renderer.rectangleVertex, &renderer.rectangleFragment, &renderer.textVertex, &renderer.textFragment, &renderer.context, &renderer.device} {
 		release(object)

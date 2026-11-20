@@ -89,12 +89,14 @@ type windowState struct {
 	renderer                                     renderer
 	window                                       uintptr
 	ready, tracking, sizing, sizingMove          bool
+	timerPeriodSet                               bool
 	redrawRequested, paintPending, resizePending bool
 	resizeTimerInterval                          uintptr
 	resizeMonitor, resizeMonitorInterval         uintptr // the monitor resizeMonitorInterval was queried for
 	minimized                                    bool
 	trimArmed                                    bool      // the idle timer that trims driver memory is running
 	lastPresent                                  time.Time // when the window last presented a frame
+	lastResizeRender                             time.Time // when a resize frame was last rendered
 	// hiddenByShow is set while ShowWindow has the window hidden; shownVisible is the last
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
@@ -711,6 +713,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				state.paintPending = true
 			}
 			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
+			if state.sizingMove && !state.sizing && state.ready && !state.iconic() {
+				if interval := time.Duration(state.resizeInterval()) * time.Millisecond; interval > 0 && time.Since(state.lastResizeRender) >= interval {
+					if state.resizePending || state.redrawRequested || state.paintPending {
+						state.lastResizeRender = time.Now()
+						state.serviceResize()
+					}
+				}
+			}
 			return 0
 		}
 		state.sizing = true
@@ -800,15 +810,30 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		if state.sizingMove || state.sizing {
 			state.resizePending = true
+			if state.sizingMove && !state.sizing && state.ready && !state.iconic() {
+				if interval := time.Duration(state.resizeInterval()) * time.Millisecond; interval > 0 && time.Since(state.lastResizeRender) >= interval {
+					state.lastResizeRender = time.Now()
+					state.serviceResize()
+				}
+			}
 			return 0
 		}
 		state.presentClientSize(int(uint16(second)), int(uint16(second>>16)))
 		return 0
 	case wmEnterSizeMove:
 		state.sizingMove = true
+		if !state.timerPeriodSet {
+			timeBeginPeriod.Call(1)
+			state.timerPeriodSet = true
+		}
+		state.lastResizeRender = time.Now()
 		state.refreshResizeTimer()
 		return 0
 	case wmExitSizeMove:
+		if state.timerPeriodSet {
+			timeEndPeriod.Call(1)
+			state.timerPeriodSet = false
+		}
 		killTimer.Call(window, resizeTimerID)
 		state.sizingMove = false
 		state.resizeTimerInterval = 0
@@ -995,6 +1020,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmTimer:
 		if first == resizeTimerID {
 			if state.sizingMove {
+				state.lastResizeRender = time.Now()
 				state.serviceResize()
 			}
 			return 0
@@ -1046,6 +1072,10 @@ func (state *windowState) refreshResizeTimer() {
 func (state *windowState) paceResize(interval uintptr, arm func(uintptr) error) {
 	if err := state.rearmResizeTimer(interval, arm); err == nil {
 		return
+	}
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
 	}
 	killTimer.Call(state.window, resizeTimerID)
 	state.sizingMove = false
@@ -1287,6 +1317,10 @@ func (state *windowState) destroyed(window uintptr) {
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
 	killTimer.Call(window, resizeTimerID)
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
+	}
 	state.sizingMove = false
 	state.resizeTimerInterval = 0
 	state.closeText()
