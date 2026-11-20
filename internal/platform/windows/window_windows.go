@@ -148,6 +148,7 @@ type windowState struct {
 	pendingKey                   pendingKey
 	deadKey                      bool
 	icons                        [2]uintptr
+	taskbarIconSet               bool
 	drop                         *dropTarget
 	wheel                        wheelSettings
 	devices                      platform.DeviceRecovery
@@ -1323,6 +1324,7 @@ func (state *windowState) destroyed(window uintptr) {
 		state.config.Waker.Unbind()
 	}
 	state.destroyIcons()
+	state.clearTaskbarIcon()
 	removeNotificationIcon(window)
 	release()
 	if state.application.firstErr == nil && state.err != nil {

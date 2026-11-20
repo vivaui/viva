@@ -1,12 +1,48 @@
 package linux
 
 import (
+	"encoding/binary"
+	"os"
 	"slices"
 	"testing"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func TestNativeX11WindowIconPropertyUpdates(t *testing.T) {
+	if os.Getenv("DISPLAY") == "" {
+		t.Skip("requires X11 or Xvfb")
+	}
+	win, err := openWindow(platform.Config{Title: "Viva icon property test", Width: 120, Height: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer win.close()
+	window := &nativeWindow{state: &linuxWindowState{win: win}}
+	for _, color := range []byte{50, 210} {
+		icon := platform.WindowIcon{Size: 16, RGBA: make([]byte, 16*16*4)}
+		for i := 0; i < len(icon.RGBA); i += 4 {
+			copy(icon.RGBA[i:], []byte{color, 40, 70, 255})
+		}
+		if err := window.SetIcon(icon); err != nil {
+			t.Fatal(err)
+		}
+		if err := window.state.command(commandSetIcon, nil); err != nil {
+			t.Fatal(err)
+		}
+		data, format := windowProperty(t, win, "_NET_WM_ICON", xcbAtomCardinal)
+		want := netWMIcon(icon)
+		if format != 32 || len(data) != len(want)*4 {
+			t.Fatalf("native icon property: format %d, %d bytes", format, len(data))
+		}
+		for i, pixel := range want {
+			if got := binary.LittleEndian.Uint32(data[i*4:]); got != pixel {
+				t.Fatalf("native property pixel %d: %#x, want %#x", i, got, pixel)
+			}
+		}
+	}
+}
 
 func TestWindowIconUpdateWritesTheLatestIconOnTheEventLoop(t *testing.T) {
 	var ignored []titleProperty

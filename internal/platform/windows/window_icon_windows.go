@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -55,6 +56,11 @@ func (state *windowState) applyIcon() {
 func (state *windowState) setIcons(icon platform.WindowIcon) {
 	if !icon.Valid() {
 		return
+	}
+	if icon.ResourcePath != "" {
+		if err := state.setTaskbarIcon(icon.ResourcePath); err != nil {
+			log.Printf("viva: update taskbar icon: %v", err)
+		}
 	}
 	for kind, metric := range [...]uintptr{smSmallIconWidth, smIconWidth} {
 		size, _, _ := getSystemMetrics.Call(metric)

@@ -4,6 +4,7 @@ package app
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -61,10 +62,11 @@ func (control *nativeIconTestControl) SetIcon(icon platform.WindowIcon) error {
 func TestResultWindowForwardsIconUpdates(t *testing.T) {
 	native := &nativeIconTestControl{}
 	window := &Window{control: resultWindow{WindowControl: native}}
-	if err := window.SetIcon(WindowIcon{Size: 1, RGBA: []byte{1, 2, 3, 255}}); err != nil {
+	resource := filepath.Join(t.TempDir(), "logo.ico")
+	if err := window.SetIcon(WindowIcon{Size: 1, RGBA: []byte{1, 2, 3, 255}, ResourcePath: resource}); err != nil {
 		t.Fatal(err)
 	}
-	if native.icon.Size != 1 || native.icon.RGBA[2] != 3 {
+	if native.icon.Size != 1 || native.icon.RGBA[2] != 3 || native.icon.ResourcePath != resource {
 		t.Fatalf("native icon = %+v", native.icon)
 	}
 	window = &Window{control: resultWindow{WindowControl: &fakeWindow{}}}
