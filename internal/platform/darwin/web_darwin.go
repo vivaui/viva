@@ -52,6 +52,10 @@ type darwinWeb struct {
 	// refused is a navigation the application's Navigate cancelled. The engine may report the
 	// cancellation as the navigation's end, which the application already answered.
 	refused bool
+	// failure is why the page's content process is gone, WebProcessNoFailure while it is there:
+	// the delegate reports the termination without a reason, and a navigation that starts again
+	// clears it.
+	failure platform.WebProcessFailure
 	// placed is where the page was last put, to leave AppKit alone when nothing changed.
 	placed  platform.NativeView
 	cutsSet []gfx.Rect
@@ -215,6 +219,9 @@ func (page *darwinWeb) IsLoading() bool {
 	return page.usable() && C.viva_web_is_loading(page.native) != 0
 }
 
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there.
+func (page *darwinWeb) ProcessFailure() platform.WebProcessFailure { return page.failure }
+
 func (page *darwinWeb) Eval(script string) {
 	if page.usable() {
 		text := C.CString(script)
@@ -351,6 +358,9 @@ func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url, domain *C.
 	}
 	if loadPhase == platform.WebLoadStarted {
 		page.refused = false
+		// A page that loads again has a content process again, so the one it lost is no longer
+		// what it is.
+		page.failure = platform.WebProcessNoFailure
 	}
 	if page.config.OnLoad == nil {
 		return
@@ -363,6 +373,22 @@ func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url, domain *C.
 		Phase: loadPhase, URL: C.GoString(url), Title: page.Title(),
 		Code: failure, Description: C.GoString(description),
 	})
+}
+
+// vivaWebProcessTerminated reports a page whose content process is gone: the delegate's
+// webViewWebContentProcessDidTerminate: names no reason at all, so the page is WebProcessUnknown in
+// the terms of internal/platform, and it draws nothing until it is loaded again.
+//
+//export vivaWebProcessTerminated
+func vivaWebProcessTerminated(handle C.uintptr_t, id C.uint32_t) {
+	page := pageOf(handle, id)
+	if page == nil || !page.usable() {
+		return
+	}
+	page.failure = platform.WebProcessFailureDarwinTermination
+	if page.config.OnProcessFailed != nil {
+		page.config.OnProcessFailed(page.failure)
+	}
 }
 
 // vivaWebNavigate asks the application about a navigation before WebKit makes it. It answers 1 to

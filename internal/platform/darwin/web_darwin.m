@@ -12,6 +12,7 @@
 // What the page does reaches Go through these (web_darwin.go).
 extern void vivaWebMessage(uintptr_t handle, uint32_t id, char *utf8);
 extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url, char *domain, int code, char *description);
+extern void vivaWebProcessTerminated(uintptr_t handle, uint32_t id);
 extern int vivaWebNavigate(uintptr_t handle, uint32_t id, char *url, int mainFrame, int userGesture);
 extern int vivaWebNewWindow(uintptr_t handle, uint32_t id, char *url);
 extern int vivaWebDownload(uintptr_t handle, uint32_t id, char *url);
@@ -228,6 +229,15 @@ static uint64_t viva_web_next_request;
 - (void)webView:(WKWebView *)web didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     (void)navigation;
     [self reportFailure:web error:error];
+}
+
+// The page's content process is gone: it crashed, or the system reclaimed it. That is not a
+// navigation that failed (WebKit reports those through the two methods above), and the delegate
+// names no reason: Go reports the page as WebProcessUnknown and the page draws nothing until it is
+// loaded again.
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)web {
+    (void)web;
+    vivaWebProcessTerminated(_handle, _id);
 }
 
 // finishTask answers task and lets it go. headers is the header block Go resolved: one "Name: value"

@@ -106,6 +106,14 @@ type WebViewConfig struct {
 	TopCornerRadius float32
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
+	// OnProcessFailed reports the page's process gone: it crashed, the system or the engine stopped
+	// it, or it never started. That is not a navigation that failed: the page was there, and its
+	// process is gone, so what the user typed into it may be lost and it cannot draw again until it
+	// is loaded again, which WebView.Reload does. The WebProcessFailure says which of those it was,
+	// because a crash is worth warning about before a reload and a page the system reclaimed under
+	// memory pressure is not. WebView.IsCrashed answers the same question afterwards, and a
+	// navigation that starts again clears it.
+	OnProcessFailed func(WebProcessFailure)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
 	Navigate func(WebNavigation) bool
 	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. That is a
@@ -254,6 +262,34 @@ type WebLoad struct {
 	Description string
 }
 
+// WebProcessFailure is why a page's process is gone, in the terms every engine can be held to: the
+// engines name the same failures differently, so a page whose process was lost reads the same way
+// on every platform. WebProcessNoFailure is a page whose process is there.
+//
+// This is not a navigation that failed: a page that did not load has its process, and reports
+// through WebLoad. A page that lost its process was there, and cannot draw again until it is
+// loaded again.
+type WebProcessFailure = platform.WebProcessFailure
+
+const (
+	// WebProcessNoFailure is a page whose process is there.
+	WebProcessNoFailure = platform.WebProcessNoFailure
+	// WebProcessCrashed is a process that stopped without being asked to: a fault in the page or
+	// in the engine, which may have lost what the user typed into it that was not saved.
+	WebProcessCrashed = platform.WebProcessCrashed
+	// WebProcessKilled is a process the system or the engine stopped: memory pressure, an
+	// out-of-memory kill, or the engine ending it itself. The page is gone with it, but nothing
+	// the page did made it happen.
+	WebProcessKilled = platform.WebProcessKilled
+	// WebProcessUnresponsive is a process that stopped answering, which the engine ended.
+	WebProcessUnresponsive = platform.WebProcessUnresponsive
+	// WebProcessLaunchFailed is a process that never started, so the page never ran at all.
+	WebProcessLaunchFailed = platform.WebProcessLaunchFailed
+	// WebProcessUnknown is a process the engine reports as gone without a reason Viva classifies,
+	// including macOS, whose delegate names no reason at all.
+	WebProcessUnknown = platform.WebProcessUnknown
+)
+
 // WebView is one open page.
 type WebView struct {
 	id     gfx.NativeViewID
@@ -370,6 +406,12 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 			return config.Navigate(WebNavigation(navigation))
 		}
 	}
+	if config.OnProcessFailed != nil {
+		platformConfig.OnProcessFailed = func(failure platform.WebProcessFailure) {
+			config.OnProcessFailed(WebProcessFailure(failure))
+			host.requestPaint()
+		}
+	}
 	platformConfig.NewWindow = config.NewWindow
 	platformConfig.Download = config.Download
 	platformConfig.BridgeMainFrameOnly = config.BridgeMainFrameOnly
@@ -413,6 +455,18 @@ func (view *WebView) CanGoForward() bool { return view.native.CanGoForward() }
 // IsLoading reports whether the page is loading a navigation: true from the step the engine starts
 // one until it finishes or fails, which is when WebLoad reports WebLoadStarted and WebLoadFinished.
 func (view *WebView) IsLoading() bool { return view.native.IsLoading() }
+
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there: the value
+// OnProcessFailed was given, until the page starts a navigation again, which is what clears it. The
+// engines have no way to ask, so it is kept from what they reported.
+func (view *WebView) ProcessFailure() WebProcessFailure { return view.native.ProcessFailure() }
+
+// IsCrashed reports whether the page's process is gone: it crashed, the system or the engine stopped
+// it, or it never started. Such a page cannot draw and its input is lost, so an application that
+// hosts one shows its own notice and Reload loads it again rather than leaving the engine's blank
+// view. It says the page is gone, not that the reason was a crash: ProcessFailure names the reason,
+// which is what a notice that tells the user whether their input is lost needs.
+func (view *WebView) IsCrashed() bool { return view.native.ProcessFailure() != WebProcessNoFailure }
 
 // Eval runs a script in the page. The result is not read back: have the script post a message.
 func (view *WebView) Eval(script string) { view.native.Eval(script) }

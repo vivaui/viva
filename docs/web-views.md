@@ -56,6 +56,17 @@ scheme, a message in each direction and a menu that stands over the page.
   that failed carries `Code`, a `WebLoadError` that names the same failures on every engine, and
   `Description`, the engine's own words for it. A navigation your `Navigate` refused is not reported:
   that is the answer you gave, and the engine's interruption of it would be the same thing twice.
+- `OnProcessFailed` reports the page's process gone: it crashed, the system or the engine stopped it, or
+  it never started. That is not a navigation that failed — the page was there, and its process is gone —
+  so it cannot draw again until it is loaded again with `Reload`, and what the user typed into it may be
+  lost. The `WebProcessFailure` says which of those it was, in the terms every engine can be held to:
+  `WebProcessCrashed` (a fault, whose unsaved input is probably gone), `WebProcessKilled` (memory
+  pressure, an out-of-memory kill, or the engine ending it itself, which the page did nothing to cause),
+  `WebProcessUnresponsive`, `WebProcessLaunchFailed`, or `WebProcessUnknown` (including macOS, which
+  names no reason at all). A notice that tells the user whether their input is lost, or just offers a
+  reload, is written from that value rather than from the engine's own enum. `IsCrashed` answers whether
+  the page is gone and `ProcessFailure` why, until the page starts a navigation again, which clears it:
+  no engine offers a way to ask, so both are kept from what the engine reported.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - `Navigate` decides a navigation before it starts, the application's own `Load` included: the
@@ -181,7 +192,10 @@ The decisions are the engine's own, and each one has a limit worth knowing:
   A form submitted by a script therefore reads as a gesture, and a redirect keeps the gesture that started
   it. Downloads need macOS 11.3 (`WKDownload`); on an older system a download response is refused rather
   than saved, and `Download` is not asked. A failed load arrives as an `NSError`: `WebLoad.Code` is mapped
-  from its domain and code, and `WebLoad.Description` is the system's own message, which is localized.
+  from its domain and code, and `WebLoad.Description` is the system's own message, which is localized. A
+  page whose content process is gone arrives as `webViewWebContentProcessDidTerminate:`, which names no
+  reason at all: `ProcessFailure` is `WebProcessUnknown` there, so a notice may say the page was lost but
+  not whether it crashed or the system reclaimed it, and the page draws nothing until it is loaded again.
 - **Linux**: WebKitGTK's navigation action names no target frame (there is no way from the action to
   the frame), so `WebNavigation.MainFrame` is always true here and a subframe cannot be told apart from
   the main frame. The decision still cancels the right request. The redirect flag needs WebKitGTK 2.20;
@@ -190,7 +204,11 @@ The decisions are the engine's own, and each one has a limit worth knowing:
   application decides it in `decide-destination`, before the body is written. A failed load arrives as a
   `GError` from `load-failed`: `WebLoad.Code` is mapped from its code and `WebLoad.Description` is the
   engine's message. A certificate the engine refuses reaches the load as a cancellation rather than
-  `WebLoadBadCertificate`, because the TLS error signal is the engine's own to answer.
+  `WebLoadBadCertificate`, because the TLS error signal is the engine's own to answer. A page whose web
+  process is gone arrives as `web-process-terminated`, which needs WebKitGTK 2.20: an older engine opens
+  the page and never calls `OnProcessFailed`, and a warning through `diag` says so once, when the page
+  opens, rather than leaving the callback silently unset. The signal's reason maps to `WebProcessCrashed`,
+  or `WebProcessKilled` for a process that exceeded the memory limit or was terminated by API.
 - **Windows**: `DownloadStarting` needs `ICoreWebView2_4`. A runtime older than that (2021) cannot report a
   download before it starts, so `Download` is not asked and the engine saves the file its own way in the
   user's downloads folder; a warning through `diag` says so once, when the page opens. `NewWindow` and
@@ -198,4 +216,11 @@ The decisions are the engine's own, and each one has a limit worth knowing:
   `WebErrorStatus`, which carries no text: `WebLoad.Description` is empty here, so show `Code`. The base
   interface has no property for `IsLoading`, so the page follows `NavigationStarting` and
   `NavigationCompleted` instead: it becomes true on the turn of the window's thread that reports the
-  navigation's start, not inside the call to `Load` itself.
+  navigation's start, not inside the call to `Load` itself. `ProcessFailed` is on the base interface too,
+  and its kind decides whether the page hears of it: the browser process, which every renderer is a child
+  of, and the renderer that draws the main frame end the page, while a frame's own renderer (the runtime
+  puts its error page in that frame) and a GPU, utility, sandbox helper or plugin process are the
+  runtime's to start again and are not reported, which is what the other engines' signals do as well. The
+  reason needs `ICoreWebView2ProcessFailedEventArgs2` (Runtime 94, inside what an ephemeral page already
+  asks for): a runtime without it gives the kind alone, and an exit with no reason reads
+  `WebProcessUnknown`.
