@@ -6,6 +6,27 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
+func TestDialogEscapesAncestorClipAndRestoresIt(t *testing.T) {
+	var canvas gfx.Canvas
+	var tree gfx.Tree
+	scope := tree.Feature("dialog-clip")
+	dismiss := scope.ID(tree.Name("dismiss"))
+	viewport := gfx.Rect{Width: 800, Height: 600}
+	pane := gfx.Rect{X: 100, Y: 48, Width: 700, Height: 552}
+	canvas.Clip(pane)
+	BeginDialog(&canvas, gfx.LightTheme(), viewport, DialogOptions{Scope: scope.ID(tree.Name("modal")), DismissID: dismiss}).Paint("Dialog", "")
+	for _, hit := range canvas.Hits() {
+		if hit.ID == dismiss && hit.Bounds != viewport {
+			t.Fatalf("scrim clipped to %+v", hit.Bounds)
+		}
+	}
+	canvas.Fill(viewport, gfx.LightTheme().Primary)
+	last := canvas.Rectangles()[len(canvas.Rectangles())-1]
+	if !last.HasClip || last.ClipOf != pane {
+		t.Fatalf("ancestor clip not restored: %+v", last)
+	}
+}
+
 func TestDialogPaintsCenteredModalLayerAndTypedActions(t *testing.T) {
 	var canvas gfx.Canvas
 	layout := BeginDialog(&canvas, gfx.LightTheme(), gfx.Rect{Width: 800, Height: 600}, DialogOptions{
