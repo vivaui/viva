@@ -33,6 +33,12 @@ type driverSystem struct {
 	schemes        []string // the URL schemes SetSchemeHandlers declared as registered
 	sleepMu        sync.Mutex
 	sleep          map[string]int // sleep-prevention reasons this run holds, with their counts
+	// dragFiles and dragAllowed are what the application last asked to drag out
+	// of a driver-backed window, and dragTaken is the effect the driver's target
+	// took from them; see driverStartFileDrag.
+	dragFiles   []string
+	dragAllowed platform.DragEffect
+	dragTaken   platform.DragEffect
 }
 
 type driverSaveFileResponse struct {
@@ -128,6 +134,29 @@ func driverSetClipboardFiles(paths []string) (error, bool) {
 	}
 	system.driver.SetClipboardFiles(paths)
 	return nil, true
+}
+
+// driverStartFileDrag answers a drag of files out of a driver-backed run: the
+// driver records what the application asked and takes the effect a folder window
+// takes, with no native drag and no pointer to move.
+func driverStartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEffect, error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return platform.DragEffectNone, nil, false
+	}
+	taken := platform.DragEffectOf(allowed, platform.DragEffect(platform.DropEffect(true, uint32(allowed))))
+	system.dragFiles, system.dragAllowed, system.dragTaken = append([]string(nil), paths...), allowed, taken
+	return taken, nil, true
+}
+
+// DraggedFiles is the files the application last asked to drag out of the
+// driver's window, and the effect the driver's target took from them. That
+// target behaves like a folder window: it takes a copy when the application
+// offers one, then a link, then a move, and takes nothing when the application
+// offers nothing or the drag ends without a drop. The slice is the driver's own;
+// do not modify it.
+func (driver *Driver) DraggedFiles() ([]string, platform.DragEffect) {
+	return driver.system.dragFiles, driver.system.dragTaken
 }
 
 // driverSetClipboardHTML answers the rich copy of a driver-backed run: the
