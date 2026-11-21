@@ -1,6 +1,7 @@
 package base_test
 
 import (
+	"math"
 	"testing"
 
 	. "github.com/vivaui/viva/base"
@@ -117,4 +118,55 @@ func TestTabsPropertiesReachTheStrip(t *testing.T) {
 	if gap := line.hits[1].Bounds.X - (line.hits[0].Bounds.X + line.hits[0].Bounds.Width); gap < 9.99 || gap > 10.01 {
 		t.Errorf("line trigger gap = %v, want the explicit 10", gap)
 	}
+}
+
+// Pad reaches the strip on every side: it insets the triggers and the strip's
+// thickness, rather than only the top.
+func TestTabsPadOnEverySide(t *testing.T) {
+	horizontal := probeTabs(t, func(f *Frame) Box {
+		return f.Tabs(tabsScope, tabsNodeLabels, 0).PadSides(2, 8, 4, 12).Height(44)
+	})
+	first, last := horizontal.hits[0].Bounds, horizontal.hits[len(horizontal.hits)-1].Bounds
+	if math.Abs(float64(first.X-(horizontal.box.X+12))) > 0.01 || math.Abs(float64(first.Y-(horizontal.box.Y+2))) > 0.01 {
+		t.Errorf("first trigger at %v, want the strip's left 12 and top 2", first)
+	}
+	if math.Abs(float64(first.Height-(44-2-4))) > 0.01 {
+		t.Errorf("trigger height = %v, want the strip height less top and bottom", first.Height)
+	}
+	if math.Abs(float64(last.X+last.Width-(horizontal.box.X+horizontal.box.Width-8))) > 0.01 {
+		t.Errorf("last trigger ends at %v, want 8 from the right edge %v", last.X+last.Width, horizontal.box.X+horizontal.box.Width)
+	}
+
+	vertical := probeTabs(t, func(f *Frame) Box {
+		return f.Tabs(tabsScope, tabsNodeLabels, 0).Vertical().PadSides(2, 8, 4, 12).Height(140)
+	})
+	first, last = vertical.hits[0].Bounds, vertical.hits[len(vertical.hits)-1].Bounds
+	if math.Abs(float64(first.X-(vertical.box.X+12))) > 0.01 || math.Abs(float64(first.Width-(vertical.box.Width-12-8))) > 0.01 {
+		t.Errorf("vertical trigger at %v width %v, want 12 in and the width less both sides", first, first.Width)
+	}
+	if math.Abs(float64(first.Y-(vertical.box.Y+2))) > 0.01 || math.Abs(float64(last.Y+last.Height-(vertical.box.Y+vertical.box.Height-4))) > 0.01 {
+		t.Errorf("vertical triggers from %v to %v, want 2 from top and 4 from bottom", first.Y, last.Y+last.Height)
+	}
+}
+
+// Without an explicit height a strip is exactly its triggers and its Pad: PadY(0)
+// no longer falls back to the theme's 36.
+func TestTabsPadYShrinksTheAutomaticHeight(t *testing.T) {
+	theme := gfx.LightTheme()
+	_, _, triggerHeight, _, _, _, _ := style.TabsGeometry(theme.Metrics)
+	for _, tc := range []struct {
+		name    string
+		declare func(f *Frame) Box
+		want    float32
+	}{
+		{"padY 0", func(f *Frame) Box { return f.Tabs(tabsScope, tabsNodeLabels, 0).PadY(0) }, triggerHeight},
+		{"padY 2", func(f *Frame) Box { return f.Tabs(tabsScope, tabsNodeLabels, 0).PadY(2) }, triggerHeight + 4},
+		{"line padY 2", func(f *Frame) Box { return f.Tabs(tabsScope, tabsNodeLabels, 0).Line().PadY(2) }, triggerHeight + 4 + TabIndicator},
+	} {
+		p := probeTabs(t, tc.declare)
+		if p.box.Height != tc.want {
+			t.Errorf("%s: strip height = %v, want %v", tc.name, p.box.Height, tc.want)
+		}
+	}
+	_ = theme
 }

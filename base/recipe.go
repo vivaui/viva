@@ -115,7 +115,7 @@ func (f *Frame) applyRecipes() {
 			}
 		case kindTabs:
 			theme := f.RecipeTheme(n, &f.scratch.theme)
-			listHeight, listPadding, _, _, lineGap, _, _ := style.TabsGeometry(theme.Metrics)
+			_, listPadding, triggerHeight, _, lineGap, _, _ := style.TabsGeometry(theme.Metrics)
 			t := &WidgetsOf(f).tabs[n.Aux]
 			gap := float32(0)
 			if t.line {
@@ -141,7 +141,7 @@ func (f *Frame) applyRecipes() {
 				n.Radius = f.tabsLook(n, theme).Radius
 			}
 			if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
-				n.MinS[AxisY] = listHeight
+				n.MinS[AxisY] = triggerHeight + n.Pad[0] + n.Pad[2]
 			}
 		case kindSelect:
 			theme := f.RecipeTheme(n, &f.scratch.theme)

@@ -203,3 +203,56 @@ func TestSwitchDefaultsAreTheRecipe(t *testing.T) {
 		t.Errorf("explicit switch track = %v, want 80x40", wideTrack.Bounds)
 	}
 }
+
+// An explicit pixel Size sizes a Checkbox's box itself, not only its element,
+// and a non-square box draws a mark sized for its shorter side.
+func TestCheckboxExplicitSizeSizesTheBox(t *testing.T) {
+	p := probeChoice(t, func(f *Frame) Box { return f.Checkbox(gfx.Item(1), true).Size(22, 24) })
+	var box gfx.Rectangle
+	for _, rect := range p.rects {
+		if rect.Bounds.Width == 22 && rect.Bounds.Height == 24 {
+			box = rect
+		}
+	}
+	if box.Bounds.Width == 0 {
+		t.Fatalf("no 22x24 box in %+v", p.rects)
+	}
+	if !p.marked {
+		t.Error("the explicit box painted no mark")
+	}
+}
+
+// FillWidth and Percent sizes size a Switch's track from what the layout gave
+// the element, keeping the caption's room out of the track.
+func TestSwitchStretchedTrack(t *testing.T) {
+	theme := gfx.LightTheme()
+	off := components.SwitchRecipe(theme, gfx.State{}, 0)
+	caption := "Running"
+	canvas := testCanvas()
+	var view View
+	var box Box
+	view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 120}, func(f *Frame) {
+		f.Column().Width(400).Children(func() {
+			f.Column().Width(400).Children(func() {
+				box = f.Switch(gfx.Item(1), false).Caption(caption).FillWidth()
+			})
+		})
+	})
+	width := canvas.TextWidthWeight(caption, theme.Metrics.FontSizeM, gfx.WeightMedium)
+	want := box.Rect().Width - width - CaptionGap
+	track := gfx.Rectangle{}
+	for _, rect := range canvas.Rectangles() {
+		if rect.Color == off.Track && rect.Bounds.Height > 0 {
+			track = rect
+		}
+	}
+	if track.Bounds.Width == 0 {
+		t.Fatalf("no track with %v in %+v", off.Track, canvas.Rectangles())
+	}
+	if diff := track.Bounds.Width - want; diff > 0.01 || diff < -0.01 {
+		t.Errorf("track width = %v, want the element width less the caption and gap (%v)", track.Bounds.Width, want)
+	}
+	if track.Radius != track.Bounds.Height/2 {
+		t.Errorf("track radius = %v, want half its height %v", track.Radius, track.Bounds.Height/2)
+	}
+}

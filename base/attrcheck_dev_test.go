@@ -15,6 +15,17 @@ var (
 	attrSelectScope = tree.Sub(page, tree.Name("attr-select"))
 )
 
+type devTableRows struct{ n int }
+
+func (r *devTableRows) Len() int                    { return r.n }
+func (r *devTableRows) Cell(row, column int) string { return "r" }
+
+var devTableSpec = TableSpec{
+	Columns: []style.TableColumn{{Width: 80}},
+	Headers: []string{"Name"},
+	Source:  &devTableRows{n: 1},
+}
+
 // drawBase declares one page through the engine under the dev attribute rules.
 func drawBase(declare func(f *Frame)) {
 	var view View
@@ -47,7 +58,7 @@ func TestBareConstructorsDoNotTripTheAttributeRules(t *testing.T) {
 			f.Button(gfx.Item(1), "Save")
 			f.Badge("New")
 			f.Toggle(gfx.Item(3), "Bold", true)
-			f.Tabs(attrTabsScope, []string{"A", "B"}, 0)
+			f.Tabs(attrTabsScope, []string{"A", "B"}, 0).PadSides(2, 8, 4, 12)
 			f.Select(attrSelectScope, &state, []string{"A", "B"}, 0).Label("Size")
 			f.Input(InputSnapshot{ID: gfx.Item(4), Label: "Name", Value: "x"})
 			f.Textarea(TextareaSnapshot{ID: gfx.Item(5), Label: "Notes", Value: "x"})
@@ -145,6 +156,9 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 		{"Splitter LabelFor", []string{"Splitter", "LabelFor"}, func(f *Frame) {
 			f.Splitter(gfx.Item(1), &SplitterState{}).LabelFor(gfx.Item(2))
 		}},
+		{"Table Weight", []string{"Table", "Weight"}, func(f *Frame) {
+			f.Table(&TableState{}, devTableSpec).Bold()
+		}},
 		{"Select Hit", []string{"Select", "Hit"}, func(f *Frame) {
 			f.Select(attrSelectScope, &SelectState{}, []string{"A"}, 0).Hit(gfx.Item(9), "Size")
 		}},
@@ -167,9 +181,6 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 			f.Checkbox(gfx.Item(1), true).Color(gfx.Color{Red: 1, Alpha: 1})
 		}},
 		{"Badge size method", []string{"Badge", "Size"}, func(f *Frame) { f.Badge("New").Small() }},
-		{"Tabs asymmetric Pad", []string{"Tabs", "Pad sides"}, func(f *Frame) {
-			f.Tabs(attrTabsScope, []string{"A"}, 0).PadSides(2, 8, 2, 8)
-		}},
 		{"Image Radius", []string{"Image", "Radius"}, func(f *Frame) {
 			f.Image(gfx.Bitmap{}).Radius(4)
 		}},

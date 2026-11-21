@@ -1181,6 +1181,16 @@ func (x *TableDecl) GetRows() int { return x.rows }
 // GetSpec reads the spec of TableDecl for the styled painting layer.
 func (x *TableDecl) GetSpec() TableSpec { return x.spec }
 
+// GetFontSize reads the element's font size for the table being painted: the
+// explicit size when it has one, else the spec's.
+func (x *TableDecl) GetFontSize() float32 { return x.fontSize }
+
+// GetForeground reads the element's text color for the table being painted.
+func (x *TableDecl) GetForeground() gfx.Color { return x.foreground }
+
+// GetForegroundSet reports whether the element set a text color of its own.
+func (x *TableDecl) GetForegroundSet() bool { return x.hasForeground }
+
 // GetState reads the state of TableDecl for the styled painting layer.
 func (x *TableDecl) GetState() *TableState { return x.state }
 

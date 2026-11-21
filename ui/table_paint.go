@@ -13,7 +13,10 @@ import (
 func paintTableRows(f *Frame, t *TableDecl, rows Rect, First, Last int, top, contentWidth, rowHeight float32) {
 	canvas := f.Surface
 	table := components.BeginTable(canvas, f.Palette, rows, t.GetSpec().Columns).
-		RowHeight(rowHeight).FontSize(t.GetSpec().FontSize).CellPadding(t.GetSpec().CellPadding)
+		RowHeight(rowHeight).FontSize(t.GetFontSize()).CellPadding(t.GetSpec().CellPadding)
+	if t.GetForegroundSet() {
+		table = table.Foreground(t.GetForeground())
+	}
 	w := base.WidgetsOf(f)
 	if cap(w.GetCells()) < len(t.GetSpec().Columns) {
 		w.SetCells(make([]string, len(t.GetSpec().Columns)))
@@ -110,12 +113,15 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 		headerRow.Height = headerHeight
 	}
 	table := components.BeginTable(canvas, f.Palette, headerRow, t.GetSpec().Columns).
-		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.GetSpec().FontSize).CellPadding(t.GetSpec().CellPadding)
+		RowHeight(rowHeight).HeaderHeight(headerHeight).FontSize(t.GetFontSize()).CellPadding(t.GetSpec().CellPadding)
+	if t.GetForegroundSet() {
+		table = table.Foreground(t.GetForeground())
+	}
 	table.Header(t.GetSpec().Headers)
 
 	sorted, descending, isSorted := t.GetState().Sort()
 	metrics := f.Palette.Metrics
-	fontSize := t.GetSpec().FontSize
+	fontSize := t.GetFontSize()
 	if fontSize <= 0 {
 		fontSize = metrics.FontSizeM
 	}

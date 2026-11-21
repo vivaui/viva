@@ -230,15 +230,6 @@ func (f *Frame) checkThemedAttributes(n *Node, name string) {
 		if n.Variant != 0 {
 			f.badAttribute(n, name, "Variant", "a Tabs strip has its own variants: use Line() or Vertical()")
 		}
-		// The strip's padding is its inner padding: only a uniform Pad (or the top
-		// side) reaches the triggers.
-		if n.Flags&flagSetPad != 0 {
-			if (n.PadSet&padRight != 0 && n.Pad[1] != n.Pad[0]) ||
-				(n.PadSet&padBottom != 0 && n.Pad[2] != n.Pad[0]) ||
-				(n.PadSet&padLeft != 0 && n.Pad[3] != n.Pad[0]) {
-				f.badAttribute(n, name, "Pad sides", "a Tabs strip keeps one inner padding; PadX, PadY or different sides do not reach the triggers")
-			}
-		}
 	case kindSelect:
 		f.checkTextAttributes(n, name, false, false, false, false, false)
 		f.checkButtonSize(n, name, true)
@@ -424,7 +415,12 @@ func (f *Frame) checkWidgetAttributes(n *Node, name string) {
 	case kindTable:
 		rejectPad()
 		rejectSurface()
-		rejectType()
+		// FontSize and Color style the table's text; its own weight rules keep
+		// headers medium and rows regular.
+		f.checkTextAttributes(n, name, false, false, false, false, false)
+		if n.WeightSet {
+			f.badAttribute(n, name, "Weight", "a Table's header is medium and its rows regular; change the font size or color instead")
+		}
 		rejectChildren()
 		rejectVariant()
 		rejectSize()

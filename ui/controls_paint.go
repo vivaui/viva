@@ -10,20 +10,11 @@ import (
 
 // checkboxSurfaceRect is the box a Checkbox paints inside its element: beside
 // its caption at the element's start, centered in the element when it has none.
-func checkboxSurfaceRect(f *Frame, r Rect, caption bool) Rect {
+// An explicit pixel Size sizes the box itself; a non-square box is allowed and
+// its mark is drawn for the shorter side.
+func checkboxSurfaceRect(f *Frame, n *Node) Rect {
 	side := components.CheckboxExtent(f.Palette)
-	x := r.X + (r.Width-side)/2
-	if caption {
-		x = r.X
-	}
-	return Rect{X: x, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
-}
-
-// switchSurfaceRect is the track a Switch paints inside its element; an explicit
-// Width or Height sizes the track, as it does every other control's surface.
-func switchSurfaceRect(f *Frame, n *Node) Rect {
-	small := n.Flags&FlagSmall != 0
-	width, height := components.SwitchExtent(f.Palette, small)
+	width, height := side, side
 	if d := n.Size[AxisX]; d.Kind == DimPx {
 		width = d.Value
 	}
@@ -38,12 +29,52 @@ func switchSurfaceRect(f *Frame, n *Node) Rect {
 	return Rect{X: x, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
 }
 
+// switchSurfaceRect is the track a Switch paints inside its element; an explicit
+// Width or Height sizes the track, as it does every other control's surface.
+func switchSurfaceRect(f *Frame, n *Node) Rect {
+	small := n.Flags&FlagSmall != 0
+	width, height := components.SwitchExtent(f.Palette, small)
+	r := n.Rect
+	// An explicit pixel size, and a Fill or Percent size the layout resolved,
+	// both size the track. A track stretched across a row keeps its caption, so
+	// the caption's width and the gap after it come out of the element's width.
+	stretched := func(d Dimension) bool { return d.Kind == DimFill || d.Kind == DimPercent }
+	if d := n.Size[AxisX]; d.Kind == DimPx {
+		width = d.Value
+	} else if stretched(d) {
+		width = max(r.Width-captionWidth(f, n)-base.CaptionGap, 0)
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	} else if stretched(d) {
+		height = r.Height
+	}
+	x := r.X + (r.Width-width)/2
+	if n.Text != "" {
+		x = r.X
+	}
+	return Rect{X: x, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+}
+
+// captionWidth is the width a Switch's caption takes at the element's text
+// style, the same measurement measureSwitchNode adds to the element.
+func captionWidth(f *Frame, n *Node) float32 {
+	if n.Text == "" {
+		return 0
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	return f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
+}
+
 // controlSurfaceRect is where a themed control's own surface paints when it is
 // smaller than the element: a Checkbox's box, a Switch's track.
 func controlSurfaceRect(f *Frame, n *Node) Rect {
 	switch n.Kind {
 	case KindCheckbox:
-		return checkboxSurfaceRect(f, n.Rect, n.Text != "")
+		return checkboxSurfaceRect(f, n)
 	case KindSwitch:
 		return switchSurfaceRect(f, n)
 	}
@@ -70,7 +101,7 @@ func frameSwitchLook(f *Frame, n *Node, Palette *Theme, state gfx.State, progres
 
 func paintCheckbox(f *Frame, v ControlView, n *Node) {
 	canvas := f.Surface
-	bounds := checkboxSurfaceRect(f, v.Rect, v.Text != "")
+	bounds := checkboxSurfaceRect(f, n)
 	themed := v.Flags&FlagThemed != 0
 	if v.Text != "" && !themed {
 		f.PaintCaptionView(v, bounds)
@@ -78,6 +109,9 @@ func paintCheckbox(f *Frame, v ControlView, n *Node) {
 	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
 	if v.Exact {
 		checkbox = checkbox.HitBounds(v.Rect)
+	}
+	if n.Size[AxisX].Kind != DimAuto || n.Size[AxisY].Kind != DimAuto {
+		checkbox = checkbox.ExplicitBounds()
 	}
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()

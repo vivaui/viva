@@ -40,8 +40,15 @@ type Tabs struct {
 type TabsStyle struct {
 	// ListHeight and ListPadding size the strip; TriggerHeight and TriggerPadding
 	// size one trigger inside it. LineGap is the gap between line-variant triggers;
-	// Gap is used for both variants when set.
-	ListHeight, ListPadding, TriggerHeight, TriggerPadding, LineGap, Gap float32
+	// Gap is used for both variants when set. ListPadding is the room on each of the
+	// strip's four sides; HasListPadding distinguishes an explicit zero from the
+	// theme default.
+	ListHeight     float32
+	ListPadding    gfx.Insets
+	HasListPadding bool
+	TriggerHeight  float32
+	TriggerPadding float32
+	LineGap, Gap   float32
 	// TriggerRadius is a trigger's corner radius; the strip's own radius is the
 	// element's Radius, painted by the engine.
 	TriggerRadius float32
@@ -57,10 +64,11 @@ type TabsStyle struct {
 
 // tabsPaint is TabsStyle resolved against the theme at Paint.
 type tabsPaint struct {
-	listHeight, listPadding, triggerHeight, triggerPadding, lineGap, gap float32
-	listRadius, triggerRadius, fontSize, weight                          float32
-	foreground                                                           gfx.Color
-	hasForeground                                                        bool
+	listHeight, triggerHeight, triggerPadding, lineGap, gap float32
+	listPadding                                             gfx.Insets
+	listRadius, triggerRadius, fontSize, weight             float32
+	foreground                                              gfx.Color
+	hasForeground                                           bool
 }
 
 // WithStyle overrides the strip's measurements, colors and label style; zero
@@ -208,7 +216,7 @@ func (tabs Tabs) resolvedPaint() tabsPaint {
 	metrics := tabs.theme.Metrics
 	defHeight, defPadding, defTriggerHeight, defTriggerPad, defLineGap, defFont, defWeight := style.TabsGeometry(metrics)
 	p := tabsPaint{
-		listHeight: defHeight, listPadding: defPadding,
+		listHeight: defHeight, listPadding: gfx.All(defPadding),
 		triggerHeight: defTriggerHeight, triggerPadding: defTriggerPad,
 		lineGap: defLineGap, gap: 0,
 		listRadius: style.TabsListRadius(metrics), triggerRadius: style.TabsTriggerRadius(metrics),
@@ -218,7 +226,7 @@ func (tabs Tabs) resolvedPaint() tabsPaint {
 	if override.ListHeight > 0 {
 		p.listHeight = override.ListHeight
 	}
-	if override.ListPadding > 0 {
+	if override.HasListPadding {
 		p.listPadding = override.ListPadding
 	}
 	if override.TriggerHeight > 0 {
@@ -265,20 +273,24 @@ func (tabs Tabs) Paint() TabsResult {
 			widest = max(widest, width)
 			total += width
 		}
+		pad := tabs.paint.listPadding
 		if tabs.direction == TabsVertical {
-			tabs.bounds.Width = widest + tabs.paint.listPadding*2
+			tabs.bounds.Width = widest + pad.Left + pad.Right
 		} else {
-			tabs.bounds.Width = total + gap*(count-1) + tabs.paint.listPadding*2
+			tabs.bounds.Width = total + gap*(count-1) + pad.Left + pad.Right
 		}
 	}
 	if tabs.bounds.Width <= 0 {
 		return result
 	}
 	if tabs.bounds.Height <= 0 {
+		pad := tabs.paint.listPadding
 		if tabs.direction == TabsVertical {
-			tabs.bounds.Height = tabs.paint.triggerHeight*count + gap*(count-1) + tabs.paint.listPadding*2
-		} else {
+			tabs.bounds.Height = tabs.paint.triggerHeight*count + gap*(count-1) + pad.Top + pad.Bottom
+		} else if tabs.paint.listHeight > 0 {
 			tabs.bounds.Height = tabs.paint.listHeight
+		} else {
+			tabs.bounds.Height = tabs.paint.triggerHeight + pad.Top + pad.Bottom
 		}
 	}
 	result.bounds = tabs.bounds
@@ -293,9 +305,10 @@ func (tabs Tabs) Paint() TabsResult {
 		}
 		tabs.canvas.Rounded(tabs.bounds, listRadius, listFill)
 	}
+	pad := tabs.paint.listPadding
 	inner := gfx.Rect{
-		X: tabs.bounds.X + tabs.paint.listPadding, Y: tabs.bounds.Y + tabs.paint.listPadding,
-		Width: tabs.bounds.Width - tabs.paint.listPadding*2, Height: tabs.bounds.Height - tabs.paint.listPadding*2,
+		X: tabs.bounds.X + pad.Left, Y: tabs.bounds.Y + pad.Top,
+		Width: max(tabs.bounds.Width-pad.Left-pad.Right, 0), Height: max(tabs.bounds.Height-pad.Top-pad.Bottom, 0),
 	}
 	cursor := float32(0)
 	for index := range tabs.count() {

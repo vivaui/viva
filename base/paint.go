@@ -53,6 +53,11 @@ func (f *Frame) PaintChild(i int32) {
 			surface = own
 		}
 	}
+	// A stacked or stretched switch's track is a pill of its own height, which
+	// the layout only knows once it has sized the element.
+	if n.Flags&flagThemed != 0 && n.Kind == kindSwitch && n.Flags&flagHasRadius == 0 && surface.Height > 0 {
+		n.Radius = surface.Height / 2
+	}
 	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	if s := extra.scrollState; s != nil && canvas != nil {

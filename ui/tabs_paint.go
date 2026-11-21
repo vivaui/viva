@@ -64,9 +64,10 @@ func paintTabs(f *Frame, n *Node) {
 		tabs = tabs.Vertical()
 	}
 	tabStyle := components.TabsStyle{
-		ListPadding: n.Pad[0],
-		Gap:         n.Gap,
-		FontSize:    n.FontSize,
+		ListPadding:    gfx.Insets{Top: n.Pad[0], Right: n.Pad[1], Bottom: n.Pad[2], Left: n.Pad[3]},
+		HasListPadding: true,
+		Gap:            n.Gap,
+		FontSize:       n.FontSize,
 	}
 	if n.WeightSet {
 		tabStyle.Weight = n.Weight

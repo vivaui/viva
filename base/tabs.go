@@ -100,15 +100,27 @@ func (b Box) TabClicked() (int, bool) {
 
 func (f *Frame) measureTabs(n *Node) {
 	t := &WidgetsOf(f).tabs[n.Aux]
-	listHeight, listPadding, triggerHeight, triggerPad, lineGap, fontSize, weight := style.TabsGeometry(f.Palette.Metrics)
+	_, listPadding, triggerHeight, triggerPad, lineGap, fontSize, weight := style.TabsGeometry(f.Palette.Metrics)
 	if n.FontSize > 0 {
 		fontSize = n.FontSize
 	}
 	if n.WeightSet || n.Weight != 0 {
 		weight = n.Weight
 	}
-	if n.Pad[0] != 0 || n.PadSet&padTop != 0 {
-		listPadding = n.Pad[0]
+	// The recipe filled every side the caller did not set with the same theme
+	// padding, so the element's Pad is the strip's four inner edges here.
+	top, right, bottom, left := n.Pad[0], n.Pad[1], n.Pad[2], n.Pad[3]
+	if n.PadSet&padTop == 0 {
+		top = listPadding
+	}
+	if n.PadSet&padRight == 0 {
+		right = listPadding
+	}
+	if n.PadSet&padBottom == 0 {
+		bottom = listPadding
+	}
+	if n.PadSet&padLeft == 0 {
+		left = listPadding
 	}
 	var widest float32
 	for index, label := range t.labels {
@@ -133,14 +145,15 @@ func (f *Frame) measureTabs(n *Node) {
 		gap = lineGap
 	}
 	between := gap * max(count-1, 0)
+	triggerWidth := widest + 2*triggerPad
 	switch {
 	case t.vertical && t.line:
-		n.Pref = [2]float32{widest + 2*triggerPad + 2*listPadding - 8 + TabIndicator + 1, triggerHeight*count + between}
+		n.Pref = [2]float32{triggerWidth + left + right + TabIndicator + 1, triggerHeight*count + between + top + bottom}
 	case t.vertical:
-		n.Pref = [2]float32{widest + 2*triggerPad + 2*listPadding - 8, triggerHeight*count + between}
+		n.Pref = [2]float32{triggerWidth + left + right, triggerHeight*count + between + top + bottom}
 	case t.line:
-		n.Pref = [2]float32{(widest+2*triggerPad+2*listPadding)*count + between, listHeight + TabIndicator}
+		n.Pref = [2]float32{triggerWidth*count + between + left + right, top + triggerHeight + bottom + TabIndicator}
 	default:
-		n.Pref = [2]float32{(widest+2*triggerPad+2*listPadding)*count + between, listHeight}
+		n.Pref = [2]float32{triggerWidth*count + between + left + right, top + triggerHeight + bottom}
 	}
 }

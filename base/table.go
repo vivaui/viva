@@ -208,6 +208,11 @@ type TableDecl struct {
 	// and paints from. It keeps its capacity across frames, so a warm table
 	// fits no heading into a new allocation.
 	columns []style.TableColumn
+	// fontSize and foreground are the element's explicit text style: what the
+	// recipe's spec default is replaced with when the element set one.
+	fontSize      float32
+	foreground    gfx.Color
+	hasForeground bool
 }
 
 // Table adds a table painted by components.Table, with a header row of sortable
@@ -244,18 +249,39 @@ func (f *Frame) Table(state *TableState, spec TableSpec) Box {
 		rows = max(spec.Source.Len(), 0)
 	}
 	decl := TableDecl{spec: spec, state: state, rows: rows}
-	if spec.FitHeadings && f.Surface != nil && len(spec.Columns) > 0 {
-		// Reuse the fitted columns of this table from the last paint. The slice
-		// is at the same index every frame, so its capacity survives the reset.
-		if index < cap(*decls) {
-			decl.columns = (*decls)[:cap(*decls)][index].columns
-		}
-		decl.columns = append(decl.columns[:0], spec.Columns...)
-		fitTableHeadings(f.Surface, f.Palette, decl.columns, spec.Headers, spec.FontSize, spec.CellPadding)
-		decl.spec.Columns = decl.columns
+	if spec.FitHeadings && index < cap(*decls) {
+		// Reuse the fitted columns of this table from the last paint even though
+		// the fit itself waits for the element's FontSize in resolveTables.
+		decl.columns = (*decls)[:cap(*decls)][index].columns
 	}
 	*decls = append(*decls, decl)
 	return b
+}
+
+// resolveTables reads the element-level text style into each table's declaration
+// and fits the headings once the element's FontSize is known, before measurement.
+func (f *Frame) resolveTables() {
+	decls := &WidgetsOf(f).tables
+	for i := range f.Nodes {
+		n := &f.Nodes[i]
+		if n.Kind != kindTable || int(n.Aux) >= len(*decls) {
+			continue
+		}
+		decl := &(*decls)[n.Aux]
+		decl.fontSize = decl.spec.FontSize
+		if n.FontSet {
+			decl.fontSize = n.FontSize
+		}
+		if n.Flags&flagHasColor != 0 {
+			decl.foreground, decl.hasForeground = n.Color, true
+		}
+		if !decl.spec.FitHeadings || f.Surface == nil || len(decl.spec.Columns) == 0 {
+			continue
+		}
+		decl.columns = append(decl.columns[:0], decl.spec.Columns...)
+		fitTableHeadings(f.Surface, f.Palette, decl.columns, decl.spec.Headers, decl.fontSize, decl.spec.CellPadding)
+		decl.spec.Columns = decl.columns
+	}
 }
 
 // fitTableHeadings widens each fixed-width column of columns that is narrower

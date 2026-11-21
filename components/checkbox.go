@@ -23,7 +23,10 @@ type Checkbox struct {
 	// markColor overrides the recipe's mark when hasMarkColor is set.
 	markColor    gfx.Color
 	hasMarkColor bool
-	checked      bool
+	// explicitBounds keeps the caller's bounds for the box instead of the
+	// control's 16px extent, for an element that set a width or height.
+	explicitBounds bool
+	checked        bool
 	// indeterminate is Base UI's mixed state: the box shows a dash and the
 	// accessibility value is "mixed", whatever checked says.
 	indeterminate bool
@@ -75,6 +78,13 @@ func (checkbox Checkbox) Label(label string) Checkbox {
 // control's own graphic, and its hit.
 func (checkbox Checkbox) UnpaintedSurface() Checkbox {
 	checkbox.unpaintedSurface = true
+	return checkbox
+}
+
+// ExplicitBounds keeps the bounds BeginCheckbox was given as the box instead
+// of the control's extent; the element sizes the box then.
+func (checkbox Checkbox) ExplicitBounds() Checkbox {
+	checkbox.explicitBounds = true
 	return checkbox
 }
 
@@ -139,8 +149,10 @@ func (checkbox Checkbox) Paint() CheckboxResult {
 		return result
 	}
 	scale := checkbox.theme.Metrics.ControlHeight / 32
-	checkbox.bounds.Width = CheckboxExtent(checkbox.theme)
-	checkbox.bounds.Height = checkbox.bounds.Width
+	if !checkbox.explicitBounds || checkbox.bounds.Width <= 0 || checkbox.bounds.Height <= 0 {
+		checkbox.bounds.Width = CheckboxExtent(checkbox.theme)
+		checkbox.bounds.Height = checkbox.bounds.Width
+	}
 
 	state := gfx.State{
 		Checked: checkbox.checked, Mixed: checkbox.indeterminate, FocusVisible: checkbox.focused,
@@ -246,17 +258,18 @@ func checkboxRecipe(theme *gfx.Theme, state gfx.State) CheckboxLook {
 // a check when checked, nothing otherwise. The check is the vector the shadcn checkbox
 // draws, so a box of the application's own shows the same mark.
 func PaintCheckboxMark(canvas *gfx.Canvas, bounds gfx.Rect, state gfx.State, color gfx.Color) {
+	side := min(bounds.Width, bounds.Height)
 	switch {
 	case state.Mixed:
-		dash := bounds.Width * 0.5
-		thickness := max(bounds.Height/8, 1)
+		dash := side * 0.5
+		thickness := max(side/8, 1)
 		canvas.Fill(gfx.Rect{
 			X:     bounds.X + (bounds.Width-dash)/2,
 			Y:     bounds.Y + (bounds.Height-thickness)/2,
 			Width: dash, Height: thickness,
 		}, color)
 	case state.Checked:
-		paintCheck(canvas, bounds, bounds.Height*0.875, color)
+		paintCheck(canvas, bounds, side*0.875, color)
 	}
 }
 func CheckboxExtent(theme gfx.Theme) float32 { return base.CheckboxExtent(theme) }
