@@ -147,8 +147,12 @@ type renderer struct {
 	color                                                        platform.Color
 	capacity, width, height                                      int
 	bufferWidth, bufferHeight                                    int
-	submissions, rebuilds, partials, labelRebuilds               uint64
-	labelBatches                                                 uint64
+	// resizeHeadroom lets a modal drag keep a larger back buffer than the
+	// client area, so growing it does not reallocate on every pixel. It is off
+	// outside a drag: every other size change gets a chain of the exact size.
+	resizeHeadroom                                 bool
+	submissions, rebuilds, partials, labelRebuilds uint64
+	labelBatches                                   uint64
 	// noLabelBatch makes a frame rasterize each changed label on its own, as
 	// before the batch path existed. Tests compare the two pixel by pixel.
 	noLabelBatch bool
@@ -557,20 +561,12 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 	if width <= 0 || height <= 0 {
 		return nil
 	}
-	needsResize := renderer.target == 0 || renderer.bufferWidth < width || renderer.bufferHeight < height
-	if (sync != 0 || renderer.usesComposition()) && (renderer.bufferWidth != width || renderer.bufferHeight != height) {
-		needsResize = true
-	}
-	if needsResize {
+	headroom := renderer.resizeHeadroom && sync == 0 && !renderer.usesComposition()
+	needResize, targetWidth, targetHeight := swapChainResize(renderer.bufferWidth, renderer.bufferHeight, width, height, renderer.target != 0, headroom)
+	if needResize {
 		comCall(renderer.context, 33, 0, 0, 0)
 		release(&renderer.target)
 		comCall(renderer.context, 111) // Flush outstanding GPU commands before ResizeBuffers
-		targetWidth, targetHeight := width, height
-		if sync == 0 && !renderer.usesComposition() {
-			// Allocate with 64-pixel headroom during live resize so growing doesn't reallocate on every pixel.
-			targetWidth = max(width, (width+63)&^63)
-			targetHeight = max(height, (height+63)&^63)
-		}
 		if err := hresult(comCall(renderer.swap, 13, 0, uintptr(targetWidth), uintptr(targetHeight), 0, 0)); err != nil {
 			return fmt.Errorf("resize swap chain: %w", err)
 		}
@@ -590,6 +586,23 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 		return err
 	}
 	return hresult(comCall(renderer.swap, 8, sync, 0))
+}
+
+// swapChainResize reports whether a present at width by height must resize the
+// swap chain, and to what size. With headroom (a modal drag's unsynced present)
+// a chain already at least the client size is reused and a growing one is
+// allocated in 64-pixel steps; otherwise the chain matches the client exactly.
+func swapChainResize(bufferWidth, bufferHeight, width, height int, hasTarget, headroom bool) (bool, int, int) {
+	if headroom {
+		if !hasTarget || bufferWidth < width || bufferHeight < height {
+			return true, max(width, (width+63)&^63), max(height, (height+63)&^63)
+		}
+		return false, bufferWidth, bufferHeight
+	}
+	if !hasTarget || bufferWidth != width || bufferHeight != height {
+		return true, width, height
+	}
+	return false, bufferWidth, bufferHeight
 }
 
 // draw clears the bound-size render target to the clear color and paints every

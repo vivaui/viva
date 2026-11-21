@@ -96,7 +96,6 @@ type windowState struct {
 	minimized                                    bool
 	trimArmed                                    bool      // the idle timer that trims driver memory is running
 	lastPresent                                  time.Time // when the window last presented a frame
-	lastResizeRender                             time.Time // when a resize frame was last rendered
 	// hiddenByShow is set while ShowWindow has the window hidden; shownVisible is the last
 	// visibility reported to OnVisibility, with ok set once one has been.
 	hiddenByShow, shownVisible, shownKnown bool
@@ -713,14 +712,6 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				state.paintPending = true
 			}
 			endPaint.Call(window, uintptr(unsafe.Pointer(&paint)))
-			if state.sizingMove && !state.sizing && state.ready && !state.iconic() {
-				if interval := time.Duration(state.resizeInterval()) * time.Millisecond; interval > 0 && time.Since(state.lastResizeRender) >= interval {
-					if state.resizePending || state.redrawRequested || state.paintPending {
-						state.lastResizeRender = time.Now()
-						state.serviceResize()
-					}
-				}
-			}
 			return 0
 		}
 		state.sizing = true
@@ -810,11 +801,12 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		if state.sizingMove || state.sizing {
 			state.resizePending = true
-			if state.sizingMove && !state.sizing && state.ready && !state.iconic() {
-				if interval := time.Duration(state.resizeInterval()) * time.Millisecond; interval > 0 && time.Since(state.lastResizeRender) >= interval {
-					state.lastResizeRender = time.Now()
-					state.serviceResize()
-				}
+			// Raise the timer resolution on the first sizing message of the drag,
+			// not when it starts: moving a window sends WM_ENTERSIZEMOVE too, and
+			// a move has no frames to pace.
+			if state.sizingMove && !state.timerPeriodSet {
+				timeBeginPeriod.Call(1)
+				state.timerPeriodSet = true
 			}
 			return 0
 		}
@@ -822,11 +814,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmEnterSizeMove:
 		state.sizingMove = true
-		if !state.timerPeriodSet {
-			timeBeginPeriod.Call(1)
-			state.timerPeriodSet = true
-		}
-		state.lastResizeRender = time.Now()
+		state.renderer.resizeHeadroom = true
 		state.refreshResizeTimer()
 		return 0
 	case wmExitSizeMove:
@@ -836,6 +824,8 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		killTimer.Call(window, resizeTimerID)
 		state.sizingMove = false
+		// The drag is over: the next present sizes the chain to the client exactly.
+		state.renderer.resizeHeadroom = false
 		state.resizeTimerInterval = 0
 		state.serviceResize()
 		return 0
@@ -1020,7 +1010,6 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmTimer:
 		if first == resizeTimerID {
 			if state.sizingMove {
-				state.lastResizeRender = time.Now()
 				state.serviceResize()
 			}
 			return 0
