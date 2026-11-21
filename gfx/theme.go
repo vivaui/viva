@@ -1,6 +1,9 @@
 package gfx
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 const (
 	WeightRegular  float32 = 0
@@ -30,6 +33,17 @@ type Metrics struct {
 	PadControlX   float32 // horizontal control padding
 	PadSurface    float32 // card interior padding
 	GapItem       float32 // row-to-row spacing inside lists
+	textScale     float32 // zero is the default multiplier of one
+}
+
+// ScaledText converts a design size or line height to logical pixels at the
+// application's text scale. FontSizeS, FontSizeM and FontSizeL are already
+// scaled and can be passed directly to controls.
+func (m Metrics) ScaledText(size float32) float32 {
+	if m.textScale == 0 {
+		return size
+	}
+	return size * m.textScale
 }
 
 // RadiusItem is the corner radius of a row inside a menu, list or popup: two
@@ -68,15 +82,16 @@ func DefaultMetrics() Metrics {
 
 // WithDensity derives a metrics set at another density.
 func (m Metrics) WithDensity(density Density) Metrics {
+	var preset Metrics
 	switch density {
 	case DensityCompact:
-		return Metrics{
+		preset = Metrics{
 			ControlHeight: 26, RadiusControl: 5.5, RadiusSurface: 9,
 			FontSizeS: 11, FontSizeM: 13, FontSizeL: 22,
 			PadControlX: 10, PadSurface: 14, GapItem: 6,
 		}
 	case DensityLarge:
-		return Metrics{
+		preset = Metrics{
 			ControlHeight: 40, RadiusControl: 9, RadiusSurface: 13,
 			FontSizeS: 14, FontSizeM: 16, FontSizeL: 30,
 			PadControlX: 18, PadSurface: 24, GapItem: 10,
@@ -84,6 +99,7 @@ func (m Metrics) WithDensity(density Density) Metrics {
 	default:
 		return m
 	}
+	return preset.withTextScale(m.textScale)
 }
 
 // Theme contains semantic design tokens rather than runtime CSS.
@@ -164,6 +180,43 @@ func (theme Theme) WithFontSize(size float32) Theme {
 	metrics.FontSizeL *= scale
 	metrics.FontSizeM = size
 	return theme
+}
+
+// WithTextScale sets an absolute text multiplier on a copy of the theme.
+// It scales the small, body and title tokens while leaving control geometry
+// alone. Use Metrics.ScaledText for explicit sizes, including line heights:
+//
+//	look := gfx.LightTheme().WithTextScale(1.5)
+//	ui.Text(c, title).FontSize(look.Metrics.ScaledText(20)).LineHeight(look.Metrics.ScaledText(28))
+//
+// Passing one restores the original scale. It ignores non-positive or
+// non-finite scales and scales that would overflow a font size or round a
+// nonzero font size to zero.
+func (theme Theme) WithTextScale(scale float32) Theme {
+	theme.Metrics = theme.Metrics.withTextScale(scale)
+	return theme
+}
+
+func (m Metrics) withTextScale(scale float32) Metrics {
+	if !(scale > 0) || scale > math.MaxFloat32 || scale == m.ScaledText(1) {
+		return m
+	}
+	// The ratio of two float32 scales can overflow even when all three final
+	// font sizes fit, for example when returning from a very small scale.
+	ratio := float64(scale) / float64(m.ScaledText(1))
+	next := m
+	for _, token := range [...]*float32{&next.FontSizeS, &next.FontSizeM, &next.FontSizeL} {
+		size := float32(float64(*token) * ratio)
+		if math.IsInf(float64(size), 0) || (size == 0 && *token != 0) {
+			return m
+		}
+		*token = size
+	}
+	next.textScale = scale
+	if scale == 1 {
+		next.textScale = 0
+	}
+	return next
 }
 
 // WithOpacity is the theme with the opacity of every color multiplied by opacity,
