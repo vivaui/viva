@@ -154,6 +154,11 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
+      - name: Native Linux text rasterization
+        run: |
+          sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
+            { sudo apt-get update && sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji; }
+          go test ./internal/platform/linux -run '^TestTextEngineRasterizesProportionalText$' -count=1 -v
       - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
