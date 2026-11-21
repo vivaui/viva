@@ -262,10 +262,12 @@ type gtkWebView struct {
 	at   viewPlace
 	zoom float64
 	// failed is a navigation the load-failed signal already reported: the load-changed that follows
-	// it ends the same load, and must not be reported twice. refused is a navigation the
-	// application's Navigate cancelled, whose interruption the application already answered.
+	// it ends the same load, and must not be reported twice. refused is the address of a navigation
+	// the application's Navigate cancelled, whose interruption the application already answered. It
+	// is an address rather than a flag because the engine reports navigation actions for subframes
+	// too: only the interruption of that same request is the answer the application gave.
 	failed  bool
-	refused bool
+	refused string
 }
 
 // viewPlace is a rectangle in the overlay's units.
@@ -687,7 +689,7 @@ func (v *gtkWebView) loadChanged(event int32) {
 	address := goString(v.k.getURI(v.widget))
 	switch event {
 	case webLoadStarted:
-		v.failed, v.refused = false, false
+		v.failed, v.refused = false, ""
 		v.report(platform.WebLoadStarted, address, platform.WebLoadNoError, "")
 	case webLoadCommitted:
 		v.report(platform.WebLoadCommitted, address, platform.WebLoadNoError, "")
@@ -695,8 +697,8 @@ func (v *gtkWebView) loadChanged(event int32) {
 		// A load-failed already reported this load's end, and the interruption of a navigation the
 		// application refused is the answer the application gave.
 		failed, refused := v.failed, v.refused
-		v.failed, v.refused = false, false
-		if failed || refused {
+		v.failed, v.refused = false, ""
+		if failed || (refused != "" && refused == address) {
 			return
 		}
 		v.report(platform.WebLoadFinished, address, platform.WebLoadNoError, "")
@@ -717,11 +719,12 @@ func (v *gtkWebView) loadFailed(uri, failure uintptr) {
 	if v.closed {
 		return
 	}
-	v.failed = true
-	if v.refused {
-		v.refused = false
+	failedAddress := goString(uri)
+	if v.refused != "" && v.refused == failedAddress {
+		v.refused = ""
 		return
 	}
+	v.failed = true
 	code, description := platform.WebLoadUnknownError, ""
 	if failure != 0 {
 		err := (*gerror)(unsafePointer(failure))
@@ -764,12 +767,11 @@ func (v *gtkWebView) decidePolicy(decision uintptr, kind int32) uintptr {
 	}
 	address := goString(k.uriRequestURI(k.actionRequest(action)))
 	if v.navigationAllowed(address, true, gesture) {
-		v.refused = false
 		k.decisionUse(decision)
 	} else {
 		// A refused navigation that was already loading is interrupted by the engine, which reports
 		// the interruption as a failed load: the application answered it, so it is not reported.
-		v.refused = true
+		v.refused = address
 		k.decisionIgnore(decision)
 	}
 	return 1

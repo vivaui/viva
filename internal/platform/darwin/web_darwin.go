@@ -360,14 +360,20 @@ func vivaWebNavigate(handle C.uintptr_t, id C.uint32_t, url *C.char, mainFrame, 
 		MainFrame:   mainFrame != 0,
 		UserGesture: userGesture != 0,
 	}
-	if !page.config.Navigate(navigation) {
-		// A refused navigation that was already loading is interrupted by the engine, which reports
-		// the interruption as a failed load: the application answered it, so it is not reported.
-		page.refused = true
-		return 0
+	if page.config.Navigate(navigation) {
+		if mainFrame != 0 {
+			page.refused = false
+		}
+		return 1
 	}
-	page.refused = false
-	return 1
+	// A refused navigation that was already loading is interrupted by the engine, which reports
+	// the interruption as a failed load: the application answered it, so it is not reported.
+	// Only a main-frame refusal can end the reported load; a refused subframe leaves the main
+	// frame's load to finish and be reported as usual.
+	if mainFrame != 0 {
+		page.refused = true
+	}
+	return 0
 }
 
 // vivaWebNewWindow asks the application about a window.open or target=_blank. It answers 1 when the
