@@ -32,6 +32,11 @@ func (n *Node) markAttr(a uint8) { n.attrs |= a }
 // checkAttributesOf reports the generic attributes n cannot use.
 func (f *Frame) checkAttributesOf(n *Node) {
 	name := kindAttributeName(n)
+	if n.Kind == kindTable && int(n.Aux) < len(WidgetsOf(f).tables) {
+		if spec := &WidgetsOf(f).tables[n.Aux].spec; len(spec.Columns) == 0 && len(spec.Headers) == 0 {
+			f.badAttribute(n, name, "rows without Columns or Headers", "a Table lays its cells out in its columns; give it Headers (the columns share its width) or Columns")
+		}
+	}
 	if n.Flags&FlagChildren != 0 && !f.attributeChildContainer(n) {
 		f.badAttribute(n, name, "Children", "only containers and the controls with a content slot take Children; use Label, Caption or the control's own content")
 	}

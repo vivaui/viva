@@ -109,7 +109,7 @@ page.Draw(canvas, bounds, func(c ui.C) {
 
 Keep the `Page` in application state, not in a per-paint local: it owns the
 page's identities, focus and retained state. For a whole window, use
-`ui.Run(config, declaration)` or `ui.Configure(page, config)` to wire the window.
+`ui.Run(config, ui.PageConfig{View: declaration})` or `ui.Configure(page, config)` to wire the window.
 `PageConfig.View` is a declaration function, not the removed `View` type.
 
 An embedded host forwards input through `Page.Key`, `Page.Pointer`,

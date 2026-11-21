@@ -38,7 +38,7 @@ If you are in a checkout of Viva itself, its `AGENTS.md` is the authority and ov
 
 ## 3. How a screen is written
 
-A page is `func (m *model) page(c ui.C)`, opened with `ui.Run(config, m.page)` or `ui.NewPage(ui.PageConfig{View: m.page}).Config(base)`. It runs again on every redraw, declares what is on screen with value types, and keeps no layout cache. State lives in the model; a click changes it where the control is declared.
+A page is `func (m *model) page(c ui.C)`, opened with `ui.Run(config, ui.PageConfig{View: m.page})` or `ui.NewPage(ui.PageConfig{View: m.page}).Config(base)`. It runs again on every redraw, declares what is on screen with value types, and keeps no layout cache. State lives in the model; a click changes it where the control is declared.
 
 ```go
 type model struct {

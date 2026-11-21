@@ -91,7 +91,7 @@ func main() {
 	m := &model{}
 	m.web.OnReady = m.open
 	config := app.Config{Title: "Web view", Width: 760, Height: 520, Web: &m.web}
-	if err := ui.Run(config, m.page); err != nil {
+	if err := ui.Run(config, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

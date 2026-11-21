@@ -255,7 +255,10 @@ func Splitter(c C, state *SplitterState) Box {
 }
 
 // Table is a Table; its Rows and Header scopes are made from state when spec leaves
-// them zero.
+// them zero. It is a whole control as declared: the page gives it the keys that
+// move its selection (TableState.Key), a click on a row selects that row as a
+// List's does, TableState.Changed reports either in the paint that delivers it,
+// and a table given Headers and no Columns shares its width between them.
 func Table(c C, state *TableState, spec TableSpec) Box {
 	p := c.page
 	if spec.Rows == 0 || spec.Header == 0 {
@@ -267,7 +270,17 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 			spec.Header = p.tree.Sub(scope, gfx.Index(1))
 		}
 	}
-	return c.f.Table(state, spec)
+	if p.tableKeyRoute == nil {
+		p.keyRoute, p.tableKeyRoute = (*Page).RouteKey, (*Page).tableKey
+	}
+	if state.changedAt != p.epoch {
+		state.changed = false
+	}
+	b := c.f.Table(state, spec)
+	if row, ok := b.RowClicked(); ok {
+		state.choose(row, p.epoch)
+	}
+	return b
 }
 
 // TextField adds a text field editing value, a string of the model or a Field; the

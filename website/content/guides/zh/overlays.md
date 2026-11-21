@@ -45,7 +45,7 @@ func (m *model) page(c ui.C) {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if ui.Button(c, "Delete…").Ghost().Destructive().Clicked() {
+			if ui.Button(c, "Delete…").Ghost().Color(c.Theme().Danger).Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
@@ -65,7 +65,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

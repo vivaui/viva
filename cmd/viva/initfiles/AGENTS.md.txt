@@ -448,7 +448,7 @@ func (m *model) page(c ui.C) {
 
 ### Buttons and controls
 
-- Buttons (the plain one is the primary; there is no `Primary()`): `Secondary`, `Outline`, `Ghost`, `Link`, `Destructive`, `DestructiveOutline`,
+- Buttons (the plain one is the primary; there is no `Primary()`): `Secondary`, `Outline`, `Ghost`, `Link`, `Destructive`, `DestructiveOutline`, or `Variant(v)` for one chosen at run time (the last variant set wins; they do not combine),
   `XSmall`, `Small`, `Large`, `IconOnly`, `Disabled(cond bool)` (so `ui.Button(c, "-").Disabled(m.n <= 0)`, no `if`).
 - A control call returns a `ui.Box` (there is no `ui.Box` constructor); keep it when you need it later: `filter := ui.Button(c, "Filter")`.
   A bound Checkbox, Switch, Choice or Tabs writes its value where it is declared, so a click you do not read still changes it;
