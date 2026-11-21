@@ -131,9 +131,11 @@ func ClipboardText() (string, error) {
 // stops watching. An error wrapping ErrUnsupported means this target cannot
 // watch the clipboard (the Linux and web targets today): the clipboard keeps
 // working, only the news is missing, and a caller may fall back to reading it
-// when the user acts. macOS has no change notification, so it polls the
-// pasteboard's change count on a 250 ms timer for as long as a registration is
-// held.
+// when the user acts. macOS has no change notification, so while a
+// registration is held it polls the pasteboard's change count on a 250 ms
+// timer, and only while the application is active: a change made while another
+// application is in front is reported the moment this one becomes active again,
+// and a background application wakes for nothing.
 func OnClipboardChange(notify func()) error { return nativeOnClipboardChange(notify) }
 
 func SetClipboardText(value string) error {

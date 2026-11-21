@@ -1,7 +1,10 @@
 package platform
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -17,6 +20,18 @@ var ErrWebViewUnsupported = errors.New("platform: this window cannot host web pa
 
 // WebProxyDirect explicitly bypasses system proxies for one page's network context.
 const WebProxyDirect = "direct"
+
+// PartitionIdentifier is the identifier a platform that names a store by an identifier gives a storage
+// partition: a UUID made from the name, the same for a name in every run of the application, so a name
+// is one store. macOS's WKWebsiteDataStore names its persistent stores this way; WebView2 names a
+// profile by the partition's name itself, and WebKitGTK by the directory it keeps, one of the name.
+func PartitionIdentifier(name string) string {
+	sum := sha1.Sum([]byte("viva-storage-partition:" + name))
+	sum[6] = sum[6]&0x0f | 0x50 // a name-based UUID, version 5
+	sum[8] = sum[8]&0x3f | 0x80 // the variant a UUID carries
+	text := hex.EncodeToString(sum[:])
+	return strings.ToUpper(text[0:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:32])
+}
 
 // NativeView is a place in the window that a native view fills.
 type NativeView struct {
@@ -83,8 +98,18 @@ type WebViewConfig struct {
 	// Ephemeral keeps the page's cookies, storage and caches in memory only, separate from every
 	// other page, and drops them when the page closes: a run of the application leaves nothing the
 	// page kept on disk. A platform without such a store must refuse the page rather than open one
-	// that persists.
+	// that persists. On Windows it needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer; on Linux,
+	// WebKitGTK 2.16 or newer.
 	Ephemeral bool
+	// Partition names the store the page keeps its cookies, storage and caches in: pages of the same
+	// partition share them, pages of different partitions do not, and neither shares with the pages
+	// that name none. Empty keeps the platform's default store, which is the whole of the behaviour
+	// without a partition. A platform that cannot give a page a store of its own returns
+	// ErrWebViewUnsupported rather than open a page that shares the default one.
+	// The name is already validated and folded to lower case: the application layer does that, once,
+	// so that a name means the same store on every engine. A name is persistent unless Ephemeral is
+	// also set, which makes it a memory-only store shared by the pages of that name.
+	Partition string
 }
 
 // WebNavigation is one navigation the page wants to make.

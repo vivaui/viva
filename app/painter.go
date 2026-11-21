@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -9,7 +8,6 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
-	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/framebuild"
@@ -1511,22 +1509,12 @@ func (painter *painter) structuresUnchanged() bool {
 // sameHits reports whether two hit lists are identical in the fields the
 // semantic tree and the accessibility payload read. The text-editor geometry
 // lives beside the hits (Canvas.HitText) and feeds neither, so it is not part of
-// the comparison. The structs are compared as bytes: Go strings are immutable,
-// and the published list keeps the previous string allocations reachable, so a
-// matching pointer cannot name different bytes. Padding, and the index into the
-// text table, can only make the comparison stricter (an unnecessary publish),
-// never more permissive.
+// the comparison. Strings compare by content: a page that formats a label every
+// frame makes a new allocation of the same text, and that is an unchanged hit.
+// The index into the text table can only make the comparison stricter (an
+// unnecessary publish), never more permissive.
 func sameHits(published, current []gfx.Hit) bool {
-	if len(published) != len(current) {
-		return false
-	}
-	if len(published) == 0 {
-		return true
-	}
-	size := int(unsafe.Sizeof(gfx.Hit{}))
-	left := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(published))), len(published)*size)
-	right := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(current))), len(current)*size)
-	return bytes.Equal(left, right)
+	return slices.Equal(published, current)
 }
 
 // recordHitStructures keeps the state that lets the next repaint skip the

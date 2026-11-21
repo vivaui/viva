@@ -1,6 +1,8 @@
 package gfx
 
 import (
+	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -463,5 +465,21 @@ func TestFitLineReusesOneLabelAtDifferentControlWidths(t *testing.T) {
 		if got, want := canvas.FitLine(label, 14, WeightRegular, width), canvas.ellipsize(label, lineFont{size: 14, weight: WeightRegular}, width); got != want {
 			t.Fatalf("width %v: %q, want %q", width, got, want)
 		}
+	}
+}
+
+// A long paragraph wrapped into many lines, as a log message or a pasted document
+// is: each line must cost its own length, not the length of the text behind it.
+func BenchmarkWrapLongParagraph(b *testing.B) {
+	for _, size := range []int{1 << 10, 1 << 14} {
+		b.Run(strconv.Itoa(size), func(b *testing.B) {
+			var canvas Canvas
+			text := strings.Repeat("the quick brown fox jumps over the lazy dog ", size/44+1)[:size]
+			lines := make([]string, 0, size/40)
+			b.ReportAllocs()
+			for b.Loop() {
+				lines = canvas.WrapLines(lines[:0], text, 14, WeightRegular, 400, math.MaxInt)
+			}
+		})
 	}
 }

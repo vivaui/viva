@@ -6,6 +6,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 )
 
@@ -282,5 +283,60 @@ func TestReplaceCellGlyphsMemoFollowsItsInput(t *testing.T) {
 	outValue, outRuns := builder.replaceCellGlyphs(plain, plainRuns)
 	if outValue != plain || &outRuns[0] != &plainRuns[0] {
 		t.Fatal("a line without cell glyphs was copied or remembered")
+	}
+}
+
+// A scrolled list whose rows each clip themselves changes only where the clips
+// cut: the frame sends the instances whose clip moved, not the whole page, and
+// when a row leaves while the clips move the update still ends at the new total.
+func TestBuilderSendsOnlyTheInstancesWhoseClipMoved(t *testing.T) {
+	const page, rows = 50, 6
+	scroll, clipTop, shown := float32(0), float32(2), rows
+	paint := func(canvas *gfx.Canvas) {
+		for index := range page {
+			canvas.Fill(gfx.Rect{X: float32(index), Width: 1, Height: 1}, gfx.Color{Alpha: 1})
+		}
+		for index := range shown {
+			top := float32(index*10) - scroll
+			canvas.Clip(gfx.Rect{Y: clipTop, Width: 100, Height: 50})
+			canvas.Fill(gfx.Rect{Y: top, Width: 100, Height: 10}, gfx.Color{Red: 1, Alpha: 1})
+			canvas.Unclip()
+		}
+	}
+	var canvas gfx.Canvas
+	paint(&canvas)
+	builder := New(&canvas)
+	if _, err := builder.Build(); err != nil {
+		t.Fatal(err)
+	}
+	covers := func(update render.Update, index int) bool {
+		return update.Rebuild || index >= update.First && index < update.First+update.Count
+	}
+
+	scroll = 1
+	canvas.Reset()
+	paint(&canvas)
+	frame, err := builder.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Update.Rebuild || frame.Update.First < page {
+		t.Fatalf("scrolling the clipped rows sent %+v, want only the rows after the %d still shapes", frame.Update, page)
+	}
+	for index := page; index < page+rows; index++ {
+		if !covers(frame.Update, index) {
+			t.Fatalf("row %d moved but the update %+v leaves it behind", index, frame.Update)
+		}
+	}
+
+	clipTop, shown = 3, rows-1
+	canvas.Reset()
+	paint(&canvas)
+	if frame, err = builder.Build(); err != nil {
+		t.Fatal(err)
+	}
+	total := len(frame.Rectangles)
+	if total != page+rows-1 || frame.Update.Rebuild || !frame.Update.Shrink || frame.Update.First+frame.Update.Count != total || !covers(frame.Update, page) {
+		t.Fatalf("a row left while the clips moved: total %d, update %+v, want a shrinking range from row %d to the total", total, frame.Update, page)
 	}
 }

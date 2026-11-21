@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 
 	"github.com/vivaui/viva/gfx"
@@ -124,6 +125,23 @@ type WebViewConfig struct {
 	// that persists. On Windows it needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer; on Linux,
 	// WebKitGTK 2.16 or newer.
 	Ephemeral bool
+	// Partition names the store the page keeps its cookies, localStorage, IndexedDB and caches in:
+	// pages that name the same partition share them, pages that name different partitions do not,
+	// and neither shares with the pages that name none. Empty keeps the application's default store,
+	// which every page without a partition shares, and with no partition an Ephemeral page keeps its
+	// own store in memory.
+	// A named partition is persistent: it is still there after the application exits. With Ephemeral
+	// it is memory-only instead, shared by the pages of that name and gone when the application
+	// exits; macOS has no way to name a non-persistent store and refuses that page with
+	// ErrUnsupported. A name is at most 64 ASCII letters, digits or # @ $ ( ) + - _ ~ . or space, does
+	// not end in a period or a space, and is matched without case (both rules are WebView2's, kept
+	// everywhere so a name means the same store on every engine). On Windows it needs WebView2
+	// Runtime 101 (SDK 1.0.1210.39) or newer; on macOS, 14 or newer; on Linux, WebKitGTK 2.10 or
+	// newer. A named partition cannot be combined with Proxy on macOS or Linux, where the proxy
+	// belongs to the store the partition names: Open fails with ErrUnsupported rather than let two
+	// pages of one partition disagree about it. On Linux a name already open as the other kind of
+	// store is refused as well, since one WebKit context per name can only be one of the two.
+	Partition string
 }
 
 // WebNavigation is one navigation the page wants to make.
@@ -249,11 +267,52 @@ func loopbackAddress(address string) bool {
 	return err == nil && parsed.Addr().IsLoopback() && parsed.Port() != 0
 }
 
+// webPartitionNameLength is the longest name a WebView2 profile accepts, which is the longest name a
+// partition may carry: a name is refused here rather than on one engine only, so that a name an
+// application uses means the same store wherever it runs.
+const webPartitionNameLength = 64
+
+// webPartitionRune reports whether an engine accepts r in the name of a store. The set is WebView2's
+// profile name set; WebKit takes any name, but a name is portable or it is not worth having.
+func webPartitionRune(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return true
+	}
+	return strings.ContainsRune("#@$()+-_~. ", r)
+}
+
+// partitionName checks a storage partition's name and returns the name the platform is given. Case
+// is folded: Windows maps a WebView2 profile name to a folder that ignores case, so two partitions
+// whose names differ only in case are one store there, and are one store everywhere rather than a
+// store on one engine and two on another.
+func partitionName(name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	if len(name) > webPartitionNameLength {
+		return "", fmt.Errorf("app: web view partition name %q is longer than %d characters", name, webPartitionNameLength)
+	}
+	if strings.HasSuffix(name, ".") || strings.HasSuffix(name, " ") {
+		return "", fmt.Errorf("app: web view partition name %q must not end with a period or a space", name)
+	}
+	for _, r := range name {
+		if !webPartitionRune(r) {
+			return "", fmt.Errorf("app: web view partition name %q carries %q, which is not a letter, a digit, or one of # @ $ ( ) + - _ ~ . space", name, r)
+		}
+	}
+	return strings.ToLower(name), nil
+}
+
 // Open opens a page. It fails with ErrUnsupported when the platform cannot host pages or the system
 // has no web engine installed.
 func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	if config.TopCornerRadius < 0 || math.IsNaN(float64(config.TopCornerRadius)) || math.IsInf(float64(config.TopCornerRadius), 0) {
 		return nil, fmt.Errorf("app: invalid web view top corner radius")
+	}
+	partition, err := partitionName(config.Partition)
+	if err != nil {
+		return nil, err
 	}
 
 	if host == nil || host.native == nil || host.native.Open == nil {
@@ -267,6 +326,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
 		TopCornerRadius: config.TopCornerRadius,
 		Ephemeral:       config.Ephemeral,
+		Partition:       partition,
 	}
 	// What a page tells the application usually changes what it shows, so a callback is followed
 	// by a paint.

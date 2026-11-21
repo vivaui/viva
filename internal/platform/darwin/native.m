@@ -5115,6 +5115,13 @@ static void viva_set_secure_event_input(BOOL on) {
         notification.object == self.window && _textInputEnabled && _tentativeComposition) {
         [self endOwnedNativeComposition];
     }
+    if (notification.object == self.window && _textInputEnabled) {
+        BOOL visible = _caretVisible;
+        [self restartCaretBlink];
+        if (_caretVisible != visible && [self rebuildTextTexture]) {
+            [self render];
+        }
+    }
 }
 
 - (viva_editor_line)newTextLine {
@@ -5137,8 +5144,16 @@ static void viva_set_secure_event_input(BOOL on) {
     return YES;
 }
 
+// caretHasKeyboard reports whether the caret belongs on screen at all: as a native
+// text view's insertion point, only while its window is key. A view not yet in a
+// window has nothing to lose it to.
+- (BOOL)caretHasKeyboard {
+    NSWindow *window = self.window;
+    return window == nil || window.isKeyWindow;
+}
+
 - (void)caretBlinkTimerFired:(NSTimer *)timer {
-    if (timer != _caretTimer || !viva_text_input_caret_should_blink(
+    if (timer != _caretTimer || ![self caretHasKeyboard] || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         [self stopCaretBlink];
         return;
@@ -5160,8 +5175,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)restartCaretBlink {
     [self stopCaretBlink];
-    _caretVisible = YES;
-    if (!viva_text_input_caret_should_blink(
+    // A window in the background shows no caret and keeps no timer, so it wakes
+    // for nothing; becoming key restarts the blink from the visible phase.
+    _caretVisible = [self caretHasKeyboard];
+    if (!_caretVisible || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         return;
     }
