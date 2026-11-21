@@ -161,7 +161,8 @@ WebView and no bundled rendering runtime.
 - Focus-driven dynamic native text editors on macOS, Windows, and Linux, with
   explicit enable/replace/disable frame updates. macOS and Windows caret timers
   exist only while an editable field is focused. Linux composes through the IBus
-  protocol (IBus and Fcitx5's IBus frontend); XIM is still open.
+  protocol (IBus and Fcitx5's IBus frontend) or Fcitx 4's own protocol; XIM is
+  still open.
 - A separate retained semantic accessibility tree.
 - Direct CoreText shaping, system-font fallback, GPU-composited text textures,
   and a bounded measurement cache.

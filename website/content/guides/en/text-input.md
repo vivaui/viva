@@ -128,6 +128,6 @@ Offsets stay UTF-8 byte offsets into the text the application holds. While an in
 
 ## What is verified where
 
-Native editing is implemented on macOS, with real Chinese input-method composition, grapheme-aware editing and click, drag and select-all handling. Windows has a native editor with Microsoft Pinyin composition and its candidate window. On Linux an input method running under IBus, or Fcitx5 with its IBus frontend, composes in the field, and the engine's own panel draws the candidates. In the browser, the catalog's Input example is wired to the same editor and everything else is visual only. See [Platforms](/en/docs/platforms/).
+Native editing is implemented on macOS, with real Chinese input-method composition, grapheme-aware editing and click, drag and select-all handling. Windows has a native editor with Microsoft Pinyin composition and its candidate window. On Linux an input method running under IBus, Fcitx5 with its IBus frontend, or Fcitx 4 composes in the field, and the engine's own panel draws the candidates. In the browser, the catalog's Input example is wired to the same editor and everything else is visual only. See [Platforms](/en/docs/platforms/).
 
 The wrapping Textarea described above was exercised on macOS, through the headless driver; the matching Windows and Linux paths (no platform caret placement, the input-method window at the painted caret) are written but not yet run on real windows, and the browser still uses its own text box for it.

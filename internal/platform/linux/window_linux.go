@@ -14,7 +14,6 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/diag"
-	"github.com/vivaui/viva/internal/ibus"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -179,10 +178,10 @@ type linuxApplication struct {
 	// desktop's settings and the accessibility bridge.
 	desktopServices
 
-	// ibus is the connection to the input method daemon, shared by the windows
-	// that take text; ibusTried says it has been looked for.
-	ibus      *ibus.Bus
-	ibusTried bool
+	// inputMethod is the connection to the input method daemon, shared by the
+	// windows that take text; inputMethodTried says it has been looked for.
+	inputMethod      inputMethodDaemon
+	inputMethodTried bool
 
 	// live is every window that can still be posted to, for requests that come
 	// from another goroutine (see post); the loop's own slice is not safe to read
@@ -265,9 +264,9 @@ func RunApplication(start platform.ApplicationStart) error {
 			application.fail(fmt.Errorf("linux: poll X11 connections failed (errno %d)", *application.windows[0].win.api.errnoLocation()))
 			break
 		}
-		if application.ibus != nil {
+		if application.inputMethod != nil {
 			// A key the input method never answered gives up here, not before.
-			application.ibus.Expire()
+			application.inputMethod.Expire()
 			application.checkInputMethod()
 		}
 		for index, descriptor := range fds {
@@ -277,7 +276,7 @@ func RunApplication(start platform.ApplicationStart) error {
 			state := states[index]
 			if state == nil {
 				switch {
-				case application.ibus != nil && int(descriptor.FD) == application.ibus.FD():
+				case application.inputMethod != nil && int(descriptor.FD) == application.inputMethod.FD():
 					application.serveInputMethod()
 				case application.desktop != nil && int(descriptor.FD) == application.desktop.conn.FD():
 					application.serveDesktop()
@@ -439,7 +438,7 @@ func (application *linuxApplication) rebuildPoll() {
 	if application.status != nil {
 		count++
 	}
-	if application.ibus != nil {
+	if application.inputMethod != nil {
 		count++
 	}
 	if application.desktop != nil {
@@ -459,8 +458,8 @@ func (application *linuxApplication) rebuildPoll() {
 		application.pollFDs[next] = pollFD{FD: int32(application.status.conn.FD()), Events: 1}
 		next++
 	}
-	if application.ibus != nil {
-		application.pollFDs[next] = pollFD{FD: int32(application.ibus.FD()), Events: 1}
+	if application.inputMethod != nil {
+		application.pollFDs[next] = pollFD{FD: int32(application.inputMethod.FD()), Events: 1}
 		next++
 	}
 	if application.desktop != nil {
@@ -480,8 +479,8 @@ func (application *linuxApplication) sleepsUntilWoken() bool { return false }
 // or a desktop retry has a bounded deadline.
 func (application *linuxApplication) pollTimeout() int32 {
 	timeout := int32(-1)
-	if application.ibus != nil {
-		if deadline, waiting := application.ibus.Deadline(); waiting {
+	if application.inputMethod != nil {
+		if deadline, waiting := application.inputMethod.Deadline(); waiting {
 			timeout = int32(max(time.Until(deadline).Milliseconds()+1, 0))
 		}
 	}
