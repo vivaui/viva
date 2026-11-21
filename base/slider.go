@@ -191,8 +191,9 @@ func (f *Frame) SettleSlider(n *Node) {
 
 // Key moves a focused slider with Base UI's pattern: arrows move by one Step (or a
 // hundredth of the range without one), Shift+arrow and PageUp/PageDown by a large step
-// of 10 value units, and Home and End take it to its ends. Give it to Config.OnKey (or
-// call it from yours); it ignores every other key and every other focus. The next
+// of 10 value units, and Home and End take it to its ends. A page routes a declared
+// Slider its keys; a host that keeps the state without a page gives Key to
+// Config.OnKey. It ignores every other key and every other focus. The next
 // declaration's Changed reports it.
 func (s *SliderState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if s.ID.IsZero() || event.Target != s.ID || s.off {

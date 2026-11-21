@@ -823,13 +823,13 @@ func (r ListRow) Focused() bool {
 // The rows are one stop of Tab, on the row chosen last or the first shown. Give the
 // list a name for assistive technology with Box.Label after it:
 //
-//	files := ui.List(c, &m.files, len(m.files), func(row ui.ListRow) {
+//	ui.List(c, &m.fileList, len(m.files), func(row ui.ListRow) {
 //		row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
 //			ui.Icon(row.C, iconOf(m.files[row.Index]))
 //			ui.Text(row.C, m.files[row.Index].Name)
 //		})
 //	}).Label("Files").Grow(1)
-//	if row, ok := m.files.Submitted(); ok { m.open(row) }
+//	if row, ok := m.fileList.Submitted(); ok { m.open(row) }
 func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	p := c.page
 	p.ForbidInMemo("List")
