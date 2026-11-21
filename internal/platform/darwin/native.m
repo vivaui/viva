@@ -4217,7 +4217,7 @@ static int viva_navigation_command(SEL selector) {
 
         self.wantsLayer = YES;
         self.layer = _metalLayer;
-        if (windowMode == VIVA_WINDOW_PANEL) {
+        if (windowMode == VIVA_WINDOW_PANEL || windowMode == VIVA_WINDOW_NOTIFICATION) {
             _metalLayer.cornerRadius = VIVA_PANEL_CORNER_RADIUS;
             _metalLayer.masksToBounds = YES;
         }

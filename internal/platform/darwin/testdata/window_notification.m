@@ -56,6 +56,8 @@ int main(void) {
         assert(window.isVisible && NSApp.keyWindow == key);
         assert(NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == foreground);
         assert(!window.canBecomeKeyWindow && !window.canBecomeMainWindow && !window.ignoresMouseEvents);
+        // The popup is cut like a panel, so its content aligns with the system's rounding.
+        assert(window.contentView.layer.cornerRadius == VIVA_PANEL_CORNER_RADIUS);
         assert(window.level > NSNormalWindowLevel);
 
         for (NSNumber *type in @[@(NSEventTypeLeftMouseDown), @(NSEventTypeLeftMouseUp)]) {
