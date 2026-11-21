@@ -55,6 +55,7 @@ func TestTextEngineRasterizesProportionalText(t *testing.T) {
 	if err != nil {
 		t.Skipf("DirectWrite unavailable: %v", err)
 	}
+	textenginetest.TransparentColorGlyphs(t, engine)
 	bitmap, err := engine.RasterizeText("Privacy 中文", gfx.TextStyle{
 		Size: 14, Weight: gfx.WeightSemibold, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 	}, 2, 240, 56)

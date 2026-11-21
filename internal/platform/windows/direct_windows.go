@@ -294,6 +294,9 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 		return nil, false, fmt.Errorf("windows: invalid label font size")
 	}
 	rasterizer.spans = rasterizer.spans[:0]
+	if label.Color.Alpha <= 0 && len(label.Runs) == 0 {
+		return pixels, false, nil
+	}
 	if label.Mono || len(label.Runs) > 0 {
 		if allowLCD && !platform.ColorGlyphs(label.Value) {
 			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height, skip)
