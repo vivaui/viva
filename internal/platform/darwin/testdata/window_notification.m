@@ -10,6 +10,15 @@ void vivaPointerEvent(uintptr_t handle, void *view, int kind, int button, int mo
     if (kind == VIVA_POINTER_UP) ups++;
 }
 
+static void dispatchEvents(NSTimeInterval seconds) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (deadline.timeIntervalSinceNow > 0) {
+        NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:deadline
+                                               inMode:NSDefaultRunLoopMode dequeue:YES];
+        if (event != nil) [NSApp sendEvent:event];
+    }
+}
+
 // This runs on a private CI desktop. The native window and event dispatch are
 // real. No accessibility permission or system-wide mouse injection is needed.
 int main(void) {
@@ -23,10 +32,14 @@ int main(void) {
         [NSApp activateIgnoringOtherApps:YES];
         [owner makeKeyAndOrderFront:nil];
         NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:3];
-        while (!owner.isKeyWindow && deadline.timeIntervalSinceNow > 0) {
-            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        while (NSApp.keyWindow != owner && deadline.timeIntervalSinceNow > 0) {
+            dispatchEvents(0.05);
         }
-        assert(NSApp.keyWindow == owner);
+        NSWindow *key = NSApp.keyWindow;
+        pid_t foreground = NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier;
+        // WindowServer may keep a different application in front of a test
+        // executable. In that case verify that application's focus as well.
+        assert(key == owner || (foreground > 0 && foreground != NSProcessInfo.processInfo.processIdentifier));
 
         viva_window_config config = {.title = "Viva notification", .width = 180, .height = 80};
         id<MTLDevice> device = MTLCreateSystemDefaultDevice();
@@ -39,7 +52,9 @@ int main(void) {
             closeInterceptEnabled:NO callbackHandle:1];
         [popup applicationDidFinishLaunching:[NSNotification notificationWithName:NSApplicationDidFinishLaunchingNotification object:NSApp]];
         NSWindow *window = [popup valueForKey:@"window"];
-        assert(window.isVisible && NSApp.keyWindow == owner);
+        dispatchEvents(0.1);
+        assert(window.isVisible && NSApp.keyWindow == key);
+        assert(NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == foreground);
         assert(!window.canBecomeKeyWindow && !window.canBecomeMainWindow && !window.ignoresMouseEvents);
         assert(window.level > NSNormalWindowLevel);
 
@@ -50,18 +65,23 @@ int main(void) {
             assert([window.contentView acceptsFirstMouse:event]);
             [window sendEvent:event];
         }
-        assert(downs == 1 && ups == 1 && NSApp.keyWindow == owner);
+        dispatchEvents(0.1);
+        assert(downs == 1 && ups == 1 && NSApp.keyWindow == key);
+        assert(NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == foreground);
         [popup hideWindow];
         assert(!window.isVisible);
         [popup showWindow];
-        assert(window.isVisible && NSApp.keyWindow == owner);
+        dispatchEvents(0.1);
+        assert(window.isVisible && NSApp.keyWindow == key);
+        assert(NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == foreground);
         [popup hideWindow];
         [owner orderOut:nil];
         [popup release];
         [queue release];
         [device release];
         [owner release];
-        puts("AppKit notification received the click and preserved the owner's keyboard focus on open and show");
+        printf("AppKit notification received the click and preserved the %s focus on open and show\n",
+               key == owner ? "owner window's" : "other application's");
     }
     return 0;
 }
