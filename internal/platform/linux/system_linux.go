@@ -485,7 +485,9 @@ func SetCursorShape(shape uint8) error {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.setCursorShape(shape)
 	}
-	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88}
+	// Keep the font fallback aligned with all visible gfx cursor shapes,
+	// including Grabbing (10), used while panning images and dragging cards.
+	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88, 58}
 	if int(shape) >= len(glyphs) && shape != cursorHidden {
 		return fmt.Errorf("linux: invalid cursor %d", shape)
 	}
