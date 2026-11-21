@@ -517,6 +517,11 @@ func (services *textServices) draw(label platform.TextLabel, scale float32, skip
 		return nil, fmt.Errorf("linux: invalid label font size or scale")
 	}
 	pixels := make([]byte, width*height*4)
+	// Color glyphs can carry ink even when Pango's foreground is transparent.
+	// A run can supply its own color independently of this foreground.
+	if label.Color.Alpha <= 0 && len(label.Runs) == 0 {
+		return pixels, nil
+	}
 	format := int32(0) // CAIRO_FORMAT_ARGB32
 	if lcd {
 		format = 1 // CAIRO_FORMAT_RGB24: the only content Cairo antialiases per channel
