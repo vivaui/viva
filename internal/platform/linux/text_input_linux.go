@@ -32,7 +32,10 @@ type linuxTextInput struct {
 	stateRevision uint64
 	inputRevision uint64
 
-	caretVisible    bool
+	caretVisible bool
+	// unfocused is a window that lost the keyboard: its field shows no caret and
+	// nothing blinks until the keyboard comes back, as a native field does.
+	unfocused       bool
 	caretGeneration uint32
 	caretTimer      *time.Timer
 	postCaret       func(uint32)
@@ -709,11 +712,39 @@ func (state *linuxTextInput) currentTextFrame() platform.Frame {
 	return platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: current}}
 }
 
-// caretShown says whether the field has a native caret to draw: not a terminal,
-// not while a component paints its own caret, not while composing, and not
-// over a selection.
+// caretShown says whether the field has a native caret to draw: not in a window
+// without the keyboard, not a terminal, not while a component paints its own
+// caret, not while composing, and not over a selection.
 func (state *linuxTextInput) caretShown() bool {
-	return state.enabled && !state.input.Terminal && !state.input.HideNativeOverlays && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
+	return state.enabled && !state.unfocused && !state.input.Terminal && !state.input.HideNativeOverlays && !state.state.Composing && state.state.Selection.Start == state.state.Selection.End
+}
+
+// setWindowFocused follows the window gaining or losing the keyboard: the caret
+// shows again and blinks from its visible phase, or hides and its timer stops, so
+// a window in the background wakes for nothing. The frame redraws the caret's one
+// rectangle.
+func (state *linuxTextInput) setWindowFocused(focused bool) (platform.Frame, bool) {
+	if state.unfocused == !focused {
+		return platform.Frame{}, false
+	}
+	state.unfocused = !focused
+	state.restartCaretBlink()
+	index := len(state.baseRectangles) + 1
+	if !state.enabled || state.input.Terminal || index >= len(state.rectangles) {
+		return platform.Frame{}, false
+	}
+	caret := render.Rectangle{}
+	if state.caretShown() {
+		caret = state.caret
+	}
+	if state.rectangles[index] == caret {
+		return platform.Frame{}, false
+	}
+	state.rectangles[index] = caret
+	return platform.Frame{
+		Update:     render.Update{First: index, Count: 1},
+		Rectangles: state.rectangles,
+	}, true
 }
 
 func (state *linuxTextInput) caretShouldBlink() bool {

@@ -1893,7 +1893,7 @@ func (x *shortcutEntry) GetRows() gfx.Scope { return x.rows }
 func (x *shortcutEntry) GetScope() gfx.Scope { return x.scope }
 
 // GetFree reads the free of slotPool for the styled painting layer.
-func (x *slotPool) GetFree() []freeSlot { return x.free }
+func (x *slotPool) GetFree() []freeSlot { return x.free[x.head:] }
 
 // GetAnimated reads the animated of stateLooks for the styled painting layer.
 func (x *stateLooks) GetAnimated() bool { return x.animated }

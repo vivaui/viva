@@ -97,8 +97,8 @@ func (builder *Builder) Build() (platform.Frame, error) {
 			return platform.Frame{}, err
 		}
 	}
-	if builder.stampState() && !update.Rebuild {
-		update = render.Update{Count: len(builder.renderer.Rectangles()), Rebuild: true}
+	if first, end := builder.stampState(); end > first && !update.Rebuild {
+		update = widenUpdate(update, first, end, len(builder.renderer.Rectangles()))
 	}
 
 	frame := platform.Frame{Update: update, Rectangles: builder.renderer.Rectangles()}
@@ -963,16 +963,17 @@ type instanceState struct {
 }
 
 // stampState copies each primitive's canvas layer and clip onto its render
-// instance and reports whether either changed anywhere, which a partial update
-// would not carry to the GPU. Instances are listed by the scene's tree order,
+// instance and returns the range [first, end) of instances where either changed
+// (empty when none did): Apply's update does not carry them, so the frame must. Instances are listed by the scene's tree order,
 // which syncShapes keeps equal to paint order, so the shape at index i is the
 // instance at index i; should the store ever disagree, the state travels with
 // the node's storage slot instead.
-func (builder *Builder) stampState() (changed bool) {
+func (builder *Builder) stampState() (first, end int) {
 	instances := builder.renderer.Rectangles()
 	if len(instances) != len(builder.shapeIDs) {
 		return builder.stampBySlot()
 	}
+	first, end = len(instances), 0
 	for index, id := range builder.shapeIDs {
 		instance := &instances[index]
 		if instance.ID != id {
@@ -981,14 +982,14 @@ func (builder *Builder) stampState() (changed bool) {
 		state := builder.shapeState(builder.order[index])
 		if instance.Layer != state.layer || instance.Clipped != state.clipped || instance.Clip != state.clip {
 			instance.Layer, instance.Clipped, instance.Clip = state.layer, state.clipped, state.clip
-			changed = true
+			first, end = min(first, index), index+1
 		}
 	}
-	return changed
+	return first, end
 }
 
 // stampBySlot is stampState for a store whose order is not the paint order.
-func (builder *Builder) stampBySlot() (changed bool) {
+func (builder *Builder) stampBySlot() (first, end int) {
 	for index, id := range builder.shapeIDs {
 		slot, ok := id.Slot()
 		if !ok {
@@ -1000,15 +1001,32 @@ func (builder *Builder) stampBySlot() (changed bool) {
 		builder.stateBySlot[slot] = builder.shapeState(builder.order[index])
 	}
 	instances := builder.renderer.Rectangles()
+	first, end = len(instances), 0
 	for index := range instances {
 		slot, _ := instances[index].ID.Slot()
 		state := builder.stateBySlot[slot]
 		if instances[index].Layer != state.layer || instances[index].Clipped != state.clipped || instances[index].Clip != state.clip {
 			instances[index].Layer, instances[index].Clipped, instances[index].Clip = state.layer, state.clipped, state.clip
-			changed = true
+			first, end = min(first, index), index+1
 		}
 	}
-	return changed
+	return first, end
+}
+
+// widenUpdate makes update also carry the instances [first, end) whose layer or
+// clip was stamped. Apply's range already runs to the end of the store's total
+// instances whenever the count grew, and must when it shrank, so the union
+// keeps the suffix form a backend requires.
+func widenUpdate(update render.Update, first, end, total int) render.Update {
+	if update.Shrink {
+		end = total
+	}
+	if update.Count > 0 {
+		end = max(end, update.First+update.Count)
+		first = min(first, update.First)
+	}
+	update.First, update.Count = first, end-first
+	return update
 }
 
 // shapeState is the layer and clip the platform draws a shape with.

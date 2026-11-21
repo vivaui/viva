@@ -158,6 +158,7 @@ const chineseComponentNames: Record<string, string> = {
   'single-select': '单选',
   'avatar-editor': '头像编辑器',
   'image-view': '图片视图',
+  graph: '关系图谱',
   'column-resize': '列宽调整',
   'reorder-grid': '排序网格',
   'reorder-list': '排序列表',

@@ -182,3 +182,19 @@ func TestRepaintReleasesFocusWhenThePaintAsksWithoutChangingHits(t *testing.T) {
 		t.Fatalf("focused = %v, want the focus released", painter.focus.Focused())
 	}
 }
+
+// A page that formats its labels every frame declares the same text in a new
+// allocation each time: that is an unchanged hit list, which keeps the repaint on
+// the path that skips the semantic mirror.
+func TestSameHitsComparesLabelsByText(t *testing.T) {
+	fresh := func(text string) string { return string([]byte(text)) }
+	published := []gfx.Hit{{ID: gfx.Item(1), Label: fresh("Clicked 3 times"), Value: fresh("3")}}
+	current := []gfx.Hit{{ID: gfx.Item(1), Label: fresh("Clicked 3 times"), Value: fresh("3")}}
+	if !sameHits(published, current) {
+		t.Fatal("the same labels in new allocations compared as a change")
+	}
+	current[0].Label = fresh("Clicked 4 times")
+	if sameHits(published, current) {
+		t.Fatal("a changed label compared as unchanged")
+	}
+}

@@ -512,7 +512,8 @@ func TestRepaintLayerOnlyChangePublishesCompositingUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !frame.Update.Rebuild || frame.Update.Count != 1 || frame.Rectangles[0].Layer != 5 {
+	// The instance whose layer moved must travel, whether as a rebuild or in the range.
+	if !updateCovers(frame.Update, 0) || frame.Rectangles[0].Layer != 5 {
 		t.Fatalf("rectangle layer update = %+v, rectangles = %+v", frame.Update, frame.Rectangles)
 	}
 	if len(frame.TextLabels) != 1 || frame.TextLabels[0].Layer != 5 {
@@ -2718,4 +2719,9 @@ func TestRepaintShrinksWhenAShapeIsRemoved(t *testing.T) {
 	if len(frame.Rectangles) != 2 {
 		t.Fatalf("rectangles = %d, want 2", len(frame.Rectangles))
 	}
+}
+
+// updateCovers reports whether update sends the instance at index to the renderer.
+func updateCovers(update render.Update, index int) bool {
+	return update.Rebuild || index >= update.First && index < update.First+update.Count
 }

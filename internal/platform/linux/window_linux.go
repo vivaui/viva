@@ -870,6 +870,24 @@ func (state *linuxWindowState) refreshReadOnlyTextInput() error {
 	return state.router.presentFrame(config.OnRedraw())
 }
 
+// presentCaret draws a frame that changed only the native caret.
+func presentCaret(renderer windowRenderer, frame platform.Frame) error {
+	dirty, err := renderer.apply(frame)
+	if err == nil && dirty {
+		err = renderer.present()
+	}
+	return err
+}
+
+// followFocus shows or hides the native caret as the window gains or loses the
+// keyboard.
+func followFocus(renderer windowRenderer, textInput *linuxTextInput, focused bool) error {
+	if frame, changed := textInput.setWindowFocused(focused); changed {
+		return presentCaret(renderer, frame)
+	}
+	return nil
+}
+
 func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
 	if !win.preview {
@@ -921,11 +939,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		case message.Format == 32 && message.Window == win.id && message.Type == win.caretAtom:
 			generation := binary.LittleEndian.Uint32(message.Data[:4])
 			if frame, changed := textInput.blinkCaret(generation); changed {
-				dirty, err := renderer.apply(frame)
-				if err == nil && dirty {
-					err = renderer.present()
-				}
-				return false, err
+				return false, presentCaret(renderer, frame)
 			}
 		case message.Format == 32 && message.Window == win.id && message.Type == win.redrawAtom && config.OnRedraw != nil:
 			frame, err := config.OnRedraw()
@@ -1148,6 +1162,11 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		if router.ime != nil && realFocus {
 			router.ime.setFocused(true)
 		}
+		if realFocus {
+			if err := followFocus(renderer, textInput, true); err != nil {
+				return false, err
+			}
+		}
 	case xcbFocusOut:
 		state.application.atspiActive(state, false)
 		focus := (*xcbFocusEvent)(event)
@@ -1163,6 +1182,11 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		}
 		if router.ime != nil && realFocusLoss {
 			router.ime.setFocused(false)
+		}
+		if realFocusLoss {
+			if err := followFocus(renderer, textInput, false); err != nil {
+				return false, err
+			}
 		}
 		if realFocusLoss {
 			if err := state.releaseHeldKeys(); err != nil {

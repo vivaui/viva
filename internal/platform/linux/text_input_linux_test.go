@@ -141,6 +141,54 @@ func TestLinuxCaretBlinkUpdatesOnlyCaretAndRejectsStaleTicks(t *testing.T) {
 	}
 }
 
+// A window in the background shows no caret and arms no blink timer, so it wakes
+// for nothing; the keyboard coming back shows the caret at once and blinks again.
+func TestLinuxCaretStopsWhileTheWindowHasNoKeyboard(t *testing.T) {
+	config := platform.Config{DynamicTextInput: true}
+	state := &linuxTextInput{
+		config:    &config,
+		engine:    fixedAdvanceEngine{},
+		postCaret: func(uint32) {},
+	}
+	inputState := platform.TextInput{
+		Width: 120, Height: 28, FontSize: 16,
+		Color:   platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		State:   platform.TextState{Value: "A", Selection: text.Range{Start: 1, End: 1}},
+		OnEvent: func(platform.TextEvent) (platform.TextState, error) { return platform.TextState{}, nil },
+	}
+	if _, _, err := state.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &inputState}}); err != nil {
+		t.Fatal(err)
+	}
+	defer state.stopCaretBlink()
+	caretIndex := len(state.baseRectangles) + 1
+	if state.caretTimer == nil || state.rectangles[caretIndex] == (render.Rectangle{}) {
+		t.Fatalf("focused field: timer=%v caret=%+v, want a blinking caret", state.caretTimer != nil, state.rectangles[caretIndex])
+	}
+	generation := state.caretGeneration
+
+	frame, changed := state.setWindowFocused(false)
+	if !changed || frame.Update != (render.Update{First: caretIndex, Count: 1}) || frame.Rectangles[caretIndex] != (render.Rectangle{}) {
+		t.Fatalf("focus lost = changed:%v update:%+v caret:%+v, want the caret hidden", changed, frame.Update, frame.Rectangles[caretIndex])
+	}
+	if state.caretTimer != nil {
+		t.Fatal("a window without the keyboard still arms the blink timer")
+	}
+	if _, changed := state.blinkCaret(generation); changed {
+		t.Fatal("a tick from before the focus left still blinks the caret")
+	}
+	if err := state.rebuild(); err != nil || state.rectangles[caretIndex] != (render.Rectangle{}) {
+		t.Fatalf("rebuild without the keyboard: caret=%+v err=%v, want none", state.rectangles[caretIndex], err)
+	}
+
+	frame, changed = state.setWindowFocused(true)
+	if !changed || frame.Rectangles[caretIndex] == (render.Rectangle{}) || state.caretTimer == nil {
+		t.Fatalf("focus back = changed:%v caret:%+v timer:%v, want the caret shown and blinking", changed, frame.Rectangles[caretIndex], state.caretTimer != nil)
+	}
+	if _, changed := state.setWindowFocused(true); changed {
+		t.Fatal("a repeated focus-in changed the frame")
+	}
+}
+
 func TestLinuxTextPointerPlacesCaretAtNearestCharacter(t *testing.T) {
 	editor := text.NewEditor("abcd")
 	inputState := platform.TextInput{
