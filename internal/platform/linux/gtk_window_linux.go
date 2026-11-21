@@ -248,6 +248,9 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 			}
 		})
 	}
+	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview {
+		g.windowMaximize(w.toplevel)
+	}
 	g.widgetShowAll(w.toplevel)
 	if a.firstErr != nil {
 		err := a.firstErr

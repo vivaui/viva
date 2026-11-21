@@ -449,6 +449,8 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		state.paintPending = true
 		showWindow.Call(state.window, swShowNoActivate)
 		invalidateRect.Call(state.window, 0, 0)
+	} else if config.Maximized {
+		showWindow.Call(state.window, swShowMaximized)
 	} else {
 		showWindow.Call(state.window, 1)
 	}

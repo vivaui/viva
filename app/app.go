@@ -79,7 +79,11 @@ type Config struct {
 	// (kept on a screen); an X11 window manager places the window's frame there,
 	// so the content area sits below the title bar. Window.Frame reports where it
 	// really is.
-	Origin     *gfx.Point
+	Origin *gfx.Point
+	// Maximized asks the window manager to open the window maximized on Windows
+	// and Linux, while keeping Width, Height and Origin as its restored floating
+	// bounds. Ignored on macOS, web, and WindowPanel.
+	Maximized  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip the
 	// application paints under a custom titlebar's traffic lights, where the

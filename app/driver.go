@@ -117,7 +117,7 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 		canvas = &gfx.Canvas{}
 	}
 	driver := &Driver{config: normalized, canvas: canvas, wakeSent: make(chan struct{}, 1),
-		origin: normalized.originPoint()}
+		origin: normalized.originPoint(), maximized: normalized.Maximized}
 	driver.frame = gfx.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(normalized.Width), Height: float32(normalized.Height)}
 
 	liveDrivers.Acquire()
