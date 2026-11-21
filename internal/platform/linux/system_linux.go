@@ -94,10 +94,13 @@ func readSelectionTextX11(name string) (string, error) {
 
 // HasClipboardImage reports whether the X11 CLIPBOARD owner offers image/png.
 // It asks the owner for its TARGETS, so it waits for another application for up
-// to clipboardWait; a clipboard this process owns holds text only.
+// to clipboardWait; a clipboard this process owns answers without asking.
 func HasClipboardImage() bool {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.hasClipboardImage()
+	}
+	if _, owned := ownedClipboardImage(); owned {
+		return true
 	}
 	has, _ := clipboardOffersImage()
 	return has
@@ -148,6 +151,11 @@ func clipboardOffersImage() (bool, error) {
 func ClipboardImagePNG() ([]byte, error) {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.clipboardImagePNG()
+	}
+	// A clipboard this window owns answers from what it holds; asking the X
+	// server would need the event loop that is calling here.
+	if png, owned := ownedClipboardImage(); owned {
+		return png, nil
 	}
 	if ownsClipboardText() {
 		return nil, platform.ErrNoClipboardImage
@@ -268,7 +276,7 @@ func ClipboardFiles() ([]string, error) {
 }
 
 // ownsClipboardText reports whether this process's window is the CLIPBOARD
-// owner. The clipboard holds the window's text, files, or both.
+// owner. The clipboard holds the window's text, files, picture, or several.
 func ownsClipboardText() bool {
 	win := activeWindow.Load()
 	if win == nil {
@@ -277,6 +285,21 @@ func ownsClipboardText() bool {
 	win.mu.Lock()
 	defer win.mu.Unlock()
 	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+}
+
+// ownedClipboardImage is the picture this window's clipboard holds, and whether
+// it holds one at all: it is the CLIPBOARD owner, with an image on it.
+func ownedClipboardImage() ([]byte, bool) {
+	win := activeWindow.Load()
+	if win == nil {
+		return nil, false
+	}
+	win.mu.Lock()
+	defer win.mu.Unlock()
+	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard || len(win.clipboardImage) == 0 {
+		return nil, false
+	}
+	return append([]byte(nil), win.clipboardImage...), true
 }
 
 // ownedClipboardFiles is the file list this window owns, and whether it owns
@@ -477,6 +500,7 @@ func SetClipboardText(value string) error {
 	win.clipboard = value
 	win.clipboardHTML = ""
 	win.clipboardFiles = nil
+	win.clipboardImage = nil
 	win.ownsClipboard = true
 	return nil
 }

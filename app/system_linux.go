@@ -54,6 +54,10 @@ func nativeClipboardImagePNG() ([]byte, error) {
 	return png, linuxSystemError(err)
 }
 
+func nativeSetClipboardImage(png []byte) error {
+	return linuxSystemError(linuxplatform.SetClipboardImage(png))
+}
+
 func nativeSetCursor(cursor Cursor) error {
 	return linuxSystemError(linuxplatform.SetCursorShape(uint8(cursor)))
 }

@@ -42,6 +42,7 @@ func SetClipboardHTML(html, alt string) error {
 	win.clipboard = alt
 	win.clipboardHTML = html
 	win.clipboardFiles = nil
+	win.clipboardImage = nil
 	win.ownsClipboard = true
 	return nil
 }

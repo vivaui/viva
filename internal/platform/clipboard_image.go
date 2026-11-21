@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image/png"
 )
 
 // Errors every platform's clipboard image reader returns; app re-exports them.
@@ -27,8 +28,10 @@ const (
 var pngSignature = []byte("\x89PNG\r\n\x1a\n")
 
 // CheckClipboardPNG validates data a clipboard owner offered as PNG: it must be
-// within the size cap and start with the PNG signature. The pixels are not
-// decoded here.
+// within the size cap, start with the PNG signature, and name a picture whose
+// pixels fit MaxClipboardRawBytes. The pixels are not decoded here, so a PNG
+// that expands to more memory than the platform can hold is refused before any
+// platform allocates it.
 func CheckClipboardPNG(data []byte) error {
 	switch {
 	case len(data) == 0:
@@ -37,6 +40,14 @@ func CheckClipboardPNG(data []byte) error {
 		return ErrClipboardImageTooLarge
 	case !bytes.HasPrefix(data, pngSignature):
 		return fmt.Errorf("clipboard image is not a PNG")
+	}
+	config, err := png.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("clipboard image is not a PNG: %w", err)
+	}
+	if config.Width <= 0 || config.Height <= 0 ||
+		int64(config.Width)*int64(config.Height) > int64(MaxClipboardRawBytes)/4 {
+		return ErrClipboardImageTooLarge
 	}
 	return nil
 }

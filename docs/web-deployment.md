@@ -123,6 +123,7 @@ The browser reports these integrations:
 | `CapabilityFileDrop` | Dropped files arrive with `gfx.FileDropEvent.Files`; no paths |
 | `CapabilityClipboardTextAsync` | `navigator.clipboard.readText` / `writeText` |
 | `CapabilityClipboardImageAsync` | `navigator.clipboard.read`; PNG only |
+| `CapabilityClipboardImageWriteAsync` | `navigator.clipboard.write` with `ClipboardItem`; PNG only |
 | `CapabilityFileDialogsAsync` | `showOpenFilePicker`, or an `<input type=file>` fallback |
 | `CapabilitySecretStoreAsync` | AES-GCM through WebCrypto, ciphertext in IndexedDB |
 | `CapabilityNotifications` | `Notification` after the page has permission |

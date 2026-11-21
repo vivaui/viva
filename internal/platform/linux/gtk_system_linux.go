@@ -167,6 +167,12 @@ func (a *gtkApplication) installHooks() {
 			}
 			return
 		},
+		setClipboardImage: func(png []byte) (err error) {
+			if e := a.onMain(func() { err = a.writeImage(png) }); e != nil {
+				return e
+			}
+			return
+		},
 		setCursorShape: func(shape uint8) (err error) {
 			if e := a.onMain(func() { err = a.setCursor(shape) }); e != nil {
 				return e
@@ -228,10 +234,41 @@ type gtkTargetEntry struct {
 	info   uint32
 }
 
-// writeHTML makes the clipboard hold html as text/html beside alt as plain
-// text. GTK owns the pair through gtk_clipboard_set_with_data, whose get
-// callback answers whichever target the requestor asked for; the flavour lives
-// as long as the clipboard does, as it does on X11.
+// clipboardCallbacks returns the get and clear callbacks the clipboard is given,
+// making them the first time: purego never releases a callback, so each copy
+// replaces what the callbacks answer (clipboardBytes) instead of making a pair
+// that would retain its bytes for the life of the process.
+func (a *gtkApplication) clipboardCallbacks(c *gtkClipboards) (get, clear uintptr) {
+	if a.clipboardGet != 0 {
+		return a.clipboardGet, a.clipboardClear
+	}
+	a.clipboardGet = purego.NewCallback(func(clipboard, selection, data uintptr) uintptr {
+		kind := c.selectionGet(data)
+		value, ok := a.clipboardBytes[kind]
+		if !ok {
+			return 0
+		}
+		if len(value) == 0 {
+			c.selectionSet(data, kind, 8, nil, 0)
+			return 0
+		}
+		c.selectionSet(data, kind, 8, &value[0], int32(len(value)))
+		return 0
+	})
+	a.clipboardClear = purego.NewCallback(func(clipboard, userData uintptr) uintptr {
+		// A clear from an older copy arrives after the bytes of the new one are in
+		// place; only the current copy's clear may drop them.
+		if userData == a.clipboardGeneration {
+			a.clipboardBytes = nil
+		}
+		return 0
+	})
+	return a.clipboardGet, a.clipboardClear
+}
+
+// writeHTML makes the clipboard hold html as text/html with alt as its plain
+// text. GTK owns it through gtk_clipboard_set_with_data, whose get callback
+// answers the target the requestor asked for by the atom of its name.
 func (a *gtkApplication) writeHTML(html, alt string) error {
 	c, err := a.clipboardAPI()
 	if err != nil {
@@ -247,28 +284,51 @@ func (a *gtkApplication) writeHTML(html, alt string) error {
 		{target: uintptr(unsafe.Pointer(&textName[0]))},
 	}
 	htmlAtom := c.atomIntern(&htmlName[0], 0)
-	htmlBytes, textBytes := cString(html), cString(alt)
-	// The get callback runs on GTK's thread with the pair this closure captured,
-	// answering the target the requestor asked for by the atom of its name.
-	get := purego.NewCallback(func(clipboard, selection, data uintptr) uintptr {
-		kind := c.selectionGet(data)
-		value := textBytes
-		if kind == htmlAtom {
-			value = htmlBytes
-		}
-		c.selectionSet(data, kind, 8, &value[0], int32(len(value)))
-		return 0
-	})
-	clearCallback := purego.NewCallback(func(clipboard, userData uintptr) uintptr { return 0 })
-	if c.setWithData(c.clipboard, uintptr(unsafe.Pointer(&targets[0])), 2, get, clearCallback, 0) == 0 {
+	textAtom := c.atomIntern(&textName[0], 0)
+	// The get callback answers the pair by atom; replacing it drops the pair the
+	// previous copy left without making another callback.
+	a.clipboardGeneration++
+	a.clipboardBytes = map[uintptr][]byte{htmlAtom: []byte(html), textAtom: []byte(alt)}
+	get, clear := a.clipboardCallbacks(c)
+	if c.setWithData(c.clipboard, uintptr(unsafe.Pointer(&targets[0])), 2, get, clear, a.clipboardGeneration) == 0 {
 		return fmt.Errorf("linux: gtk_clipboard_set_with_data failed")
 	}
-	// gtk_clipboard_set_with_data reads the entries in the call; the get callback
-	// keeps the two flavours for as long as GTK may ask for them.
+	// gtk_clipboard_set_with_data reads the entries in the call; the callbacks keep
+	// the pair for as long as GTK may ask for them.
 	runtime.KeepAlive(htmlName)
 	runtime.KeepAlive(textName)
-	runtime.KeepAlive(htmlBytes)
-	runtime.KeepAlive(textBytes)
+	return nil
+}
+
+// writeImage makes the clipboard hold png as the image/png target, the one an
+// image viewer answers and Viva itself reads. GTK owns it through
+// gtk_clipboard_set_with_data, whose get callback passes the owner's own bytes
+// on, so the copy keeps its exact bytes and their transparency; the picture
+// lives as long as the clipboard does, as it does on X11.
+func (a *gtkApplication) writeImage(png []byte) error {
+	c, err := a.clipboardAPI()
+	if err != nil {
+		return err
+	}
+	if c.setWithData == nil {
+		return ErrUnsupported
+	}
+	pngName := cString("image/png")
+	targets := [1]gtkTargetEntry{
+		{target: uintptr(unsafe.Pointer(&pngName[0]))},
+	}
+	pngAtom := c.atomIntern(&pngName[0], 0)
+	// The get callback answers the picture by atom; replacing it drops the one the
+	// previous copy left without making another callback.
+	a.clipboardGeneration++
+	a.clipboardBytes = map[uintptr][]byte{pngAtom: append([]byte(nil), png...)}
+	get, clear := a.clipboardCallbacks(c)
+	if c.setWithData(c.clipboard, uintptr(unsafe.Pointer(&targets[0])), 1, get, clear, a.clipboardGeneration) == 0 {
+		return fmt.Errorf("linux: gtk_clipboard_set_with_data failed")
+	}
+	// gtk_clipboard_set_with_data reads the entry in the call; the callbacks keep
+	// the picture for as long as GTK may ask for it.
+	runtime.KeepAlive(pngName)
 	return nil
 }
 

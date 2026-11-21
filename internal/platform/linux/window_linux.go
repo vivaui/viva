@@ -53,6 +53,7 @@ type window struct {
 	clipboard      string
 	clipboardHTML  string
 	clipboardFiles []string
+	clipboardImage []byte
 	clipboardAtom  uint32
 	htmlAtom       uint32
 	utf8Atom       uint32
@@ -60,6 +61,7 @@ type window struct {
 	targetsAtom    uint32
 	uriListAtom    uint32
 	gnomeFilesAtom uint32
+	pngAtom        uint32
 	ownsClipboard  bool
 	// selections is the PRIMARY selection and the streams of data too large for one
 	// property (selection_linux.go).

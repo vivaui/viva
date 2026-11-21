@@ -8,6 +8,7 @@ func nativeCapabilities() Capabilities {
 			CapabilityClipboardTextAsync |
 			CapabilityClipboardHTML |
 			CapabilityClipboardImageAsync |
+			CapabilityClipboardImageWriteAsync |
 			CapabilityFileDialogsAsync |
 			CapabilitySecretStoreAsync |
 			CapabilityNotifications |

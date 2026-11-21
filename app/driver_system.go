@@ -136,6 +136,18 @@ func driverSetClipboardFiles(paths []string) (error, bool) {
 	return nil, true
 }
 
+// driverSetClipboardImage answers the image copy of a driver-backed run: the
+// driver's private clipboard holds the PNG and loses its text, html, files and
+// rectangular marker, as the system clipboard takes the same copy. A PNG the
+// driver refuses, one above the cap, replaces nothing and reports its error.
+func driverSetClipboardImage(png []byte) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	return system.driver.SetClipboardImage(png), true
+}
+
 // driverStartFileDrag answers a drag of files out of a driver-backed run: the
 // driver records what the application asked and takes the effect a folder window
 // takes, with no native drag and no pointer to move.

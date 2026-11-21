@@ -18,6 +18,11 @@ func nativeSetClipboardHTMLAsync(html, alt string, done func(error)) error {
 	return nil
 }
 
+func nativeSetClipboardImageAsync(png []byte, done func(error)) error {
+	done(nativeSetClipboardImage(png))
+	return nil
+}
+
 func nativeRequestNotificationPermission(done func(NotificationPermission, error)) error {
 	done(NotificationPermissionGranted, nil)
 	return nil
