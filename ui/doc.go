@@ -67,7 +67,10 @@
 // the separators of a long path or URL, and as a last resort between whole
 // characters (an emoji sequence or a letter with its marks is never split); its
 // height follows its width, and the last line of one that is cut ends with an
-// ellipsis.
+// ellipsis. A paragraph its container does not stretch asks for its own width, so a
+// word no line is wide enough for runs out over the container; OverflowWrap with
+// OverflowWrapAnywhere makes it ask for the room it has instead, and break that word
+// between whole characters.
 //
 // How an element looks under the pointer, held down and focused is declared on it (Hover,
 // Pressed, Focus, each a Look, with StateFrom to follow a container and Transition to fade

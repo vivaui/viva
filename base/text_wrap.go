@@ -78,3 +78,40 @@ func (b Box) MaxLines(n int) Box {
 	node.MaxLines = int32(n)
 	return b
 }
+
+// OverflowWrap is how a wrapped Text breaks a word that is too wide for its line,
+// as CSS's overflow-wrap property says.
+type OverflowWrap uint8
+
+const (
+	// OverflowWrapNormal breaks a line only where the text allows it, which is what a
+	// browser does without overflow-wrap: the width a Text asks for is its widest line,
+	// so a word wider than the room the Text is given overflows it. It is the zero value
+	// and the answer of every Text that is not given OverflowWrap.
+	OverflowWrapNormal OverflowWrap = iota
+	// OverflowWrapAnywhere may break inside a word, at any character boundary, when the
+	// word does not fit its line. As with CSS overflow-wrap: anywhere, the width the
+	// Text asks for is then the room it is given rather than its widest line, because
+	// its narrowest line is one character: a paragraph centred in a Column stays inside
+	// the Column and breaks its long URL instead of running out over both edges. A break
+	// never falls inside a character as a reader sees it (UAX #29: a base with its
+	// marks, an emoji sequence, a flag, an Indic conjunct), and while the text fits the
+	// room it is given nothing about it changes.
+	OverflowWrapAnywhere
+)
+
+// OverflowWrap sets how a wrapped Text breaks a word too wide for its line (see Wrap,
+// Paragraph and MaxLines); it has no effect on a Text that does not wrap, which is one
+// line and is clipped.
+//
+//	f.Column().Items(Center).Children(func() {
+//		f.Wrap(url).OverflowWrap(OverflowWrapAnywhere)
+//	})
+func (b Box) OverflowWrap(v OverflowWrap) Box {
+	n := b.N()
+	if v == OverflowWrapNormal && n.Ext == 0 {
+		return b // the zero value says it already; no Extra is made to say it again
+	}
+	b.f.Extra(b.i).overflowWrap = v
+	return b
+}

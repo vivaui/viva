@@ -92,6 +92,7 @@ func (f *Frame) solveAbsolute(i int32, axis int) {
 			edgeStart, edgeEnd = f.Exts[a.Ext].edges[startEdge(axis)], f.Exts[a.Ext].edges[endEdge(axis)]
 		}
 		var size float32
+		content := false // size is the one the content wants
 		switch d := a.Size[axis]; {
 		case d.Kind == dimPx:
 			size = d.Value
@@ -107,8 +108,15 @@ func (f *Frame) solveAbsolute(i int32, axis int) {
 			}
 		default:
 			size = a.Pref[axis]
+			content = true
 		}
 		size = clamp(size, a.MinS[axis], a.MaxS[axis])
+		if content && axis == AxisX && breaksAnywhere(a, &f.Exts[a.Ext]) {
+			// An absolute box is as wide as its content wants, but a text that may break
+			// inside a word has a narrowest line of one character, so the width it wants
+			// reaches no further than the room it has, as CSS overflow-wrap: anywhere says.
+			size = clamp(min(size, max(span-ms-me, 0)), a.MinS[axis], a.MaxS[axis])
+		}
 		at := lo + ms
 		switch {
 		case hasStart:
