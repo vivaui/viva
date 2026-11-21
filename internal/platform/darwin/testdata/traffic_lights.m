@@ -85,6 +85,75 @@ static void assertAligned(NSWindow *window, const char *when) {
     }
 }
 
+// Count explicit invalidations because AppKit may keep an unshown native
+// button dirty even after setNeedsDisplay:NO.
+@interface ActivationButton : NSButton {
+@public
+    NSUInteger redrawRequests;
+}
+@end
+
+@implementation ActivationButton
+- (void)setNeedsDisplay:(BOOL)needsDisplay {
+    if (needsDisplay) {
+        redrawRequests++;
+    }
+    [super setNeedsDisplay:needsDisplay];
+}
+@end
+
+@interface ActivationWindow : NSWindow {
+@public
+    ActivationButton *activationButtons[sizeof(viva_traffic_buttons) / sizeof(viva_traffic_buttons[0])];
+}
+@end
+
+@implementation ActivationWindow
+- (NSButton *)standardWindowButton:(NSWindowButton)button {
+    const size_t buttonCount = sizeof(viva_traffic_buttons) / sizeof(viva_traffic_buttons[0]);
+    for (size_t index = 0; index < buttonCount; index++) {
+        if (button == viva_traffic_buttons[index] && activationButtons[index] != nil) {
+            return activationButtons[index];
+        }
+    }
+    return [super standardWindowButton:button];
+}
+@end
+
+static void assertActivationRedraw(void) {
+    ActivationWindow *window = [[ActivationWindow alloc] initWithContentRect:NSMakeRect(0, 0, 800, 600)
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    VivaAppDelegate *delegate = [VivaAppDelegate alloc];
+    [delegate setValue:window forKey:@"_window"];
+    [delegate setValue:[NSNumber numberWithInt:VIVA_WINDOW_CUSTOM_TITLEBAR] forKey:@"_windowMode"];
+    const size_t buttonCount = sizeof(viva_traffic_buttons) / sizeof(viva_traffic_buttons[0]);
+    for (size_t index = 0; index < buttonCount; index++) {
+        window->activationButtons[index] = [[ActivationButton alloc] init];
+        window->activationButtons[index]->redrawRequests = 0;
+    }
+    NSNotification *activation = [NSNotification notificationWithName:NSWindowDidBecomeKeyNotification object:window];
+    [delegate windowDidBecomeKey:activation];
+    [delegate windowDidBecomeKey:activation];
+    for (size_t index = 0; index < buttonCount; index++) {
+        assert(window->activationButtons[index]->redrawRequests == 2);
+        window->activationButtons[index]->redrawRequests = 0;
+    }
+    NSWindow *otherWindow = customTitlebarWindow(800, 600);
+    [delegate windowDidBecomeKey:[NSNotification notificationWithName:NSWindowDidBecomeKeyNotification object:otherWindow]];
+    [delegate setValue:[NSNumber numberWithInt:VIVA_WINDOW_TITLED] forKey:@"_windowMode"];
+    [delegate windowDidBecomeKey:activation];
+    for (size_t index = 0; index < buttonCount; index++) {
+        assert(window->activationButtons[index]->redrawRequests == 0);
+    }
+    [delegate release];
+    for (size_t index = 0; index < buttonCount; index++) {
+        [window->activationButtons[index] release];
+        window->activationButtons[index] = nil;
+    }
+    [otherWindow release];
+    [window release];
+}
+
 int main(void) {
     @autoreleasepool {
         [NSApplication sharedApplication];
@@ -147,6 +216,8 @@ int main(void) {
         window.delegate = delegate;
         [delegate performSelector:@selector(keepTrafficLightsCentered)];
         assertCenter(window, 18, "once the delegate keeps them centered");
+        [delegate windowDidBecomeKey:[NSNotification notificationWithName:NSWindowDidBecomeKeyNotification object:window]];
+        assertCenter(window, 18, "after activation");
         // Changing scale after observers are installed must not reenter while
         // frame and drawing bounds are temporarily out of sync.
         [delegate setValue:[NSNumber numberWithDouble:compactScale] forKey:@"_trafficLightScale"];
@@ -176,6 +247,8 @@ int main(void) {
         [delegate setAlwaysOnTop:NO];
         assert(window.level == NSNormalWindowLevel);
         [delegate release];
+
+        assertActivationRedraw();
 
         // A window with no traffic lights to move is left alone.
         viva_place_traffic_lights(nil, 36, 0);
