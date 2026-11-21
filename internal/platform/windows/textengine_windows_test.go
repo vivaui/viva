@@ -328,3 +328,43 @@ func TestTextInputOfAVeryLongDocumentIsLaidOutByTheLine(t *testing.T) {
 		t.Fatal("the line was not drawn")
 	}
 }
+
+func TestHiddenNativeEditorDoesNotDrawColorEmoji(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	input := platform.TextInput{
+		X: 12, Y: 12, Width: 280, Height: 170, FontSize: 20,
+		Multiline: true, Placed: true, HideNativeOverlays: true,
+		State: platform.TextState{Value: "哈😷🥺哈哈", Selection: text.Range{Start: 3, End: 3}},
+	}
+	state := windowState{
+		textEngine: newTestEngine(t), textInput: input, textState: input.State, textEnabled: true,
+		textLabels: make([]platform.TextLabel, 1), textRectangles: make([]render.Rectangle, textRectangleCount),
+	}
+	if err := state.updateTextVisuals(); err != nil {
+		t.Fatal(err)
+	}
+	visible := platform.TextLabel{
+		Value: input.State.Value, X: input.X, Y: input.Y,
+		Width: input.Width, Height: 28, FontSize: input.FontSize,
+		Color: platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
+	}
+	background := platform.Color{Red: 0.13, Green: 0.15, Blue: 0.18, Alpha: 1}
+	for _, test := range []struct {
+		name  string
+		batch bool
+	}{{"per label", false}, {"batched", true}} {
+		t.Run(test.name, func(t *testing.T) {
+			offscreen, want := renderPage(t, 640, 400, background, test.batch, []platform.TextLabel{visible})
+			defer offscreen.Close()
+			if err := offscreen.Set(nil, []platform.TextLabel{visible, state.textLabels[0]}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := offscreen.Image()
+			if err != nil {
+				t.Fatal(err)
+			}
+			comparePixels(t, want, got)
+		})
+	}
+}

@@ -262,6 +262,11 @@ func (label *labelTexture) pixelOrigin(scale float32) (x, y int) {
 // false when nothing is drawn: none of the label can be seen, or it is too tall for
 // any texture.
 func (label *labelTexture) window(scale float32, viewport int) (skip, width int, ok bool) {
+	// DirectWrite color glyphs carry their own ink. A hidden plain label must
+	// skip them as well; bitmaps and grid runs have independent colors.
+	if label.label.Color.Alpha <= 0 && len(label.label.Bitmap) == 0 && len(label.label.Runs) == 0 {
+		return 0, 0, false
+	}
 	full := int(math.Ceil(float64(label.label.Width * scale)))
 	if label.label.Mono && len(label.label.Runs) > 0 {
 		full = min(full, gridInkWidth(label.label.Runs, label.label.CellWidth, scale))
