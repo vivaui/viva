@@ -27,6 +27,14 @@ var graphComponent = Component{
 if clicked, ok := graph.layout.Clicked(); ok {
     openNote(clicked) // the application owns what a node opens
 }`,
+			PageSnippet: `// m.graph is the page's graph: the simulation, its nodes and
+// a GraphState the page keeps. m.graph.draw paints it on the page canvas.
+m.graph.sim.Step(1.0 / 120.0)
+ui.Box(c).Draw(m.graph.draw)`,
+			PageSnippetZh: `// m.graph 是本页的图谱：模拟、节点与页面持有的 GraphState。
+// m.graph.draw 在页面画布上绘制它。
+m.graph.sim.Step(1.0 / 120.0)
+ui.Box(c).Draw(m.graph.draw)`,
 		},
 		{
 			ID: "local", Title: "局部图谱",
@@ -37,6 +45,12 @@ if clicked, ok := graph.layout.Clicked(); ok {
 local := graphNeighborhood(sim, links, currentNote, 2)
 components.PaintGraph(canvas, theme, bounds, local.sim, local.nodes,
     local.view, components.GraphOptions{Nodes: graphNodeList})`,
+			PageSnippet: `// m.graph.local is the page's smaller simulation for the note it shows.
+m.graph.local.Step(1.0 / 120.0)
+ui.Box(c).Draw(m.graph.draw)`,
+			PageSnippetZh: `// m.graph.local 是页面为当前笔记保存的较小子图模拟。
+m.graph.local.Step(1.0 / 120.0)
+ui.Box(c).Draw(m.graph.draw)`,
 		},
 	},
 }

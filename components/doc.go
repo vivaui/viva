@@ -322,8 +322,8 @@
 //     `ChartState` holds the hovered point and the label caches,
 //     `ChartStepForKey` maps the arrow keys, and `ChartDownsample` reduces a
 //     long series to the points a plot can show.
-//   - Graph: `PaintGraph` paints a force-directed link graph (Obsidian's
-//     graph view) from a `GraphSim` layout and `GraphNode` display data:
+//   - Graph: `PaintGraph` paints a force-directed link graph (the link view
+//     note applications show) from a `GraphSim` layout and `GraphNode` display data:
 //     edges as batched paths, nodes as circles sized by link count, neighbor
 //     highlighting and labels on hover, one hit region per node.
 //     `GraphState` holds the caller-owned viewport (Zoom zero keeps the
