@@ -53,6 +53,14 @@ type gtkApplication struct {
 	watched map[int]uint32
 	// Retired input contexts stay alive until the native callback stack returns.
 	retiredIMESources []uint32
+	// clipboardGet and clipboardClear answer the clipboard's data callbacks, made
+	// once: purego keeps every callback it makes, so a pair per copy would retain
+	// what the user copied for the life of the process. clipboardBytes is what they
+	// answer now, by target atom, and clipboardGeneration tells a clear from an
+	// older copy apart from the current one.
+	clipboardGet, clipboardClear uintptr
+	clipboardBytes               map[uintptr][]byte
+	clipboardGeneration          uintptr
 }
 
 // gtkTasks are the functions other goroutines asked the loop to run.
