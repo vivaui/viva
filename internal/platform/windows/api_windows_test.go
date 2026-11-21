@@ -49,7 +49,7 @@ func TestNativeStructureABI(t *testing.T) {
 		{"DWRITE_LINE_METRICS", unsafe.Sizeof(lineMetrics{}), 24},
 		{"DWRITE_TEXT_METRICS", unsafe.Sizeof(textMetrics{}), 36},
 		{"rectangle shader instance", unsafe.Sizeof(rectangleInstance{}), rectangleInstanceBytes},
-		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 64},
+		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 80},
 		{"DEVMODEW", unsafe.Sizeof(displayMode{}), 220},
 	} {
 		if layout.size != layout.want {
@@ -63,8 +63,21 @@ func TestNativeStructureABI(t *testing.T) {
 	if textureIID != wantTextureIID {
 		t.Fatal("ID3D11Texture2D GUID mismatch")
 	}
-	if offset := unsafe.Offsetof(frameConstants{}.InstanceOffset); offset != 8 {
-		t.Fatalf("frame shader instance offset = %d, want 8", offset)
+	// Match the registers of Frame in shaders/scene.hlsl.
+	for _, field := range []struct {
+		name   string
+		offset uintptr
+		want   uintptr
+	}{
+		{"instanceOffset", unsafe.Offsetof(frameConstants{}.InstanceOffset), 8},
+		{"textBounds", unsafe.Offsetof(frameConstants{}.Bounds), 16},
+		{"textColor", unsafe.Offsetof(frameConstants{}.TextColor), 32},
+		{"textShape", unsafe.Offsetof(frameConstants{}.TextShape), 48},
+		{"pixelSize", unsafe.Offsetof(frameConstants{}.PixelSize), 64},
+	} {
+		if field.offset != field.want {
+			t.Errorf("frame shader %s offset = %d, want %d", field.name, field.offset, field.want)
+		}
 	}
 }
 
