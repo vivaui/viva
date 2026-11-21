@@ -11,10 +11,13 @@ void *viva_application_window_view(void *token);
 // viva_web_open puts a page over the view and returns it, or NULL with error (a malloc'd message)
 // set. The page is owned by the view's hierarchy until viva_web_close. main_frame_only says the
 // bridge script is for the main frame alone (WebKit is also told to inject it there only). An
-// ephemeral page keeps its data in a store in memory, which goes with the page.
+// ephemeral page keeps its data in a store in memory, which goes with the page. partition, when not
+// NULL, is the UUID of the persistent store the page keeps its cookies and storage in: pages of one
+// identifier share it, pages of another do not. A named partition needs macOS 14, and is refused
+// with an error on an older system rather than opened in the default store.
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
                     const char *base, const char *script, int main_frame_only, const char *scheme, int ephemeral, int direct,
-                    char **error);
+                    const char *partition, char **error);
 int viva_web_direct_supported(void);
 void viva_web_load(void *web, const char *url);
 void viva_web_load_html(void *web, const char *html, const char *base);

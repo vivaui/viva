@@ -121,6 +121,33 @@ scheme, a message in each direction and a menu that stands over the page.
   in it, and the context ends with the page (WebKitGTK 2.16 or newer); a page that also asks for a `Proxy` gets
   its own ephemeral context with the proxy's settings, not the context shared behind that proxy. Where the engine
   cannot do it, the page is refused or closed rather than opened with a store that persists.
+- `Partition` names the store the page keeps its cookies, `localStorage`, IndexedDB and caches in. Pages that
+  name the same partition share them, pages that name different partitions do not, and neither shares with the
+  pages that name none: one window can show two accounts of one site, or a workspace's page apart from every
+  other workspace's. A named partition persists across runs, and with `Ephemeral` it is memory-only instead,
+  shared by the pages of that name and gone when the application exits. Empty keeps the store of every page
+  without a partition, which is the whole of the behaviour before partitions existed: nothing about a page that
+  names no partition changes.
+  A name is at most 64 characters of ASCII letters, digits and `# @ $ ( ) + - _ ~ .` or space, does not end in a
+  period or a space, and is matched without case. Those are WebView2's rules for a profile name, and Viva keeps
+  them on every engine so that a name means one store wherever the application runs: a name WebView2 would refuse
+  is refused by `Open` with an error of its own, before any engine sees it. Windows needs WebView2 Runtime 101
+  (SDK 1.0.1210.39, the first runtime with `ICoreWebView2ControllerOptions`) or newer, and opens the page in a
+  controller whose options name the profile: WebView2 keeps that profile's cookies, storage and caches in a
+  folder of the user data folder that only that name reaches, and an `Ephemeral` partition of the same name is a
+  separate off-the-record profile, so its pages never see what the persistent one kept. macOS needs 14 or newer
+  and gives the configuration `WKWebsiteDataStore`'s store for an identifier derived from the name
+  (`dataStoreForIdentifier:`), so the store is the same one in every run; older systems, and a name asked for as
+  a non-persistent store, are refused with `ErrUnsupported`, because `WKWebsiteDataStore` has one non-persistent
+  store and no way to name a second. Linux makes a `WebKitWebsiteDataManager` per partition (WebKitGTK 2.10 or
+  newer) whose `base-data-directory` and `base-cache-directory` are folders of the partition's name under the
+  user's data and cache directories, and creates the page's `WebKitWebContext` over it
+  (`webkit_web_context_new_with_website_data_manager`); the manager is asked what it took before a page is put in
+  it, and the page is refused if the engine did not take the directory; a name already open as the other kind of
+  store is refused there too, since one WebKit context per name can only be one of the two. A page of one partition that asks for a
+  different proxy than the rest cannot be served on macOS or Linux, where the proxy is a setting of the store the
+  partition names, so the combination is refused with `ErrUnsupported` rather than served with a route another
+  page of its partition picked; Windows keeps the proxy in the page's environment, so both work there.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies

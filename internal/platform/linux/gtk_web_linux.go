@@ -8,8 +8,11 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
@@ -68,6 +71,12 @@ type webKit struct {
 	contextDataManager func(context uintptr) uintptr
 	managerSetProxy    func(manager uintptr, mode int32, settings uintptr)
 	contextSetProxy    func(context uintptr, mode int32, settings uintptr)
+	// For a store of a page's own: a context over a website data manager of the partition's, the
+	// manager itself, and the directories it took (WebKitGTK 2.10); nil without.
+	contextWithDataManager func(manager uintptr) uintptr
+	dataManagerNew         func(name1, value1, name2, value2, terminator uintptr) uintptr
+	dataManagerBaseData    func(manager uintptr) uintptr
+	dataManagerBaseCache   func(manager uintptr) uintptr
 	// The 2.36 answer, which carries a status and headers; nil on an engine that has only the stream
 	// and type form, where a scheme's status and headers are dropped.
 	schemeResponse    bool
@@ -198,6 +207,12 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			!g.lookup(&k.proxySettingsFree, "webkit_network_proxy_settings_free") {
 			k.contextEphemeral = nil
 		}
+		if !g.lookup(&k.contextWithDataManager, "webkit_web_context_new_with_website_data_manager") ||
+			!g.lookup(&k.dataManagerNew, "webkit_website_data_manager_new") ||
+			!g.lookup(&k.dataManagerBaseData, "webkit_website_data_manager_get_base_data_directory") ||
+			!g.lookup(&k.dataManagerBaseCache, "webkit_website_data_manager_get_base_cache_directory") {
+			k.contextWithDataManager = nil
+		}
 		if !g.lookup(&k.contextDataManager, "webkit_web_context_get_website_data_manager") ||
 			!g.lookup(&k.managerSetProxy, "webkit_website_data_manager_set_network_proxy_settings") {
 			k.managerSetProxy = nil
@@ -279,6 +294,7 @@ var (
 	webSchemes    = map[string]*platform.WebScheme{}
 	webSchemeDone = map[webSchemeKey]bool{}
 	webProxies    = map[string]*webContext{}
+	webPartitions = map[string]*webContext{}
 )
 
 // webSchemeKey is a scheme registered with one context: the default, or a context of a page's own.
@@ -287,13 +303,17 @@ type webSchemeKey struct {
 	name    string
 }
 
-// webContext is an ephemeral WebKit context a page runs in. The pages held to one proxy share one;
-// a page that asked to keep nothing, or both to keep nothing and to use a proxy, has one of its
-// own. Nothing it keeps outlives it, and it goes with its last page.
+// webContext is a WebKit context a page runs in besides the default one. The pages held to one proxy
+// share one; a page that asked to keep nothing, or both to keep nothing and to use a proxy, has one
+// of its own. The pages of a named storage partition share one too, which keeps what they save
+// together and apart from every other partition's. What an ephemeral one keeps does not outlive it,
+// and it goes with its last page.
 type webContext struct {
-	proxy  string
-	object uintptr
-	pages  int
+	proxy     string
+	partition string
+	ephemeral bool
+	object    uintptr
+	pages     int
 }
 
 // WebKitNetworkProxyMode.
@@ -361,17 +381,149 @@ func newEphemeralContext(k *webKit) (*webContext, error) {
 	return &webContext{object: object, pages: 1}, nil
 }
 
+// partitionContext is the context of a named storage partition, shared by the pages that name it and
+// made the first time one opens. A name is one store: a page that asks for it keeping nothing when
+// the open one persists, or the other way round, is refused rather than given a store of its own
+// under the same name.
+func partitionContext(g *gtkLibrary, k *webKit, class, name string, ephemeral bool) (*webContext, error) {
+	if context := webPartitions[name]; context != nil {
+		if context.ephemeral != ephemeral {
+			return nil, fmt.Errorf("linux: partition %q is open as a %s store, and a page cannot ask for the other kind under the same name", name, partitionKind(context.ephemeral))
+		}
+		context.pages++
+		return context, nil
+	}
+	var context *webContext
+	var err error
+	if ephemeral {
+		context, err = newEphemeralContext(k)
+	} else {
+		context, err = newPartitionContext(g, k, class, name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	context.partition, context.ephemeral = name, ephemeral
+	webPartitions[name] = context
+	return context, nil
+}
+
+// partitionKind names a partition's store in an error.
+func partitionKind(ephemeral bool) string {
+	if ephemeral {
+		return "memory-only"
+	}
+	return "persistent"
+}
+
+// newPartitionContext makes a context over a website data manager of the partition's own: the manager
+// keeps the partition's cookies, storage and caches in a directory of its name, so the pages of
+// another partition, and the pages of none, do not see them.
+func newPartitionContext(g *gtkLibrary, k *webKit, class, name string) (*webContext, error) {
+	if k.contextWithDataManager == nil || k.dataManagerNew == nil || k.dataManagerBaseData == nil || k.dataManagerBaseCache == nil {
+		return nil, fmt.Errorf("%w: WebKitGTK cannot give a page a store of its own (2.10 or newer is required)", platform.ErrWebViewUnsupported)
+	}
+	data, cache, err := partitionDirectories(class, name)
+	if err != nil {
+		return nil, err
+	}
+	manager := makeDataManager(k, data, cache)
+	if manager == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no store for partition %q", platform.ErrWebViewUnsupported, name)
+	}
+	// A manager given no directories keeps the engine's defaults, which are the default store under
+	// another name: a partition whose directory the engine did not take is refused rather than opened
+	// over the pages it must not share with.
+	if got := goString(k.dataManagerBaseData(manager)); got != data {
+		g.objectUnref(manager)
+		return nil, fmt.Errorf("%w: WebKitGTK kept %q as the data directory of partition %q, not %q", platform.ErrWebViewUnsupported, got, name, data)
+	}
+	if got := goString(k.dataManagerBaseCache(manager)); got != cache {
+		g.objectUnref(manager)
+		return nil, fmt.Errorf("%w: WebKitGTK kept %q as the cache directory of partition %q, not %q", platform.ErrWebViewUnsupported, got, name, cache)
+	}
+	object := k.contextWithDataManager(manager)
+	g.objectUnref(manager) // the context holds the reference it was given
+	if object == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no context for partition %q", platform.ErrWebViewUnsupported, name)
+	}
+	return &webContext{object: object, pages: 1}, nil
+}
+
+// makeDataManager makes a website data manager that keeps its data in data and its caches in cache.
+// webkit_website_data_manager_new has no non-variadic form and the two properties that carry the
+// directories are construct-only, so the names and values go as its varargs, NUL-terminated:
+// pointers only, which is what the C ABI's variadic call takes on every architecture Viva builds for.
+// What the manager took is read back before a page is put in it.
+func makeDataManager(k *webKit, data, cache string) uintptr {
+	dataName, cacheName := cString("base-data-directory"), cString("base-cache-directory")
+	dataValue, cacheValue := cString(data), cString(cache)
+	manager := k.dataManagerNew(
+		uintptr(unsafe.Pointer(&dataName[0])), uintptr(unsafe.Pointer(&dataValue[0])),
+		uintptr(unsafe.Pointer(&cacheName[0])), uintptr(unsafe.Pointer(&cacheValue[0])), 0)
+	runtime.KeepAlive(dataName)
+	runtime.KeepAlive(dataValue)
+	runtime.KeepAlive(cacheName)
+	runtime.KeepAlive(cacheValue)
+	return manager
+}
+
+// partitionDirectories is where a named partition keeps its data and its caches: in the user's data
+// and cache directories, under a folder of the application's own name and then of the partition's, so
+// that two applications that name a partition alike do not share one store.
+func partitionDirectories(class, name string) (data, cache string, err error) {
+	if class == "" {
+		if executable, executableErr := os.Executable(); executableErr == nil {
+			class = strings.TrimSuffix(filepath.Base(executable), filepath.Ext(executable))
+		}
+	}
+	if class == "" {
+		class = "viva"
+	}
+	data, err = userDirectory("XDG_DATA_HOME", ".local/share", class, name)
+	if err != nil {
+		return "", "", err
+	}
+	cache, err = userDirectory("XDG_CACHE_HOME", ".cache", class, name)
+	if err != nil {
+		return "", "", err
+	}
+	return data, cache, nil
+}
+
+// userDirectory is environment's directory when it names one, else the fallback under the user's home
+// directory, with webkit and parts added; it is made, since the engine writes into it before the page
+// loads.
+func userDirectory(environment, fallback, class, name string) (string, error) {
+	base := os.Getenv(environment)
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("%w: a storage partition has nowhere to keep its data: %v", platform.ErrWebViewUnsupported, err)
+		}
+		base = filepath.Join(home, filepath.FromSlash(fallback))
+	}
+	directory := filepath.Join(base, class, "webkit", name)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("%w: a storage partition has nowhere to keep its data: %v", platform.ErrWebViewUnsupported, err)
+	}
+	return directory, nil
+}
+
 // leave lets go of the context for one page; the last page ends it.
 func (context *webContext) leave(g *gtkLibrary) {
 	context.pages--
 	if context.pages > 0 {
 		return
 	}
-	// Only a shared context is in webProxies. A page that asked for a proxy and to keep nothing has
-	// a context of its own with the proxy's settings, and must not drop the shared one behind the
-	// same proxy.
+	// Only a shared context is in webProxies or webPartitions. A page that asked for a proxy and to
+	// keep nothing has a context of its own with the proxy's settings, and must not drop the shared
+	// one behind the same proxy.
 	if context.proxy != "" && webProxies[context.proxy] == context {
 		delete(webProxies, context.proxy)
+	}
+	if context.partition != "" && webPartitions[context.partition] == context {
+		delete(webPartitions, context.partition)
 	}
 	for key := range webSchemeDone {
 		if key.context == context.object {
@@ -400,8 +552,18 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	if err != nil {
 		return nil, err
 	}
+	if c.Partition != "" && c.Proxy != "" {
+		// The proxy is the store's own setting here, and one store cannot carry two: two pages of one
+		// partition could not disagree about it, so the page is refused rather than opened with a
+		// route another page of its partition chose.
+		return nil, fmt.Errorf("%w: WebKitGTK cannot combine a named storage partition with a proxy: the proxy belongs to the store the partition names", platform.ErrWebViewUnsupported)
+	}
 	var private *webContext
 	switch {
+	case c.Partition != "":
+		if private, err = partitionContext(g, k, w.config.Class, c.Partition, c.Ephemeral); err != nil {
+			return nil, err
+		}
 	case c.Proxy != "" && c.Ephemeral:
 		// A page that asks for both needs its own ephemeral context with the proxy's settings. The
 		// shared context behind the same proxy would do the proxy but would also share its cookies
