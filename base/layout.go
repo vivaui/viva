@@ -345,7 +345,7 @@ func (f *Frame) maxOn(n *Node, axis int, avail float32) float32 {
 			hi = max(share, 0.001) // zero would mean no limit
 		}
 	}
-	if axis == AxisX && (hi == 0 || avail < hi) && breaksAnywhere(n, extra) {
+	if axis == AxisX && shrinksToRoom(n, extra) && (hi == 0 || avail < hi) {
 		// A text that may break inside a word is one character wide at its narrowest,
 		// so the width it asks for is the room it has, not its widest line, as CSS
 		// overflow-wrap: anywhere says.
@@ -358,6 +358,14 @@ func (f *Frame) maxOn(n *Node, axis int, avail float32) float32 {
 // too wide for its line: a wrapped Text given OverflowWrapAnywhere (see Box.OverflowWrap).
 func breaksAnywhere(n *Node, extra *Extra) bool {
 	return n.Kind == kindText && n.Flags&flagWrap != 0 && extra.overflowWrap == OverflowWrapAnywhere
+}
+
+// shrinksToRoom reports whether the width n asks for is the room it is given rather
+// than its widest line. CSS overflow-wrap: anywhere lowers the min-content contribution
+// only: a specified width, a percentage or a flex basis is still the size the caller
+// asked for, so the room caps only a width the content itself derives.
+func shrinksToRoom(n *Node, extra *Extra) bool {
+	return breaksAnywhere(n, extra) && n.Size[AxisX].Kind == dimAuto && n.Flags&flagBasis == 0
 }
 
 func offset(align Align, free float32) float32 {

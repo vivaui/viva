@@ -115,7 +115,14 @@ func (f *Frame) solveAbsolute(i int32, axis int) {
 			// An absolute box is as wide as its content wants, but a text that may break
 			// inside a word has a narrowest line of one character, so the width it wants
 			// reaches no further than the room it has, as CSS overflow-wrap: anywhere says.
-			size = clamp(min(size, max(span-ms-me, 0)), a.MinS[axis], a.MaxS[axis])
+			room := span - ms - me
+			if hasStart {
+				room -= edgeStart
+			}
+			if hasEnd {
+				room -= edgeEnd
+			}
+			size = clamp(min(size, max(room, 0)), a.MinS[axis], a.MaxS[axis])
 		}
 		at := lo + ms
 		switch {

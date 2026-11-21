@@ -269,3 +269,65 @@ func TestOverflowWrapStillPrefersTheSeparatorsOfAUrl(t *testing.T) {
 		t.Errorf("the URL broke as %q, want the first line to end at one of its separators", lines)
 	}
 }
+
+// CSS overflow-wrap: anywhere lowers the min-content contribution only: a specified
+// width, a percentage and a flex basis are still the sizes the caller asked for, so
+// the property leaves each of them alone.
+func TestOverflowWrapDoesNotShrinkASpecifiedWidth(t *testing.T) {
+	const value = "aaaaaaaaaaaaaaaaaaaa" // 20 characters, wider than every container here
+	for _, test := range []struct {
+		name   string
+		layout func(f *Frame) Box
+		want   float32
+	}{
+		{"Width", func(f *Frame) Box {
+			var text Box
+			f.Column().Items(Center).Children(func() {
+				text = f.Wrap(value).FontSize(1).Width(100).OverflowWrap(OverflowWrapAnywhere)
+			})
+			return text
+		}, 100},
+		{"WidthPercent", func(f *Frame) Box {
+			var text Box
+			f.Column().Items(Center).Children(func() {
+				text = f.Wrap(value).FontSize(1).WidthPercent(150).OverflowWrap(OverflowWrapAnywhere)
+			})
+			return text
+		}, 60}, // 150% of the 40-wide container
+		{"Basis", func(f *Frame) Box {
+			var text Box
+			f.Row().Children(func() {
+				text = f.Wrap(value).FontSize(1).Basis(100).Shrink(0).OverflowWrap(OverflowWrapAnywhere)
+			})
+			return text
+		}, 100},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var view View
+			f := view.Begin(graphemeCanvas(), gfx.LightTheme(), gfx.Rect{Width: 40, Height: 400})
+			text := test.layout(f)
+			f.End()
+			if got := text.Rect().Width; got != test.want {
+				t.Fatalf("the text is %v wide, want the %v it asked for", got, test.want)
+			}
+		})
+	}
+}
+
+// An anchored absolute text has only the room from its edge to the far side, as CSS
+// shrink-to-fit gives it: the cap is the room past the edge, not the whole container.
+func TestOverflowWrapCapsAnAnchoredAbsoluteTextToTheRoomPastItsEdge(t *testing.T) {
+	var view View
+	var text Box
+	f := view.Begin(graphemeCanvas(), gfx.LightTheme(), gfx.Rect{Width: 8, Height: 400})
+	f.Stack().Children(func() {
+		text = f.Wrap("aaaaaaaaaaaaaaaaaaaa").FontSize(1).OverflowWrap(OverflowWrapAnywhere).Absolute().Left(6)
+	})
+	f.End()
+	if got := text.Rect(); got.X != 6 || got.Width != 2 {
+		t.Fatalf("the anchored text is %v, want x 6 and the 2 characters of room past its edge", got)
+	}
+	if lines := int(text.N().LineCount); lines != 10 {
+		t.Errorf("the anchored text has %d lines, want 10", lines)
+	}
+}
