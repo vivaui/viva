@@ -7,7 +7,8 @@ func TestEachWebView2ProcessFailureNamesItsReason(t *testing.T) {
 		kind, reason int32
 		want         WebProcessFailure
 	}{
-		{0, 0, WebProcessCrashed},       // BROWSER_PROCESS_EXITED, UNEXPECTED
+		{0, 0, WebProcessHostGone},      // BROWSER_PROCESS_EXITED, UNEXPECTED
+		{0, 2, WebProcessHostGone},      // BROWSER_PROCESS_EXITED, TERMINATED: the kind decides
 		{1, 3, WebProcessCrashed},       // RENDER_PROCESS_EXITED, CRASHED
 		{1, 0, WebProcessCrashed},       // RENDER_PROCESS_EXITED, UNEXPECTED
 		{1, 2, WebProcessKilled},        // RENDER_PROCESS_EXITED, TERMINATED
@@ -20,7 +21,7 @@ func TestEachWebView2ProcessFailureNamesItsReason(t *testing.T) {
 		{2, 1, WebProcessUnresponsive},  // RENDER_PROCESS_UNRESPONSIVE, UNRESPONSIVE
 		{2, 3, WebProcessUnresponsive},  // the kind decides: an unresponsive process is not crashed
 		{2, -1, WebProcessUnresponsive}, // a runtime too old to say why
-		{0, -1, WebProcessUnknown},      // a browser process gone with no reason given
+		{0, -1, WebProcessHostGone},     // a browser process gone with no reason given
 	} {
 		got, ok := WebProcessFailureFromWebView2(c.kind, c.reason)
 		if !ok || got != c.want {
@@ -80,6 +81,7 @@ func TestEachProcessFailureNamesItself(t *testing.T) {
 		{WebProcessKilled, "killed"},
 		{WebProcessUnresponsive, "unresponsive"},
 		{WebProcessLaunchFailed, "launch failed"},
+		{WebProcessHostGone, "host process gone"},
 		{WebProcessUnknown, "unknown failure"},
 		{WebProcessFailure(200), "web process failure 200"},
 	} {

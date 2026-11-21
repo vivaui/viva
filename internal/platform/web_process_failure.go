@@ -25,6 +25,11 @@ const (
 	WebProcessUnresponsive
 	// WebProcessLaunchFailed is a process that never started, so the page never ran at all.
 	WebProcessLaunchFailed
+	// WebProcessHostGone is the engine's own process gone, taking every page it hosted with it.
+	// Unlike the failures above, this page cannot be loaded again in place: Reload has no
+	// process to bring back, so the application closes it and opens a new one. Only WebView2
+	// has such a process; the other engines lose one page's process at a time.
+	WebProcessHostGone
 	// WebProcessUnknown is a process the engine reports as gone without a reason this package
 	// classifies, including an engine that names no reason at all.
 	WebProcessUnknown
@@ -43,6 +48,8 @@ func (f WebProcessFailure) String() string {
 		return "unresponsive"
 	case WebProcessLaunchFailed:
 		return "launch failed"
+	case WebProcessHostGone:
+		return "host process gone"
 	case WebProcessUnknown:
 		return "unknown failure"
 	}
@@ -85,9 +92,12 @@ const (
 // itself, and an application is told about the one that draws the page it hosts.
 func WebProcessFailureFromWebView2(kind, reason int32) (WebProcessFailure, bool) {
 	switch kind {
-	case webView2FailedBrowserProcessExited, webView2FailedRenderProcessExited:
+	case webView2FailedBrowserProcessExited:
 		// The browser process draws no page of its own, but every renderer is its child: when it
-		// goes, the page goes with it, and the reason is the same kind of reason.
+		// goes, every page goes and the control itself is unusable, whatever reason it gives.
+		// Reload has nothing to load into, so the application reopens the page.
+		return WebProcessHostGone, true
+	case webView2FailedRenderProcessExited:
 		return webProcessFailureFromWebView2Reason(reason), true
 	case webView2FailedRenderProcessUnresponsive:
 		return WebProcessUnresponsive, true

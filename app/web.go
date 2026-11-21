@@ -111,8 +111,10 @@ type WebViewConfig struct {
 	// process is gone, so what the user typed into it may be lost and it cannot draw again until it
 	// is loaded again, which WebView.Reload does. The WebProcessFailure says which of those it was,
 	// because a crash is worth warning about before a reload and a page the system reclaimed under
-	// memory pressure is not. WebView.IsCrashed answers the same question afterwards, and a
-	// navigation that starts again clears it.
+	// memory pressure is not. WebProcessHostGone is the exception: the engine's own process went,
+	// taking the control with it, so the application closes the page and opens a new one instead of
+	// reloading it. WebView.IsCrashed answers the same question afterwards, and a navigation that
+	// starts again clears it.
 	OnProcessFailed func(WebProcessFailure)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
 	Navigate func(WebNavigation) bool
@@ -464,8 +466,10 @@ func (view *WebView) ProcessFailure() WebProcessFailure { return view.native.Pro
 // IsCrashed reports whether the page's process is gone: it crashed, the system or the engine stopped
 // it, or it never started. Such a page cannot draw and its input is lost, so an application that
 // hosts one shows its own notice and Reload loads it again rather than leaving the engine's blank
-// view. It says the page is gone, not that the reason was a crash: ProcessFailure names the reason,
-// which is what a notice that tells the user whether their input is lost needs.
+// view. A page whose ProcessFailure is WebProcessHostGone is the exception: its control is gone with
+// the engine's process, so close it and open a new one rather than reloading. It says the page is
+// gone, not that the reason was a crash: ProcessFailure names the reason, which is what a notice that
+// tells the user whether their input is lost needs.
 func (view *WebView) IsCrashed() bool { return view.native.ProcessFailure() != WebProcessNoFailure }
 
 // Eval runs a script in the page. The result is not read back: have the script post a message.

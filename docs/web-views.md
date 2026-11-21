@@ -63,9 +63,11 @@ scheme, a message in each direction and a menu that stands over the page.
   `WebProcessCrashed` (a fault, whose unsaved input is probably gone), `WebProcessKilled` (memory
   pressure, an out-of-memory kill, or the engine ending it itself, which the page did nothing to cause),
   `WebProcessUnresponsive`, `WebProcessLaunchFailed`, or `WebProcessUnknown` (including macOS, which
-  names no reason at all). A notice that tells the user whether their input is lost, or just offers a
-  reload, is written from that value rather than from the engine's own enum. `IsCrashed` answers whether
-  the page is gone and `ProcessFailure` why, until the page starts a navigation again, which clears it:
+  names no reason at all). `WebProcessHostGone` is the engine's own process gone: the control is
+  unusable, so close the page and open a new one instead of reloading. A notice that tells the user
+  whether their input is lost, or just offers a reload, is written from that value rather than from the
+  engine's own enum. `IsCrashed` answers whether the page is gone and `ProcessFailure` why, until the
+  page starts a navigation again, which clears it:
   no engine offers a way to ask, so both are kept from what the engine reported.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
