@@ -537,6 +537,17 @@ int viva_web_direct_supported(void) {
     return 0;
 }
 
+// viva_web_partition_supported answers whether this system can name a persistent
+// storage store, which is what a partition needs.
+int viva_web_partition_supported(void) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+    if (@available(macOS 14.0, *)) {
+        return 1;
+    }
+#endif
+    return 0;
+}
+
 // viva_web_named_store gives the configuration the persistent store of the identifier, and says
 // whether it did: a system too old to name a store, or an identifier that is not one, is reported
 // through error, and no page is opened in a store the application did not ask for.

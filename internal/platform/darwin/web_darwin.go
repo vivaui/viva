@@ -127,6 +127,9 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 	}
 	var partition *C.char
 	if config.Partition != "" {
+		if C.viva_web_partition_supported() == 0 {
+			return nil, fmt.Errorf("darwin: a named storage partition needs macOS 14 or newer: %w", platform.ErrWebViewUnsupported)
+		}
 		partition = C.CString(platform.PartitionIdentifier(config.Partition))
 		defer C.free(unsafe.Pointer(partition))
 	}
