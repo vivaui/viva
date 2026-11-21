@@ -30,8 +30,9 @@ an explicit edit there.
 There are two authoring paths, and they are not duplicates:
 
 - **Page controls** are `ui.*` or `ui.*Base` + Draw. They own page identity,
-  focus, input and state; the styled painter reuses the components' canvas
-  recipes. `ui` exports no `Begin*`.
+  focus, input and state; the recipe gives their node its default look and
+  measurement, and the styled painter draws only the parts the control owns.
+  `ui` exports no `Begin*`.
 - **Canvas recipes** are the `Begin*` constructors in package `components` and their `Paint`/`Layout` methods.
   They construct a value, paint through `gfx.Canvas` and declare hits; they are
   used inside a `ui.Control`/`Draw`, for pure measurement, or in source copied by
@@ -120,14 +121,29 @@ The two forms are the same control. What differs is the look and nothing else.
 
 ### Where the behavior lives
 
-Select, Slider, Input, Textarea and Field are built as `X = XBase` plus the theme's look
-(`flagThemed`), so their behavior is written once. Button, Checkbox, Switch and Tabs are
-separate code paths from their Bases: the styled form is painted by the styled layer's
-painter (`ui/controls_paint.go`), which draws the recipe and declares the hit, and the Base
-declares it again in `base/bases.go`. The parity test is what keeps those two declarations
-equal until they share one.
+A themed control is a node. Its box, padding, content, state look and children are the
+engine's node attributes; the recipe in `components` supplies only the defaults that an
+explicit `Box` call overrides. Behaviour — pointer, keyboard, focus, disabled, role, value —
+is declared once on the control's root node in `base`, not by its painter. The painter in
+`ui` (`ui/controls_paint.go`, `ui/tabs_paint.go`, `ui/select_paint.go`, …) draws only the
+parts the control owns — check mark, switch thumb, track, chevron, indicator — and declares
+no hit.
 
-The behavior lives in package `base`, the appearance in package `components`: `base` never
+Select, Slider, Input, Textarea and Field are built as `X = XBase` plus the theme's look
+(`flagThemed`), so their behavior is written once. Button, Checkbox, Switch, Tabs and the
+other migrated controls have their own declarations, but share the same node contract; the
+parity tests keep both forms reporting the same role, state and actions, and
+`ui/slot_parity_test.go` keeps a control in a slot painting and hitting like its `Begin*`
+recipe.
+
+Every universal `Box` attribute a control accepts must either do its job or be rejected in
+a dev build; neither outcome may be silent. The rejection rules live in
+`base/attrcheck_dev.go` (empty in release builds) and their messages name the element, the
+attribute and the reason; `VIVA_ATTR_CHECK=warn` prints them instead of panicking.
+`base/attrs.go` only records the few defaults a node's value cannot express, and
+`base/attrcheck_dev_test.go` / `attrcheck_release_test.go` cover both builds.
+
+The behaviour lives in package `base`, the appearance in package `components`: `base` never
 imports `components`, and the painters (in `ui`) read the engine's state through its
 exported accessors and call the recipes. `internal/layering` enforces the direction.
 
@@ -135,8 +151,9 @@ exported accessors and call the recipes. `internal/layering` enforces the direct
 
 The look of a control is a recipe in `components` (`components/button.go`, …). Variants and
 sizes of a styled control are declared through `base.Box` (`Box.Outline`, `Box.Small`, …)
-and drawn by the recipe in `ui`'s painter (for a button, `ui/controls_paint.go`). A change
-to how a control looks belongs in the recipe; a change to what it does belongs in `base`.
+and resolved onto the node's `Look`; an explicit element attribute (`.Pad`, `.FontSize`,
+`.Color`, `.Radius`, …) overrides the recipe's default. A change to how a control looks
+belongs in the recipe; a change to what it does belongs in `base`.
 
 ## Adding a control
 
@@ -156,12 +173,16 @@ missed.
 3. **Base** — add the Base in `base/bases.go` and `base/page_bases.go`, and a row for it in
    `TestStyledControlsDeclareWhatTheirBasesDeclare` and `comparedWithTheirStyledForm`.
    `TestEveryPageBaseIsComparedOrExplained` fails until you do.
-4. **Guide and docs** — every exported `Box` method must appear in
+4. **Attribute rule** — decide which universal attributes the new element takes. Each
+   attribute either works on it or is rejected by `base/attrcheck_dev.go` with a message
+   saying why; add the positive and negative cases to `base/attrcheck_dev_test.go`. A
+   control with a content slot takes `Children`; its own parts stay its own.
+5. **Guide and docs** — every exported `Box` method must appear in
    `cmd/viva/initfiles/AGENTS.md.txt` (`base/guide_test.go`), and a program shown in a guide is
    the one in `examples/guides` (`website`: `npm run sync:examples`).
-5. **Catalog** — a demo in `internal/componentdemo`, registered in `state.go` and the
+6. **Catalog** — a demo in `internal/componentdemo`, registered in `state.go` and the
    catalog, so the component browser shows it.
-6. **Cost** — a benchmark for the declaration, and a zero-allocation check for a warm
+7. **Cost** — a benchmark for the declaration, and a zero-allocation check for a warm
    repaint (see `TestSelectDisabledOptionsDeclareWithoutAllocating` for the form).
 
 ## Where the packages stop
