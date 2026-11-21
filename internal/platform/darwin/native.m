@@ -2594,6 +2594,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint32_t _bitmapStride;
     uint64_t _bitmapID;
     uint32_t _bitmapVersion;
+    float _imageRadius;
     id<MTLTexture> _texture;
     NSMutableArray<id<MTLTexture>> *_additionalTextures;
     // A text label wider than a texture holds is rasterized in part: its textures hold the
@@ -2619,6 +2620,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (void)updateQuadFromConfig:(viva_text_label)config;
 - (const float *)quad;
 - (const float *)tint;
+- (float)imageRadius;
 - (NSRect)frame;
 - (BOOL)clipped;
 - (NSRect)clip;
@@ -2916,6 +2918,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         _tint[index] = config.tint[index];
     }
     _hasQuad = hasQuad;
+    _imageRadius = hasQuad ? 0 : config.image_radius;
     if (hasQuad) {
         return;
     }
@@ -2932,6 +2935,14 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     for (int index = 0; index < 16; index++) {
         _tint[index] = 1;
     }
+    if (config.image_fade > 0) {
+        // Fade is draw-time: it scales the premultiplied tint, so the picture's
+        // texture is untouched.
+        float alpha = 1 - config.image_fade;
+        for (int index = 0; index < 16; index++) {
+            _tint[index] *= alpha;
+        }
+    }
 }
 
 - (const float *)quad {
@@ -2940,6 +2951,10 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 
 - (const float *)tint {
     return _tint;
+}
+
+- (float)imageRadius {
+    return _imageRadius;
 }
 
 - (BOOL)clipped {
@@ -3519,6 +3534,15 @@ static size_t viva_label_tile_mesh(
     return viva_label_tile_vertices(quad, tint, left, right, textureLeft, textureRight, vertices);
 }
 
+// viva_text_label_uniform mirrors TextLabelUniform in scene.metal: where a
+// label's box starts, its size, and the radius its picture's corners are cut by.
+typedef struct {
+    float originX, originY;
+    float sizeX, sizeY;
+    float radius;
+    float padding;
+} viva_text_label_uniform;
+
 // viva_encode_input draws the native editor's texture.
 static void viva_encode_input(
     id<MTLRenderCommandEncoder> encoder,
@@ -3538,6 +3562,8 @@ static void viva_encode_input(
     viva_label_vertices(quad, tint, vertices);
     [encoder setRenderPipelineState:textPipeline];
     [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:2];
+    viva_text_label_uniform labelUniform = {0, 0, 0, 0, 0, 0};
+    [encoder setVertexBytes:&labelUniform length:sizeof(labelUniform) atIndex:3];
     [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
     [encoder setFragmentTexture:inputTexture atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
@@ -3628,6 +3654,13 @@ static void viva_encode_scene(
         }
         [encoder setRenderPipelineState:textPipeline];
         [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
+        NSRect layerFrame = [layer frame];
+        viva_text_label_uniform labelUniform = {
+            (float)layerFrame.origin.x, (float)layerFrame.origin.y,
+            (float)layerFrame.size.width, (float)layerFrame.size.height,
+            [layer imageRadius], 0,
+        };
+        [encoder setVertexBytes:&labelUniform length:sizeof(labelUniform) atIndex:3];
         for (NSUInteger tile = 0; tile < [layer textureCount]; tile++) {
             viva_label_vertex vertices[18];
             size_t count = viva_label_tile_mesh([layer quad], [layer tint], [layer frame],
@@ -3730,6 +3763,7 @@ static void viva_encode_scene(
             case 21: self.accessibilityRole = NSAccessibilityStaticTextRole; break;
             case 22: self.accessibilityRole = NSAccessibilityStaticTextRole; break;
             case 23: self.accessibilityRole = NSAccessibilitySplitterRole; break;
+            case 24: self.accessibilityRole = NSAccessibilityProgressIndicatorRole; break;
             default: self.accessibilityRole = NSAccessibilityGroupRole; break;
         }
         if (config.secure) {
@@ -7384,7 +7418,7 @@ void *viva_application_open_window(viva_window_config config) {
         if (config.shader_library != NULL && config.shader_library_length > 0) {
             viva_remember_shader_library(config.shader_library, config.shader_library_length);
             _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
-            _Static_assert(sizeof(viva_text_label) == 264, "text label ABI must be 264 bytes");
+            _Static_assert(sizeof(viva_text_label) == 272, "text label ABI must be 272 bytes");
             _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
             _Static_assert(sizeof(viva_composite_command) == 36, "composite command ABI must be 36 bytes");
             dispatch_data_t libraryData = dispatch_data_create(

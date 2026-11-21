@@ -523,6 +523,8 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.u32(image.Bitmap.Version)
 		encodeRect(&result, image.Source)
 		encodeRect(&result, image.Bounds)
+		result.f32(image.Radius)
+		result.f32(image.Fade)
 		result.u16(image.Layer)
 		encodeRect(&result, image.ClipOf)
 		result.bool(image.HasClip)
@@ -655,7 +657,8 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			ID: value.u64(), Version: value.u32(),
 		}
 		result.Images[index] = gfx.Image{
-			Bitmap: bitmap, Source: decodeRect(&value), Bounds: decodeRect(&value), Layer: value.u16(),
+			Bitmap: bitmap, Source: decodeRect(&value), Bounds: decodeRect(&value),
+			Radius: value.f32(), Fade: value.f32(), Layer: value.u16(),
 			ClipOf: decodeRect(&value), HasClip: value.bool(), Order: value.u32(),
 		}
 		invalid := bitmap.Width <= 0 || bitmap.Height <= 0 || bitmap.Width > MaxFrameBytes/4 || bitmap.Stride < bitmap.Width*4

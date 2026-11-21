@@ -119,12 +119,6 @@ func (f *Frame) checkAttributesOf(n *Node) {
 	}
 	switch n.Kind {
 	case kindImage:
-		if n.Flags&flagHasRadius != 0 {
-			f.badAttribute(n, name, "Radius", "an Image paints its bitmap over the whole rectangle; Radius does not clip it")
-		}
-		if n.Ext != 0 && f.Exts[n.Ext].fade != 0 {
-			f.badAttribute(n, name, "Opacity", "an Image paints its bitmap at full opacity; the element's Opacity does not fade it")
-		}
 		if n.Flags&flagHasColor != 0 {
 			f.badAttribute(n, name, "Color", "an Image paints its own colors")
 		}
@@ -442,7 +436,8 @@ func (f *Frame) checkWidgetAttributes(n *Node, name string) {
 		rejectChildren()
 		rejectVariant()
 		rejectSize()
-		rejectLabel()
+		// Label names the progress bar's accessible node; it declares no hit of
+		// its own to name otherwise.
 		rejectDisabled()
 	case kindSpinner:
 		rejectPad()

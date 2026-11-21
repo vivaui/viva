@@ -1128,7 +1128,7 @@ func (bridge *atspiBridge) answerProperties(target atspiTarget, call *dbus.Messa
 		name := args.String()
 		signature := args.Signature()
 		node, ok := target.node()
-		if interfaceName != atspiIfaceValue || name != "CurrentValue" || signature != "d" || !ok || !node.Range.Set {
+		if interfaceName != atspiIfaceValue || name != "CurrentValue" || signature != "d" || !ok || !node.Range.Set || node.Role != platform.A11yRoleSlider {
 			return answerError("org.freedesktop.DBus.Error.PropertyReadOnly", interfaceName+"."+name)
 		}
 		value := decodeDouble(args)

@@ -329,8 +329,9 @@ func (textState *vulkanText) createPipeline(renderer *vulkanRenderer) (err error
 	blend := vkPipelineColorBlendStateCreateInfo{SType: vkStructurePipelineColorBlendStateCreateInfo, AttachmentCount: 1, Attachments: &blendAttachment}
 	dynamics := [2]uint32{vkDynamicViewport, vkDynamicScissor}
 	dynamic := vkPipelineDynamicStateCreateInfo{SType: vkStructurePipelineDynamicStateCreateInfo, DynamicCount: 2, Dynamics: &dynamics[0]}
-	// The vertex shader takes the label's frame; the LCD fragment shader its color.
-	push := [2]vkPushConstantRange{{StageFlags: vkShaderStageVertex, Size: 32}, {StageFlags: vkShaderStageFragment, Offset: 32, Size: 16}}
+	// The vertex shader takes the label's frame; the fragment shaders the LCD
+	// color and the image mask (size, radius, fade).
+	push := [2]vkPushConstantRange{{StageFlags: vkShaderStageVertex, Size: 32}, {StageFlags: vkShaderStageFragment, Offset: 32, Size: 32}}
 	layoutInfo := vkPipelineLayoutCreateInfo{
 		SType: vkStructurePipelineLayoutCreateInfo, SetLayoutCount: 1,
 		SetLayouts: uintptr(unsafe.Pointer(&textState.descriptorLayout)), PushConstantCount: 2, PushConstants: &push[0],
@@ -930,6 +931,8 @@ func (textState *vulkanText) record(renderer *vulkanRenderer, command uintptr, e
 	quad := label.quad(scale)
 	scratch.textFrame = [8]float32{float32(extent.Width) / scale, float32(extent.Height) / scale, quad[0], quad[1], quad[2], quad[3]}
 	renderer.api.cmdPushConstants(command, textState.pipelineLayout, vkShaderStageVertex, 0, uint32(unsafe.Sizeof(scratch.textFrame)), unsafe.Pointer(&scratch.textFrame[0]))
+	scratch.mask = [4]float32{float32(label.label.Width), float32(label.label.Height), label.label.ImageRadius, label.label.ImageFade}
+	renderer.api.cmdPushConstants(command, textState.pipelineLayout, vkShaderStageFragment, 48, uint32(unsafe.Sizeof(scratch.mask)), unsafe.Pointer(&scratch.mask[0]))
 	renderer.api.cmdBindDescriptorSets(command, vkPipelineBindPointGraphics, textState.pipelineLayout, 0, 1, &label.set, 0, nil)
 	if !label.lcd || textState.lcdPipeline == 0 {
 		renderer.api.cmdDraw(command, 6, 1, 0, 0)

@@ -422,6 +422,10 @@ type TextLabel struct {
 	BitmapStride  int
 	BitmapID      uint64
 	BitmapVersion uint32
+	// ImageRadius rounds an image label's corners and ImageFade is how much of
+	// it is transparent (1-opacity); zero is the plain square, opaque image.
+	ImageRadius float32
+	ImageFade   float32
 	// BitmapUpload is true only when Bitmap content must cross a native
 	// boundary. A false bitmap label references the matching retained texture.
 	BitmapUpload bool

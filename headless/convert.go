@@ -51,6 +51,7 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 			Clip: label.Clip, Clipped: label.Clipped,
 			Bitmap: label.Bitmap, BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight,
 			BitmapStride: label.BitmapStride, BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,
+			ImageRadius: label.ImageRadius, ImageFade: label.ImageFade,
 			BitmapUpload: len(label.Bitmap) > 0,
 			Quad:         label.Quad, HasQuad: label.HasQuad,
 			Color: platform.Color{Red: float64(label.Color.Red), Green: float64(label.Color.Green), Blue: float64(label.Color.Blue), Alpha: float64(label.Color.Alpha)},

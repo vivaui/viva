@@ -1075,7 +1075,11 @@ type Label struct {
 	BitmapStride  int
 	BitmapID      uint64
 	BitmapVersion uint32
-	BitmapUpload  bool
+	// ImageRadius and ImageFade are platform.TextLabel's: the corners of an
+	// image and how much of it is transparent.
+	ImageRadius  float32
+	ImageFade    float32
+	BitmapUpload bool
 	// Quad, while HasQuad, is where the label's picture lands: four corners in
 	// logical pixels with the colour multiplied into each, as gfx.Canvas.LabelQuad
 	// draws it. Bounds stays the box the picture was rasterised in.
@@ -1237,6 +1241,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,
+			ImageRadius: label.ImageRadius, ImageFade: label.ImageFade,
 			BitmapUpload: label.BitmapUpload,
 			Quad:         label.Quad, HasQuad: label.HasQuad,
 		}

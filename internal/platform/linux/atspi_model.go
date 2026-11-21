@@ -31,6 +31,7 @@ const (
 	atspiRoleButton       = 43
 	atspiRoleRadioButton  = 44
 	atspiRoleSeparator    = 50
+	atspiRoleProgressBar  = 42
 	atspiRoleSlider       = 51
 	atspiRoleStatusBar    = 54
 	atspiRoleTable        = 55
@@ -166,6 +167,8 @@ func atspiRole(node platform.AccessibilityNode) uint32 {
 		return atspiRoleStatusBar
 	case platform.A11yRoleSeparator:
 		return atspiRoleSeparator
+	case platform.A11yRoleProgress:
+		return atspiRoleProgressBar
 	}
 	return atspiRolePanel
 }
@@ -207,6 +210,8 @@ func atspiRoleName(role uint32) string {
 		return "radio button"
 	case atspiRoleSeparator:
 		return "separator"
+	case atspiRoleProgressBar:
+		return "progress bar"
 	case atspiRoleSlider:
 		return "slider"
 	case atspiRoleStatusBar:

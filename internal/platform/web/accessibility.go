@@ -187,6 +187,8 @@ func accessibilityRole(role gfx.Role) string {
 		return "status"
 	case gfx.RoleSeparator:
 		return "separator"
+	case gfx.RoleProgressBar:
+		return "progressbar"
 	default:
 		return "button"
 	}

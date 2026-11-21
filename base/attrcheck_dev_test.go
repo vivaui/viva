@@ -63,6 +63,8 @@ func TestBareConstructorsDoNotTripTheAttributeRules(t *testing.T) {
 			f.Input(InputSnapshot{ID: gfx.Item(4), Label: "Name", Value: "x"})
 			f.Textarea(TextareaSnapshot{ID: gfx.Item(5), Label: "Notes", Value: "x"})
 			f.Checkbox(gfx.Item(6), true).Caption("Sync")
+			f.Progress(gfx.ID{}, 0.5).Label("Loading")
+			f.Image(gfx.Bitmap{}).Radius(4).Opacity(0.5)
 			f.Switch(gfx.Item(7), false).Caption("Run")
 			f.Slot()
 		})
@@ -143,12 +145,12 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 		{"Segmented Children", []string{"Segmented", "Children"}, func(f *Frame) {
 			f.Segmented(nil, gfx.ID{}).Children(func() { f.Text("x") })
 		}},
-		{"Progress Pad", []string{"Progress", "Pad"}, func(f *Frame) { f.Progress(0.5).Pad(4) }},
-		{"Progress FontSize", []string{"Progress", "FontSize"}, func(f *Frame) { f.Progress(0.5).FontSize(18) }},
+		{"Progress Pad", []string{"Progress", "Pad"}, func(f *Frame) { f.Progress(gfx.ID{}, 0.5).Pad(4) }},
+		{"Progress FontSize", []string{"Progress", "FontSize"}, func(f *Frame) { f.Progress(gfx.ID{}, 0.5).FontSize(18) }},
 		{"Pagination Color", []string{"Pagination", "Color"}, func(f *Frame) {
 			f.Pagination(nil).Color(gfx.Color{Red: 1, Alpha: 1})
 		}},
-		{"Progress Disabled", []string{"Progress", "Disabled"}, func(f *Frame) { f.Progress(0.5).Disabled(true) }},
+		{"Progress Disabled", []string{"Progress", "Disabled"}, func(f *Frame) { f.Progress(gfx.ID{}, 0.5).Disabled(true) }},
 		{"Spinner Disabled", []string{"Spinner", "Disabled"}, func(f *Frame) { f.Spinner().Disabled(true) }},
 		{"Pagination Disabled", []string{"Pagination", "Disabled"}, func(f *Frame) {
 			f.Pagination(nil).Disabled(true)
@@ -181,9 +183,6 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 			f.Checkbox(gfx.Item(1), true).Color(gfx.Color{Red: 1, Alpha: 1})
 		}},
 		{"Badge size method", []string{"Badge", "Size"}, func(f *Frame) { f.Badge("New").Small() }},
-		{"Image Radius", []string{"Image", "Radius"}, func(f *Frame) {
-			f.Image(gfx.Bitmap{}).Radius(4)
-		}},
 		{"Checkbox type without caption", []string{"Checkbox", "FontSize/Weight/Color"}, func(f *Frame) {
 			f.Checkbox(gfx.Item(1), true).FontSize(18)
 		}},

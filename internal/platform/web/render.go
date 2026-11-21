@@ -334,7 +334,45 @@ func (runtime *runtime) drawBitmapLabel(label platform.TextLabel) {
 		runtime.bitmaps[key] = canvas
 	}
 	context := runtime.context
-	context.Call("drawImage", canvas, label.X+label.OriginX, label.Y+label.OriginY, label.Width, label.Height)
+	x, y := label.X+label.OriginX, label.Y+label.OriginY
+	needsRounded := label.ImageRadius > 0 && !label.HasQuad
+	needsFade := label.ImageFade > 0
+	if needsRounded || needsFade {
+		context.Call("save")
+		defer context.Call("restore")
+		if needsRounded {
+			clipRounded(context, gfx.Rect{X: x, Y: y, Width: label.Width, Height: label.Height}, label.ImageRadius)
+		}
+		if needsFade {
+			alpha := context.Get("globalAlpha").Float()
+			context.Set("globalAlpha", alpha*float64(1-label.ImageFade))
+		}
+	}
+	context.Call("drawImage", canvas, x, y, label.Width, label.Height)
+}
+
+// clipRounded clips the 2D context to a rounded rectangle: the same corners the
+// GPU backends cut an image's picture by.
+func clipRounded(context js.Value, bounds gfx.Rect, radius float32) {
+	context.Call("beginPath")
+	radius = min(radius, min(bounds.Width, bounds.Height)*0.5)
+	if roundRect := context.Get("roundRect"); roundRect.Type() == js.TypeFunction {
+		context.Call("roundRect", bounds.X, bounds.Y, bounds.Width, bounds.Height, radius)
+		context.Call("clip")
+		return
+	}
+	x, y, w, h := bounds.X, bounds.Y, bounds.Width, bounds.Height
+	context.Call("moveTo", x+radius, y)
+	context.Call("lineTo", x+w-radius, y)
+	context.Call("arcTo", x+w, y, x+w, y+radius, radius)
+	context.Call("lineTo", x+w, y+h-radius)
+	context.Call("arcTo", x+w, y+h, x+w-radius, y+h, radius)
+	context.Call("lineTo", x+radius, y+h)
+	context.Call("arcTo", x, y+h, x, y+h-radius, radius)
+	context.Call("lineTo", x, y+radius)
+	context.Call("arcTo", x, y, x+radius, y, radius)
+	context.Call("closePath")
+	context.Call("clip")
 }
 
 // bitmapCanvas converts a label's premultiplied BGRA pixels into an offscreen

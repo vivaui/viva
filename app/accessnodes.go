@@ -133,6 +133,8 @@ func accessRole(role semantic.Role) gfx.Role {
 		return gfx.RoleStatus
 	case semantic.RoleSeparator:
 		return gfx.RoleSeparator
+	case semantic.RoleProgress:
+		return gfx.RoleProgressBar
 	}
 	return 0
 }

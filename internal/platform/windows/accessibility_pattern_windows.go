@@ -153,7 +153,13 @@ func (provider *uiaProvider) offers(node platform.AccessibilityNode, kind uiaPat
 		return false
 	}
 	switch kind {
-	case patternInvoke, patternToggle, patternSelectionItem, patternExpandCollapse, patternRangeValue:
+	case patternRangeValue:
+		if node.Role == platform.A11yRoleProgress {
+			// A progress bar reports a range and accepts no number.
+			return node.Range.Set
+		}
+		fallthrough
+	case patternInvoke, patternToggle, patternSelectionItem, patternExpandCollapse:
 		// These act on the control, which a window with no way back to the
 		// application cannot do.
 		provider.Tree.mu.RLock()
@@ -321,7 +327,7 @@ func uiaRangeSetValueBits(this, bits uintptr) uintptr {
 		return status
 	}
 	number := math.Float64frombits(uint64(bits))
-	if !node.Range.Set {
+	if !node.Range.Set || node.Role == platform.A11yRoleProgress {
 		return windowsResult(resultNotSupported)
 	}
 	if math.IsNaN(number) || number < node.Range.Min || number > node.Range.Max {
@@ -342,6 +348,9 @@ func uiaGetRangeIsReadOnly(this, result uintptr) uintptr {
 	_, node, status := patternNode(this)
 	if status != 0 {
 		return status
+	}
+	if node.Role == platform.A11yRoleProgress {
+		return writeBool(result, true)
 	}
 	return writeBool(result, node.Disabled)
 }

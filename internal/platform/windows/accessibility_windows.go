@@ -61,25 +61,26 @@ const (
 	uiaTextChangedEvent          = 20015
 	uiaLiveRegionChangedEvent    = 20024
 
-	uiaButtonControlType    = 50000
-	uiaCheckBoxControlType  = 50002
-	uiaComboBoxControlType  = 50003
-	uiaEditControlType      = 50004
-	uiaHyperlinkControlType = 50005
-	uiaImageControlType     = 50006
-	uiaListItemControlType  = 50007
-	uiaListControlType      = 50008
-	uiaMenuControlType      = 50009
-	uiaMenuBarControlType   = 50010
-	uiaMenuItemControlType  = 50011
-	uiaRadioControlType     = 50013
-	uiaSliderControlType    = 50015
-	uiaTabItemControlType   = 50019
-	uiaTextControlType      = 50020
-	uiaGroupControlType     = 50026
-	uiaDataItemControlType  = 50029
-	uiaWindowControlType    = 50032
-	uiaSeparatorControlType = 50038
+	uiaButtonControlType      = 50000
+	uiaCheckBoxControlType    = 50002
+	uiaComboBoxControlType    = 50003
+	uiaEditControlType        = 50004
+	uiaHyperlinkControlType   = 50005
+	uiaImageControlType       = 50006
+	uiaListItemControlType    = 50007
+	uiaListControlType        = 50008
+	uiaMenuControlType        = 50009
+	uiaMenuBarControlType     = 50010
+	uiaMenuItemControlType    = 50011
+	uiaProgressBarControlType = 50012
+	uiaRadioControlType       = 50013
+	uiaSliderControlType      = 50015
+	uiaTabItemControlType     = 50019
+	uiaTextControlType        = 50020
+	uiaGroupControlType       = 50026
+	uiaDataItemControlType    = 50029
+	uiaWindowControlType      = 50032
+	uiaSeparatorControlType   = 50038
 
 	variantEmpty = 0
 	variantI4    = 3
@@ -1130,6 +1131,8 @@ func controlType(role uint8) int32 {
 		return uiaCheckBoxControlType
 	case platform.A11yRoleSlider:
 		return uiaSliderControlType
+	case platform.A11yRoleProgress:
+		return uiaProgressBarControlType
 	case platform.A11yRoleImage:
 		return uiaImageControlType
 	case platform.A11yRoleLink:
