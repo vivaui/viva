@@ -59,6 +59,10 @@ const panelDismissWindow = 350 * time.Millisecond
 // panelOrigin is where a panel's window is created: beside its anchor, or in the
 // middle of the screen without one.
 func (win *window) panelOrigin(config platform.Config) (x, y int16) {
+	if config.WindowMode == platform.WindowPreview {
+		scale := win.displayScale()
+		return clampInt16(int(config.Origin.X * scale)), clampInt16(int(config.Origin.Y * scale))
+	}
 	monitors := win.placementMonitors()
 	if config.WindowMode != platform.WindowPanel {
 		if config.HasOrigin {

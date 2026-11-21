@@ -19,6 +19,7 @@ import (
 )
 
 type window struct {
+	preview                   bool
 	fullscreen                atomic.Bool
 	topmost                   atomic.Bool
 	topmostConfigured         atomic.Bool
@@ -418,7 +419,9 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.wakePosts()
 	application.atspiOpened(state)
 	application.retryDesktopWatch()
-	activeWindow.Store(win)
+	if !win.preview {
+		activeWindow.Store(win)
+	}
 	if state.profile {
 		elapsed := float64(time.Since(state.started).Microseconds()) / 1000
 		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", elapsed)
@@ -794,7 +797,13 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 	if len(application.windows) == 0 {
 		activeWindow.CompareAndSwap(target.win, nil)
 	} else if activeWindow.Load() == target.win {
-		activeWindow.Store(application.windows[len(application.windows)-1].win)
+		activeWindow.Store(nil)
+		for i := len(application.windows) - 1; i >= 0; i-- {
+			if win := application.windows[i].win; !win.preview {
+				activeWindow.Store(win)
+				break
+			}
+		}
 	}
 	if target.config.OnClosed != nil {
 		target.config.OnClosed()
@@ -861,7 +870,9 @@ func (state *linuxWindowState) refreshReadOnlyTextInput() error {
 
 func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
-	activeWindow.Store(win)
+	if !win.preview {
+		activeWindow.Store(win)
+	}
 	kind := (*xcbGenericEvent)(event).ResponseType & 0x7f
 	if kind == xcbButtonPress || kind == xcbKeyPress {
 		if timestamp := (*xcbInputEvent)(event).Time; timestamp != 0 {
@@ -1297,7 +1308,7 @@ func validateConfig(config platform.Config) error {
 	if config.Width < 1 || config.Height < 1 || config.Width > math.MaxUint16 || config.Height > math.MaxUint16 {
 		return fmt.Errorf("linux: X11 window dimensions must be between 1 and %d, got %dx%d", uint32(math.MaxUint16), config.Width, config.Height)
 	}
-	if config.WindowMode > platform.WindowPanel {
+	if config.WindowMode > platform.WindowPreview {
 		return fmt.Errorf("linux: invalid window mode %d", config.WindowMode)
 	}
 	if err := validateRectangles(config.Rectangles); err != nil {
@@ -1346,6 +1357,17 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 	win.storeScale(scale)
 	win.width, win.height = deviceLength(config.Width, scale), deviceLength(config.Height, scale)
 	frameVisual := uint32(0)
+	if config.WindowMode == platform.WindowPreview {
+		win.preview = true
+		var ok bool
+		if win.compositing(screenIndex) {
+			frameVisual, ok = win.argbVisual()
+		}
+		if !ok {
+			win.close()
+			return nil, platform.ErrDragPreviewUnsupported
+		}
+	}
 	if config.WindowMode == platform.WindowCustomTitlebar {
 		// The application draws the frame of this window, and on a desktop that
 		// composites it draws the shadow and the round corners too, in a margin.
@@ -1385,11 +1407,13 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 	win.backPixel = clearPixel(config.ClearColor)
 	values := [3]uint32{win.backPixel, xcbGravityNorthWest, eventMask}
 	x, y := win.panelOrigin(config)
-	if win.frameWanted {
+	if win.frameWanted || win.preview {
 		win.createFrameWindow(frameVisual, eventMask, x, y)
 		win.depth = 32
-		win.setFrameExtents(win.margin)
-		win.updateInputRegion()
+		if !win.preview {
+			win.setFrameExtents(win.margin)
+			win.updateInputRegion()
+		}
 	} else {
 		api.createWindow(connection, xcbCopyFromParent, win.id, win.screen.Root, x, y, uint16(win.width), uint16(win.height), 0, xcbWindowClassInput, win.screen.RootVisual, xcbCWBackPixel|xcbCWBitGravity|xcbCWEventMask, &values[0])
 		win.depth = win.screen.RootDepth
@@ -1502,6 +1526,12 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		if err := win.setupFileDrop(); err != nil {
 			win.close()
 			return nil, err
+		}
+	}
+	if win.preview {
+		if err := win.markPreview(); err != nil {
+			win.close()
+			return nil, fmt.Errorf("%w: %v", platform.ErrDragPreviewUnsupported, err)
 		}
 	}
 	api.mapWindow(connection, win.id)
