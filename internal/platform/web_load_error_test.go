@@ -82,12 +82,14 @@ func TestEachWebKitErrorNamesItsFailure(t *testing.T) {
 		{2, WebLoadConnectionLost},
 		{3, WebLoadUnknownError}, // UNKNOWN_PROTOCOL
 		{4, WebLoadCancelled},
-		{5, WebLoadUnknownError}, // FILE_DOES_NOT_EXIST
-		{100, WebLoadUnknownError},
-		{102, WebLoadUnknownError}, // CANNOT_SHOW_URI
-		{199, WebLoadCancelled},
-		{200, WebLoadUnknownError},
-		{299, WebLoadCancelled},
+		{5, WebLoadUnknownError},   // FILE_DOES_NOT_EXIST
+		{100, WebLoadUnknownError}, // POLICY_ERROR_CANNOT_SHOW_MIME_TYPE
+		{101, WebLoadUnknownError}, // POLICY_ERROR_CANNOT_SHOW_URI
+		{102, WebLoadCancelled},    // POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE
+		{199, WebLoadUnknownError}, // POLICY_ERROR_FAILED
+		{200, WebLoadUnknownError}, // PLUGIN_ERROR_CANNOT_FIND_PLUGIN
+		{203, WebLoadCancelled},    // PLUGIN_ERROR_CONNECTION_CANCELLED
+		{299, WebLoadUnknownError}, // PLUGIN_ERROR_FAILED
 		{300, WebLoadUnknownError}, // a download's error, not a load's
 		{-1, WebLoadUnknownError},
 	} {

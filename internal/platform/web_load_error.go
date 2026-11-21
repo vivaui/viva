@@ -199,8 +199,8 @@ const (
 	webKitNetworkErrorTransport = 2
 	webKitNetworkErrorCancelled = 4
 
-	webKitPolicyErrorFrameLoadInterruptedByPolicyChange = 199
-	webKitPluginErrorFrameLoadInterruptedByPluginLoad   = 299
+	webKitPolicyErrorFrameLoadInterruptedByPolicyChange = 102
+	webKitPluginErrorConnectionCancelled                = 203
 )
 
 // WebLoadErrorFromWebKitError maps the code of the GError a WebKitGTK load-failed signal carries.
@@ -209,7 +209,7 @@ func WebLoadErrorFromWebKitError(code int32) WebLoadError {
 	case webKitNetworkErrorTransport:
 		return WebLoadConnectionLost
 	case webKitNetworkErrorCancelled, webKitPolicyErrorFrameLoadInterruptedByPolicyChange,
-		webKitPluginErrorFrameLoadInterruptedByPluginLoad:
+		webKitPluginErrorConnectionCancelled:
 		return WebLoadCancelled
 	}
 	// Network failures WebKitGTK has no name for, files that are not there, and the policy and
