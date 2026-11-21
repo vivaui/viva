@@ -65,14 +65,17 @@ int main(void) {
                 rgba[i + 2] = color == 0 ? 0 : 255;
             }
             check(viva_application_update_icon(icon) == 1, "Dock update accepted");
-            NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[[NSApp applicationIconImage] TIFFRepresentation]];
+            NSImage *dockIcon = [NSApp applicationIconImage];
+            NSSize points = NSMakeSize(icon.size / 2.0, icon.size / 2.0);
+            check(NSEqualSizes(dockIcon.size, points), "Dock keeps the expected size in points");
+            NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[dockIcon TIFFRepresentation]];
             NSColor *pixel = [[rep colorAtX:rep.pixelsWide / 2 y:rep.pixelsHigh / 2]
                              colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
-            // AppKit can color-manage the pixels when it snapshots the Dock image.
-            // Distinguish the two icon colors without requiring device-specific RGB values.
+            // AppKit can resample and color-manage the snapshot for the current display.
+            // Distinguish the two icon colors independently of scale and color profile.
             CGFloat primary = color == 0 ? pixel.redComponent : pixel.blueComponent;
             CGFloat other = color == 0 ? pixel.blueComponent : pixel.redComponent;
-            int matches = pixel != nil && rep.pixelsWide == icon.size && rep.pixelsHigh == icon.size &&
+            int matches = pixel != nil &&
                           primary > other && primary > pixel.greenComponent && pixel.alphaComponent > 0;
             if (!matches) {
                 fprintf(stderr, "Dock image %ldx%ld center: %s\n", (long)rep.pixelsWide, (long)rep.pixelsHigh,
