@@ -43,6 +43,14 @@ const (
 	// proxy settings. Linux reads the environment only, and macOS reports a
 	// PAC policy as an error.
 	CapabilitySystemProxy
+	// CapabilityClipboardImageWrite means SetClipboardImage can put a picture on
+	// the clipboard synchronously. The browser offers the write only through a
+	// Promise, so it reports CapabilityClipboardImageWriteAsync instead.
+	CapabilityClipboardImageWrite
+	// CapabilityClipboardImageWriteAsync means SetClipboardImageAsync can put a
+	// picture on the clipboard, completing before the call returns on a desktop
+	// and on the event loop in a browser.
+	CapabilityClipboardImageWriteAsync
 )
 
 // Capabilities is a set of platform integrations.

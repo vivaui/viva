@@ -61,6 +61,9 @@ func (win *window) ensureClipboardAtoms() error {
 	if win.htmlAtom, err = win.api.atom(win.connection, "text/html"); err != nil {
 		return err
 	}
+	if win.pngAtom, err = win.api.atom(win.connection, "image/png"); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -162,16 +165,32 @@ func (win *window) handleSelectionRequest(request *xcbSelectionRequestEvent) err
 		}
 		switch request.Target {
 		case win.targetsAtom:
-			targets := make([]uint32, 0, 7)
-			targets = append(targets, win.targetsAtom, win.utf8Atom, win.textAtom, xcbAtomString)
+			targets := make([]uint32, 0, 8)
+			targets = append(targets, win.targetsAtom)
+			// A clipboard that holds only a picture has no text to paste.
+			pictureOnly := request.Selection == win.clipboardAtom && len(win.clipboardImage) > 0 &&
+				win.clipboard == "" && win.clipboardHTML == "" && len(win.clipboardFiles) == 0
+			if !pictureOnly {
+				targets = append(targets, win.utf8Atom, win.textAtom, xcbAtomString)
+			}
 			if request.Selection == win.clipboardAtom && win.clipboardHTML != "" {
 				targets = append(targets, win.htmlAtom)
 			}
 			if request.Selection == win.clipboardAtom && len(win.clipboardFiles) > 0 {
 				targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
 			}
+			if request.Selection == win.clipboardAtom && len(win.clipboardImage) > 0 {
+				targets = append(targets, win.pngAtom)
+			}
 			win.api.changeProperty(win.connection, xcbPropertyReplace, request.Requestor, property, xcbAtomAtom, 32, uint32(len(targets)), unsafe.Pointer(&targets[0]))
 			notify.Property = property
+		case win.pngAtom:
+			// The picture of an image copy, passed on as the PNG its owner wrote;
+			// only the CLIPBOARD holds one, and only until another copy.
+			if request.Selection == win.clipboardAtom && len(win.clipboardImage) > 0 &&
+				win.writeSelection(request.Requestor, property, request.Target, win.clipboardImage) {
+				notify.Property = property
+			}
 		case win.htmlAtom:
 			// The rich flavour of a rich copy, beside the text its plain readers
 			// take; only the CLIPBOARD holds one, and only until another copy.
@@ -283,7 +302,7 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 	defer win.mu.Unlock()
 	switch {
 	case event.Selection == win.clipboardAtom && win.clipboardAtom != 0:
-		win.clipboard, win.clipboardHTML, win.clipboardFiles = "", "", nil
+		win.clipboard, win.clipboardHTML, win.clipboardFiles, win.clipboardImage = "", "", nil, nil
 		win.ownsClipboard = false
 	case event.Selection == xcbAtomPrimary:
 		win.selections.primary = ""
@@ -299,7 +318,7 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 func (win *window) saveClipboardToManager() {
 	win.mu.Lock()
 	connection, api := win.connection, win.api
-	owned := connection != 0 && win.ownsClipboard && (win.clipboard != "" || len(win.clipboardFiles) > 0)
+	owned := connection != 0 && win.ownsClipboard && (win.clipboard != "" || len(win.clipboardFiles) > 0 || len(win.clipboardImage) > 0)
 	win.mu.Unlock()
 	if !owned || api.convertSelection == nil {
 		return
@@ -328,6 +347,9 @@ func (win *window) saveClipboardToManager() {
 	}
 	if len(win.clipboardFiles) > 0 {
 		targets = append(targets, win.uriListAtom, win.gnomeFilesAtom)
+	}
+	if len(win.clipboardImage) > 0 {
+		targets = append(targets, win.pngAtom)
 	}
 	win.mu.Unlock()
 	if err != nil {

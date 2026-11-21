@@ -457,6 +457,44 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
     }
 }
 
+// viva_system_pasteboard_put_image_flavours writes png as public.png beside its
+// public.tiff conversion, the pair an image copy leaves: a reader that knows PNG
+// takes the original bytes, and an application that asks only for TIFF (Mail,
+// TextEdit, Notes) still pastes the picture.
+int viva_system_pasteboard_put_image_flavours(const char *pasteboard, const uint8_t *png, size_t length) {
+    __block char *failure = NULL;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSData *bytes = [NSData dataWithBytes:png length:length];
+            NSBitmapImageRep *representation = [NSBitmapImageRep imageRepWithData:bytes];
+            NSData *tiff = representation.TIFFRepresentation;
+            if (tiff == nil) {
+                failure = viva_copy_utf8(@"clipboard image is not a picture AppKit reads");
+                return;
+            }
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            [board clearContents];
+            if (![board setData:bytes forType:NSPasteboardTypePNG]) {
+                failure = viva_copy_utf8(@"AppKit refused clipboard PNG");
+                return;
+            }
+            // The conversion is the flavour older readers ask for; the PNG stays
+            // the original, so a refusal here only costs that compatibility.
+            [board setData:tiff forType:NSPasteboardTypeTIFF];
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (failure != NULL) {
+        free(failure);
+        return -1;
+    }
+    return 0;
+}
+
 int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message) {
     if (paths == NULL) {
         viva_set_error(error_message, @"clipboard files output is missing");

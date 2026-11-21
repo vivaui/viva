@@ -167,6 +167,12 @@ func (a *gtkApplication) installHooks() {
 			}
 			return
 		},
+		setClipboardImage: func(png []byte) (err error) {
+			if e := a.onMain(func() { err = a.writeImage(png) }); e != nil {
+				return e
+			}
+			return
+		},
 		setCursorShape: func(shape uint8) (err error) {
 			if e := a.onMain(func() { err = a.setCursor(shape) }); e != nil {
 				return e
@@ -269,6 +275,46 @@ func (a *gtkApplication) writeHTML(html, alt string) error {
 	runtime.KeepAlive(textName)
 	runtime.KeepAlive(htmlBytes)
 	runtime.KeepAlive(textBytes)
+	return nil
+}
+
+// writeImage makes the clipboard hold png as the image/png target, the one an
+// image viewer answers and Viva itself reads. GTK owns it through
+// gtk_clipboard_set_with_data, whose get callback passes the owner's own bytes
+// on, so the copy keeps its exact bytes and their transparency; the picture
+// lives as long as the clipboard does, as it does on X11.
+func (a *gtkApplication) writeImage(png []byte) error {
+	c, err := a.clipboardAPI()
+	if err != nil {
+		return err
+	}
+	if c.setWithData == nil {
+		return ErrUnsupported
+	}
+	pngName := cString("image/png")
+	targets := [1]gtkTargetEntry{
+		{target: uintptr(unsafe.Pointer(&pngName[0]))},
+	}
+	pngAtom := c.atomIntern(&pngName[0], 0)
+	picture := append([]byte(nil), png...)
+	// The get callback runs on GTK's thread with the picture this closure
+	// captured, and answers the one target the copy advertises; a request for
+	// anything else stays unanswered, as it is on X11.
+	get := purego.NewCallback(func(clipboard, selection, data uintptr) uintptr {
+		if kind := c.selectionGet(data); kind != pngAtom {
+			return 0
+		}
+		c.selectionSet(data, pngAtom, 8, &picture[0], int32(len(picture)))
+		return 0
+	})
+	clearCallback := purego.NewCallback(func(clipboard, userData uintptr) uintptr { return 0 })
+	if c.setWithData(c.clipboard, uintptr(unsafe.Pointer(&targets[0])), 1, get, clearCallback, 0) == 0 {
+		return fmt.Errorf("linux: gtk_clipboard_set_with_data failed")
+	}
+	// gtk_clipboard_set_with_data reads the entry in the call; the get callback
+	// keeps the picture for as long as GTK may ask for it.
+	runtime.KeepAlive(pngName)
+	runtime.KeepAlive(picture)
 	return nil
 }
 

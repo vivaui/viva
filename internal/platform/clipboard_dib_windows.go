@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/png"
 )
 
@@ -261,4 +262,65 @@ func EncodePNG(picture image.Image) ([]byte, error) {
 		return nil, ErrClipboardImageTooLarge
 	}
 	return out.Bytes(), nil
+}
+
+// PNGToDIB converts PNG bytes to the packed bitmap the CF_DIB format carries: a
+// BITMAPINFOHEADER and 32-bit bottom-up BGRX rows, top-left origin. The picture
+// is composited on white, because a CF_DIB has no alpha to carry: a reader that
+// keeps transparency takes the registered "PNG" format the clipboard offers
+// beside it. A PNG with too many pixels or a bitmap above MaxClipboardRawBytes
+// is ErrClipboardImageTooLarge.
+func PNGToDIB(encoded []byte) ([]byte, error) {
+	picture, err := png.Decode(bytes.NewReader(encoded))
+	if err != nil {
+		return nil, fmt.Errorf("clipboard PNG cannot be decoded: %w", err)
+	}
+	bounds := picture.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if width <= 0 || height <= 0 {
+		return nil, fmt.Errorf("clipboard PNG has no pixels")
+	}
+	if width > maxDIBPixels || height > maxDIBPixels || width*height > maxDIBPixels {
+		return nil, ErrClipboardImageTooLarge
+	}
+	stride := width * 4
+	size := dibInfoHeader + stride*height
+	if size > MaxClipboardRawBytes {
+		return nil, ErrClipboardImageTooLarge
+	}
+	pixels := image.NewNRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(pixels, pixels.Bounds(), picture, bounds.Min, draw.Src)
+	dib := make([]byte, size)
+	binary.LittleEndian.PutUint32(dib[0:], dibInfoHeader)
+	binary.LittleEndian.PutUint32(dib[4:], uint32(width))
+	binary.LittleEndian.PutUint32(dib[8:], uint32(height)) // a positive height is bottom-up
+	binary.LittleEndian.PutUint16(dib[12:], 1)             // planes
+	binary.LittleEndian.PutUint16(dib[14:], 32)            // bits per pixel
+	// BI_RGB and the palette fields stay the zero the block already holds.
+	binary.LittleEndian.PutUint32(dib[20:], uint32(stride*height)) // the pixels' size
+	binary.LittleEndian.PutUint32(dib[24:], 2835)                  // 72 dpi
+	binary.LittleEndian.PutUint32(dib[28:], 2835)
+	for row := range height {
+		source := pixels.Pix[row*pixels.Stride:]
+		target := dib[dibInfoHeader+(height-1-row)*stride:]
+		for column := range width {
+			red, green, blue, alpha := source[column*4], source[column*4+1], source[column*4+2], uint32(source[column*4+3])
+			target[column*4] = compositeOnWhite(blue, alpha)
+			target[column*4+1] = compositeOnWhite(green, alpha)
+			target[column*4+2] = compositeOnWhite(red, alpha)
+			// A reader that takes the unused byte for alpha sees an opaque
+			// picture, which is what the composited colours already are.
+			target[column*4+3] = 0xff
+		}
+	}
+	return dib, nil
+}
+
+// compositeOnWhite layers a straight-alpha channel value over white, the
+// background a CF_DIB reader draws where the picture is transparent.
+func compositeOnWhite(value uint8, alpha uint32) uint8 {
+	if alpha == 255 {
+		return value
+	}
+	return uint8((uint32(value)*alpha + 255*(255-alpha) + 127) / 255)
 }

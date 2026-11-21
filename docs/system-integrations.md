@@ -13,6 +13,7 @@ synchronous forms report `ErrAsyncRequired`, `ErrSecretStoreUnavailable` or
 | Column-selection clipboard (`SetRectangularClipboardText`, `ClipboardTextWithFormat`; `TextInput.CopyRectangular`, `TextEvent.Rectangular`) | no platform format; reads report `false` | Unicode text beside `MSDEVColumnSelect` (presence) and `Borland IDE Block Type` (one byte, `0x02`); an advertised marker whose data cannot be read is pasted as stream text | reads report `false` | reads report `false` |
 | Rich copy (`SetClipboardHTML`, html + plain alt) | `NSPasteboard`: `public.html` beside `public.utf8-plain-text` | registered `HTML Format` (CF_HTML, with its header of byte offsets) beside `CF_UNICODETEXT` | X11 `CLIPBOARD`: `text/html` target beside `UTF8_STRING`; the GTK shell serves the same pair through `gtk_clipboard_set_with_data` | synchronous calls return `ErrAsyncRequired`; `SetClipboardHTMLAsync` writes one `ClipboardItem` with both MIME flavours and needs a user gesture |
 | Copied files (`ClipboardFiles`, returns `[]string`) | the pasteboard's file URLs, file reference URLs resolved to paths; promised files have no path and are not listed | the `CF_HDROP` list (UTF-16 form) | X11 `CLIPBOARD`: `x-special/gnome-copied-files` (Nautilus, Nemo, Caja, Thunar) or `text/uri-list` (Dolphin, most toolkits); the GTK shell asks GTK for `text/uri-list` | `ErrUnsupported` |
+| Copying a picture (`SetClipboardImage`, the write side of `ClipboardImagePNG`) | `NSPasteboard`: `public.png` beside its `public.tiff` conversion, so a reader that asks only for TIFF (Mail, TextEdit, Notes) pastes too | registered `PNG` format beside `CF_DIB` (32-bit, bottom-up); Windows synthesises `CF_DIBV5` and `CF_BITMAP` for the readers that ask for those. The bitmap is composited on white because a DIB carries no alpha | X11 `CLIPBOARD`: `image/png` target served from the window's own copy, INCR above one property; the GTK shell serves the same target through `gtk_clipboard_set_with_data`. Needs a running window (GTK does not) | synchronous calls return `ErrAsyncRequired`; `SetClipboardImageAsync` writes one `ClipboardItem` with the `image/png` flavour and needs a user gesture |
 | Dragging files out (`StartFileDrag`, returns `FileDragEffect`) | `ErrUnsupported`: needs an `NSDraggingSession`, which the adapter does not bind yet | an OLE drag: an `IDataObject` offering the paths as `CF_HDROP` and an `IDropSource` that ends the drag when the pointer is released and cancels it on Escape, run by `DoDragDrop` on the window's event-loop thread. `SetClipboardFiles` is the copy a paste makes, not this | `ErrUnsupported`: needs XDND as a source, which the adapter does not speak yet | `ErrUnsupported`: a canvas has no DOM `DataTransfer` |
 | Primary selection (`SetPrimarySelection`, `PrimarySelection`) | `ErrUnsupported` | `ErrUnsupported` | X11 `PRIMARY`: selected text, pasted with a middle click | `ErrUnsupported` |
 | Cursor shape | AppKit cursor; wait unsupported, diagonal resize requires macOS 15 | Win32 system cursors; running window required | XCB cursor font; running window required | CSS cursor on `documentElement` |
@@ -77,6 +78,33 @@ single running copy should pass those arguments through
 - `ErrPermissionDenied` means the user or system denied the capability.
 
 Callers should use `errors.Is` rather than matching error strings.
+
+## Copying a picture onto the clipboard
+
+`SetClipboardImage` is the write side of `ClipboardImagePNG`: it makes a PNG the
+picture the clipboard holds, so another application's Paste puts it there, and a
+later read of what it wrote returns the same picture. It replaces everything the
+clipboard held, text included, because one clipboard holds one copy.
+
+Each platform offers the picture in the flavours its readers ask for. Windows
+puts the registered `PNG` format, which is the exact file, beside `CF_DIB`, which
+is what Paint, Word and Explorer's preview ask for; the DIB is composited on
+white because that format has no alpha, so the transparency of the original
+survives only in the `PNG` flavour. macOS puts `public.png` beside its
+`public.tiff` conversion, for the applications that ask for TIFF alone. Linux
+serves the `image/png` target from the window's own copy, which means a copy
+needs a running window: a selection lives as long as its owner does, and the GTK
+shell is the exception because GTK keeps it. The browser writes one
+`ClipboardItem` with the `image/png` flavour through `SetClipboardImageAsync`;
+the synchronous call reports `ErrAsyncRequired` there, as every other clipboard
+write does.
+
+The bytes are checked before anything is written: an empty image, one that is
+not a PNG, one above `MaxClipboardImageBytes`, and on Windows one whose pixels
+would not fit a bitmap are errors, and a refused copy leaves the clipboard as it
+was. The headless driver keeps the picture in its private clipboard
+(`Driver.SetClipboardImage`) and answers the same reads, so a copy and the paste
+that follows it can be exercised without a desktop.
 
 ## Pasting a picture into a text field
 
@@ -145,7 +173,7 @@ through Promises. They are intentionally not started from the synchronous API:
 returning before the Promise settles would lie about success, and waiting would
 deadlock the WASM event loop. The typed asynchronous counterparts are
 `ClipboardTextAsync`, `SetClipboardTextAsync`, `SetClipboardHTMLAsync`, `RequestClipboardImage`,
-`OpenFilesAsync`, `SaveFileAsync`, `StoreSecretAsync`, `LoadSecretAsync`,
+`SetClipboardImageAsync`, `OpenFilesAsync`, `SaveFileAsync`, `StoreSecretAsync`, `LoadSecretAsync`,
 `DeleteSecretAsync`, `RegisterFontAsync` and `RequestNotificationPermission`.
 Each calls its completion exactly once; native targets complete before the call
 returns, browsers complete on the event loop.

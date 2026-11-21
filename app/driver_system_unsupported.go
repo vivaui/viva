@@ -24,6 +24,8 @@ func driverClipboardFiles() (paths []string, err error, handled bool) { return n
 
 func driverSetClipboardFiles([]string) (error, bool) { return nil, false }
 
+func driverSetClipboardImage([]byte) (error, bool) { return nil, false }
+
 func driverStartFileDrag([]string, platform.DragEffect) (platform.DragEffect, error, bool) {
 	return platform.DragEffectNone, nil, false
 }
