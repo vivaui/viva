@@ -234,3 +234,93 @@ func TestEphemeralReachesThePlatformAndIsOffByDefault(t *testing.T) {
 		t.Fatalf("the platform got %+v, want the flag as the application set it", opened)
 	}
 }
+
+// testWebView is a page as the platform hands one over: the state the test sets is what the
+// application reads back, and nothing reaches a window.
+type testWebView struct {
+	title        string
+	canGoBack    bool
+	canGoForward bool
+	loading      bool
+	loaded       []string
+}
+
+func (view *testWebView) Load(url string) {
+	view.loaded = append(view.loaded, url)
+}
+
+func (view *testWebView) LoadHTML(html, baseURL string) {
+	view.loaded = append(view.loaded, baseURL)
+}
+
+func (view *testWebView) Reload()                 {}
+func (view *testWebView) Back()                   {}
+func (view *testWebView) Forward()                {}
+func (view *testWebView) Eval(script string)      {}
+func (view *testWebView) PostMessage(text string) {}
+func (view *testWebView) Focus()                  {}
+func (view *testWebView) Title() string           { return view.title }
+func (view *testWebView) CanGoBack() bool         { return view.canGoBack }
+func (view *testWebView) CanGoForward() bool      { return view.canGoForward }
+func (view *testWebView) IsLoading() bool         { return view.loading }
+func (view *testWebView) Close()                  {}
+
+func TestAPageReportsItsOwnState(t *testing.T) {
+	page := &testWebView{title: "Settings", canGoBack: true, loading: true}
+	host := &WebHost{native: &platform.WebHost{Open: func(platform.WebViewConfig) (platform.WebView, error) {
+		return page, nil
+	}}}
+	view, err := host.Open(WebViewConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Title() != "Settings" || !view.CanGoBack() || view.CanGoForward() || !view.IsLoading() {
+		t.Fatalf("title=%q back=%v forward=%v loading=%v, want the page's own state",
+			view.Title(), view.CanGoBack(), view.CanGoForward(), view.IsLoading())
+	}
+	// The state is read from the page each time, so what the page reports later is what the
+	// application sees.
+	page.title, page.canGoBack, page.canGoForward, page.loading = "", false, true, false
+	if view.Title() != "" || view.CanGoBack() || !view.CanGoForward() || view.IsLoading() {
+		t.Fatalf("title=%q back=%v forward=%v loading=%v, want the page's new state",
+			view.Title(), view.CanGoBack(), view.CanGoForward(), view.IsLoading())
+	}
+	view.Load("https://example.com/next")
+	if len(page.loaded) != 1 || page.loaded[0] != "https://example.com/next" {
+		t.Fatalf("the page got %q", page.loaded)
+	}
+}
+
+func TestALoadReportCarriesTheTitleAndTheFailure(t *testing.T) {
+	var report func(platform.WebLoad)
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		report = config.OnLoad
+		return &testWebView{}, nil
+	}}}
+	var loads []WebLoad
+	if _, err := host.Open(WebViewConfig{OnLoad: func(load WebLoad) { loads = append(loads, load) }}); err != nil {
+		t.Fatal(err)
+	}
+	if report == nil {
+		t.Fatal("the platform got no load callback")
+	}
+	report(platform.WebLoad{Phase: platform.WebLoadFinished, URL: "https://example.com/", Title: "Example Domain"})
+	if len(loads) != 1 {
+		t.Fatalf("a load that finished reported %d times", len(loads))
+	}
+	if got := loads[0]; got.Phase != WebLoadFinished || got.URL != "https://example.com/" ||
+		got.Title != "Example Domain" || got.Code != WebLoadNoError || got.Description != "" {
+		t.Fatalf("a load that finished = %+v", got)
+	}
+	report(platform.WebLoad{
+		Phase: platform.WebLoadFinished, URL: "https://example.com/missing", Title: "Error",
+		Code: platform.WebLoadHostNotFound, Description: "A server with the specified hostname could not be found.",
+	})
+	if len(loads) != 2 {
+		t.Fatalf("a load that failed reported after %d loads", len(loads))
+	}
+	if got := loads[1]; got.Title != "Error" || got.Code != WebLoadHostNotFound ||
+		got.Description != "A server with the specified hostname could not be found." {
+		t.Fatalf("a load that failed = %+v, want the title and the engine's reason", got)
+	}
+}

@@ -407,25 +407,35 @@ const (
 	viewGoBack                = 40
 	viewGoForward             = 41
 	viewGetSource             = 4
-	viewAddWebResourceReq     = 55
-	viewAddResourceFilter     = 57
+	// The page's own state, in ICoreWebView2's IDL order: get_CanGoBack 38, get_CanGoForward 39,
+	// get_DocumentTitle 48 (add_DocumentTitleChanged is 46, remove_DocumentTitleChanged 47). The
+	// load's end is NavigationCompleted 15 on that same interface, and a failed one is told apart
+	// through its event args below.
+	viewGetCanGoBack      = 38
+	viewGetCanGoForward   = 39
+	viewGetDocumentTitle  = 48
+	viewAddWebResourceReq = 55
+	viewAddResourceFilter = 57
 	// ICoreWebView2_4 adds DownloadStarting after every ICoreWebView2_3 method.
-	viewAddDownloadStarting   = 75
-	messageTryGetString       = 5
-	startingGetURI            = 3
-	startingGetUserGesture    = 4
-	startingGetRedirected     = 5
-	startingPutCancel         = 8
-	newWindowGetURI           = 3
-	newWindowPutHandled       = 6
-	downloadArgsGetOperation  = 3
-	downloadArgsPutCancel     = 5
-	downloadArgsGetResultPath = 6
-	downloadArgsPutResultPath = 7
-	downloadArgsPutHandled    = 9
-	downloadGetURI            = 9
-	resourceArgsGetRequest    = 3
-	resourceArgsPutResponse   = 5
+	viewAddDownloadStarting = 75
+	messageTryGetString     = 5
+	// ICoreWebView2NavigationCompletedEventArgs: get_IsSuccess 3, get_WebErrorStatus 4.
+	navigationCompletedIsSuccess = 3
+	navigationCompletedError     = 4
+	startingGetURI               = 3
+	startingGetUserGesture       = 4
+	startingGetRedirected        = 5
+	startingPutCancel            = 8
+	newWindowGetURI              = 3
+	newWindowPutHandled          = 6
+	downloadArgsGetOperation     = 3
+	downloadArgsPutCancel        = 5
+	downloadArgsGetResultPath    = 6
+	downloadArgsPutResultPath    = 7
+	downloadArgsPutHandled       = 9
+	downloadGetURI               = 9
+	resourceArgsGetRequest       = 3
+	resourceArgsPutResponse      = 5
 	// ICoreWebView2WebResourceRequestedEventArgs::GetDeferral holds the request open.
 	resourceArgsGetDeferral = 6
 	// ICoreWebView2Deferral::Complete says the request may continue.

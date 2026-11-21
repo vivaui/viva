@@ -148,6 +148,15 @@ const (
 type WebLoad struct {
 	Phase WebLoadPhase
 	URL   string
+	// Title is the title of the document the engine holds at this step: empty before a page has
+	// one, and still the title of the document being left at Started.
+	Title string
+	// Code is why a navigation failed, when Phase is WebLoadFinished and the page did not load;
+	// WebLoadNoError when it did, and at every earlier step.
+	// Description is the engine's own message for it, when the engine gives one: WebView2 names
+	// a status and no text, so it is empty on Windows.
+	Code        WebLoadError
+	Description string
 }
 
 // WebView is one open page.
@@ -163,5 +172,15 @@ type WebView interface {
 	PostMessage(text string)
 	// Focus gives the page the keyboard.
 	Focus()
+	// Title is the title of the page's current document: empty before the engine has one, and
+	// after the page closes.
+	Title() string
+	// CanGoBack and CanGoForward report whether the page's history has an entry each way.
+	CanGoBack() bool
+	CanGoForward() bool
+	// IsLoading reports whether the page is loading a navigation: from the engine's start of one
+	// until it finishes or fails. WebView2 has no property for it, so Windows follows the
+	// navigation's events.
+	IsLoading() bool
 	Close()
 }

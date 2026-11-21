@@ -114,6 +114,12 @@ type windowsWeb struct {
 	// the page to the application already, which then hears of a failure only from the report.
 	failure  error
 	returned bool
+	// loading is a navigation the page is in the middle of. WebView2 has no property for it, so it
+	// follows the events: a main frame navigation that started, until its NavigationCompleted.
+	loading bool
+	// refused is a main frame navigation the application's Navigate cancelled. The runtime reports
+	// the cancellation as the navigation's end, which the application already answered.
+	refused bool
 }
 
 func newWebHost(state *windowState, host *platform.WebHost, initial []platform.NativeView) *webHost {
@@ -305,18 +311,14 @@ func (page *windowsWeb) attach(environment uintptr) {
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
 	page.addDownloadHandler()
-	for _, event := range []struct {
-		slot  int
-		phase platform.WebLoadPhase
-	}{{viewAddContentLoading, platform.WebLoadCommitted}, {viewAddNavCompleted, platform.WebLoadFinished}} {
-		phase := event.phase
-		comCall(view, event.slot, newHandler(func(_, _ uintptr) uintptr {
-			var address uintptr
-			comCall(view, viewGetSource, uintptr(unsafe.Pointer(&address)))
-			page.loaded(phase, wideString(address))
-			return 0
-		}), uintptr(unsafe.Pointer(&token)))
-	}
+	comCall(view, viewAddContentLoading, newHandler(func(_, _ uintptr) uintptr {
+		page.loaded(platform.WebLoadCommitted, page.sourceAddress(), platform.WebLoadNoError, "")
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
+	comCall(view, viewAddNavCompleted, newHandler(func(_, args uintptr) uintptr {
+		page.navigationCompleted(args)
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
 	script := platform.WebBridgeScript
 	if page.config.BridgeMainFrameOnly {
 		script = platform.WebBridgeMainFrameOnlyScript
@@ -355,12 +357,58 @@ func (page *windowsWeb) do(action func()) {
 }
 
 // loaded reports a step of navigation, with the page's own scheme in the address as the
-// application knows it.
-func (page *windowsWeb) loaded(phase platform.WebLoadPhase, address string) {
+// application knows it and the title the page has at that step. code is why the navigation failed,
+// when the step is the one that ends it.
+func (page *windowsWeb) loaded(phase platform.WebLoadPhase, address string, code platform.WebLoadError, description string) {
 	if page.closed || page.config.OnLoad == nil {
 		return
 	}
-	page.config.OnLoad(platform.WebLoad{Phase: phase, URL: page.appAddress(address)})
+	page.config.OnLoad(platform.WebLoad{
+		Phase: phase, URL: page.appAddress(address), Title: page.documentTitle(),
+		Code: code, Description: description,
+	})
+}
+
+// navigationCompleted reports the end of a navigation: the runtime's source for the address, and
+// its status when the page did not load. A navigation the application refused is not reported: the
+// cancellation the runtime calls its end is the answer the application gave.
+func (page *windowsWeb) navigationCompleted(args uintptr) {
+	page.loading = false
+	if page.refused {
+		page.refused = false
+		return
+	}
+	code := platform.WebLoadNoError
+	var success int32
+	if args != 0 {
+		comCall(args, navigationCompletedIsSuccess, uintptr(unsafe.Pointer(&success)))
+		if success == 0 {
+			var status int32
+			comCall(args, navigationCompletedError, uintptr(unsafe.Pointer(&status)))
+			code = platform.WebLoadErrorFromWebView2Status(status)
+		}
+	}
+	page.loaded(platform.WebLoadFinished, page.sourceAddress(), code, "")
+}
+
+// sourceAddress is the address of the document the page has, as the runtime names it.
+func (page *windowsWeb) sourceAddress() string {
+	if page.view == 0 {
+		return ""
+	}
+	var address uintptr
+	comCall(page.view, viewGetSource, uintptr(unsafe.Pointer(&address)))
+	return wideString(address)
+}
+
+// documentTitle is the title the runtime has for the page's document, empty until it has one.
+func (page *windowsWeb) documentTitle() string {
+	if page.view == 0 {
+		return ""
+	}
+	var title uintptr
+	comCall(page.view, viewGetDocumentTitle, uintptr(unsafe.Pointer(&title)))
+	return wideString(title)
 }
 
 // appAddress is an address as the application knows it: the page's own scheme is served as
@@ -394,13 +442,17 @@ func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 	}
 	if !allowed {
 		comCall(args, startingPutCancel, 1)
+		if mainFrame {
+			page.refused, page.loading = true, false
+		}
 		return
 	}
 	// Started is reported only for a navigation the application allows: macOS and Linux start a
 	// load after their policy decision, so a refused one must not leave a Started without a
 	// Committed or Finished. loaded names the address as the application knows it there too.
 	if mainFrame {
-		page.loaded(platform.WebLoadStarted, url)
+		page.refused, page.loading = false, true
+		page.loaded(platform.WebLoadStarted, url, platform.WebLoadNoError, "")
 	}
 }
 
@@ -624,6 +676,27 @@ func (page *windowsWeb) Reload()  { page.do(func() { comCall(page.view, viewRelo
 func (page *windowsWeb) Back()    { page.do(func() { comCall(page.view, viewGoBack) }) }
 func (page *windowsWeb) Forward() { page.do(func() { comCall(page.view, viewGoForward) }) }
 
+// Title is the title of the page's current document, which the runtime keeps for the page it made:
+// empty before it has one, and once the page has closed.
+func (page *windowsWeb) Title() string { return page.documentTitle() }
+
+// CanGoBack and CanGoForward ask the runtime about the page's history.
+func (page *windowsWeb) CanGoBack() bool    { return page.canGo(viewGetCanGoBack) }
+func (page *windowsWeb) CanGoForward() bool { return page.canGo(viewGetCanGoForward) }
+
+func (page *windowsWeb) canGo(slot int) bool {
+	if page.view == 0 {
+		return false
+	}
+	var can int32
+	comCall(page.view, slot, uintptr(unsafe.Pointer(&can)))
+	return can != 0
+}
+
+// IsLoading is the navigation the runtime is in the middle of, which this page follows from the
+// events: WebView2 has no property that answers it.
+func (page *windowsWeb) IsLoading() bool { return page.loading }
+
 func (page *windowsWeb) Eval(script string) {
 	page.do(func() { comCall(page.view, viewExecuteScript, uintptr(unsafe.Pointer(wide(script))), 0) })
 }
@@ -645,6 +718,7 @@ func (page *windowsWeb) Close() {
 		return
 	}
 	page.closed = true
+	page.loading = false
 	delete(page.host.pages, page.id)
 	page.release()
 }
