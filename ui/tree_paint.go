@@ -57,7 +57,7 @@ func treeStateDraw(s *TreeState, d *DrawContext) {
 		if row.GetGen() != d.Frame.GetGen() || &d.Frame.Nodes[row.Node] != d.Node {
 			continue
 		}
-		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.IndentValue(d.Theme))
+		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.IndentValue(d.Theme)).SelectedColor(s.SelectedColor)
 		tree.Item(row.GetItem())
 		if s.DragPtr().GetActive() {
 			s.DragOver(row, d)
