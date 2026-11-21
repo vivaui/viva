@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -322,5 +324,90 @@ func TestALoadReportCarriesTheTitleAndTheFailure(t *testing.T) {
 	if got := loads[1]; got.Title != "Error" || got.Code != WebLoadHostNotFound ||
 		got.Description != "A server with the specified hostname could not be found." {
 		t.Fatalf("a load that failed = %+v, want the title and the engine's reason", got)
+	}
+}
+
+func TestAPartitionReachesThePlatformFoldedToLowerCase(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{Partition: "Workspace-1"}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	// Windows maps a WebView2 profile name to a folder that ignores case, so a name is folded before
+	// any platform sees it: two names that differ only in case are one store everywhere.
+	if opened.Partition != "workspace-1" {
+		t.Fatalf("the platform got partition %q, want it folded", opened.Partition)
+	}
+}
+
+// A page that names no partition asks the platform for nothing it did not ask for before, down to
+// every field of the configuration: a field added later that such a page leaves at its zero value
+// must stay there, or the store of every page in the application changes with it.
+func TestAPageWithoutAPartitionAsksForNoStore(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{URL: "https://example.com/"}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	want := platform.WebViewConfig{ID: 1, URL: "https://example.com/"}
+	if !reflect.DeepEqual(opened, want) {
+		t.Fatalf("the platform got %+v, want %+v", opened, want)
+	}
+}
+
+func TestAPartitionNameIsOneEveryEngineAccepts(t *testing.T) {
+	accepted := []string{
+		"a",
+		"workspace-1",
+		"Acct@Home",
+		"12#ab$cd(ef)+gh_ij~kl.mn",
+		"with a space",
+		strings.Repeat("n", 64),
+	}
+	refused := []string{
+		strings.Repeat("n", 65),
+		"trailing.",
+		"trailing ",
+		"slash/name",
+		"back\\slash",
+		"colon:name",
+		"star*name",
+		"quote\"name",
+		"ümlaut",
+	}
+	for _, name := range accepted {
+		if _, err := partitionName(name); err != nil {
+			t.Fatalf("partition %q was refused: %v", name, err)
+		}
+	}
+	for _, name := range refused {
+		if _, err := partitionName(name); err == nil {
+			t.Fatalf("partition %q was accepted", name)
+		}
+	}
+	if name, err := partitionName(""); err != nil || name != "" {
+		t.Fatalf("no partition = %q, %v", name, err)
+	}
+}
+
+// A name WebView2 would refuse is refused before the platform is asked, on every platform, rather than
+// failing late on one engine and meaning something else on another.
+func TestARefusedPartitionNameNeverReachesThePlatform(t *testing.T) {
+	asked := false
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		asked = true
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{URL: "https://example.com/", Partition: strings.Repeat("n", 65)}); err == nil || errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v, want the name refused by the application", err)
+	}
+	if asked {
+		t.Fatal("the platform was asked to open a page whose partition name was refused")
 	}
 }

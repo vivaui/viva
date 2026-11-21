@@ -70,6 +70,17 @@ func newWebState(run *runState, host *platform.WebHost, initial []platform.Nativ
 
 // open is WebHost.Open.
 func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error) {
+	if config.Partition != "" && config.Ephemeral {
+		// A non-persistent store cannot be named: WKWebsiteDataStore has one, shared by every page
+		// that asks for it, so a page of a named partition that must keep nothing is refused rather
+		// than opened in the named store, which persists.
+		return nil, fmt.Errorf("%w: macOS cannot name a store that keeps nothing: a named storage partition persists on WKWebView", platform.ErrWebViewUnsupported)
+	}
+	if config.Partition != "" && config.Proxy != "" {
+		// The proxy is a setting of the store, and one store cannot carry two: two pages of one
+		// partition could not disagree about it.
+		return nil, fmt.Errorf("%w: macOS cannot combine a named storage partition with a proxy: the proxy belongs to the store the partition names", platform.ErrWebViewUnsupported)
+	}
 	direct := C.int(0)
 	if config.Proxy != "" {
 		if config.Proxy != platform.WebProxyDirect {
@@ -114,8 +125,16 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 	if config.Ephemeral {
 		ephemeral = 1
 	}
+	var partition *C.char
+	if config.Partition != "" {
+		if C.viva_web_partition_supported() == 0 {
+			return nil, fmt.Errorf("darwin: a named storage partition needs macOS 14 or newer: %w", platform.ErrWebViewUnsupported)
+		}
+		partition = C.CString(platform.PartitionIdentifier(config.Partition))
+		defer C.free(unsafe.Pointer(partition))
+	}
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, partition, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {

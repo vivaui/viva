@@ -157,7 +157,7 @@ jobs:
       - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
-          go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter|ClipboardImageWriteReportsUnsupportedWithoutSetWithData)$' -count=1
+          go test -tags vivagtk ./internal/platform/linux -run '^Test(GTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter|ClipboardImageWriteReportsUnsupportedWithoutSetWithData)|APartition(KeepsItsStoreInTheUsersDirectories|FollowsTheXdgDirectories|IsNamedAfterTheApplicationWithoutAClass))$' -count=1
       # The Linux package is not part of the sharded run (it drives X11), so the
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
@@ -345,6 +345,8 @@ jobs:
       # on Windows.
       - name: Material contracts and controls (WARP)
         run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
+      - name: Web view partitions
+        run: go test ./internal/platform/windows -run '^Test(APageWithoutAPartitionAsksForNoProfileOfItsOwn|APartitionNamesTheWebView2Profile|AnEphemeralPartitionIsAnOffTheRecordProfile|EphemeralPagesWithoutAPartitionEachGetAProfileOfTheirOwn)$' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native window and grouped taskbar icons
