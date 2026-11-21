@@ -12,10 +12,9 @@ type GraphLink struct {
 	Strength       float32
 }
 
-// The d3-force tick constants, which are also the values Obsidian's graph
-// runs: alpha falls from one to graphAlphaMin in about three hundred ticks,
-// friction damps velocity to sixty percent per tick, and the layout goes
-// quiet on its own.
+// The d3-force tick constants: alpha falls from one to graphAlphaMin in about
+// three hundred ticks, friction damps velocity to sixty percent per tick, and
+// the layout goes quiet on its own.
 const (
 	graphAlphaMin      float32 = 0.001
 	graphAlphaDecay    float32 = 0.0228
@@ -41,8 +40,8 @@ type graphBody struct {
 
 // GraphSim is the caller-owned force-directed layout of one graph. It is
 // d3-force's model — velocity-Verlet integration over composable forces with
-// an alpha that anneals to rest — as the layout engine Obsidian's graph view
-// runs. The simulation is pure layout: it knows no canvas, allocates nothing
+// an alpha that anneals to rest. The simulation is pure layout: it knows no
+// canvas, allocates nothing
 // per tick, and a fixed run of ticks from construction is bit-reproducible,
 // which makes golden tests possible.
 //
@@ -238,7 +237,7 @@ func (sim *GraphSim) tickRepel() {
 }
 
 // tickCenter pulls every node toward the origin, keeping disconnected pieces
-// on the canvas the way Obsidian's forceX/forceY(0) pair does.
+// on the canvas the way a forceX/forceY(0) pair does.
 func (sim *GraphSim) tickCenter() {
 	strength := sim.alpha * sim.CenterStrength
 	for index := range sim.bodies {

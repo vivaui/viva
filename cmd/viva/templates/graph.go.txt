@@ -25,7 +25,7 @@ type GraphNode struct {
 	Label string
 	Group int
 	// Resolved is false for the target of a link whose note does not exist
-	// yet: painted small and dim, as Obsidian paints unresolved links.
+	// yet: painted small and dim, the way an unresolved link is.
 	Resolved bool
 }
 
@@ -70,6 +70,11 @@ type GraphState struct {
 
 	selected     int
 	selectedSeen bool
+	// sim and nodeCount describe the caches below: a rebuilt simulation or a
+	// new node list makes hover and its neighbors name nodes that may no
+	// longer exist, so they start over.
+	sim          *GraphSim
+	nodeCount    int
 	hover        int
 	neighbors    []int
 	adjacent     []bool
@@ -149,7 +154,9 @@ func (layout GraphLayout) Clicked() (int, bool) {
 // graph paints the same picture until something reheats it — the caller never
 // schedules frames for it. A reduced-motion session, or a canvas with no
 // frame clock, settles the layout in full at the first paint instead of
-// animating.
+// animating: about a tenth of a second at three hundred nodes, growing with
+// the square of the count, so an application showing thousands of notes wants
+// a clocked canvas.
 func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *GraphSim, nodes []GraphNode, state *GraphState, options GraphOptions) GraphLayout {
 	if bounds.Width <= 0 || bounds.Height <= 0 {
 		bounds = gfx.Rect{Width: 320, Height: 200}
@@ -162,6 +169,12 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 	}
 	if state == nil {
 		state = &GraphState{}
+	}
+	if state.sim != sim || state.nodeCount != len(nodes) {
+		// The graph was rebuilt or given another node list: what the caches
+		// name may be gone, so drop the hover, its neighbors and their marks.
+		state.sim, state.nodeCount = sim, len(nodes)
+		state.hover, state.neighbors, state.adjacent = -1, nil, nil
 	}
 	if !sim.Settled() {
 		if canvas != nil && canvas.HasClock() && !canvas.ReduceMotion() {
@@ -253,6 +266,13 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 			}
 		}
 	}
+	// A pointer index past the simulation would index the labels below.
+	if hover >= sim.Len() {
+		hover = -1
+	}
+	if state.hover >= sim.Len() {
+		state.hover, state.neighbors = -1, nil
+	}
 	// The neighbor marks of the previous hover clear before the new ones set,
 	// so a steady hover leaves the cache untouched.
 	if len(state.adjacent) < len(nodes) {
@@ -303,7 +323,7 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 	// A state kept across a rebuilt, smaller simulation can hold a selection
 	// naming a node that no longer exists; drop it rather than let the label
 	// path index past the nodes.
-	if selectedSeen && (selected < 0 || selected >= len(nodes)) {
+	if selectedSeen && (selected < 0 || selected >= sim.Len()) {
 		state.ClearSelection()
 		selected, selectedSeen = 0, false
 	}
@@ -399,7 +419,9 @@ func PaintGraph(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sim *Graph
 	if hover >= 0 {
 		label(hover)
 		for _, neighbor := range state.neighbors {
-			label(neighbor)
+			if neighbor >= 0 && neighbor < sim.Len() {
+				label(neighbor)
+			}
 		}
 	}
 	if selectedSeen && selected != hover {
