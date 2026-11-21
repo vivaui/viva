@@ -147,6 +147,8 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 	switch command {
 	case commandSetTitle:
 		win.applyPendingTitle()
+	case commandSetIcon:
+		win.applyPendingIcon()
 	case commandSetSize:
 		if len(data) < 12 || win.frame.maximized || win.minimized || win.fullscreen.Load() {
 			return nil

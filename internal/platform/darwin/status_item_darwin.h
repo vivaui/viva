@@ -23,6 +23,8 @@ typedef struct {
 /* Sets the Dock icon of a program that is not in an .app bundle. Returns 0 when
  * it did not. Main thread only. */
 int viva_application_set_icon(viva_status_icon icon);
+/* Replaces the Dock icon even in an .app bundle. Marshals to the main thread. */
+int viva_application_update_icon(viva_status_icon icon);
 void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu);
 int viva_status_item_set_icon(void *item, viva_status_icon icon);
 void viva_status_item_set_tooltip(void *item, const char *tooltip);

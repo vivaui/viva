@@ -79,6 +79,7 @@ const (
 type windowState struct {
 	// pendingTitle is the title SetTitle asked for, applied on the window thread.
 	pendingTitle        titleRequest
+	pendingIcon         iconRequest
 	fullscreen          atomic.Bool
 	fullscreenChanging  bool
 	fullscreenStyle     uint32
@@ -147,6 +148,7 @@ type windowState struct {
 	pendingKey                   pendingKey
 	deadKey                      bool
 	icons                        [2]uintptr
+	taskbarIconSet               bool
 	drop                         *dropTarget
 	wheel                        wheelSettings
 	devices                      platform.DeviceRecovery
@@ -508,6 +510,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmSetTitle:
 		state.applyTitle()
+		return 0
+	case wmUpdateIcon:
+		state.applyIcon()
 		return 0
 	case wmSysCommand:
 		if state.fullscreen.Load() {
@@ -1319,6 +1324,7 @@ func (state *windowState) destroyed(window uintptr) {
 		state.config.Waker.Unbind()
 	}
 	state.destroyIcons()
+	state.clearTaskbarIcon()
 	removeNotificationIcon(window)
 	release()
 	if state.application.firstErr == nil && state.err != nil {

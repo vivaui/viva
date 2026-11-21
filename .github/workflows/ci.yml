@@ -132,7 +132,7 @@ jobs:
         run: |
           sudo apt-get install -y xvfb xdotool libx11-xcb1 ||
             { sudo apt-get update && sudo apt-get install -y xvfb xdotool libx11-xcb1; }
-          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11GlobalShortcut$' -count=1 -v
+          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11(GlobalShortcut|WindowIconPropertyUpdates)$' -count=1 -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
@@ -304,6 +304,8 @@ jobs:
         run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
+      - name: Native window and grouped taskbar icons
+        run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
