@@ -34,10 +34,11 @@ func (canvas *Canvas) WrapRow(value string, from int, size, weight, width float3
 		return TextRow{Start: from, End: end}, next
 	}
 	line := value[from:end]
-	if canvas.TextWidthWeight(trimSpaceRight(line), size, weight) <= width {
+	fit, all := canvas.fitPrefix(line, lineFont{size: size, weight: weight}, width)
+	if all {
 		return TextRow{Start: from, End: end}, next
 	}
-	cut := canvas.breakPoint(line, lineFont{size: size, weight: weight}, width)
+	cut := breakPoint(line, fit)
 	cut += len(line[cut:]) - len(trimSpaceLeft(line[cut:])) // the spaces after the break hang on this row
 	if from+cut >= end {
 		return TextRow{Start: from, End: end}, next
