@@ -321,6 +321,12 @@ func (f *Frame) resolve(n *Node, Extra *Extra) resolved {
 	canvas := f.Surface
 	focus, hover, pressed := target(canvas.FocusVisible() == source), target(canvas.Hovered() == source), target(canvas.Pressed() == source)
 	focused := target(canvas.Focused() == source)
+	if f.Disabled(n) {
+		hover, pressed = 0, 0
+		if !Extra.hit.FocusableWhenDisabled {
+			focus, focused = 0, 0
+		}
+	}
 	if looks.animated {
 		focused = canvas.Animate(source, slotFocused, focused, looks.motion)
 		focus = canvas.Animate(source, slotFocus, focus, looks.motion)

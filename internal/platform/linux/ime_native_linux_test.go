@@ -42,7 +42,7 @@ func TestNativeIBusFactoryDeclinedShortcut(t *testing.T) {
 					shortcuts++
 					return platform.Frame{}, true, nil
 				}
-				app := &linuxApplication{ibus: bus, ibusTried: true}
+				app := &linuxApplication{inputMethod: ibusDaemon{bus}, inputMethodTried: true}
 				ime := app.newIME(&window{}, h.input, router)
 				if ime == nil {
 					t.Fatal("native factory returned no context")
@@ -129,7 +129,7 @@ func TestNativeIBusFrontend(t *testing.T) {
 				if _, _, err := h.input.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}); err != nil {
 					t.Fatal(err)
 				}
-				app := &linuxApplication{ibus: bus, ibusTried: true}
+				app := &linuxApplication{inputMethod: ibusDaemon{bus}, inputMethodTried: true}
 				router := h.ime.router
 				router.ime = nil
 				ime := app.newIME(&window{}, h.input, router)
@@ -313,7 +313,7 @@ func TestNativeIBusOwnerReactivation(t *testing.T) {
 		if _, _, err := h.input.prepare(platform.Frame{TextInput: platform.TextInputUpdate{Changed: true, Input: &field}}); err != nil {
 			t.Fatal(err)
 		}
-		app := &linuxApplication{ibus: bus, ibusTried: true}
+		app := &linuxApplication{inputMethod: ibusDaemon{bus}, inputMethodTried: true}
 		router := h.ime.router
 		router.ime = nil
 		ime := app.newIME(&window{}, h.input, router)

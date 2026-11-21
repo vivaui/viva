@@ -241,7 +241,7 @@ func avatar(c ui.C, message Row, side float32) {
 	stack := ui.Stack(c).Size(side, side).Shrink(0)
 	stack.Children(func() {
 		if message.image.Width > 0 && message.image.Height > 0 {
-			ui.Image(c, message.image).Fill().Radius(side / 2)
+			ui.Image(c, message.image).Fill()
 			return
 		}
 		face := ui.Column(c).Fill().Radius(side / 2).Background(look.Muted).Center()

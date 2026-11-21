@@ -12,6 +12,10 @@ func (f *Frame) Badge(Label string) Box {
 	b := f.Box(kindBadge)
 	n := &f.Nodes[b.i]
 	n.Text, n.Label = Label, Label
+	n.Flags |= flagThemed
+	// The chip's content is centered: the default label, or what Children
+	// declares; the recipe gives its padding, pill radius and label size.
+	n.Dir, n.Items, n.Justify = row, Center, Center
 	return b
 }
 

@@ -236,8 +236,10 @@ var (
 
 // busyAttempts is how many times a command that finds the system busy is run: the
 // disk image service is shared with whatever else on the machine is making or
-// mounting images, and refuses with "Resource busy" while it is.
-const busyAttempts = 5
+// mounting images, and refuses with "Resource busy" while it is. The increasing
+// waits total at most 45 seconds: hosted macOS runners can retain an image's
+// resources beyond the previous ten-second window after detaching its volume.
+const busyAttempts = 10
 
 func hdiutilOutput(arguments ...string) (string, error) {
 	for attempt := 1; ; attempt++ {

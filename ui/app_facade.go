@@ -23,6 +23,7 @@ import (
 // appearance watch. OnClosed cancels the page's effects and stops that watch
 // before it runs base's OnClosed. Nothing else is touched.
 func Configure(page *Page, base app.Config) app.Config {
+	useTooltip()
 	if page.GetConfig().View == nil {
 		panic("ui: Configure needs PageConfig.View, the function that declares the page")
 	}

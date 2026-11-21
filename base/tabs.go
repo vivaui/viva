@@ -2,6 +2,7 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 type TabsDecl struct {
@@ -35,6 +36,7 @@ const (
 func (f *Frame) Tabs(scope gfx.Scope, labels []string, selected int) Box {
 	b := f.Box(kindTabs)
 	n := &f.Nodes[b.i]
+	n.Flags |= flagThemed
 	n.Aux = int32(len(WidgetsOf(f).tabs))
 	WidgetsOf(f).tabs = append(WidgetsOf(f).tabs, TabsDecl{scope: scope, labels: labels, selected: selected})
 	return b
@@ -98,36 +100,60 @@ func (b Box) TabClicked() (int, bool) {
 
 func (f *Frame) measureTabs(n *Node) {
 	t := &WidgetsOf(f).tabs[n.Aux]
+	_, listPadding, triggerHeight, triggerPad, lineGap, fontSize, weight := style.TabsGeometry(f.Palette.Metrics)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	// The recipe filled every side the caller did not set with the same theme
+	// padding, so the element's Pad is the strip's four inner edges here.
+	top, right, bottom, left := n.Pad[0], n.Pad[1], n.Pad[2], n.Pad[3]
+	if n.PadSet&padTop == 0 {
+		top = listPadding
+	}
+	if n.PadSet&padRight == 0 {
+		right = listPadding
+	}
+	if n.PadSet&padBottom == 0 {
+		bottom = listPadding
+	}
+	if n.PadSet&padLeft == 0 {
+		left = listPadding
+	}
 	var widest float32
 	for index, label := range t.labels {
-		width := f.Surface.TextWidthWeight(label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium)
+		width := f.Surface.TextWidthWeight(label, fontSize, weight)
 		if t.icon != nil {
 			icon := t.icon(index)
 			if len(icon.Commands) > 0 || len(icon.Layers) > 0 {
 				if t.iconOnly {
-					// The label is the tab's accessible name, not its face.
-					width = f.Palette.Metrics.FontSizeM
+					width = fontSize
 				} else {
-					width += f.Palette.Metrics.FontSizeM + 6
+					width += fontSize + 6
 				}
 			}
 		}
 		widest = max(widest, width)
 	}
 	count := float32(len(t.labels))
-	var gap float32
-	if t.line {
-		gap = 4
+	gap := float32(0)
+	if n.Gap != 0 {
+		gap = n.Gap
+	} else if t.line {
+		gap = lineGap
 	}
 	between := gap * max(count-1, 0)
+	triggerWidth := widest + 2*triggerPad
 	switch {
 	case t.vertical && t.line:
-		n.Pref = [2]float32{widest + 16 + TabIndicator + 1, tabHeight*count + between}
+		n.Pref = [2]float32{triggerWidth + left + right + TabIndicator + 1, triggerHeight*count + between + top + bottom}
 	case t.vertical:
-		n.Pref = [2]float32{widest + 16, tabHeight*count + between}
+		n.Pref = [2]float32{triggerWidth + left + right, triggerHeight*count + between + top + bottom}
 	case t.line:
-		n.Pref = [2]float32{(widest+24)*count + between, tabHeight + TabIndicator}
+		n.Pref = [2]float32{triggerWidth*count + between + left + right, top + triggerHeight + bottom + TabIndicator}
 	default:
-		n.Pref = [2]float32{(widest + 24) * count, tabHeight}
+		n.Pref = [2]float32{triggerWidth*count + between + left + right, top + triggerHeight + bottom}
 	}
 }

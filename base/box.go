@@ -43,12 +43,10 @@ const (
 // the button's row, with the theme's look, its focus and its keyboard, around content of
 // the caller's own, and Pad, Gap, Items and the rest are the row's.
 func (b Box) Children(fn func()) Box {
-	if b.N().Kind == kindButton {
-		b.f.buttonHoldsChildren(b.i)
-	}
+	n := b.N()
 	saved := b.f.Parent
 	b.f.Parent = b.i
-	b.N().Flags |= flagChildren
+	n.Flags |= flagChildren
 	fn()
 	b.f.Parent = saved
 	return b
@@ -69,7 +67,7 @@ func (b Box) Clicked() bool {
 	if n.Ext != 0 && b.f.Exts[n.Ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
-	return b.f.Surface != nil && n.Flags&flagVeto == 0 && b.f.Surface.Clicked(n.ID)
+	return b.f.Surface != nil && n.Flags&flagVeto == 0 && b.f.Surface.Clicked(n.ID) && !b.f.Disabled(n)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
@@ -78,6 +76,7 @@ func (b Box) Hit(ID gfx.ID, Label string) Box {
 	n := b.N()
 	n.ID, n.Label = ID, Label
 	n.Flags = n.Flags&^flagLabelFor | flagHasHit
+	n.markAttr(attrHit)
 	return b
 }
 
@@ -115,6 +114,7 @@ func (b Box) LabelFor(ID gfx.ID) Box {
 	n := b.N()
 	n.ID = ID
 	n.Flags |= flagHasHit | flagLabelFor
+	n.markAttr(attrHit)
 	return b
 }
 
@@ -249,12 +249,19 @@ func (b Box) MarginSides(top, right, bottom, left float32) Box {
 
 // Gap is the space between the children of a Row, a Column or a Flow, and between
 // the lines of a Flow unless LineGap sets them apart.
-func (b Box) Gap(v float32) Box { b.N().Gap = v; return b }
+func (b Box) Gap(v float32) Box {
+	n := b.N()
+	n.Gap = v
+	n.markAttr(attrGap)
+	return b
+}
 
 // LineGap is the space between the lines of a Flow, when it is not its Gap. It has
 // no effect on any other container.
 func (b Box) LineGap(v float32) Box {
-	if n := b.N(); n.Dir == flow {
+	n := b.N()
+	n.markAttr(attrLineGap)
+	if n.Dir == flow {
 		n.GridMin = max(v, 0)
 	}
 	return b
@@ -263,9 +270,19 @@ func (b Box) LineGap(v float32) Box {
 // Items places the children across the container (Start, Center, End or
 // Stretch, the default); Self does it for this element alone; Justify places
 // them along it when none grows (Start, Center, End or Between).
-func (b Box) Items(a Align) Box   { b.N().Items = a; return b }
-func (b Box) Self(a Align) Box    { b.N().Self = a; return b }
-func (b Box) Justify(a Align) Box { b.N().Justify = a; return b }
+func (b Box) Items(a Align) Box {
+	n := b.N()
+	n.Items = a
+	n.markAttr(attrItems)
+	return b
+}
+func (b Box) Self(a Align) Box { b.N().Self = a; return b }
+func (b Box) Justify(a Align) Box {
+	n := b.N()
+	n.Justify = a
+	n.markAttr(attrJustify)
+	return b
+}
 
 // Center centers the children both ways.
 func (b Box) Center() Box { return b.Items(Center).Justify(Center) }
@@ -325,13 +342,17 @@ func (b Box) Clip() Box { b.N().Flags |= flagClip; return b }
 // place of the theme's body size.
 func (b Box) FontSize(v float32) Box {
 	n := b.N()
-	n.FontSize = v
+	n.FontSize, n.FontSet = v, v > 0
 	if n.Kind == kindSelect {
 		b.f.sizeSelectList(n)
 	}
 	return b
 }
-func (b Box) Weight(v float32) Box { b.N().Weight = v; return b }
+func (b Box) Weight(v float32) Box {
+	n := b.N()
+	n.Weight, n.WeightSet = v, true
+	return b
+}
 
 // LineHeight sets the height of each line of a Text or Paragraph, in pixels: the
 // default is the font size plus seven, as in the components.

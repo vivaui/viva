@@ -55,6 +55,10 @@ type Table struct {
 	headerSet    bool
 	Selection    TableSelection
 	text         *tableTextState
+	// foreground is the element's text color when hasForeground is set; the rows
+	// and headers paint in it instead of the theme's.
+	foreground    gfx.Color
+	hasForeground bool
 }
 
 type tableTextState struct {
@@ -335,7 +339,7 @@ func (table *Table) paintRow(id gfx.ID, cells []string, state TableRowState, kin
 	collect := cellsOut != nil
 	cellsOut = cellsOut[:0]
 	background := table.theme.Background
-	foreground := table.theme.Foreground
+	foreground := table.textColor()
 	weight := gfx.WeightRegular
 	paintBackground := false
 	if kind == tableRowHeader {
@@ -713,6 +717,22 @@ func nearestTableTextCell(cells []tableTextCell, x float32) int {
 
 // tableSelectionColors keeps the table recipe self-contained while preserving
 // the Primary fallback used by hand-built themes from before Selection existed.
+// Foreground paints the rows and headers in color instead of the theme's;
+// selection colors keep their own foreground.
+func (table Table) Foreground(color gfx.Color) Table {
+	table.foreground, table.hasForeground = color, true
+	return table
+}
+
+// textColor is the color of row and header text: the element's own when it set
+// one, else the theme's foreground.
+func (table Table) textColor() gfx.Color {
+	if table.hasForeground {
+		return table.foreground
+	}
+	return table.theme.Foreground
+}
+
 func tableSelectionColors(theme gfx.Theme) (background, foreground gfx.Color) {
 	background, foreground = theme.Selection, theme.SelectionForeground
 	if background.Alpha == 0 {
@@ -897,7 +917,7 @@ func (table *Table) paintSortableHeaderCell(
 ) tableTextCell {
 	canvas, theme := table.canvas, table.theme
 	interactive := !cell.ID.IsZero()
-	color := theme.Foreground
+	color := table.textColor()
 	if cell.Disabled {
 		color.Alpha *= 0.5
 	}

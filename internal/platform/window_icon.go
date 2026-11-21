@@ -14,6 +14,8 @@ type WindowIcon struct {
 	Size int
 	// RGBA is Size*Size straight (not premultiplied) 8-bit pixels, top row first.
 	RGBA []byte
+	// ResourcePath is an optional persistent Windows taskbar icon (.ico).
+	ResourcePath string
 }
 
 // MacInset is the share of the canvas a macOS icon's tile fills.

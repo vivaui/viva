@@ -490,9 +490,12 @@ func (f *Frame) focusFirstControl(dialog Box) {
 func (f *Frame) FirstControl(i int32) gfx.ID {
 	for c := f.Nodes[i].First; c >= 0; c = f.Nodes[c].Next {
 		n := &f.Nodes[c]
-		if n.Flags&flagDisabled == 0 && !n.ID.IsZero() {
+		if n.Flags&flagDisabled != 0 {
+			continue // an unavailable group has no autofocus candidate beneath it
+		}
+		if !n.ID.IsZero() {
 			switch n.Kind {
-			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
+			case kindButton, kindToggle, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
 				return n.ID
 			case kindContainer:
 				if n.Flags&flagHasHit != 0 && n.Flags&flagLabelFor == 0 {

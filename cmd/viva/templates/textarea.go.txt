@@ -72,7 +72,7 @@ func paintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.
 		options := gfx.HitOptions{
 			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true, Invalid: snapshot.Invalid,
-			TextBounds: content, TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground,
+			TextBounds: content, TextSize: textareaHitSize(theme, snapshot), TextColor: theme.Foreground,
 		}
 		if snapshot.HideEditorText {
 			options.TextColor = gfx.Color{}
@@ -121,8 +121,27 @@ func (rows *textareaRows) next() (row gfx.TextRow, after int, ok bool) {
 	return row, rows.from, true
 }
 
+// textareaHitSize is the text size a textarea reports to the platform.
+func textareaHitSize(theme gfx.Theme, snapshot TextareaSnapshot) float32 {
+	size, _ := textareaTextStyle(theme, snapshot)
+	return size
+}
+
+// textareaTextStyle is the size and weight of a textarea's rows: the
+// snapshot's own when set, else the theme's body size at the regular weight.
+func textareaTextStyle(theme gfx.Theme, snapshot TextareaSnapshot) (size, weight float32) {
+	size, weight = theme.Metrics.FontSizeM, gfx.WeightRegular
+	if snapshot.TextSize > 0 {
+		size = snapshot.TextSize
+	}
+	if snapshot.TextWeight > 0 {
+		weight = snapshot.TextWeight
+	}
+	return size, weight
+}
+
 func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot TextareaSnapshot, focused bool) {
-	fontSize := theme.Metrics.FontSizeM
+	fontSize, weight := textareaTextStyle(theme, snapshot)
 	lineHeight := fontSize + 7
 	placeholderShown := value == ""
 	if placeholderShown {
@@ -187,7 +206,7 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			line = trimTrailingSpaces(line)
 		}
 		lineEnd := row.Start + len(line)
-		style := gfx.TextStyle{Size: fontSize, Weight: gfx.WeightRegular, Color: color}
+		style := gfx.TextStyle{Size: fontSize, Weight: weight, Color: color}
 		origin := canvas.LabelOrigin(line, lineBounds, style, gfx.AlignStart)
 		labelBounds := lineBounds
 		if origin == lineBounds.X {
@@ -255,7 +274,7 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			if snapshot.Disabled {
 				selectedColor.Alpha *= 0.50
 			}
-			canvas.Label(line, labelBounds, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightRegular, Color: selectedColor})
+			canvas.Label(line, labelBounds, gfx.TextStyle{Size: fontSize, Weight: weight, Color: selectedColor})
 			canvas.Unclip()
 		}
 	}

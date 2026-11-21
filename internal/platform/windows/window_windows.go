@@ -79,6 +79,7 @@ const (
 type windowState struct {
 	// pendingTitle is the title SetTitle asked for, applied on the window thread.
 	pendingTitle        titleRequest
+	pendingIcon         iconRequest
 	fullscreen          atomic.Bool
 	fullscreenChanging  bool
 	fullscreenStyle     uint32
@@ -89,6 +90,7 @@ type windowState struct {
 	renderer                                     renderer
 	window                                       uintptr
 	ready, tracking, sizing, sizingMove          bool
+	timerPeriodSet                               bool
 	redrawRequested, paintPending, resizePending bool
 	resizeTimerInterval                          uintptr
 	resizeMonitor, resizeMonitorInterval         uintptr // the monitor resizeMonitorInterval was queried for
@@ -147,6 +149,7 @@ type windowState struct {
 	pendingKey                   pendingKey
 	deadKey                      bool
 	icons                        [2]uintptr
+	taskbarIconSet               bool
 	drop                         *dropTarget
 	wheel                        wheelSettings
 	devices                      platform.DeviceRecovery
@@ -509,6 +512,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmSetTitle:
 		state.applyTitle()
 		return 0
+	case wmUpdateIcon:
+		state.applyIcon()
+		return 0
 	case wmSysCommand:
 		if state.fullscreen.Load() {
 			switch first & 0xfff0 {
@@ -800,17 +806,31 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		if state.sizingMove || state.sizing {
 			state.resizePending = true
+			// Raise the timer resolution on the first sizing message of the drag,
+			// not when it starts: moving a window sends WM_ENTERSIZEMOVE too, and
+			// a move has no frames to pace.
+			if state.sizingMove && !state.timerPeriodSet {
+				timeBeginPeriod.Call(1)
+				state.timerPeriodSet = true
+			}
 			return 0
 		}
 		state.presentClientSize(int(uint16(second)), int(uint16(second>>16)))
 		return 0
 	case wmEnterSizeMove:
 		state.sizingMove = true
+		state.renderer.resizeHeadroom = true
 		state.refreshResizeTimer()
 		return 0
 	case wmExitSizeMove:
+		if state.timerPeriodSet {
+			timeEndPeriod.Call(1)
+			state.timerPeriodSet = false
+		}
 		killTimer.Call(window, resizeTimerID)
 		state.sizingMove = false
+		// The drag is over: the next present sizes the chain to the client exactly.
+		state.renderer.resizeHeadroom = false
 		state.resizeTimerInterval = 0
 		state.serviceResize()
 		return 0
@@ -1046,6 +1066,10 @@ func (state *windowState) refreshResizeTimer() {
 func (state *windowState) paceResize(interval uintptr, arm func(uintptr) error) {
 	if err := state.rearmResizeTimer(interval, arm); err == nil {
 		return
+	}
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
 	}
 	killTimer.Call(state.window, resizeTimerID)
 	state.sizingMove = false
@@ -1287,6 +1311,10 @@ func (state *windowState) destroyed(window uintptr) {
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
 	killTimer.Call(window, resizeTimerID)
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
+	}
 	state.sizingMove = false
 	state.resizeTimerInterval = 0
 	state.closeText()
@@ -1319,6 +1347,7 @@ func (state *windowState) destroyed(window uintptr) {
 		state.config.Waker.Unbind()
 	}
 	state.destroyIcons()
+	state.clearTaskbarIcon()
 	removeNotificationIcon(window)
 	release()
 	if state.application.firstErr == nil && state.err != nil {

@@ -283,6 +283,16 @@ func (canvas *Canvas) HitsSince(from Mark) []Hit {
 	return canvas.hits[from.hits:]
 }
 
+// DisableHitsSince makes every descendant region declared after from inert.
+// A child's own opt-in focusability cannot escape a disabled ancestor.
+func (canvas *Canvas) DisableHitsSince(from Mark) {
+	for i := range canvas.HitsSince(from) {
+		hit := &canvas.hits[int(from.hits)+i]
+		hit.Disabled, hit.Focusable, hit.SkipTab = true, false, true
+		hit.FocusableDisabled, hit.SecondaryWhenDisabled = false, false
+	}
+}
+
 // HintSince gives the hits named id that the canvas took since from the Hint
 // hint: the tooltip and accessibility description of a control whose painter
 // declared its hit without one.

@@ -32,10 +32,21 @@ var (
 	TreeDraw             func(s *TreeState, d *DrawContext)
 	EntryLook            func(f *Frame, palette *Theme, state gfx.State) style.TextEntryLook
 	ButtonLookFn         func(f *Frame, n *Node, palette *Theme, state gfx.State) style.ButtonLook
-	SliderPointer        func(f *Frame, n *Node, s *SliderState)
-	BuildDialog          func(f *Frame, spec DialogSpec) Box
-	BuildPopover         func(f *Frame, anchor Box, spec PopoverSpec) Box
-	DrawerBoxes          func(spec DrawerDeclaration, surface *gfx.Canvas, palette Theme, bounds Rect, layer uint16) DrawerRects
+	BadgeLookFn          func(f *Frame, n *Node, palette *Theme, state gfx.State) style.ButtonLook
+	ToggleLookFn         func(f *Frame, n *Node, palette *Theme, state gfx.State) style.ButtonLook
+	// TabsLookFn shares the badge look's signature: a tab strip has no state of its own.
+	TabsLookFn     func(f *Frame, n *Node, palette *Theme, state gfx.State) style.ButtonLook
+	SelectLookFn   func(f *Frame, n *Node, palette *Theme, state gfx.State, placeholder bool) (style.TextEntryLook, gfx.Color, gfx.Color)
+	CheckboxLookFn func(f *Frame, n *Node, palette *Theme, state gfx.State) style.CheckboxLook
+	SwitchLookFn   func(f *Frame, n *Node, palette *Theme, state gfx.State, progress float32) style.SwitchLook
+	// ControlSurfaceRect gives where a themed control's own surface paints when that
+	// is smaller than the element, as a checkbox's box or a switch's track are when
+	// the element has a caption; nil uses the element's rectangle.
+	ControlSurfaceRect func(f *Frame, n *Node) Rect
+	SliderPointer      func(f *Frame, n *Node, s *SliderState)
+	BuildDialog        func(f *Frame, spec DialogSpec) Box
+	BuildPopover       func(f *Frame, anchor Box, spec PopoverSpec) Box
+	DrawerBoxes        func(spec DrawerDeclaration, surface *gfx.Canvas, palette Theme, bounds Rect, layer uint16) DrawerRects
 )
 
 // DrawerRects is where a drawer's parts go.
@@ -152,6 +163,30 @@ func (f *Frame) Popover(anchor Box, spec PopoverSpec) Box {
 func (f *Frame) buttonLook(n *Node, palette *Theme, state gfx.State) style.ButtonLook {
 	if ButtonLookFn != nil {
 		return ButtonLookFn(f, n, palette, state)
+	}
+	return style.ButtonLook{}
+}
+
+// tabsLook is the look of the strip behind a tab list: its fill and radius.
+func (f *Frame) tabsLook(n *Node, palette *Theme) style.ButtonLook {
+	if TabsLookFn != nil {
+		return TabsLookFn(f, n, palette, gfx.State{})
+	}
+	return style.ButtonLook{}
+}
+
+// toggleLook is the look the theme's recipe gives the toggle element n in a state.
+func (f *Frame) toggleLook(n *Node, palette *Theme, state gfx.State) style.ButtonLook {
+	if ToggleLookFn != nil {
+		return ToggleLookFn(f, n, palette, state)
+	}
+	return style.ButtonLook{}
+}
+
+// badgeLook is the look the theme's recipe gives the badge element n in a state.
+func (f *Frame) badgeLook(n *Node, palette *Theme, state gfx.State) style.ButtonLook {
+	if BadgeLookFn != nil {
+		return BadgeLookFn(f, n, palette, state)
 	}
 	return style.ButtonLook{}
 }

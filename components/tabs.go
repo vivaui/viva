@@ -3,6 +3,7 @@ package components
 import (
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // Tabs paints a compact Base UI-style tab list. The active tab and associated
@@ -21,9 +22,68 @@ type Tabs struct {
 	direction TabsOrientation
 	disabled  bool
 	fit       bool
+	style     TabsStyle
+	// unpaintedSurface is set when the caller's engine paints the strip itself,
+	// as a page's does; BeginTabs users leave it off and get the strip painted.
+	unpaintedSurface bool
 	// tabStop is the one tab Tab reaches; the arrow helper moves focus among the
 	// rest, which are SkipTab.
 	tabStop gfx.ID
+	// The strip's effective style, filled from TabStyle's zero fields at Paint.
+	paint tabsPaint
+}
+
+// TabsStyle overrides what a tab strip paints and how its triggers are laid
+// out. Every field is optional: a zero value keeps the size's default, so this
+// is how the page passes Pad, Gap, Radius, FontSize, Weight, Color, Background
+// and Border of the element down to the component.
+type TabsStyle struct {
+	// ListHeight and ListPadding size the strip; TriggerHeight and TriggerPadding
+	// size one trigger inside it. LineGap is the gap between line-variant triggers;
+	// Gap is used for both variants when set. ListPadding is the room on each of the
+	// strip's four sides; HasListPadding distinguishes an explicit zero from the
+	// theme default.
+	ListHeight     float32
+	ListPadding    gfx.Insets
+	HasListPadding bool
+	TriggerHeight  float32
+	TriggerPadding float32
+	LineGap, Gap   float32
+	// TriggerRadius is a trigger's corner radius; the strip's own radius is the
+	// element's Radius, painted by the engine.
+	TriggerRadius float32
+	// FontSize and Weight style a trigger's label and icon.
+	FontSize, Weight float32
+	// Fill paints the list's surface when HasFill is set; Border draws its line
+	// when HasBorder is set. Foreground replaces the label color when HasForeground
+	// is set, keeping the selected, hovered and disabled dimming.
+	Fill, Border, Foreground gfx.Color
+	HasFill, HasBorder       bool
+	HasForeground            bool
+}
+
+// tabsPaint is TabsStyle resolved against the theme at Paint.
+type tabsPaint struct {
+	listHeight, triggerHeight, triggerPadding, lineGap, gap float32
+	listPadding                                             gfx.Insets
+	listRadius, triggerRadius, fontSize, weight             float32
+	foreground                                              gfx.Color
+	hasForeground                                           bool
+}
+
+// WithStyle overrides the strip's measurements, colors and label style; zero
+// fields keep the size's defaults.
+func (tabs Tabs) WithStyle(style TabsStyle) Tabs {
+	tabs.style = style
+	return tabs
+}
+
+// UnpaintedSurface declares that the caller paints the strip's own surface
+// behind the triggers, as the page's engine does; Paint then draws only the
+// triggers and their indicator.
+func (tabs Tabs) UnpaintedSurface() Tabs {
+	tabs.unpaintedSurface = true
+	return tabs
 }
 
 // Line selects the transparent list with a two-pixel active indicator.
@@ -150,52 +210,105 @@ const (
 	tabsTriggerHeight = 30 // list height less its padding
 )
 
+// resolvedPaint is the strip's style with the theme defaults filled in and the
+// caller's overrides applied.
+func (tabs Tabs) resolvedPaint() tabsPaint {
+	metrics := tabs.theme.Metrics
+	defHeight, defPadding, defTriggerHeight, defTriggerPad, defLineGap, defFont, defWeight := style.TabsGeometry(metrics)
+	p := tabsPaint{
+		listHeight: defHeight, listPadding: gfx.All(defPadding),
+		triggerHeight: defTriggerHeight, triggerPadding: defTriggerPad,
+		lineGap: defLineGap, gap: 0,
+		listRadius: style.TabsListRadius(metrics), triggerRadius: style.TabsTriggerRadius(metrics),
+		fontSize: defFont, weight: defWeight,
+	}
+	override := tabs.style
+	if override.ListHeight > 0 {
+		p.listHeight = override.ListHeight
+	}
+	if override.HasListPadding {
+		p.listPadding = override.ListPadding
+	}
+	if override.TriggerHeight > 0 {
+		p.triggerHeight = override.TriggerHeight
+	}
+	if override.TriggerPadding > 0 {
+		p.triggerPadding = override.TriggerPadding
+	}
+	if override.LineGap > 0 {
+		p.lineGap = override.LineGap
+	}
+	if override.Gap > 0 {
+		p.gap = override.Gap
+	}
+	if override.TriggerRadius > 0 {
+		p.triggerRadius = override.TriggerRadius
+	}
+	if override.FontSize > 0 {
+		p.fontSize = override.FontSize
+	}
+	if override.Weight > 0 {
+		p.weight = override.Weight
+	}
+	if override.HasForeground {
+		p.foreground, p.hasForeground = override.Foreground, true
+	}
+	return p
+}
+
 // Paint draws the list and independently focusable tab triggers.
 func (tabs Tabs) Paint() TabsResult {
 	result := TabsResult{canvas: tabs.canvas, list: tabs.list}
 	if tabs.canvas == nil || tabs.count() == 0 {
 		return result
 	}
-	metrics := tabs.theme.Metrics
-	weight := gfx.WeightMedium
+	tabs.paint = tabs.resolvedPaint()
+	weight := tabs.paint.weight
 	gap := tabs.itemGap()
 	count := float32(tabs.count())
 	if tabs.fit {
 		var widest, total float32
 		for index := range tabs.count() {
-			width := tabs.contentWidth(tabs.option(index)) + tabsTriggerPad*2
+			width := tabs.contentWidth(tabs.option(index)) + tabs.paint.triggerPadding*2
 			widest = max(widest, width)
 			total += width
 		}
+		pad := tabs.paint.listPadding
 		if tabs.direction == TabsVertical {
-			tabs.bounds.Width = widest + tabsPadding*2
+			tabs.bounds.Width = widest + pad.Left + pad.Right
 		} else {
-			tabs.bounds.Width = total + gap*(count-1) + tabsPadding*2
+			tabs.bounds.Width = total + gap*(count-1) + pad.Left + pad.Right
 		}
 	}
 	if tabs.bounds.Width <= 0 {
 		return result
 	}
 	if tabs.bounds.Height <= 0 {
+		pad := tabs.paint.listPadding
 		if tabs.direction == TabsVertical {
-			tabs.bounds.Height = tabsTriggerHeight*count + gap*(count-1) + tabsPadding*2
+			tabs.bounds.Height = tabs.paint.triggerHeight*count + gap*(count-1) + pad.Top + pad.Bottom
+		} else if tabs.paint.listHeight > 0 {
+			tabs.bounds.Height = tabs.paint.listHeight
 		} else {
-			tabs.bounds.Height = tabsListHeight
+			tabs.bounds.Height = tabs.paint.triggerHeight + pad.Top + pad.Bottom
 		}
 	}
 	result.bounds = tabs.bounds
-	radius := metrics.RadiusControl
-	listFill := tabs.theme.Muted
-	listRadius := radius + 2
-	if tabs.variant == TabsLine {
-		listFill = tabs.theme.Background
-		listFill.Alpha = 0
-		listRadius = 0
+	triggerRadius := tabs.paint.triggerRadius
+	if !tabs.unpaintedSurface {
+		listFill := tabs.theme.Muted
+		listRadius := tabs.paint.listRadius
+		if tabs.variant == TabsLine {
+			listFill = tabs.theme.Background
+			listFill.Alpha = 0
+			listRadius = 0
+		}
+		tabs.canvas.Rounded(tabs.bounds, listRadius, listFill)
 	}
-	tabs.canvas.Rounded(tabs.bounds, listRadius, listFill)
+	pad := tabs.paint.listPadding
 	inner := gfx.Rect{
-		X: tabs.bounds.X + tabsPadding, Y: tabs.bounds.Y + tabsPadding,
-		Width: tabs.bounds.Width - tabsPadding*2, Height: tabs.bounds.Height - tabsPadding*2,
+		X: tabs.bounds.X + pad.Left, Y: tabs.bounds.Y + pad.Top,
+		Width: max(tabs.bounds.Width-pad.Left-pad.Right, 0), Height: max(tabs.bounds.Height-pad.Top-pad.Bottom, 0),
 	}
 	cursor := float32(0)
 	for index := range tabs.count() {
@@ -211,14 +324,32 @@ func (tabs Tabs) Paint() TabsResult {
 			state.FocusVisible = tabs.canvas.FocusVisible() == option.ID
 		}
 		look := tabTriggerRecipe(&tabs.theme, tabs.variant, state)
+		if tabs.paint.hasForeground {
+			foreground := tabs.paint.foreground
+			hovered := !state.Disabled && state.Hovered
+			if !state.Selected && !hovered {
+				foreground.Alpha *= 0.60
+			}
+			if state.Disabled {
+				foreground.Alpha *= 0.50
+			}
+			look.Foreground = foreground
+			if look.Indicator.Alpha > 0 {
+				indicator := tabs.paint.foreground
+				if state.Disabled {
+					indicator.Alpha *= 0.50
+				}
+				look.Indicator = indicator
+			}
+		}
 		if look.RingWidth > 0 {
 			tabs.canvas.Rounded(expand(trigger, look.RingWidth), look.RingRadius, look.Ring)
 		}
 		if look.Bordered {
-			tabs.canvas.Elevate(trigger, radius, look.Shadow) // the selected trigger's shadow-sm
-			tabs.canvas.RoundedBorder(trigger, radius, 1, look.Border, look.Fill)
+			tabs.canvas.Elevate(trigger, triggerRadius, look.Shadow) // the selected trigger's shadow-sm
+			tabs.canvas.RoundedBorder(trigger, triggerRadius, 1, look.Border, look.Fill)
 		} else {
-			tabs.canvas.Rounded(trigger, radius, look.Fill)
+			tabs.canvas.Rounded(trigger, triggerRadius, look.Fill)
 		}
 
 		indicator := look.Indicator
@@ -228,8 +359,8 @@ func (tabs Tabs) Paint() TabsResult {
 		}
 		tabs.canvas.Rounded(indicatorBounds, 1, indicator)
 
-		style := gfx.TextStyle{Size: metrics.FontSizeM, Weight: weight, Color: look.Foreground}
-		tabs.paintContent(option, trigger, style)
+		textStyle := gfx.TextStyle{Size: tabs.paint.fontSize, Weight: weight, Color: look.Foreground}
+		tabs.paintContent(option, trigger, textStyle)
 		if !option.ID.IsZero() {
 			hint := ""
 			if option.IconOnly {
@@ -249,13 +380,16 @@ func (tabs Tabs) Paint() TabsResult {
 // triggerBounds returns the index-th trigger inside the list's padded interior.
 // cursor is the distance already used along the row in Fit mode.
 func (tabs Tabs) triggerBounds(inner gfx.Rect, index int, count, cursor float32) gfx.Rect {
+	if tabs.paint.fontSize == 0 {
+		tabs.paint = tabs.resolvedPaint()
+	}
 	gap := tabs.itemGap()
 	if tabs.direction == TabsVertical {
 		height := (inner.Height - gap*(count-1)) / count
 		return gfx.Rect{X: inner.X, Y: inner.Y + float32(index)*(height+gap), Width: inner.Width, Height: height}
 	}
 	if tabs.fit {
-		width := tabs.contentWidth(tabs.option(index)) + tabsTriggerPad*2
+		width := tabs.contentWidth(tabs.option(index)) + tabs.paint.triggerPadding*2
 		return gfx.Rect{X: inner.X + cursor, Y: inner.Y, Width: width, Height: inner.Height}
 	}
 	width := (inner.Width - gap*(count-1)) / count
@@ -263,19 +397,28 @@ func (tabs Tabs) triggerBounds(inner gfx.Rect, index int, count, cursor float32)
 }
 
 func (tabs Tabs) itemGap() float32 {
+	if tabs.paint.fontSize == 0 {
+		tabs.paint = tabs.resolvedPaint()
+	}
+	if tabs.paint.gap > 0 {
+		return tabs.paint.gap
+	}
 	if tabs.variant == TabsLine {
-		return tabsLineGap
+		return tabs.paint.lineGap
 	}
 	return 0
 }
 
 func (tabs Tabs) contentWidth(option TabOption) float32 {
+	if tabs.paint.fontSize == 0 {
+		tabs.paint = tabs.resolvedPaint()
+	}
 	width := float32(0)
 	if !option.IconOnly {
-		width = tabs.canvas.TextWidthWeight(option.Label, tabs.theme.Metrics.FontSizeM, gfx.WeightMedium)
+		width = tabs.canvas.TextWidthWeight(option.Label, tabs.paint.fontSize, tabs.paint.weight)
 	}
 	if len(option.Icon.Commands) > 0 || len(option.Icon.Layers) > 0 {
-		width += tabs.theme.Metrics.FontSizeM
+		width += tabs.paint.fontSize
 		if option.Label != "" && !option.IconOnly {
 			width += 6
 		}
@@ -284,7 +427,10 @@ func (tabs Tabs) contentWidth(option TabOption) float32 {
 }
 
 func (tabs Tabs) paintContent(option TabOption, trigger gfx.Rect, style gfx.TextStyle) {
-	b := gfx.Rect{X: trigger.X + tabsTriggerPad, Y: trigger.Y, Width: max(0, trigger.Width-tabsTriggerPad*2), Height: trigger.Height}
+	if tabs.paint.fontSize == 0 {
+		tabs.paint = tabs.resolvedPaint()
+	}
+	b := gfx.Rect{X: trigger.X + tabs.paint.triggerPadding, Y: trigger.Y, Width: max(0, trigger.Width-tabs.paint.triggerPadding*2), Height: trigger.Height}
 	tabs.canvas.Clip(trigger)
 	defer tabs.canvas.Unclip()
 	if len(option.Icon.Commands) == 0 && len(option.Icon.Layers) == 0 {
@@ -295,7 +441,7 @@ func (tabs Tabs) paintContent(option TabOption, trigger gfx.Rect, style gfx.Text
 		}
 		return
 	}
-	size := min(tabs.theme.Metrics.FontSizeM, max(0, b.Height))
+	size := min(tabs.paint.fontSize, max(0, b.Height))
 	gap := float32(0)
 	if option.Label != "" && !option.IconOnly {
 		gap = 6
@@ -315,6 +461,18 @@ func (tabs Tabs) paintContent(option TabOption, trigger gfx.Rect, style gfx.Text
 	b.X += size + gap
 	b.Width = max(0, width-size-gap)
 	tabs.canvas.Label(text, b, style)
+}
+
+// TabsListRecipe resolves the look of the strip behind a tab list: its fill and
+// its corner radius. The line variant draws no strip, so it is not filled.
+func TabsListRecipe(theme gfx.Theme, variant TabsVariant) style.ButtonLook {
+	if variant == TabsLine {
+		return style.ButtonLook{}
+	}
+	return style.ButtonLook{
+		Background: theme.Muted, Filled: true,
+		Radius: style.TabsListRadius(theme.Metrics),
+	}
 }
 
 // TabTriggerLook is the look of one tab of a strip in one state.

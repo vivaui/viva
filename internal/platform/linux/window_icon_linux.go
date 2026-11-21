@@ -1,6 +1,38 @@
 package linux
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"fmt"
+	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform"
+)
+
+func (window *nativeWindow) SetIcon(icon platform.WindowIcon) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("linux: window is closed")
+	}
+	win := window.state.win
+	win.iconMu.Lock()
+	win.pendingIcon = icon
+	win.iconMu.Unlock()
+	win.postClientMessage(win.commandAtom, commandSetIcon)
+	return nil
+}
+
+func (win *window) applyPendingIcon() {
+	win.iconMu.Lock()
+	icon := win.pendingIcon
+	win.pendingIcon = platform.WindowIcon{}
+	win.iconMu.Unlock()
+	data := netWMIcon(icon)
+	if len(data) == 0 {
+		return
+	}
+	if atom, err := win.api.atom(win.connection, "_NET_WM_ICON"); err == nil {
+		win.api.changeProperty(win.connection, xcbPropertyReplace, win.id, atom, xcbAtomCardinal, 32, uint32(len(data)), unsafe.Pointer(&data[0]))
+		win.api.flush(win.connection)
+	}
+}
 
 // netWMIconSizes are the sizes offered in _NET_WM_ICON: a panel, a title bar and
 // Alt+Tab each take the one nearest what they draw. A size above the source's own

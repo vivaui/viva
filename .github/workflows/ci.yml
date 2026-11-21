@@ -90,6 +90,42 @@ jobs:
       - name: API discipline
         run: go run ./tools/apicheck ./ui ./components ./app ./gfx
 
+  # The attribute rules (ADR 0089 stage 3) exist only in the dev build: they
+  # report a generic attribute that an element cannot use instead of letting it
+  # be silently ignored. The release build must not carry the rules or their
+  # messages, so this job tests the dev variant and proves the release one has
+  # neither.
+  dev-attributes:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet the dev build
+        run: go vet -tags dev ./...
+      - name: test the dev build
+        run: go test -tags dev ./base ./ui ./components -count=1
+      - name: prove the release build has no attribute rules
+        run: |
+          if go list -f '{{.GoFiles}}' ./base | grep -q attrcheck_dev.go; then
+            echo "the release build compiles the dev attribute rules" >&2
+            exit 1
+          fi
+          go build -o /tmp/base-release.a ./base
+          if grep -aq 'does not support' /tmp/base-release.a; then
+            echo "the release build carries the dev attribute messages" >&2
+            exit 1
+          fi
+          go build -tags dev -o /tmp/base-dev.a ./base
+          if ! grep -aq 'does not support' /tmp/base-dev.a; then
+            echo "the dev build does not carry the attribute rules" >&2
+            exit 1
+          fi
+
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one
   # runner: asking for four runners to do what one can finish in the same minute
@@ -125,14 +161,21 @@ jobs:
       # The Linux package is not part of the sharded run (it drives X11), so the
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
-        run: go test ./internal/platform/linux -run '^TestMaximizeButtonSetsBothDirections$' -count=1 -v
+        run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|PreviewMovePreservesSizeAndFocus)$' -count=1 -v
+      - name: Native X11 drag preview
+        env:
+          VIVA_TEST_PREVIEW_XVFB: '1'
+        run: |
+          sudo apt-get install -y xvfb libxcb-shape0 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0; }
+          xvfb-run -a go test ./internal/platform/linux -run '^TestPreviewNativeX11Contract$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: |
           sudo apt-get install -y xvfb xdotool libx11-xcb1 ||
             { sudo apt-get update && sudo apt-get install -y xvfb xdotool libx11-xcb1; }
-          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11GlobalShortcut$' -count=1 -v
+          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11(GlobalShortcut|WindowIconPropertyUpdates)$' -count=1 -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
@@ -304,6 +347,8 @@ jobs:
         run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
+      - name: Native window and grouped taskbar icons
+        run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
@@ -372,7 +417,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
+    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

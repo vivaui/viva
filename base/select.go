@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // clock is the time type-ahead measures its pause by; tests replace it.
@@ -399,7 +400,11 @@ const (
 // slice is kept until End.
 func (f *Frame) Select(scope gfx.Scope, state *SelectState, labels []string, selected int) Box {
 	b := f.SelectBase(scope, state, labels, selected)
-	f.Nodes[b.i].Flags |= flagThemed
+	n := &f.Nodes[b.i]
+	n.Flags |= flagThemed
+	// The trigger's value (or the caller's Children) is a start-aligned row with
+	// the gap an icon keeps from its label.
+	n.Dir, n.Items, n.Justify, n.Gap = row, Center, Start, style.ButtonIconGap
 	return b
 }
 

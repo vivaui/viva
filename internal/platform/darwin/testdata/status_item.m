@@ -57,6 +57,29 @@ int main(void) {
         }
         viva_status_icon icon = {18, rgba, 0};
 
+        NSImage *originalIcon = [[NSApp applicationIconImage] retain];
+        for (int color = 0; color < 2; color++) {
+            for (int i = 0; i < 18 * 18 * 4; i += 4) {
+                rgba[i] = color == 0 ? 255 : 0;
+                rgba[i + 1] = 0;
+                rgba[i + 2] = color == 0 ? 0 : 255;
+            }
+            check(viva_application_update_icon(icon) == 1, "Dock update accepted");
+            NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[[NSApp applicationIconImage] TIFFRepresentation]];
+            NSColor *pixel = [[rep colorAtX:rep.pixelsWide / 2 y:rep.pixelsHigh / 2]
+                             colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
+            int matches = pixel != nil && (color == 0 ? pixel.redComponent > 0.9 && pixel.blueComponent < 0.1
+                                                       : pixel.blueComponent > 0.9 && pixel.redComponent < 0.1);
+            if (!matches) {
+                fprintf(stderr, "Dock image %ldx%ld center: %s\n", (long)rep.pixelsWide, (long)rep.pixelsHigh,
+                        [[pixel description] UTF8String]);
+            }
+            check(matches,
+                  "Dock stores the new pixels, including a second change");
+        }
+        [NSApp setApplicationIconImage:originalIcon];
+        [originalIcon release];
+
         // 1. Create status item with Menu
         void *item = viva_status_item_create("Test Tooltip", icon, 1234, 1);
         check(item != NULL, "item created");
@@ -65,6 +88,10 @@ int main(void) {
         NSStatusItem *statusItem = [(id)item valueForKey:@"_item"];
         check(statusItem != nil, "NSStatusItem exists");
         check([statusItem.button.toolTip isEqualToString:@"Test Tooltip"], "tooltip set");
+
+        icon.template_image = 1;
+        check(viva_status_item_set_icon(item, icon) == 1, "menu bar template update accepted");
+        check(statusItem.button.image.isTemplate, "menu bar preserves system monochrome template policy");
 
         NSMenu *menu = statusItem.menu;
         check(menu != nil, "NSStatusItem has menu");

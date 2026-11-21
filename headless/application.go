@@ -25,6 +25,7 @@ type applicationWindow struct {
 	invalidator *app.Invalidator
 	id          uint64
 	title       string
+	icon        app.WindowIcon
 	panel       bool
 	hidden      bool
 	session     *Session
@@ -85,7 +86,7 @@ func (application *applicationSession) Post(fn func()) {
 
 // OpenWindow implements app.Host.
 func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx.Canvas, closed func()) (app.WindowControl, error) {
-	entry := &applicationWindow{}
+	entry := &applicationWindow{icon: config.Icon}
 	if config.Invalidator == nil {
 		config.Invalidator = &app.Invalidator{}
 	}
@@ -188,6 +189,17 @@ func (window *headlessWindow) SetTitle(title string) error {
 		return fmt.Errorf("headless: window is closed")
 	}
 	entry.title = title
+	return nil
+}
+
+func (window *headlessWindow) SetIcon(icon app.WindowIcon) error {
+	window.application.mu.Lock()
+	defer window.application.mu.Unlock()
+	entry := window.application.windows[window.id]
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	entry.icon = icon
 	return nil
 }
 
