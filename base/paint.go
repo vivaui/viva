@@ -254,7 +254,8 @@ func (f *Frame) paintControl(n *Node, r Rect) {
 	case kindIcon:
 		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.Pref[AxisX], Height: n.Pref[AxisY]}, n.Color, extra.iconTransform)
 	case kindImage:
-		canvas.DrawBitmap(f.Images[n.Aux], r)
+		bitmap := f.Images[n.Aux]
+		canvas.DrawBitmapShaded(bitmap, Rect{Width: float32(bitmap.Width), Height: float32(bitmap.Height)}, r, n.Radius, 1-f.Opacity)
 	case kindSlot:
 		if extra.swatch && f.paintSwatchFn != nil {
 			f.paintSwatchFn(f, n, r)

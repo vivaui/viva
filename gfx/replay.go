@@ -354,7 +354,7 @@ func sameText(a, b Text) bool           { a.Order, b.Order = 0, 0; return a == b
 
 func sameImage(a, b Image) bool {
 	return a.Source == b.Source && a.Bounds == b.Bounds && a.Layer == b.Layer && a.ClipOf == b.ClipOf && a.HasClip == b.HasClip &&
-		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
+		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Radius == b.Radius && a.Fade == b.Fade && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
 }
 
 func sameHit(a, b Hit) bool { return a == b }

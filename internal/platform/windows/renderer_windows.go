@@ -90,6 +90,9 @@ type frameConstants struct {
 	TextMode  uint32
 	Bounds    [4]float32
 	TextColor [4]float32
+	// TextShape is the label's box size and its image corner radius and fade
+	// (xy size, z radius, w fade).
+	TextShape [4]float32
 	PixelSize float32
 	Padding   [3]float32
 }
@@ -690,6 +693,12 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					continue
 				}
 				frame.Bounds = label.quad(scale)
+				frame.TextShape = [4]float32{float32(label.label.Width), float32(label.label.Height), label.label.ImageRadius, label.label.ImageFade}
+				if label.label.HasQuad {
+					// A warped label's quad is not its box: a rounded mask has no
+					// meaning on it.
+					frame.TextShape[2] = 0
+				}
 				frame.TextMode = 0
 				if label.lcd {
 					frame.TextMode = 1

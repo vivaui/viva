@@ -280,6 +280,20 @@ struct TextVertexOutput {
     // The colour at this corner, multiplied into the picture there: a plain
     // label is opaque white, a warped one shades or fades as the caller asked.
     float4 tint;
+    // Where this corner falls in the label's own box, the box's size, and the
+    // radius an image label rounds its corners by: zero radius keeps the label a
+    // plain quad, warped labels stay square.
+    float2 local;
+    float2 size;
+    float radius;
+};
+
+// Per-label draw values: where the label's box starts, its size, and the radius
+// its picture's corners are cut by (zero for text and for warped labels).
+struct TextLabelUniform {
+    float2 origin;
+    float2 size;
+    float radius;
 };
 
 struct TextVertex {
@@ -293,6 +307,7 @@ struct TextVertex {
 vertex TextVertexOutput viva_text_vertex(
     uint vertexID [[vertex_id]],
     constant TextVertex *vertices [[buffer(2)]],
+    constant TextLabelUniform &label [[buffer(3)]],
     constant float2 &viewportSize [[buffer(1)]]) {
     TextVertex selected = vertices[vertexID];
     float2 normalized = float2(
@@ -304,6 +319,9 @@ vertex TextVertexOutput viva_text_vertex(
     output.position = float4(normalized, 0.0, 1.0);
     output.textureCoordinate = selected.textureCoordinate;
     output.tint = selected.tint;
+    output.local = selected.pixel - label.origin;
+    output.size = label.size;
+    output.radius = label.radius;
     return output;
 }
 
@@ -318,5 +336,18 @@ fragment float4 viva_text_fragment(
     // Both the picture and the tint are premultiplied, so a tint scales all four
     // channels: that keeps edges and glyph coverage correct as a label fades.
     float4 tint = float4(input.tint.rgb * input.tint.a, input.tint.a);
-    return texture.sample(textureSampler, input.textureCoordinate) * tint;
+    float4 sample = texture.sample(textureSampler, input.textureCoordinate) * tint;
+    float radius = min(input.radius, min(input.size.x, input.size.y) * 0.5);
+    if (radius <= 0.0) {
+        return sample;
+    }
+    // The same rounded-box distance the rectangle fragment uses, in the label's
+    // own logical pixels: the picture's corners are cut and feathered over one
+    // device pixel.
+    float2 centered = input.local - input.size * 0.5;
+    float2 inner = input.size * 0.5 - radius;
+    float2 distanceVector = abs(centered) - inner;
+    float distance = length(max(distanceVector, 0.0)) + min(max(distanceVector.x, distanceVector.y), 0.0) - radius;
+    float coverage = saturate(0.5 - distance / devicePixel(input.local));
+    return sample * coverage;
 }

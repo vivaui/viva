@@ -171,6 +171,12 @@ func TestAtspiStatesAndRolesFromNodes(t *testing.T) {
 			t.Errorf("node %d role = %d, want %d", index, role, want)
 		}
 	}
+	if role := atspiRole(platform.AccessibilityNode{Role: platform.A11yRoleProgress}); role != atspiRoleProgressBar {
+		t.Errorf("progress role = %d, want %d", role, atspiRoleProgressBar)
+	}
+	if name := atspiRoleName(atspiRoleProgressBar); name != "progress bar" {
+		t.Errorf("progress role name = %q", name)
+	}
 	if role := atspiRole(platform.AccessibilityNode{Role: platform.A11yRoleTextField, Secure: true}); role != atspiRolePassword {
 		t.Errorf("secure field role = %d", role)
 	}

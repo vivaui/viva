@@ -154,6 +154,7 @@ const (
 	pkTab
 	pkList
 	pkDisclosure
+	pkProgress
 	pkKinds
 )
 

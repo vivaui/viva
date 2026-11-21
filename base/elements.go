@@ -47,10 +47,12 @@ func Text(c C, Value string) Box { return c.f.Text(Value) }
 func Textf(c C, format string, args ...any) Box { return c.f.Text(fmt.Sprintf(format, args...)) }
 func Spacer(c C) Box                            { return c.f.Spacer() }
 func Divider(c C) Box                           { return c.f.Divider() }
-func Progress(c C, fraction float32) Box        { return c.f.Progress(fraction) }
-func Spinner(c C) Box                           { return c.f.Spinner() }
-func Icon(c C, icon gfx.Icon) Box               { return c.f.Icon(icon) }
-func Image(c C, bitmap gfx.Bitmap) Box          { return c.f.Image(bitmap) }
+func Progress(c C, fraction float32) Box {
+	return c.f.Progress(c.page.ControlID(pkProgress), fraction)
+}
+func Spinner(c C) Box                  { return c.f.Spinner() }
+func Icon(c C, icon gfx.Icon) Box      { return c.f.Icon(icon) }
+func Image(c C, bitmap gfx.Bitmap) Box { return c.f.Image(bitmap) }
 
 // Paragraph is text that wraps to the width it gets, at most maxLines lines:
 // zero or less takes as many lines as the width needs, as Box.MaxLines.

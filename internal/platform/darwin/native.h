@@ -183,6 +183,10 @@ typedef struct {
     uint32_t bitmap_stride;
     uint64_t bitmap_id;
     uint32_t bitmap_version;
+    // image_radius rounds a bitmap label's corners, and image_fade is how much
+    // of it is transparent (1-opacity); zero draws the plain square, opaque image.
+    float image_radius;
+    float image_fade;
     // bitmap_upload is nonzero when bitmap carries pixels to compare or upload.
     uint32_t bitmap_upload;
     float clip_x;
