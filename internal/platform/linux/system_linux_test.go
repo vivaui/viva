@@ -257,6 +257,9 @@ func TestSetCursorShapeAppliesAndReleasesEveryFallbackGlyph(t *testing.T) {
 	t.Cleanup(func() { activeWindow.Store(nil) })
 
 	glyphs := []uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88, 58}
+	if len(glyphs) != int(cursorHidden) {
+		t.Fatalf("%d fallback glyphs for %d visible shapes: a new shape needs a glyph", len(glyphs), cursorHidden)
+	}
 	for shape, glyph := range glyphs {
 		nextID, fontName, sourceGlyph, maskGlyph = 40, "", 0, 0
 		cursorValue, freed, requests = 0, nil, 0
