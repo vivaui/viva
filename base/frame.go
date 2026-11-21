@@ -375,6 +375,7 @@ func (f *Frame) End() {
 	f.checkAttributes()
 	f.applyRecipes()
 	f.resolveTables()
+	f.resolveDialogFocus()
 	root := &f.Nodes[0]
 	f.measure(AxisX)
 	root.Rect.X, root.Rect.Width = f.bounds.X, f.bounds.Width

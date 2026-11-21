@@ -162,6 +162,7 @@ const (
 	pkList
 	pkDisclosure
 	pkProgress
+	pkAlertDialog
 	pkKinds
 )
 

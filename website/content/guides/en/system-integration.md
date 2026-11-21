@@ -125,7 +125,7 @@ func (m *model) page(c ui.C) {
 				m.menuOpen = !m.menuOpen
 			}
 			ui.Text(c, m.status).Muted()
-			ui.PopoverWith(c, menu, ui.PopoverSpec{Width: 220, Align: ui.Start}, &m.menuOpen, func() {
+			ui.PopoverWith(c, menu, &m.menuOpen, ui.PopoverSpec{Width: 220, Align: ui.Start}, func() {
 				if ui.Button(c, "Say hello to the page").Ghost().Clicked() && m.view != nil {
 					m.view.PostMessage("hello from Viva")
 					m.menuOpen = false

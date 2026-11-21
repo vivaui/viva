@@ -76,7 +76,7 @@ func (m *model) page(c ui.C) {
 ### Dialogs, menus and popups
 
 - `ui.Modal(c, &m.open, "Title", body, footer)` or `ui.ModalWith(..., ui.ModalSpec{...}, ...)`. The title is required; Escape, the close button and a press on the scrim set `m.open` to false, so do not write an Escape handler. `ui.Dialog(c, ui.DialogSpec{...})` is the form whose identities you name: `Scope`, `DismissID`, `CloseID`, `InitialFocusID`, `.Header`, `.Body`, `.Footer`, `.Dismissed()`.
-- `ui.Popover(c, anchor, &m.open, body)` / `ui.PopoverWith(c, anchor, ui.PopoverSpec{...}, &m.open, body)`; `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { ... })` with `menu.Item("Rename").Clicked()`, `menu.Sub(label, body)`; `ui.ContextMenu(c, target, func(menu *ui.MenuItems) { ... })`; `ui.Drawer(c, &m.open, title, ui.DrawerSpec{...}, body, footer)`.
+- `ui.Popover(c, anchor, &m.open, body)` / `ui.PopoverWith(c, anchor, &m.open, ui.PopoverSpec{...}, body)`; `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { ... })` with `menu.Item("Rename").Clicked()`, `menu.Sub(label, body)`; `ui.ContextMenu(c, target, func(menu *ui.MenuItems) { ... })`; `ui.Drawer(c, &m.open, title, ui.DrawerSpec{...}, body, footer)`.
 - An application overlay is `ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` (or `ui.LayerDrag`): it takes no room, paints below Viva's menus and dialogs, and a `Canvas.Block` over its empty surface keeps presses from the page behind.
 - Toasts: keep a `ui.Toaster`, `m.toaster.Show(title, text, ui.ToastSuccess)`, paint `ui.Toasts(c, &m.toaster)` once; `ShowAction(..., "Undo")` + `Acted()`, `ToastLoading` + `Done(id, ...)`, `Toaster.Position`.
 

@@ -294,9 +294,9 @@ func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
 	return base.TextField(c, Value, Label, placeholder)
 }
 
-func TextFieldID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
+func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string) Box {
 	useField()
-	return base.TextFieldID(c, ID, field, Label, placeholder)
+	return base.TextFieldID(c, ID, Value, Label, placeholder)
 }
 
 func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
@@ -333,7 +333,10 @@ func BindIconHover(state *base.IconHoverState, ID gfx.ID) IconHover {
 
 func Dialog(c C, spec DialogSpec) Box { useDialog(); return base.Dialog(c, spec) }
 
-func AlertDialog(c C, spec AlertDialogSpec) Box { useAlert(); return base.AlertDialog(c, spec) }
+func AlertDialog(c C, open *bool, spec AlertDialogSpec) bool {
+	useAlert()
+	return base.AlertDialog(c, open, spec)
+}
 
 func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func()) bool {
 	useDrawer()
@@ -355,14 +358,19 @@ func Popover(c C, Anchor Box, open *bool, body func()) bool {
 	return base.Popover(c, Anchor, open, body)
 }
 
-func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
+func PopoverWith(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
 	usePopover()
-	return base.PopoverWith(c, Anchor, spec, open, body)
+	return base.PopoverWith(c, Anchor, open, spec, body)
 }
 
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	useMenu()
 	base.Menu(c, Anchor, open, body)
+}
+
+func MenuAt(c C, open *bool, anchor Rect, body func(*MenuItems)) {
+	useMenu()
+	base.MenuAt(c, open, anchor, body)
 }
 
 func ContextMenu(c C, target Box, body func(*MenuItems)) {
