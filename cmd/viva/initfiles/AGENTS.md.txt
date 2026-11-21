@@ -430,7 +430,7 @@ func (m *model) page(c ui.C) {
 
 ### Text and icons
 
-- Text: `FontSize`, `Weight`, `Bold`, `Color`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
+- Text: `FontSize`, `Weight`, `Bold`, `Color`, `Highlight`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
   `Ellipsis()` keeps a Text to one line and ends it with … when it does not fit; `MaxLines(n)` lets a Text
   break into at most n lines (the last ends with …), `ui.Wrap(c, text)` into as many as the width needs. Lines
   break where Unicode (UAX #14) allows: at spaces, after hyphens and slashes, between CJK characters (kinsoku

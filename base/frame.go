@@ -206,6 +206,7 @@ type Extra struct {
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
+	highlight     int32            // 1 + the index of this text's query in frame.highlights; zero is none
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
 	swatchFlush   bool             // a ColorSwatch fills its border with its color
@@ -274,20 +275,22 @@ type Frame struct {
 	captionFn      func(f *Frame, n *Node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
-	memoFn     func(f *Frame, i int32, before bool) bool
-	Lines      []string
-	controls   any                 // the layer above's control declarations: see widgetsOf
-	Ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	Wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
-	wrapCursor int
-	scratch    scratch       // memory the layout borrows, see scratch.go
-	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
-	Scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
-	Parent     int32
-	bounds     Rect
-	gen        uint32 // the paint this frame is declaring; a Box names it
-	shiftedX   bool   // a CustomLayout moved children after their width was solved
-	done       bool
+	memoFn           func(f *Frame, i int32, before bool) bool
+	Lines            []string
+	highlights       []textHighlight
+	paintHighlightFn func(*Frame, *Node, string, Rect, gfx.TextStyle, gfx.Alignment)
+	controls         any                 // the layer above's control declarations: see widgetsOf
+	Ellipses         []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	Wraps            []wrapCache         // the full line sets of wrapped texts, kept between frames
+	wrapCursor       int
+	scratch          scratch       // memory the layout borrows, see scratch.go
+	layoutCtx        LayoutContext // the context a CustomLayout is handed, reused
+	Scrolls          scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
+	Parent           int32
+	bounds           Rect
+	gen              uint32 // the paint this frame is declaring; a Box names it
+	shiftedX         bool   // a CustomLayout moved children after their width was solved
+	done             bool
 }
 
 // view keeps the memory a page is laid out in between frames. It is the engine
@@ -325,6 +328,8 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	f.Surface, f.Palette, f.bounds, f.done = Surface, Palette, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
+	clear(f.highlights)
+	f.highlights = f.highlights[:0]
 	f.Exts = append(f.Exts[:0], Extra{})
 	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]

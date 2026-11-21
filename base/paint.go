@@ -355,7 +355,7 @@ func (f *Frame) paintText(n *Node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.Surface.LabelAligned(f.Lines[n.LineFirst+k], bounds, style, alignment)
+			f.paintLabel(n, f.Lines[n.LineFirst+k], bounds, style, alignment)
 		}
 		return
 	}
@@ -365,8 +365,16 @@ func (f *Frame) paintText(n *Node) {
 	if clipped {
 		f.Surface.Clip(r)
 	}
-	f.Surface.LabelAligned(n.Text, bounds, style, alignment)
+	f.paintLabel(n, n.Text, bounds, style, alignment)
 	if clipped {
 		f.Surface.Unclip()
 	}
+}
+
+func (f *Frame) paintLabel(n *Node, value string, bounds Rect, style gfx.TextStyle, alignment gfx.Alignment) {
+	if f.Exts[n.Ext].highlight != 0 && f.paintHighlightFn != nil {
+		f.paintHighlightFn(f, n, value, bounds, style, alignment)
+		return
+	}
+	f.Surface.LabelAligned(value, bounds, style, alignment)
 }
