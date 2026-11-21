@@ -182,8 +182,9 @@ func (theme Theme) WithFontSize(size float32) Theme {
 //	look := gfx.LightTheme().WithTextScale(1.5)
 //	ui.Text(c, title).FontSize(look.Metrics.ScaledText(20)).LineHeight(look.Metrics.ScaledText(28))
 //
-// Passing one restores the original scale. Non-positive or non-finite scales
-// leave the theme unchanged.
+// Passing one restores the original scale. It ignores non-positive or
+// non-finite scales and scales that would overflow a font size or round a
+// nonzero font size to zero.
 func (theme Theme) WithTextScale(scale float32) Theme {
 	theme.Metrics = theme.Metrics.withTextScale(scale)
 	return theme
@@ -193,15 +194,22 @@ func (m Metrics) withTextScale(scale float32) Metrics {
 	if !(scale > 0) || scale > math.MaxFloat32 || scale == m.ScaledText(1) {
 		return m
 	}
-	ratio := scale / m.ScaledText(1)
-	m.FontSizeS *= ratio
-	m.FontSizeM *= ratio
-	m.FontSizeL *= ratio
-	m.textScale = scale
-	if scale == 1 {
-		m.textScale = 0
+	// The ratio of two float32 scales can overflow even when all three final
+	// font sizes fit, for example when returning from a very small scale.
+	ratio := float64(scale) / float64(m.ScaledText(1))
+	next := m
+	for _, token := range [...]*float32{&next.FontSizeS, &next.FontSizeM, &next.FontSizeL} {
+		size := float32(float64(*token) * ratio)
+		if math.IsInf(float64(size), 0) || (size == 0 && *token != 0) {
+			return m
+		}
+		*token = size
 	}
-	return m
+	next.textScale = scale
+	if scale == 1 {
+		next.textScale = 0
+	}
+	return next
 }
 
 // WithOpacity is the theme with the opacity of every color multiplied by opacity,

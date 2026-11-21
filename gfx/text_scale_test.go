@@ -21,6 +21,19 @@ func TestThemeTextScale(t *testing.T) {
 			t.Errorf("invalid scale %v changed the theme", invalid)
 		}
 	}
+	if got := base.WithTextScale(math.MaxFloat32); got != base {
+		t.Fatal("a scale that overflows a font size changed the theme")
+	}
+	defaultTheme := LightTheme()
+	tiny := defaultTheme.WithTextScale(math.SmallestNonzeroFloat32)
+	if tiny.Metrics.ScaledText(1) != math.SmallestNonzeroFloat32 || tiny.WithTextScale(1) != defaultTheme {
+		t.Fatal("a representable tiny font scale could not be reset")
+	}
+	custom := defaultTheme
+	custom.Metrics.FontSizeS = 0.25
+	if got := custom.WithTextScale(math.SmallestNonzeroFloat32); got != custom {
+		t.Fatal("a scale that rounds a nonzero font size to zero changed the theme")
+	}
 	for _, density := range []Density{DensityCompact, DensityLarge} {
 		first := base
 		first.Metrics = first.Metrics.WithDensity(density)
