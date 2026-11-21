@@ -216,13 +216,17 @@ static NSMutableArray<VivaStatusItem *> *viva_status_items;
 static void viva_status_item_remove_now(void *item);
 static void viva_status_items_remove_all(void);
 
+double viva_dock_icon_points(viva_status_icon icon) {
+    return (double)icon.size / 2.0;
+}
+
 int viva_application_update_icon(viva_status_icon icon) {
     __block int result = 0;
     void (^work)(void) = ^{
         @autoreleasepool {
             /* The Dock draws an icon at up to 128 points, on a 2x screen from twice
              * the pixels, so the image is declared at half its pixel size. */
-            NSImage *image = viva_icon_image(icon, icon.size / 2.0);
+            NSImage *image = viva_icon_image(icon, (CGFloat)viva_dock_icon_points(icon));
             if (image == nil) {
                 return;
             }

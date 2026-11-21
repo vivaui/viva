@@ -66,7 +66,7 @@ int main(void) {
             }
             check(viva_application_update_icon(icon) == 1, "Dock update accepted");
             NSImage *dockIcon = [NSApp applicationIconImage];
-            NSSize points = NSMakeSize(icon.size / 2.0, icon.size / 2.0);
+            NSSize points = NSMakeSize(viva_dock_icon_points(icon), viva_dock_icon_points(icon));
             check(NSEqualSizes(dockIcon.size, points), "Dock keeps the expected size in points");
             NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[dockIcon TIFFRepresentation]];
             NSColor *pixel = [[rep colorAtX:rep.pixelsWide / 2 y:rep.pixelsHigh / 2]
@@ -75,8 +75,8 @@ int main(void) {
             // Distinguish the two icon colors independently of scale and color profile.
             CGFloat primary = color == 0 ? pixel.redComponent : pixel.blueComponent;
             CGFloat other = color == 0 ? pixel.blueComponent : pixel.redComponent;
-            int matches = pixel != nil &&
-                          primary > other && primary > pixel.greenComponent && pixel.alphaComponent > 0;
+            int matches = pixel != nil && primary > 0.5 && primary - other > 0.2 &&
+                          primary > pixel.greenComponent && pixel.alphaComponent > 0;
             if (!matches) {
                 fprintf(stderr, "Dock image %ldx%ld center: %s\n", (long)rep.pixelsWide, (long)rep.pixelsHigh,
                         [[pixel description] UTF8String]);
