@@ -36,6 +36,7 @@ const (
 	writeSetReadingDirection = 6
 	writeGetLineMetrics      = 59
 	writeGetMetrics          = 60
+	writeGetOverhangMetrics  = 61
 	writeGetClusterMetrics   = 62
 	writeSetCharacterSpacing = 69
 	writeSetUnderline        = 36

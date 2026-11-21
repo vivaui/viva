@@ -175,6 +175,139 @@ func TestLabelPictureSharingAndInvalidation(t *testing.T) {
 	}
 }
 
+func TestLabelPictureWidthChangesPreservePixelsAndReuseCompleteInk(t *testing.T) {
+	for _, scale := range []float64{1, 1.25, 1.5, 2} {
+		t.Run(fmt.Sprint(scale), func(t *testing.T) {
+			background := platform.Color{Alpha: 1}
+			reference, err := NewOffscreen(680, 250, scale, background)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reference.Close()
+			reference.renderer.noLabelPictures = true
+			candidate, err := NewOffscreen(680, 250, scale, background)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer candidate.Close()
+			labels := pictureLabels(platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})[:5]
+			for index := range labels {
+				labels[index].Width = 300
+			}
+			draw := func(width float32) {
+				for index := range labels {
+					labels[index].Width = width
+				}
+				if err := reference.Set(nil, labels); err != nil {
+					t.Fatal(err)
+				}
+				if err := candidate.Set(nil, labels); err != nil {
+					t.Fatal(err)
+				}
+				want, err := reference.Image()
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := candidate.Image()
+				if err != nil {
+					t.Fatal(err)
+				}
+				comparePixels(t, want, got)
+			}
+			draw(300)
+			built := candidate.renderer.labelRebuilds
+			draw(350)
+			if candidate.renderer.labelRebuilds != built {
+				t.Fatal("resizing labels whose ink already fits rebuilt their pictures")
+			}
+			draw(15)
+			if candidate.renderer.labelRebuilds == built {
+				t.Fatal("shrinking into visible text did not rebuild its picture")
+			}
+			draw(300)
+			for _, width := range []float32{19.25, 23.5, 29.75, 38.25, 55.5, 83.25, 105.75, 140.5, 200.25, 350.75} {
+				draw(width)
+			}
+		})
+	}
+}
+
+func TestLabelPictureWidthChangesRespectMovingClip(t *testing.T) {
+	for _, scale := range []float64{1, 1.25, 1.5, 2} {
+		t.Run(fmt.Sprint(scale), func(t *testing.T) {
+			background := platform.Color{Alpha: 1}
+			reference, err := NewOffscreen(680, 250, scale, background)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reference.Close()
+			reference.renderer.noLabelPictures = true
+			candidate, err := NewOffscreen(680, 250, scale, background)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer candidate.Close()
+			labels := pictureLabels(platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})[5:]
+			for _, size := range []float32{600, 300, 15, 500} {
+				for _, left := range []float32{0, 45.5, 80} {
+					labels[0].Width = size
+					labels[0].Clip = gfx.Rect{X: left, Y: 0, Width: 150, Height: 250}
+					if err := reference.Set(nil, labels); err != nil {
+						t.Fatal(err)
+					}
+					if err := candidate.Set(nil, labels); err != nil {
+						t.Fatal(err)
+					}
+					want, err := reference.Image()
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err := candidate.Image()
+					if err != nil {
+						t.Fatal(err)
+					}
+					comparePixels(t, want, got)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkLabelPictureWidthChanges(b *testing.B) {
+	for _, cached := range []bool{false, true} {
+		b.Run(fmt.Sprintf("pictures=%t", cached), func(b *testing.B) {
+			offscreen, err := NewOffscreen(680, 250, 2, platform.Color{Alpha: 1})
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer offscreen.Close()
+			offscreen.renderer.noLabelPictures = !cached
+			labels := pictureLabels(platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1})[:5]
+			width, height := offscreen.size()
+			draw := func(value float32) {
+				for index := range labels {
+					labels[index].Width = value
+				}
+				if err := offscreen.Set(nil, labels); err != nil {
+					b.Fatal(err)
+				}
+				if err := offscreen.renderer.draw(width, height, 2); err != nil {
+					b.Fatal(err)
+				}
+			}
+			draw(300)
+			built := offscreen.renderer.labelRebuilds
+			b.ReportAllocs()
+			b.ResetTimer()
+			for index := 0; index < b.N; index++ {
+				draw(300 + float32(index%2))
+			}
+			b.StopTimer()
+			b.ReportMetric(float64(offscreen.renderer.labelRebuilds-built)/float64(b.N), "uploads/op")
+		})
+	}
+}
+
 func TestLabelPictureCacheBoundsIdleMemoryAndPinsBorrowers(t *testing.T) {
 	var cache labelPictureCache
 	pinned := &labelPicture{key: labelPictureKey{value: "visible"}, width: 100, height: 20}
