@@ -335,6 +335,12 @@ jobs:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
 
+      - name: Native AppKit notification focus and click
+        working-directory: internal/platform/darwin
+        run: |
+          xcrun clang -fno-objc-arc -Werror -Wno-deprecated-declarations testdata/window_notification.m -o "$RUNNER_TEMP/window-notification" -framework Cocoa -framework CoreText -framework Metal -framework QuartzCore
+          "$RUNNER_TEMP/window-notification"
+
   windows-materials:
     needs: changes
     if: needs.changes.outputs.code == 'true'
