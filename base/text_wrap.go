@@ -84,11 +84,13 @@ func (b Box) MaxLines(n int) Box {
 type OverflowWrap uint8
 
 const (
-	// OverflowWrapNormal breaks a line only where the text allows it, which is what a
-	// browser does without overflow-wrap: the width a Text asks for is its widest line,
-	// so a word wider than the room the Text is given overflows it. It is the zero value
-	// and the answer of every Text that is not given OverflowWrap.
-	OverflowWrapNormal OverflowWrap = iota
+	// OverflowWrapBreakWord breaks a line inside a word too wide for it, which is what
+	// a wrapped Text already does and what CSS calls overflow-wrap: break-word: the
+	// width a Text asks for is its widest line, so a word wider than the room the Text
+	// is given is broken rather than overflow it. It is the zero value and the answer
+	// of every Text that is not given OverflowWrap. CSS overflow-wrap: normal, where
+	// the word overflows instead, is not expressible.
+	OverflowWrapBreakWord OverflowWrap = iota
 	// OverflowWrapAnywhere may break inside a word, at any character boundary, when the
 	// word does not fit its line. As with CSS overflow-wrap: anywhere, the width the
 	// Text asks for is then the room it is given rather than its widest line, because
@@ -109,7 +111,7 @@ const (
 //	})
 func (b Box) OverflowWrap(v OverflowWrap) Box {
 	n := b.N()
-	if v == OverflowWrapNormal && n.Ext == 0 {
+	if v == OverflowWrapBreakWord && n.Ext == 0 {
 		return b // the zero value says it already; no Extra is made to say it again
 	}
 	b.f.Extra(b.i).overflowWrap = v
