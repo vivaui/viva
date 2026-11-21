@@ -33,6 +33,7 @@ type window struct {
 	caretAtom                 uint32
 	closeAtom                 uint32
 	commandAtom               uint32
+	userTimeAtom              uint32
 	// titleMu guards pendingTitle, the title SetTitle asked for that the event loop
 	// has not written to the window yet.
 	titleMu        sync.Mutex
@@ -157,10 +158,8 @@ type linuxWindowState struct {
 	// frameGeometryDirty means a maximization property changed the client-side
 	// margin before its matching ConfigureNotify supplied the final dimensions.
 	frameGeometryDirty bool
-	// hidden is set by Hide: a compositor drops the contents of an unmapped
-	// window, so the first Expose after the window is shown again presents once.
-	// The same goes for the first one after the window opened: what was drawn
-	// before the window manager mapped it is gone.
+	// hidden records the application's request, independently of the asynchronous
+	// MapNotify/UnmapNotify events. The first Expose after a map paints in full.
 	hidden  bool
 	exposed bool
 	// visible is the last visibility reported to OnVisibility; a window starts as visible.
@@ -168,11 +167,12 @@ type linuxWindowState struct {
 }
 
 type linuxApplication struct {
-	windows    []*linuxWindowState
-	pollFDs    []pollFD
-	pollStates []*linuxWindowState // parallel to pollFDs; nil for the status bus
-	firstErr   error
-	quit       bool
+	lastUserTime uint32 // X server timestamp of the last user press in any of our windows
+	windows      []*linuxWindowState
+	pollFDs      []pollFD
+	pollStates   []*linuxWindowState // parallel to pollFDs; nil for the status bus
+	firstErr     error
+	quit         bool
 
 	// desktopServices are the connections to the session bus: the status icons, the watch on the
 	// desktop's settings and the accessibility bridge.
@@ -325,7 +325,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	if state.profile {
 		state.started = time.Now()
 	}
-	win, err := openWindow(config)
+	win, err := application.openWindow(config)
 	if err != nil {
 		return nil, err
 	}
@@ -660,7 +660,7 @@ func (state *linuxWindowState) coalesceConfigures(event unsafe.Pointer) unsafe.P
 			state.win.api.free(next)
 		case xcbExpose:
 			expose := (*xcbExposeEvent)(next)
-			if expose.Window == state.win.id && !state.hidden && state.exposed {
+			if expose.Window == state.win.id && (state.hidden || state.exposed) {
 				state.win.api.free(next)
 				continue
 			}
@@ -863,6 +863,12 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
 	activeWindow.Store(win)
 	kind := (*xcbGenericEvent)(event).ResponseType & 0x7f
+	if kind == xcbButtonPress || kind == xcbKeyPress {
+		if timestamp := (*xcbInputEvent)(event).Time; timestamp != 0 {
+			state.application.lastUserTime = timestamp
+			win.setUserTime(timestamp)
+		}
+	}
 	if win.margin != 0 {
 		win.shiftPointer(kind, event)
 	}
@@ -873,6 +879,9 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbDestroyNotify:
 		return true, nil
 	case xcbMapNotify, xcbUnmapNotify:
+		if (*xcbMapEvent)(event).Window == win.id && kind == xcbUnmapNotify {
+			state.exposed = false
+		}
 		if kind == xcbMapNotify && (*xcbMapEvent)(event).Window == win.id && state.hidden {
 			// The window manager mapped the window after Hide raced its first
 			// map: ask it to go away again, rather than show a hidden window.
@@ -1155,8 +1164,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			return true, nil
 		}
 	case xcbExpose:
-		if (state.hidden || !state.exposed) && (*xcbExposeEvent)(event).Count == 0 {
-			state.hidden, state.exposed = false, true
+		if !state.hidden && !state.exposed && (*xcbExposeEvent)(event).Count == 0 {
+			state.exposed = true
 			return false, renderer.presentFull()
 		}
 	case xcbSelectionRequest:
@@ -1300,7 +1309,7 @@ func validateConfig(config platform.Config) error {
 	return nil
 }
 
-func openWindow(config platform.Config) (*window, error) {
+func (application *linuxApplication) openWindow(config platform.Config) (*window, error) {
 	api, err := loadXCB()
 	if err != nil {
 		return nil, err
@@ -1439,6 +1448,14 @@ func openWindow(config platform.Config) (*window, error) {
 		}
 	}
 	win.setIdentity(config.Title)
+	if config.WindowMode == platform.WindowTitled || config.WindowMode == platform.WindowFrameless || config.WindowMode == platform.WindowCustomTitlebar {
+		win.userTimeAtom, err = api.atom(connection, "_NET_WM_USER_TIME")
+		if err != nil {
+			win.close()
+			return nil, err
+		}
+		win.setUserTime(application.lastUserTime)
+	}
 	win.wmProtocols, err = api.atom(connection, "WM_PROTOCOLS")
 	if err != nil {
 		win.close()
