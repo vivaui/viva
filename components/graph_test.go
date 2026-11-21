@@ -221,6 +221,18 @@ func TestPaintGraphSurvivesStaleSelectionAndNegativeGroup(t *testing.T) {
 	if layout.Scale <= 0 {
 		t.Fatal("graph did not paint")
 	}
+	// A hover cache from a larger graph must not label past the nodes: the
+	// pointer is still over node 1, so the cache is kept, and its neighbor 3 is
+	// not in the smaller simulation.
+	small := NewGraphSim(3, nil)
+	smallNodes := []GraphNode{{Label: "Index", Resolved: true}, {Label: "Graph", Resolved: true}, {Label: "Links", Resolved: true}}
+	stale := &GraphState{sim: small, nodeCount: len(smallNodes), hover: 1, neighbors: []int{1, 3}}
+	scope := graphTestScope()
+	canvas.SetInteraction(scope.At(1), gfx.ID{}, gfx.ID{}, false)
+	PaintGraph(&canvas, gfx.LightTheme(), gfx.Rect{X: 10, Y: 10, Width: 300, Height: 220}, small, smallNodes, stale, GraphOptions{Nodes: scope})
+	if stale.hover != 1 {
+		t.Fatalf("hover over node 1 = %d, want it kept", stale.hover)
+	}
 	// The pan surface is not a control: it must not join the focus order.
 	for _, hit := range canvas.Hits() {
 		if hit.ID == gfx.Item(90) && hit.Focusable {
@@ -325,5 +337,53 @@ func TestPaintGraphSteadyStateAllocatesNothing(t *testing.T) {
 	allocations := testing.AllocsPerRun(10, paint)
 	if allocations > 0 {
 		t.Fatalf("steady graph paint allocated %v times", allocations)
+	}
+}
+
+// graphBenchmarkData builds a settled graph of nodes notes with a ring and a
+// hub-like second link each, the shape a vault's backlink graph has.
+func graphBenchmarkData(b *testing.B, count int) (*GraphSim, []GraphNode) {
+	b.Helper()
+	links := make([]GraphLink, 0, count*2)
+	for index := 0; index < count; index++ {
+		links = append(links, GraphLink{Source: index, Target: (index + 1) % count})
+		links = append(links, GraphLink{Source: index, Target: (index * 7) % count})
+	}
+	nodes := make([]GraphNode, count)
+	for index := range nodes {
+		nodes[index] = GraphNode{Label: "note", Group: index % 4, Resolved: true}
+	}
+	return NewGraphSim(count, links), nodes
+}
+
+// BenchmarkPaintGraph is the steady cost of a settled graph: a real vault's
+// few hundred notes, painted without hovering.
+func BenchmarkPaintGraph(b *testing.B) {
+	sim, nodes := graphBenchmarkData(b, 400)
+	for ticks := 0; ticks < 2000 && sim.Tick(); ticks++ {
+	}
+	var canvas gfx.Canvas
+	canvas.SetMeasurer(chartTestMeasure)
+	canvas.SetTree(&graphTestTree)
+	state := &GraphState{}
+	bounds := gfx.Rect{Width: 900, Height: 600}
+	b.ReportAllocs()
+	for b.Loop() {
+		PaintGraph(&canvas, gfx.LightTheme(), bounds, sim, nodes, state, GraphOptions{})
+	}
+}
+
+// BenchmarkGraphSettle is the first paint a reduced-motion session pays: the
+// whole anneal runs before the frame is drawn.
+func BenchmarkGraphSettle(b *testing.B) {
+	sim, nodes := graphBenchmarkData(b, 300)
+	var canvas gfx.Canvas
+	canvas.SetMeasurer(chartTestMeasure)
+	canvas.SetTree(&graphTestTree)
+	bounds := gfx.Rect{Width: 900, Height: 600}
+	b.ReportAllocs()
+	for b.Loop() {
+		sim.Reheat(1)
+		PaintGraph(&canvas, gfx.LightTheme(), bounds, sim, nodes, &GraphState{}, GraphOptions{})
 	}
 }
