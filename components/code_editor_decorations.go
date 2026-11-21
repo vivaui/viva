@@ -31,7 +31,9 @@ type codeDecorationPaint struct {
 }
 
 // CodeEditorDecorations adds caller-owned gutter bars and byte indicators.
-// Buffers stay immutable for Paint; the editor does not retain them.
+// Buffers stay immutable for Paint; the editor does not retain them. Both are
+// validated in full on every paint, so a long change history costs time per
+// frame rather than per visible row: keep the buffers to what the editor shows.
 type CodeEditorDecorations struct {
 	// GutterWidth reserves a leading lane in logical pixels, even without bars.
 	// Nonpositive or nonfinite widths omit the lane. Existing gutter lanes remain.
@@ -39,6 +41,8 @@ type CodeEditorDecorations struct {
 	// GutterBackground is independent of the current-line highlight.
 	GutterBackground gfx.Color
 	// GutterBars are sorted by logical line; same-line bars paint in caller order.
+	// An unsorted or out-of-range bar drops the whole set, as an invalid
+	// IndicatorLayer drops its layer.
 	GutterBars []CodeEditorGutterBar
 	// IndicatorLayers paint in caller order, above text and below carets.
 	IndicatorLayers []CodeEditorIndicatorLayer
