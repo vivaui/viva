@@ -15,6 +15,7 @@ type Tree struct {
 	cursorY   float32
 	rowHeight float32
 	indent    float32
+	selected  gfx.Color // zero is the theme's Accent
 }
 
 // TreeRow is the geometry reserved for caller-owned row content.
@@ -54,6 +55,14 @@ func (tree Tree) Indent(width float32) Tree {
 	return tree
 }
 
+// SelectedColor paints the selected row's background in color instead of the theme's
+// Accent. A zero color keeps the theme's, so a theme that is faded or tinted still
+// reads as its own.
+func (tree Tree) SelectedColor(color gfx.Color) Tree {
+	tree.selected = color
+	return tree
+}
+
 // Item paints one visible row and returns its caller-owned content area. The
 // component never walks children or allocates a backing model.
 func (tree *Tree) Item(item TreeItem) TreeRow {
@@ -72,6 +81,9 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 		background := tree.theme.Muted
 		if item.Selected {
 			background = tree.theme.Accent
+			if tree.selected != (gfx.Color{}) {
+				background = tree.selected
+			}
 		}
 		tree.canvas.Rounded(row, radius, background)
 	}

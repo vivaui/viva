@@ -279,6 +279,7 @@ type Page struct {
 	drags       []*DragState          // the DragStates of the last paint
 	drag        *DragState            // the one following a press, if any
 	listStates  []*ListState          // the Lists of the last paint
+	splitters   []*SplitterState      // the Splitters of the last paint
 	tables      []tableRoute          // the Tables of the last paint, for the wheel and keys under the pointer
 	pointer     gfx.Point             // where the pointer was at the last pointer event
 	pointerIn   bool                  // a pointer event put it there, and no exit has taken it away
@@ -311,6 +312,7 @@ type Page struct {
 	roveRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a Choice or Tabs
 	groupRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a FocusGroup
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
+	splitRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Splitter
 	selectRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // opens and moves the list of a Select
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
@@ -444,6 +446,11 @@ func (p *Page) RouteKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.roveRoute != nil {
 		if result, ok := p.roveRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.splitRoute != nil {
+		if result, ok := p.splitRoute(p, event); ok {
 			return result, true
 		}
 	}
@@ -760,6 +767,8 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.rovers = p.rovers[:0]
 	clear(p.sliders)
 	p.sliders = p.sliders[:0]
+	clear(p.splitters)
+	p.splitters = p.splitters[:0]
 	p.groups, p.groupIDs = p.groups[:0], p.groupIDs[:0]
 	clear(p.contexts)
 	p.contexts = p.contexts[:0]

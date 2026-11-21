@@ -595,8 +595,9 @@ asks for a repaint, `Handled: true` stops the default handling; it is a struct, 
 `gfx.PointerDown`, `PointerMove`, `PointerUp` or `PointerExit`, `e.X`/`e.Y` are window pixels, `e.Target` is the identity
 pressed (it stays the pressed one while a drag runs). Two panes with a draggable divider need none of it: keep a
 `ui.SplitterState` in the model, give the first pane its `Pos` and declare `ui.Splitter(c, &m.split)` between them (the
-pointer is captured, the resize cursor shows, `Mins` bounds both panes, and `SplitterState.Key` given to the config's
-`OnKey` adds the arrow keys; `m.split.Dragging()` says a drag is running):
+pointer is captured, the resize cursor shows, `Mins` and `Maxs` bound both panes, and the page routes the focused
+divider's arrow keys (or give `SplitterState.Key` to the config's `OnKey`); a width the user chose comes back after a
+window that was too narrow for it grows, and `m.split.Dragging()` says a drag is running):
 
 ```go
 m.split = ui.SplitterState{Pos: 240} // once, in newModel
@@ -683,7 +684,8 @@ of `gfx.LightTheme()`: keep the theme in the model (`m.theme`) and give it to th
 value is the next paint's theme. `PageConfig.Background` fills the window with a color other than the theme's
 `Background`.
 `theme.Metrics` has `ControlHeight`, `RadiusControl`, `RadiusSurface`, `FontSizeS`, `FontSizeM`, `FontSizeL`,
-`PadControlX`, `PadSurface`, `GapItem`. Take colors and sizes from the theme rather than writing literals.
+`PadControlX`, `PadSurface`, `GapItem`. The theme's `TooltipDelay` (a `time.Duration`) is how long the pointer rests before a
+hover tooltip appears; zero shows it with the pointer. Take colors and sizes from the theme rather than writing literals.
 
 ## Components (package github.com/vivaui/viva/components)
 
