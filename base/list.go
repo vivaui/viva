@@ -1276,14 +1276,23 @@ func (p *Page) TypeKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return p.ListType(event)
 }
 
+// rowSlotHeight is the room a row takes in the list: its rectangle and the
+// vertical margins the layout puts around it. A row that sets one carries it
+// between itself and the next, so measuring only the rectangle would leave the
+// content the list scrolls to shorter than the rows it places, and the last
+// rows could never be scrolled into view.
+func rowSlotHeight(node *Node) float32 {
+	return node.Rect.Height + node.Margin[0] + node.Margin[2]
+}
+
 // measureLists records the heights the layout gave the rows the Lists declared.
 func (p *Page) measureLists() {
 	for _, list := range p.lists {
 		for k, node := range p.listRows[list.rows:list.until] {
-			list.state.measured(list.First+k, p.ctx.f.Nodes[node].Rect.Height)
+			list.state.measured(list.First+k, rowSlotHeight(&p.ctx.f.Nodes[node]))
 		}
 		if list.pinned >= 0 {
-			list.state.measured(list.pinnedRow, p.ctx.f.Nodes[list.pinned].Rect.Height)
+			list.state.measured(list.pinnedRow, rowSlotHeight(&p.ctx.f.Nodes[list.pinned]))
 		}
 		list.state.afterLayout() // the offset is the layout's now, not the request's
 	}
