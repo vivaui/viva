@@ -32,9 +32,11 @@ type painter struct {
 	onScroll   func(gfx.ScrollEvent) gfx.EventResult
 	// onModifierTap and tap recognize a modifier pressed and released on its own.
 	onModifierTap func(gfx.ModifierTapEvent) gfx.EventResult
-	tap           input.ModifierTap
-	onFileDrop    func(gfx.FileDropEvent) gfx.EventResult
-	onResize      func(gfx.Size)
+	// onFocusLost hears that the window lost the keyboard (Config.OnFocusLost).
+	onFocusLost func() gfx.EventResult
+	tap         input.ModifierTap
+	onFileDrop  func(gfx.FileDropEvent) gfx.EventResult
+	onResize    func(gfx.Size)
 	// scale is the display's device pixels per logical pixel, zero when the platform
 	// does not report it (see platform.Size): the canvas then keeps the scale it was given.
 	scale      float32
@@ -147,6 +149,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		onShortcut:    config.OnShortcut,
 		onScroll:      config.OnScroll,
 		onModifierTap: config.OnModifierTap,
+		onFocusLost:   config.OnFocusLost,
 		onFileDrop:    config.OnFileDrop,
 		onResize:      config.OnResize,
 		textInput:     config.TextInput,
@@ -693,9 +696,9 @@ func (painter *painter) releaseKeys() bool {
 
 // focusLostHandler is what a window hands the platform for the loss of the
 // keyboard: it releases the keys that were down, since their releases will go
-// to whatever window has the keyboard now.
+// to whatever window has the keyboard now, and tells the application.
 func (painter *painter) focusLostHandler() platform.FocusLostHandler {
-	if painter.onKey == nil && painter.onModifierTap == nil {
+	if painter.onKey == nil && painter.onModifierTap == nil && painter.onFocusLost == nil {
 		return nil
 	}
 	return painter.focusLost
@@ -703,7 +706,12 @@ func (painter *painter) focusLostHandler() platform.FocusLostHandler {
 
 func (painter *painter) focusLost() (platform.Frame, error) {
 	painter.tap.Cancel()
-	if !painter.releaseKeys() {
+	repaint := painter.releaseKeys()
+	if painter.onFocusLost != nil {
+		response := painter.onFocusLost()
+		repaint = painter.applyEventResult(response) || response.Repaint || repaint
+	}
+	if !repaint {
 		return platform.Frame{}, nil
 	}
 	return painter.repaint()
