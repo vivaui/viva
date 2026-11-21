@@ -12,15 +12,21 @@ paths a key or a click takes (`app/accessibility.go`).
 Role, bounds, name (`Label`), `Value`, `Hint`, `Description`, the states
 (`Focused`, `Disabled`, `Checked`, `Mixed`, `Selected`, `Expanded`,
 `ReadOnly`, `Secure`), `Focusable`, `Expandable`, a heading `Level`, `PosInSet`
-and `SetSize`, a `Live` setting, a numeric `Range` for sliders, and, for the
-focused text field, its `Selection` in code points. Components set the extras
-through `gfx.HitOptions` (and `Canvas.ContainerWithOptions` for regions).
+and `SetSize`, a `Live` setting, a numeric `Range` for sliders and labelled
+progress bars, and, for the focused text field, its `Selection` in code points.
+Components set the extras through `gfx.HitOptions` (and
+`Canvas.ContainerWithOptions` for regions).
 
 What a node can do follows from its role and state (`AccessibilityNode.Patterns`),
 so every platform offers the same set. A node with no `ID` is a region
 (heading, status, list); it names nothing to act on. Containment is geometric
 (`platform.AccessibilityContainer`): the list, grid, menu or menu bar whose
 bounds hold the node.
+
+A progress bar declares only a read-only range: it is not focusable and offers no
+press, increment or set-number request. `ui.Progress(c, fraction).Label("Uploading")`
+exposes one; a `Progress` with no `Label` declares no node at all, so it keeps
+taking no pointer or focus from the row that holds it.
 
 ## Requests
 
@@ -38,6 +44,11 @@ control refuse. Each repaint a request causes is presented in order.
 | API | NSAccessibilityElement | UI Automation providers | AT-SPI on the accessibility bus | ARIA on a hidden DOM mirror |
 | Actions | press, increment, decrement, focus, set value, set selected text range | Invoke, Toggle, Value, RangeValue, SelectionItem, Selection, ExpandCollapse, Text | Action, Value, Text, EditableText, Component.GrabFocus | the browser's own |
 | Events | focus change, live-region announcement | focus, property changes, text changed / selection changed, live region changed, structure | state-changed, property-change, children-changed, text-changed, caret-moved, announcement | the browser's own |
+
+A progress bar maps to `NSAccessibilityProgressIndicatorRole` on macOS, UIA's
+`ProgressBar` control type (50012) on Windows, `ROLE_PROGRESS_BAR` on AT-SPI and
+`role="progressbar"` on Web; its 0–100 range is exposed as a read-only
+`RangeValue`.
 
 Cost when nobody is listening:
 
