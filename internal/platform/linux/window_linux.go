@@ -1340,7 +1340,7 @@ func validateConfig(config platform.Config) error {
 	if config.Width < 1 || config.Height < 1 || config.Width > math.MaxUint16 || config.Height > math.MaxUint16 {
 		return fmt.Errorf("linux: X11 window dimensions must be between 1 and %d, got %dx%d", uint32(math.MaxUint16), config.Width, config.Height)
 	}
-	if config.WindowMode > platform.WindowPreview {
+	if config.WindowMode > platform.WindowNotification {
 		return fmt.Errorf("linux: invalid window mode %d", config.WindowMode)
 	}
 	if err := validateRectangles(config.Rectangles); err != nil {
@@ -1484,7 +1484,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		}
 		win.minimizeHandler = config.OnMinimize
 	}
-	if config.HasOrigin && config.WindowMode != platform.WindowPanel {
+	if config.HasOrigin && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowNotification {
 		// The user-specified position hint: without it a window manager places the
 		// window as it likes and ignores where it was created.
 		const usPosition = 1
@@ -1532,7 +1532,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		win.close()
 		return nil, err
 	}
-	if config.WindowMode == platform.WindowPanel {
+	if config.WindowMode == platform.WindowPanel || config.WindowMode == platform.WindowNotification {
 		if err := win.markPanel(config, x, y); err != nil {
 			win.close()
 			return nil, err

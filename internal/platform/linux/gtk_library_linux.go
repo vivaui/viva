@@ -158,7 +158,10 @@ type gtkLibrary struct {
 	gdkScreenDefault     func() uintptr
 	gdkDisplayName       func(display uintptr) uintptr
 	gdkDisplaySeat       func(display uintptr) uintptr
+	gdkMonitorAtPoint    func(display uintptr, x, y int32) uintptr
+	gdkMonitorAtIndex    func(display uintptr, index int32) uintptr
 	gdkDisplayMonitorAt  func(display, window uintptr) uintptr
+	gdkMonitorWorkarea   func(monitor uintptr, rect *[4]int32)
 	gdkMonitorGeometry   func(monitor uintptr, rect *[4]int32)
 	gdkWindowSetCursor   func(window, cursor uintptr)
 	gdkWindowNew         func(parent uintptr, attrs *gdkWindowAttr, mask int32) uintptr
@@ -454,6 +457,9 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.gdkDisplayName, "gdk_display_get_name")
 	b(&g.gdkDisplaySeat, "gdk_display_get_default_seat")
 	b(&g.gdkDisplayMonitorAt, "gdk_display_get_monitor_at_window")
+	b(&g.gdkMonitorAtPoint, "gdk_display_get_monitor_at_point")
+	b(&g.gdkMonitorAtIndex, "gdk_display_get_monitor")
+	b(&g.gdkMonitorWorkarea, "gdk_monitor_get_workarea")
 	b(&g.gdkMonitorGeometry, "gdk_monitor_get_geometry")
 	b(&g.gdkWindowSetCursor, "gdk_window_set_cursor")
 	b(&g.gdkWindowNew, "gdk_window_new")

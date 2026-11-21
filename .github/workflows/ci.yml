@@ -167,13 +167,14 @@ jobs:
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
         run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|PreviewMovePreservesSizeAndFocus|AClipboardImageIsOfferedAsPNGAndNoText|SetClipboardImageClaimsTheClipboardAndDropsOtherFlavours)$' -count=1 -v
-      - name: Native X11 drag preview
+      - name: Native X11 drag preview and notification
         env:
           VIVA_TEST_PREVIEW_XVFB: '1'
+          VIVA_TEST_NOTIFICATION_XVFB: '1'
         run: |
           sudo apt-get install -y xvfb libxcb-shape0 ||
             { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0; }
-          xvfb-run -a go test ./internal/platform/linux -run '^TestPreviewNativeX11Contract$' -count=1 -v
+          xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
@@ -356,6 +357,10 @@ jobs:
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native window and grouped taskbar icons
         run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
+      - name: Non-activating desktop notification
+        env:
+          VIVA_TEST_NOTIFICATION_DESKTOP: '1'
+        run: go test ./internal/platform/windows -run '^TestNotificationNativeWindows$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

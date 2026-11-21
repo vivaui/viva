@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 const (
@@ -40,6 +41,12 @@ const (
 	// closes itself when it loses focus; OnClosed reports that, and OnCloseRequest
 	// is not asked.
 	WindowPanel
+	// WindowNotification presents an interactive desktop popup above normal
+	// windows without activating the application. It stays until explicitly
+	// closed, including when another window receives focus. Desktop adapters
+	// request the bottom-right of the usable screen; an enforcing compositor
+	// can choose its own placement.
+	WindowNotification WindowMode = WindowMode(platform.WindowNotification)
 )
 
 // Config describes the initial native window.
