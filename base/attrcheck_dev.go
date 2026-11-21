@@ -4,6 +4,7 @@ package base
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
@@ -504,4 +505,24 @@ func kindAttributeName(n *Node) string {
 		return "SplitButton"
 	}
 	return controlName(n.Kind)
+}
+
+// unusedName reports a Key or Part given to an element that takes no name (a
+// Text, an Icon, a Spacer): it names nothing, and it would have passed to the
+// next element and taken that element's identity.
+func (f *Frame) unusedName(at int32, next protoName) {
+	given := "Part " + strconv.Quote(next.part)
+	if next.kindOf == 1 {
+		given = "Key " + next.key.describe()
+	}
+	name := "element"
+	if int(at) < len(f.Nodes) {
+		name = kindAttributeName(&f.Nodes[at])
+	}
+	message := "ui: " + given + " was given to a " + name + ", which has no identity: give it to the container or control it names"
+	if attrCheckWarn {
+		println("VIVA_ATTR_CHECK: " + message)
+		return
+	}
+	panic(message)
 }

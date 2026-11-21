@@ -467,6 +467,12 @@ func (f *Frame) Add(k Kind) int32 {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
 	index := int32(len(f.Nodes))
+	if p := f.page; p != nil && p.ctx.nextSet && p.ctx.f == f && index > p.ctx.nextAt {
+		// The element Key or Part was given to took no name: it must not pass
+		// on to this one, which would take another element's identity.
+		p.ctx.nextSet = false
+		f.unusedName(p.ctx.nextAt, p.ctx.Next)
+	}
 	f.Nodes = append(f.Nodes, Node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, Items: Auto})
 	if f.Parent >= 0 {
 		parent := &f.Nodes[f.Parent]

@@ -54,8 +54,12 @@ type Ctx struct {
 	page *Page
 	f    *Frame
 	// next names the next element instead of its place: a Key, an index or a part.
-	Next     protoName
-	nextSet  bool
+	Next    protoName
+	nextSet bool
+	// nextAt is how many elements the frame held when Next was set: the element
+	// added at that index is the one Next names, and one added after it while
+	// Next is still unused means the named element had no identity to take it.
+	nextAt   int32
 	stateSeq map[stateName]uint32 // reset each paint: the States of each name asked for in each scope
 }
 
@@ -71,12 +75,14 @@ type protoName struct {
 // their siblings in a paint.
 func (c *Ctx) Key(key string) C {
 	c.Next, c.nextSet = protoName{key: keyKey{Text: key, isText: true}, kindOf: 1}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
 // KeyInt is Key for a number, a record's ID.
 func (c *Ctx) KeyInt(key int) C {
 	c.Next, c.nextSet = protoName{key: keyKey{number: key}, kindOf: 1}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
@@ -85,6 +91,7 @@ func (c *Ctx) KeyInt(key int) C {
 func (c *Ctx) Part(Name string) C {
 	checkName("Part", Name)
 	c.Next, c.nextSet = protoName{part: Name, kindOf: 2}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
@@ -165,6 +172,7 @@ type protoScope struct {
 	keySub    gfx.Scope
 	keys      slotPool
 	labels    []string
+	ids       []gfx.ID // the identity of each of labels, in the same order
 	prev      []string
 	prevEpoch uint32
 }
@@ -353,6 +361,9 @@ type intKey struct {
 type stateName struct {
 	scope gfx.Scope
 	Name  string
+	// typ is a nil *T: two States of one name and different types are two
+	// states, not one that each paint would reset to the other's type.
+	typ any
 }
 
 type protoStateKey struct {
@@ -745,6 +756,7 @@ func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 		}
 	}
 	p.retry = false
+	p.settleHeld()
 	p.settleFocus()
 	p.settleEffects()
 	if len(p.memos) > 0 {
@@ -874,6 +886,7 @@ func (p *Page) record(scope gfx.Scope) *protoScope {
 	if s.epoch != p.epoch {
 		clear(s.prev)
 		s.prev, s.labels, s.prevEpoch = s.labels, s.prev[:0], s.epoch
+		s.ids = s.ids[:0]
 		s.epoch = p.epoch
 	}
 	return s
@@ -1036,6 +1049,7 @@ func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 	s := p.record(ID.Scope())
 	number := len(s.labels)
 	s.labels = append(s.labels, Label)
+	s.ids = append(s.ids, ID)
 	focused := canvas.Focused() == ID
 	if !focused && canvas.Pressed() != ID {
 		return
@@ -1065,7 +1079,44 @@ func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 			canvas.ReleaseFocus(ID)
 		}
 	default:
-		held.Label = Label
+		held.relabel, held.relabeling = Label, true
+	}
+}
+
+// settleHeld decides, once the paint has declared every button, what a held
+// button's new label meant. When its old label is now another button's in the
+// same scope, a button appeared before it and its number moved on (a banner's
+// Dismiss above Save): the focus follows the button it was on, and a press is
+// not delivered to the one that took its place. Otherwise the button was only
+// relabeled ("Connect" becoming "Connecting…") and keeps what it holds.
+func (p *Page) settleHeld() {
+	canvas := p.ctx.f.Surface
+	for i := range p.held {
+		held := &p.held[i]
+		if !held.relabeling {
+			continue
+		}
+		held.relabeling = false
+		moved := gfx.ID{}
+		if scope := held.ID.Scope(); int(scope) < len(p.scopes) && p.scopes[scope] != nil {
+			s := p.scopes[scope]
+			for j, label := range s.labels {
+				if label == held.Label && s.ids[j] != held.ID {
+					moved = s.ids[j]
+					break
+				}
+			}
+		}
+		if moved.IsZero() {
+			held.Label = held.relabel
+			continue
+		}
+		if canvas != nil && canvas.Focused() == held.ID {
+			canvas.RequestFocus(moved)
+			*held = armedButton{ID: moved, Label: held.Label}
+			continue
+		}
+		held.moved = true
 	}
 }
 
@@ -1196,8 +1247,9 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 //
 //	open := ui.State[bool](c, "open")
 //
-// The name is the state's in its container, so a State asked for only in some paints
-// (behind an if) does not take another's value. A component declared twice in one
+// The name and the type are the state's in its container, so a State asked for only
+// in some paints (behind an if) does not take another's value, and two States of one
+// name and different types are two states. A component declared twice in one
 // container asks for the same name twice: those are told apart by their order, as
 // two Buttons are, so give each its own container or a Key when one of them comes
 // and goes.
@@ -1209,13 +1261,13 @@ func State[T any](c C, Name string) *T {
 // value it is bound to rather than its place.
 func stateIn[T any](p *Page, scope gfx.Scope, Name string) *T {
 	c := &p.ctx
-	at := stateName{scope: scope, Name: Name}
+	at := stateName{scope: scope, Name: Name, typ: (*T)(nil)}
 	n := c.stateSeq[at]
 	c.stateSeq[at] = n + 1
 	key := protoStateKey{stateName: at, n: n}
 	entry, ok := p.States[key]
-	value, typed := entry.Value.(*T)
-	if !ok || !typed {
+	value, _ := entry.Value.(*T)
+	if !ok {
 		value = new(T)
 		entry.Value = value
 	}

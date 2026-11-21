@@ -93,6 +93,11 @@ type armedButton struct {
 	ID    gfx.ID
 	Label string
 	moved bool // the number moved to another button: nothing it holds is delivered
+	// relabel is the label the button's place showed this paint when it differed
+	// from Label: a new label, or the place now naming another button. Which one
+	// is known only once the paint has declared the whole scope (settleHeld).
+	relabel    string
+	relabeling bool
 }
 
 func (key keyKey) describe() string {

@@ -8,3 +8,7 @@ func (f *Frame) checkAttributes() {}
 
 // markAttr is empty in release builds: no attribute set is recorded.
 func (n *Node) markAttr(uint8) {}
+
+// unusedName is empty in release builds: a Key or Part given to an element
+// without identity is dropped, not reported.
+func (f *Frame) unusedName(int32, protoName) {}
