@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	"image/color"
 	"strings"
 	"testing"
 
@@ -32,6 +33,10 @@ func wholeRun(value string) []gfx.TextRun {
 var wideBackends = []struct {
 	name string
 	open func(t *testing.T, clear platform.Color) func(labels ...platform.TextLabel) *image.RGBA
+	// same reports whether two composited pixels match. The Vulkan text sampler
+	// filters linearly, so a window starting off a texel centre can mix 1/256 of
+	// its neighbour; the CPU renderer samples the glyph bitmap directly.
+	same func(a, b color.RGBA) bool
 }{
 	{"Vulkan", func(t *testing.T, clear platform.Color) func(labels ...platform.TextLabel) *image.RGBA {
 		t.Helper()
@@ -44,7 +49,7 @@ var wideBackends = []struct {
 		}
 		t.Cleanup(offscreen.Close)
 		return func(labels ...platform.TextLabel) *image.RGBA { return renderScene(t, offscreen, nil, labels) }
-	}},
+	}, withinALevel},
 	{"CPU", func(t *testing.T, clear platform.Color) func(labels ...platform.TextLabel) *image.RGBA {
 		t.Helper()
 		offscreen, err := NewCPUOffscreen(400, 40, 1.5, clear)
@@ -63,7 +68,7 @@ var wideBackends = []struct {
 			}
 			return pixels
 		}
-	}},
+	}, func(a, b color.RGBA) bool { return a == b }},
 }
 
 // A line wider than a texture holds gets a texture of the window of it that the viewport and
@@ -153,7 +158,7 @@ func TestWideMonoLineIsDrawnFromAWindowOfIt(t *testing.T) {
 						got, painted := wide[index], 0
 						for y := 0; y < 60; y++ {
 							for x := 0; x < 600; x++ {
-								if got.RGBAAt(x, y) != want.RGBAAt(x, y) {
+								if !backend.same(got.RGBAAt(x, y), want.RGBAAt(x, y)) {
 									t.Fatalf("%s, %d characters scrolled: pixel %d,%d is %v, the start of the line's is %v",
 										name, scrolled, x, y, got.RGBAAt(x, y), want.RGBAAt(x, y))
 								}
@@ -170,6 +175,12 @@ func TestWideMonoLineIsDrawnFromAWindowOfIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// withinALevel reports whether no channel of a and b differs by more than one level.
+func withinALevel(a, b color.RGBA) bool {
+	near := func(p, q uint8) bool { return int(p)-int(q) <= 1 && int(q)-int(p) <= 1 }
+	return near(a.R, b.R) && near(a.G, b.G) && near(a.B, b.B) && near(a.A, b.A)
 }
 
 // The CPU window's scene draws a line wider than a texture holds from the window of it the
