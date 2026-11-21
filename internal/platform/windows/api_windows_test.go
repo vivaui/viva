@@ -49,7 +49,7 @@ func TestNativeStructureABI(t *testing.T) {
 		{"DWRITE_LINE_METRICS", unsafe.Sizeof(lineMetrics{}), 24},
 		{"DWRITE_TEXT_METRICS", unsafe.Sizeof(textMetrics{}), 36},
 		{"rectangle shader instance", unsafe.Sizeof(rectangleInstance{}), rectangleInstanceBytes},
-		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 64},
+		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 80},
 		{"DEVMODEW", unsafe.Sizeof(displayMode{}), 220},
 	} {
 		if layout.size != layout.want {
