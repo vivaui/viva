@@ -264,12 +264,15 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	before := rectangles
 	rectangles, labels = layers()
 	if !slices.Equal(rectangles, []uint16{0, 600, math.MaxUint16}) || !slices.Equal(labels, []uint16{0}) {
 		t.Fatalf("without: rectangles %v, labels %v", rectangles, labels)
 	}
-	if !frame.Update.Rebuild {
-		t.Fatalf("losing the backdrop moved every layer but the update is %+v", frame.Update)
+	for index := range rectangles {
+		if rectangles[index] != before[index] && !updateCovers(frame.Update, index) {
+			t.Fatalf("losing the backdrop moved layer %d but the update %+v leaves it behind", index, frame.Update)
+		}
 	}
 	if frame.TextLabels == nil {
 		t.Fatal("the labels were not sent again")
@@ -280,9 +283,15 @@ func TestBackdropIsBeneathEveryLayerAndShiftsThemOnlyWhilePresent(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	before = rectangles
 	rectangles, _ = layers()
-	if !frame.Update.Rebuild || !slices.Equal(rectangles, []uint16{1, 601, math.MaxUint16}) {
-		t.Fatalf("gaining it again: %+v %v", frame.Update, rectangles)
+	if !slices.Equal(rectangles, []uint16{1, 601, math.MaxUint16}) {
+		t.Fatalf("gaining it again: %v", rectangles)
+	}
+	for index := range rectangles {
+		if rectangles[index] != before[index] && !updateCovers(frame.Update, index) {
+			t.Fatalf("gaining the backdrop moved layer %d but the update %+v leaves it behind", index, frame.Update)
+		}
 	}
 }
 
