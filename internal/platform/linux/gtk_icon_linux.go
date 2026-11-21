@@ -84,7 +84,7 @@ func (w *gtkWindow) setIcon() {
 // the difference between the content and the asked-for origin is corrected once.
 func (w *gtkWindow) placeAtOrigin() {
 	config := w.config
-	if !config.HasOrigin || w.app.wayland || config.WindowMode == platform.WindowPanel {
+	if !config.HasOrigin || w.app.wayland || (config.WindowMode == platform.WindowPanel || config.WindowMode == platform.WindowNotification) {
 		return
 	}
 	x, y := int32(math.Round(float64(config.Origin.X*w.ratio))), int32(math.Round(float64(config.Origin.Y*w.ratio)))

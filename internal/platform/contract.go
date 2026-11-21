@@ -849,6 +849,8 @@ const (
 	// whatever is under it still gets every event. Adapters that cannot make
 	// one refuse it. WindowMover moves it.
 	WindowPreview
+	// WindowNotification is an interactive, non-activating desktop popup.
+	WindowNotification
 )
 
 // DefaultTitlebarHeight is the custom titlebar strip, in logical pixels, of a

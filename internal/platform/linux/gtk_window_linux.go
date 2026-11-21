@@ -144,6 +144,20 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	switch config.WindowMode {
 	case platform.WindowFrameless, platform.WindowCustomTitlebar:
 		g.windowSetDecorated(w.toplevel, 0)
+	case platform.WindowNotification:
+		g.windowSetDecorated(w.toplevel, 0)
+		g.windowSetTypeHint(w.toplevel, 11) // GDK_WINDOW_TYPE_HINT_NOTIFICATION
+		g.windowSkipTaskbar(w.toplevel, 1)
+		g.windowKeepAbove(w.toplevel, 1)
+		g.windowAcceptFocus(w.toplevel, 0)
+		g.windowFocusOnMap(w.toplevel, 0)
+		if monitor := w.notificationMonitor(display); monitor != 0 {
+			var rect [4]int32
+			g.gdkMonitorWorkarea(monitor, &rect)
+			area := platform.ScreenRect{X: float32(rect[0]), Y: float32(rect[1]), Width: float32(rect[2]), Height: float32(rect[3])}
+			x, y := platform.PlaceNotification(float32(config.Width)*w.ratio, float32(config.Height)*w.ratio, 12*w.ratio, area)
+			g.windowMove(w.toplevel, int32(x), int32(y))
+		}
 	case platform.WindowPanel:
 		g.windowSetDecorated(w.toplevel, 0)
 		g.windowSetTypeHint(w.toplevel, 8) // GDK_WINDOW_TYPE_HINT_POPUP_MENU
@@ -243,6 +257,28 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	return w, nil
 }
 
+// On X11 the popup follows the pointer's monitor and respects its work area.
+// Native Wayland clients leave placement to the compositor.
+func (w *gtkWindow) notificationMonitor(display uintptr) uintptr {
+	if w.app.wayland {
+		return 0
+	}
+	g := w.g
+	if seat := g.gdkDisplaySeat(display); seat != 0 {
+		if pointer := g.gdkSeatPointer(seat); pointer != 0 {
+			var x, y int32
+			g.gdkDevicePosition(pointer, nil, &x, &y)
+			if m := g.gdkMonitorAtPoint(display, x, y); m != 0 {
+				return m
+			}
+		}
+	}
+	if monitor := g.gdkDisplayPrimary(display); monitor != 0 {
+		return monitor
+	}
+	return g.gdkMonitorAtIndex(display, 0)
+}
+
 // x11Scale decides the unit and the scale on X11 from the desktop's settings, in the order
 // display_scale.go gives.
 func (w *gtkWindow) x11Scale(display uintptr) (unit int32, scale float32) {
@@ -317,7 +353,8 @@ func (w *gtkWindow) SetAlwaysOnTop(enabled bool) error {
 	if w == nil || w.app == nil {
 		return fmt.Errorf("linux: window is closed")
 	}
-	if w.config.WindowMode == platform.WindowPanel || w.config.WindowMode == platform.WindowPreview {
+	switch w.config.WindowMode {
+	case platform.WindowPanel, platform.WindowPreview, platform.WindowNotification:
 		return platform.ErrAlwaysOnTopUnsupported
 	}
 	if w.app.wayland {
@@ -343,7 +380,7 @@ func (w *gtkWindow) Show() {
 				w.g.widgetShowAll(w.toplevel)
 			case w.minimized:
 				w.g.windowDeiconify(w.toplevel)
-			case !w.app.wayland:
+			case !w.app.wayland && w.config.WindowMode != platform.WindowNotification:
 				w.g.windowPresent(w.toplevel)
 			}
 			// A Wayland client cannot raise its window: gtk_window_present on a window that is
