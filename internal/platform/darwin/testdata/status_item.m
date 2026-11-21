@@ -68,8 +68,12 @@ int main(void) {
             NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:[[NSApp applicationIconImage] TIFFRepresentation]];
             NSColor *pixel = [[rep colorAtX:rep.pixelsWide / 2 y:rep.pixelsHigh / 2]
                              colorUsingColorSpace:[NSColorSpace deviceRGBColorSpace]];
-            int matches = pixel != nil && (color == 0 ? pixel.redComponent > 0.9 && pixel.blueComponent < 0.1
-                                                       : pixel.blueComponent > 0.9 && pixel.redComponent < 0.1);
+            // AppKit can color-manage the pixels when it snapshots the Dock image.
+            // Distinguish the two icon colors without requiring device-specific RGB values.
+            CGFloat primary = color == 0 ? pixel.redComponent : pixel.blueComponent;
+            CGFloat other = color == 0 ? pixel.blueComponent : pixel.redComponent;
+            int matches = pixel != nil && rep.pixelsWide == icon.size && rep.pixelsHigh == icon.size &&
+                          primary > other && primary > pixel.greenComponent && pixel.alphaComponent > 0;
             if (!matches) {
                 fprintf(stderr, "Dock image %ldx%ld center: %s\n", (long)rep.pixelsWide, (long)rep.pixelsHigh,
                         [[pixel description] UTF8String]);
