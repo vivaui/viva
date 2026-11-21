@@ -1,6 +1,9 @@
 package gfx
 
-import "math"
+import (
+	"math"
+	"time"
+)
 
 const (
 	WeightRegular  float32 = 0
@@ -133,6 +136,10 @@ type Theme struct {
 	// Transition is the default state-change motion for controls. A zero
 	// value disables animation for hand-built themes.
 	Transition Motion
+	// TooltipDelay is how long the pointer rests on a control before a hover
+	// tooltip appears. Zero shows it with the pointer, which is Viva's pinned
+	// behaviour; a desktop feel is closer to half a second.
+	TooltipDelay time.Duration
 }
 
 // WithRadius is the theme with another corner radius for its controls

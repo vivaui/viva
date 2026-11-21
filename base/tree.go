@@ -39,6 +39,9 @@ type TreeState struct {
 	Node      func(i int) TreeNode
 	RowHeight float32
 	Indent    float32
+	// SelectedColor paints the selected row's background instead of the theme's
+	// Accent. Zero keeps the theme's.
+	SelectedColor gfx.Color
 	// DisplayDepth maps a row's Depth to the level the tree indents it by, when
 	// the application compresses deep rows to keep their names in view. Depth
 	// stays the tree's structure, which keyboard movement, typeahead and drops

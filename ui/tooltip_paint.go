@@ -17,7 +17,7 @@ func paintTooltip(f *Frame) {
 		return
 	}
 	frameTooltipState(f).Paint(f.Surface, f.Palette, f.GetBounds(), components.TooltipOptions{Layer: TooltipLayer, SideOf: f.TooltipSideOf},
-		components.HoverTooltipDelay)
+		f.Palette.TooltipDelay)
 }
 
 // tooltipState is the tooltip state the layer above owns; the engine only keeps

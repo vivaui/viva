@@ -452,6 +452,14 @@ func paintInput(f *Frame, n *Node) {
 	// otherwise, so the snapshot's own declaration is left alone only by an alignment it
 	// declares. What the snapshot leaves at AlignLeft the element's TextEnd() takes.
 	snapshot := base.WidgetsOf(f).GetInputs()[n.Aux]
+	// Disabled and read-only are the declaration's as well as the field's: Disabled
+	// comes from the Box, so a condition written after the field is still obeyed.
+	if n.Flags&FlagDisabled != 0 {
+		snapshot.Disabled = true
+	}
+	if snapshot.Disabled || snapshot.ReadOnly {
+		snapshot.ShowCaret = false
+	}
 	if n.TextEnd {
 		if snapshot.Alignment == gfx.AlignLeft || snapshot.Alignment == gfx.AlignStart {
 			snapshot.Alignment = gfx.AlignEnd
@@ -480,6 +488,12 @@ func paintInput(f *Frame, n *Node) {
 // Border, as paintInput does for a line.
 func paintTextarea(f *Frame, n *Node) {
 	snapshot := base.WidgetsOf(f).GetTextareas()[n.Aux]
+	if n.Flags&FlagDisabled != 0 {
+		snapshot.Disabled = true
+	}
+	if snapshot.Disabled || snapshot.ReadOnly {
+		snapshot.ShowCaret = false
+	}
 	if n.FontSize > 0 {
 		snapshot.TextSize = n.FontSize
 	}
