@@ -105,7 +105,7 @@ mistakes an absence for an oversight. Items marked *measured* were tried or size
 | AppImage | Linux | AppImage needs an external runtime binary. `viva package` makes tar.gz, .deb, a PKGBUILD for Arch, and (with `--format rpm`) an .rpm. The .rpm is checked with rpm 6's `rpm -qpl`, `rpm -qpi` and `rpm -K --nosignature`, and installed on Fedora 44 aarch64 with dnf (install, `rpm -V`, run, desktop-file-validate, remove). The GUI and amd64 on Fedora are not yet run. |
 | Native text events in `viva dev` | all | The worker protocol does not carry them; native Canvas examples do not run under `viva dev`. |
 | A flat accessibility tree | Windows, macOS | Every node hangs from the window; Linux derives parents from geometry. |
-| XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend); XIM-only applications cannot compose. |
+| XIM input | Linux | Composition goes through IBus (IBus and Fcitx5's IBus frontend) or Fcitx 4's own protocol; XIM-only applications cannot compose. |
 | Text in arbitrary quads | Windows, Linux, Web, headless | `Canvas.LabelQuad` warps a line into a general quad on macOS and WebGL2. Canvas2D approximates it with horizontal strips and a corner-to-corner tint gradient. Windows, Linux and headless paint the line axis-aligned in its bounds, readable but unwarped. `Canvas.FillQuad` is two triangles and draws on every backend. |
 
 ## Test environments

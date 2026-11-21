@@ -22,7 +22,7 @@ func TestAccessibilityRolesMatchSemanticTree(t *testing.T) {
 		{A11yRoleListBox, semantic.RoleListBox}, {A11yRoleOption, semantic.RoleOption},
 		{A11yRoleGrid, semantic.RoleGrid}, {A11yRoleGridCell, semantic.RoleGridCell},
 		{A11yRoleHeading, semantic.RoleHeading}, {A11yRoleStatus, semantic.RoleStatus},
-		{A11yRoleSeparator, semantic.RoleSeparator},
+		{A11yRoleSeparator, semantic.RoleSeparator}, {A11yRoleProgress, semantic.RoleProgress},
 	} {
 		if pair.platform != uint8(pair.semantic) {
 			t.Errorf("platform role %d is semantic role %d", pair.platform, pair.semantic)
@@ -43,6 +43,8 @@ func TestAccessibilityPatternsFollowRoleAndState(t *testing.T) {
 		{"text field", AccessibilityNode{Role: A11yRoleTextField}, PatternValue | PatternText},
 		{"slider with range", AccessibilityNode{Role: A11yRoleSlider, Range: rangeOf(1, 0, 10)}, PatternValue | PatternRangeValue},
 		{"slider without range", AccessibilityNode{Role: A11yRoleSlider}, PatternValue},
+		{"progress with range", AccessibilityNode{Role: A11yRoleProgress, Range: rangeOf(1, 0, 10)}, PatternRangeValue},
+		{"progress without range", AccessibilityNode{Role: A11yRoleProgress}, 0},
 		{"combobox", AccessibilityNode{Role: A11yRoleCombobox}, PatternValue | PatternExpandCollapse},
 		{"list", AccessibilityNode{Role: A11yRoleListBox}, PatternSelection},
 		{"heading", AccessibilityNode{Role: A11yRoleHeading}, 0},

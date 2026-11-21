@@ -313,6 +313,13 @@ type Image struct {
 	// Backdrop marks an image drawn beneath every other primitive of the frame,
 	// whatever layer they are on. See Canvas.DrawBackdrop.
 	Backdrop bool
+	// Radius rounds the image's corners: the pixels outside the rounded box are
+	// not drawn. Zero is a square image.
+	Radius float32
+	// Fade is how much of the image is transparent, 1-opacity, the same
+	// convention as Extra.fade: zero draws it fully opaque. It is a draw-time
+	// value: changing it does not rebuild the image's texture.
+	Fade float32
 	// DevicePixels marks an image whose Bounds and Source are whole device pixels
 	// and whole bitmap pixels, drawn one bitmap pixel to one device pixel. The
 	// painter keeps it so, at a fractional display scale too, instead of rounding
@@ -358,6 +365,9 @@ const (
 	RoleHeading
 	RoleStatus
 	RoleSeparator
+	// RoleProgressBar is a read-only progress indicator: it reports a value
+	// between bounds while an operation runs, and activates nothing.
+	RoleProgressBar
 )
 
 // roleNames are the names of the roles: what a selector or a printed tree calls
@@ -368,7 +378,7 @@ var roleNames = [...]string{
 	RoleTextField: "textfield", RoleSlider: "slider", RoleTerminal: "terminal", RoleGroup: "group",
 	RoleMenu: "menu", RoleMenubar: "menubar", RoleListBox: "listbox", RoleOption: "option",
 	RoleGrid: "grid", RoleGridCell: "gridcell", RoleHeading: "heading", RoleStatus: "status",
-	RoleSeparator: "separator",
+	RoleSeparator: "separator", RoleProgressBar: "progressbar",
 }
 
 // String is the role's name as selectors and printed trees write it, such as
@@ -1115,6 +1125,13 @@ func (canvas *Canvas) DrawBitmap(bitmap Bitmap, bounds Rect) {
 // DrawBitmapRegion appends a source region of bitmap sampled into bounds.
 // Source is clipped to the bitmap without allocating or copying pixels.
 func (canvas *Canvas) DrawBitmapRegion(bitmap Bitmap, source, bounds Rect) {
+	canvas.DrawBitmapShaded(bitmap, source, bounds, 0, 0)
+}
+
+// DrawBitmapShaded appends a source region of bitmap sampled into bounds with its
+// corners rounded to radius and faded by fade (1-opacity); zero keeps the plain
+// square, opaque image DrawBitmapRegion draws.
+func (canvas *Canvas) DrawBitmapShaded(bitmap Bitmap, source, bounds Rect, radius, fade float32) {
 	if bitmap.Width <= 0 || bitmap.Height <= 0 || bitmap.Stride < bitmap.Width*4 || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -1133,6 +1150,8 @@ func (canvas *Canvas) DrawBitmapRegion(bitmap Bitmap, source, bounds Rect) {
 		Bitmap: bitmap,
 		Source: Rect{X: left, Y: top, Width: right - left, Height: bottom - top},
 		Bounds: bounds,
+		Radius: max(radius, 0),
+		Fade:   min(max(fade, 0), 1),
 		Layer:  canvas.currentLayer(),
 		Order:  canvas.nextOrder(),
 	}

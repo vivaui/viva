@@ -51,6 +51,13 @@ func (n *Node) marginOn(axis int) (start, end float32) {
 	return n.Margin[startEdge(axis)], n.Margin[endEdge(axis)]
 }
 
+// isContainer describes layout, independently of the control's semantic kind.
+// A Button or a Badge keeps its identity when it holds caller-owned children.
+func (n *Node) isContainer() bool {
+	return n.Kind == kindContainer ||
+		(n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0
+}
+
 // flows reports whether a container lays its children out along axis. A Flow does
 // across, as a Row does, and wraps onto lines down (see flow.go).
 func (n *Node) flows(axis int) bool {
@@ -73,7 +80,7 @@ func (f *Frame) measure(axis int) {
 	f.wrapCursor = 0
 	for i := len(f.Nodes) - 1; i >= 0; i-- {
 		n := &f.Nodes[i]
-		if axis == AxisX && n.Kind != kindContainer {
+		if axis == AxisX && !n.isContainer() {
 			f.measureLeaf(n)
 		}
 		if n.Kind == kindText && n.Flags&flagWrap != 0 && axis == AxisY {
@@ -88,7 +95,7 @@ func (f *Frame) measure(axis int) {
 			n.LineFirst, n.LineCount = first, int32(len(f.Lines))-first
 			n.Pref[AxisY] = float32(n.LineCount)*n.leading() + n.PadY()
 		}
-		if n.Kind == kindContainer {
+		if n.isContainer() {
 			f.measureContainer(n, axis)
 		}
 		if d := n.Size[axis]; d.Kind == dimPx {
@@ -115,9 +122,18 @@ func (f *Frame) measureLeaf(n *Node) {
 	f.Palette = saved
 }
 
-// controlMeasurer measures a control: its geometry comes from the style layer,
-// as its painting does, so the engine can sit below the styled controls.
-var ControlMeasurer func(f *Frame, n *Node)
+// controlMeasurers measures a control of each kind: its geometry comes from the
+// style layer, as its painting does, so the engine can sit below the styled
+// controls and a page links only the kinds it declares.
+var controlMeasurers [controlKindCount]func(f *Frame, n *Node)
+
+// SetControlMeasurer installs the measurement of one control kind. It is a
+// bridge for the styled layer; callers of the page API never need it.
+func SetControlMeasurer(kind Kind, measurer func(f *Frame, n *Node)) {
+	if int(kind) < len(controlMeasurers) {
+		controlMeasurers[kind] = measurer
+	}
+}
 
 func (f *Frame) measureLeafIn(n *Node) {
 	switch n.Kind {
@@ -136,9 +152,13 @@ func (f *Frame) measureLeafIn(n *Node) {
 	case kindIcon, kindImage:
 		n.Pref = [2]float32{16, 16}
 	default:
-		if ControlMeasurer != nil {
-			ControlMeasurer(f, n)
+		if int(n.Kind) < len(controlMeasurers) {
+			if measurer := controlMeasurers[n.Kind]; measurer != nil {
+				measurer(f, n)
+				return
+			}
 		}
+		requireInstall(n.Kind, "measurer")
 	}
 }
 
@@ -532,13 +552,16 @@ func (f *Frame) measureBaseline(n *Node) {
 			}
 		}
 		n.Baseline = top + row
-	case kindButton:
-		if ControlBaseline != nil {
-			n.Baseline = ControlBaseline(f, n)
+	case kindButton, kindBadge, kindToggle, kindSelect:
+		if n.Flags&flagChildren == 0 {
+			if ControlBaseline != nil {
+				n.Baseline = ControlBaseline(f, n)
+			}
+			break
 		}
+		fallthrough
 	case kindContainer:
 		n.Baseline = n.Pref[AxisY]
-		is, _ := n.Inset(AxisY)
 		for c := n.First; c >= 0; c = f.Nodes[c].Next {
 			child := &f.Nodes[c]
 			if n.Dir == flow && child.GridRow != 0 {
@@ -547,11 +570,10 @@ func (f *Frame) measureBaseline(n *Node) {
 			if child.Kind == kindContainer && child.Baseline == child.Pref[AxisY] && child.First < 0 {
 				continue
 			}
-			value := is + child.Margin[0] + child.Baseline
+			value := f.childBaseline(n, child)
 			if n.Dir == row || n.Dir == flow {
 				for k := n.First; k >= 0 && (n.Dir == row || f.Nodes[k].GridRow == 0); k = f.Nodes[k].Next {
-					other := &f.Nodes[k]
-					value = max(value, is+other.Margin[0]+other.Baseline)
+					value = max(value, f.childBaseline(n, &f.Nodes[k]))
 				}
 			}
 			n.Baseline = value
@@ -560,4 +582,22 @@ func (f *Frame) measureBaseline(n *Node) {
 	default:
 		n.Baseline = n.Pref[AxisY]
 	}
+}
+
+// childBaseline uses the same cross-axis alignment and available height as
+// solveAcross, so a centered child reports the row it will actually draw on.
+func (f *Frame) childBaseline(parent, child *Node) float32 {
+	inset, end := parent.Inset(AxisY)
+	baseline := inset + child.Margin[0] + child.Baseline
+	if parent.Dir != row && parent.Dir != flow {
+		return baseline
+	}
+	align := child.alignOn(parent)
+	if align == Baseline {
+		return baseline
+	}
+	avail := max(parent.Pref[AxisY]-inset-end, 0)
+	margin := avail - child.Margin[0] - child.Margin[2]
+	height := crossSize(child, AxisY, margin, align, f.maxOn(child, AxisY, margin))
+	return baseline + offset(align, margin-height)
 }

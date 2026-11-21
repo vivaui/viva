@@ -20,7 +20,7 @@ func TestTheGuideMentionsEveryMethod(t *testing.T) {
 	}
 	set := token.NewFileSet()
 	var missing []string
-	for _, file := range []string{"frame.go", "box.go", "absolute.go", "grid.go", "popup.go", "text_wrap.go", "table.go", "tabs.go", "select.go", "dialog.go", "leaves.go", "splitter.go", "field.go", "slider.go", "scroll.go", "bases.go", "draw.go"} {
+	for _, file := range []string{"frame.go", "box.go", "absolute.go", "grid.go", "popup.go", "text_wrap.go", "table.go", "tabs.go", "select.go", "dialog.go", "leaves.go", "splitter.go", "field.go", "slider.go", "scroll.go", "bases.go", "draw.go", "text_highlight.go"} {
 		parsed, err := parser.ParseFile(set, file, nil, parser.ParseComments)
 		if err != nil {
 			t.Fatal(err)

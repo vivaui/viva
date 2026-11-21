@@ -94,9 +94,11 @@ const (
 // without the garbage collector seeing it. Anything with two numbers, one for
 // each axis, is indexed by axisX or axisY, so the layout is written once.
 type Node struct {
-	Kind  Kind
-	Dir   direction
-	Flags uint32
+	Kind   Kind
+	Dir    direction
+	PadSet uint8 // bit i records Pad[i] explicitly set; fits existing header alignment
+	attrs  uint8 // the generic attributes set where their value cannot tell; padding
+	Flags  uint32
 
 	Parent, First, Last, Next int32
 
@@ -123,7 +125,6 @@ type Node struct {
 	ButtonSize           style.Size
 	RowSpan              uint8 // the rows a Grid child covers; zero is one
 	OutOfFlow            uint8 // absolute positioning: see absolute.go
-	PadSet               uint8 // the sides of Pad the caller set, bit i for Pad[i]: a themed control's recipe pads the rest
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines
@@ -146,10 +147,13 @@ type Node struct {
 	Raw                 [2]float32 // pref before Min/Max, the size growth starts from
 	GrowNow, ShrinkNow  float32
 	Base, Want, Bounded float32 // while flexible lengths are resolved
-	Frozen              bool
-	Rect                Rect
-	Band                uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
-	FocusScope          gfx.ID // the focus scope the subtree paints in, when it is not the page's
+	// FontSet and WeightSet distinguish inherited defaults from explicit text
+	// styling, including the valid zero value of regular weight.
+	FontSet, WeightSet bool
+	Frozen             bool
+	Rect               Rect
+	Band               uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
+	FocusScope         gfx.ID // the focus scope the subtree paints in, when it is not the page's
 }
 
 // placement says where a Popup goes.
@@ -202,6 +206,7 @@ type Extra struct {
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
+	highlight     int32            // 1 + the index of this text's query in frame.highlights; zero is none
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
 	swatchFlush   bool             // a ColorSwatch fills its border with its color
@@ -225,30 +230,36 @@ type Frame struct {
 	styles  *Styles // the page's recipe overrides; nil keeps the theme's
 	// buttonPainted is the look the recipe gave the themed button being painted, for the
 	// painter of its content; inherited is the color the content of a themed button takes
-	// unless it has one, while hasInherited says there is one.
-	buttonPainted style.ButtonLook
-	inherited     Color
-	hasInherited  bool
-	Nodes         []Node
-	addons        []FieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
-	Images        []gfx.Bitmap       // what each Image element draws, indexed by its aux
-	Exts          []Extra            // exts[0] is never written: an element without extras points at it
-	Floats        []int32            // the Popups, which belong to no container
-	States        []stateLooks       // what Hover, Pressed and Focus declared, by element
-	Draws         []drawHooks        // what Draw and DrawOver declared, by element
-	memoDepth     int                // how many Memos of a page are recording what is declared now
-	page          *Page              // the page declaring this frame; nil for a frame of the application's
-	tooltips      bool               // an element was given a Tooltip: End paints the one the pointer rests on
-	tooltip       any                // the tooltip state the layer above owns: see tooltipOf
-	drawContext   DrawContext        // what a Draw callback is handed, reused for the frame
-	pickerCtx     Ctx                // the declaration context a ColorPicker's painter is handed, reused for the frame
-	Gradients     []gradient         // the gradients of the elements that have one
-	Stops         []gfx.GradientStop // their stops, in the order declared
-	paintStops    []gfx.GradientStop // the stops of the gradient being painted, faded
-	Opacity       float32            // the product of the opacities of the elements being painted
-	popupLayer    uint16             // the canvas layer the Popups are painted on
-	nativeMark    int                // how many native views the canvas had when the page began
-	Binds         []bindDecl         // the bound controls, see bind.go
+	// unless it has one, while hasInherited says there is one. selectForeground and
+	// selectChevron are the recipe's colors for a Select trigger's painter, and
+	// checkboxPainted and switchPainted are the looks for a checkbox's mark and a
+	// switch's thumb.
+	buttonPainted                   style.ButtonLook
+	selectForeground, selectChevron Color
+	checkboxPainted                 style.CheckboxLook
+	switchPainted                   style.SwitchLook
+	inherited                       Color
+	hasInherited                    bool
+	Nodes                           []Node
+	addons                          []FieldAddons      // the icons and buttons inside fields, by 1 + extra.addons
+	Images                          []gfx.Bitmap       // what each Image element draws, indexed by its aux
+	Exts                            []Extra            // exts[0] is never written: an element without extras points at it
+	Floats                          []int32            // the Popups, which belong to no container
+	States                          []stateLooks       // what Hover, Pressed and Focus declared, by element
+	Draws                           []drawHooks        // what Draw and DrawOver declared, by element
+	memoDepth                       int                // how many Memos of a page are recording what is declared now
+	page                            *Page              // the page declaring this frame; nil for a frame of the application's
+	tooltips                        bool               // an element was given a Tooltip: End paints the one the pointer rests on
+	tooltip                         any                // the tooltip state the layer above owns: see tooltipOf
+	drawContext                     DrawContext        // what a Draw callback is handed, reused for the frame
+	pickerCtx                       Ctx                // the declaration context a ColorPicker's painter is handed, reused for the frame
+	Gradients                       []gradient         // the gradients of the elements that have one
+	Stops                           []gfx.GradientStop // their stops, in the order declared
+	paintStops                      []gfx.GradientStop // the stops of the gradient being painted, faded
+	Opacity                         float32            // the product of the opacities of the elements being painted
+	popupLayer                      uint16             // the canvas layer the Popups are painted on
+	nativeMark                      int                // how many native views the canvas had when the page began
+	Binds                           []bindDecl         // the bound controls, see bind.go
 	// The paint of a Popover, the settling of bound values and the paint of a Caption
 	// are reached through these, set by the call that declares one, so an application
 	// that declares none does not link them.
@@ -264,20 +275,22 @@ type Frame struct {
 	captionFn      func(f *Frame, n *Node, control Rect)
 	// memoFn paints, or begins (before) and ends the paint of, an element a cache
 	// declared; it reports whether the element is painted and its paint is done.
-	memoFn     func(f *Frame, i int32, before bool) bool
-	Lines      []string
-	controls   any                 // the layer above's control declarations: see widgetsOf
-	Ellipses   []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	Wraps      []wrapCache         // the full line sets of wrapped texts, kept between frames
-	wrapCursor int
-	scratch    scratch       // memory the layout borrows, see scratch.go
-	layoutCtx  LayoutContext // the context a CustomLayout is handed, reused
-	Scrolls    scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
-	Parent     int32
-	bounds     Rect
-	gen        uint32 // the paint this frame is declaring; a Box names it
-	shiftedX   bool   // a CustomLayout moved children after their width was solved
-	done       bool
+	memoFn           func(f *Frame, i int32, before bool) bool
+	Lines            []string
+	highlights       []textHighlight
+	paintHighlightFn func(*Frame, *Node, string, Rect, gfx.TextStyle, gfx.Alignment)
+	controls         any                 // the layer above's control declarations: see widgetsOf
+	Ellipses         []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	Wraps            []wrapCache         // the full line sets of wrapped texts, kept between frames
+	wrapCursor       int
+	scratch          scratch       // memory the layout borrows, see scratch.go
+	layoutCtx        LayoutContext // the context a CustomLayout is handed, reused
+	Scrolls          scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
+	Parent           int32
+	bounds           Rect
+	gen              uint32 // the paint this frame is declaring; a Box names it
+	shiftedX         bool   // a CustomLayout moved children after their width was solved
+	done             bool
 }
 
 // view keeps the memory a page is laid out in between frames. It is the engine
@@ -315,6 +328,8 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	f.Surface, f.Palette, f.bounds, f.done = Surface, Palette, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
+	clear(f.highlights)
+	f.highlights = f.highlights[:0]
 	f.Exts = append(f.Exts[:0], Extra{})
 	f.Images = f.Images[:0]
 	f.addons = f.addons[:0]
@@ -356,7 +371,9 @@ func (f *Frame) End() {
 	}
 	f.done = true
 	f.checkHits()
+	f.checkAttributes()
 	f.applyRecipes()
+	f.resolveTables()
 	root := &f.Nodes[0]
 	f.measure(AxisX)
 	root.Rect.X, root.Rect.Width = f.bounds.X, f.bounds.Width
@@ -631,6 +648,8 @@ func (f *Frame) Button(ID gfx.ID, Label string) Box {
 }
 
 // Checkbox adds a checkbox in the given state; Clicked reports a click on it.
+// Its caption is Caption; it has no Children slot, as shadcn's checkbox is
+// self-closing.
 func (f *Frame) Checkbox(ID gfx.ID, checked bool) Box {
 	b := f.Box(kindCheckbox)
 	n := &f.Nodes[b.i]
@@ -638,11 +657,13 @@ func (f *Frame) Checkbox(ID gfx.ID, checked bool) Box {
 	if checked {
 		n.Flags |= flagChecked
 	}
-	n.Flags |= flagHasHit
+	n.Flags |= flagHasHit | flagThemed
 	return b
 }
 
 // Switch adds a two-state switch in the given state; Clicked reports a click.
+// Its caption is Caption; it has no Children slot, as shadcn's switch is
+// self-closing.
 func (f *Frame) Switch(ID gfx.ID, on bool) Box {
 	b := f.Box(kindSwitch)
 	n := &f.Nodes[b.i]
@@ -650,11 +671,13 @@ func (f *Frame) Switch(ID gfx.ID, on bool) Box {
 	if on {
 		n.Flags |= flagChecked
 	}
-	n.Flags |= flagHasHit
+	n.Flags |= flagHasHit | flagThemed
 	return b
 }
 
 // Toggle adds a two-state button in the given state; Clicked reports a click.
+// Its default look and measurements come from the theme's toggle recipe; what
+// Children declares replaces its label and is laid out as a centered row.
 func (f *Frame) Toggle(ID gfx.ID, Label string, pressed bool) Box {
 	b := f.Box(kindToggle)
 	n := &f.Nodes[b.i]
@@ -662,7 +685,8 @@ func (f *Frame) Toggle(ID gfx.ID, Label string, pressed bool) Box {
 	if pressed {
 		n.Flags |= flagChecked | flagSelected
 	}
-	n.Flags |= flagHasHit
+	n.Flags |= flagHasHit | flagThemed
+	n.Dir, n.Items, n.Justify, n.Gap = row, Center, Center, style.ButtonIconGap
 	return b
 }
 

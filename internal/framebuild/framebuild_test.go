@@ -79,7 +79,7 @@ func TestBuilderCharacterizesTheFrame(t *testing.T) {
 	canvas.LabelRuns("ab", runsBounds, gfx.TextStyle{Size: 10, Mono: true, Color: textColor}, 7, runs)
 	canvas.PushLayer(5)
 	canvas.Fill(layerBounds, layered)
-	canvas.DrawBitmap(picture, imageBounds)
+	canvas.DrawBitmapShaded(picture, gfx.Rect{Width: 8, Height: 4}, imageBounds, 3, 0.25)
 	canvas.Label("layered", layerText, gfx.TextStyle{Size: 12, Color: textColor})
 	canvas.PopLayer()
 	canvas.LabelQuad("warped", warpBounds, warpQuad, gfx.TextStyle{Size: 12, Color: textColor})
@@ -168,7 +168,8 @@ func TestBuilderCharacterizesTheFrame(t *testing.T) {
 		t.Errorf("runs label lost its decorations: %+v", got.Runs)
 	}
 	if got := labels[4]; got.BitmapID != picture.ID || got.BitmapVersion != picture.Version || got.Layer != 6 ||
-		got.ShapesBefore != 7 || got.BitmapWidth != 8 || got.BitmapHeight != 4 || !got.BitmapUpload {
+		got.ShapesBefore != 7 || got.BitmapWidth != 8 || got.BitmapHeight != 4 || !got.BitmapUpload ||
+		got.ImageRadius != 3 || got.ImageFade != 0.25 {
 		t.Errorf("image label = %+v", got)
 	}
 	if got := labels[5]; got.Value != "layered" || got.Layer != 6 || got.ShapesBefore != 7 {

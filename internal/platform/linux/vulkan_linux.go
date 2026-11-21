@@ -465,11 +465,14 @@ type vulkanScratch struct {
 	sceneFrame  [6]float32
 	textFrame   [8]float32
 	tint        [4]float32
-	submit      vkSubmitInfo
-	present     vkPresentInfo
-	waitStage   uint32
-	image       uint32
-	command     uintptr
+	// mask is (label width, label height, corner radius, fade) for an image
+	// label's rounded corners and opacity, pushed with the text constants.
+	mask      [4]float32
+	submit    vkSubmitInfo
+	present   vkPresentInfo
+	waitStage uint32
+	image     uint32
+	command   uintptr
 	// contentX and contentY are where the scene's rectangle starts in the target:
 	// zero, unless a window frame leaves a margin.
 	contentX, contentY int32

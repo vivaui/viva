@@ -283,6 +283,16 @@ func (canvas *Canvas) HitsSince(from Mark) []Hit {
 	return canvas.hits[from.hits:]
 }
 
+// DisableHitsSince makes every descendant region declared after from inert.
+// A child's own opt-in focusability cannot escape a disabled ancestor.
+func (canvas *Canvas) DisableHitsSince(from Mark) {
+	for i := range canvas.HitsSince(from) {
+		hit := &canvas.hits[int(from.hits)+i]
+		hit.Disabled, hit.Focusable, hit.SkipTab = true, false, true
+		hit.FocusableDisabled, hit.SecondaryWhenDisabled = false, false
+	}
+}
+
 // HintSince gives the hits named id that the canvas took since from the Hint
 // hint: the tooltip and accessibility description of a control whose painter
 // declared its hit without one.
@@ -344,7 +354,7 @@ func sameText(a, b Text) bool           { a.Order, b.Order = 0, 0; return a == b
 
 func sameImage(a, b Image) bool {
 	return a.Source == b.Source && a.Bounds == b.Bounds && a.Layer == b.Layer && a.ClipOf == b.ClipOf && a.HasClip == b.HasClip &&
-		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
+		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Radius == b.Radius && a.Fade == b.Fade && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
 }
 
 func sameHit(a, b Hit) bool { return a == b }

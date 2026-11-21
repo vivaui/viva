@@ -16,6 +16,10 @@ const (
 	SwitchSizeSmall
 )
 
+// SwitchCheckedSlot is the animation slot holding a switch thumb's travel toward
+// on; a caller painting the track from the same look asks Canvas.Animate for it.
+const SwitchCheckedSlot uint8 = base.SwitchCheckedSlot
+
 // switchSlotChecked is the animation slot holding thumb travel, 0 (off) to 1 (on).
 const switchSlotChecked uint8 = 0
 
@@ -30,11 +34,17 @@ type Switch struct {
 	bounds    gfx.Rect
 	label     string
 	hitBounds gfx.Rect
-	checked   bool
-	focused   bool
-	invalid   bool
-	size      SwitchSize
-	disabled  bool
+	// unpaintedSurface is set when the caller's engine paints the track's fill,
+	// border, shadow and ring; Paint then draws only the thumb and the hit.
+	unpaintedSurface bool
+	// thumbColor overrides the recipe's thumb when hasThumbColor is set.
+	thumbColor    gfx.Color
+	hasThumbColor bool
+	checked       bool
+	focused       bool
+	invalid       bool
+	size          SwitchSize
+	disabled      bool
 	// recipe, when set, replaces SwitchRecipe; see Button.Recipe.
 	recipe func(gfx.Theme, gfx.State, float32) SwitchLook
 }
@@ -102,6 +112,21 @@ func (result SwitchResult) Clicked() bool {
 // The visual track keeps its normal position and size; zero bounds use the
 // default enlarged target. The rect replaces the track's target rather than
 // adding to it and must contain the track.
+// UnpaintedSurface declares that the caller paints the track's fill, border,
+// shadow and ring, as the page's engine does; Paint then draws the thumb, the
+// control's own graphic, and its hit.
+func (switchControl Switch) UnpaintedSurface() Switch {
+	switchControl.unpaintedSurface = true
+	return switchControl
+}
+
+// ThumbColor paints the thumb in color instead of the recipe's, so a caller
+// that painted the track from the same look keeps them in step.
+func (switchControl Switch) ThumbColor(color gfx.Color) Switch {
+	switchControl.thumbColor, switchControl.hasThumbColor = color, true
+	return switchControl
+}
+
 func (switchControl Switch) HitBounds(bounds gfx.Rect) Switch {
 	switchControl.hitBounds = bounds
 	return switchControl
@@ -156,14 +181,19 @@ func (switchControl Switch) Paint() SwitchResult {
 			FocusVisible: switchControl.focused, Invalid: switchControl.invalid, Disabled: switchControl.disabled,
 		}, progress)
 	}
-	switchControl.canvas.Elevate(switchControl.bounds, switchControl.bounds.Height/2, look.Shadow) // shadow-xs
-	if look.Bordered {
-		switchControl.canvas.Rounded(expand(switchControl.bounds, look.RingWidth), switchControl.bounds.Height/2+look.RingWidth, look.Ring)
-		paintBordered(switchControl.canvas, switchControl.theme, switchControl.bounds, switchControl.bounds.Height/2, look.Border, look.Track)
-	} else {
-		switchControl.canvas.Rounded(switchControl.bounds, switchControl.bounds.Height/2, look.Track)
+	if !switchControl.unpaintedSurface {
+		switchControl.canvas.Elevate(switchControl.bounds, switchControl.bounds.Height/2, look.Shadow) // shadow-xs
+		if look.Bordered {
+			switchControl.canvas.Rounded(expand(switchControl.bounds, look.RingWidth), switchControl.bounds.Height/2+look.RingWidth, look.Ring)
+			paintBordered(switchControl.canvas, switchControl.theme, switchControl.bounds, switchControl.bounds.Height/2, look.Border, look.Track)
+		} else {
+			switchControl.canvas.Rounded(switchControl.bounds, switchControl.bounds.Height/2, look.Track)
+		}
 	}
 	thumb := look.Thumb
+	if switchControl.hasThumbColor {
+		thumb = switchControl.thumbColor
+	}
 
 	// The thumb sits inside the track's 1px border: one pixel from the left edge
 	// when off and one from the right when on (translate-x-[calc(100%-2px)]).

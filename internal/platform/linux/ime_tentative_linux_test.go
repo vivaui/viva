@@ -392,7 +392,7 @@ func TestIBusPublicBaseTentativePreeditUsesExplicitPhases(t *testing.T) {
 			if frontend, ok := any(h.ime).(interface{ nativePreedit(ibus.PreeditEvent) }); ok {
 				frontend.nativePreedit(ibus.PreeditEvent{Text: "ni", Cursor: 2, Visible: true, HasMode: true, Mode: ibus.PreeditModeClear})
 			} else {
-				h.ime.preedit("ni", 2, true, nil)
+				h.ime.preedit("ni", 2, true, text.Range{Start: 2, End: 2})
 			}
 			h.ime.commit("z")
 			if len(events) != 2 || h.editor.String() != "azc" {

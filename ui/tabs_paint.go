@@ -6,6 +6,19 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
+// frameTabsLook is the look of the strip behind a tab list: the page's
+// Styles.Tabs when it set one, else the theme's.
+func frameTabsLook(f *Frame, n *Node, Palette *Theme, _ gfx.State) components.ButtonLook {
+	line := base.WidgetsOf(f).GetTabs()[n.Aux].GetLine()
+	if f.GetStyles() != nil && f.GetStyles().Tabs != nil {
+		return f.GetStyles().Tabs(*Palette, line)
+	}
+	if line {
+		return components.TabsListRecipe(*Palette, components.TabsLine)
+	}
+	return components.TabsListRecipe(*Palette, components.TabsDefault)
+}
+
 func paintTabs(f *Frame, n *Node) {
 	t := &base.WidgetsOf(f).GetTabs()[n.Aux]
 	// The strip is as tall as the element: an explicit height is the trigger's,
@@ -50,7 +63,25 @@ func paintTabs(f *Frame, n *Node) {
 	if t.GetVertical() {
 		tabs = tabs.Vertical()
 	}
-	if n.Flags&FlagDisabled != 0 {
+	tabStyle := components.TabsStyle{
+		ListPadding:    gfx.Insets{Top: n.Pad[0], Right: n.Pad[1], Bottom: n.Pad[2], Left: n.Pad[3]},
+		HasListPadding: true,
+		Gap:            n.Gap,
+		FontSize:       n.FontSize,
+	}
+	if n.WeightSet {
+		tabStyle.Weight = n.Weight
+	}
+	if n.Flags&base.FlagHasColor != 0 {
+		tabStyle.Foreground, tabStyle.HasForeground = n.Color, true
+	}
+	tabs = tabs.WithStyle(tabStyle)
+	if !t.GetLine() {
+		// The engine paints the muted strip; the line variant has no strip to
+		// paint, so the component keeps its transparent record exactly as before.
+		tabs = tabs.UnpaintedSurface()
+	}
+	if f.Disabled(n) {
 		tabs = tabs.Disabled()
 	}
 	tabs.Paint()

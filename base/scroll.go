@@ -424,6 +424,7 @@ func (f *Frame) ScrollArea(ID gfx.ID) Box {
 // scrolls up, and again once they scroll back down to it: a log, a chat. It starts at
 // the end. Follow(false), the default, leaves the offset to the user and to ScrollTo.
 func (b Box) Follow(on bool) Box {
+	b.N().markAttr(attrScroll)
 	if n := b.N(); n.Ext != 0 {
 		if s := b.f.Exts[n.Ext].scrollState; s != nil {
 			s.Follow(on)
@@ -443,6 +444,7 @@ func (b Box) Follow(on bool) Box {
 // wheel with Shift held; ScrollState().OffsetX says how far it is scrolled. It has no
 // effect on a box that is not a ScrollArea.
 func (b Box) Sideways() Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.sideways = true
 	}
@@ -458,6 +460,7 @@ func (b Box) Sideways() Box {
 // the pointer leaves and then fade. A view drawn without a Page has no pointer, and
 // keeps them revealed.
 func (b Box) Scrollbars() Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.bars = true
 		b.f.paintBarsFn = (*Frame).paintScrollbars
@@ -469,6 +472,7 @@ func (b Box) Scrollbars() Box {
 // area, as a gutter a list keeps while its content overflows, instead of revealing
 // them on hover. It implies Scrollbars; give ScrollbarSize to set their thickness.
 func (b Box) AlwaysScrollbars() Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.bars, s.barsAlways = true, true
 		b.f.paintBarsFn = (*Frame).paintScrollbars
@@ -481,6 +485,7 @@ func (b Box) AlwaysScrollbars() Box {
 // under its name. Zero keeps the derived name. Like Scrollbars, it has no effect on
 // a box that is not a ScrollArea.
 func (b Box) ScrollbarIDs(vertical, horizontal gfx.ID) Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.verticalID, s.horizontalID = vertical, horizontal
 	}
@@ -492,6 +497,7 @@ func (b Box) ScrollbarIDs(vertical, horizontal gfx.ID) Box {
 // given another name. Like Scrollbars, it has no effect on a box that is not a
 // ScrollArea.
 func (b Box) ScrollbarLabels(vertical, horizontal string) Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.verticalLabel, s.horizontalLabel = vertical, horizontal
 	}
@@ -502,6 +508,7 @@ func (b Box) ScrollbarLabels(vertical, horizontal string) Box {
 // bar's width or a horizontal bar's height. Zero keeps the thin hover default.
 // Like Scrollbars, it has no effect on a box that is not a ScrollArea.
 func (b Box) ScrollbarSize(Size float32) Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.barSize = Size
 	}
@@ -522,6 +529,7 @@ func (b Box) Bars(style ScrollBarStyle) Box {
 // percentage, a row's name, or what the bar means. Empty keeps the default, which
 // has no value. Like Scrollbars, it has no effect on a box that is not a ScrollArea.
 func (b Box) ScrollbarValues(vertical, horizontal string) Box {
+	b.N().markAttr(attrScroll)
 	if s := b.areaState(); s != nil {
 		s.verticalValue, s.horizontalValue = vertical, horizontal
 	}

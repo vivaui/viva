@@ -740,6 +740,7 @@ func (builder *Builder) appendImageLabel(index int, shapesBefore uint32) {
 		ShapesBefore: shapesBefore,
 		Bitmap:       bitmap.Pix[offset : offset+length], BitmapWidth: right - left, BitmapHeight: bottom - top,
 		BitmapStride: bitmap.Stride, BitmapID: bitmap.ID, BitmapVersion: bitmap.Version,
+		ImageRadius: image.Radius, ImageFade: image.Fade,
 		BitmapUpload: builder.bitmapUpload(image, index),
 	})
 	builder.labelImage = append(builder.labelImage, int32(index))
@@ -1095,7 +1096,7 @@ func sameImages(left, right []gfx.Image) bool {
 	}
 	for index := range left {
 		a, b := left[index], right[index]
-		if a.Bounds != b.Bounds || a.Source != b.Source || a.Layer != b.Layer || a.Order != b.Order || a.Backdrop != b.Backdrop || a.Bitmap.Width != b.Bitmap.Width ||
+		if a.Bounds != b.Bounds || a.Source != b.Source || a.Layer != b.Layer || a.Order != b.Order || a.Backdrop != b.Backdrop || a.Radius != b.Radius || a.Fade != b.Fade || a.Bitmap.Width != b.Bitmap.Width ||
 			a.Bitmap.Height != b.Bitmap.Height || a.Bitmap.Stride != b.Bitmap.Stride || a.Bitmap.ID != b.Bitmap.ID ||
 			a.Bitmap.Version != b.Bitmap.Version || len(a.Bitmap.Pix) != len(b.Bitmap.Pix) {
 			return false

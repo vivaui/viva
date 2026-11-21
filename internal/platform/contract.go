@@ -193,6 +193,12 @@ type Window interface {
 	Frame() (gfx.Rect, bool)
 }
 
+// WindowIconSetter updates a running window's desktop icon. The caller owns
+// validation and transfers an immutable copy of the pixels to the adapter.
+type WindowIconSetter interface {
+	SetIcon(WindowIcon) error
+}
+
 // WindowMover is implemented by the windows of an adapter that can put a window
 // somewhere without the user dragging it. MoveTo puts the top-left of the
 // content area at origin, in the screen coordinates of Window.Frame. It is
@@ -416,6 +422,10 @@ type TextLabel struct {
 	BitmapStride  int
 	BitmapID      uint64
 	BitmapVersion uint32
+	// ImageRadius rounds an image label's corners and ImageFade is how much of
+	// it is transparent (1-opacity); zero is the plain square, opaque image.
+	ImageRadius float32
+	ImageFade   float32
 	// BitmapUpload is true only when Bitmap content must cross a native
 	// boundary. A false bitmap label references the matching retained texture.
 	BitmapUpload bool

@@ -14,12 +14,12 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/diag"
-	"github.com/vivaui/viva/internal/ibus"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 )
 
 type window struct {
+	preview                   bool
 	fullscreen                atomic.Bool
 	topmost                   atomic.Bool
 	topmostConfigured         atomic.Bool
@@ -34,10 +34,13 @@ type window struct {
 	caretAtom                 uint32
 	closeAtom                 uint32
 	commandAtom               uint32
+	userTimeAtom              uint32
 	// titleMu guards pendingTitle, the title SetTitle asked for that the event loop
 	// has not written to the window yet.
 	titleMu        sync.Mutex
 	pendingTitle   string
+	iconMu         sync.Mutex
+	pendingIcon    platform.WindowIcon
 	moveResizeAtom uint32
 	cursor         uint32
 	// themed is the cursor theme's loader, tried once.
@@ -156,10 +159,8 @@ type linuxWindowState struct {
 	// frameGeometryDirty means a maximization property changed the client-side
 	// margin before its matching ConfigureNotify supplied the final dimensions.
 	frameGeometryDirty bool
-	// hidden is set by Hide: a compositor drops the contents of an unmapped
-	// window, so the first Expose after the window is shown again presents once.
-	// The same goes for the first one after the window opened: what was drawn
-	// before the window manager mapped it is gone.
+	// hidden records the application's request, independently of the asynchronous
+	// MapNotify/UnmapNotify events. The first Expose after a map paints in full.
 	hidden  bool
 	exposed bool
 	// visible is the last visibility reported to OnVisibility; a window starts as visible.
@@ -167,20 +168,21 @@ type linuxWindowState struct {
 }
 
 type linuxApplication struct {
-	windows    []*linuxWindowState
-	pollFDs    []pollFD
-	pollStates []*linuxWindowState // parallel to pollFDs; nil for the status bus
-	firstErr   error
-	quit       bool
+	lastUserTime uint32 // X server timestamp of the last user press in any of our windows
+	windows      []*linuxWindowState
+	pollFDs      []pollFD
+	pollStates   []*linuxWindowState // parallel to pollFDs; nil for the status bus
+	firstErr     error
+	quit         bool
 
 	// desktopServices are the connections to the session bus: the status icons, the watch on the
 	// desktop's settings and the accessibility bridge.
 	desktopServices
 
-	// ibus is the connection to the input method daemon, shared by the windows
-	// that take text; ibusTried says it has been looked for.
-	ibus      *ibus.Bus
-	ibusTried bool
+	// inputMethod is the connection to the input method daemon, shared by the
+	// windows that take text; inputMethodTried says it has been looked for.
+	inputMethod      inputMethodDaemon
+	inputMethodTried bool
 
 	// live is every window that can still be posted to, for requests that come
 	// from another goroutine (see post); the loop's own slice is not safe to read
@@ -208,6 +210,7 @@ const (
 	commandSetSize
 	commandSetTitle
 	commandPost
+	commandSetIcon
 )
 
 type nativeWindow struct {
@@ -262,9 +265,9 @@ func RunApplication(start platform.ApplicationStart) error {
 			application.fail(fmt.Errorf("linux: poll X11 connections failed (errno %d)", *application.windows[0].win.api.errnoLocation()))
 			break
 		}
-		if application.ibus != nil {
+		if application.inputMethod != nil {
 			// A key the input method never answered gives up here, not before.
-			application.ibus.Expire()
+			application.inputMethod.Expire()
 			application.checkInputMethod()
 		}
 		for index, descriptor := range fds {
@@ -274,7 +277,7 @@ func RunApplication(start platform.ApplicationStart) error {
 			state := states[index]
 			if state == nil {
 				switch {
-				case application.ibus != nil && int(descriptor.FD) == application.ibus.FD():
+				case application.inputMethod != nil && int(descriptor.FD) == application.inputMethod.FD():
 					application.serveInputMethod()
 				case application.desktop != nil && int(descriptor.FD) == application.desktop.conn.FD():
 					application.serveDesktop()
@@ -323,7 +326,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	if state.profile {
 		state.started = time.Now()
 	}
-	win, err := openWindow(config)
+	win, err := application.openWindow(config)
 	if err != nil {
 		return nil, err
 	}
@@ -416,7 +419,9 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	application.wakePosts()
 	application.atspiOpened(state)
 	application.retryDesktopWatch()
-	activeWindow.Store(win)
+	if !win.preview {
+		activeWindow.Store(win)
+	}
 	if state.profile {
 		elapsed := float64(time.Since(state.started).Microseconds()) / 1000
 		fmt.Fprintf(os.Stderr, "viva_first_frame_ms=%.3f\n", elapsed)
@@ -436,7 +441,7 @@ func (application *linuxApplication) rebuildPoll() {
 	if application.status != nil {
 		count++
 	}
-	if application.ibus != nil {
+	if application.inputMethod != nil {
 		count++
 	}
 	if application.desktop != nil {
@@ -456,8 +461,8 @@ func (application *linuxApplication) rebuildPoll() {
 		application.pollFDs[next] = pollFD{FD: int32(application.status.conn.FD()), Events: 1}
 		next++
 	}
-	if application.ibus != nil {
-		application.pollFDs[next] = pollFD{FD: int32(application.ibus.FD()), Events: 1}
+	if application.inputMethod != nil {
+		application.pollFDs[next] = pollFD{FD: int32(application.inputMethod.FD()), Events: 1}
 		next++
 	}
 	if application.desktop != nil {
@@ -477,8 +482,8 @@ func (application *linuxApplication) sleepsUntilWoken() bool { return false }
 // or a desktop retry has a bounded deadline.
 func (application *linuxApplication) pollTimeout() int32 {
 	timeout := int32(-1)
-	if application.ibus != nil {
-		if deadline, waiting := application.ibus.Deadline(); waiting {
+	if application.inputMethod != nil {
+		if deadline, waiting := application.inputMethod.Deadline(); waiting {
 			timeout = int32(max(time.Until(deadline).Milliseconds()+1, 0))
 		}
 	}
@@ -658,7 +663,7 @@ func (state *linuxWindowState) coalesceConfigures(event unsafe.Pointer) unsafe.P
 			state.win.api.free(next)
 		case xcbExpose:
 			expose := (*xcbExposeEvent)(next)
-			if expose.Window == state.win.id && !state.hidden && state.exposed {
+			if expose.Window == state.win.id && (state.hidden || state.exposed) {
 				state.win.api.free(next)
 				continue
 			}
@@ -792,7 +797,13 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 	if len(application.windows) == 0 {
 		activeWindow.CompareAndSwap(target.win, nil)
 	} else if activeWindow.Load() == target.win {
-		activeWindow.Store(application.windows[len(application.windows)-1].win)
+		activeWindow.Store(nil)
+		for i := len(application.windows) - 1; i >= 0; i-- {
+			if win := application.windows[i].win; !win.preview {
+				activeWindow.Store(win)
+				break
+			}
+		}
 	}
 	if target.config.OnClosed != nil {
 		target.config.OnClosed()
@@ -859,8 +870,16 @@ func (state *linuxWindowState) refreshReadOnlyTextInput() error {
 
 func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
-	activeWindow.Store(win)
+	if !win.preview {
+		activeWindow.Store(win)
+	}
 	kind := (*xcbGenericEvent)(event).ResponseType & 0x7f
+	if kind == xcbButtonPress || kind == xcbKeyPress {
+		if timestamp := (*xcbInputEvent)(event).Time; timestamp != 0 {
+			state.application.lastUserTime = timestamp
+			win.setUserTime(timestamp)
+		}
+	}
 	if win.margin != 0 {
 		win.shiftPointer(kind, event)
 	}
@@ -871,6 +890,9 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	case xcbDestroyNotify:
 		return true, nil
 	case xcbMapNotify, xcbUnmapNotify:
+		if (*xcbMapEvent)(event).Window == win.id && kind == xcbUnmapNotify {
+			state.exposed = false
+		}
 		if kind == xcbMapNotify && (*xcbMapEvent)(event).Window == win.id && state.hidden {
 			// The window manager mapped the window after Hide raced its first
 			// map: ask it to go away again, rather than show a hidden window.
@@ -1153,8 +1175,8 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			return true, nil
 		}
 	case xcbExpose:
-		if (state.hidden || !state.exposed) && (*xcbExposeEvent)(event).Count == 0 {
-			state.hidden, state.exposed = false, true
+		if !state.hidden && !state.exposed && (*xcbExposeEvent)(event).Count == 0 {
+			state.exposed = true
 			return false, renderer.presentFull()
 		}
 	case xcbSelectionRequest:
@@ -1286,7 +1308,7 @@ func validateConfig(config platform.Config) error {
 	if config.Width < 1 || config.Height < 1 || config.Width > math.MaxUint16 || config.Height > math.MaxUint16 {
 		return fmt.Errorf("linux: X11 window dimensions must be between 1 and %d, got %dx%d", uint32(math.MaxUint16), config.Width, config.Height)
 	}
-	if config.WindowMode > platform.WindowPanel {
+	if config.WindowMode > platform.WindowPreview {
 		return fmt.Errorf("linux: invalid window mode %d", config.WindowMode)
 	}
 	if err := validateRectangles(config.Rectangles); err != nil {
@@ -1298,7 +1320,7 @@ func validateConfig(config platform.Config) error {
 	return nil
 }
 
-func openWindow(config platform.Config) (*window, error) {
+func (application *linuxApplication) openWindow(config platform.Config) (*window, error) {
 	api, err := loadXCB()
 	if err != nil {
 		return nil, err
@@ -1335,6 +1357,17 @@ func openWindow(config platform.Config) (*window, error) {
 	win.storeScale(scale)
 	win.width, win.height = deviceLength(config.Width, scale), deviceLength(config.Height, scale)
 	frameVisual := uint32(0)
+	if config.WindowMode == platform.WindowPreview {
+		win.preview = true
+		var ok bool
+		if win.compositing(screenIndex) {
+			frameVisual, ok = win.argbVisual()
+		}
+		if !ok {
+			win.close()
+			return nil, platform.ErrDragPreviewUnsupported
+		}
+	}
 	if config.WindowMode == platform.WindowCustomTitlebar {
 		// The application draws the frame of this window, and on a desktop that
 		// composites it draws the shadow and the round corners too, in a margin.
@@ -1374,11 +1407,13 @@ func openWindow(config platform.Config) (*window, error) {
 	win.backPixel = clearPixel(config.ClearColor)
 	values := [3]uint32{win.backPixel, xcbGravityNorthWest, eventMask}
 	x, y := win.panelOrigin(config)
-	if win.frameWanted {
+	if win.frameWanted || win.preview {
 		win.createFrameWindow(frameVisual, eventMask, x, y)
 		win.depth = 32
-		win.setFrameExtents(win.margin)
-		win.updateInputRegion()
+		if !win.preview {
+			win.setFrameExtents(win.margin)
+			win.updateInputRegion()
+		}
 	} else {
 		api.createWindow(connection, xcbCopyFromParent, win.id, win.screen.Root, x, y, uint16(win.width), uint16(win.height), 0, xcbWindowClassInput, win.screen.RootVisual, xcbCWBackPixel|xcbCWBitGravity|xcbCWEventMask, &values[0])
 		win.depth = win.screen.RootDepth
@@ -1437,6 +1472,14 @@ func openWindow(config platform.Config) (*window, error) {
 		}
 	}
 	win.setIdentity(config.Title)
+	if config.WindowMode == platform.WindowTitled || config.WindowMode == platform.WindowFrameless || config.WindowMode == platform.WindowCustomTitlebar {
+		win.userTimeAtom, err = api.atom(connection, "_NET_WM_USER_TIME")
+		if err != nil {
+			win.close()
+			return nil, err
+		}
+		win.setUserTime(application.lastUserTime)
+	}
 	win.wmProtocols, err = api.atom(connection, "WM_PROTOCOLS")
 	if err != nil {
 		win.close()
@@ -1483,6 +1526,12 @@ func openWindow(config platform.Config) (*window, error) {
 		if err := win.setupFileDrop(); err != nil {
 			win.close()
 			return nil, err
+		}
+	}
+	if win.preview {
+		if err := win.markPreview(); err != nil {
+			win.close()
+			return nil, fmt.Errorf("%w: %v", platform.ErrDragPreviewUnsupported, err)
 		}
 	}
 	api.mapWindow(connection, win.id)

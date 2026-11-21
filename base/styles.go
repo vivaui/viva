@@ -23,6 +23,15 @@ import (
 type Styles struct {
 	// Button dresses Button, and the buttons a component paints.
 	Button func(Palette gfx.Theme, Variant style.ButtonVariant, state gfx.State) style.ButtonLook
+	// Badge dresses Badge, and the badges a component paints.
+	Badge func(Palette gfx.Theme, Variant style.ButtonVariant, state gfx.State) style.ButtonLook
+	// Toggle dresses Toggle: its fill, line, focus ring and label for each state.
+	Toggle func(Palette gfx.Theme, Variant style.ButtonVariant, state gfx.State) style.ButtonLook
+	// Tabs dresses the strip behind a Tabs list: its fill and radius. Line is the
+	// line variant, which has no strip.
+	Tabs func(Palette gfx.Theme, Line bool) style.ButtonLook
+	// Select dresses a Select's trigger: its surface, value and chevron.
+	Select func(Palette gfx.Theme, state gfx.State, placeholder bool) (style.TextEntryLook, gfx.Color, gfx.Color)
 	// Checkbox dresses Checkbox.
 	Checkbox func(Palette gfx.Theme, state gfx.State) style.CheckboxLook
 	// Switch dresses Switch, progress being how far the thumb has travelled.

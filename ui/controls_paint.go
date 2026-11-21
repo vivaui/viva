@@ -8,17 +8,110 @@ import (
 	"github.com/vivaui/viva/style"
 )
 
-func paintCheckbox(f *Frame, v ControlView) {
-	canvas := f.Surface
+// checkboxSurfaceRect is the box a Checkbox paints inside its element: beside
+// its caption at the element's start, centered in the element when it has none.
+// An explicit pixel Size sizes the box itself; a non-square box is allowed and
+// its mark is drawn for the shorter side.
+func checkboxSurfaceRect(f *Frame, n *Node) Rect {
 	side := components.CheckboxExtent(f.Palette)
-	bounds := Rect{X: v.Rect.X + (v.Rect.Width-side)/2, Y: v.Rect.Y + (v.Rect.Height-side)/2, Width: side, Height: side}
-	if v.Text != "" {
-		bounds.X = v.Rect.X
+	width, height := side, side
+	if d := n.Size[AxisX]; d.Kind == DimPx {
+		width = d.Value
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	r := n.Rect
+	x := r.X + (r.Width-width)/2
+	if n.Text != "" {
+		x = r.X
+	}
+	return Rect{X: x, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+}
+
+// switchSurfaceRect is the track a Switch paints inside its element; an explicit
+// Width or Height sizes the track, as it does every other control's surface.
+func switchSurfaceRect(f *Frame, n *Node) Rect {
+	small := n.Flags&FlagSmall != 0
+	width, height := components.SwitchExtent(f.Palette, small)
+	r := n.Rect
+	// An explicit pixel size, and a Fill or Percent size the layout resolved,
+	// both size the track. A track stretched across a row keeps its caption, so
+	// the caption's width and the gap after it come out of the element's width.
+	stretched := func(d Dimension) bool { return d.Kind == DimFill || d.Kind == DimPercent }
+	if d := n.Size[AxisX]; d.Kind == DimPx {
+		width = d.Value
+	} else if stretched(d) {
+		width = max(r.Width-captionWidth(f, n)-base.CaptionGap, 0)
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	} else if stretched(d) {
+		height = r.Height
+	}
+	x := r.X + (r.Width-width)/2
+	if n.Text != "" {
+		x = r.X
+	}
+	return Rect{X: x, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+}
+
+// captionWidth is the width a Switch's caption takes at the element's text
+// style, the same measurement measureSwitchNode adds to the element.
+func captionWidth(f *Frame, n *Node) float32 {
+	if n.Text == "" {
+		return 0
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	return f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
+}
+
+// controlSurfaceRect is where a themed control's own surface paints when it is
+// smaller than the element: a Checkbox's box, a Switch's track.
+func controlSurfaceRect(f *Frame, n *Node) Rect {
+	switch n.Kind {
+	case KindCheckbox:
+		return checkboxSurfaceRect(f, n)
+	case KindSwitch:
+		return switchSurfaceRect(f, n)
+	}
+	return n.Rect
+}
+
+// frameCheckboxLook is the look a Checkbox's box is dressed with: the page's
+// Styles.Checkbox when it set one, else the theme's.
+func frameCheckboxLook(f *Frame, n *Node, Palette *Theme, state gfx.State) style.CheckboxLook {
+	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
+		return f.GetStyles().Checkbox(*Palette, state)
+	}
+	return components.CheckboxRecipe(*Palette, state)
+}
+
+// frameSwitchLook is the look a Switch's track and thumb are dressed with: the
+// page's Styles.Switch when it set one, else the theme's.
+func frameSwitchLook(f *Frame, n *Node, Palette *Theme, state gfx.State, progress float32) style.SwitchLook {
+	if f.GetStyles() != nil && f.GetStyles().Switch != nil {
+		return f.GetStyles().Switch(*Palette, state, progress)
+	}
+	return components.SwitchRecipe(*Palette, state, progress)
+}
+
+func paintCheckbox(f *Frame, v ControlView, n *Node) {
+	canvas := f.Surface
+	bounds := checkboxSurfaceRect(f, n)
+	themed := v.Flags&FlagThemed != 0
+	if v.Text != "" && !themed {
 		f.PaintCaptionView(v, bounds)
 	}
 	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
 	if v.Exact {
 		checkbox = checkbox.HitBounds(v.Rect)
+	}
+	if n.Size[AxisX].Kind != DimAuto || n.Size[AxisY].Kind != DimAuto {
+		checkbox = checkbox.ExplicitBounds()
 	}
 	if v.Flags&FlagMixed != 0 {
 		checkbox = checkbox.Indeterminate()
@@ -26,37 +119,45 @@ func paintCheckbox(f *Frame, v ControlView) {
 	if v.Flags&FlagInvalid != 0 {
 		checkbox = checkbox.Invalid()
 	}
-	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
+	if themed {
+		// The engine painted the box from the recipe; the mark is the control's.
+		checkbox = checkbox.UnpaintedSurface().MarkColor(f.GetCheckboxLook().Mark)
+	} else if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
 		checkbox = checkbox.Recipe(f.GetStyles().Checkbox)
 	}
 	if v.Label != "" {
 		checkbox = checkbox.Label(v.Label)
 	}
-	if v.Disabled {
+	disabled := v.Disabled
+	if themed {
+		// The visual above already dims under a disabled ancestor; the hit must too.
+		disabled = f.Disabled(n)
+	}
+	if disabled {
 		checkbox = checkbox.Disabled()
 	}
 	checkbox.Paint()
 }
 
-func paintSwitch(f *Frame, v ControlView) {
+func paintSwitch(f *Frame, v ControlView, n *Node) {
 	canvas := f.Surface
-	small := v.Flags&FlagSmall != 0
-	width, height := components.SwitchExtent(f.Palette, small)
-	bounds := Rect{X: v.Rect.X + (v.Rect.Width-width)/2, Y: v.Rect.Y + (v.Rect.Height-height)/2, Width: width, Height: height}
-	if v.Text != "" {
-		bounds.X = v.Rect.X
+	bounds := switchSurfaceRect(f, n)
+	themed := v.Flags&FlagThemed != 0
+	if v.Text != "" && !themed {
 		f.PaintCaptionView(v, bounds)
 	}
 	control := components.BeginSwitch(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
 	if v.Exact {
 		control = control.HitBounds(v.Rect)
 	}
-	if recipe := v.SwitchRecipe; recipe != nil {
+	if themed {
+		control = control.UnpaintedSurface().ThumbColor(f.GetSwitchLook().Thumb)
+	} else if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.GetStyles() != nil && f.GetStyles().Switch != nil {
 		control = control.Recipe(f.GetStyles().Switch)
 	}
-	if small {
+	if v.Flags&FlagSmall != 0 {
 		control = control.Small()
 	}
 	if v.Flags&FlagInvalid != 0 {
@@ -65,34 +166,14 @@ func paintSwitch(f *Frame, v ControlView) {
 	if v.Label != "" {
 		control = control.Label(v.Label)
 	}
-	if v.Disabled {
+	disabled := v.Disabled
+	if themed {
+		disabled = f.Disabled(n)
+	}
+	if disabled {
 		control = control.Disabled()
 	}
 	control.Paint()
-}
-
-func paintToggle(f *Frame, v ControlView) {
-	toggle := components.BeginToggle(f.Surface, f.Palette, v.ID, v.Rect, v.Flags&FlagChecked != 0)
-	if v.Size == style.SizeSmall {
-		toggle = toggle.Small()
-	} else if v.Size == style.SizeLarge {
-		toggle = toggle.Large()
-	}
-	if v.Flags&FlagDisabled != 0 {
-		toggle = toggle.Disabled()
-	}
-	if v.Flags&FlagInvalid != 0 {
-		toggle = toggle.Invalid()
-	}
-	label := v.Text
-	if label == "" {
-		label = v.Label
-	}
-	if v.Variant == style.VariantOutline {
-		toggle.Outline(label)
-	} else {
-		toggle.Default(label)
-	}
 }
 
 func paintInputGroup(f *Frame, v ControlView) {
@@ -108,109 +189,181 @@ func paintSegmented(f *Frame, v ControlView) {
 	control.Paint()
 }
 
-// measureControls measures the controls: each kind's geometry, from package
-// components for the ones that ship with a theme.
-func measureControls(f *Frame, n *Node) {
-	switch n.Kind {
-	case KindButton:
-		n.Pref = measureButton(f, n)
-	case KindBadge:
-		w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
-		n.Pref = [2]float32{w, h}
-	case KindPagination:
-		w, h := components.PaginationExtent(f.Surface, f.Palette, f.PaginationItems(n))
-		n.Pref = [2]float32{w, h}
-	case KindSplitButton:
-		button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
-		trigger := base.WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
-		if trigger <= 0 {
-			trigger = SplitButtonTrigger
+// measureButtonNode sizes a button that paints its own label and icon.
+func measureButtonNode(f *Frame, n *Node) { n.Pref = measureButton(f, n) }
+
+// measureBadgeNode gives a badge its chip's height and its label's width inside
+// the element's Pad, which the recipe set to the chip's padding unless the
+// caller said otherwise. An explicit Height or FontSize replaces the size's.
+func measureBadgeNode(f *Frame, n *Node) {
+	height, _, _, fontSize := style.BadgeGeometry(f.Palette.Metrics)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	label := n.Text
+	if label == "" {
+		label = n.Label
+	}
+	width := n.PadX() + f.Surface.TextWidthWeight(label, fontSize, weight)
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
+	}
+	height = max(height, leading+n.PadY())
+	n.Pref = [2]float32{width, height}
+}
+
+// measurePaginationNode gives a Pagination the extent its items want.
+func measurePaginationNode(f *Frame, n *Node) {
+	w, h := components.PaginationExtent(f.Surface, f.Palette, f.PaginationItems(n))
+	n.Pref = [2]float32{w, h}
+}
+
+// measureSplitButtonNode gives a SplitButton its label's width and its trigger.
+func measureSplitButtonNode(f *Frame, n *Node) {
+	button := components.BeginButton(f.Surface, f.Palette, gfx.ID{}, Rect{}).Size(n.ButtonSize).SizeToFit(n.Label)
+	trigger := base.WidgetsOf(f).GetSplitButtons()[n.Aux].GetTriggerWidth()
+	if trigger <= 0 {
+		trigger = SplitButtonTrigger
+	}
+	n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
+}
+
+func measureCheckboxNode(f *Frame, n *Node) {
+	w, h := components.CheckboxHitExtent(f.Palette)
+	n.Pref = [2]float32{w, h}
+	if n.Text != "" {
+		weight := gfx.WeightMedium
+		if n.WeightSet || n.Weight != 0 {
+			weight = n.Weight
 		}
-		n.Pref = [2]float32{button.BoundsWidth() + trigger, button.BoundsHeight()}
-	case KindCheckbox:
-		w, h := components.CheckboxHitExtent(f.Palette)
-		n.Pref = [2]float32{w, h}
-		if n.Text != "" {
-			n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
-		}
-	case KindSwitch:
-		w, h := components.SwitchHitExtent(f.Palette, n.Flags&FlagSmall != 0)
-		n.Pref = [2]float32{w, h}
-		if n.Text != "" {
-			control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
-			n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
-		}
-	case KindToggle:
-		toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
-		if n.ButtonSize == style.SizeSmall {
-			toggle = toggle.Small()
-		} else if n.ButtonSize == style.SizeLarge {
-			toggle = toggle.Large()
-		}
-		label := n.Text
-		if label == "" {
-			label = n.Label
-		}
-		toggle = toggle.SizeToFit(label)
-		height := f.Palette.Metrics.ControlHeight
-		if n.ButtonSize == style.SizeSmall {
-			height -= 4
-		} else if n.ButtonSize == style.SizeLarge {
-			height += 4
-		}
-		n.Pref = [2]float32{toggle.BoundsWidth(), height}
-	case KindSegmented:
-		var width float32 = 8
-		for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
-			width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
-		}
-		n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
-	case KindInput:
-		n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
-		if n.Flags&FlagThemed != 0 {
-			n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
-		}
-	case KindInputGroup:
-		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
-		if n.Kind == KindInputGroup && base.WidgetsOf(f).GetGroups()[n.Aux].Multiline {
-			n.Pref[AxisY] = 64
-		}
-	case KindTextarea:
-		n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
-		if n.Flags&FlagThemed != 0 {
-			n.Pref = [2]float32{0, 64}
-		}
-		if n.MaxLines > 0 {
-			// AutoGrow: the rows measured by the same layout the paint will use,
-			// capped at n.MaxLines rows and never below the control's minimum.
-			// The width is the one the last layout gave the box, which the first
-			// paint records and then asks for before it is shown.
-			snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
-			if layout := snapshot.Layout; layout != nil {
-				if width := layout.BoxWidth(); width > 0 {
-					height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
-					maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
-					n.Pref[AxisY] = max(64, min(height, maxHeight))
-				}
-			}
-		}
-	case KindTable, KindTabs, KindSelect:
-		f.MeasureWidget(n)
-	case KindProgress:
-		n.Pref = [2]float32{ProgressWidth, ProgressHeight}
-	case KindSpinner:
-		n.Pref = [2]float32{16, 16}
-	case KindSplitter:
-		f.MeasureSplitter(n)
-	case KindSlider:
-		f.MeasureSlider(n)
+		n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
 	}
 }
+
+func measureSwitchNode(f *Frame, n *Node) {
+	w, h := components.SwitchHitExtent(f.Palette, n.Flags&FlagSmall != 0)
+	n.Pref = [2]float32{w, h}
+	if n.Text != "" {
+		control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
+		weight := gfx.WeightMedium
+		if n.WeightSet || n.Weight != 0 {
+			weight = n.Weight
+		}
+		n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
+	}
+}
+
+// measureToggleNode gives a toggle its size's height (or the caller's) and its
+// label's width inside the element's Pad; the recipe's MinS keeps it at least
+// as wide as it is tall.
+func measureToggleNode(f *Frame, n *Node) {
+	height, _, fontSize := style.ToggleGeometry(f.Palette.Metrics, n.ButtonSize)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	label := n.Text
+	if label == "" {
+		label = n.Label
+	}
+	width := n.PadX() + f.Surface.TextWidthWeight(label, fontSize, weight)
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
+	}
+	height = max(height, leading+n.PadY())
+	n.Pref = [2]float32{width, height}
+}
+
+func measureSegmentedNode(f *Frame, n *Node) {
+	var width float32 = 8
+	for _, option := range base.WidgetsOf(f).GetSegmented()[n.Aux].GetOptions() {
+		width += f.Surface.TextWidthWeight(option.Label, f.Palette.Metrics.FontSizeM, gfx.WeightMedium) + 28
+	}
+	n.Pref = [2]float32{width, f.Palette.Metrics.ControlHeight}
+}
+
+func measureInputNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
+	if n.Flags&FlagThemed != 0 {
+		// A themed field is a control tall, or taller when its text needs more
+		// room (a larger FontSize); it has no width of its own, it fills its row.
+		height := max(f.Palette.Metrics.ControlHeight, f.InputLine(n)+n.PadY())
+		n.Pref = [2]float32{0, height}
+	}
+}
+
+func measureInputGroupNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
+	if base.WidgetsOf(f).GetGroups()[n.Aux].Multiline {
+		n.Pref[AxisY] = 64
+	}
+}
+
+func measureTextareaNode(f *Frame, n *Node) {
+	snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
+	textSize := snapshot.TextSize
+	if textSize <= 0 {
+		textSize = f.Palette.Metrics.FontSizeM
+	}
+	line := textSize + 7
+	if n.LineH > 0 {
+		line = n.LineH
+	}
+	n.Pref = [2]float32{n.PadX(), line + n.PadY()}
+	insets := snapshot.InsetTop + snapshot.InsetBottom
+	if n.Flags&FlagThemed != 0 {
+		n.Pref = [2]float32{0, max(64, line+n.PadY()+insets)}
+		if n.MaxLines == 0 {
+			return
+		}
+	}
+	if n.MaxLines > 0 {
+		// AutoGrow: the rows measured by the same layout the paint will use,
+		// capped at n.MaxLines rows and never below the control's minimum.
+		// The width is the one the last layout gave the box, which the first
+		// paint records and then asks for before it is shown.
+		if layout := snapshot.Layout; layout != nil {
+			if width := layout.BoxWidth(); width > 0 {
+				height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
+				maxHeight := float32(n.MaxLines)*line + 2*base.TextareaPadY
+				n.Pref[AxisY] = max(64, min(height, maxHeight))
+			}
+		}
+	}
+}
+
+// measureWidgetNode gives a Table, Tabs or Select the size its widget wants.
+func measureWidgetNode(f *Frame, n *Node) { f.MeasureWidget(n) }
+
+func measureProgressNode(f *Frame, n *Node) {
+	n.Pref = [2]float32{ProgressWidth, ProgressHeight}
+}
+
+func measureSpinnerNode(f *Frame, n *Node) { n.Pref = [2]float32{16, 16} }
+
+func measureSplitterNode(f *Frame, n *Node) { f.MeasureSplitter(n) }
+
+func measureSliderNode(f *Frame, n *Node) { f.MeasureSlider(n) }
 
 // buttonWeight is the weight of a button's label: the one the element asks for, or the
 // medium weight the control has.
 func buttonWeight(n *Node) float32 {
-	if n.Weight > 0 {
+	if n.WeightSet || n.Weight != 0 {
 		return n.Weight
 	}
 	return gfx.WeightMedium
@@ -223,6 +376,9 @@ func buttonWeight(n *Node) float32 {
 // side by the caller, it grows to hold its label and the padding.
 func measureButton(f *Frame, n *Node) [2]float32 {
 	height, _, fontSize, _ := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
 	if d := n.Size[AxisY]; d.Kind == DimPx {
 		height = d.Value
 	}
@@ -236,9 +392,11 @@ func measureButton(f *Frame, n *Node) [2]float32 {
 			width += n.Gap
 		}
 	}
-	if n.Flags&FlagSetPad != 0 {
-		height = max(height, fontSize+7+n.PadY())
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
 	}
+	height = max(height, leading+n.PadY())
 	return [2]float32{width, height}
 }
 
@@ -256,20 +414,35 @@ func buttonContentArea(f *Frame, n *Node) Rect {
 // paintButton paints the content of a button that paints its own: its icon and its label,
 // in the room its Pad and Border leave. The surface is the element's, dressed by the
 // button's recipe before this runs, and the label takes the color the recipe gives it in
-// the state the button is in unless the element has one of its own.
+// the state the button is in unless the element has one of its own. Content the caller
+// makes wider than the room inside the padding is cut at the content edge.
 func paintButton(f *Frame, n *Node) {
+	if n.Flags&FlagChildren != 0 {
+		return
+	}
 	extra := &f.Exts[n.Ext]
 	_, _, fontSize, iconOnly := style.ButtonGeometry(f.Palette.Metrics, n.ButtonSize)
-	hint := components.PaintButtonContent(f.Surface, buttonContentArea(f, n), components.ButtonContent{
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	area := buttonContentArea(f, n)
+	room := f.ContentRect(n)
+	need := f.Surface.TextWidthWeight(n.Label, fontSize, buttonWeight(n))
+	if icon := extra.GetIcon(); len(icon.Commands) != 0 || len(icon.Layers) != 0 {
+		need += style.ButtonIconExtent(n.Rect.Height)
+		if n.Label != "" {
+			need += n.Gap
+		}
+	}
+	if room.Width > 0 && need > room.Width {
+		f.Surface.Clip(room)
+		defer f.Surface.Unclip()
+	}
+	components.PaintButtonContent(f.Surface, area, components.ButtonContent{
 		Label: n.Label, Icon: extra.GetIcon(), IconTransform: extra.GetIconTransform(),
 		FontSize: fontSize, Weight: buttonWeight(n), Color: n.Color, Gap: n.Gap, Height: n.Rect.Height,
 		IconOnly: iconOnly, Underlined: f.GetButtonLook().Underlined,
 	})
-	if !n.ID.IsZero() {
-		f.Surface.HitWithOptions(n.ID, n.Rect, n.Label, gfx.HitOptions{
-			Role: gfx.RoleButton, Disabled: n.Flags&FlagDisabled != 0, Hint: hint,
-		})
-	}
 }
 
 func paintInput(f *Frame, n *Node) {
@@ -307,6 +480,12 @@ func paintInput(f *Frame, n *Node) {
 // Border, as paintInput does for a line.
 func paintTextarea(f *Frame, n *Node) {
 	snapshot := base.WidgetsOf(f).GetTextareas()[n.Aux]
+	if n.FontSize > 0 {
+		snapshot.TextSize = n.FontSize
+	}
+	if n.WeightSet || n.Weight != 0 {
+		snapshot.TextWeight = n.Weight
+	}
 	if n.MaxLines > 0 {
 		if layout := snapshot.Layout; layout != nil {
 			// AutoGrow measured the last width the layout gave this box. The

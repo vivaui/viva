@@ -29,8 +29,8 @@ func TestProgressAndSpinnerAskForFramesOnlyWhileTheyAreOnScreen(t *testing.T) {
 		_, ok := canvas.NextFrame()
 		return ok
 	}
-	bar := func(f *Frame) { f.Progress(0.5).Height(8) }
-	indeterminate := func(f *Frame) { f.Progress(0).Indeterminate() }
+	bar := func(f *Frame) { f.Progress(gfx.ID{}, 0.5).Height(8) }
+	indeterminate := func(f *Frame) { f.Progress(gfx.ID{}, 0).Indeterminate() }
 	spinner := func(f *Frame) { f.Spinner() }
 
 	if frames(400, false, bar) || frames(0, false, bar) {
@@ -55,8 +55,8 @@ func TestProgressIsFilledToItsFractionAndSizedLikeABar(t *testing.T) {
 	var column, row Box
 	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 100}, func(f *Frame) {
 		f.Column().Pad(10).Gap(8).Children(func() {
-			column = f.Progress(0.25)
-			f.Row().Children(func() { row = f.Progress(2) }) // more than full is full
+			column = f.Progress(gfx.ID{}, 0.25)
+			f.Row().Children(func() { row = f.Progress(gfx.ID{}, 2) }) // more than full is full
 		})
 	})
 	near(t, "in a column", column.Rect(), gfx.Rect{X: 10, Y: 10, Width: 280, Height: 6})
@@ -315,8 +315,8 @@ func TestLeavesAndSplittersAllocateNothingOnceWarm(t *testing.T) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Pad(8).Gap(8).Children(func() {
-				f.Progress(0.3)
-				f.Progress(0).Indeterminate().Height(8)
+				f.Progress(gfx.ID{}, 0.3)
+				f.Progress(gfx.ID{}, 0).Indeterminate().Height(8)
 				f.Row().Gap(8).Items(Center).Children(func() { f.Spinner(); f.Text("Loading") })
 				f.SplitButton(SplitButtonSpec{PrimaryID: tree.ID(page, "save"), MenuID: tree.ID(page, "save-more"), Label: "Save", Open: true})
 				f.Row().Grow(1).Children(func() {
@@ -343,7 +343,7 @@ func BenchmarkProgressSpinnerSplitter(b *testing.B) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 600, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Pad(8).Gap(8).Children(func() {
-				f.Progress(0.3)
+				f.Progress(gfx.ID{}, 0.3)
 				f.Spinner()
 				f.Row().Grow(1).Children(func() {
 					f.Column().Width(state.Pos)

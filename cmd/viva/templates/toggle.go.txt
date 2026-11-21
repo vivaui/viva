@@ -1,6 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // ToggleVariant selects the neutral or bordered treatment.
 type ToggleVariant uint8
@@ -18,6 +21,52 @@ const (
 	ToggleSizeSmall
 	ToggleSizeLarge
 )
+
+// ToggleRecipe resolves the look of a toggle of one variant in one state: the
+// fill, the label, the line, the focus ring and the shadow. Checked is the
+// active state; hover, press, focus and invalid are read only while the toggle
+// is not disabled, and Disabled dims the fill, the label and the line by half.
+func ToggleRecipe(theme gfx.Theme, variant ToggleVariant, state gfx.State) style.ButtonLook {
+	radius := theme.Metrics.RadiusControl
+	fill := theme.Background
+	fill.Alpha = 0
+	foreground := theme.Foreground
+	border := theme.Input
+	bordered := variant == ToggleOutline
+	if state.Checked {
+		fill = theme.Muted
+	}
+	if state.Hovered && !state.Disabled {
+		fill = theme.Muted
+		foreground = theme.Foreground
+	}
+	if state.Pressed && !state.Disabled {
+		fill = blend(fill, theme.Foreground, 0.05)
+	}
+	look := style.ButtonLook{
+		Background: fill, Foreground: foreground, Border: border,
+		Filled: true, Bordered: bordered, Radius: radius,
+	}
+	if variant == ToggleOutline {
+		look.Shadow = gfx.ShadowXS
+	}
+	// The component draws an invalid ring even on a disabled toggle; focus is
+	// the keyboard's, so it stops when the toggle is unavailable.
+	if state.Invalid || state.FocusVisible && !state.Disabled {
+		ring, edge := scaledAlpha(theme.Ring, 0.50), theme.Ring
+		if state.Invalid {
+			ring, edge = invalidRing(&theme), invalidBorder(&theme)
+		}
+		look.Ring, look.RingWidth, look.RingRadius = ring, 3, radius+3
+		look.Border, look.Bordered = edge, true
+	}
+	if state.Disabled {
+		look.Background.Alpha *= 0.50
+		look.Foreground.Alpha *= 0.50
+		look.Border.Alpha *= 0.50
+	}
+	return look
+}
 
 // Toggle paints one two-state compact action. The application owns active
 // state and responds to the stable Canvas hit ID.
@@ -64,8 +113,9 @@ func (toggle Toggle) Disabled() Toggle {
 // SizeToFit widens the toggle to its label plus Vega's px-2.5, never narrower
 // than it is tall (min-w).
 func (toggle Toggle) SizeToFit(label string) Toggle {
-	toggle.bounds.Height = toggle.controlHeight()
-	toggle.bounds.Width = toggleFittedWidth(toggle.canvas, toggle.theme, label, toggle.bounds.Height, 10)
+	height, padding, _ := style.ToggleGeometry(toggle.theme.Metrics, toggleStyleSize(toggle.size))
+	toggle.bounds.Height = height
+	toggle.bounds.Width = toggleFittedWidth(toggle.canvas, toggle.theme, label, height, padding)
 	return toggle
 }
 
@@ -112,51 +162,26 @@ func (toggle Toggle) paint(label string, variant ToggleVariant) ToggleResult {
 	if toggle.bounds.Width <= 0 {
 		toggle.bounds.Width = toggle.bounds.Height
 	}
-	enabled := !toggle.disabled && !toggle.id.IsZero()
-	hovered := enabled && toggle.canvas.Hovered() == toggle.id
-	pressed := enabled && toggle.canvas.Pressed() == toggle.id
-	focused := enabled && toggle.canvas.FocusVisible() == toggle.id
-	radius := toggle.theme.Metrics.RadiusControl
-	border := toggle.theme.Input
-	if focused || toggle.invalid {
-		focus := scaledAlpha(toggle.theme.Ring, 0.50)
-		border = toggle.theme.Ring
-		if toggle.invalid {
-			focus, border = invalidRing(&toggle.theme), invalidBorder(&toggle.theme)
-		}
-		toggle.canvas.Rounded(expand(toggle.bounds, 3), radius+3, focus)
+	state := gfx.State{Checked: toggle.active, Invalid: toggle.invalid, Disabled: toggle.disabled}
+	if !toggle.disabled && !toggle.id.IsZero() {
+		state.Hovered = toggle.canvas.Hovered() == toggle.id
+		state.Pressed = toggle.canvas.Pressed() == toggle.id
+		state.FocusVisible = toggle.canvas.FocusVisible() == toggle.id
 	}
-
-	fill := toggle.theme.Background
-	fill.Alpha = 0
-	foreground := toggle.theme.Foreground
-	if toggle.active {
-		fill = toggle.theme.Muted
+	look := ToggleRecipe(toggle.theme, variant, state)
+	if look.Shadow != gfx.ShadowNone {
+		toggle.canvas.Elevate(toggle.bounds, look.Radius, look.Shadow) // shadow-xs
 	}
-	if hovered {
-		fill = toggle.theme.Muted
-		foreground = toggle.theme.Foreground
+	if look.RingWidth > 0 {
+		toggle.canvas.Rounded(expand(toggle.bounds, look.RingWidth), look.RingRadius, look.Ring)
 	}
-	if pressed {
-		fill = blend(fill, toggle.theme.Foreground, 0.05)
-	}
-	if toggle.disabled {
-		fill.Alpha *= 0.50
-		foreground.Alpha *= 0.50
-	}
-	if variant == ToggleOutline || toggle.invalid || focused {
-		if variant == ToggleOutline {
-			toggle.canvas.Elevate(toggle.bounds, radius, gfx.ShadowXS) // shadow-xs
-		}
-		if toggle.disabled {
-			border.Alpha *= 0.50
-		}
-		paintBordered(toggle.canvas, toggle.theme, toggle.bounds, radius, border, fill)
-	} else {
-		toggle.canvas.Rounded(toggle.bounds, radius, fill)
+	if look.Bordered && look.Filled {
+		paintBordered(toggle.canvas, toggle.theme, toggle.bounds, look.Radius, look.Border, look.Background)
+	} else if look.Filled {
+		toggle.canvas.Rounded(toggle.bounds, look.Radius, look.Background)
 	}
 	toggle.canvas.LabelCenter(label, toggle.bounds, gfx.TextStyle{
-		Size: toggle.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: foreground,
+		Size: toggle.theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: look.Foreground,
 	})
 	if !toggle.id.IsZero() {
 		toggle.canvas.HitWithOptions(toggle.id, toggle.bounds, label, gfx.HitOptions{
@@ -172,15 +197,19 @@ func (toggle Toggle) controlHeight() float32 {
 }
 
 func toggleControlHeight(theme gfx.Theme, size ToggleSize) float32 {
-	height := theme.Metrics.ControlHeight
+	height, _, _ := style.ToggleGeometry(theme.Metrics, toggleStyleSize(size))
+	return height
+}
+
+// toggleStyleSize is the element size a component toggle size maps to; both
+// the node measurement and the component's SizeToFit take their metrics from
+// style.ToggleGeometry.
+func toggleStyleSize(size ToggleSize) style.Size {
 	switch size {
 	case ToggleSizeSmall:
-		height -= 4
+		return style.SizeSmall
 	case ToggleSizeLarge:
-		height += 4
+		return style.SizeLarge
 	}
-	if height < 20 {
-		height = 20
-	}
-	return height
+	return style.SizeDefault
 }

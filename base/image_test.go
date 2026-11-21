@@ -84,3 +84,27 @@ func BenchmarkPageOfImages(b *testing.B) {
 		})
 	}
 }
+
+// Radius rounds an Image's own pixels and Opacity fades them: both are draw-time
+// values on the image, not the element's box.
+func TestImageRoundsAndFadesItsPixels(t *testing.T) {
+	var view View
+	canvas := testCanvas()
+	var image Box
+	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 60}, func(f *Frame) {
+		image = f.Image(imageBitmap(11)).Size(40, 40).Radius(6).Opacity(0.5)
+	})
+	images := canvas.Images()
+	if len(images) != 1 {
+		t.Fatalf("images drawn = %d, want 1", len(images))
+	}
+	if images[0].Bounds != image.Rect() {
+		t.Fatalf("image bounds = %+v, want its rectangle %+v", images[0].Bounds, image.Rect())
+	}
+	if images[0].Radius != 6 {
+		t.Errorf("image radius = %v, want the element's 6", images[0].Radius)
+	}
+	if diff := float64(images[0].Fade - 0.5); diff > 0.001 || diff < -0.001 {
+		t.Errorf("image fade = %v, want the element's opacity as 0.5", images[0].Fade)
+	}
+}

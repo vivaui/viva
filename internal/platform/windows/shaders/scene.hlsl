@@ -1,6 +1,8 @@
 // textMode is 0 when the label texture is premultiplied color, 1 when it holds the coverage
 // of ClearType text in its three color channels, to be blended with textColor per channel.
-cbuffer Frame : register(b0) { float2 viewport; uint instanceOffset; uint textMode; float4 textBounds; float4 textColor; float pixelSize; float3 framePadding; };
+// textShape is the label's box size and its image corner radius and fade:
+// xy = size, z = radius, w = fade (1-opacity).
+cbuffer Frame : register(b0) { float2 viewport; uint instanceOffset; uint textMode; float4 textBounds; float4 textColor; float4 textShape; float pixelSize; float3 framePadding; };
 // shade1 and shade2 are a triangle's colors at its second and third corner; color is the first's.
 struct Rectangle { float4 bounds; float4 color; float4 style; float4 shade1; float4 shade2; };
 StructuredBuffer<Rectangle> rectangles : register(t0);
@@ -242,6 +244,9 @@ Vertex textVertex(uint vertex : SV_VertexID) {
     float2 pixel = textBounds.xy+corner(vertex)*textBounds.zw;
     output.position = float4(pixel/viewport*float2(2,-2)+float2(-1,1),0,1);
     output.uv = corner(vertex);
+    output.local = corner(vertex)*textBounds.zw;
+    output.size = textShape.xy;
+    output.radius = textShape.z;
     return output;
 }
 // Text is blended with dual-source blending: color is what is added to the target and mask
@@ -249,14 +254,24 @@ Vertex textVertex(uint vertex : SV_VertexID) {
 struct TextTarget { float4 color : SV_Target0; float4 mask : SV_Target1; };
 TextTarget textFragment(Vertex input) {
     float4 texel = labelTexture.Sample(labelSampler,input.uv);
+    // An image label cuts its picture's rounded corners and fades the whole
+    // picture; ordinary text has a zero radius and fade and keeps the fast path.
+    float radius = min(input.radius, min(input.size.x,input.size.y)*0.5);
+    float rounded = 1;
+    if (radius > 0) {
+        float2 distanceVector = abs(input.local-input.size*0.5)-input.size*0.5+radius;
+        float distance = length(max(distanceVector,0))+min(max(distanceVector.x,distanceVector.y),0)-radius;
+        rounded = saturate(0.5 - distance / pixelSize);
+    }
+    float opacity = saturate(1 - textShape.w) * rounded;
     TextTarget output;
     if (textMode == 1) {
-        float3 coverage = texel.rgb * textColor.a;
-        output.color = float4(textColor.rgb * coverage, texel.a * textColor.a);
-        output.mask = float4(coverage, texel.a * textColor.a);
+        float3 coverage = texel.rgb * textColor.a * opacity;
+        output.color = float4(textColor.rgb * coverage, texel.a * textColor.a * opacity);
+        output.mask = float4(coverage, texel.a * textColor.a * opacity);
     } else {
-        output.color = texel;
-        output.mask = texel.aaaa;
+        output.color = texel * opacity;
+        output.mask = texel.aaaa * opacity;
     }
     return output;
 }

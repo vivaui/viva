@@ -64,6 +64,23 @@ type SelectOptions struct {
 	// MenuItemRecipe or from its own look. It is the same code path as the painted select, so
 	// a select of the application's own cannot behave differently.
 	Unpainted bool
+	// UnpaintedSurface lets the caller's engine paint the trigger's surface, so the
+	// trigger painter draws only the value (unless UnpaintedValue) and the chevron.
+	UnpaintedSurface bool
+	// UnpaintedValue keeps the painter from drawing the trigger's value and icon:
+	// caller-owned content declared with Children replaces them, while the chevron
+	// and the trigger's hit stay the control's.
+	UnpaintedValue bool
+	// TriggerContent is where the value and icon are laid out, in window
+	// coordinates: the element's content rect, which keeps the room for the chevron.
+	TriggerContent gfx.Rect
+	// TextSize and Weight override the type of the value (Weight is the label's
+	// weight when non-zero).
+	TextSize, Weight float32
+	// Foreground paints the value (and a single-color icon) instead of the recipe's,
+	// when HasForeground is set; Chevron paints the arrow when HasChevron is set.
+	Foreground, Chevron       gfx.Color
+	HasForeground, HasChevron bool
 }
 
 // SelectItem describes one stable value in the open popup.
@@ -92,17 +109,26 @@ const (
 	selectIconGap  = 8
 )
 
+// SelectIconSpan is the room an icon takes before a select's value or an
+// option's label: the icon and the gap after it.
+const SelectIconSpan = selectIconSize + selectIconGap
+
 // selectTriggerSize is the height of a trigger and the type step of its value.
 // Only the extra-small step changes the type, as in Button: a compact control
 // keeps the body size and just gets shorter.
 func selectTriggerSize(metrics gfx.Metrics, size SelectSize) (height, textSize float32) {
+	return style.SelectGeometry(metrics, selectStyleSize(size))
+}
+
+// selectStyleSize is the element size a component select size maps to.
+func selectStyleSize(size SelectSize) style.Size {
 	switch size {
 	case SelectSizeSmall:
-		return metrics.ControlHeight - 4, metrics.FontSizeM
+		return style.SizeSmall
 	case SelectSizeXSmall:
-		return metrics.ControlHeight - 8, metrics.FontSizeS
+		return style.SizeXSmall
 	}
-	return metrics.ControlHeight, metrics.FontSizeM
+	return style.SizeDefault
 }
 
 // Select paints a typed native select trigger and, when open, its source-owned
@@ -282,32 +308,58 @@ func (selectControl Select) paintTrigger() {
 	bounds := selectControl.triggerBounds
 	options := selectControl.options
 	enabled := !options.TriggerID.IsZero() && !options.Disabled
+	textSize := selectControl.textSize
+	if options.TextSize > 0 {
+		textSize = options.TextSize
+	}
+	foreground, chevron := selectControl.theme.Foreground, selectControl.theme.MutedForeground
 	if !options.Unpainted {
-		state := gfx.State{
-			Focused:  enabled && canvas.FocusVisible() == options.TriggerID,
-			Invalid:  options.Invalid,
-			Disabled: options.Disabled,
-			Hovered:  enabled && (canvas.Hovered() == options.TriggerID || canvas.Pressed() == options.TriggerID),
+		if !options.UnpaintedSurface {
+			state := gfx.State{
+				Focused:  enabled && canvas.FocusVisible() == options.TriggerID,
+				Invalid:  options.Invalid,
+				Disabled: options.Disabled,
+				Hovered:  enabled && (canvas.Hovered() == options.TriggerID || canvas.Pressed() == options.TriggerID),
+			}
+			look := selectRecipe(&selectControl.theme, state, options.Value == "")
+			paintTextEntryLook(canvas, selectControl.theme.Background.Alpha, bounds, look.Surface)
+			foreground, chevron = look.Foreground, look.Chevron
 		}
-		look := selectRecipe(&selectControl.theme, state, options.Value == "")
-		paintTextEntryLook(canvas, selectControl.theme.Background.Alpha, bounds, look.Surface)
-		foreground := look.Foreground
+		if options.HasForeground {
+			foreground = options.Foreground
+		}
+		if options.HasChevron {
+			chevron = options.Chevron
+		}
 		value := options.Value
 		if value == "" {
 			value = options.Placeholder
 		}
 		// Vega: pl-2.5 and pr-2 inside the border, gap-1.5 before the 16px chevron.
 		const chevronSpan = 1 + 8 + selectIconSize
-		inset := selectControl.theme.Metrics.TextInsetX()
-		textX, textWidth := bounds.X+inset, bounds.Width-inset-chevronSpan-6
-		if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.textSize) {
-			textX += selectIconSize + selectIconGap
-			textWidth -= selectIconSize + selectIconGap
+		inset, _ := style.SelectContentInsets(selectControl.theme.Metrics)
+		content := options.TriggerContent
+		if content.Width <= 0 {
+			content = gfx.Rect{
+				X: bounds.X + inset, Y: bounds.Y,
+				Width: selectMax(0, bounds.Width-inset-chevronSpan-6), Height: bounds.Height,
+			}
 		}
-		canvas.Label(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
-			Size: selectControl.textSize, Weight: gfx.WeightRegular, Color: foreground,
-		})
-		paintChevron(canvas, &chevronDownIcon, gfx.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, look.Chevron)
+		if !options.UnpaintedValue {
+			textX, textWidth := content.X, content.Width
+			if paintSelectIcon(canvas, options.Icon, options.IconImage, options.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, textSize) {
+				textX += SelectIconSpan
+				textWidth -= SelectIconSpan
+			}
+			weight := gfx.WeightRegular
+			if options.Weight > 0 {
+				weight = options.Weight
+			}
+			canvas.Label(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+				Size: textSize, Weight: weight, Color: foreground,
+			})
+		}
+		paintChevron(canvas, &chevronDownIcon, gfx.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, chevron)
 	}
 	if !options.TriggerID.IsZero() {
 		canvas.HitWithOptions(options.TriggerID, bounds, options.Label, gfx.HitOptions{
@@ -331,8 +383,8 @@ func (selectControl *Select) paintItem(bounds gfx.Rect, item SelectItem) {
 		foreground := look.Foreground
 		textX, textWidth := bounds.X+8, bounds.Width-40
 		if paintSelectIcon(selectControl.canvas, item.Icon, item.IconImage, item.IconText, gfx.Rect{X: textX, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, foreground, selectControl.theme.Metrics.FontSizeM) {
-			textX += selectIconSize + selectIconGap
-			textWidth -= selectIconSize + selectIconGap
+			textX += SelectIconSpan
+			textWidth -= SelectIconSpan
 		}
 		selectControl.canvas.Label(item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 			Size: selectControl.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,

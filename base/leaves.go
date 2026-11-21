@@ -2,6 +2,8 @@ package base
 
 import (
 	"time"
+
+	"github.com/vivaui/viva/gfx"
 )
 
 // progressHeight and progressWidth are what a Progress is when it is given neither.
@@ -21,13 +23,17 @@ const (
 // container in a Column, 160 wide in a Row, unless given a Width, Height or Grow.
 // Indeterminate turns it into a bar whose segment keeps sliding, for work of unknown
 // length. A determinate bar never asks for a frame: change the fraction and repaint,
-// as for any other state.
+// as for any other state. ID names the bar to assistive technology, which reads it
+// as a progress bar and never focuses or presses it; Label names it. A zero ID
+// declares no accessible node.
 //
-//	f.Progress(m.done / m.total).Height(8)
-//	f.Progress(0).Indeterminate()
-func (f *Frame) Progress(fraction float32) Box {
+//	f.Progress(uploadID, m.done/m.total).Label("Uploading").Height(8)
+//	f.Progress(gfx.ID{}, 0).Indeterminate()
+func (f *Frame) Progress(ID gfx.ID, fraction float32) Box {
 	b := f.Box(kindProgress)
-	f.Nodes[b.i].Natural = max(fraction, 0)
+	n := &f.Nodes[b.i]
+	n.ID = ID
+	n.Natural = max(fraction, 0)
 	if fraction != fraction {
 		f.Nodes[b.i].Natural = 0
 	}

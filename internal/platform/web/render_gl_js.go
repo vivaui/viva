@@ -73,6 +73,8 @@ type glRenderer struct {
 	uCorners  [4]js.Value
 	uTints    [4]js.Value
 	uTexture  js.Value
+	uLabel    js.Value
+	uMask     js.Value
 	vbo       js.Value
 	floats    []float32
 	batches   []render.Batch
@@ -147,6 +149,8 @@ func newGLRenderer(runtime *runtime, canvas js.Value) (*glRenderer, error) {
 		uTarget:  ctx.Call("getUniformLocation", program, "uTargetPixels"),
 		uOrigin:  ctx.Call("getUniformLocation", program, "uOrigin"),
 		uTexture: ctx.Call("getUniformLocation", textProgram, "uTexture"),
+		uLabel:   ctx.Call("getUniformLocation", textProgram, "uLabel"),
+		uMask:    ctx.Call("getUniformLocation", textProgram, "uMask"),
 		runtime:  runtime,
 		textures: make(map[textKey]*glTexture),
 	}
@@ -344,6 +348,15 @@ func (renderer *glRenderer) drawLabel(label platform.TextLabel) {
 		ctx.Call("activeTexture", ctx.Get("TEXTURE0"))
 		ctx.Call("bindTexture", ctx.Get("TEXTURE_2D"), tile.texture)
 		ctx.Call("uniform1i", renderer.uTexture, 0)
+		radius := label.ImageRadius
+		if label.HasQuad {
+			// A warped label's quad is not its box: the rounded mask has no
+			// meaning on it, so the page sees a square picture there.
+			radius = 0
+		}
+		ctx.Call("uniform4f", renderer.uLabel,
+			label.X+label.OriginX, label.Y+label.OriginY, label.Width, label.Height)
+		ctx.Call("uniform2f", renderer.uMask, radius, label.ImageFade)
 		for index := 0; index < 4; index++ {
 			ctx.Call("uniform4f", renderer.uCorners[index], tile.corners[index][0], tile.corners[index][1], 0, 0)
 			ctx.Call("uniform4f", renderer.uTints[index], tile.tints[index][0], tile.tints[index][1], tile.tints[index][2], tile.tints[index][3])

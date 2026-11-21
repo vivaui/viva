@@ -2,6 +2,7 @@ package base
 
 import (
 	"github.com/vivaui/viva/gfx"
+	controlstyle "github.com/vivaui/viva/style"
 )
 
 func (f *Frame) PaintChild(i int32) {
@@ -42,13 +43,28 @@ func (f *Frame) PaintChild(i int32) {
 		defer f.memoFn(f, i, false)
 	}
 	r := n.Rect
+	// A themed control whose own surface is smaller than the element (a checkbox
+	// with a caption, a switch's track) paints it at SurfaceRect. Its caption, an
+	// element label in every state, paints before the surface as the control's
+	// painter used to paint it.
+	surface := r
+	if n.Flags&flagThemed != 0 && ControlSurfaceRect != nil {
+		if own := ControlSurfaceRect(f, n); own.Width > 0 && own.Height > 0 {
+			surface = own
+		}
+	}
+	// A stacked or stretched switch's track is a pill of its own height, which
+	// the layout only knows once it has sized the element.
+	if n.Flags&flagThemed != 0 && n.Kind == kindSwitch && n.Flags&flagHasRadius == 0 && surface.Height > 0 {
+		n.Radius = surface.Height / 2
+	}
 	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	if s := extra.scrollState; s != nil && canvas != nil {
 		s.scope = canvas.FocusScope()
 	}
 	style := f.resolve(n, extra)
-	if n.Kind == kindContainer && n.Flags&flagThemed != 0 {
+	if (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0 {
 		defer func(color Color, has bool) { f.inherited, f.hasInherited = color, has }(f.inherited, f.hasInherited)
 		f.inherited, f.hasInherited = style.Color, true
 	}
@@ -60,7 +76,10 @@ func (f *Frame) PaintChild(i int32) {
 		parentTheme = f.Palette // a theme is large: copied only for what is faded
 		f.Palette = f.Palette.WithOpacity(style.Opacity)
 	}
-	f.paintRing(r, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
+	if n.Flags&flagThemed != 0 && (n.Kind == kindCheckbox || n.Kind == kindSwitch) && n.Text != "" && f.captionFn != nil {
+		f.captionFn(f, n, surface)
+	}
+	f.paintRing(surface, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.Flags&flagClip != 0 {
 		canvas.Clip(r)
 		defer canvas.Unclip()
@@ -69,11 +88,11 @@ func (f *Frame) PaintChild(i int32) {
 	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
 	background, border := fade(style.Background, f.Opacity), fade(style.border, f.Opacity)
 	if style.shadow != gfx.ShadowNone {
-		canvas.ElevateFaded(r, n.Radius, style.shadow, f.Opacity)
+		canvas.ElevateFaded(surface, n.Radius, style.shadow, f.Opacity)
 	}
 	switch {
 	case style.borderWidth > 0 && !style.dashed && !style.splitBorder && extra.gradient == 0 && f.Opacity >= 1 && background.Alpha >= 1:
-		canvas.RoundedBorder(r, n.Radius, style.borderWidth, border, background)
+		canvas.RoundedBorder(surface, n.Radius, style.borderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
 		// gradient or a faded fill would show through. For those the fill, then the
@@ -82,7 +101,7 @@ func (f *Frame) PaintChild(i int32) {
 		// so what an application painted before looks as it did.
 		if background.Alpha > 0 {
 			if n.Radius > 0 {
-				canvas.Rounded(r, n.Radius, background)
+				canvas.Rounded(surface, n.Radius, background)
 			} else {
 				canvas.Fill(r, background)
 			}
@@ -92,9 +111,9 @@ func (f *Frame) PaintChild(i int32) {
 		}
 		if style.borderWidth > 0 {
 			if style.dashed {
-				canvas.DashedRoundedOutline(n.Rect, n.Radius, style.borderWidth, border)
+				canvas.DashedRoundedOutline(surface, n.Radius, style.borderWidth, border)
 			} else {
-				canvas.RoundedOutline(r, n.Radius, style.borderWidth, border)
+				canvas.RoundedOutline(surface, n.Radius, style.borderWidth, border)
 			}
 		}
 	}
@@ -113,7 +132,7 @@ func (f *Frame) PaintChild(i int32) {
 		group = canvas.Mark()
 	}
 	// A ColorSwatch declares its own hit, as a radio, under whatever id Hit gave it.
-	if hasHit && !extra.swatch && (n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
+	if hasHit && !extra.swatch && (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.Flags&flagLabelFor != 0 {
@@ -124,10 +143,24 @@ func (f *Frame) PaintChild(i int32) {
 			canvas.HitLabel(n.ID, hit, text, n.Flags&flagDisabled != 0)
 		} else {
 			options := extra.hit
+			if n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle {
+				if options.Role == 0 {
+					options.Role = gfx.RoleButton
+				}
+				if n.Kind == kindButton && options.Hint == "" && n.ButtonSize >= controlstyle.SizeIcon {
+					options.Hint = n.Label
+				}
+				if n.Kind == kindToggle {
+					if n.Flags&flagChecked != 0 {
+						options.Checked, options.Selected = true, true
+					}
+					options.Invalid = options.Invalid || n.Flags&FlagInvalid != 0
+				}
+			}
 			// Disabled on the element is the control's own: a Base that was told it is
 			// unavailable says so to assistive technology and leaves the Tab order,
 			// as the control with a look does.
-			options.Disabled = options.Disabled || n.Flags&flagDisabled != 0
+			options.Disabled = options.Disabled || f.Disabled(n)
 			canvas.HitWithOptions(n.ID, hit, n.Label, options)
 		}
 	}
@@ -145,6 +178,15 @@ func (f *Frame) PaintChild(i int32) {
 	}
 	n.Color = color
 
+	disableContents := (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0 && f.Disabled(n)
+	var contentsMark gfx.Mark
+	if disableContents {
+		contentsMark = canvas.Mark()
+	}
+	clipContents := (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0
+	if clipContents {
+		canvas.Clip(f.ContentRect(n))
+	}
 	var hooks drawHooks
 	if extra.Draws != 0 {
 		hooks = f.Draws[extra.Draws-1]
@@ -160,6 +202,12 @@ func (f *Frame) PaintChild(i int32) {
 	}
 	if hooks.over != nil {
 		f.runDraw(n, hooks.over)
+	}
+	if clipContents {
+		canvas.Unclip()
+	}
+	if disableContents {
+		canvas.DisableHitsSince(contentsMark)
 	}
 	if s := extra.scrollState; s != nil && s.bars && canvas != nil {
 		f.paintBarsFn(f, n, s) // over the content, inside the area's clip
@@ -206,7 +254,8 @@ func (f *Frame) paintControl(n *Node, r Rect) {
 	case kindIcon:
 		canvas.DrawIconTransformed(extra.icon, Rect{X: r.X, Y: r.Y, Width: n.Pref[AxisX], Height: n.Pref[AxisY]}, n.Color, extra.iconTransform)
 	case kindImage:
-		canvas.DrawBitmap(f.Images[n.Aux], r)
+		bitmap := f.Images[n.Aux]
+		canvas.DrawBitmapShaded(bitmap, Rect{Width: float32(bitmap.Width), Height: float32(bitmap.Height)}, r, n.Radius, 1-f.Opacity)
 	case kindSlot:
 		if extra.swatch && f.paintSwatchFn != nil {
 			f.paintSwatchFn(f, n, r)
@@ -218,9 +267,69 @@ func (f *Frame) paintControl(n *Node, r Rect) {
 		if int(n.Kind) < len(controlPainters) {
 			if painter := controlPainters[n.Kind]; painter != nil {
 				painter(f, n, r)
+				return
 			}
 		}
+		requireInstall(n.Kind, "painter")
 	}
+}
+
+// engineKind is a kind the engine paints, measures or lays out itself, so no
+// layer above installs a painter or a measurer for it.
+func engineKind(k Kind) bool {
+	switch k {
+	case kindContainer, kindText, kindSpacer, kindIcon, kindSlot, kindImage:
+		return true
+	}
+	return false
+}
+
+// controlNames names the kinds a styled layer installs, in Kind order.
+var controlNames = [...]string{
+	KindContainer:   "Container",
+	KindText:        "Text",
+	KindSpacer:      "Spacer",
+	KindButton:      "Button",
+	KindCheckbox:    "Checkbox",
+	KindSwitch:      "Switch",
+	KindIcon:        "Icon",
+	KindSlot:        "Slot",
+	KindInput:       "Input",
+	KindInputGroup:  "InputGroup",
+	KindTextarea:    "Textarea",
+	KindSegmented:   "Segmented",
+	KindTable:       "Table",
+	KindTabs:        "Tabs",
+	KindSelect:      "Select",
+	KindProgress:    "Progress",
+	KindSpinner:     "Spinner",
+	KindSplitter:    "Splitter",
+	KindSlider:      "Slider",
+	KindImage:       "Image",
+	KindSplitButton: "SplitButton",
+	KindBadge:       "Badge",
+	KindToggle:      "Toggle",
+	KindPagination:  "Pagination",
+}
+
+// controlName is the name a diagnostic calls the kind by.
+func controlName(k Kind) string {
+	if int(k) < len(controlNames) && controlNames[k] != "" {
+		return controlNames[k]
+	}
+	return "Control"
+}
+
+// requireInstall stops a control that would otherwise paint or measure nothing:
+// the styled layer installs each control kind as the page declares it, and a
+// host that drives package base directly installs every one with
+// ui.InstallPainters. A missing installation is a wiring bug, not an empty
+// control, so it panics with the kind's name instead of drawing silence.
+func requireInstall(k Kind, what string) {
+	if engineKind(k) || int(k) >= len(controlPainters) {
+		return
+	}
+	panic("ui: a " + controlName(k) + " has no " + what + " installed: a host that drives package base directly must call ui.InstallPainters(); a page that declares controls through ui.* functions installs each kind as it is declared")
 }
 
 func (f *Frame) paintText(n *Node) {
@@ -247,7 +356,7 @@ func (f *Frame) paintText(n *Node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.Surface.LabelAligned(f.Lines[n.LineFirst+k], bounds, style, alignment)
+			f.paintLabel(n, f.Lines[n.LineFirst+k], bounds, style, alignment)
 		}
 		return
 	}
@@ -257,8 +366,16 @@ func (f *Frame) paintText(n *Node) {
 	if clipped {
 		f.Surface.Clip(r)
 	}
-	f.Surface.LabelAligned(n.Text, bounds, style, alignment)
+	f.paintLabel(n, n.Text, bounds, style, alignment)
 	if clipped {
 		f.Surface.Unclip()
 	}
+}
+
+func (f *Frame) paintLabel(n *Node, value string, bounds Rect, style gfx.TextStyle, alignment gfx.Alignment) {
+	if f.Exts[n.Ext].highlight != 0 && f.paintHighlightFn != nil {
+		f.paintHighlightFn(f, n, value, bounds, style, alignment)
+		return
+	}
+	f.Surface.LabelAligned(value, bounds, style, alignment)
 }

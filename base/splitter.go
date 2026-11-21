@@ -258,7 +258,8 @@ func (f *Frame) PaintSplitter(n *Node) {
 	row := f.splitsRow(n)
 	r := n.Rect
 
-	if event, ok := canvas.PointerOn(n.ID); ok {
+	disabled := f.Disabled(n)
+	if event, ok := canvas.PointerOn(n.ID); ok && !disabled {
 		pointer := event.X
 		if !row {
 			pointer = event.Y
@@ -279,14 +280,17 @@ func (f *Frame) PaintSplitter(n *Node) {
 	}
 
 	theme := f.Palette
-	pressed := canvas.Pressed() == n.ID
-	hovered := canvas.Hovered() == n.ID
+	pressed := !disabled && canvas.Pressed() == n.ID
+	hovered := !disabled && canvas.Hovered() == n.ID
 	line, thickness := theme.Border, float32(1)
 	switch {
 	case pressed:
 		line, thickness = theme.Primary, 3
 	case hovered:
 		line, thickness = theme.Ring, 3
+	}
+	if disabled {
+		line.Alpha *= 0.50
 	}
 	var bar Rect
 	cursor := gfx.PointerCursorResizeVertical
@@ -296,7 +300,7 @@ func (f *Frame) PaintSplitter(n *Node) {
 	} else {
 		bar = Rect{X: r.X, Y: r.Y + (r.Height-thickness)/2, Width: r.Width, Height: thickness}
 	}
-	if canvas.FocusVisible() == n.ID {
+	if !disabled && canvas.FocusVisible() == n.ID {
 		ring := theme.Ring
 		ring.Alpha *= 0.5
 		canvas.Rounded(Rect{X: bar.X - 1, Y: bar.Y - 1, Width: bar.Width + 2, Height: bar.Height + 2}, 2, ring)
@@ -331,6 +335,10 @@ func (f *Frame) PaintSplitter(n *Node) {
 	}
 	if options.Cursor == 0 {
 		options.Cursor = cursor
+	}
+	if disabled {
+		options.Disabled = true
+		options.Cursor = 0
 	}
 	canvas.HitWithOptions(n.ID, hit, label, options)
 }

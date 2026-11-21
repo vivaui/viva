@@ -30,6 +30,7 @@ const (
 	RoleHeading
 	RoleStatus
 	RoleSeparator
+	RoleProgress
 )
 
 // Operation describes an incremental accessibility-tree update.

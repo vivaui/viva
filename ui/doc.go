@@ -33,7 +33,9 @@
 //
 // The styled layer's painters are installed by the constructors as a page
 // declares the features it uses, so an application links only the painters it
-// uses. A host that drives package base directly calls InstallPainters.
+// uses. A host that drives package base directly calls InstallPainters; a
+// control declared without its installation stops the page with a message
+// naming it, instead of laying out or painting nothing.
 //
 // Layout is CSS flexbox's, from a declaration instead of coordinates.
 // A Row lays its children out left to right, a Column top to bottom, a Stack on

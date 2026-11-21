@@ -60,9 +60,8 @@ type gtkWindow struct {
 	regionsDirty bool
 	// dragging and dropping follow a drag of files over the window.
 	dragging, dropping bool
-	// iconData keeps the pixels the window's icon pixbufs point at; originPending says the window
-	// was asked to open at a place and has not been checked there yet.
-	iconData      [][]byte
+	// originPending says the window was asked to open at a place and has not
+	// been checked there yet.
 	originPending bool
 	// cursors are the GDK cursors made so far, by shape; cursorShape is the one in use plus one.
 	cursors     [len(cursorNames) + 1]uintptr // the last is the hidden one
