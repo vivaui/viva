@@ -793,6 +793,7 @@ type Canvas struct {
 	// non-modal popover does. The runtime honors a given request once, so
 	// painting it every frame never pulls focus back after the user leaves.
 	focusRequest ID
+	focusOnce    ID
 	// focusRelease takes the focus away from one hit if it still has it, and
 	// focusReturns are the non-modal scopes that give the focus back on closing.
 	focusRelease ID
@@ -1037,6 +1038,7 @@ func (canvas *Canvas) Reset() {
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
 	canvas.focusRequest = ID{}
+	canvas.focusOnce = ID{}
 	canvas.focusRelease = ID{}
 	canvas.focusReturns = canvas.focusReturns[:0]
 	canvas.trapDepth, canvas.escapeDepth, canvas.initialDepth = -1, -1, -1
@@ -1883,6 +1885,22 @@ func (canvas *Canvas) RequestFocus(id ID) {
 
 // FocusRequest returns the non-modal focus request, or zero.
 func (canvas *Canvas) FocusRequest() ID { return canvas.focusRequest }
+
+// RequestFocusOnce requests an explicit focus change, even if id has already
+// been claimed by a persistent RequestFocus or AutoFocus declaration. Call it
+// only in response to an action, or from state consumed by the next paint.
+// The request is carried across an event pass and applied at most once.
+func (canvas *Canvas) RequestFocusOnce(id ID) { canvas.focusOnce = id }
+
+// FocusOnce returns the explicit focus request, or zero.
+func (canvas *Canvas) FocusOnce() ID { return canvas.focusOnce }
+
+// TakeFocusOnce consumes the explicit focus request.
+func (canvas *Canvas) TakeFocusOnce() ID {
+	id := canvas.focusOnce
+	canvas.focusOnce = ID{}
+	return id
+}
 
 // ReleaseFocus asks the runtime to take the keyboard focus away from id if id
 // still has it when this paint ends, and does nothing otherwise. A control that

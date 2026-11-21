@@ -859,7 +859,7 @@ func (painter *painter) repaint() (platform.Frame, error) {
 		painter.noteFrameStart()
 	}
 	painter.paintCanvas()
-	if !painter.focus.PendingFocus().IsZero() || painter.focus.Carries() {
+	if !painter.focus.PendingFocus().IsZero() || painter.focus.Carries() || !painter.canvas.FocusOnce().IsZero() {
 		before, beforeVisible := painter.focus.Focused(), painter.focus.KeyboardFocus()
 		painter.focus.Sync(painter.canvas)
 		if painter.focus.Focused() != before || painter.focus.KeyboardFocus() != beforeVisible {
@@ -950,7 +950,7 @@ func (painter *painter) publish() (platform.Frame, error) {
 	// as it was, so it must not rebuild them.
 	hitStructuresUnchanged := painter.hitStructuresUnchanged()
 	regionsUnchanged := (hitStructuresUnchanged || painter.regionStructuresUnchanged()) &&
-		painter.canvas.FocusRelease().IsZero() && !painter.focus.Carries()
+		painter.canvas.FocusRelease().IsZero() && painter.canvas.FocusOnce().IsZero() && !painter.focus.Carries()
 	if regionsUnchanged {
 		painter.reusedHits++
 	} else {
