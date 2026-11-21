@@ -23,8 +23,9 @@
 // The page and its model, including Field and text.Editor getters, belong to the
 // window thread. Capture immutable values there before background work starts.
 // Use NewEffectKeyed to give a worker a value snapshot and EffectState.Take to
-// consume its result in the page; other workers publish under synchronization
-// and use app.Config.Invalidator with app.Config.OnWake to deliver results.
+// consume its result in the page; another goroutine hands its result to the
+// window's app.Invalidator with Post, which runs it on the window thread and
+// repaints.
 //
 // The engine underneath is not part of the public model. A component is a
 // function of the page (func(c ui.C) ui.Box); a custom control uses Control

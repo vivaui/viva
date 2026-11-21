@@ -223,6 +223,7 @@ func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*
 		return nil, errors.New("app: application is not running")
 	}
 	window := &Window{}
+	config.attachPosts()
 	application.mu.Lock()
 	if application.windows == nil {
 		application.windows = make(map[*Window]struct{})
@@ -275,6 +276,7 @@ func (application *Application) OpenWindow(config Config, canvas *gfx.Canvas) (*
 	}
 	control, err := application.host.OpenWindow(config, canvas, closed)
 	if err != nil {
+		config.Invalidator.closePosts()
 		forget()
 		return nil, err
 	}

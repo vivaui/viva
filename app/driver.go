@@ -112,6 +112,7 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalized.attachPosts()
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
 	}

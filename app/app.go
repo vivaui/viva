@@ -238,13 +238,15 @@ type Config struct {
 	// OnClosed runs exactly once on the window thread after native resources
 	// stop receiving events. Release window-owned application resources here.
 	OnClosed func()
-	// Invalidator, when set, lets other goroutines request a repaint with
-	// Invalidate. Pair it with OnWake to apply what they produced. Unset, no
-	// wake-up machinery exists. A development reload worker ignores it.
+	// Invalidator, when set, lets other goroutines hand results to the window
+	// with Post, or request a repaint with Invalidate. Unset, no wake-up
+	// machinery exists. A development reload worker ignores it.
 	Invalidator *Invalidator
 	// OnWake runs on the window thread right before each repaint that
-	// Invalidate or a running transition requested. Move the results of
-	// background work into application state here, so Paint only reads state.
+	// Invalidate, Post or a running transition requested, after the updates
+	// Post queued. It runs on every such wake, a transition's frames included,
+	// so it is for state the window thread advances itself; a result of
+	// background work is handed over with Invalidator.Post, which applies it once.
 	// It runs for a window nobody can see too (hidden, minimized, or covered, where
 	// the platform says so), which is not painted: the frame it missed is painted
 	// once the window shows again, so a status icon can be refreshed from here.

@@ -25,6 +25,10 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if normalized.TextInput != nil && !nativeTextInputSupported {
 		return fmt.Errorf("%w: native text input", ErrUnsupported)
 	}
+	normalized.attachPosts()
+	// RunCanvas returns when the window has closed or could not open: either way
+	// it takes no more posts.
+	defer normalized.Invalidator.closePosts()
 	if runner != nil {
 		return runner(normalized, canvas)
 	}
