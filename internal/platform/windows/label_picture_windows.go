@@ -153,8 +153,8 @@ func (label *labelTexture) usePicture(picture *labelPicture) {
 	label.spans = label.spans[:0]
 }
 
-func (renderer *renderer) reuseLabelPicture(label *labelTexture, scale float32) bool {
-	skip, width, shown := label.window(scale)
+func (renderer *renderer) reuseLabelPicture(label *labelTexture, scale float32, viewport int) bool {
+	skip, width, shown := label.window(scale, viewport)
 	if !shown {
 		return false
 	}

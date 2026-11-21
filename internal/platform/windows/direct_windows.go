@@ -295,9 +295,9 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 	rasterizer.spans = rasterizer.spans[:0]
 	if label.Mono || len(label.Runs) > 0 {
 		if allowLCD && !platform.ColorGlyphs(label.Value) {
-			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height)
+			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height, skip)
 		}
-		return pixels, false, rasterizer.grid(pixels, label, scale, width, height)
+		return pixels, false, rasterizer.grid(pixels, label, scale, width, height, skip)
 	}
 	lcd = allowLCD && !platform.ColorGlyphs(label.Value)
 	baseline := float32(platform.TextBaseline(label, height, scale))
@@ -485,7 +485,8 @@ func coverageOfChannels(pixels []byte, bitmap *textBitmap, width, height int, dr
 // weight and decorations of their own, each character on its cell of the grid (Viva's, not the
 // font's), or the whole value of a monospaced label. Colors are applied as the text is drawn
 // (premultiplied BGRA, grayscale antialiasing), so a line is one texture however many colors it holds.
-func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, scale float32, width, height int) error {
+// skip is the device columns of the line left of the texture, for a line wider than a texture holds.
+func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, scale float32, width, height, skip int) error {
 	family := monoFamily(label.MonoFace)
 	fallback := rasterizer.fontFallback(label.MonoFace)
 	size := label.FontSize * scale
@@ -499,7 +500,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 	fill(scratch, width, height, d2dColor{})
 	target.begin(d2dColor{A: 1}, d2dAntialiasGrayscale)
 	var drawErr error
-	for _, piece := range rasterizer.gridPieces(label, pitch) {
+	for _, piece := range rasterizer.gridPieces(label, pitch, skip) {
 		target.setColor(piece.color)
 		if err := rasterizer.drawRun(target, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline, pieceClip{}); err != nil && drawErr == nil {
 			drawErr = err

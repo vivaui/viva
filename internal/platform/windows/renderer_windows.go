@@ -585,7 +585,7 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 func (renderer *renderer) draw(width, height int, scale float32) error {
 	// A page that appeared has many labels to draw; draw their pixels in one
 	// Direct2D session before any of them is composited.
-	if err := renderer.prepareLabels(scale); err != nil {
+	if err := renderer.prepareLabels(scale, width); err != nil {
 		return err
 	}
 	clear := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
@@ -649,14 +649,13 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					label.dropTexture()
 					continue
 				}
-				skip, windowWidth, shown := label.window(scale)
+				skip, windowWidth, shown := label.window(scale, width)
 				if !shown {
 					label.close()
 					continue
 				}
-				if label.view == 0 || label.stale || label.scale != scale || label.skip != skip || skip > 0 && label.width != windowWidth || renderer.pictureChanged(label, scale, skip, windowWidth) ||
-					len(label.label.Bitmap) > 0 && platform.BitmapTextureStale(label.label, scale, label.width, label.height) {
-					if err := renderer.rasterize(label, scale); err != nil {
+				if renderer.needsRaster(label, scale, skip, windowWidth) {
+					if err := renderer.rasterize(label, scale, width); err != nil {
 						return fmt.Errorf("rasterize label %d: %w", index, err)
 					}
 				}
@@ -681,8 +680,9 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					continue
 				}
 				// A grid line has a color per run: its coverage is drawn once for each, cut to the
-				// columns of the run.
+				// columns of the run, which count from the texture's left edge.
 				origin, _ := label.pixelOrigin(scale)
+				origin += label.skip
 				for _, span := range label.spans {
 					cut = scissor
 					cut.Left, cut.Right = max(cut.Left, int32(origin+span.left)), min(cut.Right, int32(origin+span.right))

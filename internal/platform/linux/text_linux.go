@@ -483,6 +483,15 @@ func NewTextMeasurer() (text.MeasureFunc, func(), error) {
 // the renderer to blend with the label's color, and lcd is true. Otherwise the pixels are
 // premultiplied BGRA in the label's color.
 func (services *textServices) rasterize(label platform.TextLabel, scale float32, width, height int, allowLCD bool) (pixels []byte, lcd bool, err error) {
+	return services.rasterizeWindow(label, scale, 0, width, height, allowLCD)
+}
+
+// rasterizeWindow draws the device columns from skip to skip+width of the label, as
+// rasterize draws the whole of it: a line wider than a texture holds is drawn from a
+// window of it (platform.WideTextLabelWindow). skip is a whole number of device
+// columns, so every glyph keeps the phase it has in the whole line, and the columns
+// of services.spans are the window's.
+func (services *textServices) rasterizeWindow(label platform.TextLabel, scale float32, skip, width, height int, allowLCD bool) (pixels []byte, lcd bool, err error) {
 	settings := systemFonts()
 	services.spans = services.spans[:0]
 	// A fixed-pitch label is LCD text too, unless it holds a color glyph, which has no
@@ -493,12 +502,15 @@ func (services *textServices) rasterize(label platform.TextLabel, scale float32,
 		settings = settings.grayscale()
 	}
 	services.useFonts(settings)
-	pixels, err = services.draw(label, scale, width, height, lcd)
+	pixels, err = services.draw(label, scale, skip, width, height, lcd)
 	return pixels, lcd && err == nil, err
 }
 
-func (services *textServices) draw(label platform.TextLabel, scale float32, width, height int, lcd bool) ([]byte, error) {
-	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 {
+// draw draws the device columns from skip to skip+width of the label into pixels width
+// by height. The renderers do not ask for a texture larger than platform.LabelTextureFits
+// allows: they window a wide line and leave a label no texture holds undrawn.
+func (services *textServices) draw(label platform.TextLabel, scale float32, skip, width, height int, lcd bool) ([]byte, error) {
+	if !platform.LabelTextureFits(width, height) || skip < 0 {
 		return nil, fmt.Errorf("linux: label texture exceeds bounded size")
 	}
 	if !validFontSize(label.FontSize) || scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
@@ -525,6 +537,10 @@ func (services *textServices) draw(label platform.TextLabel, scale float32, widt
 		return nil, fmt.Errorf("linux: create Cairo text context")
 	}
 	defer services.cairoDestroy(context)
+	if skip > 0 {
+		// The line is drawn where it stands; the surface is the window of it.
+		services.cairoTranslate(context, -float64(skip), 0)
+	}
 	if label.Value != "" {
 		if len(label.Runs) == 0 {
 			family := proportionalFamily
@@ -553,7 +569,7 @@ func (services *textServices) draw(label platform.TextLabel, scale float32, widt
 					return nil, err
 				}
 			}
-		} else if err := services.drawRuns(context, label, scale, width, height, lcd); err != nil {
+		} else if err := services.drawRuns(context, label, scale, skip, width, height, lcd); err != nil {
 			return nil, err
 		}
 	}
@@ -614,8 +630,10 @@ type colorSpan struct {
 }
 
 // drawRuns draws a fixed-pitch label's runs. With lcd they are drawn white, for their coverage,
-// and the color of each run is recorded in services.spans instead.
-func (services *textServices) drawRuns(context uintptr, label platform.TextLabel, scale float32, width, height int, lcd bool) error {
+// and the color of each run is recorded in services.spans instead. The surface is the device
+// columns from skip to skip+width of the line, translated onto them: a run outside them is not
+// drawn, and the columns of its spans are the surface's.
+func (services *textServices) drawRuns(context uintptr, label platform.TextLabel, scale float32, skip, width, height int, lcd bool) error {
 	pitch := float64(label.CellWidth * scale)
 	if pitch <= 0 || math.IsNaN(pitch) || math.IsInf(pitch, 0) {
 		return fmt.Errorf("linux: invalid fixed-pitch cell width")
@@ -626,7 +644,8 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		return err
 	}
 	baseline := float64(platform.TextBaseline(label, height, scale))
-	columns := services.ownedColumns(label, family, scale, pitch, width)
+	columns := services.ownedColumns(label, family, scale, pitch, skip+width)
+	shownLeft, shownRight := float64(skip), float64(skip+width)
 	offset := 0
 	for index, run := range label.Runs {
 		end := offset + int(run.Bytes)
@@ -643,6 +662,9 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 		// The run draws in the columns it owns, which are its cells and the blank cells its
 		// ink reaches into, and nowhere else.
 		owned := columns[index]
+		if min(float64(owned.From), left) >= shownRight || max(float64(owned.To), left+span) <= shownLeft {
+			continue // the run is outside the window of the line
+		}
 		services.cairoSave(context)
 		services.cairoRectangle(context, float64(owned.From), 0, float64(owned.To-owned.From), float64(height))
 		services.cairoClip(context)
@@ -654,8 +676,7 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 			}
 		}
 		source()
-		if lcd && run.Cells > 0 && piece != "" && owned.To > owned.From {
-			from, to := owned.From, owned.To
+		if from, to := min(max(owned.From-skip, 0), width), min(max(owned.To-skip, 0), width); lcd && run.Cells > 0 && piece != "" && to > from {
 			services.addSpan(from, to, [4]float32{run.Color.Red, run.Color.Green, run.Color.Blue, run.Color.Alpha})
 		}
 		metrics := baseMetrics
@@ -679,7 +700,10 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 				services.cairoRestore(context)
 			}
 		} else if printableASCII(piece) {
-			for index := range len(piece) {
+			// ASCII ink stays inside its cell; a cell either side holds an italic's overhang.
+			first := max(int(math.Floor((shownLeft-left)/pitch))-1, 0)
+			last := min(int(math.Ceil((shownRight-left)/pitch))+1, len(piece))
+			for index := first; index < last; index++ {
 				metrics, err = services.configureLayout(piece[index:index+1], family, label.FontSize*scale, run.Weight, run.Italic)
 				if err != nil {
 					services.cairoRestore(context)
