@@ -68,4 +68,12 @@ func TestNotificationNativeX11(t *testing.T) {
 	if getProperty("_NET_WM_USER_TIME", xcbAtomCardinal) != 0 || focused() != owner.id {
 		t.Fatal("opening the desktop popup took the keyboard")
 	}
+	wmHints, err := win.api.atom(win.connection, "WM_HINTS")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hints, ok := win.tracker.property(win.id, wmHints, wmHints)
+	if !ok || len(hints) < 8 || binary.LittleEndian.Uint32(hints)&1 == 0 || binary.LittleEndian.Uint32(hints[4:]) != 0 {
+		t.Fatal("notification did not opt out of keyboard focus in WM_HINTS")
+	}
 }

@@ -172,9 +172,10 @@ jobs:
           VIVA_TEST_PREVIEW_XVFB: '1'
           VIVA_TEST_NOTIFICATION_XVFB: '1'
         run: |
-          sudo apt-get install -y xvfb libxcb-shape0 ||
-            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0; }
+          sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
           xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
+          GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

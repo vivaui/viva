@@ -150,6 +150,7 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 		g.windowSkipTaskbar(w.toplevel, 1)
 		g.windowKeepAbove(w.toplevel, 1)
 		g.windowAcceptFocus(w.toplevel, 0)
+		g.windowFocusOnMap(w.toplevel, 0)
 		if monitor := w.notificationMonitor(display); monitor != 0 {
 			var rect [4]int32
 			g.gdkMonitorWorkarea(monitor, &rect)

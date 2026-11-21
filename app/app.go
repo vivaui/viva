@@ -41,11 +41,11 @@ const (
 	// closes itself when it loses focus; OnClosed reports that, and OnCloseRequest
 	// is not asked.
 	WindowPanel
-	// WindowNotification presents an interactive desktop popup above normal
-	// windows without activating the application. It stays until explicitly
-	// closed, including when another window receives focus. Desktop adapters
-	// request the bottom-right of the usable screen; an enforcing compositor
-	// can choose its own placement.
+	// WindowNotification opens a desktop popup that accepts pointer input and
+	// stays open when focus changes. On Windows, macOS and X11 it requests the
+	// bottom-right of the pointer monitor's work area without taking keyboard
+	// focus. On native Wayland, the compositor decides placement, stacking and
+	// keyboard focus. Use SendNotification for a system-managed notification.
 	WindowNotification WindowMode = WindowMode(platform.WindowNotification)
 )
 
