@@ -192,6 +192,7 @@ type Extra struct {
 	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to
 	maxPct        [2]float32       // MaxWidthPercent and MaxHeightPercent; zero is none
+	overflowWrap  OverflowWrap     // how a wrapped Text breaks a word too wide for its line, OverflowWrap
 	hitOut        [4]float32       // how far the hit region reaches beyond the rectangle: top, right, bottom, left
 	hitExact      bool             // a styled control targets its laid-out rectangle, not its enlarged desktop target
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
