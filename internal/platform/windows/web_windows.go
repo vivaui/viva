@@ -117,6 +117,9 @@ type windowsWeb struct {
 	// loading is a navigation the page is in the middle of. WebView2 has no property for it, so it
 	// follows the events: a main frame navigation that started, until its NavigationCompleted.
 	loading bool
+	// processFailure is why the page's process is gone, WebProcessNoFailure while it is there,
+	// which the runtime reports through ProcessFailed and a navigation that starts again clears.
+	processFailure platform.WebProcessFailure
 	// refused is a main frame navigation the application's Navigate cancelled. The runtime reports
 	// the cancellation as the navigation's end, which the application already answered.
 	refused bool
@@ -342,6 +345,10 @@ func (page *windowsWeb) attach(environment uintptr) {
 		page.navigationCompleted(args)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
+	comCall(view, viewAddProcessFailed, newHandler(func(_, args uintptr) uintptr {
+		page.processFailed(args)
+		return 0
+	}), uintptr(unsafe.Pointer(&token)))
 	script := platform.WebBridgeScript
 	if page.config.BridgeMainFrameOnly {
 		script = platform.WebBridgeMainFrameOnlyScript
@@ -414,6 +421,36 @@ func (page *windowsWeb) navigationCompleted(args uintptr) {
 	page.loaded(platform.WebLoadFinished, page.sourceAddress(), code, "")
 }
 
+// processFailed reports a process the runtime lost. Only the page's own processes end the page: the
+// browser's, which every renderer is a child of, and the renderer that draws the main frame. A
+// frame's own renderer shows the runtime's error page inside that frame and the page keeps going, and
+// a GPU, utility, sandbox helper or plugin process is the runtime's to start again: neither is
+// reported, which is what the other engines do as well, their signals naming the web content process
+// alone.
+func (page *windowsWeb) processFailed(args uintptr) {
+	if page.closed || args == 0 {
+		return
+	}
+	var kind int32
+	comCall(args, processFailedKind, uintptr(unsafe.Pointer(&kind)))
+	// A runtime older than ICoreWebView2ProcessFailedEventArgs2 says only the kind: -1 is the
+	// platform's way of hearing that nothing was said about why.
+	reason := int32(-1)
+	var detailed uintptr
+	if status := comCall(args, 0, uintptr(unsafe.Pointer(&iidProcessFailedArgs2)), uintptr(unsafe.Pointer(&detailed))); status == 0 && detailed != 0 {
+		comCall(detailed, processFailedReason, uintptr(unsafe.Pointer(&reason)))
+		comCall(detailed, 2)
+	}
+	failure, pageProcess := platform.WebProcessFailureFromWebView2(kind, reason)
+	if !pageProcess {
+		return
+	}
+	page.processFailure, page.loading = failure, false
+	if page.config.OnProcessFailed != nil {
+		page.config.OnProcessFailed(failure)
+	}
+}
+
 // sourceAddress is the address of the document the page has, as the runtime names it.
 func (page *windowsWeb) sourceAddress() string {
 	if page.view == 0 {
@@ -475,6 +512,9 @@ func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 	// Committed or Finished. loaded names the address as the application knows it there too.
 	if mainFrame {
 		page.refused, page.loading = false, true
+		// A page that loads again has a process again, so the failure of the one it lost is no
+		// longer what it is.
+		page.processFailure = platform.WebProcessNoFailure
 		page.loaded(platform.WebLoadStarted, url, platform.WebLoadNoError, "")
 	}
 }
@@ -719,6 +759,9 @@ func (page *windowsWeb) canGo(slot int) bool {
 // IsLoading is the navigation the runtime is in the middle of, which this page follows from the
 // events: WebView2 has no property that answers it.
 func (page *windowsWeb) IsLoading() bool { return page.loading }
+
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there.
+func (page *windowsWeb) ProcessFailure() platform.WebProcessFailure { return page.processFailure }
 
 func (page *windowsWeb) Eval(script string) {
 	page.do(func() { comCall(page.view, viewExecuteScript, uintptr(unsafe.Pointer(wide(script))), 0) })

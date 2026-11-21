@@ -82,6 +82,12 @@ type WebViewConfig struct {
 	TopCornerRadius float32
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
+	// OnProcessFailed reports the page's process gone: it crashed, the system or the engine
+	// stopped it, or it never started. The page cannot draw again until it is loaded again, so an
+	// application says so and loads it, and the failure names which of those it was. Every engine
+	// here reports it; WebKitGTK before 2.20 has no signal for it, and says so once rather than
+	// leaving the callback silently unset.
+	OnProcessFailed func(WebProcessFailure)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
 	Navigate func(WebNavigation) bool
 	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. That is a
@@ -207,5 +213,8 @@ type WebView interface {
 	// until it finishes or fails. WebView2 has no property for it, so Windows follows the
 	// navigation's events.
 	IsLoading() bool
+	// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there: the
+	// value OnProcessFailed was given, until the page starts a navigation again.
+	ProcessFailure() WebProcessFailure
 	Close()
 }

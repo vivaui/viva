@@ -444,7 +444,23 @@ const (
 	resourceContextAll    = 0
 )
 
+// ICoreWebView2's ProcessFailed event and what its arguments report: add_ProcessFailed is 25, before
+// AddScriptToExecuteOnDocumentCreated 27, and get_ProcessFailedKind is 3, which says which process
+// the runtime lost. ICoreWebView2ProcessFailedEventArgs2 (WebView2 SDK 1.0.818.41, Runtime 94) adds
+// get_Reason 4, which says why: the kind alone cannot tell a crash from a process the system
+// reclaimed under memory pressure.
+const (
+	viewAddProcessFailed = 25
+	processFailedKind    = 3
+	processFailedReason  = 4
+)
+
 // iidEnvironment10 is ICoreWebView2Environment10, which offers the controller options an InPrivate
 // page is made with. It comes from the WebView2 SDK 1.0.1210.39 and Runtime 101 (Edge 101); a
 // runtime older than that does not answer for it.
 var iidEnvironment10 = guid{0xee0eb9df, 0x6f12, 0x46ce, [8]byte{0xb5, 0x3f, 0x3f, 0x47, 0xb9, 0xc9, 0x28, 0xe0}}
+
+// iidProcessFailedArgs2 is ICoreWebView2ProcessFailedEventArgs2, the arguments of ProcessFailed that
+// say why the process went (WebView2 SDK 1.0.818.41, Runtime 94 and newer, which is older than the
+// runtime 101 that an ephemeral page already needs); a runtime without it gives the kind alone.
+var iidProcessFailedArgs2 = guid{0x4dab9422, 0x46fa, 0x4c3e, [8]byte{0xa5, 0xd2, 0x41, 0xd2, 0x07, 0x1d, 0x36, 0x80}}

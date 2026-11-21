@@ -16,6 +16,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -108,12 +109,19 @@ type webKit struct {
 	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI,
 	// decided from the library's own major and minor version at load time.
 	downloadDestinationPath bool
+	// processTerminated tells whether the engine has the web-process-terminated signal, which names
+	// a page whose web process is gone: WebKitGTK has it from 2.20, and an engine without it is not
+	// handed a signal to connect.
+	processTerminated bool
 }
 
 var (
 	webOnce sync.Once
 	webAPI  *webKit
 	webErr  error
+	// webProcessTerminatedUnsupported says once, rather than at every page, that this engine cannot
+	// report a page whose process is gone.
+	webProcessTerminatedUnsupported sync.Once
 )
 
 func loadWebKit(g *gtkLibrary) (*webKit, error) {
@@ -230,9 +238,33 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			k.schemeResponse = true
 		}
 		g.lookup(&k.schemeWebView, "webkit_uri_scheme_request_get_web_view")
+		k.processTerminated = webProcessTerminatedSignal(g)
 		webAPI = k
 	})
 	return webAPI, webErr
+}
+
+// webProcessTerminatedSignal reports whether the engine has WebKitWebView's web-process-terminated
+// signal, which says the page's web process is gone: WebKitGTK added it in 2.20, and an older engine
+// would only warn about a signal it does not have.
+func webProcessTerminatedSignal(g *gtkLibrary) bool {
+	var viewType func() uintptr
+	var signalLookup func(name *byte, itype uintptr) uint32
+	var classRef func(itype uintptr) uintptr
+	var classUnref func(class uintptr)
+	if !g.lookup(&viewType, "webkit_web_view_get_type") || !g.lookup(&signalLookup, "g_signal_lookup") ||
+		!g.lookup(&classRef, "g_type_class_ref") || !g.lookup(&classUnref, "g_type_class_unref") {
+		return false
+	}
+	// Signals are installed in the type's class_init, so a type that no instance has
+	// initialized yet has none to look up: take the class first, then give it back.
+	class := classRef(viewType())
+	if class == 0 {
+		return false
+	}
+	defer classUnref(class)
+	name := cString("web-process-terminated")
+	return signalLookup(&name[0], viewType()) != 0
 }
 
 // webQuirks keeps a virtual machine or a container from breaking the engine: without a GPU render
@@ -283,6 +315,9 @@ type gtkWebView struct {
 	// too: only the interruption of that same request is the answer the application gave.
 	failed  bool
 	refused string
+	// failure is why the page's web process is gone, WebProcessNoFailure while it is there: the
+	// engine reports the termination and why, and a navigation that starts again clears it.
+	failure platform.WebProcessFailure
 }
 
 // viewPlace is a rectangle in the overlay's units.
@@ -606,6 +641,18 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	g.overlayAdd(w.overlay, v.widget)
 	g.connect(v.widget, "load-changed", cb.webLoad, v.handle)
 	g.connect(v.widget, "load-failed", cb.webFailed, v.handle)
+	if k.processTerminated {
+		g.connect(v.widget, "web-process-terminated", cb.webProcessTerminated, v.handle)
+	} else if c.OnProcessFailed != nil {
+		// The page is opened: only the report of a process it loses is missing, and that is said
+		// once rather than left as a callback that never runs.
+		webProcessTerminatedUnsupported.Do(func() {
+			if diag.Enabled(diag.Warn) {
+				diag.Report(diag.Warn, "web", "process-failed",
+					"this WebKitGTK predates 2.20 and cannot report a page whose process is gone; OnProcessFailed is never called")
+			}
+		})
+	}
 	g.connect(v.widget, "focus-in-event", cb.event, w.id)
 	g.connect(v.widget, "focus-out-event", cb.event, w.id)
 	g.connect(v.widget, "decide-policy", cb.webDecide, v.handle)
@@ -724,6 +771,9 @@ func (v *gtkWebView) CanGoForward() bool {
 func (v *gtkWebView) IsLoading() bool {
 	return !v.closed && v.k.isLoading(v.widget) != 0
 }
+
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there.
+func (v *gtkWebView) ProcessFailure() platform.WebProcessFailure { return v.failure }
 
 func (v *gtkWebView) Eval(script string) {
 	if v.closed {
@@ -852,6 +902,9 @@ func (v *gtkWebView) loadChanged(event int32) {
 	switch event {
 	case webLoadStarted:
 		v.failed, v.refused = false, ""
+		// A page that loads again has a web process again, so the one it lost is no longer what
+		// it is.
+		v.failure = platform.WebProcessNoFailure
 		v.report(platform.WebLoadStarted, address, platform.WebLoadNoError, "")
 	case webLoadCommitted:
 		v.report(platform.WebLoadCommitted, address, platform.WebLoadNoError, "")
@@ -893,6 +946,19 @@ func (v *gtkWebView) loadFailed(uri, failure uintptr) {
 		code, description = platform.WebLoadErrorFromWebKitError(err.code), goString(err.message)
 	}
 	v.report(platform.WebLoadFinished, goString(uri), code, description)
+}
+
+// processTerminated reports the page's web process gone, with the engine's reason for it: the page
+// cannot draw again until it is loaded again, and the reason decides what an application says, so it
+// is reported in the terms every engine can be held to rather than the engine's own.
+func (v *gtkWebView) processTerminated(reason int32) {
+	if v.closed {
+		return
+	}
+	v.failure = platform.WebProcessFailureFromWebKitTerminationReason(reason)
+	if v.config.OnProcessFailed != nil {
+		v.config.OnProcessFailed(v.failure)
+	}
 }
 
 // navigationAllowed asks the application whether the view may make a navigation. An application
