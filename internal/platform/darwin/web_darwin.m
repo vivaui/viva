@@ -528,9 +528,41 @@ int viva_web_direct_supported(void) {
     return 0;
 }
 
+// viva_web_named_store gives the configuration the persistent store of the identifier, and says
+// whether it did: a system too old to name a store, or an identifier that is not one, is reported
+// through error, and no page is opened in a store the application did not ask for.
+static int viva_web_named_store(WKWebViewConfiguration *configuration, const char *identifier, char **error) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+    if (@available(macOS 14.0, *)) {
+        NSString *text = [NSString stringWithUTF8String:identifier];
+        NSUUID *uuid = text == nil ? nil : [[NSUUID alloc] initWithUUIDString:text];
+        if (uuid == nil) {
+            if (error != NULL) {
+                *error = strdup("the storage partition is not an identifier");
+            }
+            return 0;
+        }
+        WKWebsiteDataStore *store = [WKWebsiteDataStore dataStoreForIdentifier:uuid];
+        [uuid release];
+        if (store == nil) {
+            if (error != NULL) {
+                *error = strdup("the system made no store for the storage partition");
+            }
+            return 0;
+        }
+        configuration.websiteDataStore = store;
+        return 1;
+    }
+#endif
+    if (error != NULL) {
+        *error = strdup("a named storage partition needs macOS 14 or newer");
+    }
+    return 0;
+}
+
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
                     const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral, int direct,
-                    char **error) {
+                    const char *partition, char **error) {
     __block VivaWebView *web = nil;
     viva_web_main(^{
         NSView *host = (NSView *)view;
@@ -541,7 +573,15 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
         bridge->_handle = handle;
         bridge->_id = id;
         WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
-        if (ephemeral || direct) {
+        if (partition != NULL && partition[0] != 0) {
+            // A named partition is a store of its own, which WebKit keeps under an identifier: pages
+            // of one identifier share their cookies and storage, pages of another do not.
+            if (!viva_web_named_store(configuration, partition, error)) {
+                [configuration release];
+                [bridge release];
+                return;
+            }
+        } else if (ephemeral || direct) {
             // Ephemeral pages keep nothing on disk. Direct pages also need a private store so
             // their proxy policy cannot change another page's in-flight requests or data store.
             configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
