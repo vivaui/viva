@@ -646,6 +646,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()
+			if state.config.OnDeactivate != nil {
+				frame, err := state.config.OnDeactivate()
+				state.frame(frame, err)
+			}
 		} else if state.config.OnActivate != nil {
 			state.config.OnActivate()
 		}

@@ -163,6 +163,7 @@ type runState struct {
 	onActivate        func()
 	keyHandler        KeyHandler
 	focusLostHandler  platform.FocusLostHandler
+	deactivateHandler platform.DeactivateHandler
 	accessibility     platform.AccessibilityHandler
 	// nodes is the accessibility tree last presented, for turning the UTF-16
 	// ranges AppKit sends back into code points. It is the application's slice,
@@ -398,6 +399,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	state.resizeHandler = config.OnResize
 	state.keyHandler = config.OnKey
 	state.focusLostHandler = config.OnFocusLost
+	state.deactivateHandler = config.OnDeactivate
 	state.accessibility, state.nodes = config.OnAccessibility, config.Accessibility
 	state.shortcutHandler = config.OnShortcut
 	state.scrollHandler = config.OnScroll

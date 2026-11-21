@@ -1180,6 +1180,12 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 				return false, err
 			}
 		}
+		if realFocusLoss && config.OnDeactivate != nil {
+			frame, err := config.OnDeactivate()
+			if err := router.presentFrame(frame, err); err != nil {
+				return false, err
+			}
+		}
 		if router.ime != nil && realFocusLoss {
 			router.ime.setFocused(false)
 		}

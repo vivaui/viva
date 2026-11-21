@@ -202,6 +202,13 @@ type Config struct {
 	// call it. It lets an application refresh data that may have gone stale
 	// while the window was in the background, without polling.
 	OnActivate func()
+	// OnDeactivate runs on the window thread when the top-level window stops
+	// being the active window, after the keys that were down are released. It
+	// is how an application saves or hides what only makes sense while it has
+	// the user's attention. Its Repaint asks for a new frame. Moving focus
+	// between editors inside the window does not call it, and the Web target
+	// does not report it.
+	OnDeactivate func() gfx.EventResult
 	// OnMaximize runs on the window thread when the window is maximized or
 	// restored on Windows and Linux, including by the system (the window
 	// manager, the taskbar, or a keyboard shortcut), not only by Viva's own

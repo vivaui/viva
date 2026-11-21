@@ -523,6 +523,7 @@ extern void vivaRawKeyEvent(
 // terminal's own table in Go.
 extern int vivaTerminalCells(uint32_t character);
 extern void vivaWindowActivated(uintptr_t callbackHandle);
+extern void vivaWindowDeactivated(uintptr_t callbackHandle, void *view);
 extern void vivaFocusLost(
     uintptr_t callbackHandle,
     void *view
@@ -5110,6 +5111,10 @@ static void viva_set_secure_event_input(BOOL on) {
     if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
         notification.object == self.window && _callbackHandle != 0 && _keyEventsEnabled) {
         vivaFocusLost(_callbackHandle, self);
+    }
+    if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
+        notification.object == self.window && _callbackHandle != 0) {
+        vivaWindowDeactivated(_callbackHandle, self);
     }
     if (_textInputGeneration == generation && [notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
         notification.object == self.window && _textInputEnabled && _tentativeComposition) {

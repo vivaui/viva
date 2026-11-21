@@ -620,6 +620,20 @@ func (driver *Driver) KeyUp(key gfx.Key, character string) error {
 	return err
 }
 
+// DeactivateWindow reports the window as deactivated, as the window manager
+// would when the user switches away, and calls OnDeactivate after the keys
+// that were down are released. A closed driver reports nothing.
+func (driver *Driver) DeactivateWindow() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	driver.modifierKeys = 0
+	if _, err := driver.painter.deactivate(); err != nil {
+		return err
+	}
+	return driver.Pump()
+}
+
 // LoseFocus makes the window lose the keyboard, as switching to another
 // application does: keys held down are released first. Modifiers held by
 // KeyDown are forgotten with them.

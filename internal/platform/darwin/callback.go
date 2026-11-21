@@ -307,6 +307,24 @@ func vivaWindowActivated(handle C.uintptr_t) {
 	}
 }
 
+// vivaWindowDeactivated reports that the window stopped being the active window.
+//
+//export vivaWindowDeactivated
+func vivaWindowDeactivated(handle C.uintptr_t, view unsafe.Pointer) {
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || state.deactivateHandler == nil {
+		return
+	}
+	frame, err := state.deactivateHandler()
+	if err == nil {
+		err = presentFrame(state, view, frame, false)
+	}
+	if err != nil {
+		state.err = err
+		C.viva_view_close(view)
+	}
+}
+
 // vivaFocusLost reports that the window stopped being the keyboard window.
 //
 //export vivaFocusLost

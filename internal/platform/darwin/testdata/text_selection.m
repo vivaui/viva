@@ -60,6 +60,7 @@ void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int f
     }
 }
 void vivaWindowActivated(uintptr_t handle) {}
+void vivaWindowDeactivated(uintptr_t handle, void *view) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 // The terminal's table, reduced to what these tests use: CJK ideographs take two cells,
 // combining marks none.
