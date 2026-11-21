@@ -250,9 +250,19 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 func webProcessTerminatedSignal(g *gtkLibrary) bool {
 	var viewType func() uintptr
 	var signalLookup func(name *byte, itype uintptr) uint32
-	if !g.lookup(&viewType, "webkit_web_view_get_type") || !g.lookup(&signalLookup, "g_signal_lookup") {
+	var classRef func(itype uintptr) uintptr
+	var classUnref func(class uintptr)
+	if !g.lookup(&viewType, "webkit_web_view_get_type") || !g.lookup(&signalLookup, "g_signal_lookup") ||
+		!g.lookup(&classRef, "g_type_class_ref") || !g.lookup(&classUnref, "g_type_class_unref") {
 		return false
 	}
+	// Signals are installed in the type's class_init, so a type that no instance has
+	// initialized yet has none to look up: take the class first, then give it back.
+	class := classRef(viewType())
+	if class == 0 {
+		return false
+	}
+	defer classUnref(class)
 	name := cString("web-process-terminated")
 	return signalLookup(&name[0], viewType()) != 0
 }
