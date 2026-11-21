@@ -125,7 +125,14 @@ jobs:
       # The Linux package is not part of the sharded run (it drives X11), so the
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
-        run: go test ./internal/platform/linux -run '^TestMaximizeButtonSetsBothDirections$' -count=1 -v
+        run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|PreviewMovePreservesSizeAndFocus)$' -count=1 -v
+      - name: Native X11 drag preview
+        env:
+          VIVA_TEST_PREVIEW_XVFB: '1'
+        run: |
+          sudo apt-get install -y xvfb libxcb-shape0 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0; }
+          xvfb-run -a go test ./internal/platform/linux -run '^TestPreviewNativeX11Contract$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
