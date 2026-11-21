@@ -8,12 +8,71 @@ import (
 	"github.com/vivaui/viva/style"
 )
 
-func paintCheckbox(f *Frame, v ControlView) {
-	canvas := f.Surface
+// checkboxSurfaceRect is the box a Checkbox paints inside its element: beside
+// its caption at the element's start, centered in the element when it has none.
+func checkboxSurfaceRect(f *Frame, r Rect, caption bool) Rect {
 	side := components.CheckboxExtent(f.Palette)
-	bounds := Rect{X: v.Rect.X + (v.Rect.Width-side)/2, Y: v.Rect.Y + (v.Rect.Height-side)/2, Width: side, Height: side}
-	if v.Text != "" {
-		bounds.X = v.Rect.X
+	x := r.X + (r.Width-side)/2
+	if caption {
+		x = r.X
+	}
+	return Rect{X: x, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
+}
+
+// switchSurfaceRect is the track a Switch paints inside its element; an explicit
+// Width or Height sizes the track, as it does every other control's surface.
+func switchSurfaceRect(f *Frame, n *Node) Rect {
+	small := n.Flags&FlagSmall != 0
+	width, height := components.SwitchExtent(f.Palette, small)
+	if d := n.Size[AxisX]; d.Kind == DimPx {
+		width = d.Value
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	r := n.Rect
+	x := r.X + (r.Width-width)/2
+	if n.Text != "" {
+		x = r.X
+	}
+	return Rect{X: x, Y: r.Y + (r.Height-height)/2, Width: width, Height: height}
+}
+
+// controlSurfaceRect is where a themed control's own surface paints when it is
+// smaller than the element: a Checkbox's box, a Switch's track.
+func controlSurfaceRect(f *Frame, n *Node) Rect {
+	switch n.Kind {
+	case KindCheckbox:
+		return checkboxSurfaceRect(f, n.Rect, n.Text != "")
+	case KindSwitch:
+		return switchSurfaceRect(f, n)
+	}
+	return n.Rect
+}
+
+// frameCheckboxLook is the look a Checkbox's box is dressed with: the page's
+// Styles.Checkbox when it set one, else the theme's.
+func frameCheckboxLook(f *Frame, n *Node, Palette *Theme, state gfx.State) style.CheckboxLook {
+	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
+		return f.GetStyles().Checkbox(*Palette, state)
+	}
+	return components.CheckboxRecipe(*Palette, state)
+}
+
+// frameSwitchLook is the look a Switch's track and thumb are dressed with: the
+// page's Styles.Switch when it set one, else the theme's.
+func frameSwitchLook(f *Frame, n *Node, Palette *Theme, state gfx.State, progress float32) style.SwitchLook {
+	if f.GetStyles() != nil && f.GetStyles().Switch != nil {
+		return f.GetStyles().Switch(*Palette, state, progress)
+	}
+	return components.SwitchRecipe(*Palette, state, progress)
+}
+
+func paintCheckbox(f *Frame, v ControlView, n *Node) {
+	canvas := f.Surface
+	bounds := checkboxSurfaceRect(f, v.Rect, v.Text != "")
+	themed := v.Flags&FlagThemed != 0
+	if v.Text != "" && !themed {
 		f.PaintCaptionView(v, bounds)
 	}
 	checkbox := components.BeginCheckbox(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
@@ -26,37 +85,45 @@ func paintCheckbox(f *Frame, v ControlView) {
 	if v.Flags&FlagInvalid != 0 {
 		checkbox = checkbox.Invalid()
 	}
-	if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
+	if themed {
+		// The engine painted the box from the recipe; the mark is the control's.
+		checkbox = checkbox.UnpaintedSurface().MarkColor(f.GetCheckboxLook().Mark)
+	} else if f.GetStyles() != nil && f.GetStyles().Checkbox != nil {
 		checkbox = checkbox.Recipe(f.GetStyles().Checkbox)
 	}
 	if v.Label != "" {
 		checkbox = checkbox.Label(v.Label)
 	}
-	if v.Disabled {
+	disabled := v.Disabled
+	if themed {
+		// The visual above already dims under a disabled ancestor; the hit must too.
+		disabled = f.Disabled(n)
+	}
+	if disabled {
 		checkbox = checkbox.Disabled()
 	}
 	checkbox.Paint()
 }
 
-func paintSwitch(f *Frame, v ControlView) {
+func paintSwitch(f *Frame, v ControlView, n *Node) {
 	canvas := f.Surface
-	small := v.Flags&FlagSmall != 0
-	width, height := components.SwitchExtent(f.Palette, small)
-	bounds := Rect{X: v.Rect.X + (v.Rect.Width-width)/2, Y: v.Rect.Y + (v.Rect.Height-height)/2, Width: width, Height: height}
-	if v.Text != "" {
-		bounds.X = v.Rect.X
+	bounds := switchSurfaceRect(f, n)
+	themed := v.Flags&FlagThemed != 0
+	if v.Text != "" && !themed {
 		f.PaintCaptionView(v, bounds)
 	}
 	control := components.BeginSwitch(canvas, f.Palette, v.ID, bounds, v.Flags&FlagChecked != 0)
 	if v.Exact {
 		control = control.HitBounds(v.Rect)
 	}
-	if recipe := v.SwitchRecipe; recipe != nil {
+	if themed {
+		control = control.UnpaintedSurface().ThumbColor(f.GetSwitchLook().Thumb)
+	} else if recipe := v.SwitchRecipe; recipe != nil {
 		control = control.Recipe(recipe)
 	} else if f.GetStyles() != nil && f.GetStyles().Switch != nil {
 		control = control.Recipe(f.GetStyles().Switch)
 	}
-	if small {
+	if v.Flags&FlagSmall != 0 {
 		control = control.Small()
 	}
 	if v.Flags&FlagInvalid != 0 {
@@ -65,34 +132,14 @@ func paintSwitch(f *Frame, v ControlView) {
 	if v.Label != "" {
 		control = control.Label(v.Label)
 	}
-	if v.Disabled {
+	disabled := v.Disabled
+	if themed {
+		disabled = f.Disabled(n)
+	}
+	if disabled {
 		control = control.Disabled()
 	}
 	control.Paint()
-}
-
-func paintToggle(f *Frame, v ControlView) {
-	toggle := components.BeginToggle(f.Surface, f.Palette, v.ID, v.Rect, v.Flags&FlagChecked != 0)
-	if v.Size == style.SizeSmall {
-		toggle = toggle.Small()
-	} else if v.Size == style.SizeLarge {
-		toggle = toggle.Large()
-	}
-	if v.Flags&FlagDisabled != 0 {
-		toggle = toggle.Disabled()
-	}
-	if v.Flags&FlagInvalid != 0 {
-		toggle = toggle.Invalid()
-	}
-	label := v.Text
-	if label == "" {
-		label = v.Label
-	}
-	if v.Variant == style.VariantOutline {
-		toggle.Outline(label)
-	} else {
-		toggle.Default(label)
-	}
 }
 
 func paintInputGroup(f *Frame, v ControlView) {
@@ -111,10 +158,32 @@ func paintSegmented(f *Frame, v ControlView) {
 // measureButtonNode sizes a button that paints its own label and icon.
 func measureButtonNode(f *Frame, n *Node) { n.Pref = measureButton(f, n) }
 
-// measureBadgeNode gives a Badge the extent its component wants.
+// measureBadgeNode gives a badge its chip's height and its label's width inside
+// the element's Pad, which the recipe set to the chip's padding unless the
+// caller said otherwise. An explicit Height or FontSize replaces the size's.
 func measureBadgeNode(f *Frame, n *Node) {
-	w, h := components.BadgeExtent(f.Surface, f.Palette, n.Text)
-	n.Pref = [2]float32{w, h}
+	height, _, _, fontSize := style.BadgeGeometry(f.Palette.Metrics)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	label := n.Text
+	if label == "" {
+		label = n.Label
+	}
+	width := n.PadX() + f.Surface.TextWidthWeight(label, fontSize, weight)
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
+	}
+	height = max(height, leading+n.PadY())
+	n.Pref = [2]float32{width, height}
 }
 
 // measurePaginationNode gives a Pagination the extent its items want.
@@ -137,7 +206,11 @@ func measureCheckboxNode(f *Frame, n *Node) {
 	w, h := components.CheckboxHitExtent(f.Palette)
 	n.Pref = [2]float32{w, h}
 	if n.Text != "" {
-		n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
+		weight := gfx.WeightMedium
+		if n.WeightSet || n.Weight != 0 {
+			weight = n.Weight
+		}
+		n.Pref[AxisX] = components.CheckboxExtent(f.Palette) + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
 	}
 }
 
@@ -146,29 +219,40 @@ func measureSwitchNode(f *Frame, n *Node) {
 	n.Pref = [2]float32{w, h}
 	if n.Text != "" {
 		control, _ := components.SwitchExtent(f.Palette, n.Flags&FlagSmall != 0)
-		n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), gfx.WeightMedium)
+		weight := gfx.WeightMedium
+		if n.WeightSet || n.Weight != 0 {
+			weight = n.Weight
+		}
+		n.Pref[AxisX] = control + CaptionGap + f.Surface.TextWidthWeight(n.Text, f.CaptionSize(n), weight)
 	}
 }
 
+// measureToggleNode gives a toggle its size's height (or the caller's) and its
+// label's width inside the element's Pad; the recipe's MinS keeps it at least
+// as wide as it is tall.
 func measureToggleNode(f *Frame, n *Node) {
-	toggle := components.BeginToggle(f.Surface, f.Palette, gfx.ID{}, Rect{}, false)
-	if n.ButtonSize == style.SizeSmall {
-		toggle = toggle.Small()
-	} else if n.ButtonSize == style.SizeLarge {
-		toggle = toggle.Large()
+	height, _, fontSize := style.ToggleGeometry(f.Palette.Metrics, n.ButtonSize)
+	if n.FontSize > 0 {
+		fontSize = n.FontSize
+	}
+	if d := n.Size[AxisY]; d.Kind == DimPx {
+		height = d.Value
+	}
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
 	}
 	label := n.Text
 	if label == "" {
 		label = n.Label
 	}
-	toggle = toggle.SizeToFit(label)
-	height := f.Palette.Metrics.ControlHeight
-	if n.ButtonSize == style.SizeSmall {
-		height -= 4
-	} else if n.ButtonSize == style.SizeLarge {
-		height += 4
+	width := n.PadX() + f.Surface.TextWidthWeight(label, fontSize, weight)
+	leading := fontSize + 7
+	if n.LineH > 0 {
+		leading = n.LineH
 	}
-	n.Pref = [2]float32{toggle.BoundsWidth(), height}
+	height = max(height, leading+n.PadY())
+	n.Pref = [2]float32{width, height}
 }
 
 func measureSegmentedNode(f *Frame, n *Node) {
@@ -182,7 +266,10 @@ func measureSegmentedNode(f *Frame, n *Node) {
 func measureInputNode(f *Frame, n *Node) {
 	n.Pref = [2]float32{n.PadX(), f.InputLine(n) + n.PadY()}
 	if n.Flags&FlagThemed != 0 {
-		n.Pref = [2]float32{0, f.Palette.Metrics.ControlHeight}
+		// A themed field is a control tall, or taller when its text needs more
+		// room (a larger FontSize); it has no width of its own, it fills its row.
+		height := max(f.Palette.Metrics.ControlHeight, f.InputLine(n)+n.PadY())
+		n.Pref = [2]float32{0, height}
 	}
 }
 
@@ -194,20 +281,32 @@ func measureInputGroupNode(f *Frame, n *Node) {
 }
 
 func measureTextareaNode(f *Frame, n *Node) {
-	n.Pref = [2]float32{n.PadX(), f.Palette.Metrics.FontSizeM + 7 + n.PadY()}
+	snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
+	textSize := snapshot.TextSize
+	if textSize <= 0 {
+		textSize = f.Palette.Metrics.FontSizeM
+	}
+	line := textSize + 7
+	if n.LineH > 0 {
+		line = n.LineH
+	}
+	n.Pref = [2]float32{n.PadX(), line + n.PadY()}
+	insets := snapshot.InsetTop + snapshot.InsetBottom
 	if n.Flags&FlagThemed != 0 {
-		n.Pref = [2]float32{0, 64}
+		n.Pref = [2]float32{0, max(64, line+n.PadY()+insets)}
+		if n.MaxLines == 0 {
+			return
+		}
 	}
 	if n.MaxLines > 0 {
 		// AutoGrow: the rows measured by the same layout the paint will use,
 		// capped at n.MaxLines rows and never below the control's minimum.
 		// The width is the one the last layout gave the box, which the first
 		// paint records and then asks for before it is shown.
-		snapshot := &base.WidgetsOf(f).GetTextareas()[n.Aux]
 		if layout := snapshot.Layout; layout != nil {
 			if width := layout.BoxWidth(); width > 0 {
 				height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
-				maxHeight := float32(n.MaxLines)*(f.Palette.Metrics.FontSizeM+7) + 2*base.TextareaPadY
+				maxHeight := float32(n.MaxLines)*line + 2*base.TextareaPadY
 				n.Pref[AxisY] = max(64, min(height, maxHeight))
 			}
 		}
@@ -347,6 +446,12 @@ func paintInput(f *Frame, n *Node) {
 // Border, as paintInput does for a line.
 func paintTextarea(f *Frame, n *Node) {
 	snapshot := base.WidgetsOf(f).GetTextareas()[n.Aux]
+	if n.FontSize > 0 {
+		snapshot.TextSize = n.FontSize
+	}
+	if n.WeightSet || n.Weight != 0 {
+		snapshot.TextWeight = n.Weight
+	}
 	if n.MaxLines > 0 {
 		if layout := snapshot.Layout; layout != nil {
 			// AutoGrow measured the last width the layout gave this box. The

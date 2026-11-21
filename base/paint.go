@@ -43,13 +43,23 @@ func (f *Frame) PaintChild(i int32) {
 		defer f.memoFn(f, i, false)
 	}
 	r := n.Rect
+	// A themed control whose own surface is smaller than the element (a checkbox
+	// with a caption, a switch's track) paints it at SurfaceRect. Its caption, an
+	// element label in every state, paints before the surface as the control's
+	// painter used to paint it.
+	surface := r
+	if n.Flags&flagThemed != 0 && ControlSurfaceRect != nil {
+		if own := ControlSurfaceRect(f, n); own.Width > 0 && own.Height > 0 {
+			surface = own
+		}
+	}
 	canvas := f.Surface
 	extra := &f.Exts[n.Ext]
 	if s := extra.scrollState; s != nil && canvas != nil {
 		s.scope = canvas.FocusScope()
 	}
 	style := f.resolve(n, extra)
-	if n.Kind == kindButton && n.Flags&flagChildren != 0 {
+	if (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0 {
 		defer func(color Color, has bool) { f.inherited, f.hasInherited = color, has }(f.inherited, f.hasInherited)
 		f.inherited, f.hasInherited = style.Color, true
 	}
@@ -61,7 +71,10 @@ func (f *Frame) PaintChild(i int32) {
 		parentTheme = f.Palette // a theme is large: copied only for what is faded
 		f.Palette = f.Palette.WithOpacity(style.Opacity)
 	}
-	f.paintRing(r, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
+	if n.Flags&flagThemed != 0 && (n.Kind == kindCheckbox || n.Kind == kindSwitch) && n.Text != "" && f.captionFn != nil {
+		f.captionFn(f, n, surface)
+	}
+	f.paintRing(surface, n.Radius, &style) // outside the rectangle: before a Clip of the element's own
 	if n.Flags&flagClip != 0 {
 		canvas.Clip(r)
 		defer canvas.Unclip()
@@ -70,11 +83,11 @@ func (f *Frame) PaintChild(i int32) {
 	hasHit := n.Flags&flagHasHit != 0 && !n.ID.IsZero()
 	background, border := fade(style.Background, f.Opacity), fade(style.border, f.Opacity)
 	if style.shadow != gfx.ShadowNone {
-		canvas.ElevateFaded(r, n.Radius, style.shadow, f.Opacity)
+		canvas.ElevateFaded(surface, n.Radius, style.shadow, f.Opacity)
 	}
 	switch {
 	case style.borderWidth > 0 && !style.dashed && !style.splitBorder && extra.gradient == 0 && f.Opacity >= 1 && background.Alpha >= 1:
-		canvas.RoundedBorder(r, n.Radius, style.borderWidth, border, background)
+		canvas.RoundedBorder(surface, n.Radius, style.borderWidth, border, background)
 	default:
 		// RoundedBorder paints the border color as a solid backing under the fill, which a
 		// gradient or a faded fill would show through. For those the fill, then the
@@ -83,7 +96,7 @@ func (f *Frame) PaintChild(i int32) {
 		// so what an application painted before looks as it did.
 		if background.Alpha > 0 {
 			if n.Radius > 0 {
-				canvas.Rounded(r, n.Radius, background)
+				canvas.Rounded(surface, n.Radius, background)
 			} else {
 				canvas.Fill(r, background)
 			}
@@ -93,9 +106,9 @@ func (f *Frame) PaintChild(i int32) {
 		}
 		if style.borderWidth > 0 {
 			if style.dashed {
-				canvas.DashedRoundedOutline(n.Rect, n.Radius, style.borderWidth, border)
+				canvas.DashedRoundedOutline(surface, n.Radius, style.borderWidth, border)
 			} else {
-				canvas.RoundedOutline(r, n.Radius, style.borderWidth, border)
+				canvas.RoundedOutline(surface, n.Radius, style.borderWidth, border)
 			}
 		}
 	}
@@ -114,7 +127,7 @@ func (f *Frame) PaintChild(i int32) {
 		group = canvas.Mark()
 	}
 	// A ColorSwatch declares its own hit, as a radio, under whatever id Hit gave it.
-	if hasHit && !extra.swatch && (n.Kind == kindButton || n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
+	if hasHit && !extra.swatch && (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindContainer || n.Kind == kindText || n.Kind == kindIcon || n.Kind == kindSlot) {
 		h := extra.hitOut
 		hit := Rect{X: r.X - h[3], Y: r.Y - h[0], Width: r.Width + h[1] + h[3], Height: r.Height + h[0] + h[2]}
 		if n.Flags&flagLabelFor != 0 {
@@ -125,12 +138,18 @@ func (f *Frame) PaintChild(i int32) {
 			canvas.HitLabel(n.ID, hit, text, n.Flags&flagDisabled != 0)
 		} else {
 			options := extra.hit
-			if n.Kind == kindButton {
+			if n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle {
 				if options.Role == 0 {
 					options.Role = gfx.RoleButton
 				}
-				if options.Hint == "" && n.ButtonSize >= controlstyle.SizeIcon {
+				if n.Kind == kindButton && options.Hint == "" && n.ButtonSize >= controlstyle.SizeIcon {
 					options.Hint = n.Label
+				}
+				if n.Kind == kindToggle {
+					if n.Flags&flagChecked != 0 {
+						options.Checked, options.Selected = true, true
+					}
+					options.Invalid = options.Invalid || n.Flags&FlagInvalid != 0
 				}
 			}
 			// Disabled on the element is the control's own: a Base that was told it is
@@ -154,12 +173,12 @@ func (f *Frame) PaintChild(i int32) {
 	}
 	n.Color = color
 
-	disableContents := n.Kind == kindButton && n.Flags&flagChildren != 0 && f.Disabled(n)
+	disableContents := (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0 && f.Disabled(n)
 	var contentsMark gfx.Mark
 	if disableContents {
 		contentsMark = canvas.Mark()
 	}
-	clipContents := n.Kind == kindButton && n.Flags&flagChildren != 0
+	clipContents := (n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0
 	if clipContents {
 		canvas.Clip(f.ContentRect(n))
 	}

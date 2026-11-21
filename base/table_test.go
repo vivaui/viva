@@ -23,7 +23,18 @@ var (
 
 func sameCanvas(t *testing.T, Name string, flexed, direct *gfx.Canvas) {
 	t.Helper()
-	if a, b := flexed.Rectangles(), direct.Rectangles(); len(a) != len(b) {
+	// A fully transparent rectangle is a paint record, not a pixel: the engine
+	// skips one where a component records it (a line strip's empty fill, say).
+	visible := func(in []gfx.Rectangle) []gfx.Rectangle {
+		out := make([]gfx.Rectangle, 0, len(in))
+		for _, rect := range in {
+			if rect.Color.Alpha > 0 {
+				out = append(out, rect)
+			}
+		}
+		return out
+	}
+	if a, b := visible(flexed.Rectangles()), visible(direct.Rectangles()); len(a) != len(b) {
 		t.Fatalf("%s: ui painted %d rectangles, the component %d", Name, len(a), len(b))
 	} else {
 		for i := range a {

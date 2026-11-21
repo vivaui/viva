@@ -17,7 +17,13 @@ type Checkbox struct {
 	bounds    gfx.Rect
 	hitBounds gfx.Rect
 	label     string
-	checked   bool
+	// unpaintedSurface is set when the caller's engine paints the box's fill,
+	// border, shadow and ring; Paint then draws only the mark and the hit.
+	unpaintedSurface bool
+	// markColor overrides the recipe's mark when hasMarkColor is set.
+	markColor    gfx.Color
+	hasMarkColor bool
+	checked      bool
 	// indeterminate is Base UI's mixed state: the box shows a dash and the
 	// accessibility value is "mixed", whatever checked says.
 	indeterminate bool
@@ -64,6 +70,20 @@ func (checkbox Checkbox) Label(label string) Checkbox {
 // way to make an enclosing region activate a control; it keeps the control's
 // own bounds and exposes the region as that control's label, so prefer it when
 // the semantic target should stay the square.
+// UnpaintedSurface declares that the caller paints the box's own fill, border,
+// shadow and ring, as the page's engine does; Paint then draws the mark, as the
+// control's own graphic, and its hit.
+func (checkbox Checkbox) UnpaintedSurface() Checkbox {
+	checkbox.unpaintedSurface = true
+	return checkbox
+}
+
+// MarkColor paints the check or dash in color instead of the recipe's mark.
+func (checkbox Checkbox) MarkColor(color gfx.Color) Checkbox {
+	checkbox.markColor, checkbox.hasMarkColor = color, true
+	return checkbox
+}
+
 func (checkbox Checkbox) HitBounds(bounds gfx.Rect) Checkbox {
 	checkbox.hitBounds = bounds
 	return checkbox
@@ -130,11 +150,16 @@ func (checkbox Checkbox) Paint() CheckboxResult {
 	if checkbox.recipe != nil {
 		look = checkbox.recipe(checkbox.theme, state)
 	}
-	checkbox.canvas.Elevate(checkbox.bounds, look.Radius, look.Shadow) // shadow-xs
-	if look.RingWidth > 0 {
-		checkbox.canvas.Rounded(expand(checkbox.bounds, look.RingWidth), look.RingRadius, look.Ring)
+	if checkbox.hasMarkColor {
+		look.Mark = checkbox.markColor
 	}
-	paintBordered(checkbox.canvas, checkbox.theme, checkbox.bounds, look.Radius, look.Border, look.Fill)
+	if !checkbox.unpaintedSurface {
+		checkbox.canvas.Elevate(checkbox.bounds, look.Radius, look.Shadow) // shadow-xs
+		if look.RingWidth > 0 {
+			checkbox.canvas.Rounded(expand(checkbox.bounds, look.RingWidth), look.RingRadius, look.Ring)
+		}
+		paintBordered(checkbox.canvas, checkbox.theme, checkbox.bounds, look.Radius, look.Border, look.Fill)
+	}
 	PaintCheckboxMark(checkbox.canvas, checkbox.bounds, state, look.Mark)
 	if !checkbox.id.IsZero() {
 		hitBounds := gfx.Rect{

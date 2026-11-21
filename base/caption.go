@@ -70,7 +70,11 @@ func (f *Frame) PaintCaptionView(v ControlView, control Rect) {
 	if v.Disabled {
 		color.Alpha *= 0.5
 	}
-	f.Surface.Label(v.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	weight := gfx.WeightMedium
+	if v.Weight > 0 {
+		weight = v.Weight
+	}
+	f.Surface.Label(v.Text, r, gfx.TextStyle{Size: size, Weight: weight, Color: color})
 	f.Surface.HitLabel(v.ID, r, v.Text, v.Disabled)
 }
 
@@ -80,6 +84,11 @@ func (f *Frame) paintCaption(n *Node, control Rect) {
 	x := control.X + control.Width + CaptionGap
 	r := Rect{X: x, Y: n.Rect.Y + (n.Rect.Height-line)/2, Width: max(n.Rect.X+n.Rect.Width-x, 0), Height: line}
 	disabled := n.Flags&flagDisabled != 0
+	if n.Flags&flagThemed != 0 {
+		// A themed control is disabled by a disabled ancestor too, and its label
+		// dims with the rest of it.
+		disabled = f.Disabled(n)
+	}
 	color := fade(f.Palette.Foreground, f.Opacity)
 	if n.Flags&flagHasColor != 0 {
 		color = n.Color // faded with the element already
@@ -87,6 +96,10 @@ func (f *Frame) paintCaption(n *Node, control Rect) {
 	if disabled {
 		color.Alpha *= 0.5
 	}
-	f.Surface.Label(n.Text, r, gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color})
+	weight := gfx.WeightMedium
+	if n.WeightSet || n.Weight != 0 {
+		weight = n.Weight
+	}
+	f.Surface.Label(n.Text, r, gfx.TextStyle{Size: size, Weight: weight, Color: color})
 	f.Surface.HitLabel(n.ID, r, n.Text, disabled)
 }

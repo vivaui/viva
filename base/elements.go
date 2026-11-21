@@ -495,7 +495,7 @@ func (f *Frame) FirstControl(i int32) gfx.ID {
 		}
 		if !n.ID.IsZero() {
 			switch n.Kind {
-			case kindButton, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
+			case kindButton, kindToggle, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider:
 				return n.ID
 			case kindContainer:
 				if n.Flags&flagHasHit != 0 && n.Flags&flagLabelFor == 0 {

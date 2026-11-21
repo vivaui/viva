@@ -76,6 +76,7 @@ func (b Box) Hit(ID gfx.ID, Label string) Box {
 	n := b.N()
 	n.ID, n.Label = ID, Label
 	n.Flags = n.Flags&^flagLabelFor | flagHasHit
+	n.markAttr(attrHit)
 	return b
 }
 
@@ -113,6 +114,7 @@ func (b Box) LabelFor(ID gfx.ID) Box {
 	n := b.N()
 	n.ID = ID
 	n.Flags |= flagHasHit | flagLabelFor
+	n.markAttr(attrHit)
 	return b
 }
 
@@ -247,12 +249,19 @@ func (b Box) MarginSides(top, right, bottom, left float32) Box {
 
 // Gap is the space between the children of a Row, a Column or a Flow, and between
 // the lines of a Flow unless LineGap sets them apart.
-func (b Box) Gap(v float32) Box { b.N().Gap = v; return b }
+func (b Box) Gap(v float32) Box {
+	n := b.N()
+	n.Gap = v
+	n.markAttr(attrGap)
+	return b
+}
 
 // LineGap is the space between the lines of a Flow, when it is not its Gap. It has
 // no effect on any other container.
 func (b Box) LineGap(v float32) Box {
-	if n := b.N(); n.Dir == flow {
+	n := b.N()
+	n.markAttr(attrLineGap)
+	if n.Dir == flow {
 		n.GridMin = max(v, 0)
 	}
 	return b
@@ -261,9 +270,19 @@ func (b Box) LineGap(v float32) Box {
 // Items places the children across the container (Start, Center, End or
 // Stretch, the default); Self does it for this element alone; Justify places
 // them along it when none grows (Start, Center, End or Between).
-func (b Box) Items(a Align) Box   { b.N().Items = a; return b }
-func (b Box) Self(a Align) Box    { b.N().Self = a; return b }
-func (b Box) Justify(a Align) Box { b.N().Justify = a; return b }
+func (b Box) Items(a Align) Box {
+	n := b.N()
+	n.Items = a
+	n.markAttr(attrItems)
+	return b
+}
+func (b Box) Self(a Align) Box { b.N().Self = a; return b }
+func (b Box) Justify(a Align) Box {
+	n := b.N()
+	n.Justify = a
+	n.markAttr(attrJustify)
+	return b
+}
 
 // Center centers the children both ways.
 func (b Box) Center() Box { return b.Items(Center).Justify(Center) }

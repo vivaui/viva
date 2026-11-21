@@ -36,6 +36,8 @@ func useBadge() {
 	installBadge.Do(func() {
 		base.SetControlPainter(KindBadge, paintBadgeControl)
 		base.SetControlMeasurer(KindBadge, measureBadgeNode)
+		base.BadgeLookFn = frameBadgeLook
+		base.ControlBaseline = controlBaseline
 	})
 }
 
@@ -57,6 +59,8 @@ func useCheckbox() {
 	installCheckbox.Do(func() {
 		base.SetControlPainter(KindCheckbox, paintCheckboxControl)
 		base.SetControlMeasurer(KindCheckbox, measureCheckboxNode)
+		base.CheckboxLookFn = frameCheckboxLook
+		base.ControlSurfaceRect = controlSurfaceRect
 	})
 }
 
@@ -64,6 +68,8 @@ func useSwitch() {
 	installSwitch.Do(func() {
 		base.SetControlPainter(KindSwitch, paintSwitchControl)
 		base.SetControlMeasurer(KindSwitch, measureSwitchNode)
+		base.SwitchLookFn = frameSwitchLook
+		base.ControlSurfaceRect = controlSurfaceRect
 	})
 }
 
@@ -71,6 +77,8 @@ func useToggle() {
 	installToggle.Do(func() {
 		base.SetControlPainter(KindToggle, paintToggleControl)
 		base.SetControlMeasurer(KindToggle, measureToggleNode)
+		base.ToggleLookFn = frameToggleLook
+		base.ControlBaseline = controlBaseline
 	})
 }
 
@@ -126,6 +134,7 @@ func useSelect() {
 	installSelect.Do(func() {
 		base.SetControlPainter(KindSelect, paintWidgetControl)
 		base.SetControlMeasurer(KindSelect, measureWidgetNode)
+		base.SelectLookFn = frameSelectLook
 		base.PaintSelect = paintSelect
 		base.MeasureSelect = measureSelect
 	})
@@ -134,6 +143,7 @@ func useTabs() {
 	installTabs.Do(func() {
 		base.SetControlPainter(KindTabs, paintWidgetControl)
 		base.SetControlMeasurer(KindTabs, measureWidgetNode)
+		base.TabsLookFn = frameTabsLook
 		base.PaintTabs = paintTabs
 	})
 }

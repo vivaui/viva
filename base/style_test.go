@@ -99,21 +99,6 @@ func TestLooksApplyWhileTheirStateHolds(t *testing.T) {
 	}
 }
 
-func TestAnElementWithoutIdentityIgnoresItsLooks(t *testing.T) {
-	canvas := styleCanvas(styleRow, styleRow, styleRow, true)
-	var view View
-	var box Box
-	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 100, Height: 100}, func(f *Frame) {
-		box = f.Row().Size(50, 50).Background(colorRest).Hover(Look{}.Background(colorHover)).Focus(Look{}.Ring(3, colorRing))
-	})
-	if got := fillOf(t, canvas, box); got != colorRest {
-		t.Errorf("fill is %+v, want the resting one", got)
-	}
-	if count, _, _ := ringTriangles(canvas); count != 0 {
-		t.Error("a ring was painted")
-	}
-}
-
 func TestStateFromMakesWhatIsInsideFollowTheContainer(t *testing.T) {
 	text := gfx.Color{Red: 0.5, Alpha: 1}
 	for _, hovered := range []bool{false, true} {

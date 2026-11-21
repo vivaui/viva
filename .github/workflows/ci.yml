@@ -90,6 +90,42 @@ jobs:
       - name: API discipline
         run: go run ./tools/apicheck ./ui ./components ./app ./gfx
 
+  # The attribute rules (ADR 0089 stage 3) exist only in the dev build: they
+  # report a generic attribute that an element cannot use instead of letting it
+  # be silently ignored. The release build must not carry the rules or their
+  # messages, so this job tests the dev variant and proves the release one has
+  # neither.
+  dev-attributes:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet the dev build
+        run: go vet -tags dev ./...
+      - name: test the dev build
+        run: go test -tags dev ./base ./ui ./components -count=1
+      - name: prove the release build has no attribute rules
+        run: |
+          if go list -f '{{.GoFiles}}' ./base | grep -q attrcheck_dev.go; then
+            echo "the release build compiles the dev attribute rules" >&2
+            exit 1
+          fi
+          go build -o /tmp/base-release.a ./base
+          if grep -aq 'does not support' /tmp/base-release.a; then
+            echo "the release build carries the dev attribute messages" >&2
+            exit 1
+          fi
+          go build -tags dev -o /tmp/base-dev.a ./base
+          if ! grep -aq 'does not support' /tmp/base-dev.a; then
+            echo "the dev build does not carry the attribute rules" >&2
+            exit 1
+          fi
+
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one
   # runner: asking for four runners to do what one can finish in the same minute
@@ -374,7 +410,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
+    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

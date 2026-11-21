@@ -61,6 +61,10 @@ type TextareaSnapshot struct {
 	// NoWrap keeps every line on one row, clipped at the edge of the box, as
 	// `white-space: pre` does. The default wraps.
 	NoWrap bool
+	// TextSize and TextWeight style the rows' text; zero keeps the theme's body
+	// size and the regular weight. A page's element passes its own FontSize and
+	// Weight here, so the rows, the caret and the native editor agree.
+	TextSize, TextWeight float32
 	// InsetTop reserves room above the editor for caller-owned controls. The
 	// native text bounds and caret placement use the same inset as the paint.
 	InsetTop float32

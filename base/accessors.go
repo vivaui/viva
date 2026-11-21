@@ -240,6 +240,12 @@ func (x *Extra) GetBorder() Color { return x.border }
 // GetBorderDashed reads the borderDashed of Extra for the styled painting layer.
 func (x *Extra) GetBorderDashed() bool { return x.borderDashed }
 
+// GetSelectColors reads the colors the recipe gave the Select trigger being
+// painted, for the styled painting layer.
+func (f *Frame) GetSelectColors() (foreground, chevron Color) {
+	return f.selectForeground, f.selectChevron
+}
+
 // GetButtonRecipe reads the buttonRecipe of Extra for the styled painting layer.
 func (x *Extra) GetButtonRecipe() func(gfx.Theme, style.Variant, gfx.State) style.ButtonLook {
 	return x.buttonRecipe
@@ -382,6 +388,14 @@ func (x *Frame) GetAddons() []FieldAddons { return x.addons }
 
 // GetBounds reads the bounds of Frame for the styled painting layer.
 func (x *Frame) GetBounds() Rect { return x.bounds }
+
+// GetCheckboxLook reads the look the recipe gave the checkbox box being
+// painted, for the styled painting layer's mark.
+func (f *Frame) GetCheckboxLook() style.CheckboxLook { return f.checkboxPainted }
+
+// GetSwitchLook reads the look the recipe gave the switch being painted, for the
+// styled painting layer's thumb.
+func (f *Frame) GetSwitchLook() style.SwitchLook { return f.switchPainted }
 
 // GetCaptionFn reads the captionFn of Frame for the styled painting layer.
 func (x *Frame) GetCaptionFn() func(f *Frame, n *Node, control Rect) { return x.captionFn }

@@ -52,9 +52,10 @@ func (n *Node) marginOn(axis int) (start, end float32) {
 }
 
 // isContainer describes layout, independently of the control's semantic kind.
-// A Button keeps its button identity when it holds caller-owned children.
+// A Button or a Badge keeps its identity when it holds caller-owned children.
 func (n *Node) isContainer() bool {
-	return n.Kind == kindContainer || n.Kind == kindButton && n.Flags&flagChildren != 0
+	return n.Kind == kindContainer ||
+		(n.Kind == kindButton || n.Kind == kindBadge || n.Kind == kindToggle || n.Kind == kindSelect) && n.Flags&flagChildren != 0
 }
 
 // flows reports whether a container lays its children out along axis. A Flow does
@@ -551,7 +552,7 @@ func (f *Frame) measureBaseline(n *Node) {
 			}
 		}
 		n.Baseline = top + row
-	case kindButton:
+	case kindButton, kindBadge, kindToggle, kindSelect:
 		if n.Flags&flagChildren == 0 {
 			if ControlBaseline != nil {
 				n.Baseline = ControlBaseline(f, n)

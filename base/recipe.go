@@ -56,6 +56,155 @@ func (f *Frame) applyRecipes() {
 			}
 		case kindButton:
 			f.applyButtonRecipe(n)
+		case kindBadge:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			height, padding, _, fontSize := style.BadgeGeometry(theme.Metrics)
+			if d := n.Size[AxisY]; d.Kind == dimPx {
+				height = d.Value
+			}
+			if n.FontSize > 0 {
+				fontSize = n.FontSize
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = f.badgeLook(n, theme, gfx.State{}).Radius
+			}
+			if n.PadSet&padRight == 0 {
+				n.Pad[1] = padding
+			}
+			if n.PadSet&padLeft == 0 {
+				n.Pad[3] = padding
+			}
+			if n.Flags&flagChildren != 0 {
+				weight := gfx.WeightMedium
+				if n.WeightSet || n.Weight != 0 {
+					weight = n.Weight
+				}
+				f.buttonTextDefaults(n, fontSize, weight, n.LineH)
+			}
+			if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
+				n.MinS[AxisY] = height
+			}
+		case kindToggle:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			height, padding, fontSize := style.ToggleGeometry(theme.Metrics, n.ButtonSize)
+			if n.FontSize > 0 {
+				fontSize = n.FontSize
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = f.toggleLook(n, theme, gfx.State{}).Radius
+			}
+			if n.PadSet&padRight == 0 {
+				n.Pad[1] = padding
+			}
+			if n.PadSet&padLeft == 0 {
+				n.Pad[3] = padding
+			}
+			if n.Flags&flagChildren != 0 {
+				weight := gfx.WeightMedium
+				if n.WeightSet || n.Weight != 0 {
+					weight = n.Weight
+				}
+				f.buttonTextDefaults(n, fontSize, weight, n.LineH)
+			}
+			// shadcn's min-w: a toggle is at least as wide as it is tall.
+			if n.Size[AxisX].Kind == dimAuto && n.MinS[AxisX] == 0 {
+				n.MinS[AxisX] = height
+			}
+			if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
+				n.MinS[AxisY] = height
+			}
+		case kindTabs:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			listHeight, listPadding, _, _, lineGap, _, _ := style.TabsGeometry(theme.Metrics)
+			t := &WidgetsOf(f).tabs[n.Aux]
+			gap := float32(0)
+			if t.line {
+				gap = lineGap
+			}
+			if n.Gap != 0 {
+				gap = n.Gap
+			}
+			n.Gap = gap
+			if n.PadSet&padTop == 0 {
+				n.Pad[0] = listPadding
+			}
+			if n.PadSet&padRight == 0 {
+				n.Pad[1] = listPadding
+			}
+			if n.PadSet&padBottom == 0 {
+				n.Pad[2] = listPadding
+			}
+			if n.PadSet&padLeft == 0 {
+				n.Pad[3] = listPadding
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = f.tabsLook(n, theme).Radius
+			}
+			if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
+				n.MinS[AxisY] = listHeight
+			}
+		case kindSelect:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			d := &WidgetsOf(f).selects[n.Aux]
+			placeholder := d.selected < 0 || d.selected >= len(d.labels)
+			surface := style.TextEntryLook{}
+			if SelectLookFn != nil {
+				surface, _, _ = SelectLookFn(f, n, theme, gfx.State{}, placeholder)
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = surface.Radius
+			}
+			if n.Flags&flagSetBorder == 0 {
+				n.BorderWidth = surface.BorderWidth
+			}
+			height, _ := style.SelectGeometry(theme.Metrics, n.ButtonSize)
+			if d := n.Size[AxisY]; d.Kind == dimPx {
+				height = d.Value
+			}
+			if n.Size[AxisY].Kind == dimAuto && n.MinS[AxisY] == 0 {
+				n.MinS[AxisY] = height
+			}
+			if n.Flags&flagChildren != 0 {
+				_, textSize := style.SelectGeometry(theme.Metrics, n.ButtonSize)
+				if n.FontSize > 0 {
+					textSize = n.FontSize
+				}
+				weight := gfx.WeightRegular
+				if n.WeightSet || n.Weight != 0 {
+					weight = n.Weight
+				}
+				f.buttonTextDefaults(n, textSize, weight, n.LineH)
+			}
+		case kindCheckbox:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			look := style.CheckboxLook{}
+			if CheckboxLookFn != nil {
+				look = CheckboxLookFn(f, n, theme, gfx.State{})
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = look.Radius
+			}
+			if n.Flags&flagSetBorder == 0 {
+				n.BorderWidth = 1
+			}
+		case kindSwitch:
+			theme := f.RecipeTheme(n, &f.scratch.theme)
+			_, height := SwitchExtent(*theme, n.Flags&flagSmall != 0)
+			if d := n.Size[AxisY]; d.Kind == dimPx {
+				height = d.Value
+			}
+			if n.Flags&flagHasRadius == 0 {
+				n.Radius = height / 2
+			}
+			if n.Flags&flagSetBorder == 0 {
+				bordered := n.Flags&FlagInvalid != 0
+				if c := f.Surface; c != nil && !n.ID.IsZero() {
+					bordered = bordered || c.FocusVisible() == n.ID
+				}
+				if bordered {
+					n.BorderWidth = 1
+				}
+			}
 		}
 	}
 }
@@ -131,6 +280,178 @@ func (f *Frame) themedDefaults(n *Node, Extra *Extra, s *resolved) {
 	case kindButton:
 		f.themedButtonDefaults(n, Extra, s)
 		return
+	case kindBadge, kindToggle:
+		// A badge and a toggle are dressed by one ButtonLook the same way; the
+		// toggle's state also carries its pressed and invalid marks.
+		theme := f.RecipeTheme(n, &f.scratch.theme)
+		if c := f.Surface; c != nil && !n.ID.IsZero() {
+			state.Hovered = c.Hovered() == n.ID
+			state.Pressed = c.Pressed() == n.ID
+			state.FocusVisible = c.FocusVisible() == n.ID
+		}
+		if n.Kind == kindToggle {
+			state.Invalid = n.Flags&FlagInvalid != 0
+			state.Checked = n.Flags&flagChecked != 0
+		}
+		state.Disabled = f.Disabled(n)
+		var look style.ButtonLook
+		if n.Kind == kindBadge {
+			look = f.badgeLook(n, theme, state)
+		} else {
+			look = f.toggleLook(n, theme, state)
+		}
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = gfx.Color{}
+			if look.Filled {
+				s.Background = look.Background
+			}
+		}
+		bordered := look.Bordered && look.Filled
+		if bordered && theme.Background.Alpha >= 1 {
+			if n.Flags&flagSetBackground == 0 {
+				s.Background = s.Background.Over(theme.Background)
+			}
+			look.Border = look.Border.Over(theme.Background)
+		}
+		if n.Flags&flagSetBorder == 0 {
+			s.border = look.Border
+			if bordered {
+				s.borderWidth = 1
+				s.splitBorder = theme.Background.Alpha < 1
+			}
+		}
+		if n.Flags&flagSetShadow == 0 {
+			s.shadow = look.Shadow
+		}
+		if Extra.ringWidth <= 0 && look.RingWidth > 0 {
+			s.ring, s.ringWidth = look.Ring, look.RingWidth
+			s.ringFilled, s.ringLine = !look.RingOutline, 0
+			if look.RingOutline {
+				s.ringLine = 2
+			}
+		}
+		if n.Flags&flagHasColor == 0 {
+			s.Color = look.Foreground
+		}
+		return
+	case kindTabs:
+		theme := f.RecipeTheme(n, &f.scratch.theme)
+		look := f.tabsLook(n, theme)
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = gfx.Color{}
+			if look.Filled {
+				s.Background = look.Background
+			}
+		}
+		if n.Flags&flagSetBorder == 0 && look.Bordered {
+			s.border = look.Border
+			s.borderWidth = 1
+			s.splitBorder = theme.Background.Alpha < 1
+		}
+		if n.Flags&flagSetShadow == 0 {
+			s.shadow = look.Shadow
+		}
+		return
+	case kindSelect:
+		theme := f.RecipeTheme(n, &f.scratch.theme)
+		d := &WidgetsOf(f).selects[n.Aux]
+		placeholder := d.selected < 0 || d.selected >= len(d.labels)
+		if c := f.Surface; c != nil {
+			id := d.TriggerID(len(d.labels))
+			state.Hovered = !id.IsZero() && c.Hovered() == id
+			state.Pressed = !id.IsZero() && c.Pressed() == id
+			state.Focused = !id.IsZero() && c.FocusVisible() == id
+		}
+		state.Invalid = n.Flags&FlagInvalid != 0
+		state.Disabled = f.Disabled(n)
+		surface, foreground, chevron := style.TextEntryLook{}, gfx.Color{}, gfx.Color{}
+		if SelectLookFn != nil {
+			surface, foreground, chevron = SelectLookFn(f, n, theme, state, placeholder)
+		}
+		f.selectForeground, f.selectChevron = foreground, chevron
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = surface.Fill
+		}
+		if n.Flags&flagSetBorder == 0 {
+			s.border = surface.Border
+			s.borderWidth = surface.BorderWidth
+			s.splitBorder = theme.Background.Alpha < 1
+		}
+		if n.Flags&flagSetShadow == 0 {
+			s.shadow = surface.Shadow
+		}
+		if n.Flags&flagHasColor == 0 {
+			s.Color = foreground
+		}
+		return
+	case kindCheckbox:
+		theme := f.RecipeTheme(n, &f.scratch.theme)
+		state := gfx.State{Checked: n.Flags&flagChecked != 0, Mixed: n.Flags&flagMixed != 0, Invalid: n.Flags&FlagInvalid != 0}
+		if c := f.Surface; c != nil && !n.ID.IsZero() {
+			state.Hovered = c.Hovered() == n.ID
+			state.Pressed = c.Pressed() == n.ID
+			state.FocusVisible = c.FocusVisible() == n.ID
+		}
+		state.Disabled = f.Disabled(n)
+		look := style.CheckboxLook{}
+		if CheckboxLookFn != nil {
+			look = CheckboxLookFn(f, n, theme, state)
+		}
+		f.checkboxPainted = look
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = look.Fill
+		}
+		if n.Flags&flagSetBorder == 0 {
+			s.border = look.Border
+			s.borderWidth = 1
+		}
+		if n.Flags&flagSetShadow == 0 {
+			s.shadow = look.Shadow
+		}
+		if Extra.ringWidth <= 0 && look.RingWidth > 0 {
+			s.ring, s.ringWidth = look.Ring, look.RingWidth
+			s.ringFilled = true
+		}
+		return
+	case kindSwitch:
+		theme := f.RecipeTheme(n, &f.scratch.theme)
+		state := gfx.State{Checked: n.Flags&flagChecked != 0, Invalid: n.Flags&FlagInvalid != 0}
+		if c := f.Surface; c != nil && !n.ID.IsZero() {
+			state.Hovered = c.Hovered() == n.ID
+			state.Pressed = c.Pressed() == n.ID
+			state.FocusVisible = c.FocusVisible() == n.ID
+		}
+		state.Disabled = f.Disabled(n)
+		progress := float32(0)
+		if state.Checked {
+			progress = 1
+		}
+		if c := f.Surface; c != nil && !n.ID.IsZero() {
+			progress = c.Animate(n.ID, SwitchCheckedSlot, progress, theme.Transition)
+		}
+		bordered := state.FocusVisible || state.Invalid
+		look := style.SwitchLook{}
+		if own := f.Exts[n.Ext].GetSwitchRecipe(); own != nil {
+			look = own(*theme, state, progress)
+		} else if SwitchLookFn != nil {
+			look = SwitchLookFn(f, n, theme, state, progress)
+		}
+		f.switchPainted = look
+		if n.Flags&flagSetBackground == 0 {
+			s.Background = look.Track
+		}
+		if n.Flags&flagSetBorder == 0 && bordered {
+			s.border = look.Border
+			s.borderWidth = 1
+		}
+		if n.Flags&flagSetShadow == 0 {
+			s.shadow = look.Shadow
+		}
+		if Extra.ringWidth <= 0 && look.RingWidth > 0 {
+			s.ring, s.ringWidth = look.Ring, look.RingWidth
+			s.ringFilled = true
+		}
+		return
 	case kindInput:
 		snapshot := &WidgetsOf(f).inputs[n.Aux]
 		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
@@ -163,9 +484,15 @@ func (f *Frame) Focused(n *Node) bool {
 // control's edge, not taken out of the area the text is centered in.
 func (f *Frame) ContentRect(n *Node) Rect {
 	r := n.Rect
-	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 && (n.Kind == kindInput || n.Kind == kindTextarea) {
-		x, y := textEntryInsets(f.RecipeTheme(n, &f.scratch.theme), n.Kind)
-		return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
+	if n.Flags&flagThemed != 0 && n.Flags&flagSetPad == 0 {
+		switch n.Kind {
+		case kindInput, kindTextarea:
+			x, y := textEntryInsets(f.RecipeTheme(n, &f.scratch.theme), n.Kind)
+			return Rect{X: r.X + x, Y: r.Y + y, Width: max(r.Width-2*x, 0), Height: max(r.Height-2*y, 0)}
+		case kindSelect:
+			left, right := style.SelectContentInsets(f.RecipeTheme(n, &f.scratch.theme).Metrics)
+			return Rect{X: r.X + left, Y: r.Y, Width: max(r.Width-left-right, 0), Height: r.Height}
+		}
 	}
 	left, right := n.Inset(AxisX)
 	top, bottom := n.Inset(AxisY)
