@@ -41,6 +41,7 @@ synchronous forms report `ErrAsyncRequired`, `ErrSecretStoreUnavailable` or
 | Window title (`SetTitle`) | `NSWindow.title`, the text the window list and Mission Control show | `SetWindowTextW`, applied on the window thread | `WM_NAME` and `_NET_WM_NAME` on X11; `gtk_window_set_title` on the GTK shell | `ErrUnsupported`: the page keeps its own title |
 | Page visibility (`OnMinimize`) | window minimized/restored | window minimized/restored | window minimized/restored | `visibilitychange`; a hidden tab counts as minimized |
 | Window activation (`OnActivate`) | `NSWindowDidBecomeKeyNotification` | `WM_ACTIVATE`, when not `WA_INACTIVE` | an X11 `FocusIn` whose detail is `Ancestor` or `Nonlinear` outside a grab, or GTK's `focus-in-event` | the window `focus` event |
+| Window deactivation (`OnDeactivate`) | `NSWindowDidResignKeyNotification` | `WM_ACTIVATE`, when `WA_INACTIVE` | an X11 `FocusOut` outside a grab, or GTK's `focus-out-event`; the keys that were down are released first | not reported |
 
 ## Opening registered documents
 
