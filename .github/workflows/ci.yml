@@ -312,6 +312,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Native AppKit notification focus and click
+        working-directory: internal/platform/darwin
+        run: |
+          xcrun clang -fno-objc-arc -Werror -Wno-deprecated-declarations testdata/window_notification.m -o "$RUNNER_TEMP/window-notification" -framework Cocoa -framework CoreText -framework Metal -framework QuartzCore
+          "$RUNNER_TEMP/window-notification"
       # A package with no darwin file compiles to the same source on every
       # operating system, so the lint job's `go vet ./...` already covers it;
       # what is left here is the darwin build of the packages that have one. The
@@ -335,11 +340,6 @@ jobs:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
 
-      - name: Native AppKit notification focus and click
-        working-directory: internal/platform/darwin
-        run: |
-          xcrun clang -fno-objc-arc -Werror -Wno-deprecated-declarations testdata/window_notification.m -o "$RUNNER_TEMP/window-notification" -framework Cocoa -framework CoreText -framework Metal -framework QuartzCore
-          "$RUNNER_TEMP/window-notification"
 
   windows-materials:
     needs: changes

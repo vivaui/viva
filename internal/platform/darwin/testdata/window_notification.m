@@ -37,7 +37,7 @@ int main(void) {
             textInput:(viva_text_input_config){0} dynamicTextInputEnabled:NO pointerEventsEnabled:YES
             resizeEventsEnabled:NO keyEventsEnabled:NO scrollEventsEnabled:NO windowMode:VIVA_WINDOW_NOTIFICATION
             closeInterceptEnabled:NO callbackHandle:1];
-        [popup applicationDidFinishLaunching:nil];
+        [popup applicationDidFinishLaunching:[NSNotification notificationWithName:NSApplicationDidFinishLaunchingNotification object:NSApp]];
         NSWindow *window = [popup valueForKey:@"window"];
         assert(window.isVisible && NSApp.keyWindow == owner);
         assert(!window.canBecomeKeyWindow && !window.canBecomeMainWindow && !window.ignoresMouseEvents);
