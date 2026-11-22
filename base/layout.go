@@ -143,6 +143,10 @@ func (f *Frame) measureLeafIn(n *Node) {
 			// mark none, as the canvas measures and draws it.
 			_, ch := f.Surface.MonoCellSize(n.FontSize, n.Face)
 			n.Pref = [2]float32{f.Surface.TextWidthStyle(n.Text, n.textStyle()), ch}
+		} else if n.TextDecor&textItalic != 0 {
+			// An Italic text is as wide as the italic face the canvas draws it in, so the
+			// box it is given and the glyphs in it agree.
+			n.Pref = [2]float32{f.Surface.TextWidthStyle(n.Text, n.textStyle()), n.leading()}
 		} else {
 			n.Pref = [2]float32{f.Surface.TextWidthWeight(n.Text, n.FontSize, n.Weight), n.leading()}
 		}

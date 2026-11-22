@@ -430,7 +430,7 @@ func (m *model) page(c ui.C) {
 
 ### Text and icons
 
-- Text: `FontSize`, `Weight`, `Bold`, `Color`, `Highlight`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
+- Text: `FontSize`, `Weight`, `Bold`, `Italic`, `Strike`, `Color`, `Highlight`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
   `Ellipsis()` keeps a Text to one line and ends it with … when it does not fit; `MaxLines(n)` lets a Text
   break into at most n lines (the last ends with …), `ui.Wrap(c, text)` into as many as the width needs. A
   paragraph its container does not stretch asks for its widest line, so a long URL or path runs out over the
@@ -444,7 +444,11 @@ func (m *model) page(c ui.C) {
   overrides it. The height follows the width. Viva measures text with its own metrics,
   the same on every platform, and draws the platform's glyphs at that width: a button as wide as its label, a tab, a
   table column sized to content and every line break are the same on macOS, Windows and Linux, so do not size by a
-  platform's font (or special-case a platform) to make text fit.
+  platform's font (or special-case a platform) to make text fit. `Italic()` draws a Text in the italic face of its
+  font and wraps it at that face's widths; a text is never slanted by a transform, so a font whose family has no
+  italic face stays upright. `Strike()` draws a one-pixel line in the text's color through the middle of every line
+  it breaks into, from its first glyph to its last, as Markdown does for ~~struck~~ text: it changes no width, so a
+  struck Text keeps the layout it had upright.
 
 ### Buttons and controls
 

@@ -118,6 +118,7 @@ type Node struct {
 	Face                 gfx.MonoFace
 	TextDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
 	TextEnd              bool              // a Text aligned to the end of its direction
+	TextDecor            uint8             // the faces a Text is drawn in (textItalic, textStrike)
 	Color                Color
 	ID                   gfx.ID
 	Label                string
