@@ -250,6 +250,15 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	}
 	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview {
 		g.windowMaximize(w.toplevel)
+		// The state event that confirms it may come after the loop starts, or not at
+		// all on a compositor of its own: report the state the window opens in now,
+		// as the other adapters do, and let the event only report changes.
+		if !w.maximized {
+			w.maximized = true
+			if config.OnMaximize != nil {
+				config.OnMaximize(true)
+			}
+		}
 	}
 	g.widgetShowAll(w.toplevel)
 	if a.firstErr != nil {

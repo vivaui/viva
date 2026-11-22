@@ -82,7 +82,8 @@ type Config struct {
 	Origin *gfx.Point
 	// Maximized asks the window manager to open the window maximized on Windows
 	// and Linux, while keeping Width, Height and Origin as its restored floating
-	// bounds. Ignored on macOS, web, and WindowPanel.
+	// bounds. Opening maximized reports it through OnMaximize, like maximizing
+	// later does. Ignored on macOS, web, and WindowPanel.
 	Maximized  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip the
@@ -223,8 +224,9 @@ type Config struct {
 	// OnMaximize runs on the window thread when the window is maximized or
 	// restored on Windows and Linux, including by the system (the window
 	// manager, the taskbar, or a keyboard shortcut), not only by Viva's own
-	// window controls. On macOS, windows zoom or enter full screen instead,
-	// and this callback is not invoked.
+	// window controls, and once when a window opens maximized. On macOS,
+	// windows zoom or enter full screen instead, and this callback is not
+	// invoked.
 	OnMaximize func(maximized bool)
 
 	// OnFullscreen runs on the window thread after the host observes a

@@ -106,7 +106,7 @@ func TestDriverStartsMaximizedFromConfig(t *testing.T) {
 	if driver.Maximized() {
 		t.Fatal("Maximized did not clear after restore")
 	}
-	if len(maximizes) != 1 || maximizes[0] {
-		t.Fatalf("maximize changes = %v, want [false]", maximizes)
+	if len(maximizes) != 2 || !maximizes[0] || maximizes[1] {
+		t.Fatalf("maximize changes = %v, want [true false]", maximizes)
 	}
 }
