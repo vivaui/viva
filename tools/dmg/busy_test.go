@@ -58,6 +58,20 @@ func TestHdiutilWaitsOutABusySystem(t *testing.T) {
 	}
 }
 
+// create answers "No such file or directory" while the disk image service starts under
+// load, with the folder it was given there: that is waited out too, but only for create.
+func TestHdiutilCreateRetriesALostFolder(t *testing.T) {
+	lost := reply{"hdiutil: create failed - No such file or directory", errExit}
+	runs, _ := stub(t, []reply{lost, {"ready", nil}})
+	if out, err := hdiutilOutput("create", "image"); err != nil || out != "ready" || len(*runs) != 2 {
+		t.Fatalf("output %q, error %v, %d runs", out, err, len(*runs))
+	}
+	runs, _ = stub(t, []reply{{"hdiutil: attach failed - No such file or directory", errExit}})
+	if _, err := hdiutilOutput("attach", "image"); err == nil || len(*runs) != 1 {
+		t.Fatalf("a missing image was retried: %v, %d runs", err, len(*runs))
+	}
+}
+
 // It does not wait for ever, and the error says what the tool said.
 func TestHdiutilGivesUpOnAStaysBusySystem(t *testing.T) {
 	for _, message := range []string{"Resource busy", "Resource temporarily unavailable"} {

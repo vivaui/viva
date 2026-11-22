@@ -296,6 +296,15 @@ var (
 // resources beyond the previous ten-second window after detaching its volume.
 const busyAttempts = 10
 
+// transient says a failure of hdiutil is the disk image service being unready rather
+// than a mistake of ours: it is busy or unavailable, or, for create, it lost the staged
+// folder it was just given ("No such file or directory" with the folder there), which
+// is how it answers while the service starts under load. Another run takes.
+func transient(command, output string) bool {
+	return strings.Contains(output, "Resource busy") || strings.Contains(output, "Resource temporarily unavailable") ||
+		command == "create" && strings.Contains(output, "create failed - No such file or directory")
+}
+
 func hdiutilOutput(arguments ...string) (string, error) {
 	for attempt := 1; ; attempt++ {
 		out, err := runHdiutil(arguments...)
@@ -306,8 +315,7 @@ func hdiutilOutput(arguments ...string) (string, error) {
 			return "", errors.New("a .dmg needs hdiutil, which ships with macOS")
 		}
 		// detach has its own way of waiting, which checks whether the volume is gone.
-		if arguments[0] != "detach" && attempt < busyAttempts &&
-			(strings.Contains(string(out), "Resource busy") || strings.Contains(string(out), "Resource temporarily unavailable")) {
+		if arguments[0] != "detach" && attempt < busyAttempts && transient(arguments[0], string(out)) {
 			pause(time.Duration(attempt) * time.Second)
 			continue
 		}
