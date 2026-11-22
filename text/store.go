@@ -46,21 +46,22 @@ type storeCursor struct{ leaf, index, offset int }
 const leafBytes = 2048
 
 // newRuneStore holds value, each byte that is not UTF-8 read as U+FFFD as a
-// conversion to []rune does.
-func newRuneStore(value string) runeStore {
-	var store runeStore
-	text := []byte(value)
-	if !utf8.Valid(text) {
-		text = text[:0:0]
+// conversion to []rune does; valid says value was UTF-8, so it is the text.
+func newRuneStore(value string) (store runeStore, valid bool) {
+	valid = utf8.ValidString(value)
+	if valid {
+		store.leaves = splitLeaves(value)
+	} else {
+		var text []byte
 		for _, r := range value {
 			text = utf8.AppendRune(text, r)
 		}
+		store.leaves = splitLeaves(text)
 	}
-	store.leaves = store.split(text)
 	for index := range store.leaves {
 		store.total.add(store.leaves[index].sizes)
 	}
-	return store
+	return store, valid
 }
 
 // Len is the number of runes.
@@ -309,7 +310,7 @@ func (store *runeStore) Replace(start, end int, replacement []rune) {
 	}
 	store.scratch = encoded[:0]
 	if len(store.leaves) == 0 {
-		store.leaves = store.split(encoded)
+		store.leaves = splitLeaves(encoded)
 		for index := range store.leaves {
 			store.total.add(store.leaves[index].sizes)
 		}
@@ -343,7 +344,7 @@ func (store *runeStore) Replace(start, end int, replacement []rune) {
 		buffer = append(buffer, store.leaves[last].text...)
 		last++
 	}
-	made := store.split(buffer)
+	made := splitLeaves(buffer)
 	for index := first; index < last; index++ {
 		store.total.sub(store.leaves[index].sizes)
 	}
@@ -366,8 +367,9 @@ func (store *runeStore) edited(leaf, offset int) {
 	}
 }
 
-// split cuts text into leaves of about leafBytes on rune boundaries.
-func (store *runeStore) split(text []byte) []storeLeaf {
+// splitLeaves cuts text into leaves of about leafBytes on rune boundaries, each
+// a copy of its bytes.
+func splitLeaves[T string | []byte](text T) []storeLeaf {
 	if len(text) == 0 {
 		return nil
 	}

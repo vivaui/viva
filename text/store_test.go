@@ -115,7 +115,7 @@ func TestRuneStoreAgreesWithRunes(t *testing.T) {
 // TestRuneStoreRollbackAgreesWithRunes checks the rolled-back reading the input
 // method planner uses against the runes it stands for.
 func TestRuneStoreRollbackAgreesWithRunes(t *testing.T) {
-	store := newRuneStore("ab中😀cd\nef😀")
+	store, _ := newRuneStore("ab中😀cd\nef😀")
 	removed := []rune("😀x")
 	var text rolledBackText
 	text.store = &store

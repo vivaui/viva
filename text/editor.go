@@ -136,9 +136,17 @@ type Editor struct {
 
 // NewEditor creates an editor with its caret at the end of initial text.
 func NewEditor(initial string) *Editor {
-	editor := &Editor{runes: newRuneStore(initial)}
-	editor.anchor, editor.caret = editor.runes.Len(), editor.runes.Len()
+	editor := new(Editor)
+	editor.start(initial)
 	return editor
+}
+
+// start gives a new editor its text, with the caret at the end. A UTF-8 initial
+// text is already what String returns.
+func (editor *Editor) start(initial string) {
+	editor.runes, editor.textValid = newRuneStore(initial)
+	editor.text = initial
+	editor.anchor, editor.caret = editor.runes.Len(), editor.runes.Len()
 }
 
 // String returns the current UTF-8 text. The conversion is cached until the
