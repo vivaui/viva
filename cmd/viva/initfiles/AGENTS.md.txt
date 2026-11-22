@@ -225,7 +225,8 @@ func (m *model) page(c ui.C) {
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
-  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/datepicker`, `ui/buttongroup`,
+  `ui/togglegroup`.
 - Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others a method on the state
   (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>`
   shows which.

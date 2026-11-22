@@ -51,7 +51,7 @@ Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
 `ui/skeleton`, `ui/inputgroup`, `ui/inputotp`, `ui/questionnaire`,
 `ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
 `ui/togglegroup`, `ui/multiselect`,
-`ui/hierarchypicker`).
+`ui/hierarchypicker`, `ui/datepicker`).
 They import only the public `base`, `components`, `gfx`, `ui` and `window`
 packages, plus the focused `text` editor for editor-like controls and the root
 `markdown` parser for the Markdown view. They own stable handlers, and are never

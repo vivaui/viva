@@ -36,8 +36,8 @@ SOFTWARE.
 ## Lucide
 
 The icon geometry in `components/`, `internal/componentdemo/`,
-`internal/gallery/` and `tools/iconcompile/testdata/` is derived from Lucide or
-drawn in its visual language (<https://lucide.dev>).
+`internal/gallery/`, `ui/datepicker/` and `tools/iconcompile/testdata/` is
+derived from Lucide or drawn in its visual language (<https://lucide.dev>).
 
 ISC License
 

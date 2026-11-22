@@ -27,7 +27,7 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 - 编辑器与可视化：`ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
 - 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
-- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`
+- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/datepicker`、`ui/buttongroup`、`ui/togglegroup`
 
 包名是能力名，没有 `view` 后缀；状态类型按角色命名，不重复包名：`calendar.State`、`message.Row`、`attachment.Card`。局部变量避让包名（`cal`、`msg`、`pic`）；model 字段可以保留领域名词（`m.calendar`），因为选择器不会遮蔽包。
 
