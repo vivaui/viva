@@ -568,11 +568,16 @@ func vulkanDriverManifestsExist(paths []string) bool {
 	return false
 }
 
-// loadVulkan is the process's libvulkan function table, loaded once and kept
-// for the life of the process; a machine without a driver is found once.
+// loadVulkan gives a copy of the process's libvulkan function table, loaded and
+// bound once and kept for the life of the process; a machine without a driver is
+// found once. Each renderer owns its copy, as each window owns its xcb table.
 func loadVulkan() (*vulkanAPI, error) {
 	vulkanOnce.Do(func() { vulkanShared, vulkanErr = openVulkan() })
-	return vulkanShared, vulkanErr
+	if vulkanErr != nil {
+		return nil, vulkanErr
+	}
+	api := *vulkanShared
+	return &api, nil
 }
 
 var (
@@ -1326,6 +1331,10 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 		}
 	}
 	if err := vkCheck(renderer.api.waitForFences(renderer.device, 1, &renderer.fence, 1, math.MaxUint64), "wait before scene update"); err != nil {
+		return false, err
+	}
+	// The last text upload may still be copying into images this frame replaces.
+	if err := renderer.text.staging.settle(renderer); err != nil {
 		return false, err
 	}
 	buffer, textures := renderer.scene.buffer, renderer.text.generation
