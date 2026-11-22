@@ -439,7 +439,7 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	editor.configureShaping(canvas, snapshot, size, cellWidth)
 
 	placeholder := value == ""
-	caret := textareaBoundary(value, snapshot.Caret)
+	caret := gridCaretStart(value, snapshot.Caret)
 	selectionStart, selectionEnd := textareaRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	selectionRanges := normalizedSpans(editor.spans, value, snapshot.SelectionRanges)
 	editor.spans = selectionRanges
@@ -449,7 +449,7 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 	caretX, shapedCaret := editor.shapedCaretX(editor.rows[caretRow], caret)
 	editor.extraCarets = editor.extraCarets[:0]
 	for _, extra := range snapshot.ExtraCarets {
-		offset := textareaBoundary(value, extra.Offset)
+		offset := gridCaretStart(value, extra.Offset)
 		row := editor.rowOf(offset)
 		virtual := max(0, extra.VirtualCells)
 		x, shaped := editor.shapedCaretX(editor.rows[row], offset)
