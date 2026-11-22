@@ -1,8 +1,6 @@
 package input
 
 import (
-	"slices"
-
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -145,16 +143,16 @@ type Router struct {
 	returnFocus   Target
 }
 
-// SetRegions replaces paint-order hit regions while preserving a still-valid
-// focused target. Destination storage is reused across calls.
+// RegionBuffer is the router's region list emptied, to build the next list in
+// and hand back with SetRegions, so the regions are kept once and never copied.
+// The router routes nothing until it has them back.
+func (router *Router) RegionBuffer() []Region { return router.regions[:0] }
+
+// SetRegions replaces the paint-order hit regions, preserving a still-valid
+// focused target. The router keeps regions as given, without a copy: the caller
+// must not change the slice afterwards.
 func (router *Router) SetRegions(regions []Region) {
-	// A repaint that declares the same regions (the common steady state) needs
-	// no copy and no focus rescan: the retained list already routes input and
-	// the focused slot is still valid.
-	if len(router.regions) == len(regions) && slices.Equal(router.regions, regions) {
-		return
-	}
-	router.regions = append(router.regions[:0], regions...)
+	router.regions = regions
 	router.focusedSlot = 0
 	if !router.focused.IsZero() {
 		for index, region := range router.regions {

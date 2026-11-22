@@ -13,7 +13,6 @@ import (
 // focus results from event handlers. The zero value is ready to use.
 type Focus struct {
 	router         input.Router
-	regions        []input.Region
 	focused        gfx.ID
 	keyboardFocus  bool
 	pendingFocus   gfx.ID
@@ -105,14 +104,14 @@ func (f *Focus) WasPainted(id gfx.ID) bool {
 // target. Callers paint again when the focused target changed.
 func (f *Focus) Sync(canvas *gfx.Canvas) {
 	before := f.focused
-	f.regions = f.regions[:0]
+	regions := f.router.RegionBuffer()
 	hits := canvas.Hits()
 	for index := range hits {
 		hit := &hits[index]
 		if hit.Container {
 			continue // semantic regions are not interaction targets
 		}
-		f.regions = append(f.regions, input.Region{
+		regions = append(regions, input.Region{
 			Target:                input.Target(hit.ID),
 			Bounds:                input.Rect{X: hit.Bounds.X, Y: hit.Bounds.Y, Width: hit.Bounds.Width, Height: hit.Bounds.Height},
 			Scope:                 hit.Scope,
@@ -135,10 +134,10 @@ func (f *Focus) Sync(canvas *gfx.Canvas) {
 	// the layers composite in: a popup on a higher layer is often painted
 	// before the field it covers. The front-most region must be the one on the
 	// highest layer, and within a layer the last declared.
-	if !slices.IsSortedFunc(f.regions, compareRegionLayers) {
-		slices.SortStableFunc(f.regions, compareRegionLayers)
+	if !slices.IsSortedFunc(regions, compareRegionLayers) {
+		slices.SortStableFunc(regions, compareRegionLayers)
 	}
-	f.router.SetRegions(f.regions)
+	f.router.SetRegions(regions)
 	f.syncReturns(canvas.FocusReturns(), before)
 	f.router.SetActiveScope(canvas.TrappedFocusScope(), input.Target(canvas.InitialFocus()))
 	f.applyAutofocus(hits)
@@ -218,7 +217,7 @@ func (f *Focus) noteInside() {
 	}
 	var scope gfx.ID
 	if !f.focused.IsZero() {
-		for _, region := range f.regions {
+		for _, region := range f.router.Regions() {
 			if region.Target == input.Target(f.focused) {
 				scope = region.Scope
 				break
@@ -277,7 +276,7 @@ func (f *Focus) Refresh() { f.refresh() }
 
 // Trim releases capacity left behind by a previous, much larger page.
 func (f *Focus) Trim() {
-	f.regions = trimCapacity(f.regions)
+	f.router.SetRegions(trimCapacity(f.router.Regions()))
 	f.painted = trimCapacity(f.painted)
 	f.scratch = trimCapacity(f.scratch)
 }
