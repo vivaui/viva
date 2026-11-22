@@ -343,16 +343,20 @@ func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width floa
 	}
 	labelX := float32(148)
 	title := "Components"
-	if state.page != 0 {
-		if components.BeginButton(canvas, theme, hitPageCatalog, gfx.Rect{X: labelX, Y: top, Width: 96}).Small().Ghost("Components").Clicked() {
-			page = 0
+	// On a phone there is no room between the page arrows and the density and theme
+	// buttons for a breadcrumb; the page's own heading already names where you are.
+	if titleWidth := width - labelX - 210; titleWidth >= 96 {
+		if state.page != 0 {
+			if components.BeginButton(canvas, theme, hitPageCatalog, gfx.Rect{X: labelX, Y: top, Width: 96}).Small().Ghost("Components").Clicked() {
+				page = 0
+			}
+			labelX += 108
+			title = catalog[state.page-1].Title
 		}
-		labelX += 108
-		title = catalog[state.page-1].Title
+		canvas.Label(title, gfx.Rect{
+			X: labelX, Y: top, Width: max(width-labelX-210, 0), Height: control,
+		}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.MutedForeground})
 	}
-	canvas.Label(title, gfx.Rect{
-		X: labelX, Y: top, Width: width - labelX - 210, Height: control,
-	}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.MutedForeground})
 
 	densityBounds := gfx.Rect{X: width - 190, Y: top, Width: 88}
 	if components.BeginButton(canvas, theme, hitDensityCycle, densityBounds).Small().Ghost(state.densityName()).Clicked() {
