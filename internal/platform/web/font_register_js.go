@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"syscall/js"
 
+	"github.com/vivaui/viva/internal/lineengine"
+
 	"github.com/vivaui/viva/internal/fontname"
 )
 
@@ -128,7 +130,7 @@ func normalizedWeight(weight int) int {
 }
 
 func invalidateFonts() {
-	fontGeneration++
+	lineengine.FontsChanged()
 	for _, invalidate := range fontInvalidators {
 		invalidate()
 	}

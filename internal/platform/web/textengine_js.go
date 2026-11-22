@@ -51,7 +51,7 @@ func newDOMMeasurer(document js.Value) *domMeasurer {
 	return measurer
 }
 
-func (measurer *domMeasurer) setInvalidate(invalidate func()) { measurer.invalidate = invalidate }
+func (measurer *domMeasurer) SetInvalidate(invalidate func()) { measurer.invalidate = invalidate }
 
 func (measurer *domMeasurer) rasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
 	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 || scale <= 0 {
@@ -116,7 +116,7 @@ func (measurer *domMeasurer) setDirection(rtl bool) {
 	measurer.rtl = rtl
 }
 
-func (measurer *domMeasurer) width(value string, size, weight float32, rtl bool) float32 {
+func (measurer *domMeasurer) Width(value string, size, weight float32, rtl bool) float32 {
 	return measurer.widthStyle(value, size, weight, false, rtl)
 }
 
@@ -151,7 +151,7 @@ func (measurer *domMeasurer) mountRuler() {
 	measurer.span = measurer.document.Call("createRange")
 }
 
-func (measurer *domMeasurer) rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
+func (measurer *domMeasurer) Rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
 	measurer.rectsStyle(value, size, weight, false, rtl, bounds, lefts, rights)
 }
 

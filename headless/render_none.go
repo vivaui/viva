@@ -1,4 +1,4 @@
-//go:build darwin && !vivahead
+//go:build (darwin && !vivahead) || android
 
 package headless
 

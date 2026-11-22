@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -10,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform/windowframe"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
@@ -188,7 +192,7 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 		height := int(binary.LittleEndian.Uint32(data[8:12]))
 		margin := uint32(0)
 		if win.margin > 0 {
-			margin = frameMargin(win.displayScale())
+			margin = windowframe.Margin(win.displayScale())
 		}
 		if width < 1 || height < 1 {
 			return nil
@@ -304,7 +308,7 @@ func (window *nativeWindow) Frame() (gfx.Rect, bool) {
 	}
 	x, y := win.contentOrigin()
 	scale := win.displayScale()
-	return gfx.Rect{X: float32(x) / scale, Y: float32(y) / scale, Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale}, true
+	return gfx.Rect{X: float32(x) / scale, Y: float32(y) / scale, Width: float32(windowframe.ContentSize(win.width, win.margin)) / scale, Height: float32(windowframe.ContentSize(win.height, win.margin)) / scale}, true
 }
 
 // Hide and Show post to the window's loop, so they may be called anywhere.

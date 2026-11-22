@@ -7,18 +7,19 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/lineengine"
 	"github.com/vivaui/viva/internal/textenginetest"
 )
 
 // browserEngine is the engine over the page's real document; the tests skip under Node,
-// which has none (the geometry is tested on the host in lineengine_test.go).
-func browserEngine(tb testing.TB) *lineEngine {
+// which has none (the geometry is tested on the host in internal/lineengine).
+func browserEngine(tb testing.TB) *lineengine.Engine {
 	tb.Helper()
 	document := js.Global().Get("document")
 	if !document.Truthy() {
 		tb.Skip("no document: run in a browser (see docs/conformance.md)")
 	}
-	return newLineEngine(newDOMMeasurer(document))
+	return lineengine.New(newDOMMeasurer(document))
 }
 
 func TestBrowserEnginePassesTheTextEngineContract(t *testing.T) {
@@ -54,7 +55,7 @@ func BenchmarkBrowserWidthMiss(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
-		engine.lines.Clear()
+		engine.Forget()
 		engine.Width(values[i%len(values)], 14, gfx.WeightRegular)
 	}
 }
@@ -63,7 +64,7 @@ func BenchmarkBrowserGeometryMiss(b *testing.B) {
 	engine := browserEngine(b)
 	b.ReportAllocs()
 	for b.Loop() {
-		engine.lines.Clear()
+		engine.Forget()
 		engine.Caret("192.168.1.1 主机 office affine", 14, gfx.WeightRegular, 10)
 	}
 }

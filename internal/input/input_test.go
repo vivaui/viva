@@ -2,7 +2,10 @@ package input
 
 import "github.com/vivaui/viva/gfx"
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestHitTestUsesFrontToBackOrderAndSkipsDisabled(t *testing.T) {
 	var router Router
@@ -505,5 +508,31 @@ func TestPressAtWalksFromTheFrontAndFindsTheWindowMoveRegion(t *testing.T) {
 		if got := router.PressAt(test.x, test.y); got != test.want {
 			t.Errorf("%s: PressAt = %d, want %d", test.name, got, test.want)
 		}
+	}
+}
+
+// A target with two focusable regions keeps the focus on the region it is on
+// when the same regions are declared again, so Tab from the second region goes
+// on to the next target instead of back to the first region.
+func TestRepeatedRegionsKeepTheFocusedSlot(t *testing.T) {
+	var router Router
+	regions := func() []Region {
+		return []Region{
+			{Target: gfx.Item(1), Bounds: Rect{Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(2), Bounds: Rect{X: 20, Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(1), Bounds: Rect{X: 40, Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(3), Bounds: Rect{X: 60, Width: 10, Height: 10}, Focusable: true},
+		}
+	}
+	router.SetRegions(regions())
+	var visited []gfx.ID
+	for range 4 {
+		router.KeyDown(KeyEvent{Key: KeyTab})
+		router.SetRegions(regions()) // the repaint that follows each key
+		focused, _ := router.Focused()
+		visited = append(visited, focused)
+	}
+	if !slices.Contains(visited, gfx.Item(3)) {
+		t.Fatalf("Tab visited %v and never reached the last target", visited)
 	}
 }

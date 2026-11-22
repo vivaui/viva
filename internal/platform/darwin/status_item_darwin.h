@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_STATUS_ITEM_DARWIN_H
 #define VIVA_STATUS_ITEM_DARWIN_H
 

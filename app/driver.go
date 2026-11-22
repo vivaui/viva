@@ -420,6 +420,37 @@ func (driver *Driver) Cancel() error {
 	return driver.pointer(platform.PointerCancel, 0, 0, gfx.PointerButtonNone, 0)
 }
 
+// TouchDown puts finger id on the screen at a point, TouchMove moves it and
+// TouchUp lifts it: the touches a phone or a touch screen reports. The runtime
+// reads them as it reads a finger in a window: a press waits for its tap
+// timeout, a finger that moves pans and flings, and one held still is a
+// secondary press. Advance moves the time a finger is held.
+func (driver *Driver) TouchDown(id int32, x, y float32) error {
+	return driver.touch(platform.PointerDown, id, x, y)
+}
+
+// TouchMove moves finger id to a point.
+func (driver *Driver) TouchMove(id int32, x, y float32) error {
+	return driver.touch(platform.PointerMove, id, x, y)
+}
+
+// TouchUp lifts finger id at a point.
+func (driver *Driver) TouchUp(id int32, x, y float32) error {
+	return driver.touch(platform.PointerUp, id, x, y)
+}
+
+func (driver *Driver) touch(kind platform.PointerEventKind, id int32, x, y float32) error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	origin := driver.origin
+	_, err := driver.painter.pointerEvent(platform.PointerEvent{
+		Kind: kind, Button: gfx.PointerButtonPrimary, Modifiers: driver.heldModifiers(), X: x, Y: y,
+		ScreenX: origin.X + x, ScreenY: origin.Y + y, Device: gfx.PointerTouch, PointerID: id,
+	})
+	return err
+}
+
 // Press presses a pointer button at a point (moving there first) as a lone
 // click.
 func (driver *Driver) Press(x, y float32, button gfx.PointerButton) error {

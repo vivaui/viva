@@ -153,16 +153,26 @@ func (router *Router) RegionBuffer() []Region { return router.regions[:0] }
 // must not change the slice afterwards.
 func (router *Router) SetRegions(regions []Region) {
 	router.regions = regions
-	router.focusedSlot = 0
-	if !router.focused.IsZero() {
-		for index, region := range router.regions {
-			if region.Target == router.focused && router.focusAvailableRegion(region) {
-				router.focusedSlot = uint32(index + 1)
-				break
-			}
+	if router.focused.IsZero() {
+		router.focusedSlot = 0
+		return
+	}
+	// A target can have several regions; the focus stays on the one it was on
+	// while that one still holds it, so Tab goes on from there instead of
+	// starting over from the target's first region.
+	if slot := router.focusedSlot; slot > 0 && int(slot) <= len(regions) {
+		if region := regions[slot-1]; region.Target == router.focused && router.focusAvailableRegion(region) {
+			return
 		}
 	}
-	if !router.focused.IsZero() && router.focusedSlot == 0 {
+	router.focusedSlot = 0
+	for index, region := range router.regions {
+		if region.Target == router.focused && router.focusAvailableRegion(region) {
+			router.focusedSlot = uint32(index + 1)
+			break
+		}
+	}
+	if router.focusedSlot == 0 {
 		router.focused = gfx.ID{}
 	}
 }

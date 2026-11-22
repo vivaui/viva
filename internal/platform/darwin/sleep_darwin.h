@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_SLEEP_DARWIN_H
 #define VIVA_SLEEP_DARWIN_H
 

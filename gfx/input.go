@@ -91,6 +91,22 @@ const (
 	PointerButtonForward
 )
 
+// PointerDevice is what a pointer event comes from, as the Pointer Events
+// standard's pointerType: it decides whether the pointer hovers and how a press
+// that moves is read.
+type PointerDevice uint8
+
+const (
+	// PointerMouse is a mouse or a touchpad: it hovers, and a press acts at once.
+	PointerMouse PointerDevice = iota
+	// PointerTouch is a finger on a screen: it hovers only while it touches, a
+	// press that moves at once scrolls instead of pressing, and a long press is a
+	// secondary press.
+	PointerTouch
+	// PointerPen is a stylus: it hovers over the screen and presses as a mouse.
+	PointerPen
+)
+
 // PointerEvent is delivered in logical window pixels. Target is the stable hit
 // ID under the pointer, or the press target while Captured is true. Viewport is
 // the current logical window size, allowing coordinate-driven controls to
@@ -116,6 +132,10 @@ type PointerEvent struct {
 	Target           ID
 	Captured         bool
 	ClickCount       int
+	// Device is what the event comes from, and PointerID tells apart the
+	// fingers or pens touching at once; a mouse is pointer 0.
+	Device    PointerDevice
+	PointerID int32
 }
 
 // Win32Key is the Windows console INPUT_RECORD data of a key event: the

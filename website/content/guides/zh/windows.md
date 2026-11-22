@@ -68,7 +68,7 @@ type notes struct {
 func (state *notes) page(c ui.C) {
 	// The bar is as tall as the title bar and leaves room for the window buttons
 	// on whichever side the platform puts them.
-	leading, trailing := app.TitlebarInsets()
+	leading, trailing := c.TitlebarInsets()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(28).PadRight(trailing).PadLeft(leading).Items(ui.Center).MovesWindow().Children(func() {
 			ui.Text(c, "Notes").Muted()

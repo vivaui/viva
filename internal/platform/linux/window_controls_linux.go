@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -5,6 +7,8 @@ import (
 	"fmt"
 	"math"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform/windowframe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -308,7 +312,7 @@ func (win *window) beginWindowMove(config platform.Config, event *xcbInputEvent)
 	direction, ok := uint32(moveResizeMove), false
 	if !notification && !win.frame.maximized {
 		// The top edge yields to a control, so the buttons work up to the top.
-		edge := platform.EdgeAt(x, y, float32(contentSize(win.width, win.margin))/scale, float32(contentSize(win.height, win.margin))/scale, press == platform.PressControl)
+		edge := platform.EdgeAt(x, y, float32(windowframe.ContentSize(win.width, win.margin))/scale, float32(windowframe.ContentSize(win.height, win.margin))/scale, press == platform.PressControl)
 		if ok = edge != platform.EdgeNone; ok {
 			direction = moveResizeDirection(edge)
 		}

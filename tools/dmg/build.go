@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -67,6 +68,12 @@ func Build(options Options) error {
 		return err
 	}
 	if err := settle(writable, options, app); err != nil {
+		return err
+	}
+	// Detaching returns before the disk image service lets go of the file;
+	// converting it while the service still holds it fails with "Resource
+	// temporarily unavailable", which hosted runners show for over a minute.
+	if err := released(writable); err != nil {
 		return err
 	}
 
@@ -191,6 +198,9 @@ func attachedDevice(output, mount string) (string, error) {
 // detach unmounts the image, retrying while the system still holds it, and
 // forcing it as the last resort.
 func detach(mount, device string) error {
+	// Detaching a partition's node unmounts that volume and leaves the image attached,
+	// which the disk image service then holds: the whole disk is what goes.
+	device = wholeDisk(device)
 	mounted, err := volumeMounted(mount)
 	if err != nil {
 		return err
@@ -218,6 +228,45 @@ func detach(mount, device string) error {
 		return fmt.Errorf("%w; checking mount: %v", err, checkErr)
 	}
 	return err
+}
+
+var partitionNode = regexp.MustCompile(`^(/dev/disk\d+)s\d+$`)
+
+// wholeDisk is the device node of the disk a node is on: /dev/disk7 for /dev/disk7s1.
+func wholeDisk(device string) string {
+	if match := partitionNode.FindStringSubmatch(device); match != nil {
+		return match[1]
+	}
+	return device
+}
+
+// releaseAttempts and releaseWait bound how long released waits for the disk
+// image service: up to two minutes.
+const (
+	releaseAttempts = 120
+	releaseWait     = time.Second
+)
+
+// released waits until no attached image is the file at image, as hdiutil info
+// lists them. It reports the list when the image is still attached at the end.
+func released(image string) error {
+	path := image
+	if resolved, err := filepath.EvalSymlinks(image); err == nil {
+		path = resolved
+	}
+	var attached string
+	for attempt := 0; attempt < releaseAttempts; attempt++ {
+		out, err := hdiutilOutput("info", "-plist")
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(out, "<string>"+path+"</string>") && !strings.Contains(out, "<string>"+image+"</string>") {
+			return nil
+		}
+		attached = out
+		pause(releaseWait)
+	}
+	return fmt.Errorf("the disk image service still holds %s after detaching it:\n%s", image, attached)
 }
 
 func hdiutil(arguments ...string) error {

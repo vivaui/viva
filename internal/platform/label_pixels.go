@@ -248,3 +248,11 @@ func BitmapTextureStale(label TextLabel, scale float32, haveWidth, haveHeight in
 }
 
 func extentStale(have, need int) bool { return need > have || have >= 2*need }
+
+// ValidFontSize reports whether size can be laid out: positive and finite.
+func ValidFontSize(size float32) bool {
+	return size > 0 && !math.IsNaN(float64(size)) && !math.IsInf(float64(size), 0)
+}
+
+// MaxDisplayScale is the largest display scale a window or a scene is drawn at.
+const MaxDisplayScale = 8.0

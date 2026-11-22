@@ -27,3 +27,4 @@
 
 # A signing key written by viva update-keygen in the project root.
 /update.key
+tools/android/local.sh

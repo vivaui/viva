@@ -1,4 +1,4 @@
-//go:build darwin || windows || linux
+//go:build (darwin || windows || linux) && !ios
 
 // Command visualparity measures how alike Viva looks on macOS, Windows and Linux.
 //

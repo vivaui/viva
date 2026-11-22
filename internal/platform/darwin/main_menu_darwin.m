@@ -1,3 +1,5 @@
+//go:build !ios
+
 #include "main_menu_darwin.h"
 #include "menu_bar_darwin.h"
 

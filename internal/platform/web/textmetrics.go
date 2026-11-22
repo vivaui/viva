@@ -66,7 +66,7 @@ func (metrics *textMetrics) width(value string, size, weight float32) float32 {
 	if len(metrics.widths) >= maxCachedWidths {
 		clear(metrics.widths)
 	}
-	width := metrics.measurer.width(value, size, weight, false)
+	width := metrics.measurer.Width(value, size, weight, false)
 	metrics.widths[key] = width
 	return width
 }

@@ -1,9 +1,14 @@
+//go:build !android
+
 package linux
 
 import (
 	"os"
 	"strconv"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform/vulkan"
+	"github.com/vivaui/viva/internal/platform/windowframe"
 
 	"github.com/ebitengine/purego"
 )
@@ -119,7 +124,7 @@ func (win *window) wantsFrame(screenIndex int32) (visual uint32, ok bool) {
 		// alpha window: Mesa before 23 drew nothing into one. The CPU renderer
 		// composites in software, so the drawn frame is kept for it. "on" asks
 		// for it anyway.
-		if mode != "on" && vulkanRenderingRequested() && vulkanDeviceIsSoftware() {
+		if mode != "on" && vulkanRenderingRequested() && vulkan.DeviceIsSoftware() {
 			return 0, false
 		}
 		// Synchronized resize (_NET_WM_SYNC_REQUEST) would keep the inset margin
@@ -192,9 +197,9 @@ func (win *window) updateInputRegion() {
 		purego.RegisterLibFunc(&win.shapeRectangles, library, "xcb_shape_rectangles")
 		win.shapeLibrary = library
 	}
-	grip := uint32(float32(frameGripLogical) * win.displayScale())
-	box := frameInput(win.width, win.height, win.margin, grip)
-	rectangle := [4]uint16{uint16(box.x), uint16(box.y), uint16(box.width), uint16(box.height)}
+	grip := uint32(float32(windowframe.GripLogical) * win.displayScale())
+	box := windowframe.Input(win.width, win.height, win.margin, grip)
+	rectangle := [4]uint16{uint16(box.X), uint16(box.Y), uint16(box.Width), uint16(box.Height)}
 	win.shapeRectangles(win.connection, shapeSet, shapeInput, 0, win.id, 0, 0, 1, unsafe.Pointer(&rectangle[0]))
 }
 
@@ -242,7 +247,7 @@ func (state *linuxWindowState) syncMargin() (bool, error) {
 	}
 	margin := uint32(0)
 	if !win.frame.maximized && !win.fullscreen.Load() {
-		margin = frameMargin(win.displayScale())
+		margin = windowframe.Margin(win.displayScale())
 	}
 	if margin == win.margin {
 		return false, nil
