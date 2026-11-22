@@ -299,10 +299,15 @@ type Page struct {
 	memoBoxes   []memoBox
 	memoChecks  []memoCheckOf
 	recording   []*memoEntry // the Memos being declared, outermost first
-	retry       bool         // a Memo's copy failed: the paint is done again
-	overlay     bool         // the last paint declared an open Popover, Modal, Menu or Select
-	lists       []listDecl
-	listRows    []int32 // the row containers of this paint's Lists
+	retry       bool         // a Memo's copy failed, or a container query was answered wrong: the paint is done again
+	// containers are this paint's Containers, answers the container queries
+	// asked of them, and containerWidths the Containers' widths at the last
+	// layout, which the queries read (responsive.go).
+	containers, containerWidths []containerWidth
+	answers                     []containerAnswer
+	overlay                     bool // the last paint declared an open Popover, Modal, Menu or Select
+	lists                       []listDecl
+	listRows                    []int32 // the row containers of this paint's Lists
 
 	baseText     window.TextInputProvider
 	baseScroll   func(gfx.ScrollEvent) gfx.EventResult
@@ -819,6 +824,9 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.Nodes = append(p.Nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	View(&p.ctx)
 	f.End()
+	if p.settleContainers() {
+		p.retry = true
+	}
 	if s := p.drag; s != nil && s.epoch != p.epoch {
 		s.Cancel()
 	}

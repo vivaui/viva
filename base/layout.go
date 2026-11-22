@@ -193,6 +193,11 @@ func (f *Frame) measureContainer(n *Node, axis int) {
 	}
 	is, ie := n.Inset(axis)
 	n.Pref[axis] = total + is + ie
+	if axis == AxisX && n.Ext != 0 && f.Exts[n.Ext].contained {
+		// A Container is as wide as it is placed, not as what it holds, so the
+		// queries inside it cannot change the width they read.
+		n.Pref[axis] = is + ie
+	}
 	if n.Flags&flagScroll == 0 {
 		return
 	}
