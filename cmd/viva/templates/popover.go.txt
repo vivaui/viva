@@ -298,6 +298,10 @@ type OverlayPlacement struct {
 	AlignOffset float32
 	// Margin is the distance the overlay keeps from the viewport's edges.
 	Margin float32
+	// Fit shortens the overlay to the room on the side it ends up on, as the
+	// positioner's size step does for a list that scrolls, instead of shifting
+	// it back over its anchor. The side is chosen first, by the same flip.
+	Fit bool
 }
 
 // PlaceOverlay returns where an overlay of size goes beside anchor inside
@@ -322,7 +326,34 @@ func PlaceOverlay(anchor gfx.Rect, size gfx.Size, viewport gfx.Rect, placement O
 			bounds, side = flipped, opposite
 		}
 	}
+	if placement.Fit {
+		switch side {
+		case OverlayBottom:
+			size.Height = min(size.Height, max(bottom-(anchor.Y+anchor.Height+placement.SideOffset), 1))
+		case OverlayTop:
+			size.Height = min(size.Height, max(anchor.Y-placement.SideOffset-top, 1))
+		case OverlayRight:
+			size.Width = min(size.Width, max(right-(anchor.X+anchor.Width+placement.SideOffset), 1))
+		case OverlayLeft:
+			size.Width = min(size.Width, max(anchor.X-placement.SideOffset-left, 1))
+		}
+		bounds = overlayBeside(anchor, size, side, placement)
+	}
 	return overlayClamp(bounds, viewport, placement.Margin), side
+}
+
+// placeList puts a select's or a combobox's list, of its own left and width and
+// of height, under the trigger: flipped above when that has more room, and
+// shortened to the room it has, so the list scrolls instead of covering the
+// trigger. It is PlaceOverlay's rule, the one every popup of the theme follows.
+func placeList(popup *gfx.Rect, trigger gfx.Rect, height float32, viewport gfx.Rect) {
+	if viewport.Width <= 0 || viewport.Height <= 0 {
+		return
+	}
+	anchor := gfx.Rect{X: popup.X, Y: trigger.Y, Width: popup.Width, Height: trigger.Height}
+	*popup, _ = PlaceOverlay(anchor, gfx.Size{Width: popup.Width, Height: height}, viewport, OverlayPlacement{
+		Side: OverlayBottom, Align: OverlayAlignStart, SideOffset: 6, Margin: 1, Fit: true,
+	})
 }
 
 func overlayOpposite(side OverlaySide) OverlaySide {
