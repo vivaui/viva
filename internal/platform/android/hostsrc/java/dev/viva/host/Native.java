@@ -32,8 +32,18 @@ public final class Native {
     /** The theme, the language or the animation setting may have changed. */
     public static native void appearanceChanged();
 
+    /** The activity went behind another (1) or came back (2): the program's Background and Foreground. */
+    public static native void lifecycle(int kind);
+
     /** The system is short of memory. */
     public static native void lowMemory();
+
+    /**
+     * How far the system covers each edge of the surface, in its pixels: the bars, the display
+     * cutout, and the navigation bar unless the keyboard is up. Sent before the surface is
+     * known and whenever it changes.
+     */
+    public static native void insets(float left, float top, float right, float bottom);
 
     /** The user asked to close the window (the back gesture at the root). */
     public static native void closeRequested();

@@ -81,7 +81,9 @@ func Tree() *gfx.Tree { return tree }
 // the same value so their pixels and behavior originate from one implementation.
 type State struct {
 	// page is 0 for the catalog and n for catalog[n-1].
-	page        int
+	page int
+	// safe is how far the system covers the window's edges, as of the last paint.
+	safe        gfx.Insets
 	lightMode   bool
 	density     gfx.Density
 	textEditing bool
@@ -266,8 +268,10 @@ func (state *State) dragThumb(event gfx.PointerEvent) gfx.EventResult {
 // the full window width so the scrollbar sits on the window edge while the
 // page keeps its side insets.
 func (state *State) scrollArea(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) components.ScrollArea {
-	viewport := gfx.Rect{Y: toolbarHeight, Width: size.Width, Height: max(size.Height-toolbarHeight, 0)}
-	pageHeight := state.contentHeight(max(size.Width-pageInset*2, 0))
+	safe := state.safe
+	viewport := gfx.Rect{X: safe.Left, Y: toolbarHeight + safe.Top, Width: max(size.Width-safe.Left-safe.Right, 0),
+		Height: max(size.Height-toolbarHeight-safe.Top-safe.Bottom, 0)}
+	pageHeight := state.contentHeight(max(viewport.Width-pageInset*2, 0))
 	return components.BeginScrollArea(canvas, theme, viewport, gfx.Size{Width: viewport.Width, Height: pageTopGap + pageHeight + pageBottomGap}).
 		Offset(0, state.viewScroll).
 		VerticalScrollbar(hitPageScrollbar, "Page position", "")
@@ -289,6 +293,7 @@ func (state *State) contentHeight(width float32) float32 {
 func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 	canvas.SetTree(tree)
 	theme := state.Theme()
+	state.safe = canvas.SafeArea()
 	width, height := size.Width, size.Height
 	canvas.Fill(gfx.Rect{Width: width, Height: height}, theme.Background)
 	canvas.PushLayer(toolbarLayer)
@@ -303,9 +308,9 @@ func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 	// Write the clamped offset back: a resize or a shorter page may have left
 	// the stored one past the new end.
 	state.viewScroll, state.scrollMax = geometry.OffsetY, geometry.MaxOffsetY
-	pageWidth := max(width-pageInset*2, 0)
+	pageWidth := max(width-state.safe.Left-state.safe.Right-pageInset*2, 0)
 	content := gfx.Rect{
-		X: pageInset, Y: geometry.Content.Y + pageTopGap,
+		X: state.safe.Left + pageInset, Y: geometry.Content.Y + pageTopGap,
 		Width: pageWidth, Height: state.contentHeight(pageWidth),
 	}
 	if state.page == 0 {
@@ -320,8 +325,9 @@ func (state *State) Paint(canvas *gfx.Canvas, size gfx.Size) {
 // open one, unless a click in this paint chose another.
 func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width float32) (page int) {
 	page = state.page
-	canvas.Fill(gfx.Rect{Width: width, Height: toolbarHeight}, theme.Card)
-	canvas.Fill(gfx.Rect{Y: toolbarHeight - 1, Width: width, Height: 1}, theme.Border)
+	safe := state.safe
+	canvas.Fill(gfx.Rect{Width: width, Height: toolbarHeight + safe.Top}, theme.Card)
+	canvas.Fill(gfx.Rect{Y: toolbarHeight + safe.Top - 1, Width: width, Height: 1}, theme.Border)
 
 	// Every element is centered on the bar's own centerline (the area above
 	// its 1px border) at the active density's control height, rather than at
@@ -329,23 +335,23 @@ func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width floa
 	// Small size, whose height is exactly the control height; the default
 	// button is four pixels taller and would sit below the centerline.
 	control := theme.Metrics.ControlHeight
-	top := (toolbarHeight - 1 - control) / 2
+	top := safe.Top + (toolbarHeight-1-control)/2
 	markSize := float32(20)
-	paintMark(canvas, theme, gfx.Rect{X: pageInset, Y: (toolbarHeight - 1 - markSize) / 2, Width: markSize, Height: markSize})
+	paintMark(canvas, theme, gfx.Rect{X: safe.Left + pageInset, Y: safe.Top + (toolbarHeight-1-markSize)/2, Width: markSize, Height: markSize})
 
 	// Clicks are read where the control is painted, in the event pass of the
 	// click (see gfx.Canvas.Clicked).
-	if paintIconButton(canvas, theme, hitPagePrevious, gfx.Rect{X: 72, Y: top, Width: 28, Height: control}, iconChevronLeft, "Previous page") {
+	if paintIconButton(canvas, theme, hitPagePrevious, gfx.Rect{X: safe.Left + 72, Y: top, Width: 28, Height: control}, iconChevronLeft, "Previous page") {
 		page = (state.page + len(catalog)) % (len(catalog) + 1)
 	}
-	if paintIconButton(canvas, theme, hitPageNext, gfx.Rect{X: 104, Y: top, Width: 28, Height: control}, iconChevronRight, "Next page") {
+	if paintIconButton(canvas, theme, hitPageNext, gfx.Rect{X: safe.Left + 104, Y: top, Width: 28, Height: control}, iconChevronRight, "Next page") {
 		page = (state.page + 1) % (len(catalog) + 1)
 	}
-	labelX := float32(148)
+	labelX := safe.Left + 148
 	title := "Components"
 	// On a phone there is no room between the page arrows and the density and theme
 	// buttons for a breadcrumb; the page's own heading already names where you are.
-	if titleWidth := width - labelX - 210; titleWidth >= 96 {
+	if titleWidth := width - safe.Right - labelX - 210; titleWidth >= 96 {
 		if state.page != 0 {
 			if components.BeginButton(canvas, theme, hitPageCatalog, gfx.Rect{X: labelX, Y: top, Width: 96}).Small().Ghost("Components").Clicked() {
 				page = 0
@@ -354,11 +360,11 @@ func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width floa
 			title = catalog[state.page-1].Title
 		}
 		canvas.Label(title, gfx.Rect{
-			X: labelX, Y: top, Width: max(width-labelX-210, 0), Height: control,
+			X: labelX, Y: top, Width: max(width-safe.Right-labelX-210, 0), Height: control,
 		}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.MutedForeground})
 	}
 
-	densityBounds := gfx.Rect{X: width - 190, Y: top, Width: 88}
+	densityBounds := gfx.Rect{X: width - safe.Right - 190, Y: top, Width: 88}
 	if components.BeginButton(canvas, theme, hitDensityCycle, densityBounds).Small().Ghost(state.densityName()).Clicked() {
 		state.density = (state.density + 1) % 3
 	}
@@ -367,7 +373,7 @@ func (state *State) paintToolbar(canvas *gfx.Canvas, theme gfx.Theme, width floa
 		appearance = "Dark"
 	}
 	if components.BeginButton(canvas, theme, hitThemeToggle, gfx.Rect{
-		X: width - 92, Y: top, Width: 76,
+		X: width - safe.Right - 92, Y: top, Width: 76,
 	}).Small().Outline(appearance).Clicked() {
 		state.lightMode = !state.lightMode
 	}

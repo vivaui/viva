@@ -46,6 +46,8 @@ const (
 	eventAppearance                         // the theme, the language or the animation setting may have changed
 	eventAccessibility                      // a screen reader started or stopped
 	eventAccessible                         // a screen reader asks something of a node
+	eventInsets                             // the system bars, the cutout or the keyboard cover other edges
+	eventLifecycle                          // the activity went to the background or came back
 )
 
 // event is one thing that happened, small enough to queue by value.
@@ -228,7 +230,64 @@ func (application *application) handle(ev event) {
 	case eventAccessible:
 		application.accessible(ev)
 	case eventLowMemory:
+		application.lifecycle(platform.LifecycleMemoryWarning)
+	case eventLifecycle:
+		application.lifecycle(platform.Lifecycle(ev.action))
+	case eventInsets:
+		application.insetsChanged(ev)
 	}
+}
+
+// lifecycle tells the application the system moved it between the foreground and the
+// background, or asked for memory.
+func (application *application) lifecycle(event platform.Lifecycle) {
+	win := application.window
+	if win == nil || win.closed || win.config.OnLifecycle == nil {
+		return
+	}
+	defer application.guard()
+	win.config.OnLifecycle(event)
+}
+
+// insetsChanged follows the system covering other edges of the window: the page lays out
+// again inside what is left. The host gives them in device pixels; they are kept as the
+// window's own, in logical pixels, and so are known when the first frame is painted.
+func (application *application) insetsChanged(ev event) {
+	left, top, right, bottom := ev.x, ev.y, ev.dx, ev.dy
+	hostInsets.Lock()
+	hostInsets.left, hostInsets.top, hostInsets.right, hostInsets.bottom, hostInsets.known = left, top, right, bottom, true
+	hostInsets.Unlock()
+	win := application.window
+	if win == nil || win.closed || win.density <= 0 {
+		return
+	}
+	defer application.guard()
+	insets := insetsIn(win.density)
+	if insets == win.insets {
+		return
+	}
+	win.insets = insets
+	if err := win.resized(false); err != nil {
+		application.fail(err)
+	}
+}
+
+// hostInsets are the insets the host last gave, in device pixels. They arrive before the
+// window exists and again whenever they change; the window takes them with its density.
+var hostInsets struct {
+	sync.Mutex
+	left, top, right, bottom float32
+	known                    bool
+}
+
+// insetsIn is the host's insets in logical pixels at a density.
+func insetsIn(density float32) gfx.Insets {
+	hostInsets.Lock()
+	defer hostInsets.Unlock()
+	if !hostInsets.known || density <= 0 {
+		return gfx.Insets{}
+	}
+	return gfx.Insets{Top: hostInsets.top / density, Left: hostInsets.left / density, Bottom: hostInsets.bottom / density, Right: hostInsets.right / density}
 }
 
 func (application *application) runPosts() {
@@ -273,6 +332,7 @@ type window struct {
 	density  float32 // device pixels per logical pixel
 	renderer *vulkan.Renderer
 	text     *textInput // the application's focused text input, if it has one
+	insets   gfx.Insets // how far the system covers each edge, in logical pixels
 	hovering bool       // a mouse is over the surface
 	a11y     bool       // a screen reader reads the window
 	treeIDs  []gfx.ID   // the nodes of the tree last sent to the host, by place
@@ -296,7 +356,7 @@ func (win *window) Frame() (gfx.Rect, bool) {
 
 func (win *window) size() platform.Size {
 	density := win.density
-	return platform.Size{Width: float32(win.width) / density, Height: float32(win.height) / density, Scale: density}
+	return platform.Size{Width: float32(win.width) / density, Height: float32(win.height) / density, Scale: density, SafeArea: win.insets}
 }
 
 // closeWindow ends the window and the loop.
@@ -362,6 +422,7 @@ func (application *application) surfaceChanged(ev event) {
 		return
 	}
 	density := ev.density
+	win.insets = insetsIn(density)
 	switch {
 	case win.renderer == nil:
 		win.native, win.width, win.height, win.density = ev.surface, uint32(ev.width), uint32(ev.height), density
@@ -398,6 +459,14 @@ func (application *application) surfaceChanged(ev event) {
 			return
 		}
 		if err := win.resized(true); err != nil {
+			application.fail(err)
+			return
+		}
+		// Seen on the emulator (Android 15): the first frame presented to a surface that has
+		// just come back is not the one the screen shows, even though it is drawn from the
+		// scene that holds the application's latest frame; presenting the same scene again
+		// shows it. The cause below the Vulkan calls is not known (ADR 0095 keeps the note).
+		if err := win.renderer.Present(); err != nil {
 			application.fail(err)
 		}
 	default:
