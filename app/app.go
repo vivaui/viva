@@ -208,6 +208,12 @@ type Config struct {
 	// application stop work nobody can see, such as a remote desktop stream.
 	// Hide is the application's own request and is not reported here.
 	OnMinimize func(minimized bool)
+	// OnLifecycle runs on the window thread when the system moves a phone application
+	// between the foreground and the background, or asks it for memory. A desktop window
+	// never gets one. A phone may end a backgrounded application without further notice, so
+	// Background is when to save what the user would miss; a MemoryWarning is when to drop
+	// caches that can be rebuilt.
+	OnLifecycle func(LifecycleEvent)
 	// OnActivate runs on the window thread when the top-level window becomes
 	// the active window, including when the user switches back from another
 	// application. Moving focus between editors inside the window does not
@@ -336,3 +342,16 @@ func (config Config) originPoint() gfx.Point {
 	}
 	return *config.Origin
 }
+
+// LifecycleEvent is a change the system makes to the state of a phone application (see
+// Config.OnLifecycle).
+type LifecycleEvent uint8
+
+const (
+	// LifecycleBackground says the application went behind another.
+	LifecycleBackground LifecycleEvent = iota + 1
+	// LifecycleForeground says it came back to the front.
+	LifecycleForeground
+	// LifecycleMemoryWarning says the system wants memory back.
+	LifecycleMemoryWarning
+)

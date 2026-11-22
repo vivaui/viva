@@ -21,6 +21,11 @@ type model struct {
 	name   string
 	list   ui.ListState
 	menu   string
+	// lifecycle is what the system last did to the application: it went to the background, came
+	// back, or asked for memory.
+	lifecycle string
+	// invalidator asks for a new frame after a change the page was not told of.
+	invalidator *app.Invalidator
 }
 
 func newModel() *model {
@@ -30,23 +35,28 @@ func newModel() *model {
 }
 
 func (m *model) page(c ui.C) {
-	ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
-		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-			if ui.Button(c, "Tap me").Tooltip("Counts your taps").Clicked() {
-				m.taps++
+	ui.SafeArea(c).Children(func() {
+		ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
+			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+				if ui.Button(c, "Tap me").Tooltip("Counts your taps").Clicked() {
+					m.taps++
+				}
+				ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))
+			})
+			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+				ui.Text(c, fmt.Sprintf("Volume %.0f", m.volume.Value))
+				ui.Slider(c, &m.volume).Width(220).Step(1)
+			})
+			ui.Switch(c, &m.notify, "Notifications")
+			ui.TextField(c, &m.name, "Name", "Your name").Width(320)
+			if m.menu != "" {
+				ui.Text(c, m.menu).Muted()
 			}
-			ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))
+			if m.lifecycle != "" {
+				ui.Text(c, "System: "+m.lifecycle).Muted()
+			}
+			ui.List(c, &m.list, rows, m.row).Label("Rows").Grow(1)
 		})
-		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-			ui.Text(c, fmt.Sprintf("Volume %.0f", m.volume.Value))
-			ui.Slider(c, &m.volume).Width(220).Step(1)
-		})
-		ui.Switch(c, &m.notify, "Notifications")
-		ui.TextField(c, &m.name, "Name", "Your name").Width(320)
-		if m.menu != "" {
-			ui.Text(c, m.menu).Muted()
-		}
-		ui.List(c, &m.list, rows, m.row).Label("Rows").Grow(1)
 	})
 }
 
@@ -69,9 +79,24 @@ func (m *model) row(r ui.ListRow) {
 	})
 }
 
+// systemChanged notes what the system did; the next frame shows it.
+func (m *model) systemChanged(event app.LifecycleEvent) {
+	switch event {
+	case app.LifecycleBackground:
+		m.lifecycle = "background"
+	case app.LifecycleForeground:
+		m.lifecycle = "foreground"
+	case app.LifecycleMemoryWarning:
+		m.lifecycle = "memory warning"
+	}
+	m.invalidator.Invalidate()
+}
+
 func main() {
 	m := newModel()
-	if err := ui.Run(app.Config{Title: "Touch", Width: 420, Height: 760}, ui.PageConfig{View: m.page}); err != nil {
+	m.invalidator = new(app.Invalidator)
+	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged}
+	if err := ui.Run(config, ui.PageConfig{View: m.page, Invalidator: m.invalidator}); err != nil {
 		log.Fatal(err)
 	}
 }

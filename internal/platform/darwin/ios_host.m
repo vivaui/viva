@@ -19,7 +19,9 @@ extern void vivaTouchEvent(uintptr_t callbackHandle, void *view, int kind, int i
 extern int vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
                            const unsigned char *utf8, size_t utf8Length);
 extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
+extern void vivaIOSLifecycle(uintptr_t callbackHandle, void *view, int kind);
 extern void vivaIOSAppearanceChanged(void);
+extern void vivaIOSSafeArea(uintptr_t callbackHandle, void *view, double top, double left, double bottom, double right);
 extern int vivaAccessibilityAction(uintptr_t callbackHandle, void *view, uint64_t node, int action, double number,
                                    const unsigned char *utf8, size_t utf8Length, int start, int end);
 extern void vivaIOSTextOp(uintptr_t callbackHandle, void *view, int operation, const unsigned char *utf8, size_t utf8Length,
@@ -263,8 +265,13 @@ static NSString *viva_string(const char *chars, size_t length) {
     BOOL _closed;
     CGSize _lastReportedSize;
     BOOL _reportedSize;
+    UIEdgeInsets _safeArea;
+    UIEdgeInsets _lastReportedSafeArea;
 }
 @property(nonatomic, readonly) uintptr_t callbackHandle;
+/* How far the system covers each edge (status bar, sensor housing, home indicator), which
+ * the view controller sets; the next layout tells the application. */
+@property(nonatomic) UIEdgeInsets safeArea;
 @property(nonatomic, readonly) BOOL closed;
 @property(nonatomic, readonly) VivaIOSEditor *editor;
 - (instancetype)initWithFrame:(CGRect)frame
@@ -294,6 +301,7 @@ static NSString *viva_string(const char *chars, size_t length) {
 @synthesize callbackHandle = _callbackHandle;
 @synthesize closed = _closed;
 @synthesize editor = _editor;
+@synthesize safeArea = _safeArea;
 
 + (Class)layerClass {
     return [CAMetalLayer class];
@@ -374,9 +382,13 @@ static NSString *viva_string(const char *chars, size_t length) {
     }
     [self updateDrawableSize];
     CGSize size = self.bounds.size;
-    if (_resizeEventsEnabled && (!_reportedSize || !CGSizeEqualToSize(size, _lastReportedSize))) {
+    if (_resizeEventsEnabled && (!_reportedSize || !CGSizeEqualToSize(size, _lastReportedSize) ||
+                                 !UIEdgeInsetsEqualToEdgeInsets(_safeArea, _lastReportedSafeArea))) {
         _reportedSize = YES;
         _lastReportedSize = size;
+        _lastReportedSafeArea = _safeArea;
+        // The insets come first: the resize that follows lays the page out inside them.
+        vivaIOSSafeArea(_callbackHandle, self, _safeArea.top, _safeArea.left, _safeArea.bottom, _safeArea.right);
         vivaViewResized(_callbackHandle, self, size.width, size.height);
     }
 }
@@ -887,17 +899,25 @@ static NSString *viva_string(const char *chars, size_t length) {
     } completion:nil];
 }
 
-// viewDidLayoutSubviews puts the surface inside what the system covers: the status
-// bar and the sensor housing, the home indicator, and the keyboard. A program that
-// wants the whole screen asks for it (ADR 0095).
+// viewDidLayoutSubviews makes the surface the whole window, as far as the keyboard
+// allows, and tells it how far the system covers each edge: the status bar and the
+// sensor housing, the home indicator. The application draws under them and keeps what
+// matters inside them (ADR 0096). The keyboard shrinks the surface from the bottom, and
+// with it up nothing covers the bottom edge but the keyboard itself.
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    CGRect bounds = UIEdgeInsetsInsetRect(self.view.bounds, self.view.safeAreaInsets);
+    CGRect bounds = self.view.bounds;
+    UIEdgeInsets safe = self.view.safeAreaInsets;
     CGFloat keyboardTop = CGRectGetMinY(self.view.keyboardLayoutGuide.layoutFrame);
-    if (keyboardTop < CGRectGetMaxY(bounds)) {
+    // With no keyboard the guide's top is the safe area's bottom edge, the home indicator's
+    // line; the keyboard is up when it is higher than that.
+    if (keyboardTop < CGRectGetMaxY(bounds) - safe.bottom - 0.5) {
         bounds.size.height = MAX(keyboardTop - bounds.origin.y, 0);
+        safe.bottom = 0;
     }
+    _surface.safeArea = safe;
     _surface.frame = bounds;
+    [_surface setNeedsLayout];
 }
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
@@ -915,7 +935,9 @@ static NSString *viva_string(const char *chars, size_t length) {
 
 @end
 
-@interface VivaIOSAppDelegate : UIResponder <UIApplicationDelegate>
+@interface VivaIOSAppDelegate : UIResponder <UIApplicationDelegate> {
+    BOOL _inBackground;
+}
 @end
 
 /* The one window an iPhone application shows (see viva_application_open_window). */
@@ -929,17 +951,33 @@ static VivaIOSView *viva_ios_view;
     return YES;
 }
 
-// The application goes behind another and comes back: it is told, and on the way
-// back asks for a frame, since what the layer shows may not be what it should.
+// The application goes behind another and comes back: it is told. The window is drawn
+// again only once the application is active, as the system gives no GPU to one that
+// has only begun to return; what the layer shows may not be what it should.
 - (void)applicationDidEnterBackground:(UIApplication *)application {
     if (viva_ios_view != nil && !viva_ios_view.closed) {
+        _inBackground = YES;
+        vivaIOSLifecycle(viva_ios_view.callbackHandle, viva_ios_view, 1); // Background
         vivaIOSVisibility(viva_ios_view.callbackHandle, viva_ios_view, 0);
     }
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application {
     if (viva_ios_view != nil && !viva_ios_view.closed) {
+        vivaIOSLifecycle(viva_ios_view.callbackHandle, viva_ios_view, 2); // Foreground
+    }
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    if (_inBackground && viva_ios_view != nil && !viva_ios_view.closed) {
+        _inBackground = NO;
         vivaIOSVisibility(viva_ios_view.callbackHandle, viva_ios_view, 1);
+    }
+}
+
+- (void)applicationDidReceiveMemoryWarning:(UIApplication *)application {
+    if (viva_ios_view != nil && !viva_ios_view.closed) {
+        vivaIOSLifecycle(viva_ios_view.callbackHandle, viva_ios_view, 3); // MemoryWarning
     }
 }
 

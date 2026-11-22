@@ -86,9 +86,19 @@ func Java_dev_viva_host_Native_visible(env *C.JNIEnv, _ C.jclass, visible C.jboo
 	send(event{kind: eventVisible, visible: visible != 0})
 }
 
+//export Java_dev_viva_host_Native_lifecycle
+func Java_dev_viva_host_Native_lifecycle(env *C.JNIEnv, _ C.jclass, kind C.jint) {
+	send(event{kind: eventLifecycle, action: int32(kind)})
+}
+
 //export Java_dev_viva_host_Native_lowMemory
 func Java_dev_viva_host_Native_lowMemory(env *C.JNIEnv, _ C.jclass) {
 	send(event{kind: eventLowMemory})
+}
+
+//export Java_dev_viva_host_Native_insets
+func Java_dev_viva_host_Native_insets(env *C.JNIEnv, _ C.jclass, left, top, right, bottom C.jfloat) {
+	send(event{kind: eventInsets, x: float32(left), y: float32(top), dx: float32(right), dy: float32(bottom)})
 }
 
 //export Java_dev_viva_host_Native_closeRequested

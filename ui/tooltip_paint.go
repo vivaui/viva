@@ -17,8 +17,8 @@ func paintTooltip(f *Frame) {
 	if event, _, ok := f.Surface.PointerPass(); ok && event.Device == gfx.PointerTouch && event.Kind == gfx.PointerDown &&
 		event.Button == gfx.PointerButtonSecondary {
 		target = event.Target
-	} else if held := frameTooltipState(f).Holding(); !held.IsZero() {
-		target = held
+	} else if state, _ := f.GetTooltip().(*components.HoverTooltip); state != nil && !state.Holding().IsZero() {
+		target = state.Holding()
 	}
 	if !f.HasTooltip(target) {
 		// The pointer is on another frame's element (a page in a pane of this one),

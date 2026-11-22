@@ -13,6 +13,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // UIKeyModifierFlags, as UIKey reports them.
@@ -127,4 +128,23 @@ func vivaIOSVisibility(handle C.uintptr_t, view unsafe.Pointer, visible C.int) {
 		state.err = fmt.Errorf("darwin: drawing after the application returned: %w", err)
 		C.viva_view_close(view)
 	}
+}
+
+// vivaIOSLifecycle is the system moving the application to the background or back, or
+// warning it of low memory: the application's OnLifecycle is told, on the main thread.
+//
+//export vivaIOSLifecycle
+func vivaIOSLifecycle(handle C.uintptr_t, view unsafe.Pointer, kind C.int) {
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || state.lifecycleHandler == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: lifecycle handler", recovered)
+			state.err = fmt.Errorf("darwin: lifecycle handler panicked: %v", recovered)
+			C.viva_view_close(view)
+		}
+	}()
+	state.lifecycleHandler(platform.Lifecycle(kind))
 }
