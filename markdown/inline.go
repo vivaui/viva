@@ -1,6 +1,11 @@
 package markdown
 
-import "strings"
+import (
+	"html"
+	"strconv"
+	"strings"
+	"unicode/utf8"
+)
 
 // inline parses the inline formatting of s and appends its spans. style and
 // link are what the surrounding text already has.
@@ -11,19 +16,39 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 		d.work = 32*len(s) + 4096
 	}
 	text := 0 // where the plain text not yet emitted begins
+	var decoded strings.Builder
+	flush := func(end int) {
+		value := s[text:end]
+		if decoded.Len() != 0 {
+			decoded.WriteString(value)
+			value = decoded.String()
+			decoded.Reset()
+		}
+		d.emit(value, style, link)
+	}
 	for i := 0; i < len(s); {
 		switch c := s[i]; c {
 		case '\\':
 			if i+1 < len(s) && isPunct(s[i+1]) {
-				d.emit(s[text:i], style, link)
+				flush(i)
 				text = i + 1
 				i += 2
+				continue
+			}
+		case '&':
+			if value, size := characterReference(s[i:]); size != 0 {
+				// Keep the decoded text in the same span so it shapes and wraps
+				// together with the surrounding word.
+				decoded.WriteString(s[text:i])
+				decoded.WriteString(value)
+				i += size
+				text = i
 				continue
 			}
 		case '`':
 			n := run(s, i, '`')
 			if end := d.findCodeEnd(s, i+n, n); end >= 0 {
-				d.emit(s[text:i], style, link)
+				flush(i)
 				code := s[i+n : end]
 				if len(code) >= 2 && code[0] == ' ' && code[len(code)-1] == ' ' && strings.Trim(code, " ") != "" {
 					code = code[1 : len(code)-1]
@@ -41,7 +66,7 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 			n := run(s, i, c)
 			if n <= 3 && depth < maxNesting {
 				if end := d.findEmphasisEnd(s, i, n, c); end >= 0 {
-					d.emit(s[text:i], style, link)
+					flush(i)
 					d.inline(s[i+n:end], style|emphasisStyle(n), link, depth+1)
 					i = end + n
 					text = i
@@ -54,7 +79,7 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 			n := run(s, i, '~')
 			if n == 2 && depth < maxNesting {
 				if end := d.findEmphasisEnd(s, i, n, c); end >= 0 {
-					d.emit(s[text:i], style, link)
+					flush(i)
 					d.inline(s[i+2:end], style|Strike, link, depth+1)
 					i = end + 2
 					text = i
@@ -66,7 +91,7 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 		case '!':
 			if i+1 < len(s) && s[i+1] == '[' {
 				if labelEnd, dest, end := d.findLink(s, i+1); end >= 0 {
-					d.emit(s[text:i], style, link)
+					flush(i)
 					d.spans = append(d.spans, Span{Text: s[i+2 : labelEnd], Style: style, Link: link, Image: dest})
 					i = end
 					text = i
@@ -76,7 +101,7 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 		case '[':
 			if link == "" && depth < maxNesting {
 				if labelEnd, dest, end := d.findLink(s, i); end >= 0 {
-					d.emit(s[text:i], style, link)
+					flush(i)
 					if safeLink(dest) {
 						d.inline(s[i+1:labelEnd], style, dest, depth+1)
 					} else {
@@ -90,7 +115,7 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 		case 'h':
 			if link == "" && (i == 0 || !isWord(s[i-1])) {
 				if end := autolinkEnd(s, i); end > 0 {
-					d.emit(s[text:i], style, link)
+					flush(i)
 					d.spans = append(d.spans, Span{Text: s[i:end], Style: style, Link: s[i:end]})
 					i = end
 					text = i
@@ -100,7 +125,54 @@ func (d *Document) inline(s string, style Style, link string, depth int) {
 		}
 		i++
 	}
-	d.emit(s[text:], style, link)
+	flush(len(s))
+}
+
+// characterReference recognizes a complete reference starting at an ampersand.
+// The longest named reference bounds the lookahead even in unfinished text.
+func characterReference(s string) (string, int) {
+	const maxLength = len("&CounterClockwiseContourIntegral;")
+	end := strings.IndexByte(s[:min(len(s), maxLength)], ';')
+	if end < 2 {
+		return "", 0
+	}
+	if s[1] == '#' {
+		digits := s[2:end]
+		base, limit := 10, 7
+		if strings.HasPrefix(digits, "x") || strings.HasPrefix(digits, "X") {
+			base, limit = 16, 6
+			digits = digits[1:]
+		}
+		if len(digits) > limit {
+			return "", 0
+		}
+		value, err := strconv.ParseUint(digits, base, 32)
+		if err != nil {
+			return "", 0
+		}
+		r := rune(value)
+		if r == 0 || !utf8.ValidRune(r) {
+			r = utf8.RuneError
+		}
+		return string(r), end + 1
+	}
+	for i := 1; i < end; i++ {
+		if !isWord(s[i]) {
+			return "", 0
+		}
+	}
+	ref := s[:end+1]
+	if ref == "&nbsp;" {
+		return "\u00a0", end + 1
+	}
+	value := html.UnescapeString(ref)
+	// A complete named reference decodes to at most two runes. HTML also
+	// accepts some prefixes without a semicolon, leaving a suffix of at
+	// least one letter and the semicolon (for example, &noti; -> ¬i;).
+	if value == ref || utf8.RuneCountInString(value) > 2 {
+		return "", 0
+	}
+	return value, end + 1
 }
 
 func (d *Document) emit(text string, style Style, link string) {
