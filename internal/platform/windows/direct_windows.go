@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/textmetrics"
 )
 
 // Labels are drawn with DirectWrite through Direct2D, the engine that draws the text of
@@ -530,7 +531,8 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
 func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
-	formatKey, format, err := rasterizer.gridFormat(family, size, weight, run.Italic, fallback)
+	slant := run.Italic && run.Ligatures && textmetrics.Bidirectional(piece)
+	formatKey, format, err := rasterizer.gridFormat(family, size, weight, run.Italic && !slant, fallback)
 	if err != nil {
 		return err
 	}
@@ -539,7 +541,7 @@ func (rasterizer *directRasterizer) drawRun(target *directTarget, family string,
 		return err
 	}
 	x := left
-	scaled := false
+	transformed := false
 	if clip.height > 0 {
 		// In device columns, before any transform of the run is set.
 		target.pushClip(clip.columns.From, clip.columns.To, clip.height)
@@ -553,16 +555,24 @@ func (rasterizer *directRasterizer) drawRun(target *directTarget, family string,
 		// it is used only when the widths differ.
 		// Terminal padding occupies cells too. Width excludes trailing spaces
 		// and would stretch a short command across its following blank cells.
-		scaled = shaped.metrics.WidthTrailing > 0 && span > 0 && shaped.metrics.WidthTrailing != span
-		if scaled {
-			scale := span / shaped.metrics.WidthTrailing
-			target.setTransform(d2dMatrix{M11: scale, M22: 1, DX: left * (1 - scale)})
+		x -= shaped.fittedOrigin()
+		fit, shear := float32(1), float32(0)
+		if shaped.metrics.WidthTrailing > 0 && span > 0 {
+			fit = span / shaped.metrics.WidthTrailing
+		}
+		if slant {
+			// Keep the measured layout and slant its ink about the baseline.
+			shear = -0.2 * fit
+		}
+		transformed = fit != 1 || shear != 0
+		if transformed {
+			target.setTransform(d2dMatrix{M11: fit, M21: shear, M22: 1, DX: left*(1-fit) - baseline*shear})
 		}
 	case run.Cells > 0 && isSingleCharacter(piece):
 		x = left + (span-shaped.metrics.Width)/2
 	}
 	target.draw(x, baseline-shaped.line.Baseline, shaped.layout, d2dEnableColorFont)
-	if scaled {
+	if transformed {
 		target.setTransform(identityMatrix)
 	}
 	return nil

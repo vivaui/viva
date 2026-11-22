@@ -7,6 +7,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/textmetrics"
 )
 
 // A terminal row of many colors is drawn as one run per color. Rasterizing it
@@ -53,6 +54,14 @@ type gridLayout struct {
 	metrics textMetrics
 	line    lineMetrics
 	chars   uint32 // UTF-16 units the run's decorations cover
+	bidi    bool   // shaped with the fitted bidi origin
+}
+
+func (shaped *gridLayout) fittedOrigin() float32 {
+	if shaped.bidi {
+		return shaped.metrics.Left
+	}
+	return 0
 }
 
 // gridFormat returns the text format for a run, making it once. The handle is
@@ -93,6 +102,23 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 	if shaped, ok := rasterizer.shaped[key]; ok {
 		return shaped, nil
 	}
+	shaped, err := rasterizer.layoutGridRun(handle, piece, run, pitch)
+	if err != nil {
+		return nil, err
+	}
+	if rasterizer.shaped == nil || len(rasterizer.shaped) >= gridLayoutLimit {
+		for _, old := range rasterizer.shaped {
+			release(&old.layout)
+		}
+		rasterizer.shaped = make(map[gridLayoutKey]*gridLayout, gridLayoutLimit)
+	}
+	rasterizer.shaped[key] = shaped
+	return shaped, nil
+}
+
+// layoutGridRun makes the same layout for the renderer and fitted caret
+// measurement. The caller owns the returned COM layout.
+func (rasterizer *directRasterizer) layoutGridRun(handle uintptr, piece string, run gfx.TextRun, pitch float32) (*gridLayout, error) {
 	units, err := syscall.UTF16FromString(piece)
 	if err != nil {
 		return nil, err
@@ -108,6 +134,16 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 			release(&layout)
 		}
 	}()
+	shaped.bidi = run.Ligatures && textmetrics.Bidirectional(piece)
+	if shaped.bidi && textmetrics.RightToLeft(piece) {
+		// Keep the resolved RTL paragraph on the left of the wide layout.
+		if err := hresult(comCall1(layout, writeSetReadingDirection, 1)); err != nil {
+			return nil, err
+		}
+		if err := hresult(comCall1(layout, writeSetTextAlignment, 1)); err != nil {
+			return nil, err
+		}
+	}
 	if err := hresult(comCall1(layout, writeGetMetrics, uintptr(unsafe.Pointer(&shaped.metrics)))); err != nil {
 		return nil, err
 	}
@@ -129,13 +165,6 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 			rasterizer.setCharacterSpacing(layout, -reduction, all)
 		}
 	}
-	if rasterizer.shaped == nil || len(rasterizer.shaped) >= gridLayoutLimit {
-		for _, old := range rasterizer.shaped {
-			release(&old.layout)
-		}
-		rasterizer.shaped = make(map[gridLayoutKey]*gridLayout, gridLayoutLimit)
-	}
-	rasterizer.shaped[key] = shaped
 	ok = true
 	return shaped, nil
 }
