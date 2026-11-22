@@ -4,7 +4,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -16,10 +15,6 @@ import (
 
 func currentPlatform() Platform { return PlatformUnknown }
 
-func nativeReduceMotion() bool                                 { return false }
-func nativePreferredLanguages() []string                       { return languagesFromEnvironment(os.Getenv) }
-func nativeClipboardText() (string, error)                     { return "", ErrUnsupported }
-func nativeSetClipboardText(string) error                      { return ErrUnsupported }
 func nativeHasClipboardImage() bool                            { return false }
 func nativeClipboardImagePNG() ([]byte, error)                 { return nil, ErrUnsupported }
 func nativeSetClipboardImage([]byte) error                     { return ErrUnsupported }
@@ -35,7 +30,6 @@ func nativeSaveFile(SaveFileOptions) (string, error)           { return "", ErrU
 func nativeSaveFileWithCheckbox(SaveFileOptions, SaveFileCheckbox) (SaveFileSelection, error) {
 	return SaveFileSelection{}, ErrUnsupported
 }
-func nativeOpenURL(string) error                      { return ErrUnsupported }
 func nativeRevealPath(string) error                   { return ErrUnsupported }
 func nativePlaySystemSound(SystemSound) error         { return ErrUnsupported }
 func nativeSendNotification(Notification) error       { return ErrUnsupported }
@@ -50,8 +44,6 @@ func nativeMonospaceFamilies() []string { return nil }
 func nativeFontFamilies() []string      { return nil }
 func nativeFontWeights(string) []int    { return nil }
 
-func nativeAppearance() Appearance   { return AppearanceUnknown }
-func nativeWatchAppearance()         {}
 func nativeSetAppearance(Appearance) {}
 
 func nativeStartFileDrag([]string, FileDragEffect) (FileDragEffect, error) {

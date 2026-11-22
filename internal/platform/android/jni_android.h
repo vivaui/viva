@@ -27,4 +27,15 @@ int viva_text_end(void *out, int64_t capacity);
 void viva_host_editor(const uint16_t *text, int length, int selectionStart, int selectionEnd, int compositionStart, int compositionEnd);
 void viva_host_keyboard(int editing, int multiline, int secure);
 void viva_host_finish(void);
+/* viva_host_tree gives the host the accessibility tree: per node four floats of bounds, five ints
+ * (role, flags, level, position, size) and three of range (min, max, now), and four strings
+ * (label, value, hint, description) in one UTF-16 buffer cut by offsets, four per node plus one. */
+void viva_host_tree(int count, const float *bounds, const int32_t *ints, const float *ranges, const uint16_t *chars, int charCount, const int32_t *offsets);
+/* The strings the system answers with, malloc memory the caller frees; NULL for none. */
+char *viva_host_clipboard_text(void);
+int viva_host_set_clipboard_text(const uint16_t *text, int length);
+int viva_host_open_url(const uint16_t *url, int length);
+char *viva_host_languages(void);
+int viva_host_dark_theme(void);
+int viva_host_animations_off(void);
 void viva_host_set_title(const uint16_t *title, int length);

@@ -158,3 +158,18 @@ func Java_dev_viva_host_Native_hoverExit(env *C.JNIEnv, _ C.jclass) {
 func Java_dev_viva_host_Native_scroll(env *C.JNIEnv, _ C.jclass, x, y, dx, dy C.jfloat, meta C.jint) {
 	send(event{kind: eventScroll, x: float32(x), y: float32(y), dx: float32(dx), dy: float32(dy), modifiers: int32(meta)})
 }
+
+//export Java_dev_viva_host_Native_appearanceChanged
+func Java_dev_viva_host_Native_appearanceChanged(env *C.JNIEnv, _ C.jclass) {
+	send(event{kind: eventAppearance})
+}
+
+//export Java_dev_viva_host_Native_accessibility
+func Java_dev_viva_host_Native_accessibility(env *C.JNIEnv, _ C.jclass, on C.jboolean) {
+	send(event{kind: eventAccessibility, visible: on != 0})
+}
+
+//export Java_dev_viva_host_Native_accessible
+func Java_dev_viva_host_Native_accessible(env *C.JNIEnv, _ C.jclass, node C.jint, action C.jint, number C.jfloat, text C.jstring, start, end C.jint) {
+	send(event{kind: eventAccessible, index: int32(node), action: int32(action), dx: float32(number), text: goString(env, text), start: int32(start), end: int32(end)})
+}

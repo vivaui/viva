@@ -29,6 +29,9 @@ public final class Native {
     /** The activity is in front (true) or has gone behind another (false). */
     public static native void visible(boolean visible);
 
+    /** The theme, the language or the animation setting may have changed. */
+    public static native void appearanceChanged();
+
     /** The system is short of memory. */
     public static native void lowMemory();
 
@@ -54,6 +57,12 @@ public final class Native {
 
     /** A key of a keyboard: its Android key code, the meta state and the character it types. */
     public static native void key(int keyCode, int meta, int unicode, boolean repeat);
+
+    /** A screen reader is reading the window, or has stopped. */
+    public static native void accessibility(boolean on);
+
+    /** A screen reader's request of a node: its place in the tree last sent, what to do, and the value of it. */
+    public static native void accessible(int node, int action, float number, String text, int start, int end);
 
     /** A mouse over the surface. */
     public static native void hover(float x, float y, int meta, long uptimeMillis);

@@ -82,26 +82,28 @@ func keyModifiers(flags int) input.Modifiers {
 	return modifiers
 }
 
-// vivaIOSKeyEvent is a key of a connected keyboard. A key that is not text is a key
+// vivaIOSKeyEvent is a key of a connected keyboard, answering whether it was taken. A key that is not text is a key
 // event; a chord with Control or Command and a character is offered as a shortcut,
 // and is a key event only if nothing took it. What a key types is the text input's.
 //
 //export vivaIOSKeyEvent
-func vivaIOSKeyEvent(handle C.uintptr_t, view unsafe.Pointer, usage C.int, flags C.int, repeat C.int, utf8 *C.uchar, utf8Length C.size_t) {
+func vivaIOSKeyEvent(handle C.uintptr_t, view unsafe.Pointer, usage C.int, flags C.int, repeat C.int, utf8 *C.uchar, utf8Length C.size_t) C.int {
 	state, ok := runStateFor(handle)
 	if !ok || state.closed {
-		return
+		return 0
 	}
 	modifiers := keyModifiers(int(flags))
 	key := keyOfUsage(int(usage))
 	chord := modifiers&(input.ModifierControl|input.ModifierMeta) != 0 && utf8Length > 0
 	if chord && vivaShortcutEvent(handle, view, C.int(key), C.int(modifiers), repeat, utf8, utf8Length) != 0 {
-		return
+		return 1
 	}
 	if key == gfx.KeyUnknown && !chord {
-		return
+		// What the key types is the text system's.
+		return 0
 	}
 	deliverKey(handle, view, KeyEvent{Key: key, Modifiers: modifiers, Repeat: repeat != 0}, utf8, utf8Length)
+	return 1
 }
 
 // vivaIOSVisibility follows the application going behind another and coming back.

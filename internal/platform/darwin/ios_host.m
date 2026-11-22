@@ -16,9 +16,11 @@ extern void vivaViewResized(uintptr_t callbackHandle, void *view, double width, 
 extern void vivaWindowClosed(uintptr_t callbackHandle);
 extern void vivaTouchEvent(uintptr_t callbackHandle, void *view, int kind, int identifier,
                            double x, double y, double screenX, double screenY);
-extern void vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
-                            const unsigned char *utf8, size_t utf8Length);
+extern int vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
+                           const unsigned char *utf8, size_t utf8Length);
 extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
+extern void vivaIOSTextOp(uintptr_t callbackHandle, void *view, int operation, const unsigned char *utf8, size_t utf8Length,
+                          int64_t first, int64_t last);
 extern void vivaRedrawRequested(uintptr_t callbackHandle, void *view);
 
 /* The pointer kinds, as platform.PointerEventKind numbers them. */
@@ -38,7 +40,95 @@ enum {
 
 static int viva_application_status = 0;
 
+/* What the keyboard does to the text input, as vivaIOSTextOp takes it. */
+enum {
+    VIVA_IOS_TEXT_COMMIT = 1,
+    VIVA_IOS_TEXT_SET_MARKED = 2,
+    VIVA_IOS_TEXT_FINISH = 3,
+    VIVA_IOS_TEXT_REPLACE = 4,
+    VIVA_IOS_TEXT_SELECT = 5,
+    VIVA_IOS_TEXT_DELETE_BACKWARD = 6,
+    VIVA_IOS_TEXT_ENTER = 7,
+};
+
+@class VivaIOSView;
+
+/* A position in the text, as a number of UTF-16 units from its start. */
+@interface VivaIOSTextPosition : UITextPosition {
+@public
+    NSInteger _offset;
+}
++ (instancetype)positionAt:(NSInteger)offset;
+@end
+
+@implementation VivaIOSTextPosition
++ (instancetype)positionAt:(NSInteger)offset {
+    VivaIOSTextPosition *position = [[VivaIOSTextPosition alloc] init];
+    position->_offset = offset;
+    return [position autorelease];
+}
+@end
+
+@interface VivaIOSTextRange : UITextRange {
+    VivaIOSTextPosition *_start;
+    VivaIOSTextPosition *_end;
+}
++ (instancetype)rangeFrom:(NSInteger)start to:(NSInteger)end;
+@end
+
+@implementation VivaIOSTextRange
++ (instancetype)rangeFrom:(NSInteger)start to:(NSInteger)end {
+    VivaIOSTextRange *range = [[VivaIOSTextRange alloc] init];
+    range->_start = [[VivaIOSTextPosition positionAt:MIN(start, end)] retain];
+    range->_end = [[VivaIOSTextPosition positionAt:MAX(start, end)] retain];
+    return [range autorelease];
+}
+- (void)dealloc {
+    [_start release];
+    [_end release];
+    [super dealloc];
+}
+- (UITextPosition *)start {
+    return _start;
+}
+- (UITextPosition *)end {
+    return _end;
+}
+- (BOOL)isEmpty {
+    return _start->_offset == _end->_offset;
+}
+@end
+
+/* VivaIOSEditor is what the keyboard types into: an invisible view that holds a copy of
+ * the application's focused text input and passes what the keyboard does to it back, as
+ * ranges of UTF-16 units. The application owns the text; this is only read by UIKit. */
+@interface VivaIOSEditor : UIView <UITextInput> {
+    NSMutableString *_text;
+    NSRange _selected;
+    NSRange _marked;
+    BOOL _hasMarked;
+    BOOL _enabled;
+    BOOL _multiline;
+    BOOL _secure;
+    uintptr_t _callbackHandle;
+    VivaIOSView *_surface;
+    CGRect _caret;
+    id<UITextInputDelegate> _inputDelegate;
+    UITextInputStringTokenizer *_tokenizer;
+    UITextInputAssistantItem *_assistant;
+}
+@property(nonatomic, assign) VivaIOSView *surface;
+@property(nonatomic, assign) uintptr_t callbackHandle;
+@property(nonatomic, readonly) BOOL enabled;
+- (void)setState:(const unsigned char *)utf8 length:(size_t)length selection:(NSRange)selection marked:(NSRange)marked hasMarked:(BOOL)hasMarked;
+- (void)setEnabled:(BOOL)enabled multiline:(BOOL)multiline secure:(BOOL)secure;
+- (void)setCaret:(CGRect)caret;
++ (BOOL)textSystemTakes:(UIKey *)key;
+@end
+
+
 @interface VivaIOSView : UIView {
+    VivaIOSEditor *_editor;
     VivaRenderer *_renderer;
     uintptr_t _callbackHandle;
     BOOL _resizeEventsEnabled;
@@ -48,6 +138,7 @@ static int viva_application_status = 0;
 }
 @property(nonatomic, readonly) uintptr_t callbackHandle;
 @property(nonatomic, readonly) BOOL closed;
+@property(nonatomic, readonly) VivaIOSEditor *editor;
 - (instancetype)initWithFrame:(CGRect)frame
                        device:(id<MTLDevice>)device
                  commandQueue:(id<MTLCommandQueue>)commandQueue
@@ -73,6 +164,7 @@ static int viva_application_status = 0;
 
 @synthesize callbackHandle = _callbackHandle;
 @synthesize closed = _closed;
+@synthesize editor = _editor;
 
 + (Class)layerClass {
     return [CAMetalLayer class];
@@ -90,6 +182,10 @@ static int viva_application_status = 0;
         return nil;
     }
     _callbackHandle = config->callback_handle;
+    _editor = [[VivaIOSEditor alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
+    _editor.surface = self;
+    _editor.callbackHandle = _callbackHandle;
+    [self addSubview:_editor];
     _resizeEventsEnabled = config->resize_events_enabled != 0;
     // Fingers are separate pointers: a second one ends what the first was doing.
     self.multipleTouchEnabled = YES;
@@ -124,6 +220,7 @@ static int viva_application_status = 0;
 }
 
 - (void)dealloc {
+    [_editor release];
     [_renderer release];
     [super dealloc];
 }
@@ -272,20 +369,322 @@ static int viva_application_status = 0;
 // text arrive as key events and the chords with Control or Command as shortcut
 // offers; what is typed is the text input's (see UITextInput).
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    BOOL handled = NO;
+    NSMutableSet<UIPress *> *others = [NSMutableSet set];
     for (UIPress *press in presses) {
         UIKey *key = press.key;
-        if (key == nil || _closed) {
+        if (key == nil || _closed || (_editor.enabled && [VivaIOSEditor textSystemTakes:key])) {
+            [others addObject:press];
             continue;
         }
         const char *chars = key.charactersIgnoringModifiers.UTF8String;
         size_t length = chars != NULL ? strlen(chars) : 0;
-        vivaIOSKeyEvent(_callbackHandle, self, (int)key.keyCode, (int)key.modifierFlags, 0, (const unsigned char *)chars, length);
-        handled = YES;
+        if (vivaIOSKeyEvent(_callbackHandle, self, (int)key.keyCode, (int)key.modifierFlags, 0, (const unsigned char *)chars, length) == 0) {
+            [others addObject:press];
+        }
     }
-    if (!handled) {
-        [super pressesBegan:presses withEvent:event];
+    if (others.count > 0) {
+        [super pressesBegan:others withEvent:event];
     }
+}
+
+@end
+
+
+@implementation VivaIOSEditor
+
+@synthesize surface = _surface;
+@synthesize callbackHandle = _callbackHandle;
+@synthesize enabled = _enabled;
+@synthesize markedTextStyle;
+@synthesize inputDelegate = _inputDelegate;
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self != nil) {
+        _text = [[NSMutableString alloc] init];
+        _selected = NSMakeRange(0, 0);
+        _marked = NSMakeRange(NSNotFound, 0);
+        self.alpha = 0;
+    }
+    return self;
+}
+
+- (void)dealloc {
+    [_text release];
+    [_tokenizer release];
+    [markedTextStyle release];
+    [super dealloc];
+}
+
+/* textSystemTakes says a hardware key is the text system's while a field is focused: it
+ * arrives as insertText, deleteBackward or a change of the selection, not as a key. */
++ (BOOL)textSystemTakes:(UIKey *)key {
+    switch (key.keyCode) {
+    case UIKeyboardHIDUsageKeyboardReturnOrEnter:
+    case UIKeyboardHIDUsageKeyboardDeleteOrBackspace:
+    case UIKeyboardHIDUsageKeyboardDeleteForward:
+    case UIKeyboardHIDUsageKeyboardLeftArrow:
+    case UIKeyboardHIDUsageKeyboardRightArrow:
+    case UIKeyboardHIDUsageKeyboardHome:
+    case UIKeyboardHIDUsageKeyboardEnd:
+    case UIKeyboardHIDUsageKeyboardSpacebar:
+        return YES;
+    default:
+        return NO;
+    }
+}
+
+- (BOOL)canBecomeFirstResponder {
+    return _enabled;
+}
+
+/* The editor is not there to be touched: the surface under it is. */
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    return NO;
+}
+
+- (UIView *)textInputView {
+    return self;
+}
+
+
+- (void)setEnabled:(BOOL)enabled multiline:(BOOL)multiline secure:(BOOL)secure {
+    BOOL restart = _enabled != enabled || _multiline != multiline || _secure != secure;
+    _enabled = enabled;
+    _multiline = multiline;
+    _secure = secure;
+    if (!restart) {
+        return;
+    }
+    if (enabled) {
+        if (self.isFirstResponder) {
+            [self reloadInputViews];
+        } else {
+            [self becomeFirstResponder];
+        }
+    } else {
+        [self resignFirstResponder];
+        // The keys of a connected keyboard go on to the surface.
+        [_surface becomeFirstResponder];
+    }
+}
+
+- (void)setState:(const unsigned char *)utf8 length:(size_t)length selection:(NSRange)selection marked:(NSRange)marked hasMarked:(BOOL)hasMarked {
+    NSString *value = length > 0 ? [[NSString alloc] initWithBytes:utf8 length:length encoding:NSUTF8StringEncoding] : [[NSString alloc] init];
+    BOOL textChanged = ![_text isEqualToString:value];
+    BOOL selectionChanged = !NSEqualRanges(_selected, selection) || _hasMarked != hasMarked || (hasMarked && !NSEqualRanges(_marked, marked));
+    if (textChanged) {
+        [_inputDelegate textWillChange:self];
+    }
+    if (selectionChanged) {
+        [_inputDelegate selectionWillChange:self];
+    }
+    [_text setString:value];
+    [value release];
+    _selected = NSMakeRange(MIN(selection.location, _text.length), MIN(selection.length, _text.length - MIN(selection.location, _text.length)));
+    _hasMarked = hasMarked;
+    _marked = hasMarked ? NSMakeRange(MIN(marked.location, _text.length), MIN(marked.length, _text.length - MIN(marked.location, _text.length))) : NSMakeRange(NSNotFound, 0);
+    if (selectionChanged) {
+        [_inputDelegate selectionDidChange:self];
+    }
+    if (textChanged) {
+        [_inputDelegate textDidChange:self];
+    }
+}
+
+- (void)setCaret:(CGRect)caret {
+    _caret = caret;
+}
+
+- (void)sendOperation:(int)operation text:(NSString *)text first:(NSInteger)first last:(NSInteger)last {
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    vivaIOSTextOp(_callbackHandle, _surface, operation, data.bytes, data.length, first, last);
+}
+
+#pragma mark UIKeyInput
+
+- (BOOL)hasText {
+    return _text.length > 0;
+}
+
+- (void)insertText:(NSString *)text {
+    if ([text isEqualToString:@"\n"] && !_multiline) {
+        [self sendOperation:VIVA_IOS_TEXT_ENTER text:@"" first:0 last:0];
+        return;
+    }
+    [self sendOperation:VIVA_IOS_TEXT_COMMIT text:text first:0 last:0];
+}
+
+- (void)deleteBackward {
+    [self sendOperation:VIVA_IOS_TEXT_DELETE_BACKWARD text:@"" first:0 last:0];
+}
+
+#pragma mark UITextInput: text
+
+- (NSString *)textInRange:(UITextRange *)range {
+    VivaIOSTextRange *r = (VivaIOSTextRange *)range;
+    NSInteger start = MIN(((VivaIOSTextPosition *)r.start)->_offset, (NSInteger)_text.length);
+    NSInteger end = MIN(((VivaIOSTextPosition *)r.end)->_offset, (NSInteger)_text.length);
+    return [_text substringWithRange:NSMakeRange(start, MAX(end - start, 0))];
+}
+
+- (void)replaceRange:(UITextRange *)range withText:(NSString *)text {
+    VivaIOSTextRange *r = (VivaIOSTextRange *)range;
+    [self sendOperation:VIVA_IOS_TEXT_REPLACE text:text first:((VivaIOSTextPosition *)r.start)->_offset last:((VivaIOSTextPosition *)r.end)->_offset];
+}
+
+- (UITextRange *)selectedTextRange {
+    return [VivaIOSTextRange rangeFrom:_selected.location to:_selected.location + _selected.length];
+}
+
+- (void)setSelectedTextRange:(UITextRange *)range {
+    VivaIOSTextRange *r = (VivaIOSTextRange *)range;
+    if (r == nil) {
+        return;
+    }
+    [self sendOperation:VIVA_IOS_TEXT_SELECT text:@"" first:((VivaIOSTextPosition *)r.start)->_offset last:((VivaIOSTextPosition *)r.end)->_offset];
+}
+
+- (UITextRange *)markedTextRange {
+    return _hasMarked ? [VivaIOSTextRange rangeFrom:_marked.location to:_marked.location + _marked.length] : nil;
+}
+
+- (void)setMarkedText:(NSString *)markedText selectedRange:(NSRange)selectedRange {
+    NSInteger start = selectedRange.location == NSNotFound ? (NSInteger)markedText.length : (NSInteger)selectedRange.location;
+    [self sendOperation:VIVA_IOS_TEXT_SET_MARKED text:markedText ?: @"" first:start last:start + (NSInteger)selectedRange.length];
+}
+
+- (void)unmarkText {
+    [self sendOperation:VIVA_IOS_TEXT_FINISH text:@"" first:0 last:0];
+}
+
+#pragma mark UITextInput: positions
+
+- (UITextPosition *)beginningOfDocument {
+    return [VivaIOSTextPosition positionAt:0];
+}
+
+- (UITextPosition *)endOfDocument {
+    return [VivaIOSTextPosition positionAt:_text.length];
+}
+
+- (UITextRange *)textRangeFromPosition:(UITextPosition *)from toPosition:(UITextPosition *)to {
+    return [VivaIOSTextRange rangeFrom:((VivaIOSTextPosition *)from)->_offset to:((VivaIOSTextPosition *)to)->_offset];
+}
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position offset:(NSInteger)offset {
+    NSInteger target = ((VivaIOSTextPosition *)position)->_offset + offset;
+    if (target < 0 || target > (NSInteger)_text.length) {
+        return nil;
+    }
+    return [VivaIOSTextPosition positionAt:target];
+}
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position inDirection:(UITextLayoutDirection)direction offset:(NSInteger)offset {
+    NSInteger from = ((VivaIOSTextPosition *)position)->_offset;
+    NSInteger target = from;
+    switch (direction) {
+    case UITextLayoutDirectionLeft:
+        target = from - offset;
+        break;
+    case UITextLayoutDirectionRight:
+        target = from + offset;
+        break;
+    case UITextLayoutDirectionUp:
+        target = 0;
+        break;
+    case UITextLayoutDirectionDown:
+        target = _text.length;
+        break;
+    }
+    return [VivaIOSTextPosition positionAt:MIN(MAX(target, 0), (NSInteger)_text.length)];
+}
+
+- (NSComparisonResult)comparePosition:(UITextPosition *)position toPosition:(UITextPosition *)other {
+    NSInteger a = ((VivaIOSTextPosition *)position)->_offset;
+    NSInteger b = ((VivaIOSTextPosition *)other)->_offset;
+    return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
+}
+
+- (NSInteger)offsetFromPosition:(UITextPosition *)from toPosition:(UITextPosition *)to {
+    return ((VivaIOSTextPosition *)to)->_offset - ((VivaIOSTextPosition *)from)->_offset;
+}
+
+- (id<UITextInputTokenizer>)tokenizer {
+    if (_tokenizer == nil) {
+        _tokenizer = [[UITextInputStringTokenizer alloc] initWithTextInput:self];
+    }
+    return _tokenizer;
+}
+
+- (UITextPosition *)positionWithinRange:(UITextRange *)range farthestInDirection:(UITextLayoutDirection)direction {
+    BOOL end = direction == UITextLayoutDirectionRight || direction == UITextLayoutDirectionDown;
+    return end ? range.end : range.start;
+}
+
+- (UITextRange *)characterRangeByExtendingPosition:(UITextPosition *)position inDirection:(UITextLayoutDirection)direction {
+    NSInteger offset = ((VivaIOSTextPosition *)position)->_offset;
+    BOOL forward = direction == UITextLayoutDirectionRight || direction == UITextLayoutDirectionDown;
+    return [VivaIOSTextRange rangeFrom:offset to:forward ? _text.length : 0];
+}
+
+- (NSWritingDirection)baseWritingDirectionForPosition:(UITextPosition *)position inDirection:(UITextStorageDirection)direction {
+    return NSWritingDirectionNatural;
+}
+
+- (void)setBaseWritingDirection:(NSWritingDirection)direction forRange:(UITextRange *)range {
+}
+
+#pragma mark UITextInput: geometry
+
+- (CGRect)firstRectForRange:(UITextRange *)range {
+    return [self convertRect:_caret fromView:_surface];
+}
+
+- (CGRect)caretRectForPosition:(UITextPosition *)position {
+    return [self convertRect:CGRectMake(CGRectGetMinX(_caret), CGRectGetMinY(_caret), 2, CGRectGetHeight(_caret)) fromView:_surface];
+}
+
+- (NSArray<UITextSelectionRect *> *)selectionRectsForRange:(UITextRange *)range {
+    return @[];
+}
+
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point {
+    return [VivaIOSTextPosition positionAt:_selected.location + _selected.length];
+}
+
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point withinRange:(UITextRange *)range {
+    return range.end;
+}
+
+- (UITextRange *)characterRangeAtPoint:(CGPoint)point {
+    return nil;
+}
+
+#pragma mark UITextInputTraits
+
+- (UIKeyboardType)keyboardType {
+    return UIKeyboardTypeDefault;
+}
+
+- (BOOL)isSecureTextEntry {
+    return _secure;
+}
+
+- (UIReturnKeyType)returnKeyType {
+    return _multiline ? UIReturnKeyDefault : UIReturnKeyDone;
+}
+
+- (UITextAutocorrectionType)autocorrectionType {
+    return _secure ? UITextAutocorrectionTypeNo : UITextAutocorrectionTypeDefault;
+}
+
+- (UITextAutocapitalizationType)autocapitalizationType {
+    return UITextAutocapitalizationTypeNone;
+}
+
+- (UITextSpellCheckingType)spellCheckingType {
+    return _secure ? UITextSpellCheckingTypeNo : UITextSpellCheckingTypeDefault;
 }
 
 @end
@@ -578,18 +977,49 @@ int viva_view_update_text(
     int ends_composition,
     int render
 ) {
+    VivaIOSView *surface = (VivaIOSView *)view;
+    if (surface == nil || surface.editor == nil) {
+        return 1;
+    }
+    [surface.editor setState:utf8
+                      length:utf8_length
+                   selection:NSMakeRange(selected_start, selected_length)
+                      marked:NSMakeRange(marked_start, marked_length)
+                   hasMarked:has_marked_text != 0];
     return 0;
+}
+
+/* viva_view_update_text_input follows the application's wish for its text input: another
+ * one, the same with other text, or none, which has the keyboard away. */
+static int viva_ios_text_input(void *view, viva_text_input_config text_input) {
+    VivaIOSView *surface = (VivaIOSView *)view;
+    if (surface == nil || surface.editor == nil) {
+        return 1;
+    }
+    if (text_input.enabled == 0) {
+        [surface.editor setEnabled:NO multiline:NO secure:NO];
+        return 0;
+    }
+    [surface.editor setCaret:CGRectMake(text_input.x, text_input.y, text_input.width, text_input.height)];
+    [surface.editor setEnabled:YES multiline:text_input.multiline != 0 secure:text_input.secure != 0];
+    return viva_view_update_text(view, text_input.utf8, text_input.utf8_length, text_input.selected_start, text_input.selected_length,
+                                 text_input.marked_start, text_input.marked_length, text_input.has_marked_text, 0, 0, 0);
 }
 
 int viva_view_update_text_input(void *view, viva_text_input_config text_input) {
-    return 0;
+    return viva_ios_text_input(view, text_input);
 }
 
 int viva_view_update_text_input_keeping_composition(void *view, viva_text_input_config text_input) {
-    return 0;
+    return viva_ios_text_input(view, text_input);
 }
 
 int viva_view_move_text_input(void *view, float x, float y, float width, float height) {
+    VivaIOSView *surface = (VivaIOSView *)view;
+    if (surface == nil || surface.editor == nil) {
+        return 1;
+    }
+    [surface.editor setCaret:CGRectMake(x, y, width, height)];
     return 0;
 }
 

@@ -8,6 +8,7 @@
 static JavaVM *vm;
 static jclass hostClass, textClass;
 static jmethodID hostFinish, hostSetTitle, hostEditor, hostKeyboard;
+static jmethodID hostTree, hostClipboardText, hostSetClipboardText, hostOpenURL, hostLanguages, hostDarkTheme, hostAnimationsOff;
 static jmethodID textWidth, textMetrics, textRects, textSetFamily, textBegin, textDraw, textEnd;
 
 /* A JNI_OnLoad finds the host's classes while the loader that holds them is the caller's. */
@@ -28,6 +29,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
 	hostSetTitle = (*env)->GetStaticMethodID(env, hostClass, "setTitle", "(Ljava/lang/String;)V");
 	hostEditor = (*env)->GetStaticMethodID(env, hostClass, "editor", "(Ljava/lang/String;IIII)V");
 	hostKeyboard = (*env)->GetStaticMethodID(env, hostClass, "keyboard", "(ZZZ)V");
+	hostTree = (*env)->GetStaticMethodID(env, hostClass, "tree", "([F[I[F[C[I)V");
+	hostClipboardText = (*env)->GetStaticMethodID(env, hostClass, "clipboardText", "()Ljava/lang/String;");
+	hostSetClipboardText = (*env)->GetStaticMethodID(env, hostClass, "setClipboardText", "(Ljava/lang/String;)Z");
+	hostOpenURL = (*env)->GetStaticMethodID(env, hostClass, "openURL", "(Ljava/lang/String;)Z");
+	hostLanguages = (*env)->GetStaticMethodID(env, hostClass, "languages", "()Ljava/lang/String;");
+	hostDarkTheme = (*env)->GetStaticMethodID(env, hostClass, "darkTheme", "()I");
+	hostAnimationsOff = (*env)->GetStaticMethodID(env, hostClass, "animationsOff", "()Z");
 	textWidth = (*env)->GetStaticMethodID(env, textClass, "width", "(Ljava/lang/String;FIZZ)F");
 	textMetrics = (*env)->GetStaticMethodID(env, textClass, "metrics", "(FIZZ[F)V");
 	textRects = (*env)->GetStaticMethodID(env, textClass, "rects", "(Ljava/lang/String;FIZZZ[I[F[F)V");
@@ -230,3 +238,82 @@ void viva_host_keyboard(int editing, int multiline, int secure) {
 	}
 }
 
+
+static char *host_string(jmethodID method) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return NULL;
+	}
+	jstring s = (jstring)(*e)->CallStaticObjectMethod(e, hostClass, method);
+	if (failed(e) || s == NULL) {
+		return NULL;
+	}
+	char *copy = viva_string_chars(e, s);
+	(*e)->DeleteLocalRef(e, s);
+	return copy;
+}
+
+char *viva_host_clipboard_text(void) { return host_string(hostClipboardText); }
+
+char *viva_host_languages(void) { return host_string(hostLanguages); }
+
+static int host_text_call(jmethodID method, const uint16_t *text, int length) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return 0;
+	}
+	jstring s = (*e)->NewString(e, (const jchar *)text, length);
+	jboolean ok = (*e)->CallStaticBooleanMethod(e, hostClass, method, s);
+	(*e)->DeleteLocalRef(e, s);
+	return !failed(e) && ok;
+}
+
+int viva_host_set_clipboard_text(const uint16_t *text, int length) { return host_text_call(hostSetClipboardText, text, length); }
+
+int viva_host_open_url(const uint16_t *url, int length) { return host_text_call(hostOpenURL, url, length); }
+
+int viva_host_dark_theme(void) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return -1;
+	}
+	jint theme = (*e)->CallStaticIntMethod(e, hostClass, hostDarkTheme);
+	return failed(e) ? -1 : theme;
+}
+
+int viva_host_animations_off(void) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return 0;
+	}
+	jboolean off = (*e)->CallStaticBooleanMethod(e, hostClass, hostAnimationsOff);
+	return !failed(e) && off;
+}
+
+void viva_host_tree(int count, const float *bounds, const int32_t *ints, const float *ranges, const uint16_t *chars, int charCount, const int32_t *offsets) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return;
+	}
+	jfloatArray b = (*e)->NewFloatArray(e, 4 * count);
+	jintArray i = (*e)->NewIntArray(e, 5 * count);
+	jfloatArray r = (*e)->NewFloatArray(e, 3 * count);
+	jcharArray c = (*e)->NewCharArray(e, charCount);
+	jintArray o = (*e)->NewIntArray(e, 4 * count + 1);
+	if (count > 0) {
+		(*e)->SetFloatArrayRegion(e, b, 0, 4 * count, bounds);
+		(*e)->SetIntArrayRegion(e, i, 0, 5 * count, (const jint *)ints);
+		(*e)->SetFloatArrayRegion(e, r, 0, 3 * count, ranges);
+	}
+	if (charCount > 0) {
+		(*e)->SetCharArrayRegion(e, c, 0, charCount, (const jchar *)chars);
+	}
+	(*e)->SetIntArrayRegion(e, o, 0, 4 * count + 1, (const jint *)offsets);
+	(*e)->CallStaticVoidMethod(e, hostClass, hostTree, b, i, r, c, o);
+	failed(e);
+	(*e)->DeleteLocalRef(e, b);
+	(*e)->DeleteLocalRef(e, i);
+	(*e)->DeleteLocalRef(e, r);
+	(*e)->DeleteLocalRef(e, c);
+	(*e)->DeleteLocalRef(e, o);
+}
