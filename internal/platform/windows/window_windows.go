@@ -961,6 +961,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 1 // the side-button messages ask for TRUE, unlike the others
 		}
 		return 0
+	case wmPointerDown, wmPointerUpdate, wmPointerUp, wmPointerCaptureChanged:
+		if state.touchPointer(kind, first) {
+			return 0
+		}
 	case wmMouseLeave, wmKillFocus:
 		state.tracking = false
 		if kind == wmMouseLeave && state.web != nil && state.web.pointerOverCover() {
