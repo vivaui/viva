@@ -88,6 +88,10 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 	} else if pointerX, pointerY, ok := win.pointerPosition(); ok {
 		focusX, focusY = pointerX, pointerY
 	}
+	if config.WindowMode == platform.WindowNotification && config.HasOrigin {
+		scale := win.displayScale()
+		focusX, focusY = int(config.Origin.X*scale+width/2), int(config.Origin.Y*scale+height/2)
+	}
 	if monitor, ok := monitorAt(monitors, focusX, focusY); ok && monitor.Width > 0 && monitor.Height > 0 {
 		work, haveWork := win.workArea()
 		usable := usableArea(monitorRect(monitor), work, haveWork)
@@ -96,6 +100,11 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 	var fx, fy float32
 	if config.WindowMode == platform.WindowNotification {
 		fx, fy = platform.PlaceNotification(width, height, 12*win.displayScale(), area)
+		if config.HasOrigin {
+			scale := win.displayScale()
+			fx = min(max(config.Origin.X*scale, area.X), area.X+max(0, area.Width-width))
+			fy = min(max(config.Origin.Y*scale, area.Y), area.Y+max(0, area.Height-height))
+		}
 	} else if config.HasAnchor {
 		fx, fy = platform.PlacePanel(config.Anchor, width, height, area)
 	} else {

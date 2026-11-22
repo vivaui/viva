@@ -486,12 +486,17 @@ func (state *windowState) placePanel() {
 		var info monitorInfo
 		info.Size = uint32(unsafe.Sizeof(info))
 		monitor := cursorMonitor()
-		getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info)))
+		if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok == 0 {
+			return
+		}
 		x := float32(info.Work.Left) + (float32(info.Work.Right-info.Work.Left)-width)/2
 		y := float32(info.Work.Top) + (float32(info.Work.Bottom-info.Work.Top)-height)/2
 		if config.WindowMode == platform.WindowNotification {
 			area := platform.ScreenRect{X: float32(info.Work.Left), Y: float32(info.Work.Top), Width: float32(info.Work.Right - info.Work.Left), Height: float32(info.Work.Bottom - info.Work.Top)}
 			x, y = platform.PlaceNotification(width, height, 12*state.scale, area)
+			left, top, fittedWidth, fittedHeight := placedFrame(info.Work, int32(x), int32(y), int32(width), int32(height))
+			setWindowPosition.Call(state.window, hwndTopmost, uintptr(left), uintptr(top), uintptr(fittedWidth), uintptr(fittedHeight), 0x10) // NOACTIVATE
+			return
 		}
 		setWindowPosition.Call(state.window, hwndTopmost, uintptr(int32(x)), uintptr(int32(y)), 0, 0, 0x11) // NOSIZE | NOACTIVATE
 		return

@@ -436,7 +436,15 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
 	if config.WindowMode == platform.WindowNotification {
-		state.placePanel()
+		// Moving onto a monitor can synchronously resize the popup for its DPI.
+		// Anchor again using the resulting native size before revealing it.
+		if config.HasOrigin {
+			state.placeAtOrigin(config.Origin)
+			state.placeAtOrigin(config.Origin)
+		} else {
+			state.placePanel()
+			state.placePanel()
+		}
 		showWindow.Call(state.window, swShowNoActivate)
 	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
@@ -1052,6 +1060,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return htTransparent
 		}
 		if state.fullscreen.Load() {
+			return htClient
+		}
+		if state.config.WindowMode == platform.WindowNotification {
+			point := point{X: int32(int16(second)), Y: int32(int16(second >> 16))}
+			screenToClient.Call(window, uintptr(unsafe.Pointer(&point)))
+			if state.pressAt(float32(point.X)/state.scale, float32(point.Y)/state.scale) == platform.PressMove {
+				return htCaption
+			}
 			return htClient
 		}
 		if state.customFrame() {

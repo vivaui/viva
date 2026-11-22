@@ -155,7 +155,12 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 			var rect [4]int32
 			g.gdkMonitorWorkarea(monitor, &rect)
 			area := platform.ScreenRect{X: float32(rect[0]), Y: float32(rect[1]), Width: float32(rect[2]), Height: float32(rect[3])}
-			x, y := platform.PlaceNotification(float32(config.Width)*w.ratio, float32(config.Height)*w.ratio, 12*w.ratio, area)
+			width, height := float32(config.Width)*w.ratio, float32(config.Height)*w.ratio
+			x, y := platform.PlaceNotification(width, height, 12*w.ratio, area)
+			if config.HasOrigin {
+				x = min(max(config.Origin.X*w.ratio, area.X), area.X+max(0, area.Width-width))
+				y = min(max(config.Origin.Y*w.ratio, area.Y), area.Y+max(0, area.Height-height))
+			}
 			g.windowMove(w.toplevel, int32(x), int32(y))
 		}
 	case platform.WindowPanel:
@@ -276,6 +281,12 @@ func (w *gtkWindow) notificationMonitor(display uintptr) uintptr {
 		return 0
 	}
 	g := w.g
+	if w.config.HasOrigin {
+		at := w.config.Origin
+		if monitor := g.gdkMonitorAtPoint(display, int32(at.X*w.ratio), int32(at.Y*w.ratio)); monitor != 0 {
+			return monitor
+		}
+	}
 	if seat := g.gdkDisplaySeat(display); seat != 0 {
 		if pointer := g.gdkSeatPointer(seat); pointer != 0 {
 			var x, y int32
