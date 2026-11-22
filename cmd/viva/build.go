@@ -18,7 +18,7 @@ import (
 const mebibyte = 1 << 20
 
 var (
-	buildTargets = []string{"darwin", "windows", "linux", "web", "ios-sim", "ios"}
+	buildTargets = []string{"darwin", "windows", "linux", "web", "ios-sim", "ios", "android"}
 	buildArches  = []string{"arm64", "amd64"}
 )
 
@@ -38,6 +38,8 @@ type buildPlan struct {
 	cgo bool
 	// toolchain is Xcode's compiler and SDK, found when an iOS build starts.
 	toolchain iosToolchain
+	// sdk is the Android SDK, found when an Android build starts.
+	sdk androidSDK
 }
 
 // goTarget is the GOOS/GOARCH pair for a target.
@@ -47,6 +49,8 @@ func (plan buildPlan) goTarget() (goos, goarch string) {
 		return "js", "wasm"
 	case "ios-sim", "ios":
 		return "ios", plan.arch
+	case "android":
+		return "android", plan.arch
 	}
 	return plan.target, plan.arch
 }
@@ -108,6 +112,8 @@ func (plan buildPlan) environment(base []string) []string {
 		}
 	case "ios-sim", "ios":
 		return plan.iosEnvironment(environment, base)
+	case "android":
+		return plan.androidEnvironment(environment)
 	case "linux", "windows":
 		// These targets reach the system through purego and the standard
 		// library's own system calls, not through cgo. Go turns cgo on by
@@ -141,6 +147,9 @@ func lastEnvironment(environment []string, name string) string {
 func (plan buildPlan) run(output string, errorOutput io.Writer) error {
 	if plan.isIOS() {
 		return plan.runIOS(errorOutput)
+	}
+	if plan.isAndroid() {
+		return plan.runAndroid(errorOutput)
 	}
 	if err := plan.build(output, errorOutput); err != nil {
 		return err
@@ -183,7 +192,7 @@ type buildFlags struct {
 func (shared *buildFlags) register(flags *flag.FlagSet, defaultTarget string) {
 	flags.StringVar(&shared.dir, "C", ".", "directory holding viva.toml and the Go module")
 	flags.StringVar(&shared.dir, "dir", ".", "same as -C")
-	flags.StringVar(&shared.target, "target", defaultTarget, "darwin, windows, linux, web, ios-sim (the simulator) or ios (devices)")
+	flags.StringVar(&shared.target, "target", defaultTarget, "darwin, windows, linux, web, ios-sim (the simulator), ios (devices) or android")
 	flags.StringVar(&shared.arch, "arch", runtime.GOARCH, "arm64 or amd64 (not used by web)")
 	flags.StringVar(&shared.tags, "tags", "", "comma-separated build tags, added to [build] tags")
 	flags.BoolVar(&shared.debug, "debug", false, "keep symbols and debug information (not the release size)")
@@ -197,6 +206,11 @@ func newPlan(shared buildFlags, packageArgument string) (buildPlan, error) {
 	}
 	if shared.target == "ios-sim" || shared.target == "ios" {
 		if err := checkIOS(shared); err != nil {
+			return buildPlan{}, err
+		}
+	}
+	if shared.target == "android" {
+		if err := checkAndroid(shared); err != nil {
 			return buildPlan{}, err
 		}
 	}
@@ -281,6 +295,24 @@ func (plan *buildPlan) outputPath(requested string) error {
 			return err
 		}
 		plan.out = filepath.Join(plan.manifest.Path(plan.manifest.Build.Out), "web")
+	case plan.isAndroid():
+		name += "-android"
+		if plan.arch != "arm64" {
+			name += "-" + plan.arch
+		}
+		name += ".apk"
+		if requested != "" {
+			absolute, err := filepath.Abs(requested)
+			if err != nil {
+				return err
+			}
+			if info, statErr := os.Stat(absolute); statErr == nil && info.IsDir() {
+				absolute = filepath.Join(absolute, name)
+			}
+			plan.out = absolute
+		} else {
+			plan.out = filepath.Join(plan.manifest.Path(plan.manifest.Build.Out), name)
+		}
 	case plan.isIOS():
 		name += "-" + plan.target + ".app"
 		if requested != "" {
@@ -381,6 +413,9 @@ func printBuildDetails(output io.Writer, plan buildPlan, size int64) {
 	target := goos + "/" + goarch
 	if plan.isIOS() {
 		target += " (iOS " + iosMinSystem + " or later)"
+	}
+	if plan.isAndroid() {
+		target += fmt.Sprintf(" (Android 8.0, API %d, or later)", androidMinSDK)
 	}
 	if plan.target == "darwin" {
 		target += " (macOS " + plan.manifest.Mac.MinSystem + " or later)"

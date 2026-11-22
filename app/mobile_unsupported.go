@@ -1,4 +1,4 @@
-//go:build ios
+//go:build ios || android
 
 package app
 
@@ -9,15 +9,14 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-// Until the iOS backend provides them (ADR 0095), the platform's native hooks
-// report that the system does not offer them: what a window and a UIKit host
-// give, such as the clipboard, the cursor, dialogs and notifications, is added
-// here one by one, and each moves out of this file as it lands.
+// Until the iOS and Android backends provide them (ADR 0095), the platforms' native
+// hooks report that the system does not offer them: what a window and a host give,
+// such as the clipboard, the cursor, dialogs and notifications, is added one by
+// one, and each moves out of this file into the platform's own as it lands.
 
 func currentPlatform() Platform { return PlatformUnknown }
 
 func nativeReduceMotion() bool                                 { return false }
-func nativeTextEngine() gfx.TextEngine                         { return nil }
 func nativePreferredLanguages() []string                       { return languagesFromEnvironment(os.Getenv) }
 func nativeClipboardText() (string, error)                     { return "", ErrUnsupported }
 func nativeSetClipboardText(string) error                      { return ErrUnsupported }
@@ -59,14 +58,11 @@ func nativeStartFileDrag([]string, FileDragEffect) (FileDragEffect, error) {
 	return FileDragNone, ErrUnsupported
 }
 
-func nativeFileIcon(string, int) ([]byte, error)                          { return nil, ErrUnsupported }
 func nativeRegisterGlobalShortcut(GlobalShortcut, func()) (func(), error) { return nil, ErrUnsupported }
 func nativePreventSleep(string) (func(), error)                           { return nil, ErrSleepPreventionUnavailable }
 func nativeSchemeHandlerAvailable(string) (bool, error)                   { return false, ErrUnsupported }
 func nativeOpenInBrowser(string) error                                    { return fmt.Errorf("%w: OpenPathInBrowser", ErrUnsupported) }
 func nativeOpenWith(_, _ string) error                                    { return fmt.Errorf("%w: OpenWith", ErrUnsupported) }
-
-func setReopenHandler(*Config, *Window) {}
 
 // No window buttons: the system owns the window.
 const controlsDrawnByViva = false

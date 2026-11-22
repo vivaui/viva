@@ -249,17 +249,17 @@ func runRun(arguments []string, output, errorOutput io.Writer) error {
 	c, _ := findCommand("run")
 	flags := flag.NewFlagSet("run", flag.ContinueOnError)
 	var shared buildFlags
-	shared.register(flags, "ios-sim")
+	shared.register(flags, "")
 	var device string
 	open := true
-	flags.StringVar(&device, "device", "", "simulator name or identifier (default: a booted iPhone, else the newest one installed)")
+	flags.StringVar(&device, "device", "", "ios-sim: the simulator's name or identifier (default: a booted iPhone, else the newest one installed); android: the device's adb serial (default: the one that is ready)")
 	flags.BoolVar(&open, "open", true, "show the Simulator window")
 	positional, helped, err := parseFlags(c, flags, arguments, output)
 	if helped || err != nil {
 		return err
 	}
-	if shared.target != "ios-sim" {
-		return fmt.Errorf("run starts an application in the iOS simulator (--target ios-sim); got %q. Use viva dev for the desktop", shared.target)
+	if shared.target != "ios-sim" && shared.target != "android" {
+		return fmt.Errorf("run starts an application on a phone: give --target ios-sim or --target android (got %q). Use viva dev for the desktop", shared.target)
 	}
 	if len(positional) > 1 {
 		return errors.New("run takes at most one package; run 'viva help run'")
@@ -277,6 +277,9 @@ func runRun(arguments []string, output, errorOutput io.Writer) error {
 	}
 	if err := plan.run(plan.out, errorOutput); err != nil {
 		return err
+	}
+	if plan.isAndroid() {
+		return runOnAndroid(plan, device, output)
 	}
 	listing, err := simctl(errorOutput, "list", "devices", "available", "-j")
 	if err != nil {

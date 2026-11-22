@@ -32,16 +32,19 @@ func commands() []command {
 				"provide the target C compiler and link flags, and check the resulting system dependencies.\n" +
 				"Windows release builds use the GUI subsystem; with --debug they keep the console. --target ios-sim writes\n" +
 				"an .app for the iOS simulator (macOS with Xcode; the Metal and UIKit bridge is built with cgo against\n" +
-				"the SDK); viva run builds, installs and starts it.",
+				"the SDK); viva run builds, installs and starts it. --target android writes an .apk (the program as a\n" +
+				"shared library, built with the NDK's compiler, around the host's Activity, put together with the Android\n" +
+				"SDK's tools and the JDK, with no Gradle), signed with the debug key.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)
 			}},
 		{name: "run", usage: "run [flags] [package]",
-			summary: "Build the application and start it in the iOS simulator.",
-			detail: "Builds an .app for the simulator (--target ios-sim, the only target run takes), boots a simulator if none\n" +
-				"is running, installs the app and starts it. --device names the simulator or gives its identifier; without\n" +
-				"it, an iPhone already booted is used, else the newest iPhone the machine has. The Simulator window is\n" +
-				"shown unless -open=false. It needs macOS with Xcode. For the desktop, use viva dev.",
+			summary: "Build the application and start it in the iOS simulator or on an Android device.",
+			detail: "--target ios-sim builds an .app for the simulator, boots a simulator if none is running, installs the app and\n" +
+				"starts it. --device names the simulator or gives its identifier; without it, an iPhone already booted is used,\n" +
+				"else the newest iPhone the machine has. The Simulator window is shown unless -open=false. It needs macOS with\n" +
+				"Xcode. --target android builds an .apk, installs it with adb on the device that is ready (--device gives its\n" +
+				"serial; a phone before an emulator) and starts it. For the desktop, use viva dev.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runRun(arguments, output, errorOutput)
 			}},

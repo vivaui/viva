@@ -1,4 +1,4 @@
-//go:build !linux && (!darwin || ios) && !windows
+//go:build (!linux || android) && (!darwin || ios) && !windows
 
 package filewatch
 
