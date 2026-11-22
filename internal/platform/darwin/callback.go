@@ -1055,7 +1055,6 @@ func deliverTextInputEvent(state *runState, view unsafe.Pointer, event TextEvent
 }
 
 func utf16Range(value string, start, length int) text.Range {
-	editor := text.NewEditor(value)
 	if start < 0 {
 		start = 0
 	}
@@ -1063,17 +1062,16 @@ func utf16Range(value string, start, length int) text.Range {
 		length = 0
 	}
 	return text.Range{
-		Start: editor.UTF16ToRuneIndex(start),
-		End:   editor.UTF16ToRuneIndex(start + length),
+		Start: text.RuneIndexAtUTF16(value, start),
+		End:   text.RuneIndexAtUTF16(value, start+length),
 	}
 }
 
 func updateText(view unsafe.Pointer, state TextState, endsComposition, render bool) error {
-	editor := text.NewEditor(state.Value)
-	selectedStart := editor.RuneIndexToUTF16(state.Selection.Start)
-	selectedEnd := editor.RuneIndexToUTF16(state.Selection.End)
-	markedStart := editor.RuneIndexToUTF16(state.Composition.Start)
-	markedEnd := editor.RuneIndexToUTF16(state.Composition.End)
+	selectedStart := text.UTF16Offset(state.Value, state.Selection.Start)
+	selectedEnd := text.UTF16Offset(state.Value, state.Selection.End)
+	markedStart := text.UTF16Offset(state.Value, state.Composition.Start)
+	markedEnd := text.UTF16Offset(state.Value, state.Composition.End)
 
 	var data *C.uchar
 	if state.Value != "" {
