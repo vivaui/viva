@@ -87,7 +87,7 @@ func TestWindowButtonsSitAtTheTrailingEndOfTheStripAndAreAsTallAsIt(t *testing.T
 			t.Fatalf("%s is on layer %d, want the top one", want.name, hit.Layer)
 		}
 	}
-	if leading, trailing := TitlebarInsets(); trailing != 0 && trailing != 3*WindowControlWidth || leading != 0 && leading != 70 {
+	if leading, trailing := fixture.canvas.TitlebarInsets(); trailing != 0 && trailing != 3*WindowControlWidth || leading != 0 && leading != 70 {
 		t.Fatalf("insets = %v, %v", leading, trailing)
 	}
 }

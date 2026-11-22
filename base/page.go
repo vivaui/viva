@@ -121,6 +121,11 @@ func (c *Ctx) Theme() *Theme { return &c.f.Palette }
 // Bounds is the rectangle the page is laid out in, as the window gave it.
 func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
 
+// TitlebarInsets is how much of the titlebar strip the window buttons cover, at
+// its leading and trailing ends: zero for a system titlebar and in full screen.
+// A page that draws a WindowCustomTitlebar keeps its strip's content clear of it.
+func (c *Ctx) TitlebarInsets() (leading, trailing float32) { return c.f.Surface.TitlebarInsets() }
+
 // Canvas is the page's canvas, for measuring text or components before declaring
 // them and for reading pointer/focus state. Declare elements through C and paint
 // through Draw; do not paint from here.

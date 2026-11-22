@@ -23,9 +23,12 @@ import (
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
 	fullscreen bool
-	paint      func(canvas *gfx.Canvas, size gfx.Size)
-	onPointer  func(gfx.PointerEvent) gfx.EventResult
-	onKey      func(gfx.KeyEvent) gfx.EventResult
+	// customTitlebar says the page draws the window's titlebar strip itself
+	// (WindowCustomTitlebar), so the window buttons cover part of it.
+	customTitlebar bool
+	paint          func(canvas *gfx.Canvas, size gfx.Size)
+	onPointer      func(gfx.PointerEvent) gfx.EventResult
+	onKey          func(gfx.KeyEvent) gfx.EventResult
 	// onDeactivate is the application's, called after a window loses the
 	// activation and the keys that were down are released.
 	onDeactivate func() gfx.EventResult
@@ -179,7 +182,8 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		}
 		return value
 	}
-	if config.WindowMode == WindowCustomTitlebar && controlsDrawnByViva {
+	painter.customTitlebar = config.WindowMode == WindowCustomTitlebar
+	if painter.customTitlebar && controlsDrawnByViva {
 		painter.controls = newWindowControls(config)
 	}
 	if _, err := painter.publish(); err != nil {
@@ -916,6 +920,16 @@ func (painter *painter) repaintAfterInput() (platform.Frame, error) {
 	return painter.repaint()
 }
 
+// titlebarInsets is how much of the titlebar strip the page draws the window
+// buttons cover now: none for a window whose titlebar is the system's, and none
+// in full screen, where the buttons are not shown on the strip.
+func (painter *painter) titlebarInsets() (leading, trailing float32) {
+	if !painter.customTitlebar || painter.fullscreen {
+		return 0, 0
+	}
+	return platformTitlebarInsets()
+}
+
 // maxFocusPasses bounds the paints settleFocus adds to one frame: a page whose
 // every paint moves the focus somewhere new shows the last move.
 const maxFocusPasses = 2
@@ -967,6 +981,7 @@ func (painter *painter) paintCanvas() {
 	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
 	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetPointerOnSurface(painter.onSurface)
+	painter.canvas.SetTitlebarInsets(painter.titlebarInsets())
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)
