@@ -206,6 +206,11 @@ func detach(mount, device string) error {
 		return err
 	}
 	if !mounted {
+		// The volume is already unmounted (by the system, say) but the image is still
+		// attached, and the disk image service holds the file until the disk goes:
+		// detach it anyway. Failing here is no news when it was already gone, and
+		// released reports an image that is still attached.
+		_ = hdiutil("detach", device)
 		return nil
 	}
 	for attempt := 0; attempt < 5; attempt++ {
