@@ -35,3 +35,15 @@ func vivaTouchEvent(handle C.uintptr_t, view unsafe.Pointer, kind C.int, id C.in
 		PointerID: int32(id),
 	})
 }
+
+// vivaIOSSafeArea is how far the system covers each edge of the window's view, in points.
+// The resize that follows carries it to the application.
+//
+//export vivaIOSSafeArea
+func vivaIOSSafeArea(handle C.uintptr_t, view unsafe.Pointer, top, left, bottom, right C.double) {
+	state, ok := runStateFor(handle)
+	if !ok {
+		return
+	}
+	state.safeArea = gfx.Insets{Top: float32(top), Left: float32(left), Bottom: float32(bottom), Right: float32(right)}
+}

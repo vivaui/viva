@@ -187,6 +187,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnFrameChange:     frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:        minimizeHandler(normalized.OnMinimize),
 		OnVisibility:      gate.handler(),
+		OnLifecycle:       lifecycleHandler(normalized.OnLifecycle),
 		OnMaximize:        maximizeHandler(normalized.OnMaximize),
 		OnFullscreen:      painter.fullscreenHandler(normalized.OnFullscreen),
 		OnReopen:          normalized.onReopen,
@@ -259,4 +260,12 @@ func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, *p
 	frames = timer
 	stopWatchingDesktop := watchDesktopSettings(canvas, native.Waker)
 	return native, painter, func() { stopWatchingDesktop(); cleanup() }, nil
+}
+
+// lifecycleHandler is the application's OnLifecycle as the platform's, or nil without one.
+func lifecycleHandler(handler func(LifecycleEvent)) func(platform.Lifecycle) {
+	if handler == nil {
+		return nil
+	}
+	return func(event platform.Lifecycle) { handler(LifecycleEvent(event)) }
 }
