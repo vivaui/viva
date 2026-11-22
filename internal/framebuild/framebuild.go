@@ -69,6 +69,7 @@ type Builder struct {
 	// back among the shapes.
 	clippedTextBefores  []uint32
 	clippedImageBefores []uint32
+	tails               struct{ labels, lastTexts, lastImages, clippedTexts, clippedImages int }
 }
 
 // New returns a builder for the canvas's current primitives.
@@ -171,6 +172,13 @@ func (builder *Builder) Trim() {
 		// replacements are stale retention.
 		builder.cellReplace = builder.cellReplace[:0]
 	}
+	// Lists refilled from zero keep what an earlier frame put past their length:
+	// pictures and label strings of a page that shrank. Clear that first.
+	ReleaseTail(builder.labels, &builder.tails.labels)
+	ReleaseTail(builder.lastTexts, &builder.tails.lastTexts)
+	ReleaseTail(builder.lastImages, &builder.tails.lastImages)
+	ReleaseTail(builder.clippedTexts, &builder.tails.clippedTexts)
+	ReleaseTail(builder.clippedImages, &builder.tails.clippedImages)
 	builder.shapeIDs = TrimCapacity(builder.shapeIDs)
 	builder.labels = TrimCapacity(builder.labels)
 	builder.lastTexts = TrimCapacity(builder.lastTexts)
@@ -191,6 +199,17 @@ func (builder *Builder) Trim() {
 	builder.lastTextBefores = TrimCapacity(builder.lastTextBefores)
 	builder.lastImageBefores = TrimCapacity(builder.lastImageBefores)
 	builder.changes = TrimCapacity(builder.changes)
+}
+
+// ReleaseTail clears items[len(items):*end], what an earlier frame held past this
+// one's length, and records this length for the next call. Everything past it was
+// cleared before, so the cost is what the list shrank by, not its capacity: call
+// it once a frame on a list that is refilled from zero and holds pointers.
+func ReleaseTail[T any](items []T, end *int) {
+	if *end > len(items) && *end <= cap(items) {
+		clear(items[len(items):*end])
+	}
+	*end = len(items)
 }
 
 // TrimCapacity gives back a slice's backing array when it is far larger than

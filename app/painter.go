@@ -67,11 +67,13 @@ type painter struct {
 	// accessibility is the payload the platform last received: each sync
 	// rewrites only the entries that changed, and publishes it when one did.
 	accessibility []platform.AccessibilityNode
-	reusedHits    int                   // publishes that kept the previous regions and semantics
-	views         []platform.NativeView // the native views of this publish
-	lastViews     []platform.NativeView // the ones last sent
-	covers        []gfx.Rect            // backing of the views' Covers
-	hitScratch    []gfx.Hit
+	// tails are the lengths of the hit lists at the last trim; see ReleaseTail.
+	tails      struct{ hitScratch, publishedHits, accessibility int }
+	reusedHits int                   // publishes that kept the previous regions and semantics
+	views      []platform.NativeView // the native views of this publish
+	lastViews  []platform.NativeView // the ones last sent
+	covers     []gfx.Rect            // backing of the views' Covers
+	hitScratch []gfx.Hit
 	// publishedHits is the hit list the regions and the semantic tree were last
 	// built from. Comparing it byte for byte (the strings keep the previous
 	// allocations alive, so equal pointers mean equal bytes) lets a repaint that
@@ -1074,6 +1076,9 @@ func (painter *painter) trim() {
 	painter.frame.Trim()
 	painter.canvas.Trim()
 	painter.focus.Trim()
+	framebuild.ReleaseTail(painter.hitScratch, &painter.tails.hitScratch)
+	framebuild.ReleaseTail(painter.publishedHits, &painter.tails.publishedHits)
+	framebuild.ReleaseTail(painter.accessibility, &painter.tails.accessibility)
 	painter.hitScratch = framebuild.TrimCapacity(painter.hitScratch)
 	painter.publishedHits = framebuild.TrimCapacity(painter.publishedHits)
 	painter.semanticDirty = framebuild.TrimCapacity(painter.semanticDirty)
