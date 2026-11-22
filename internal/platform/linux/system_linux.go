@@ -348,7 +348,6 @@ func openSelectionRequest(name string) (api *xcbAPI, connection uintptr, request
 func closeClipboardRequest(api *xcbAPI, connection uintptr, requestor uint32) {
 	api.destroyWindow(connection, requestor)
 	api.disconnect(connection)
-	api.close()
 }
 
 // readSelectionBytes asks the selection owner to convert to target and returns
@@ -990,7 +989,6 @@ func openSystemConnection() (*xcbAPI, uintptr, *xcbScreen, error) {
 		if connection != 0 {
 			api.disconnect(connection)
 		}
-		api.close()
 		return nil, 0, nil, fmt.Errorf("linux: connect to X server")
 	}
 	iterator := api.rootsIterator(api.getSetup(connection))
@@ -999,7 +997,6 @@ func openSystemConnection() (*xcbAPI, uintptr, *xcbScreen, error) {
 	}
 	if iterator.Data == nil || iterator.Remaining == 0 {
 		api.disconnect(connection)
-		api.close()
 		return nil, 0, nil, fmt.Errorf("linux: X server has no screen")
 	}
 	return api, connection, iterator.Data, nil
