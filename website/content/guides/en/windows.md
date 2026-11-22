@@ -23,7 +23,7 @@ Every window has its own canvas, paint callback, focus, input state and close ha
 | `WindowPanel` | A transient popup with no chrome, above other windows, meant to open beside a status icon. |
 | `WindowNotification` | A desktop popup that accepts pointer input without taking keyboard focus, meant for the outcome of background work. On Wayland the compositor decides its placement, stacking and focus. |
 
-With a custom title bar the window buttons are the system's on macOS and are drawn by Viva on Windows and Linux. Either way they cover part of the strip, so ask `app.TitlebarInsets` how much and keep your own content clear of it. `Config.TitlebarHeight` sets the strip's height (where Viva puts its buttons and the traffic lights); the window moves from the row you mark `MovesWindow`, controls inside it keep their own clicks, and a menu or dialog open over it is dismissed by a click there, with the window moving once the pointer drags. `Config.WindowControls` styles the buttons Viva draws so they follow your theme.
+With a custom title bar the window buttons are the system's on macOS and are drawn by Viva on Windows and Linux. Either way they cover part of the strip, so ask `c.TitlebarInsets()` how much and keep your own content clear of it. `Config.TitlebarHeight` sets the strip's height (where Viva puts its buttons and the traffic lights); the window moves from the row you mark `MovesWindow`, controls inside it keep their own clicks, and a menu or dialog open over it is dismissed by a click there, with the window moving once the pointer drags. `Config.WindowControls` styles the buttons Viva draws so they follow your theme.
 
 ## Fullscreen
 
@@ -79,7 +79,7 @@ Hosts without the capability return an error wrapping `app.ErrUnsupported`.
 
 ## A complete example
 
-The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `ui.Row` padded by `app.TitlebarInsets`, so the title never runs under the window buttons, and the confirmation is a `ui.ModalWith` declared only while a close is pending:
+The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `ui.Row` padded by `c.TitlebarInsets()`, so the title never runs under the window buttons, and the confirmation is a `ui.ModalWith` declared only while a close is pending:
 
 <!-- example: windows/main.go -->
 ```go
