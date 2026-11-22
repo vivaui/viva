@@ -351,12 +351,18 @@ type xcbAPI struct {
 	free                      func(unsafe.Pointer)
 }
 
-// loadXCB is the process's libxcb and libc function table: loaded the first
-// time a window, the clipboard or a desktop setting needs it and kept for the
-// life of the process, as the Pango services are. A failure is kept too.
+// loadXCB gives a copy of the process's libxcb and libc function table: the
+// libraries are opened and bound the first time a window, the clipboard or a
+// desktop setting needs them and kept for the life of the process, as the Pango
+// services are; a failure is kept too. Each caller owns its copy, so one window's
+// table can be wrapped (as tests do) without reaching another's.
 func loadXCB() (*xcbAPI, error) {
 	xcbOnce.Do(func() { xcbShared, xcbErr = openXCB() })
-	return xcbShared, xcbErr
+	if xcbErr != nil {
+		return nil, xcbErr
+	}
+	api := *xcbShared
+	return &api, nil
 }
 
 var (
