@@ -137,6 +137,12 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
+	// The list enters and leaves as a select's does: faded and slid from the
+	// trigger's side, its last frame kept while it leaves.
+	side := popupSideOf(layout.Popup, bounds)
+	canvas.BeginPresence(overlayKey(o.TriggerID, o.DismissID, o.Scope), overlaySurfacePart,
+		popupPresence(theme, overlayDuration, side), popupPivot(layout.Popup, side, bounds))
+	defer canvas.EndPresence()
 	canvas.Container(layout.Popup, gfx.RoleListBox, o.Label)
 	paintPopupSurface(canvas, &theme, layout.Popup, gfx.ShadowMD)
 	s.ScrollArea().BarID = o.ScrollID
