@@ -4,6 +4,7 @@ package web
 
 import (
 	"math"
+	"time"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
@@ -17,6 +18,10 @@ import (
 // painter coordinates the immediate canvas vocabulary with the shared input
 // router, mirroring the native app painter without any platform coupling.
 type painter struct {
+	// touch reads a finger's presses, pans and flings (touch.go), and
+	// scheduleFrame asks the runtime for a frame after a delay.
+	touch         touchState
+	scheduleFrame func(time.Duration)
 	config        *Config
 	canvas        *gfx.Canvas
 	focus         interaction.Focus
@@ -375,6 +380,18 @@ type droppedFile struct{ platform.FileRef }
 // events leave the default canvas offset untouched; an unused gesture can be
 // forwarded to an embedding page.
 func (p *painter) wheel(event gfx.ScrollEvent) (handled, changed bool) {
+	p.touch.StopFling() // a wheel or a touchpad takes over from a fling
+	handled, changed = p.scrollBy(event)
+	if changed {
+		p.repaint()
+	}
+	return handled, changed
+}
+
+// scrollBy gives a scroll to the application, or scrolls the page itself when
+// the application leaves it, and reports whether it was taken and whether
+// anything changed that needs a repaint.
+func (p *painter) scrollBy(event gfx.ScrollEvent) (handled, changed bool) {
 	p.tap.Cancel()
 	if event.DeltaX == 0 && event.DeltaY == 0 {
 		return false, false
@@ -399,9 +416,6 @@ func (p *painter) wheel(event gfx.ScrollEvent) (handled, changed bool) {
 		moved = p.scrollX != beforeX || p.scrollY != beforeY
 	}
 	changed = moved || focusChanged || response.Repaint
-	if changed {
-		p.repaint()
-	}
 	return response.Handled || response.Repaint || focusChanged, changed
 }
 
@@ -479,6 +493,7 @@ func (p *painter) deliverPointer(event gfx.PointerEvent) bool {
 // focus while the router syncs, so the frame is painted a second time to show
 // the new focus rather than lag behind it.
 func (p *painter) repaint() {
+	p.advanceTouch()
 	for pass := 0; ; pass++ {
 		p.paint()
 		before := p.focus.Focused()
@@ -644,6 +659,15 @@ func roundPresenceRect(rect gfx.Rect) gfx.Rect {
 // state changed. A nonzero press target captures move and up delivery until the
 // press ends, while hover continues to track the actual hit target.
 func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
+	if event.Device == gfx.PointerTouch {
+		return p.touchEvent(event)
+	}
+	return p.pointerInput(event)
+}
+
+// pointerInput is pointerEvent for a press read as it comes: a mouse's or a
+// pen's, or a finger's once touchEvent decided it is a press.
+func (p *painter) pointerInput(event gfx.PointerEvent) bool {
 	if event.Kind == gfx.PointerDown {
 		p.tap.Cancel()
 	}
@@ -704,10 +728,18 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 // release will follow, so the press ends here and the application is told the
 // pointer is gone.
 func (p *painter) pointerCancel(event gfx.PointerEvent) bool {
+	if event.Device == gfx.PointerTouch {
+		return p.carryTouch(p.touch.Cancel())
+	}
+	return p.endPress(event)
+}
+
+// endPress ends a press whose release will not come.
+func (p *painter) endPress(event gfx.PointerEvent) bool {
 	p.pointerOutside = false
 	p.pointer.Up()
 	event.Kind = gfx.PointerExit
-	return p.pointerEvent(event)
+	return p.pointerInput(event)
 }
 
 // pointerStep is one pass of a pointer event through hit testing, the press

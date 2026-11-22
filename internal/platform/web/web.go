@@ -227,6 +227,7 @@ func (runtime *runtime) mount() {
 	})
 	runtime.metrics = newTextMetrics(runtime.measurer)
 	runtime.painter = newPainter(runtime.canvas, &runtime.config)
+	runtime.painter.scheduleFrame = runtime.scheduleFrame
 	runtime.a11y.setActions(
 		func(id gfx.ID) {
 			// The painter repaints its own canvas; the runtime still has to
@@ -896,7 +897,16 @@ func pointerEvent(kind gfx.PointerEventKind, event js.Value) gfx.PointerEvent {
 	if kind == gfx.PointerDown || kind == gfx.PointerUp {
 		clicks = max(event.Get("detail").Int(), 1)
 	}
+	device := gfx.PointerMouse
+	switch event.Get("pointerType").String() {
+	case "touch":
+		device = gfx.PointerTouch
+	case "pen":
+		device = gfx.PointerPen
+	}
 	return gfx.PointerEvent{
+		Device:     device,
+		PointerID:  int32(event.Get("pointerId").Int()),
 		Kind:       kind,
 		Button:     button,
 		Modifiers:  webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool()),

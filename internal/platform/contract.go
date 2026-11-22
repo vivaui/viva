@@ -492,6 +492,10 @@ type PointerEvent struct {
 	// ClickCount is the number of consecutive presses this Down or Up belongs
 	// to (2 for a double click). Move and Exit events leave it 0.
 	ClickCount int
+	// Device is what the event comes from (gfx.PointerDevice), and PointerID
+	// tells apart the fingers or pens touching at once.
+	Device    gfx.PointerDevice
+	PointerID int32
 }
 
 // Size is a window client size in logical pixels.
