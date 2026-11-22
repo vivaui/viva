@@ -18,31 +18,51 @@ import (
 )
 
 // linuxRuntimeDepends are the libraries a Viva program opens at run time with
-// dlopen and cannot start without: Vulkan, XCB, Cairo, and the Pango/fontconfig
-// stack text rendering needs. Nothing in the executable's headers names them, so
-// a .deb has to say so itself. Libraries the backend loads with a fallback (the
-// optional XCB extensions and PangoFT2) stay out: requiring them would refuse an
-// install on a distribution that keeps a provider out of its enabled repos.
+// dlopen and cannot start without: XCB, Cairo, and the Pango/fontconfig stack
+// text rendering needs. Nothing in the executable's headers names them, so a
+// .deb has to say so itself. Libraries the backend loads with a fallback (the
+// optional XCB extensions, PangoFT2 and the GPU driver) stay out: requiring
+// them would refuse an install on a distribution that keeps a provider out of
+// its enabled repos, or on a machine that draws on the CPU.
 var linuxRuntimeDepends = []string{
-	"libvulkan1", "libxcb1", "libcairo2",
+	"libxcb1", "libcairo2",
 	"libfontconfig1", "libpango-1.0-0", "libpangocairo-1.0-0", "libglib2.0-0",
 }
 
+// linuxRuntimeRecommends are the optional capabilities an install gets by
+// default: pointers that follow the desktop's cursor theme and size through
+// libxcb-cursor, and GPU acceleration through the Vulkan loader. Both have a
+// fallback — the X cursor font's fixed glyph and the CPU renderer — so neither
+// is required to start, but without the cursor library a HiDPI desktop shows a
+// pointer many times smaller than its own.
+var linuxRuntimeRecommends = []string{"libxcb-cursor0", "libvulkan1"}
+
 // linuxArchRuntimeDepends are the same libraries under Arch's names.
 var linuxArchRuntimeDepends = []string{
-	"vulkan-icd-loader", "libxcb", "cairo", "fontconfig", "pango", "glib2",
+	"libxcb", "cairo", "fontconfig", "pango", "glib2",
+}
+
+// linuxArchRuntimeRecommends are the optional packages under Arch's names. Arch's
+// optdepends carry their reason, which pacman shows.
+var linuxArchRuntimeRecommends = []string{
+	"libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph",
+	"vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU",
 }
 
 // linuxRPMRuntimeDepends names the shared-library capabilities that RPM's library
 // packages provide for the same set. Distribution package names differ; both
 // supported targets are 64-bit. These dlopen libraries are invisible to normal ELF
-// dependency scanning. GTK, IME, WebKit and the fallback-loaded XCB extensions
-// remain optional and are not forced on every app.
+// dependency scanning. GTK, IME, WebKit, the fallback-loaded XCB extensions and
+// the GPU driver remain optional and are not forced on every app.
 var linuxRPMRuntimeDepends = []string{
-	"libvulkan.so.1()(64bit)", "libxcb.so.1()(64bit)", "libcairo.so.2()(64bit)",
+	"libxcb.so.1()(64bit)", "libcairo.so.2()(64bit)",
 	"libfontconfig.so.1()(64bit)", "libpango-1.0.so.0()(64bit)",
 	"libpangocairo-1.0.so.0()(64bit)", "libgobject-2.0.so.0()(64bit)",
 }
+
+// linuxRPMRuntimeRecommends are the optional capabilities RPM recommends: the
+// cursor theme library and the GPU loader.
+var linuxRPMRuntimeRecommends = []string{"libxcb-cursor.so.0()(64bit)", "libvulkan.so.1()(64bit)"}
 
 // linuxApplication describes the application for the Debian and RPM packages:
 // both install the same files, so they share one description.
@@ -168,6 +188,7 @@ func packageLinux(request packageRequest) error {
 	if request.wants("deb") {
 		spec := linuxApplication(plan, program, category, icons)
 		spec.Depends = debDepends(loaded.Linux.Depends)
+		spec.Recommends = debRecommends(loaded.Linux.Depends)
 		if debName, err = spec.FileName(); err != nil {
 			return err
 		}
@@ -176,7 +197,11 @@ func packageLinux(request packageRequest) error {
 		}
 	}
 	if request.wants("rpm") {
-		spec := rpmpkg.Package{App: linuxApplication(plan, program, category, icons), Requires: linuxRPMRuntimeDepends}
+		spec := rpmpkg.Package{
+			App:        linuxApplication(plan, program, category, icons),
+			Requires:   linuxRPMRuntimeDepends,
+			Recommends: linuxRPMRuntimeRecommends,
+		}
 		rpmName, err := spec.FileName()
 		if err != nil {
 			return err
@@ -193,7 +218,8 @@ func packageLinux(request packageRequest) error {
 		spec := pkgbuild.Package{
 			Executable: plan.executable, ID: loaded.App.ID, Name: loaded.App.Name, Version: loaded.App.Version, Arch: plan.arch,
 			Maintainer: maintainer, Homepage: loaded.Linux.Homepage, Comment: loaded.Linux.Comment,
-			Depends: archDepends(loaded.Linux.ArchDepends), Archive: tarballName, SHA256: tarballHash,
+			Depends: archDepends(loaded.Linux.ArchDepends), OptDepends: archOptDepends(loaded.Linux.ArchDepends),
+			Archive: tarballName, SHA256: tarballHash,
 			SourceURL: request.pkgbuildURL, IconPixels: largest.Pixels,
 		}
 		text, err := spec.PKGBUILD()
@@ -250,11 +276,10 @@ func packageLinux(request packageRequest) error {
 	return nil
 }
 
-// debDepends puts the libraries the program opens at run time before the
-// application's own dependencies, skipping any the manifest names itself.
-func debDepends(own []string) []string {
-	depends := make([]string, 0, len(linuxRuntimeDepends)+len(own))
-	for _, library := range linuxRuntimeDepends {
+// debLibraries returns the libraries the manifest does not name itself.
+func debLibraries(libraries, own []string) []string {
+	found := make([]string, 0, len(libraries))
+	for _, library := range libraries {
 		named := false
 		for _, dependency := range own {
 			if strings.Fields(dependency)[0] == library {
@@ -262,10 +287,22 @@ func debDepends(own []string) []string {
 			}
 		}
 		if !named {
-			depends = append(depends, library)
+			found = append(found, library)
 		}
 	}
-	return append(depends, own...)
+	return found
+}
+
+// debDepends puts the libraries the program opens at run time before the
+// application's own dependencies, skipping any the manifest names itself.
+func debDepends(own []string) []string {
+	return append(debLibraries(linuxRuntimeDepends, own), own...)
+}
+
+// debRecommends names the packages that add capability without being required,
+// skipping any the manifest names as a dependency itself.
+func debRecommends(own []string) []string {
+	return debLibraries(linuxRuntimeRecommends, own)
 }
 
 // archDepends is debDepends for Arch, whose package names differ and whose
@@ -294,6 +331,31 @@ func archDepends(own []string) []string {
 		}
 	}
 	return depends
+}
+
+// archOptDepends is the optional half of archDepends: packages the manifest
+// does not name as a dependency itself. Arch writes a reason after a colon.
+func archOptDepends(own []string) []string {
+	optional := make([]string, 0, len(linuxArchRuntimeRecommends))
+	for _, library := range linuxArchRuntimeRecommends {
+		named := false
+		for _, dependency := range own {
+			if archDependencyName(dependency) == archOptDependencyName(library) {
+				named = true
+			}
+		}
+		if !named {
+			optional = append(optional, library)
+		}
+	}
+	return optional
+}
+
+// archOptDependencyName is an optdepends entry's package name, before the
+// description after its colon.
+func archOptDependencyName(dependency string) string {
+	name, _, _ := strings.Cut(dependency, ":")
+	return strings.TrimSpace(name)
 }
 
 // archDependencyName is the package name of an Arch dependency without its

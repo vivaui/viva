@@ -1,6 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
 
 // BadgeVariant selects one of the shadcn Vega badge treatments. Destructive is
 // Vega's: a danger-tinted pill with a danger label, not a solid red one.
@@ -72,4 +75,44 @@ func PaintBadge(canvas *gfx.Canvas, theme gfx.Theme, origin gfx.Rect, label stri
 		Size: theme.Metrics.FontSizeS, Weight: gfx.WeightMedium, Color: foreground,
 	})
 	return bounds
+}
+
+// BadgeRecipe resolves the look of a badge variant: the chip's fill, label,
+// line and pill radius. A badge is presentational, so hover, press, focus and
+// disabled do not change its treatment, as PaintBadge does not; a page that
+// wants those states gives the element a Hover, Pressed or Focus look itself.
+func BadgeRecipe(theme gfx.Theme, variant BadgeVariant, _ gfx.State) style.ButtonLook {
+	_, _, radius, _ := style.BadgeGeometry(theme.Metrics)
+	background, foreground := theme.Primary, theme.PrimaryForeground
+	border := gfx.Color{}
+	filled, bordered := true, false
+	switch variant {
+	case BadgeSecondary:
+		background, foreground = theme.Secondary, theme.SecondaryForeground
+	case BadgeDestructive:
+		background = withAlpha(theme.Danger, 0.10)
+		if isDark(&theme) {
+			background.Alpha = 0.20
+		}
+		foreground = theme.Danger
+	case BadgeOutline:
+		// The chip's fill is the page's own color at zero alpha: over an opaque
+		// page that flattens to the page, over a translucent one only the line
+		// stays, exactly as paintBordered does for the component.
+		background = theme.Background
+		background.Alpha = 0
+		foreground = theme.Foreground
+		border = theme.Border
+		bordered = true
+	case BadgeGhost:
+		filled = false
+		foreground = theme.Foreground
+	case BadgeLink:
+		filled = false
+		foreground = theme.Primary
+	}
+	return style.ButtonLook{
+		Background: background, Foreground: foreground, Border: border,
+		Filled: filled, Bordered: bordered, Radius: radius,
+	}
 }

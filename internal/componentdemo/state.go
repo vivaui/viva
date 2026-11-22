@@ -7,6 +7,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/buttongroup"
 )
 
 type Example struct {
@@ -14,12 +15,23 @@ type Example struct {
 	// Snippet is the call-site code shown beside the example on the
 	// documentation site. Empty means the page omits the usage block.
 	Snippet string
+	// PageSnippet, when set, is the example's page-first code: ui.* calls with
+	// this example's data and state. It takes the place of Snippet on the site.
+	PageSnippet string
+	// PageSnippetZh is the Chinese site's page-first code for the same example.
+	PageSnippetZh string
 	// Height is the preview height in pixels. Zero uses the page default.
 	Height int
 }
 
 type Component struct {
 	ID, Title, Category, Summary string
+	// PageUsage is the page-first call site shown above the examples, when this
+	// component has one. Empty means it is a canvas recipe, used inside
+	// ui.Control/Draw or copied by viva add.
+	PageUsage string
+	// PageSource is where PageUsage is implemented; empty keeps Source.
+	PageSource string
 	// Source is the Go file the example calls, relative to the repository root, when
 	// the control is not one of the components package: a page-layer control such as
 	// ui.List. Empty means components/<ID>.go, the component's own file.
@@ -69,6 +81,10 @@ func buildCatalog() []Component {
 			result[current], result[current-1] = result[current-1], result[current]
 		}
 	}
+	for i := range result {
+		result[i].PageUsage = pageUsage[result[i].ID]
+		result[i].PageSource = pageSource[result[i].ID]
+	}
 	return result
 }
 
@@ -82,6 +98,9 @@ func componentLess(left, right Component) bool {
 func Catalog() []Component { return catalog }
 
 type State struct {
+	// alertOpen is whether the alert dialog example is open: the bool a page
+	// gives ui.AlertDialog lives in the model, as an application's does.
+	alertOpen   bool
 	componentID string
 	exampleID   string
 	descriptor  *Component
@@ -103,18 +122,23 @@ type State struct {
 	fieldID      gfx.ID
 	editing      bool
 	// textarea keeps the rows and scroll of the Textarea example.
-	textarea    *components.TextareaLayout
-	codeEditor  *components.CodeEditor
-	codeDiff    *codeDiffDemoState
-	codeMerge   *codeMergeDemoState
-	reorder     *reorderDemoState
-	reorderGrid *reorderGridDemoState
-	imageBitmap *gfx.Bitmap
-	dialog      dialogState
-	slider      sliderDemoState
-	picker      *colorPickerDemoState
+	textarea     *components.TextareaLayout
+	codeEditor   *components.CodeEditor
+	codeDiff     *codeDiffDemoState
+	codeMerge    *codeMergeDemoState
+	reorder      *reorderDemoState
+	reorderGrid  *reorderGridDemoState
+	imageBitmap  *gfx.Bitmap
+	avatarEditor *avatarEditorDemoState
+	buttonGroup  *buttongroup.Group
+	dialog       dialogState
+	slider       sliderDemoState
+	picker       *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
+	// graph keeps the simulation, viewport and pointer bookkeeping of the
+	// graph examples.
+	graph *graphDemoState
 	// list is the page-layer List example: its rows, choice and page.
 	list *listDemo
 	// page keeps the memory and identities of the demo's Page (see drawPage).
@@ -282,12 +306,11 @@ func (state *State) pageFor(theme gfx.Theme) *ui.Page {
 // The Page is kept on the State: its Tree is the demos' own, its Root names the
 // demo's scope, and its Theme points at the State's field so a density or
 // appearance change reaches the next paint.
-func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, title string, content func(c ui.C)) {
+func (state *State) drawPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size, maxWidth float32, _ string, content func(c ui.C)) {
 	page := state.pageFor(theme)
 	page.Draw(canvas, gfx.Rect{Width: size.Width, Height: size.Height}, func(c ui.C) {
 		ui.Column(c).Fill().Pad(theme.Metrics.PadSurface).Items(ui.Center).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(maxWidth).Gap(theme.Metrics.GapItem).Children(func() {
-				ui.Text(c, title).FontSize(theme.Metrics.FontSizeM).Weight(gfx.WeightSemibold)
 				content(c)
 			})
 		})

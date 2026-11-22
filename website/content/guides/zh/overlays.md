@@ -41,11 +41,11 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, ui.PopoverSpec{Width: 180, Align: ui.Start}, &m.menuOpen, func() {
+		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if ui.Button(c, "Delete…").Ghost().Destructive().Clicked() {
+			if ui.Button(c, "Delete…").Ghost().Color(c.Theme().Danger).Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
@@ -65,7 +65,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -73,7 +73,7 @@ func main() {
 
 ## 弹出框
 
-`ui.Popover(c, anchor, &open, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`ui.PopoverWith` 接受 `ui.PopoverSpec`，可以指定方向、对齐和宽度。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
+`ui.Popover(c, anchor, &open, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`ui.PopoverWith` 接受 `ui.PopoverSpec`，可以指定方向、对齐、宽度、内容内边距、与窗口边缘保持的边距（未设置时为 8），以及 `Instant`：无入场动画地打开，适合随用户输入在光标下出现的列表。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
 
 在面板外按下或按 Escape 会把 `open` 设为 false。这次按下随后会传给指针下方的控件，与网页里的 popover 一致：一次点击另一个按钮，既关闭菜单，也按下那个按钮。在锚点上按下只会关闭面板，所以切换 `open` 的触发按钮不会在同一次点击里又把它打开。焦点回到面板打开前的位置。`Popover` 报告关闭它的那一遍绘制；必须保持打开的面板在那里把 `open` 改回 true。
 
@@ -93,7 +93,7 @@ func main() {
 
 ## 选择框及其他
 
-`ui.Select(c, &m.size, sizes, nil)` 是下拉列表：模型里放一个 `ui.SelectState` 和它自己的 scope，列表在触发器下方展开（放不下时在上方），画在所有东西之上；在对话框里它在对话框上方展开。工具提示和其他非模态面板是不声明关闭标识的弹出层，所以它们不困住焦点，也不吞掉外部点击。Combobox、命令面板、菜单栏和导航菜单遵循同样的图层、范围和关闭约定；[组件目录](/zh/ui/dialog/)为每一个都提供了可运行的示例，[API 参考](/zh/api/components/)列出了全部选项。
+`ui.Select(c, &m.size, sizes, nil)` 是下拉列表：模型里放一个 `ui.SelectState` 和它自己的 scope，列表在触发器下方展开（放不下时在上方），画在所有东西之上；在`.DisabledOptions(flags)` 接收调用方持有的 `[]bool`，下标与选项一一对应：为 true 的选项显示为暗淡，不响应点击和焦点，并被首字母跳转跳过；`.XSmall()` 给出更矮的触发器。对话框里它在对话框上方展开。工具提示和其他非模态面板是不声明关闭标识的弹出层，所以它们不困住焦点，也不吞掉外部点击。Combobox、命令面板、菜单栏和导航菜单遵循同样的图层、范围和关闭约定；[组件目录](/zh/ui/dialog/)为每一个都提供了可运行的示例，[API 参考](/zh/api/components/)列出了全部选项。
 
 ## 进场与退场
 

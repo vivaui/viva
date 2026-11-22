@@ -45,8 +45,8 @@ func snapshotGroupAPaint(canvas *gfx.Canvas) groupAPaintSnapshot {
 func TestGroupACatalogOrder(t *testing.T) {
 	want := []string{
 		"accordion", "alert", "alert-dialog", "aspect-ratio", "attachment",
-		"avatar", "breadcrumb", "bubble", "button-group", "calendar", "card",
-		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox",
+		"avatar", "avatar-editor", "breadcrumb", "bubble", "button-group", "calendar", "card",
+		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox", "graph",
 	}
 	if len(groupAComponents) != len(want) {
 		t.Fatalf("group A has %d components, want %d", len(groupAComponents), len(want))
@@ -146,33 +146,51 @@ func TestGroupAClicksChangeCallerState(t *testing.T) {
 	cases := []struct {
 		component, example string
 		target             gfx.ID
+		label              string
 		changed            func(*State) bool
 	}{
-		{"accordion", "default", accordionItem.At(1), func(s *State) bool { return s.flags == 3 }},
-		{"accordion", "disabled", accordionItem.At(1), func(s *State) bool { return s.flags == 1 }},
-		{"alert-dialog", "default", alertDialogAction, func(s *State) bool { return s.flags&alertDialogOpenFlag == 0 }},
-		{"alert-dialog", "media", alertDialogCancel, func(s *State) bool { return s.flags&alertDialogOpenFlag == 0 }},
-		{"attachment", "default", attachmentItem.At(0), func(s *State) bool { return s.values[0] == 1 }},
-		{"breadcrumb", "default", breadcrumbLink.At(0), func(s *State) bool { return s.values[0] == 1 }},
-		{"bubble", "conversation", bubbleReaction, func(s *State) bool { return s.flags == 1 }},
-		{"button-group", "horizontal", buttonGroupItem.At(2), func(s *State) bool { return s.values[0] == 2 }},
-		{"calendar", "month", calendarNext, func(s *State) bool { return s.values[0] == 1 }},
-		{"carousel", "horizontal", carouselNext, func(s *State) bool { return s.values[0] == 1 }},
-		{"carousel", "vertical", carouselNext, func(s *State) bool { return s.values[0] == 1 }},
-		{"collapsible", "default", collapsibleTrigger, func(s *State) bool { return s.flags == 0 }},
-		{"combobox", "default", comboboxOption.At(1), func(s *State) bool { return s.values[0] == 2 && s.flags&comboboxOpenFlag == 0 }},
-		{"combobox", "default", comboboxInput, func(s *State) bool { return s.flags&comboboxOpenFlag == 0 }},
+		{"accordion", "default", gfx.ID{}, "状态由谁持有？", func(s *State) bool { return s.flags == 3 }},
+		{"accordion", "disabled", gfx.ID{}, "状态由谁持有？", func(s *State) bool { return s.flags == 1 }},
+		{"alert-dialog", "default", alertDialogAction, "", func(s *State) bool { return !s.alertOpen }},
+		{"alert-dialog", "media", alertDialogCancel, "", func(s *State) bool { return !s.alertOpen }},
+		{"attachment", "default", attachmentItem.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
+		{"breadcrumb", "default", breadcrumbLink.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
+		{"bubble", "conversation", bubbleReaction, "", func(s *State) bool { return s.flags == 1 }},
+		{"button-group", "horizontal", buttonGroupItem.At(2), "", func(s *State) bool { return s.values[0] == 2 }},
+		{"calendar", "month", calendarNext, "", func(s *State) bool { return s.values[0] == 1 }},
+		{"carousel", "horizontal", carouselNext, "", func(s *State) bool { return s.values[0] == 1 }},
+		{"carousel", "vertical", carouselNext, "", func(s *State) bool { return s.values[0] == 1 }},
+		{"collapsible", "default", gfx.ID{}, "3 个构建产物", func(s *State) bool { return s.flags == 0 }},
 	}
 	for _, test := range cases {
 		t.Run(test.component+"/"+test.example, func(t *testing.T) {
 			state := newTestState(t, test.component, test.example)
 			var canvas gfx.Canvas
 			paintFrame(&canvas, state, testSize, time.Second, true)
-			findHit(t, &canvas, test.target)
-			click(&canvas, state, test.target)
+			target := test.target
+			if test.label != "" {
+				target = findHitByLabel(t, &canvas, test.label)
+			}
+			findHit(t, &canvas, target)
+			click(&canvas, state, target)
 			if !test.changed(state) {
-				t.Fatalf("clicking %v did not change the state: flags %b values %v", test.target, state.flags, state.values)
+				t.Fatalf("clicking %v did not change the state: flags %b values %v", target, state.flags, state.values)
 			}
 		})
 	}
+	// The page-first Combobox starts closed: opening the field and choosing an
+	// option are two clicks through the page's own identities.
+	t.Run("combobox/default", func(t *testing.T) {
+		state := newTestState(t, "combobox", "default")
+		var canvas gfx.Canvas
+		paintFrame(&canvas, state, testSize, time.Second, true)
+		field := findHitByLabel(t, &canvas, "框架")
+		click(&canvas, state, field)
+		paintFrame(&canvas, state, testSize, time.Second, true)
+		option := findHitByLabel(t, &canvas, "WebGPU")
+		click(&canvas, state, option)
+		if state.values[0] != 2 {
+			t.Fatalf("choosing WebGPU left values[0]=%d", state.values[0])
+		}
+	})
 }

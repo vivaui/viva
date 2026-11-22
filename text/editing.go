@@ -3,6 +3,9 @@ package text
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
+
+	"github.com/vivaui/viva/internal/grapheme"
 )
 
 // SingleLine folds pasted lines and tabs into spaces and drops other control
@@ -89,51 +92,76 @@ func (editor *Editor) MoveWord(forward, extend bool) {
 }
 
 // WordRange returns the run around a pointer position, on grapheme boundaries.
+// It reads value in place: what it walks is the word, and the rune index is found
+// by counting, so a drag that extends a selection by words through a long text
+// allocates nothing.
 func WordRange(value string, index int) Range {
-	runes := []rune(value)
-	if len(runes) == 0 {
+	at, index, ok := lastRuneAt(value, index)
+	if !ok {
 		return Range{}
 	}
-	index = max(0, min(index, len(runes)-1))
-	start := 0
-	for next := nextBoundary(runes, start); next <= index; next = nextBoundary(runes, start) {
-		start = next
+	start := at
+	for start > 0 && !grapheme.Boundary(value, start) {
+		_, size := utf8.DecodeLastRuneInString(value[:start])
+		start -= size
 	}
-	kind := wordClass(runes[start])
-	end := nextBoundary(runes, start)
+	first, _ := utf8.DecodeRuneInString(value[start:])
+	kind := wordClass(first)
+	end := grapheme.Next(value, start)
 	for start > 0 {
-		previous := previousBoundary(runes, start)
-		if wordClass(runes[previous]) != kind {
+		previous := grapheme.Prev(value, start)
+		if r, _ := utf8.DecodeRuneInString(value[previous:]); wordClass(r) != kind {
 			break
 		}
 		start = previous
 	}
-	for end < len(runes) && wordClass(runes[end]) == kind {
-		end = nextBoundary(runes, end)
+	for end < len(value) {
+		if r, _ := utf8.DecodeRuneInString(value[end:]); wordClass(r) != kind {
+			break
+		}
+		end = grapheme.Next(value, end)
 	}
-	return Range{Start: start, End: end}
+	return Range{
+		Start: index - utf8.RuneCountInString(value[start:at]),
+		End:   index + utf8.RuneCountInString(value[at:end]),
+	}
 }
 
 // LineRange returns the logical line around a pointer position, including its
 // trailing newline when it has one. It is the selection a triple click takes.
 func LineRange(value string, index int) Range {
-	runes := []rune(value)
-	if len(runes) == 0 {
+	at, index, ok := lastRuneAt(value, index)
+	if !ok {
 		return Range{}
 	}
-	index = max(0, min(index, len(runes)-1))
-	start := index
-	for start > 0 && runes[start-1] != '\n' {
-		start--
+	start := strings.LastIndexByte(value[:at], '\n') + 1
+	end := len(value)
+	if newline := strings.IndexByte(value[at:], '\n'); newline >= 0 {
+		end = at + newline + 1 // the newline belongs to the line it ends
 	}
-	end := index
-	for end < len(runes) && runes[end] != '\n' {
-		end++
+	return Range{
+		Start: index - utf8.RuneCountInString(value[start:at]),
+		End:   index + utf8.RuneCountInString(value[at:end]),
 	}
-	if end < len(runes) {
-		end++ // the newline belongs to the line it ends
+}
+
+// lastRuneAt is the byte offset of the rune at index in value, index clamped to
+// the runes value has (the last one past its end), and the clamped index; ok is
+// false for an empty value.
+func lastRuneAt(value string, index int) (at, clamped int, ok bool) {
+	if value == "" {
+		return 0, 0, false
 	}
-	return Range{Start: start, End: end}
+	index = max(index, 0)
+	n, last := 0, 0
+	for offset := range value {
+		if n == index {
+			return offset, index, true
+		}
+		last = offset
+		n++
+	}
+	return last, n - 1, true
 }
 
 // DeleteWord removes a selection or a word as one undo unit. Undo restores the
@@ -154,13 +182,20 @@ func (editor *Editor) DeleteWord(forward bool) {
 	editor.record(change, before, editor.selectionState(), editSeparate)
 }
 
-// lineBoundary is the start or end of the logical line the caret is on: the
-// nearest newline, or the end of the text.
+func (editor *Editor) insideCRLF(at int) bool {
+	return at > 0 && at < len(editor.runes) && editor.runes[at-1] == '\r' && editor.runes[at] == '\n'
+}
+
+// lineBoundary finds the logical line's start or the first rune of its LF or
+// CRLF ending, or the end of the text.
 func (editor *Editor) lineBoundary(end bool) int {
 	at := editor.caret
 	if end {
 		for at < len(editor.runes) && editor.runes[at] != '\n' {
 			at++
+		}
+		if at > 0 && at < len(editor.runes) && editor.runes[at-1] == '\r' {
+			at--
 		}
 	} else {
 		for at > 0 && editor.runes[at-1] != '\n' {
@@ -172,7 +207,11 @@ func (editor *Editor) lineBoundary(end bool) int {
 
 // MoveLineBoundary implements Home/End for an unwrapped logical line.
 func (editor *Editor) MoveLineBoundary(end, extend bool) {
+	anchorInsideCRLF := extend && editor.insideCRLF(editor.anchor)
 	editor.MoveTo(editor.lineBoundary(end), extend)
+	if anchorInsideCRLF {
+		editor.anchor--
+	}
 }
 
 // DeleteToLineBoundary removes a selection, or the text from the caret to the
@@ -190,19 +229,31 @@ func (editor *Editor) DeleteToLineBoundary(end bool) {
 		editor.BreakUndoGroup()
 		return
 	}
-	boundary := editor.lineBoundary(end)
-	if boundary == editor.caret {
-		if end {
-			editor.DeleteForward()
-		} else {
-			editor.DeleteBackward()
-		}
-		editor.BreakUndoGroup()
-		return
-	}
 	before := editor.selectionState()
+	if editor.insideCRLF(editor.caret) {
+		// A caret between CR and LF is at the start of that ending for line
+		// purposes. Normalizing it first keeps the boundary and the deletion on
+		// one position, so the pair is never split.
+		editor.collapse(previousBoundary(editor.runes, editor.caret))
+	}
+	boundary := editor.lineBoundary(end)
 	target := ordered(Range{Start: editor.caret, End: boundary})
-	change := editor.replace(target, "", false)
-	editor.collapse(target.Start)
-	editor.record(change, before, editor.selectionState(), editSeparate)
+	kind := editSeparate
+	if target.Start == target.End {
+		// A caret already on the boundary removes the grapheme beyond it, which
+		// joins the line, as DeleteForward and DeleteBackward do.
+		if end && editor.caret < len(editor.runes) {
+			target = Range{Start: editor.caret, End: nextBoundary(editor.runes, editor.caret)}
+			kind = editDeleteForward
+		} else if !end && editor.caret > 0 {
+			target = Range{Start: previousBoundary(editor.runes, editor.caret), End: editor.caret}
+			kind = editDeleteBackward
+		}
+	}
+	if target.Start != target.End {
+		change := editor.replace(target, "", false)
+		editor.collapse(target.Start)
+		editor.record(change, before, editor.selectionState(), kind)
+	}
+	editor.BreakUndoGroup()
 }

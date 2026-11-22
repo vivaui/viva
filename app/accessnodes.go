@@ -32,6 +32,8 @@ type AccessNode struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
+	// Invalid marks a control whose value failed validation.
+	Invalid   bool
 	Secure    bool
 	Focusable bool
 	// Expandable marks a control that opens and closes something, whatever its
@@ -77,7 +79,7 @@ func (driver *Driver) Accessibility() []AccessNode {
 			Label:  node.Label, Value: node.Value, Hint: node.Hint, Description: node.Description,
 			Focused: node.Focused, Disabled: node.Disabled, Checked: node.Checked, Mixed: node.Mixed,
 			Selected: node.Selected, Expanded: node.Expanded, Multiline: node.Multiline,
-			ReadOnly: node.ReadOnly, Secure: node.Secure, Focusable: node.Focusable,
+			ReadOnly: node.ReadOnly, Invalid: node.Invalid, Secure: node.Secure, Focusable: node.Focusable,
 			Expandable: node.Expandable, Level: node.Level, PosInSet: node.PosInSet, SetSize: node.SetSize,
 			Live: node.Live, Range: node.Range,
 			Selection: AccessSelection{Start: node.Selection.Start, End: node.Selection.End, Valid: node.Selection.Valid},
@@ -131,6 +133,8 @@ func accessRole(role semantic.Role) gfx.Role {
 		return gfx.RoleStatus
 	case semantic.RoleSeparator:
 		return gfx.RoleSeparator
+	case semantic.RoleProgress:
+		return gfx.RoleProgressBar
 	}
 	return 0
 }

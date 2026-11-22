@@ -101,3 +101,64 @@ func TestSoftSceneTypingPaintsOnlyTheLine(t *testing.T) {
 		t.Fatalf("typing repainted %+v, want about the first label's 8,6 70x20", got)
 	}
 }
+
+func TestSoftSceneMagnifiedBitmapPanRepaintsTheVisibleRegion(t *testing.T) {
+	label := bitmapLabel()
+	label.X, label.Y = -500000, -500000
+	label.Width, label.Height = 1000000, 1000000
+	label.Clipped = true
+	label.Clip = gfx.Rect{X: 4, Y: 4, Width: 8, Height: 4}
+	clear := platform.Color{Alpha: 1}
+	scene, err := newSoftScene(nil, 20, 10, 1, clear, nil, []platform.TextLabel{label})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scene.paint()
+	probe := 6*scene.canvas.Stride + 8*4
+	if got := scene.canvas.Pix[probe : probe+4]; !bytes.Equal(got, []byte{0, 128, 127, 255}) && !bytes.Equal(got, []byte{0, 128, 128, 255}) {
+		t.Fatalf("initial zoom sample = %v, want the center of the two source pixels", got)
+	}
+	label.X = -750000
+	label.Clip.X = 7
+	if changed, err := scene.apply(platform.Frame{TextLabels: []platform.TextLabel{label}}); err != nil || !changed {
+		t.Fatalf("pan: changed=%t, error=%v", changed, err)
+	}
+	scene.paint()
+	full, err := newSoftScene(nil, 20, 10, 1, clear, nil, []platform.TextLabel{label})
+	if err != nil {
+		t.Fatal(err)
+	}
+	full.paint()
+	if !bytes.Equal(scene.canvas.Pix, full.canvas.Pix) {
+		t.Fatal("the partial repaint differs from a full paint after pan and clip changes")
+	}
+	if got := scene.canvas.Pix[probe : probe+4]; !bytes.Equal(got, []byte{0, 255, 0, 255}) {
+		t.Fatalf("panned zoom sample = %v, want the green source edge", got)
+	}
+}
+
+func TestSoftSceneShrinksWithASuffixUpdate(t *testing.T) {
+	services, err := newTextServices()
+	if err != nil {
+		t.Skipf("no text services: %v", err)
+	}
+	clear := platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+	rects := []render.Rectangle{softTestRect(0, 0, 10, 10, scene.Color{Alpha: 1}, 0), softTestRect(10, 0, 10, 10, scene.Color{Alpha: 1}, 0), softTestRect(20, 0, 10, 10, scene.Color{Alpha: 1}, 0)}
+	soft, err := newSoftScene(services, 60, 20, 1, clear, rects, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := soft.applyRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1, Shrink: true}, Rectangles: rects[:2],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(soft.rects) != 2 {
+		t.Fatalf("shrunk rectangles = %d", len(soft.rects))
+	}
+	if err := soft.applyRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1}, Rectangles: rects[:1],
+	}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
+	}
+}

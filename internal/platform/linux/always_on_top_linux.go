@@ -13,7 +13,8 @@ func (window *nativeWindow) SetAlwaysOnTop(enabled bool) error {
 		return fmt.Errorf("linux: window is closed")
 	}
 	state := window.state
-	if state.config.WindowMode == platform.WindowPanel || state.config.WindowMode == platform.WindowPreview {
+	switch state.config.WindowMode {
+	case platform.WindowPanel, platform.WindowPreview, platform.WindowNotification:
 		return platform.ErrAlwaysOnTopUnsupported
 	}
 	win := state.win

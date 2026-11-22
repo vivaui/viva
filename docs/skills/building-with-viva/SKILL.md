@@ -38,7 +38,7 @@ If you are in a checkout of Viva itself, its `AGENTS.md` is the authority and ov
 
 ## 3. How a screen is written
 
-A page is `func (m *model) page(c ui.C)`, opened with `ui.Run(config, m.page)` or `ui.NewPage(ui.PageConfig{View: m.page}).Config(base)`. It runs again on every redraw, declares what is on screen with value types, and keeps no layout cache. State lives in the model; a click changes it where the control is declared.
+A page is `func (m *model) page(c ui.C)`, opened with `ui.Run(config, ui.PageConfig{View: m.page})` or `ui.NewPage(ui.PageConfig{View: m.page}).Config(base)`. It runs again on every redraw, declares what is on screen with value types, and keeps no layout cache. State lives in the model; a click changes it where the control is declared.
 
 ```go
 type model struct {
@@ -58,9 +58,12 @@ func (m *model) page(c ui.C) {
 }
 ```
 
-- A page imports `github.com/vivaui/viva/ui` alone: colors, geometry and the theme are re-exported there (`ui.RGB`, `ui.Rect`, `ui.Theme`, `ui.LightTheme()`). `gfx` is the layer below (canvas, paths, input events, keys, identities); reach for it only to draw or handle input yourself.
+- The core page imports `github.com/vivaui/viva/ui`: colors, geometry and the theme are re-exported there (`ui.RGB`, `ui.Rect`, `ui.Theme`, `ui.LightTheme()`). Optional page packages (`ui/calendar`, `ui/message`, `ui/chart`, …) are imported only when used. `gfx` is the layer below (canvas, paths, input events, keys, identities); reach for it only to draw or handle input yourself.
 - Everything is a function of `ui` taking `c` first, and the chain is the same everywhere: `.Pad`, `.Gap`, `.Grow`, `.Width`, `.Background`, `.Children(func() { ... })`. Containers: `Row`, `Column`, `Stack`, `Grid`, `Flow`, `Scroll`. Leaves: `Text`, `Paragraph`, `Wrap`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `Checkbox`, `Switch`, `Select`, `Choice`, `Tabs`, `Slider`, `Progress`, `Spinner`, `Splitter`, `Slot`.
 - Lengths are `float32`; sizes are border boxes. A child is as big as its content unless told `Width`/`Height`/`Size`, `Fill`, or `Grow(n)`. In a `Row`, a text field needs `Grow(1)` or `Width`, or it is invisible.
+- A themed control is a node, not a fixed picture: its defaults come from the recipe, and the element attributes it accepts (`.FontSize`, `.Color`, `.Radius`, `Hover`/`Pressed`/`Focus`, and `.Pad`/`.Gap`/`.Children` where the control lays content out) override them. Not every control takes every attribute; a dev build panics when one would do nothing, and `VIVA_ATTR_CHECK=warn` reports instead of stopping, for cleaning up a page.
+- `Children` is the content slot of a control that has one: `ui.Button(c, "Save").Children(func() { ... })` replaces the default label with your content, laid out in the content rectangle. The `Label` argument remains the control's assistive name, and hits, focus and disabled stay on the control. Without `Children` the default label is drawn as before; the control's own parts (check mark, switch thumb, tab indicator) are not content.
+- Element attributes reach the parts of composite controls: `ui.Table(...).FontSize(...).Color(...)` styles header and cells, `ui.Image(...).Radius(...).Opacity(...)` cuts and fades the picture itself, `ui.Checkbox(...).Size(...)` sizes the box and scales the mark, `ui.Switch(...).FillWidth()` / `.WidthPercent(...)` stretches the track, `ui.Tabs(...).PadSides(...)` pads all four sides, and `ui.Progress(...).Label(...)` exposes the bar as a read-only progress bar (unlabelled bars stay decorative and take no pointer).
 
 ### Lists, tables and trees
 
@@ -73,7 +76,7 @@ func (m *model) page(c ui.C) {
 ### Dialogs, menus and popups
 
 - `ui.Modal(c, &m.open, "Title", body, footer)` or `ui.ModalWith(..., ui.ModalSpec{...}, ...)`. The title is required; Escape, the close button and a press on the scrim set `m.open` to false, so do not write an Escape handler. `ui.Dialog(c, ui.DialogSpec{...})` is the form whose identities you name: `Scope`, `DismissID`, `CloseID`, `InitialFocusID`, `.Header`, `.Body`, `.Footer`, `.Dismissed()`.
-- `ui.Popover(c, anchor, &m.open, body)` / `ui.PopoverWith(c, anchor, ui.PopoverSpec{...}, &m.open, body)`; `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { ... })` with `menu.Item("Rename").Clicked()`, `menu.Sub(label, body)`; `ui.ContextMenu(c, target, func(menu *ui.MenuItems) { ... })`; `ui.Drawer(c, &m.open, title, ui.DrawerSpec{...}, body, footer)`.
+- `ui.Popover(c, anchor, &m.open, body)` / `ui.PopoverWith(c, anchor, &m.open, ui.PopoverSpec{...}, body)`; `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { ... })` with `menu.Item("Rename").Clicked()`, `menu.Sub(label, body)`; `ui.ContextMenu(c, target, func(menu *ui.MenuItems) { ... })`; `ui.Drawer(c, &m.open, title, ui.DrawerSpec{...}, body, footer)`.
 - An application overlay is `ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` (or `ui.LayerDrag`): it takes no room, paints below Viva's menus and dialogs, and a `Canvas.Block` over its empty surface keeps presses from the page behind.
 - Toasts: keep a `ui.Toaster`, `m.toaster.Show(title, text, ui.ToastSuccess)`, paint `ui.Toasts(c, &m.toaster)` once; `ShowAction(..., "Undo")` + `Acted()`, `ToastLoading` + `Done(id, ...)`, `Toaster.Position`.
 
@@ -82,6 +85,15 @@ func (m *model) page(c ui.C) {
 - `ui.TextField(c, &m.name, "Name", "placeholder")` binds a `string`; `&m.query` can bind a `ui.Field` when the caret or selection matters. `.Submitted()` is Enter, `.Secure()` a password, `.AutoFocus()`, `.Icon(icon).Action(icon, "Clear")` with `.ActionClicked()`. `ui.TextArea(c, &m.notes, "Notes", "").Height(120)` is several rows. `Config.TextInput` is not needed for typing, caret, selection, clipboard or IME.
 - `ui.FormField(c, &m.proxyField, "Proxy").FillWidth().Children(func() { ... })` is a form row: one title and one control child, in the slot `components.BeginField` uses. Keep the `ui.FormFieldState` beside the value. Tagged structs get the same form from `//go:generate go tool viva form`.
 - `ui.Choice(c, &m.theme, themes, nil)` is a segmented choice and `ui.Tabs(c, &m.tab, tabs, nil)` a tab strip. Both write the value as they are declared; disable them with an `if`, not a chained `.Disabled`. `Tabs`/`Select` also honor `.Disabled` for input; `Choice` does not.
+
+### Optional page packages and custom surfaces
+
+- A heavy or stateful page control lives in an opt-in package under `ui/<capability>`; import it only when the page uses it.
+- Editors and visuals: `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`, `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`, `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`, `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`, `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+- The package name is the capability, never a `view` suffix. Name its state type by role, not by repeating the package: `calendar.State`, `message.Row`, `attachment.Card`, `hovercard.Card`. Keep locals out of the package name (`cal`, `msg`, `pic`); a model field may keep the domain noun (`m.calendar`).
+- Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others expose a method on the state (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>` shows which.
+- A page control can sit inside a `ui.Slot` at the rectangle a component painted: keep the slot's size, declare the control with `.Absolute().Left(0).Top(0).Size(...).Hit(id, label)`, and bind a copy when the application's dispatcher owns the value. `ui/slot_parity_test.go` keeps this exact for Checkbox, Switch and FormField.
+- Keep a wholly custom surface as `ui.Slot(...).Draw(...)` with `gfx.Canvas` and `Begin*` recipes in package `components`. Do not rewrite the whole surface as page declarations only for uniformity: its layout and hit model belong to the application.
 
 ### Background work and animation
 

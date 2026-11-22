@@ -49,21 +49,35 @@ func TestNativeStructureABI(t *testing.T) {
 		{"DWRITE_LINE_METRICS", unsafe.Sizeof(lineMetrics{}), 24},
 		{"DWRITE_TEXT_METRICS", unsafe.Sizeof(textMetrics{}), 36},
 		{"rectangle shader instance", unsafe.Sizeof(rectangleInstance{}), rectangleInstanceBytes},
-		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 64},
+		{"frame shader constants", unsafe.Sizeof(frameConstants{}), 80},
+		{"DEVMODEW", unsafe.Sizeof(displayMode{}), 220},
 	} {
 		if layout.size != layout.want {
 			t.Errorf("%s: size %d, want %d", layout.name, layout.size, layout.want)
 		}
 	}
-	if unsafe.Offsetof(swapChainDesc1{}.Scaling) != 32 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
+	if unsafe.Offsetof(swapChainDesc1{}.Scaling) != 32 || unsafe.Offsetof(windowClass{}.Name) != 64 || unsafe.Offsetof(message{}.First) != 16 || unsafe.Offsetof(resourceData{}.Pitch) != 8 || unsafe.Offsetof(displayMode{}.Frequency) != 184 || unsafe.Offsetof(notifyIconData{}.Info) != 304 || unsafe.Offsetof(notifyIconData{}.BalloonIcon) != 968 {
 		t.Fatal("native member alignment mismatch")
 	}
 	wantTextureIID := guid{0x6f15aaf2, 0xd208, 0x4e89, [8]byte{0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c}}
 	if textureIID != wantTextureIID {
 		t.Fatal("ID3D11Texture2D GUID mismatch")
 	}
-	if offset := unsafe.Offsetof(frameConstants{}.InstanceOffset); offset != 8 {
-		t.Fatalf("frame shader instance offset = %d, want 8", offset)
+	// Match the registers of Frame in shaders/scene.hlsl.
+	for _, field := range []struct {
+		name   string
+		offset uintptr
+		want   uintptr
+	}{
+		{"instanceOffset", unsafe.Offsetof(frameConstants{}.InstanceOffset), 8},
+		{"textBounds", unsafe.Offsetof(frameConstants{}.Bounds), 16},
+		{"textColor", unsafe.Offsetof(frameConstants{}.TextColor), 32},
+		{"textShape", unsafe.Offsetof(frameConstants{}.TextShape), 48},
+		{"pixelSize", unsafe.Offsetof(frameConstants{}.PixelSize), 64},
+	} {
+		if field.offset != field.want {
+			t.Errorf("frame shader %s offset = %d, want %d", field.name, field.offset, field.want)
+		}
 	}
 }
 
@@ -109,18 +123,9 @@ func TestCOMCallKeepsPointersAlive(t *testing.T) {
 	table := [1]uintptr{callback}
 	object := struct{ Table *uintptr }{Table: &table[0]}
 	var output uint64
-	status := comCall(uintptr(unsafe.Pointer(&object)), 0, uintptr(unsafe.Pointer(&output)))
+	status := comCall1(uintptr(unsafe.Pointer(&object)), 0, uintptr(unsafe.Pointer(&output)))
 	if status != 1 || output != 0x123456789abcdef0 {
 		t.Fatalf("COM call lost Go output pointer: %#x, %#x", status, output)
 	}
 	runtime.KeepAlive(table)
-}
-
-func TestCOMCallArgumentLimit(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("overlong COM call was not rejected")
-		}
-	}()
-	comCall(0, 0, make([]uintptr, 16)...)
 }

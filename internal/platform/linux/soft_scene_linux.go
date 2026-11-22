@@ -127,7 +127,13 @@ func (s *softScene) applyRectangles(frame platform.Frame) error {
 		return nil
 	}
 	if len(frame.Rectangles) < len(s.rects) {
-		return fmt.Errorf("linux: rectangle count shrank without rebuild")
+		if !update.Shrink || update.First > len(frame.Rectangles) || update.First+update.Count != len(frame.Rectangles) {
+			return fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+		}
+		for index := len(frame.Rectangles); index < len(s.rects); index++ {
+			s.addDamage(raster.Box(&s.rects[index], s.scale))
+		}
+		s.rects = s.rects[:len(frame.Rectangles)]
 	}
 	if len(frame.Rectangles) > len(s.rects) {
 		if update.First > len(s.rects) || update.First+update.Count != len(frame.Rectangles) {
@@ -170,11 +176,19 @@ func (s *softScene) setLabel(slot *softLabel, next platform.TextLabel) error {
 	previous := slot.placed
 	wasVisible := slot.visible
 	redraw := !slot.hasImage || slot.imageScale != s.scale || labelContentChanged(slot.label, next) || (len(next.Bitmap) > 0 && bitmapShownChanged(slot.label, next, s.scale))
+	var have labelImage
+	if !redraw && slot.image.wide {
+		// A line wider than a texture holds is drawn again when its picture, a window of
+		// it, no longer holds the part of it the canvas shows.
+		have = slot.image
+		skip, width, _, _, ok := textWindow(next, s.scale, s.canvas.Width, have)
+		redraw = !ok || skip != have.skip || width != have.width
+	}
 	slot.runs = append(slot.runs[:0], next.Runs...)
 	slot.label = next
 	slot.label.Runs = slot.runs
 	if redraw {
-		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale, s.clear.Alpha >= 1)
+		image, ok, err := rasterizeLabel(s.services, slot.label, s.scale, s.canvas.Width, have, s.clear.Alpha >= 1)
 		if err != nil {
 			return err
 		}

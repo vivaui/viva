@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"sync"
 	"time"
 
 	"github.com/vivaui/viva/app"
@@ -17,8 +16,6 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu          sync.Mutex
-	pending     string // written by the worker goroutine, under mu
 	status      string // read by the page, written only on the window thread
 	invalidator *app.Invalidator
 }
@@ -29,10 +26,9 @@ func (m *model) page(c ui.C) {
 			m.status = "working"
 			go func() {
 				result := slowWork()
-				m.mu.Lock()
-				m.pending = result
-				m.mu.Unlock()
-				m.invalidator.Invalidate() // wakes the window thread once
+				// Post runs the update on the window thread, then repaints: the
+				// goroutine never touches what the page reads.
+				m.invalidator.Post(func() { m.status = result })
 			}()
 		}
 		ui.Text(c, m.status)
@@ -43,16 +39,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
-
-	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that the page reads.
-	config.OnWake = func() {
-		m.mu.Lock()
-		m.status, m.pending = m.pending, ""
-		m.mu.Unlock()
-	}
-	return config
+	return ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 }
 
 func main() {

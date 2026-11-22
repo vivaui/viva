@@ -112,11 +112,12 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalized.attachPosts()
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
 	}
 	driver := &Driver{config: normalized, canvas: canvas, wakeSent: make(chan struct{}, 1),
-		origin: normalized.originPoint()}
+		origin: normalized.originPoint(), maximized: normalized.Maximized}
 	driver.frame = gfx.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(normalized.Width), Height: float32(normalized.Height)}
 
 	liveDrivers.Acquire()
@@ -166,6 +167,11 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 		return nil, err
 	}
 	built = true
+	// A window that opens maximized reports it like one maximized later, so an
+	// application hears the same state from every adapter.
+	if normalized.Maximized && normalized.OnMaximize != nil {
+		normalized.OnMaximize(true)
+	}
 	return driver, nil
 }
 
@@ -377,7 +383,8 @@ func (driver *Driver) SetMaximized(maximized bool) error {
 	return nil
 }
 
-// Maximized reports the state SetMaximized last reported.
+// Maximized reports whether the window is maximized: the state it opened in, then
+// what SetMaximized last reported.
 func (driver *Driver) Maximized() bool { return driver.maximized }
 
 // HitTest returns the front-most enabled interaction target at a logical-pixel
@@ -618,6 +625,20 @@ func (driver *Driver) KeyUp(key gfx.Key, character string) error {
 		Release: true, Modifiers: driver.heldModifiers(), Code: driverKeyCode(key, character),
 	})
 	return err
+}
+
+// DeactivateWindow reports the window as deactivated, as the window manager
+// would when the user switches away, and calls OnDeactivate after the keys
+// that were down are released. A closed driver reports nothing.
+func (driver *Driver) DeactivateWindow() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	driver.modifierKeys = 0
+	if _, err := driver.painter.deactivate(); err != nil {
+		return err
+	}
+	return driver.Pump()
 }
 
 // LoseFocus makes the window lose the keyboard, as switching to another
@@ -1075,7 +1096,11 @@ type Label struct {
 	BitmapStride  int
 	BitmapID      uint64
 	BitmapVersion uint32
-	BitmapUpload  bool
+	// ImageRadius and ImageFade are platform.TextLabel's: the corners of an
+	// image and how much of it is transparent.
+	ImageRadius  float32
+	ImageFade    float32
+	BitmapUpload bool
 	// Quad, while HasQuad, is where the label's picture lands: four corners in
 	// logical pixels with the colour multiplied into each, as gfx.Canvas.LabelQuad
 	// draws it. Bounds stays the box the picture was rasterised in.
@@ -1195,7 +1220,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		}
 		snapshot.TextWidths[index] = painter.canvas.TextWidthStyle(text.Value, text.Style)
 	}
-	for _, rectangle := range painter.renderer.Rectangles() {
+	for _, rectangle := range painter.frame.Rectangles() {
 		primitive := Primitive{
 			Bounds: gfx.Rect{X: rectangle.Bounds.X, Y: rectangle.Bounds.Y, Width: rectangle.Bounds.Width, Height: rectangle.Bounds.Height},
 			Color:  gfx.Color{Red: rectangle.Color.Red, Green: rectangle.Color.Green, Blue: rectangle.Color.Blue, Alpha: rectangle.Color.Alpha},
@@ -1224,7 +1249,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		}
 		snapshot.Primitives = append(snapshot.Primitives, primitive)
 	}
-	for _, label := range painter.labels {
+	for _, label := range painter.frame.Labels() {
 		captured := Label{
 			Value:    label.Value,
 			Bounds:   gfx.Rect{X: label.X, Y: label.Y, Width: label.Width, Height: label.Height},
@@ -1237,6 +1262,7 @@ func (driver *Driver) Snapshot() Snapshot {
 			Clip: label.Clip, Clipped: label.Clipped,
 			BitmapWidth: label.BitmapWidth, BitmapHeight: label.BitmapHeight, BitmapStride: label.BitmapStride,
 			BitmapID: label.BitmapID, BitmapVersion: label.BitmapVersion,
+			ImageRadius: label.ImageRadius, ImageFade: label.ImageFade,
 			BitmapUpload: label.BitmapUpload,
 			Quad:         label.Quad, HasQuad: label.HasQuad,
 		}

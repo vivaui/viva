@@ -11,6 +11,10 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 )
 
+func openWindow(config platform.Config) (*window, error) {
+	return (&linuxApplication{}).openWindow(config)
+}
+
 // windowProperty reads a property of the window as raw bytes and its format.
 func windowProperty(t *testing.T, win *window, name string, kind uint32) ([]byte, uint8) {
 	t.Helper()

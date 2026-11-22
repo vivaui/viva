@@ -41,11 +41,11 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, ui.PopoverSpec{Width: 180, Align: ui.Start}, &m.menuOpen, func() {
+		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if ui.Button(c, "Delete…").Ghost().Destructive().Clicked() {
+			if ui.Button(c, "Delete…").Ghost().Color(c.Theme().Danger).Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
@@ -65,7 +65,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -73,7 +73,7 @@ func main() {
 
 ## Popovers
 
-`ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment and the width. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
+`ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment, the width, the padding of its content and the margin it keeps from the window's edges (8 unless set) and `Instant` to open without the entrance motion, as a list appearing under the cursor as the user types. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
 
 A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there.
 
@@ -93,7 +93,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 ## Selects and the rest
 
-`ui.Select(c, &m.size, sizes, nil)` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
+`ui.Select(c, &m.size, sizes, nil)` is a drop-down list: a `ui.SelectState` and a scope of its own in your model, and the list opens under the trigger, or above it when there is no room, painted over everything. `.DisabledOptions(flags)` takes a caller-owned `[]bool` indexed like the options: a true entry is dimmed, takes no click or focus and is skipped by type-ahead; `.XSmall()` makes a shorter trigger. Inside a dialog it opens above the dialog. Tooltips and other non-modal panels are popups that declare no dismiss identity, so they neither trap focus nor swallow outside presses. Combobox, command palette, menubar and navigation menu follow the same layer, scope and dismiss conventions; the [component catalog](/en/ui/dialog/) has a runnable example of each, and the [API reference](/en/api/components/) has every option.
 
 ## Entrance and exit
 

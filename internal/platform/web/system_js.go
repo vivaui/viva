@@ -39,6 +39,12 @@ func ClipboardImagePNG() error {
 	return fmt.Errorf("%w: Clipboard.read returns a Promise", ErrAsyncRequired)
 }
 
+// SetClipboardImage is the synchronous form of a picture copy: the browser
+// answers it through a Promise, so use SetClipboardImageAsync.
+func SetClipboardImage([]byte) error {
+	return fmt.Errorf("%w: Clipboard.write returns a Promise", ErrAsyncRequired)
+}
+
 // ReadClipboardImagePNG reads the first image/png of navigator.clipboard.read()
 // and calls done with its bytes once the browser has delivered them: with
 // platform.ErrNoClipboardImage when the clipboard holds none,

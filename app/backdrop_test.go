@@ -1,8 +1,9 @@
 package app
 
 import (
-	"github.com/vivaui/viva/internal/platform"
 	"testing"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 func TestWindowMaterialsBridge(t *testing.T) {

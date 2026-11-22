@@ -6,6 +6,109 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
+func TestPageRepeatedAutoFocusDoesNotStealPointerFocus(t *testing.T) {
+	var search ui.Field
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			ui.TextField(c, &search, "Search", "").AutoFocus()
+			ui.Button(c, "Other")
+		})
+	})
+	d.click("Other")
+	if got := d.Focused(); got != "Other" {
+		t.Fatalf("focus after clicking Other = %q", got)
+	}
+}
+
+func TestPageClickCanRenewTheSameAutoFocus(t *testing.T) {
+	var search ui.Field
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			field := ui.TextField(c, &search, "Search", "").AutoFocus()
+			if ui.Button(c, "Focus search").Clicked() {
+				field.RequestFocus()
+			}
+			ui.Button(c, "Other")
+		})
+	})
+	d.click("Focus search")
+	if got := d.Focused(); got != "Search" {
+		t.Fatalf("focus after the click = %q, want Search", got)
+	}
+	d.click("Other")
+	if got := d.Focused(); got != "Other" {
+		t.Fatalf("focus after a later click = %q, want Other", got)
+	}
+}
+
+func TestPageDeferredFocusRequestOverridesAnExistingAutoFocus(t *testing.T) {
+	var search ui.Field
+	pending := false
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			field := ui.TextField(c, &search, "Search", "").AutoFocus()
+			if pending {
+				field.RequestFocus()
+				pending = false
+			}
+			if ui.Button(c, "Focus search").Clicked() {
+				c.After(func() { pending = true })
+			}
+			ui.Button(c, "Other")
+		})
+	})
+	d.click("Focus search")
+	if got := d.Focused(); got != "Search" {
+		t.Fatalf("focus after deferred request = %q, want Search", got)
+	}
+	d.click("Other")
+	if got := d.Focused(); got != "Other" {
+		t.Fatalf("focus after later click = %q, want Other", got)
+	}
+}
+
+func TestPageNewAutoFocusOutranksAnExplicitEventRequest(t *testing.T) {
+	var first, second ui.Field
+	wantSecond := false
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			secondField := ui.TextField(c, &second, "Second", "")
+			firstField := ui.TextField(c, &first, "First", "")
+			if wantSecond {
+				secondField.AutoFocus()
+			}
+			if ui.Button(c, "Focus first").Clicked() {
+				wantSecond = true
+				firstField.RequestFocus()
+			}
+		})
+	})
+	d.click("Focus first")
+	if got := d.Focused(); got != "Second" {
+		t.Fatalf("focus = %q, want the new autofocus", got)
+	}
+}
+
+func TestPageShortcutCanRenewTheSameAutoFocus(t *testing.T) {
+	var search ui.Field
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Gap(8).Children(func() {
+			field := ui.TextField(c, &search, "Search", "").AutoFocus()
+			ui.Button(c, "Other")
+			if ui.Shortcut(c, ui.Primary, "f") {
+				field.RequestFocus()
+			}
+		})
+	})
+	d.click("Other")
+	if _, err := d.driver.ShortcutChord(ui.Primary, 'f'); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Focused(); got != "Search" {
+		t.Fatalf("focus after shortcut = %q, want Search", got)
+	}
+}
+
 // A focus request made while handling a click is carried into the repaint that
 // follows, the one that shows the result of the click.
 func TestPageFocusRequestInAClickHandlerTakesEffect(t *testing.T) {
@@ -19,7 +122,7 @@ func TestPageFocusRequestInAClickHandlerTakesEffect(t *testing.T) {
 		})
 	})
 	d.click("Focus search")
-	if got := d.focused(); got != "Search" {
+	if got := d.Focused(); got != "Search" {
 		t.Fatalf("focus after the click = %q, want the field the handler asked for", got)
 	}
 	d.typeText("find")
@@ -49,7 +152,7 @@ func TestPageFocusRequestInTheRepaintWinsOverTheClick(t *testing.T) {
 		})
 	})
 	d.click("Focus first")
-	if got := d.focused(); got != "Second" {
+	if got := d.Focused(); got != "Second" {
 		t.Fatalf("focus = %q, want the repaint's request to win", got)
 	}
 }
@@ -69,7 +172,7 @@ func TestPageCarriedFocusRequestIsAppliedOnce(t *testing.T) {
 	})
 	d.click("Focus search")
 	d.click("After")
-	if got := d.focused(); got != "After" {
+	if got := d.Focused(); got != "After" {
 		t.Fatalf("focus = %q, want the button the user clicked", got)
 	}
 }
@@ -88,7 +191,7 @@ func TestPageFocusRequestInAShortcutHandlerTakesEffect(t *testing.T) {
 	if _, err := d.driver.ShortcutChord(ui.Primary, 'f'); err != nil {
 		t.Fatal(err)
 	}
-	if got := d.focused(); got != "Search" {
+	if got := d.Focused(); got != "Search" {
 		t.Fatalf("focus after the shortcut = %q, want the field the handler asked for", got)
 	}
 }

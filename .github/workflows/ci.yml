@@ -90,6 +90,42 @@ jobs:
       - name: API discipline
         run: go run ./tools/apicheck ./ui ./components ./app ./gfx
 
+  # The attribute rules (ADR 0089 stage 3) exist only in the dev build: they
+  # report a generic attribute that an element cannot use instead of letting it
+  # be silently ignored. The release build must not carry the rules or their
+  # messages, so this job tests the dev variant and proves the release one has
+  # neither.
+  dev-attributes:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: vet the dev build
+        run: go vet -tags dev ./...
+      - name: test the dev build
+        run: go test -tags dev ./base ./ui ./components -count=1
+      - name: prove the release build has no attribute rules
+        run: |
+          if go list -f '{{.GoFiles}}' ./base | grep -q attrcheck_dev.go; then
+            echo "the release build compiles the dev attribute rules" >&2
+            exit 1
+          fi
+          go build -o /tmp/base-release.a ./base
+          if grep -aq 'does not support' /tmp/base-release.a; then
+            echo "the release build carries the dev attribute messages" >&2
+            exit 1
+          fi
+          go build -tags dev -o /tmp/base-dev.a ./base
+          if ! grep -aq 'does not support' /tmp/base-dev.a; then
+            echo "the dev build does not carry the attribute rules" >&2
+            exit 1
+          fi
+
   # Every target Viva ships for must at least type-check, tests included. The
   # targets do not depend on each other, so they run at the same time on one
   # runner: asking for four runners to do what one can finish in the same minute
@@ -118,21 +154,35 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
+      - name: Native Linux text rasterization
+        run: |
+          sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
+            { sudo apt-get update && sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji; }
+          go test ./internal/platform/linux -run '^TestTextEngineRasterizesProportionalText$' -count=1 -v
       - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
-          go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter)$' -count=1
+          go test -tags vivagtk ./internal/platform/linux -run '^Test(GTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter|ClipboardImageWriteReportsUnsupportedWithoutSetWithData)|APartition(KeepsItsStoreInTheUsersDirectories|FollowsTheXdgDirectories|IsNamedAfterTheApplicationWithoutAClass))$' -count=1
       # The Linux package is not part of the sharded run (it drives X11), so the
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
-        run: go test ./internal/platform/linux -run '^TestMaximizeButtonSetsBothDirections$' -count=1 -v
+        run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|OpeningMaximizedAsksForBothDirectionsBeforeMapping|PreviewMovePreservesSizeAndFocus|AClipboardImageIsOfferedAsPNGAndNoText|SetClipboardImageClaimsTheClipboardAndDropsOtherFlavours)$' -count=1 -v
+      - name: Native X11 drag preview and notification
+        env:
+          VIVA_TEST_PREVIEW_XVFB: '1'
+          VIVA_TEST_NOTIFICATION_XVFB: '1'
+        run: |
+          sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
+          xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
+          GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: |
           sudo apt-get install -y xvfb xdotool libx11-xcb1 ||
             { sudo apt-get update && sudo apt-get install -y xvfb xdotool libx11-xcb1; }
-          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11GlobalShortcut$' -count=1 -v
+          xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11(GlobalShortcut|WindowIconPropertyUpdates)$' -count=1 -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
@@ -169,6 +219,12 @@ jobs:
           GOOS=js GOARCH=wasm go build \
             ./cmd/component-preview ./cmd/gallery-web \
             ./examples/guides/hello ./examples/guides/webview
+      # The docs previews and the gallery build through the same public command
+      # an application uses, so a break in the deployment path fails here.
+      - name: build the public web entry points
+        run: |
+          go run ./cmd/viva build --target web ./cmd/component-preview -o build/component-preview-web
+          go run ./cmd/viva build --target web ./cmd/gallery-web -o build/gallery-web
 
   # The real browser gate. It builds the fixture and drives it through the
   # three engines in parallel with the wasm tests above; most of its elapsed
@@ -197,12 +253,14 @@ jobs:
           tools/webcheck/node_modules/.bin/playwright install --with-deps chromium firefox webkit
       # Each engine gets its own step so a failure names the engine that broke
       # and the others still report their own result.
-      - name: drive the browser verification page (chromium)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium
+      - name: drive the browser verification page (chromium, WebGL2)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium --renderer webgl2
+      - name: drive the browser verification page (chromium, Canvas2D fallback)
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser chromium --renderer canvas2d
       - name: drive the browser verification page (firefox)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser firefox
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser firefox --renderer auto
       - name: drive the browser verification page (webkit)
-        run: node tools/webcheck/check.mjs --dir build/webcheck --browser webkit
+        run: node tools/webcheck/check.mjs --dir build/webcheck --browser webkit --renderer auto
 
   # The whole test suite except the packages that carry darwin-only files, split
   # over several runners. .github/scripts/test-packages.sh decides what this
@@ -254,6 +312,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Native AppKit notification focus and click
+        working-directory: internal/platform/darwin
+        run: |
+          xcrun clang -fno-objc-arc -Werror -Wno-deprecated-declarations testdata/window_notification.m -o "$RUNNER_TEMP/window-notification" -framework Cocoa -framework CoreText -framework Metal -framework QuartzCore
+          "$RUNNER_TEMP/window-notification"
       # A package with no darwin file compiles to the same source on every
       # operating system, so the lint job's `go vet ./...` already covers it;
       # what is left here is the darwin build of the packages that have one. The
@@ -277,6 +340,7 @@ jobs:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
 
+
   windows-materials:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -293,15 +357,23 @@ jobs:
       # native structure ABI tests are here for the same reason: they build only
       # on Windows.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|OpeningMaximized|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
+      - name: Web view partitions
+        run: go test ./internal/platform/windows -run '^Test(APageWithoutAPartitionAsksForNoProfileOfItsOwn|APartitionNamesTheWebView2Profile|AnEphemeralPartitionIsAnOffTheRecordProfile|EphemeralPagesWithoutAPartitionEachGetAProfileOfTheirOwn)$' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
+      - name: Native window and grouped taskbar icons
+        run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
+      - name: Non-activating desktop notification
+        env:
+          VIVA_TEST_NOTIFICATION_DESKTOP: '1'
+        run: go test ./internal/platform/windows -run '^TestNotificationNativeWindows$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
-      - name: Native Direct2D text origins
-        run: go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
+      - name: Native Direct2D text origins and hidden labels
+        run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText)$' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts
@@ -364,7 +436,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
+    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed

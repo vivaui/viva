@@ -3,17 +3,10 @@ package components
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
-)
-
-// PopoverSide selects the edge of the anchor used by a popover.
-type PopoverSide uint8
-
-const (
-	PopoverBottom PopoverSide = iota
-	PopoverTop
-	PopoverRight
-	PopoverLeft
+	"github.com/vivaui/viva/style"
 )
 
 // PopoverAlign selects placement along the anchor's cross axis.
@@ -91,6 +84,9 @@ type PopoverOptions struct {
 	// A non-modal popover asks the runtime directly (Canvas.RequestFocus); the
 	// request is honored once, so it does not steal focus back afterwards.
 	InitialFocusID gfx.ID
+	// Margin is the space the panel keeps from the edges of the viewport as it
+	// is placed and flipped, 8 when zero.
+	Margin float32
 }
 
 // PopoverLayout exposes the content and body slots.
@@ -262,9 +258,13 @@ func (popover Popover) contentBounds(width, headerHeight float32) (gfx.Rect, Ove
 	if offset == 0 {
 		offset = 4
 	}
+	margin := popover.options.Margin
+	if margin <= 0 {
+		margin = 8
+	}
 	return PlaceOverlay(popover.anchor, gfx.Size{Width: width, Height: height}, popover.viewport, OverlayPlacement{
 		Side: OverlaySide(popover.options.Side), Align: OverlayAlign(popover.options.Align),
-		SideOffset: offset, AlignOffset: popover.options.AlignOffset, Margin: 8,
+		SideOffset: offset, AlignOffset: popover.options.AlignOffset, Margin: margin,
 	})
 }
 
@@ -298,6 +298,10 @@ type OverlayPlacement struct {
 	AlignOffset float32
 	// Margin is the distance the overlay keeps from the viewport's edges.
 	Margin float32
+	// Fit shortens the overlay to the room on the side it ends up on, as the
+	// positioner's size step does for a list that scrolls, instead of shifting
+	// it back over its anchor. The side is chosen first, by the same flip.
+	Fit bool
 }
 
 // PlaceOverlay returns where an overlay of size goes beside anchor inside
@@ -322,27 +326,34 @@ func PlaceOverlay(anchor gfx.Rect, size gfx.Size, viewport gfx.Rect, placement O
 			bounds, side = flipped, opposite
 		}
 	}
+	if placement.Fit {
+		switch side {
+		case OverlayBottom:
+			size.Height = min(size.Height, max(bottom-(anchor.Y+anchor.Height+placement.SideOffset), 1))
+		case OverlayTop:
+			size.Height = min(size.Height, max(anchor.Y-placement.SideOffset-top, 1))
+		case OverlayRight:
+			size.Width = min(size.Width, max(right-(anchor.X+anchor.Width+placement.SideOffset), 1))
+		case OverlayLeft:
+			size.Width = min(size.Width, max(anchor.X-placement.SideOffset-left, 1))
+		}
+		bounds = overlayBeside(anchor, size, side, placement)
+	}
 	return overlayClamp(bounds, viewport, placement.Margin), side
 }
 
-// ClampOverlay keeps an overlay opened at point inside viewport, except for its
-// margin. Unlike PlaceOverlay, a context menu that fits above the pointer but
-// would clamp below it stays at the pointer's y; that is how a native context
-// menu opens at the mouse rather than choosing a side.
-func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
-	return overlayClamp(gfx.Rect{X: point.X, Y: point.Y, Width: size.Width, Height: size.Height}, viewport, margin)
-}
-
-// overlayClamp shrinks bounds to fit viewport less margin and shifts them back
-// inside it.
-func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
-	left, top := viewport.X+margin, viewport.Y+margin
-	right, bottom := viewport.X+viewport.Width-margin, viewport.Y+viewport.Height-margin
-	bounds.Width = min(bounds.Width, max(right-left, 0))
-	bounds.Height = min(bounds.Height, max(bottom-top, 0))
-	bounds.X = max(min(bounds.X, right-bounds.Width), left)
-	bounds.Y = max(min(bounds.Y, bottom-bounds.Height), top)
-	return bounds
+// placeList puts a select's or a combobox's list, of its own left and width and
+// of height, under the trigger: flipped above when that has more room, and
+// shortened to the room it has, so the list scrolls instead of covering the
+// trigger. It is PlaceOverlay's rule, the one every popup of the theme follows.
+func placeList(popup *gfx.Rect, trigger gfx.Rect, height float32, viewport gfx.Rect) {
+	if viewport.Width <= 0 || viewport.Height <= 0 {
+		return
+	}
+	anchor := gfx.Rect{X: popup.X, Y: trigger.Y, Width: popup.Width, Height: trigger.Height}
+	*popup, _ = PlaceOverlay(anchor, gfx.Size{Width: popup.Width, Height: height}, viewport, OverlayPlacement{
+		Side: OverlayBottom, Align: OverlayAlignStart, SideOffset: 6, Margin: 1, Fit: true,
+	})
 }
 
 func overlayOpposite(side OverlaySide) OverlaySide {
@@ -480,4 +491,22 @@ func popupSideOf(content, anchor gfx.Rect) OverlaySide {
 		return OverlayTop
 	}
 	return OverlayBottom
+}
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type PopoverSide = style.PopoverSide
+
+const (
+	PopoverBottom = style.PopoverBottom
+	PopoverLeft   = style.PopoverLeft
+	PopoverRight  = style.PopoverRight
+	PopoverTop    = style.PopoverTop
+)
+
+func ClampOverlay(point gfx.Point, size gfx.Size, viewport gfx.Rect, margin float32) gfx.Rect {
+	return base.ClampOverlay(point, size, viewport, margin)
+}
+
+func overlayClamp(bounds, viewport gfx.Rect, margin float32) gfx.Rect {
+	return base.OverlayClamp(bounds, viewport, margin)
 }

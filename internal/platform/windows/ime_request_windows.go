@@ -2,9 +2,11 @@ package windows
 
 import (
 	"unicode/utf16"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 )
 
 // An input method asks the application about its text with WM_IME_REQUEST: where a
@@ -96,14 +98,21 @@ func (state *windowState) queryCharacterPosition(parameter uintptr) uintptr {
 		return 0
 	}
 	input := &state.textInput
-	runes := []rune(state.textState.Value)
+	value := state.textState.Value
 	anchor := state.textState.Selection.End
 	composition := state.textState.Composition
 	index := anchor
-	if state.textState.Composing && validTextRange(composition, len(runes)) {
+	if state.textState.Composing && validTextRange(composition, utf8.RuneCountInString(value)) {
+		// Walk the composition in place, a UTF-16 unit count at a time, to the
+		// character the request names; the field's text is not copied.
 		index = composition.Start
-		for units := 0; index < composition.End && units < int(request.CharPos); index++ {
-			units += utf16.RuneLen(runes[index])
+		units := 0
+		for _, r := range value[text.ByteOffsetOf(value, composition.Start):] {
+			if index >= composition.End || units >= int(request.CharPos) {
+				break
+			}
+			units += utf16.RuneLen(r)
+			index++
 		}
 	}
 	x, y, height := state.caretCell()

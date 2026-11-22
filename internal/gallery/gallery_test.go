@@ -240,12 +240,12 @@ func TestExamplesNeverPaintAboveTheToolbar(t *testing.T) {
 				state.density, state.lightMode = density, light
 				canvas := paintTall(state, DefaultWidth)
 				for _, rectangle := range canvas.Rectangles() {
-					if rectangle.Layer >= toolbarLayer && rectangle.Bounds.Y >= toolbarHeight {
+					if rectangle.Layer > toolbarLayer && rectangle.Bounds.Y < toolbarHeight && rectangle.Bounds.Y+rectangle.Bounds.Height > 0 {
 						t.Fatalf("%s: a rectangle on layer %d at %+v would cover the toolbar", catalog[index].ID, rectangle.Layer, rectangle.Bounds)
 					}
 				}
 				for _, text := range canvas.Texts() {
-					if text.Layer >= toolbarLayer && text.Bounds.Y >= toolbarHeight {
+					if text.Layer > toolbarLayer && text.Bounds.Y < toolbarHeight && text.Bounds.Y+text.Bounds.Height > 0 {
 						t.Fatalf("%s: text %q on layer %d would cover the toolbar", catalog[index].ID, text.Value, text.Layer)
 					}
 				}

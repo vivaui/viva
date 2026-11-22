@@ -94,12 +94,10 @@ func (m *model) row(r ui.ListRow) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{
+	return ui.Configure(page, app.Config{
 		Title: "Input", Width: 640, Height: 360,
-		// The page routes pointer, wheel, shortcut and text input to the controls
-		// it declares. A splitter keeps its arrow keys in its own state, so give
-		// them to the window's key callback.
-		OnKey: m.split.Key,
+		// The page routes pointer, wheel, keys and text input to the controls it
+		// declares; the focused splitter gets its arrow keys from the page.
 	})
 }
 
@@ -132,7 +130,7 @@ The page routes keys to the control with the focus. A `ui.List` uses them itself
 A `ui.Splitter` keeps its keyboard behavior in its own state, so give `SplitterState.Key` to the window's key callback and the focused divider moves with the arrow keys:
 
 ```go
-page.Config(app.Config{OnKey: m.split.Key /* ... */})
+ui.Configure(page, app.Config{OnKey: m.split.Key /* ... */})
 ```
 
 `OnKey` receives the key events the page did not take, for the focused target. `Target` says which one, so a handler checks it before acting. `Key` names navigation, editing and function keys (`KeyDown`, `KeyEscape`, `KeyEnter`, `KeyTab`…). For a chord such as Ctrl+C, `Key` is `KeyUnknown` and `Text` holds the character without modifiers. A control of your own takes its keys through `ui.Handlers` instead; `OnKey` is the fallback below the page.

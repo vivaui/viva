@@ -5,6 +5,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/inputgroup"
 )
 
 var inputGroupComponent = Component{
@@ -25,7 +26,17 @@ var inputGroupComponent = Component{
         Icon: clearIcon, ButtonSize: components.InputGroupButtonIconXS,
         Label: "Clear domain",
     },
-})`},
+})`, PageSnippet: `// m.domain starts as "viva.dev".
+group := inputgroup.New(&m.domain).
+    Placeholder("project-name").
+    Prefix("https://").
+    Action(m.clearID, m.crossIcon, "Clear domain", m.clearDomain)
+group.View(c, "Project domain").FillWidth()`, PageSnippetZh: `// m.domain 初始为 "viva.dev"。
+group := inputgroup.New(&m.domain).
+    Placeholder("project-name").
+    Prefix("https://").
+    Action(m.clearID, m.crossIcon, "清除域名", m.clearDomain)
+group.View(c, "Project domain").FillWidth()`},
 		{ID: "addons", Title: "块级附加项", Description: "块级说明、键帽和多行控制槽。", Snippet: `components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
     ID: tree.ID(page, "description"), Label: "Release description",
     Value: value, Multiline: true,
@@ -36,7 +47,17 @@ var inputGroupComponent = Component{
     BlockEnd: components.InputGroupSlot{
         Kind: components.InputGroupSlotKbd, Text: "⌘↵",
     },
-})`},
+})`, PageSnippet: `// m.description starts as "Ship the component gallery.\nAdd the keyboard shortcuts."
+group := inputgroup.New(&m.description).
+    Multiline().
+    BlockStart("Release description").
+    BlockKbd("⌘↵")
+group.View(c, "Release description").FillWidth()`, PageSnippetZh: `// m.description 初始为 "发布组件画廊。\n补充键盘快捷键。"。
+group := inputgroup.New(&m.description).
+    Multiline().
+    BlockStart("发布说明").
+    BlockKbd("⌘↵")
+group.View(c, "Release description").FillWidth()`},
 		{ID: "buttons", Title: "图标按钮与加载", Description: "icon-xs / icon-sm 按钮切换密码可见，以及 Spinner 附加槽。", Snippet: `reveal := tree.ID(page, "reveal")
 components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
     ID: tree.ID(page, "password"), Label: "Password", Value: value,
@@ -48,7 +69,27 @@ components.PaintInputGroup(canvas, theme, bounds, components.InputGroupSnapshot{
 })
 if canvas.Clicked(reveal) {
     revealed = !revealed
-}`},
+}`, PageSnippet: `// m.password starts as "viva.dev"; it is secure until m.reveal runs.
+m.password.Secure = m.passwordHidden
+password := inputgroup.New(&m.password).
+    Action(m.revealID, m.eyeIcon, "Show password", m.reveal).
+    Small()
+password.View(c, "Password").FillWidth()
+// m.search starts as "viva".
+search := inputgroup.New(&m.search).
+    Prefix("Search").
+    Spinner(m.spinnerPhase)
+search.View(c, "Search").FillWidth()`, PageSnippetZh: `// m.password 初始为 "viva.dev"；m.reveal 运行前保持密文。
+m.password.Secure = m.passwordHidden
+password := inputgroup.New(&m.password).
+    Action(m.revealID, m.eyeIcon, "显示密码", m.reveal).
+    Small()
+password.View(c, "Password").FillWidth()
+// m.search 初始为 "viva"。
+search := inputgroup.New(&m.search).
+    Prefix("搜索").
+    Spinner(m.spinnerPhase)
+search.View(c, "Search").FillWidth()`},
 		{ID: "states", Title: "输入状态", Description: "无效与禁用快照保留完整语义。", Snippet: `invalid := components.InputGroupSnapshot{
     ID: tree.ID(page, "email"), Label: "Project domain", Value: value,
     Invalid: true,
@@ -65,7 +106,25 @@ locked := components.InputGroupSnapshot{
     ID: tree.ID(page, "locked"), Label: "Project domain",
     Value: "locked", Disabled: true,
 }
-components.PaintInputGroup(canvas, theme, lockedBounds, locked)`},
+components.PaintInputGroup(canvas, theme, lockedBounds, locked)`, PageSnippet: `// m.email starts as "viva.dev"; m.locked starts as "locked".
+m.email.Invalid = true
+email := inputgroup.New(&m.email).
+    Prefix("@").
+    Button(m.inviteID, "Invite", m.invite).
+    DisableAction()
+email.View(c, "Project domain").FillWidth()
+m.locked.Disabled = true
+locked := inputgroup.New(&m.locked)
+locked.View(c, "Project domain").FillWidth()`, PageSnippetZh: `// m.email 初始为 "viva.dev"；m.locked 初始为 "locked"。
+m.email.Invalid = true
+email := inputgroup.New(&m.email).
+    Prefix("@").
+    Button(m.inviteID, "Invite", m.invite).
+    DisableAction()
+email.View(c, "Project domain").FillWidth()
+m.locked.Disabled = true
+locked := inputgroup.New(&m.locked)
+locked.View(c, "Project domain").FillWidth()`},
 	},
 }
 
@@ -98,14 +157,94 @@ func inputGroupInitial(exampleID string) string {
 	return "viva.dev"
 }
 
-func (state *State) initializeInputGroup() { state.flags |= 1 }
+// inputGroupDemo is one example's page controls, fields and stable callbacks.
+// They are kept beside the State rather than rebuilt in each paint, so the
+// handlers and draw functions are stable and a warm paint allocates nothing.
+type inputGroupDemo struct {
+	group  *inputgroup.Group
+	search *inputgroup.Group
+	locked *inputgroup.Group
 
-// clearInputGroup is the clear button's action. Without editing it only toggles
-// the snapshot's text; with it, it empties the editor and fills it back in when
-// it is already empty.
+	field       ui.Field
+	searchField ui.Field
+	lockedField ui.Field
+
+	clear  func()
+	reveal func()
+	bound  bool
+}
+
+// inputGroupDemos is keyed by State because the constrained demo model has no
+// field for these controls; a State is painted on one thread at a time.
+var inputGroupDemos = map[*State]*inputGroupDemo{}
+
+func (state *State) initializeInputGroup() {
+	state.flags |= 1
+	demo := &inputGroupDemo{}
+	demo.clear = func() { state.clearInputGroup() }
+	demo.reveal = func() { state.flags ^= 2 }
+	demo.field.SetText(inputGroupInitial(state.exampleID))
+	switch state.exampleID {
+	case "addons":
+		demo.group = inputgroup.New(&demo.field).
+			FieldID(inputGroupField).
+			Multiline().
+			BlockStart("Release description").
+			BlockKbd("⌘↵")
+	case "buttons":
+		demo.group = inputgroup.New(&demo.field).
+			FieldID(inputGroupField).
+			Action(inputGroupReveal, inputGroupEyeIcon, "Show password", demo.reveal).
+			Small()
+		demo.searchField.SetText("viva")
+		demo.search = inputgroup.New(&demo.searchField).
+			FieldID(inputGroupSearchID).
+			Prefix("Search").
+			Spinner(0)
+	case "states":
+		demo.group = inputgroup.New(&demo.field).
+			FieldID(inputGroupField).
+			Prefix("@").
+			Button(inputGroupInvite, "Invite", nil).
+			DisableAction()
+		demo.lockedField.SetText("locked")
+		demo.lockedField.Disabled = true
+		demo.locked = inputgroup.New(&demo.lockedField).
+			FieldID(inputGroupLocked)
+	default:
+		demo.group = inputgroup.New(&demo.field).
+			FieldID(inputGroupField).
+			Placeholder("project-name").
+			Prefix("https://").
+			Action(inputGroupClear, inputGroupCrossIcon, "Clear domain", demo.clear)
+	}
+	inputGroupDemos[state] = demo
+}
+
+func inputGroupDemoFor(state *State) *inputGroupDemo {
+	if demo := inputGroupDemos[state]; demo != nil {
+		return demo
+	}
+	demo := &inputGroupDemo{}
+	demo.clear = func() { state.clearInputGroup() }
+	demo.reveal = func() { state.flags ^= 2 }
+	demo.field.SetText(inputGroupInitial(state.exampleID))
+	inputGroupDemos[state] = demo
+	return demo
+}
+
+// clearInputGroup is the clear button's action. Without editing it toggles the
+// field's text; with editing it empties the editor and fills it back in when it
+// is already empty.
 func (state *State) clearInputGroup() {
 	if !state.editing {
 		state.flags ^= 1
+		demo := inputGroupDemoFor(state)
+		if state.flags&1 != 0 {
+			demo.field.SetText(inputGroupInitial(state.exampleID))
+		} else {
+			demo.field.SetText("")
+		}
 		return
 	}
 	value := ""
@@ -117,76 +256,38 @@ func (state *State) clearInputGroup() {
 }
 
 func (state *State) paintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	height := theme.Metrics.ControlHeight
-	if state.exampleID == "addons" {
-		// A 32px block add-on above and below, and a 64px multiline control.
-		height = theme.Metrics.ControlHeight * 4
+	demo := inputGroupDemoFor(state)
+	if state.editing && state.editor != nil && !demo.bound {
+		demo.field.Bind(state.editor)
+		demo.bound = true
 	}
-	var group, locked, searching ui.Box
+	if state.editing {
+		demo.group.Editable()
+	} else {
+		demo.group.ReadOnly()
+	}
+	if state.exampleID == "buttons" {
+		demo.field.Secure = state.flags&2 == 0
+		demo.search.ReadOnly()
+		demo.search.Spinner(components.SpinnerPhase(state.values[1] & 7))
+	}
+	if state.exampleID == "states" {
+		demo.field.Invalid = true
+	}
 	state.drawPage(canvas, theme, size, 560, state.Text("Input Group · 附加槽", "Input Group · Add-on slots"), func(c ui.C) {
-		group = ui.Slot(c).FillWidth().Height(height)
-		if state.exampleID == "states" {
-			locked = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
-		}
-		if state.exampleID == "buttons" {
-			searching = ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
+		switch state.exampleID {
+		case "addons":
+			demo.group.View(c, "Release description").FillWidth()
+		case "buttons":
+			demo.group.View(c, "Password").FillWidth()
+			demo.search.View(c, "Search").FillWidth()
+		case "states":
+			ui.Column(c).Gap(theme.Metrics.GapItem).Children(func() {
+				demo.group.View(c, "Project domain").FillWidth()
+				demo.locked.View(c, "Project domain").FillWidth()
+			})
+		default:
+			demo.group.View(c, "Project domain").FillWidth()
 		}
 	})
-	value := state.fieldValue("")
-	if !state.editing && state.flags&1 != 0 {
-		value = inputGroupInitial(state.exampleID)
-	}
-	snapshot := components.InputGroupSnapshot{ID: inputGroupField, Label: "Project domain", Value: value, Placeholder: "project-name",
-		ReadOnly: !state.editing, HideEditorText: true, InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "https://", Separated: true}, InlineEnd: components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupClear, Icon: inputGroupCrossIcon, ButtonSize: components.InputGroupButtonIconXS, Label: "Clear domain"}}
-	if state.editing && state.editor != nil && canvas.Focused() == inputGroupField {
-		selection := state.editor.Selection()
-		snapshot.SelectionStart, snapshot.SelectionEnd = byteOffsetOfRune(value, selection.Start), byteOffsetOfRune(value, selection.End)
-		snapshot.Caret = byteOffsetOfRune(value, state.editor.Caret())
-		snapshot.ShowCaret = selection.Start == selection.End
-		snapshot.Blink = &state.blink
-		if marked, composing := state.editor.Composition(); composing {
-			snapshot.CompositionStart, snapshot.CompositionEnd = byteOffsetOfRune(value, marked.Start), byteOffsetOfRune(value, marked.End)
-		}
-	}
-	if state.exampleID == "addons" {
-		snapshot.Multiline = true
-		// The description is not a domain: no "https://" in front of it.
-		snapshot.InlineStart = components.InputGroupSlot{}
-		snapshot.BlockStart = components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "Release description", Separated: true}
-		snapshot.BlockEnd = components.InputGroupSlot{Kind: components.InputGroupSlotKbd, Text: "⌘↵"}
-	}
-	if state.exampleID == "buttons" {
-		// A secret with a reveal button, and a field that is searching.
-		snapshot.Secure = state.flags&2 == 0
-		snapshot.InlineStart = components.InputGroupSlot{}
-		snapshot.InlineEnd = components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupReveal, Icon: inputGroupEyeIcon, ButtonSize: components.InputGroupButtonIconSM, Label: "Show password"}
-	}
-	if state.exampleID == "states" {
-		snapshot.Invalid = true
-		snapshot.InlineStart = components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "@", Separated: true}
-		snapshot.InlineEnd = components.InputGroupSlot{Kind: components.InputGroupSlotButton, ID: inputGroupInvite, Text: "Invite", Disabled: true}
-	}
-	components.PaintInputGroup(canvas, theme, group.Rect(), snapshot)
-	if canvas.Clicked(inputGroupClear) {
-		state.clearInputGroup()
-	}
-	if canvas.Clicked(inputGroupReveal) {
-		state.flags ^= 2
-	}
-	if state.exampleID == "buttons" {
-		components.PaintInputGroup(canvas, theme, searching.Rect(), components.InputGroupSnapshot{
-			ID: inputGroupSearchID, Label: "Search", Value: "viva", ReadOnly: true,
-			InlineStart: components.InputGroupSlot{Kind: components.InputGroupSlotText, Text: "Search"},
-			InlineEnd:   components.InputGroupSlot{Kind: components.InputGroupSlotSpinner, Phase: components.SpinnerPhase(state.values[1] & 7)},
-		})
-	}
-	if state.exampleID == "states" {
-		disabled := snapshot
-		disabled.ID = inputGroupLocked
-		disabled.Invalid = false
-		disabled.Disabled = true
-		disabled.Value = "locked"
-		disabled.InlineEnd.ID = gfx.ID{}
-		components.PaintInputGroup(canvas, theme, locked.Rect(), disabled)
-	}
 }

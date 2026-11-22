@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -16,23 +15,77 @@ if trigger.Clicked() {
 }
 if open {
     components.BeginPopover(canvas, theme, viewport, trigger.Rect(), components.PopoverOptions{
-        Layer: 3, Scope: scope, DismissID: dismissID, Side: components.PopoverBottom,
+        Layer: 3, Scope: m.scope, DismissID: m.dismissID, Side: components.PopoverBottom,
         Align: components.PopoverAlignStart, SideOffset: 8, AnchorDismiss: true,
     }).Paint("Native surface", "Clamped to the viewport without timers.")
 }
-if canvas.Clicked(dismissID) { open = false }`},
+if canvas.Clicked(m.dismissID) { open = false }`, PageSnippet: `open := false
+trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
+if trigger.Clicked() {
+    open = !open
+}
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+    Title: "Native surface",
+    Description: "Clamped to the current viewport without timers.",
+    Scope: m.scope, DismissID: m.dismissID,
+}, func() {})`, PageSnippetZh: `open := false
+trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
+if trigger.Clicked() {
+    open = !open
+}
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+    Title: "Native surface",
+    Description: "Clamped to the current viewport without timers.",
+    Scope: m.scope, DismissID: m.dismissID,
+}, func() {})`},
 		{ID: "custom-body", Title: "自定义内容", Description: "使用 Begin/End 槽位在浮层正文中追加状态。", Snippet: `label := "Diagnostics disabled"
 if enabled {
     label = "Diagnostics enabled"
 }
 popover := components.BeginPopover(canvas, theme, viewport, anchor, components.PopoverOptions{
-    Layer: 3, Scope: scope, DismissID: dismissID, ContentSize: gfx.Size{Width: 288}, BodyHeight: 34,
+    Layer: 3, Scope: m.scope, DismissID: m.dismissID, ContentSize: gfx.Size{Width: 288}, BodyHeight: 34,
 })
 layout := popover.Begin("Build status", "The stable host owns this overlay state.")
 if components.BeginButton(canvas, theme, actionID, layout.Body).Secondary(label).Clicked() {
     enabled = !enabled
 }
-popover.End()`},
+popover.End()`, PageSnippet: `open := false
+trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
+if trigger.Clicked() {
+    open = !open
+}
+enabled := false
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+    Title: "Build status",
+    Description: "The stable host owns this overlay state.",
+    Scope: m.scope, DismissID: m.dismissID,
+}, func() {
+    label := "Diagnostics disabled"
+    if enabled {
+        label = "Diagnostics enabled"
+    }
+    if ui.Button(c, label).Secondary().Clicked() {
+        enabled = !enabled
+    }
+})`, PageSnippetZh: `open := false
+trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
+if trigger.Clicked() {
+    open = !open
+}
+enabled := false
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+    Title: "Build status",
+    Description: "The stable host owns this overlay state.",
+    Scope: m.scope, DismissID: m.dismissID,
+}, func() {
+    label := "Diagnostics disabled"
+    if enabled {
+        label = "Diagnostics enabled"
+    }
+    if ui.Button(c, label).Secondary().Clicked() {
+        enabled = !enabled
+    }
+})`},
 	},
 }
 
@@ -45,51 +98,48 @@ var (
 )
 
 func (state *State) paintPopover(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	open := state.flags&1 != 0
-	var anchor ui.Box
 	state.drawPage(canvas, theme, size, 560, "Popover", func(c ui.C) {
-		label := "Open details"
-		if open {
-			label = "Close details"
+		demo := ui.State[popoverDemo](c, "popover-demo")
+		label := state.Text("打开详情", "Open details")
+		if demo.open {
+			label = state.Text("关闭详情", "Close details")
 		}
-		anchor = ui.Button(c, label).Outline().Self(ui.Start).Hit(popoverTrigger, label)
-		if anchor.Clicked() {
-			state.flags ^= 1
+		trigger := ui.Button(c, label).Outline().Self(ui.Start).Hit(popoverTrigger, label)
+		if trigger.Clicked() {
+			demo.open = !demo.open
 		}
-		if !open {
+		title, description := "Native surface", "Clamped to the current viewport without timers."
+		if state.exampleID == "custom-body" {
+			title, description = "Build status", "The stable host owns this overlay state."
+		}
+		ui.PopoverWith(c, trigger, &demo.open, ui.PopoverSpec{
+			Title: title, Description: description,
+			Scope: popoverScope, DismissID: popoverDismiss,
+		}, func() {
+			if state.exampleID != "custom-body" {
+				return
+			}
+			status := "Diagnostics disabled"
+			if demo.enabled {
+				status = "Diagnostics enabled"
+			}
+			if ui.Button(c, status).Secondary().Hit(popoverAction, status).Clicked() {
+				demo.enabled = !demo.enabled
+			}
+		})
+		if !demo.open {
 			caption(c, state.Text("点击触发器打开锚定浮层。", "Click the trigger to open the anchored popover."))
 		}
-	})
-	if !open {
-		return
-	}
-
-	contentWidth := min(size.Width-48, float32(288))
-	bodyHeight := float32(0)
-	if state.exampleID == "custom-body" {
-		bodyHeight = 34
-	}
-	popover := components.BeginPopover(canvas, theme, gfx.Rect{Width: size.Width, Height: size.Height}, anchor.Rect(), components.PopoverOptions{
-		Layer: 3, Scope: popoverScope, DismissID: popoverDismiss,
-		Side: components.PopoverBottom, Align: components.PopoverAlignStart, SideOffset: 8,
-		AnchorDismiss: true,
-		ContentSize:   gfx.Size{Width: contentWidth}, BodyHeight: bodyHeight,
-	})
-	if state.exampleID == "custom-body" {
-		layout := popover.Begin("Build status", "The stable host owns this overlay state.")
-		status := "Diagnostics disabled"
-		if state.flags&2 != 0 {
-			status = "Diagnostics enabled"
-		}
-		bounds := gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: 34}
-		if components.BeginButton(canvas, theme, popoverAction, bounds).Secondary(status).Clicked() {
-			state.flags ^= 2
-		}
-		popover.End()
-	} else {
-		popover.Paint("Native surface", "Clamped to the current viewport without timers.")
-	}
-	if canvas.Clicked(popoverDismiss) {
 		state.flags &^= 1
-	}
+		if demo.open {
+			state.flags |= 1
+		}
+		state.flags &^= 2
+		if demo.enabled {
+			state.flags |= 2
+		}
+	})
 }
+
+// popoverDemo is the caller-owned open and body state of the page-first Popover.
+type popoverDemo struct{ open, enabled bool }

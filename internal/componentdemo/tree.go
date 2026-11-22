@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -21,6 +20,60 @@ if expanded {
     hosts.Item(components.TreeItem{ID: tree.ID(page, "gateway"), Label: "Gateway", Depth: 1})
     hosts.Item(components.TreeItem{ID: tree.ID(page, "database"), Label: "Database", Depth: 1})
     hosts.Item(components.TreeItem{ID: tree.ID(page, "worker"), Label: "Worker", Depth: 1})
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: m.expanded, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Height: 44}
+}
+rows := 1
+if m.expanded {
+    rows = 4
+}
+ui.Tree(c, &m.tree, rows, func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(float32(rows) * 44)
+if _, ok := m.tree.Toggled(); ok {
+    m.expanded = !m.expanded
+}`, PageSnippetZh: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: m.expanded, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Height: 44}
+}
+rows := 1
+if m.expanded {
+    rows = 4
+}
+ui.Tree(c, &m.tree, rows, func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(float32(rows) * 44)
+if _, ok := m.tree.Toggled(); ok {
+    m.expanded = !m.expanded
 }`},
 		{ID: "selection", Title: "选择状态", Description: "点击主机行切换调用方持有的当前项。", Snippet: `hosts := components.BeginTree(canvas, theme, bounds)
 hosts.Item(components.TreeItem{
@@ -33,6 +86,52 @@ for index, name := range [...]string{"Gateway", "Database", "Worker"} {
         ID: id, Label: name, Depth: 1, Selected: selected == index,
     })
     if canvas.Clicked(id) { selected = index }
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Selected: i-1 == m.selected, Height: 44}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(4 * 44)
+if i, ok := m.tree.Chosen(); ok && i > 0 {
+    m.selected = i - 1
+}`, PageSnippetZh: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Selected: i-1 == m.selected, Height: 44}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(4 * 44)
+if i, ok := m.tree.Chosen(); ok && i > 0 {
+    m.selected = i - 1
 }`},
 		{ID: "disabled", Title: "禁用分支", Description: "保留层级和语义，但分组与叶子均不可交互。", Snippet: `hosts := components.BeginTree(canvas, theme, bounds)
 hosts.Item(components.TreeItem{
@@ -43,66 +142,141 @@ for _, name := range [...]string{"Gateway", "Database", "Worker"} {
     hosts.Item(components.TreeItem{
         ID: tree.ID(page, name), Label: name, Depth: 1, Disabled: true,
     })
-}`},
+}`, PageSnippet: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true, Disabled: true, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Disabled: true, Height: 44}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(4 * 44)`, PageSnippetZh: `labels := []string{"Production", "Gateway", "Database", "Worker"}
+addresses := []string{"gw.example.com", "db.example.com", "worker.example.com"}
+m.tree.Node = func(i int) ui.TreeNode {
+    if i == 0 {
+        return ui.TreeNode{Branch: true, Expanded: true, Disabled: true, Height: 44}
+    }
+    return ui.TreeNode{Depth: 1, Disabled: true, Height: 44}
+}
+ui.Tree(c, &m.tree, len(labels), func(i int) string { return labels[i] }, func(i int) {
+    if i == 0 {
+        ui.Column(c).Grow(1).Children(func() {
+            ui.Text(c, labels[0]).Weight(gfx.WeightSemibold)
+        })
+        ui.Text(c, "3 hosts").Muted()
+        return
+    }
+    ui.Column(c).Grow(1).Gap(1).Children(func() {
+        ui.Text(c, labels[i]).Weight(gfx.WeightMedium)
+        ui.Text(c, addresses[i-1]).Muted()
+    })
+}).Height(4 * 44)`},
 	},
 }
-
-var (
-	treeUI              = tree.Feature("tree")
-	treeGroupRow        = tree.ID(treeUI, "group")
-	treeGroupDisclosure = tree.ID(treeUI, "disclosure")
-	// treeLeaf's item i is the i-th host.
-	treeLeaf = tree.Sub(treeUI, tree.Name("host"))
-)
 
 func initializeTree(state *State) {
 	state.flags = 1
 	state.values[0] = 1
 }
 
-func (state *State) paintTree(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	// The demo draws a two-line row; the extra 12px is its own content, not
-	// the tree's default single-line row height.
-	rowHeight := theme.Metrics.ControlHeight + 12
-	var stage ui.Box
-	state.drawPage(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(c ui.C) {
-		stage = ui.Slot(c).Height(rowHeight * 4)
-	})
-	disabled := state.exampleID == "disabled"
-	expanded := state.flags&1 != 0
-	hosts := components.BeginTree(canvas, theme, stage.Rect()).RowHeight(rowHeight).Indent(22)
-	group := components.TreeItem{
-		ID: treeGroupRow, DisclosureID: treeGroupDisclosure, Label: "Production", Branch: true,
-		Expanded: expanded, Disabled: disabled,
+// treeDemo keeps the page Tree's expanded and selected rows and the stable
+// callbacks that describe and paint them.
+type treeDemo struct {
+	state    ui.TreeState
+	labels   [4]string
+	address  [3]string
+	node     func(int) ui.TreeNode
+	label    func(int) string
+	content  func(int)
+	c        ui.C
+	expanded bool
+	disabled bool
+	selected int32
+	choose   bool
+	height   float32
+}
+
+var treeDemos = map[*State]*treeDemo{}
+
+func treeDemoFor(state *State) *treeDemo {
+	if demo := treeDemos[state]; demo != nil {
+		return demo
 	}
-	row := hosts.Item(group)
-	canvas.Label("Production", gfx.Rect{X: row.Content.X + 2, Y: row.Content.Y + 10, Width: row.Content.Width - 80, Height: 24}, gfx.TextStyle{
-		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightSemibold, Color: theme.Foreground,
-	})
-	canvas.Label("3 hosts", gfx.Rect{X: row.Bounds.X + row.Bounds.Width - 72, Y: row.Bounds.Y + 11, Width: 64, Height: 22}, gfx.TextStyle{
-		Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground,
-	})
-	if canvas.Clicked(treeGroupRow) || canvas.Clicked(treeGroupDisclosure) {
-		state.flags ^= 1
+	demo := &treeDemo{
+		labels: [4]string{"Production", "Gateway", "Database", "Worker"},
+		address: [3]string{
+			"gw.example.com",
+			"db.example.com",
+			"worker.example.com",
+		},
 	}
-	if !expanded {
+	demo.node = demo.describe
+	demo.label = demo.nameOf
+	demo.content = demo.paintContent
+	demo.state.Node = demo.node
+	treeDemos[state] = demo
+	return demo
+}
+
+func (demo *treeDemo) nameOf(i int) string { return demo.labels[i] }
+
+func (demo *treeDemo) describe(i int) ui.TreeNode {
+	node := ui.TreeNode{Height: demo.height, Disabled: demo.disabled}
+	if i == 0 {
+		node.Branch, node.Expanded = true, demo.expanded
+		return node
+	}
+	node.Depth = 1
+	node.Selected = demo.choose && demo.selected == int32(i-1)
+	return node
+}
+
+func (demo *treeDemo) paintContent(i int) {
+	if i == 0 {
+		ui.Column(demo.c).Grow(1).Children(func() {
+			ui.Text(demo.c, demo.labels[0]).Weight(gfx.WeightSemibold)
+		})
+		ui.Text(demo.c, "3 hosts").Muted()
 		return
 	}
-	names := [...]string{"Gateway", "Database", "Worker"}
-	addresses := [...]string{"gw.example.com", "db.example.com", "worker.example.com"}
-	for index := range names {
-		selected := state.exampleID == "selection" && state.values[0] == int32(index)
-		row = hosts.Item(components.TreeItem{
-			ID: treeLeaf.At(index), Label: names[index], Depth: 1, Selected: selected, Disabled: disabled,
-		})
-		canvas.Label(names[index], gfx.Rect{X: row.Content.X + 10, Y: row.Content.Y + 4, Width: 120, Height: 20}, gfx.TextStyle{
-			Size: theme.Metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.Foreground,
-		})
-		canvas.Label(addresses[index], gfx.Rect{X: row.Content.X + 10, Y: row.Content.Y + 23, Width: row.Content.Width - 20, Height: 18}, gfx.TextStyle{
-			Size: theme.Metrics.FontSizeS, Color: theme.MutedForeground,
-		})
+	ui.Column(demo.c).Grow(1).Gap(1).Children(func() {
+		ui.Text(demo.c, demo.labels[i]).Weight(gfx.WeightMedium)
+		ui.Text(demo.c, demo.address[i-1]).Muted()
+	})
+}
+
+func (state *State) paintTree(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	demo := treeDemoFor(state)
+	demo.expanded = state.flags&1 != 0
+	demo.disabled = state.exampleID == "disabled"
+	demo.choose = state.exampleID == "selection"
+	demo.selected = state.values[0]
+	demo.height = theme.Metrics.ControlHeight + 12
+	rows := 1
+	if demo.expanded {
+		rows = 4
 	}
-	if index, ok := canvas.ClickedIn(treeLeaf); ok {
-		state.values[0] = int32(index)
+	state.drawPage(canvas, theme, size, 600, state.Text("Tree · 主机目录", "Tree · Host directory"), func(c ui.C) {
+		demo.c = c
+		demo.state.Node = demo.node
+		ui.Tree(c, &demo.state, rows, demo.label, demo.content).Height(float32(rows) * demo.height)
+	})
+	if i, ok := demo.state.Toggled(); ok && i == 0 {
+		state.flags ^= 1
+	}
+	if i, ok := demo.state.Chosen(); ok && i > 0 {
+		state.values[0] = int32(i - 1)
 	}
 }

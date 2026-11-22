@@ -28,6 +28,9 @@ const (
 	A11yRoleHeading
 	A11yRoleStatus
 	A11yRoleSeparator
+	// A11yRoleProgress is a read-only progress indicator: a range value it
+	// reports, never one it accepts.
+	A11yRoleProgress
 )
 
 // AccessibilityAction is something assistive technology asks a node to do.
@@ -124,6 +127,10 @@ func (node AccessibilityNode) Patterns() AccessibilityPatterns {
 			patterns |= PatternRangeValue
 		}
 		patterns |= PatternValue
+	case A11yRoleProgress:
+		if node.Range.Set {
+			patterns |= PatternRangeValue
+		}
 	case A11yRoleListBox:
 		patterns |= PatternSelection
 	}
@@ -216,6 +223,7 @@ const (
 	ChangedLive
 	ChangedSelection
 	ChangedBounds
+	ChangedInvalid
 )
 
 // DiffAccessibility returns the properties that differ between old and next.
@@ -244,5 +252,6 @@ func DiffAccessibility(old, next AccessibilityNode) AccessibilityChange {
 	set(old.Live != next.Live, ChangedLive)
 	set(old.Selection != next.Selection, ChangedSelection)
 	set(old.X != next.X || old.Y != next.Y || old.Width != next.Width || old.Height != next.Height, ChangedBounds)
+	set(old.Invalid != next.Invalid, ChangedInvalid)
 	return changes
 }

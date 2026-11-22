@@ -7,6 +7,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -403,9 +405,17 @@ type vulkanRenderer struct {
 	uploadCommand                         uintptr
 	imageAvailable, renderFinished, fence uintptr
 	views, framebuffers, commands         []uintptr
-	// commandsStaged means a scene update reset the command pool and left
-	// recording to resize. Device recovery may already have changed its extent.
-	commandsStaged                     bool
+	// commandGeneration counts changes to what the commands draw: the batches,
+	// the label textures, the buffers they bind, the extent. recorded holds, for
+	// each target image, the generation its commands were recorded at; an image
+	// is recorded again only when it is about to be submitted with stale ones,
+	// so a frame that only changed instance data (a caret blink, a colour fading)
+	// records nothing. recordExtent is the extent commands are recorded at.
+	commandGeneration                  uint64
+	recorded                           []uint64
+	recordExtent                       vkExtent2D
+	recordings                         int
+	lastBatches                        []compositingBatch
 	queueFamily, width, height, format uint32
 	surfaceFormat                      vkSurfaceFormat
 	hasSurfaceFormat                   bool
@@ -465,11 +475,14 @@ type vulkanScratch struct {
 	sceneFrame  [6]float32
 	textFrame   [8]float32
 	tint        [4]float32
-	submit      vkSubmitInfo
-	present     vkPresentInfo
-	waitStage   uint32
-	image       uint32
-	command     uintptr
+	// mask is (label width, label height, corner radius, fade) for an image
+	// label's rounded corners and opacity, pushed with the text constants.
+	mask      [4]float32
+	submit    vkSubmitInfo
+	present   vkPresentInfo
+	waitStage uint32
+	image     uint32
+	command   uintptr
 	// contentX and contentY are where the scene's rectangle starts in the target:
 	// zero, unless a window frame leaves a margin.
 	contentX, contentY int32
@@ -555,7 +568,20 @@ func vulkanDriverManifestsExist(paths []string) bool {
 	return false
 }
 
+// loadVulkan is the process's libvulkan function table, loaded once and kept
+// for the life of the process; a machine without a driver is found once.
 func loadVulkan() (*vulkanAPI, error) {
+	vulkanOnce.Do(func() { vulkanShared, vulkanErr = openVulkan() })
+	return vulkanShared, vulkanErr
+}
+
+var (
+	vulkanOnce   sync.Once
+	vulkanShared *vulkanAPI
+	vulkanErr    error
+)
+
+func openVulkan() (*vulkanAPI, error) {
 	if !vulkanDriverConfigured() {
 		return nil, noVulkan("Vulkan has no driver (no ICD manifest)", nil)
 	}
@@ -934,7 +960,9 @@ func (renderer *vulkanRenderer) createCommands(images uint32) error {
 		renderer.commands = nil
 		renderer.uploadCommand = 0
 	}
-	poolInfo := vkCommandPoolCreateInfo{SType: vkStructureCommandPoolCreateInfo, Family: renderer.queueFamily}
+	// Command buffers are recorded one at a time, when an image is submitted with
+	// stale commands: beginning one resets it.
+	poolInfo := vkCommandPoolCreateInfo{SType: vkStructureCommandPoolCreateInfo, Flags: vkCommandPoolResetCommandBuffer, Family: renderer.queueFamily}
 	if err := vkCheck(renderer.api.createCommandPool(renderer.device, &poolInfo, nil, &renderer.commandPool), "create command pool"); err != nil {
 		return err
 	}
@@ -964,13 +992,47 @@ func (renderer *vulkanRenderer) createScenePipelines(extent vkExtent2D) error {
 			return err
 		}
 	}
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(extent.Width, extent.Height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(extent)
 }
 
+// recordCommands makes every target image's commands stale and records them at
+// extent now: what a new swapchain, a new frame or a rebuilt device needs before
+// its first submit. A changed scene only invalidateCommands.
 func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
+	renderer.recordExtent = extent
+	renderer.invalidateCommands()
+	for index := range renderer.commands {
+		if err := renderer.ensureRecorded(uint32(index)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// invalidateCommands marks every image's commands stale.
+func (renderer *vulkanRenderer) invalidateCommands() { renderer.commandGeneration++ }
+
+// ensureRecorded records the commands of target image index when they are stale.
+func (renderer *vulkanRenderer) ensureRecorded(index uint32) error {
+	if len(renderer.recorded) != len(renderer.commands) {
+		renderer.recorded = make([]uint64, len(renderer.commands))
+		renderer.commandGeneration++ // a fresh slice holds zeros: none is current
+	}
+	if renderer.recorded[index] == renderer.commandGeneration {
+		return nil
+	}
+	if err := renderer.recordImage(index, renderer.recordExtent); err != nil {
+		return err
+	}
+	renderer.recorded[index] = renderer.commandGeneration
+	return nil
+}
+
+// recordImage records the commands that draw the scene into target image index.
+func (renderer *vulkanRenderer) recordImage(index uint32, extent vkExtent2D) error {
 	scratch := &renderer.scratch
 	scratch.clear = vkClearValue{Color: [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}}
 	// A window frame leaves the margin transparent and draws the scene inside it.
@@ -982,7 +1044,8 @@ func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
 		renderer.frame.upload(renderer, extent.Width, extent.Height)
 	}
 	scratch.contentX, scratch.contentY = contentX, contentY
-	for index, command := range renderer.commands {
+	{
+		command := renderer.commands[index]
 		scratch.begin = vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo}
 		if err := vkCheck(renderer.api.beginCommandBuffer(command, &scratch.begin), "begin clear command"); err != nil {
 			return err
@@ -1013,7 +1076,7 @@ func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
 		}
 	}
 	scratch.contentX, scratch.contentY = 0, 0
-	renderer.commandsStaged = false
+	renderer.recordings++
 	return nil
 }
 
@@ -1173,6 +1236,9 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	if image >= uint32(len(renderer.commands)) {
 		return false, fmt.Errorf("linux: Vulkan acquired invalid image %d", image)
 	}
+	if err := renderer.ensureRecorded(image); err != nil {
+		return false, err
+	}
 	if err := vkCheck(renderer.api.resetFences(renderer.device, 1, &renderer.fence), "reset frame fence"); err != nil {
 		return false, err
 	}
@@ -1228,15 +1294,10 @@ func (renderer *vulkanRenderer) stage(frame platform.Frame) (bool, error) {
 	}
 }
 
+// applyFrame stages frame; the commands it makes stale are recorded when their
+// image is next submitted.
 func (renderer *vulkanRenderer) applyFrame(frame platform.Frame) (bool, error) {
-	changed, err := renderer.stageFrame(frame)
-	if err != nil || !changed {
-		return changed, err
-	}
-	if err := renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height}); err != nil {
-		return false, err
-	}
-	return true, nil
+	return renderer.stageFrame(frame)
 }
 
 func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
@@ -1267,17 +1328,17 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 	if err := vkCheck(renderer.api.waitForFences(renderer.device, 1, &renderer.fence, 1, math.MaxUint64), "wait before scene update"); err != nil {
 		return false, err
 	}
-	if err := vkCheck(renderer.api.resetCommandPool(renderer.device, renderer.commandPool, 0), "reset scene commands"); err != nil {
-		return false, err
-	}
-	renderer.commandsStaged = true
+	buffer, textures := renderer.scene.buffer, renderer.text.generation
 	if !frame.Update.Empty() {
 		if frame.Update.Rebuild {
 			renderer.rectangles = append(renderer.rectangles[:0], frame.Rectangles...)
 			renderer.rebuilds++
 		} else {
 			if len(frame.Rectangles) < len(renderer.rectangles) {
-				return false, fmt.Errorf("linux: rectangle count shrank without rebuild")
+				if !frame.Update.Shrink || frame.Update.First > len(frame.Rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {
+					return false, fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+				}
+				renderer.rectangles = renderer.rectangles[:len(frame.Rectangles)]
 			}
 			if len(frame.Rectangles) > len(renderer.rectangles) {
 				if frame.Update.First > len(renderer.rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {
@@ -1299,8 +1360,16 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 		}
 	}
 	renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.text.labels, renderer.text.order, renderer.compositingBatches)
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return false, err
+	}
+	// The commands draw the batches and bind the scene buffer and the label
+	// textures: only a change to one of those makes them stale. New instance
+	// data in the same buffer is drawn by the commands already recorded.
+	if frame.TextLabels != nil || buffer != renderer.scene.buffer || textures != renderer.text.generation ||
+		!slices.Equal(renderer.lastBatches, renderer.compositingBatches) {
+		renderer.lastBatches = append(renderer.lastBatches[:0], renderer.compositingBatches...)
+		renderer.invalidateCommands()
 	}
 	return true, nil
 }
@@ -1357,7 +1426,7 @@ func (renderer *vulkanRenderer) setScaleOnce(scale float32) error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before scale change"); err != nil {
 		return err
 	}
-	if err := renderer.text.upload(renderer, scale); err != nil {
+	if err := renderer.text.upload(renderer, scale, renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height})
@@ -1377,11 +1446,7 @@ func (renderer *vulkanRenderer) resizeOnce(width, height uint32) error {
 		return nil
 	}
 	if width == renderer.width && height == renderer.height {
-		// Recovery during stage can rebuild the swapchain at this extent before
-		// retrying the scene upload. That retry still needs recorded commands.
-		if renderer.commandsStaged {
-			return renderer.recordCommands(vkExtent2D{Width: width, Height: height})
-		}
+		// Stale commands are recorded when their image is next submitted.
 		return nil
 	}
 	renderer.width, renderer.height = width, height
@@ -1497,8 +1562,7 @@ func (renderer *vulkanRenderer) close() {
 	if renderer.instance != 0 {
 		renderer.api.destroyInstance(renderer.instance, nil)
 	}
-	purego.Dlclose(renderer.api.library)
-	renderer.api = nil
+	renderer.api = nil // the function table is the process's: see loadVulkan
 }
 
 // noVulkan is the error for a machine that cannot draw: it wraps
@@ -1581,7 +1645,7 @@ func (renderer *vulkanRenderer) releaseDevice() {
 	renderer.hasSurfaceFormat = false
 	renderer.hasPresentMode = false
 	renderer.hasPendingCapabilities = false
-	renderer.commandsStaged = false
+	renderer.recorded = nil
 }
 
 func (renderer *vulkanRenderer) selectPresentMode() uint32 {

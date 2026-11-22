@@ -138,6 +138,11 @@ func TestResizeRecordsCommandsAfterStageRecovery(t *testing.T) {
 				clear(recorded)
 				return reset(device, pool, flags)
 			}
+			begin := renderer.api.beginCommandBuffer
+			renderer.api.beginCommandBuffer = func(command uintptr, info *vkCommandBufferBeginInfo) int32 {
+				delete(recorded, command) // beginning a buffer resets it
+				return begin(command, info)
+			}
 			end := renderer.api.endCommandBuffer
 			renderer.api.endCommandBuffer = func(command uintptr) int32 {
 				status := end(command)

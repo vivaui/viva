@@ -20,8 +20,8 @@ func TestContextMenuFitsAtFractionalOrigins(t *testing.T) {
 				menu.AddSeparator()
 				menu.AddItem(ContextMenuItem{ID: gfx.Item(2), Label: "Upload"})
 				menu.End()
-				if scroll.max != 0 {
-					t.Fatalf("scale=%v origin=%v: false overflow %v", scale, origin, scroll.max)
+				if scroll.MaxValue != 0 {
+					t.Fatalf("scale=%v origin=%v: false overflow %v", scale, origin, scroll.MaxValue)
 				}
 				for _, hit := range canvas.Hits() {
 					if hit.ID == scroll.BarID {
@@ -42,8 +42,8 @@ func TestContextMenuRetainsRealSubpixelOverflow(t *testing.T) {
 		menu.AddSeparator()
 		menu.AddItem(ContextMenuItem{ID: gfx.Item(2), Label: "Upload"})
 		menu.End()
-		if scroll.max != overflow {
-			t.Fatalf("overflow=%v: scroll range=%v", overflow, scroll.max)
+		if scroll.MaxValue != overflow {
+			t.Fatalf("overflow=%v: scroll range=%v", overflow, scroll.MaxValue)
 		}
 		found := false
 		for _, hit := range canvas.Hits() {
@@ -71,8 +71,8 @@ func TestContextMenuDescriptionMeasuresPaintsAndKeepsOneAction(t *testing.T) {
 		row := menu.AddItem(item)
 		next := menu.AddItem(ContextMenuItem{ID: gfx.Item(3), Label: "Next"})
 		menu.End()
-		if next.Y != row.Y+row.Height || scroll.max != 0 {
-			t.Fatalf("description overlaps or scrolls: row=%+v next=%+v max=%v", row, next, scroll.max)
+		if next.Y != row.Y+row.Height || scroll.MaxValue != 0 {
+			t.Fatalf("description overlaps or scrolls: row=%+v next=%+v max=%v", row, next, scroll.MaxValue)
 		}
 		count, description := 0, false
 		for _, hit := range canvas.Hits() {

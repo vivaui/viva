@@ -19,7 +19,7 @@ import (
 // itself (ID3D11Device::GetDeviceRemovedReason), which any failing call can then
 // be blamed on.
 func (renderer *renderer) deviceLost() bool {
-	return renderer.device != 0 && platform.DeviceLostCode(uint32(comCall(renderer.device, 39)))
+	return renderer.device != 0 && platform.DeviceLostCode(uint32(comCall0(renderer.device, 39)))
 }
 
 // recover makes the device, the swap chain and the pipeline again, on the
@@ -37,7 +37,7 @@ func (renderer *renderer) recover(software bool) error {
 		return err
 	}
 	region := box{Right: uint32(len(renderer.instances) * rectangleInstanceBytes), Bottom: 1, Back: 1}
-	comCall(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[0])), 0, 0)
+	comCall6(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[0])), 0, 0)
 	return nil
 }
 
@@ -74,10 +74,11 @@ func (state *windowState) present(width, height int) error {
 	return state.presentWithSync(width, height, 1)
 }
 
-// presentImmediate draws the window without waiting for the display refresh. A
-// resize uses it so the frame drawn for the new client size reaches the swap
-// chain before the window manager returns; the swap chain itself does not scale
-// stale frames (see createWindowSwapChain).
+// presentImmediate draws the window without waiting for the display refresh.
+// Synchronous size changes must present before returning to the window manager,
+// and the timer-paced modal resize path uses it too, since the timer already
+// paces those frames. The swap chain itself does not scale stale frames (see
+// createWindowSwapChain).
 func (state *windowState) presentImmediate(width, height int) error {
 	return state.presentWithSync(width, height, 0)
 }
@@ -104,6 +105,7 @@ func (state *windowState) presentWithSync(width, height int, sync uintptr) error
 // presented, or there was nothing to present. Its present-paced frame clock
 // asks for the next frame only after this.
 func (state *windowState) framePresented() {
+	state.paintPending = false
 	if state.config.FramePresented != nil {
 		state.config.FramePresented()
 	}

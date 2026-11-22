@@ -15,6 +15,7 @@ func nativeClipboardText() (string, error)                     { return "", ErrU
 func nativeSetClipboardText(string) error                      { return ErrUnsupported }
 func nativeHasClipboardImage() bool                            { return false }
 func nativeClipboardImagePNG() ([]byte, error)                 { return nil, ErrUnsupported }
+func nativeSetClipboardImage([]byte) error                     { return ErrUnsupported }
 func nativeClipboardFiles() ([]string, error)                  { return nil, ErrUnsupported }
 func nativeSetClipboardFiles([]string) error                   { return ErrUnsupported }
 func nativeOnClipboardChange(func()) error                     { return ErrUnsupported }
@@ -47,3 +48,10 @@ func nativeAppearance() Appearance { return AppearanceUnknown }
 func nativeWatchAppearance() {}
 
 func nativeSetAppearance(Appearance) {}
+
+// nativeStartFileDrag is the Web-independent fallback: a target with neither a
+// window the platform can drag from nor the Web's own drag has no way to take
+// files out of one.
+func nativeStartFileDrag([]string, FileDragEffect) (FileDragEffect, error) {
+	return FileDragNone, ErrUnsupported
+}

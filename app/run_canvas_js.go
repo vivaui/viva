@@ -28,6 +28,8 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if err != nil {
 		return err
 	}
+	normalized.attachPosts()
+	defer normalized.Invalidator.closePosts()
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
 	}
@@ -42,8 +44,8 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 		},
 		Paint: normalized.Paint, OnPointer: normalized.OnPointer, OnKey: normalized.OnKey,
 		OnShortcut: normalized.OnShortcut, OnScroll: normalized.OnScroll, OnModifierTap: normalized.OnModifierTap,
-		OnFileDrop: normalized.OnFileDrop,
-		OnResize:   normalized.OnResize, OnMinimize: normalized.OnMinimize,
+		OnFileDrop: normalized.OnFileDrop, ForwardWheel: normalized.ForwardWheel,
+		OnResize: normalized.OnResize, OnMinimize: normalized.OnMinimize,
 		OnFullscreen: normalized.OnFullscreen, OnCloseRequest: normalized.OnCloseRequest,
 		OnClosed: normalized.OnClosed, OnActivate: normalized.OnActivate,
 		TextInput: webTextInput(normalized.TextInput),

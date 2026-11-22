@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/vivaui/viva/internal/scene"
 )
@@ -44,17 +45,20 @@ func (rectangle Rectangle) VertexColors() [3]scene.Color {
 // Update describes the smallest contiguous rectangle range changed by Apply.
 // Count may extend past the previous instance count when shapes were appended
 // or inserted: a backend must grow its retained storage for that suffix rather
-// than reject the count change. Rebuild remains the fallback for deletions,
-// because a backend's retained storage is sized to the old count.
+// than reject the count change. Shrink reports that the new total is smaller
+// and the backend must truncate its retained storage to len(rectangles) after
+// applying the suffix. Rebuild remains the fallback when the change cannot be
+// expressed as a suffix.
 type Update struct {
 	First   int
 	Count   int
 	Rebuild bool
+	Shrink  bool
 }
 
 // Empty reports whether an update requires no renderer work.
 func (update Update) Empty() bool {
-	return update.Count == 0 && !update.Rebuild
+	return update.Count == 0 && !update.Rebuild && !update.Shrink
 }
 
 // node is one node of the retained tree. The geometry of a shape lives only in
@@ -101,6 +105,10 @@ func (store *Store) Rectangles() []Rectangle {
 func (store *Store) Apply(changes []scene.Change) (Update, error) {
 	if len(changes) == 0 {
 		return Update{}, nil
+	}
+
+	if changesAreDeletes(changes) {
+		return store.deleteBatch(changes)
 	}
 
 	oldCount := len(store.rectangles)
@@ -253,18 +261,63 @@ func (store *Store) Apply(changes []scene.Change) (Update, error) {
 	return Update{First: first, Count: last - first + 1}, nil
 }
 
+// changesAreDeletes reports whether a batch only removes nodes. Deletions are
+// the common structural change that can be expressed as a suffix update: the
+// retained rectangles compact in place, and the backend only needs to truncate
+// its store after copying the moved suffix.
+func changesAreDeletes(changes []scene.Change) bool {
+	for _, change := range changes {
+		if change.Operation != scene.OperationDelete {
+			return false
+		}
+	}
+	return true
+}
+
+func (store *Store) deleteBatch(changes []scene.Change) (Update, error) {
+	var instances []int
+	for _, change := range changes {
+		slot, ok := change.ID.Slot()
+		if !ok || int(slot) >= len(store.nodes) {
+			return Update{}, fmt.Errorf("render: delete references invalid node %d", change.ID)
+		}
+		if instance := store.instanceIndex(slot, change.ID); instance >= 0 {
+			instances = append(instances, instance)
+		}
+		if err := store.remove(change.ID); err != nil {
+			return Update{}, err
+		}
+	}
+	if len(instances) == 0 {
+		return Update{}, nil
+	}
+	slices.Sort(instances)
+	first := instances[0]
+	for index := len(instances) - 1; index >= 0; index-- {
+		at := instances[index]
+		copy(store.rectangles[at:], store.rectangles[at+1:])
+		store.rectangles = store.rectangles[:len(store.rectangles)-1]
+	}
+	store.reindexFrom(first)
+	return Update{First: first, Count: len(store.rectangles) - first, Shrink: true}, nil
+}
+
 // rectangleOf is the render instance a scene change describes.
 func rectangleOf(change scene.Change) Rectangle {
+	var shape scene.Shape
+	if change.Shape != nil {
+		shape = *change.Shape
+	}
 	return Rectangle{
 		ID:       change.ID,
 		Kind:     change.Kind,
 		Bounds:   change.Bounds,
 		Color:    change.Color,
 		Radius:   change.Radius,
-		Points:   change.Points,
+		Points:   shape.Points,
 		EdgeMask: change.EdgeMask,
-		Shade:    change.Shade,
-		Shadow:   change.Shadow,
+		Shade:    shape.Shade,
+		Shadow:   shape.Shadow,
 	}
 }
 
@@ -311,10 +364,12 @@ func (store *Store) upsert(change scene.Change) (bool, int, error) {
 			rectangle.Bounds = change.Bounds
 			rectangle.Color = change.Color
 			rectangle.Radius = change.Radius
-			rectangle.Points = change.Points
+			if change.Shape != nil {
+				rectangle.Points = change.Shape.Points
+				rectangle.Shade = change.Shape.Shade
+				rectangle.Shadow = change.Shape.Shadow
+			}
 			rectangle.EdgeMask = change.EdgeMask
-			rectangle.Shade = change.Shade
-			rectangle.Shadow = change.Shadow
 		}
 		return false, instance, nil
 	}
@@ -422,8 +477,9 @@ func (store *Store) remove(id scene.ID) error {
 }
 
 // rebuild re-flattens the instance list after a structural change the
-// incremental paths cannot express: a deletion, or a shape inserted somewhere
-// other than the root's tail.
+// incremental paths cannot express: a batch mixing deletes with upserts, a
+// shape inserted somewhere other than the root's tail, or an insertion whose
+// previous sibling has no instance.
 //
 // Geometry lives only in the flattened rectangles. A live shape reaches its
 // rectangle through instanceBySlot; a shape this batch inserted carries the

@@ -45,8 +45,11 @@ const (
 	wsPopup            = 0x80000000
 	wsExToolWindow     = 0x00000080
 	wsExTopmost        = 0x00000008
+	wsExTransparent    = 0x00000020
 	swHide             = 0
 	swShow             = 5
+	swShowNoActivate   = 4
+	swShowMaximized    = 3
 	swRestore          = 9
 	smSmallIconWidth   = 49
 	monitorNearest     = 2
@@ -478,7 +481,7 @@ func (state *windowState) placePanel() {
 	getWindowRect.Call(state.window, uintptr(unsafe.Pointer(&bounds)))
 	width, height := float32(bounds.Right-bounds.Left), float32(bounds.Bottom-bounds.Top)
 	config := state.config
-	if !config.HasAnchor {
+	if !config.HasAnchor || config.WindowMode == platform.WindowNotification {
 		// Centered on the monitor the cursor is on.
 		var info monitorInfo
 		info.Size = uint32(unsafe.Sizeof(info))
@@ -486,7 +489,11 @@ func (state *windowState) placePanel() {
 		getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info)))
 		x := float32(info.Work.Left) + (float32(info.Work.Right-info.Work.Left)-width)/2
 		y := float32(info.Work.Top) + (float32(info.Work.Bottom-info.Work.Top)-height)/2
-		setWindowPosition.Call(state.window, hwndTopmost, uintptr(int32(x)), uintptr(int32(y)), 0, 0, 0x1)
+		if config.WindowMode == platform.WindowNotification {
+			area := platform.ScreenRect{X: float32(info.Work.Left), Y: float32(info.Work.Top), Width: float32(info.Work.Right - info.Work.Left), Height: float32(info.Work.Bottom - info.Work.Top)}
+			x, y = platform.PlaceNotification(width, height, 12*state.scale, area)
+		}
+		setWindowPosition.Call(state.window, hwndTopmost, uintptr(int32(x)), uintptr(int32(y)), 0, 0, 0x11) // NOSIZE | NOACTIVATE
 		return
 	}
 	anchor := config.Anchor
@@ -547,8 +554,13 @@ func (state *windowState) placeAtOrigin(origin gfx.Point) {
 	var info monitorInfo
 	info.Size = uint32(unsafe.Sizeof(info))
 	monitor, _, _ := monitorFromPoint.Call(uintptr(uint32(x+width/2))|uintptr(uint32(y+height/2))<<32, monitorNearest)
-	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
-		x, y, width, height = placedFrame(info.Work, x, y, width, height)
+	// A drag preview goes wherever the pointer is, even half off a screen: the
+	// ghost is not a window the user has to reach. Every other window stays
+	// inside the work area of the monitor it lands on.
+	if state.config.WindowMode != platform.WindowPreview {
+		if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
+			x, y, width, height = placedFrame(info.Work, x, y, width, height)
+		}
 	}
 	// SWP_NOZORDER | SWP_NOACTIVATE: the size too, for a window that did not fit.
 	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), 0x14)

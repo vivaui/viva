@@ -7,5 +7,5 @@ package windows
 func putBounds(controller uintptr, bounds rect) {
 	low := uintptr(uint32(bounds.Left)) | uintptr(uint32(bounds.Top))<<32
 	high := uintptr(uint32(bounds.Right)) | uintptr(uint32(bounds.Bottom))<<32
-	comCall(controller, controllerPutBounds, low, high)
+	comCall2(controller, controllerPutBounds, low, high)
 }

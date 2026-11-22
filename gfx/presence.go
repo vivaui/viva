@@ -594,6 +594,10 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 			continue
 		}
 		image.Bounds = transform.rect(image.Bounds)
+		image.Radius *= transform.scale
+		if fade {
+			image.Fade = 1 - (1-image.Fade)*transform.alpha
+		}
 		if image.HasClip {
 			image.ClipOf = transform.rect(image.ClipOf)
 		}

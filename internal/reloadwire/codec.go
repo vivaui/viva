@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ProtocolVersion = 29
+	ProtocolVersion = 30
 	MaxFrameBytes   = 32 << 20
 	MaxStateBytes   = 8 << 20
 	maxItems        = 200_000
@@ -523,6 +523,8 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.u32(image.Bitmap.Version)
 		encodeRect(&result, image.Source)
 		encodeRect(&result, image.Bounds)
+		result.f32(image.Radius)
+		result.f32(image.Fade)
 		result.u16(image.Layer)
 		encodeRect(&result, image.ClipOf)
 		result.bool(image.HasClip)
@@ -589,6 +591,7 @@ func encodeCanvas(value CanvasSnapshot) ([]byte, error) {
 		result.bool(hit.Expanded)
 		result.bool(hit.Multiline)
 		result.bool(hit.ReadOnly)
+		result.bool(hit.Invalid)
 		result.bool(hit.Secure)
 		result.bool(hit.Focusable)
 		result.bool(hit.Autofocus)
@@ -654,7 +657,8 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 			ID: value.u64(), Version: value.u32(),
 		}
 		result.Images[index] = gfx.Image{
-			Bitmap: bitmap, Source: decodeRect(&value), Bounds: decodeRect(&value), Layer: value.u16(),
+			Bitmap: bitmap, Source: decodeRect(&value), Bounds: decodeRect(&value),
+			Radius: value.f32(), Fade: value.f32(), Layer: value.u16(),
 			ClipOf: decodeRect(&value), HasClip: value.bool(), Order: value.u32(),
 		}
 		invalid := bitmap.Width <= 0 || bitmap.Height <= 0 || bitmap.Width > MaxFrameBytes/4 || bitmap.Stride < bitmap.Width*4
@@ -715,7 +719,7 @@ func decodeCanvas(data []byte) (CanvasSnapshot, error) {
 		result.Hits[index] = gfx.Hit{
 			ID: value.id(), Bounds: decodeRect(&value), Label: value.string(), Value: value.string(), Hint: value.string(),
 			Scope: value.id(), Layer: value.u16(), Role: gfx.Role(value.u8()), Disabled: value.bool(), Checked: value.bool(),
-			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), BlockSurface: value.bool(), MovesWindow: value.bool(),
+			Selected: value.bool(), Expanded: value.bool(), Multiline: value.bool(), ReadOnly: value.bool(), Invalid: value.bool(), Secure: value.bool(), Focusable: value.bool(), Autofocus: value.bool(), Block: value.bool(), BlockSurface: value.bool(), MovesWindow: value.bool(),
 		}
 		result.HitTexts[index] = gfx.HitText{
 			Bounds: decodeRect(&value), Size: value.f32(), Color: decodeColor(&value), Weight: value.f32(),

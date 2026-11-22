@@ -201,6 +201,9 @@ func (canvas *Canvas) AdoptEmbedded(child *Canvas, mount Scope) {
 	if request := child.FocusRequest(); !request.IsZero() {
 		canvas.RequestFocus(tree.MountID(mount, request))
 	}
+	if request := child.TakeFocusOnce(); !request.IsZero() {
+		canvas.RequestFocusOnce(tree.MountID(mount, request))
+	}
 	if release := child.FocusRelease(); !release.IsZero() {
 		canvas.ReleaseFocus(tree.MountID(mount, release))
 	}

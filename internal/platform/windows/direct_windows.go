@@ -3,10 +3,8 @@ package windows
 import (
 	"fmt"
 	"math"
-	"syscall"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -38,6 +36,7 @@ const (
 	writeSetReadingDirection = 6
 	writeGetLineMetrics      = 59
 	writeGetMetrics          = 60
+	writeGetOverhangMetrics  = 61
 	writeGetClusterMetrics   = 62
 	writeSetCharacterSpacing = 69
 	writeSetUnderline        = 36
@@ -72,6 +71,8 @@ type directTarget struct {
 	scratch       *textBitmap
 	width, height int                                        // of the scratch bitmap
 	clip          struct{ Left, Top, Right, Bottom float32 } // the rectangle pushClip hands Direct2D, kept here so that it is not allocated
+	color         d2dColor                                   // what setColor hands Direct2D, kept for the same reason
+	matrix        d2dMatrix                                  // what setTransform hands Direct2D
 }
 
 // d2dMatrix is D2D1_MATRIX_3X2_F: x' = M11*x + M21*y + DX, y' = M12*x + M22*y + DY.
@@ -86,12 +87,12 @@ func newDirectTarget(factory uintptr, alphaMode uint32) (*directTarget, error) {
 	// device; 96 dpi: label sizes are device pixels already.
 	properties := d2dRenderTargetProperties{Type: 1, Format: 87, AlphaMode: alphaMode, DPIX: 96, DPIY: 96}
 	var target uintptr
-	if err := hresult(comCall(factory, d2dFactoryCreateDCTarget, uintptr(unsafe.Pointer(&properties)), uintptr(unsafe.Pointer(&target)))); err != nil {
+	if err := hresult(comCall2(factory, d2dFactoryCreateDCTarget, uintptr(unsafe.Pointer(&properties)), uintptr(unsafe.Pointer(&target)))); err != nil {
 		return nil, fmt.Errorf("windows: create Direct2D target: %w", err)
 	}
 	white := d2dColor{R: 1, G: 1, B: 1, A: 1}
 	direct := &directTarget{target: target}
-	if err := hresult(comCall(target, d2dCreateSolidColorBrush, uintptr(unsafe.Pointer(&white)), 0, uintptr(unsafe.Pointer(&direct.brush)))); err != nil {
+	if err := hresult(comCall3(target, d2dCreateSolidColorBrush, uintptr(unsafe.Pointer(&white)), 0, uintptr(unsafe.Pointer(&direct.brush)))); err != nil {
 		direct.close()
 		return nil, fmt.Errorf("windows: create Direct2D brush: %w", err)
 	}
@@ -117,7 +118,7 @@ func (target *directTarget) bind(width, height int) (*textBitmap, error) {
 			return nil, err
 		}
 		bounds := rect{Right: int32(grown.Width), Bottom: int32(grown.Height)}
-		if err := hresult(comCall(target.target, d2dBindDC, grown.dc, uintptr(unsafe.Pointer(&bounds)))); err != nil {
+		if err := hresult(comCall2(target.target, d2dBindDC, grown.dc, uintptr(unsafe.Pointer(&bounds)))); err != nil {
 			grown.close()
 			return nil, fmt.Errorf("windows: bind Direct2D target: %w", err)
 		}
@@ -132,28 +133,30 @@ func (target *directTarget) bind(width, height int) (*textBitmap, error) {
 // begin sets the color and the antialiasing mode and starts drawing. The scratch bitmap
 // holds the background: Direct2D draws over it.
 func (target *directTarget) begin(foreground d2dColor, mode uint32) {
-	comCall(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&foreground)))
-	comCall(target.target, d2dSetTextAntialiasMode, uintptr(mode))
-	comCall(target.target, d2dBeginDraw)
+	target.setColor(foreground)
+	comCall1(target.target, d2dSetTextAntialiasMode, uintptr(mode))
+	comCall0(target.target, d2dBeginDraw)
 }
 
 func (target *directTarget) setColor(color d2dColor) {
-	comCall(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&color)))
+	target.color = color
+	comCall1(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&target.color)))
 }
 
 func (target *directTarget) setTransform(matrix d2dMatrix) {
-	comCall(target.target, d2dSetTransform, uintptr(unsafe.Pointer(&matrix)))
+	target.matrix = matrix
+	comCall1(target.target, d2dSetTransform, uintptr(unsafe.Pointer(&target.matrix)))
 }
 
 // pushClip limits what is drawn to the device columns [left, right) of a label height rows
 // high, until popClip. The rectangle is in the target's transform, so push it before setting one.
 func (target *directTarget) pushClip(left, right, height int) {
 	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), 0, float32(right), float32(height)
-	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+	comCall2(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
 }
 
 func (target *directTarget) popClip() {
-	comCall(target.target, d2dPopAxisAlignedClip)
+	comCall0(target.target, d2dPopAxisAlignedClip)
 }
 
 func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
@@ -161,7 +164,7 @@ func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
 }
 
 func (target *directTarget) end() error {
-	if err := hresult(comCall(target.target, d2dEndDraw, 0, 0)); err != nil {
+	if err := hresult(comCall2(target.target, d2dEndDraw, 0, 0)); err != nil {
 		return fmt.Errorf("windows: end Direct2D drawing: %w", err)
 	}
 	return nil
@@ -188,6 +191,8 @@ type directRasterizer struct {
 	owner            platform.GridOwner // which run owns which column of a grid label
 	ink              []platform.GridInk // how far each run's glyphs reach past its cells
 	inkCache         map[inkKey]platform.GridInk
+	formats          map[gridFormatKey]uintptr
+	shaped           map[gridLayoutKey]*gridLayout
 	gdi              *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
 	directOnly       bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }
@@ -232,6 +237,7 @@ func (rasterizer *directRasterizer) close() {
 		rasterizer.gdi.close()
 		rasterizer.gdi = nil
 	}
+	rasterizer.releaseGridCache()
 	rasterizer.releaseFontFallbacks()
 	release(&rasterizer.factory)
 }
@@ -292,11 +298,14 @@ func (rasterizer *directRasterizer) rasterize(label platform.TextLabel, scale fl
 		return nil, false, fmt.Errorf("windows: invalid label font size")
 	}
 	rasterizer.spans = rasterizer.spans[:0]
+	if label.Color.Alpha <= 0 && len(label.Runs) == 0 {
+		return pixels, false, nil
+	}
 	if label.Mono || len(label.Runs) > 0 {
 		if allowLCD && !platform.ColorGlyphs(label.Value) {
-			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height)
+			return pixels, true, rasterizer.gridLCD(pixels, label, scale, width, height, skip)
 		}
-		return pixels, false, rasterizer.grid(pixels, label, scale, width, height)
+		return pixels, false, rasterizer.grid(pixels, label, scale, width, height, skip)
 	}
 	lcd = allowLCD && !platform.ColorGlyphs(label.Value)
 	baseline := float32(platform.TextBaseline(label, height, scale))
@@ -402,7 +411,7 @@ func (rasterizer *directRasterizer) batchTarget(translucent bool) (*directTarget
 // rectangle instead of to the bitmap's corner.
 func (target *directTarget) pushClipRect(left, top, right, bottom int) {
 	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), float32(top), float32(right), float32(bottom)
-	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+	comCall2(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
 }
 
 // fill sets the top left width by height pixels of the bitmap to color.
@@ -484,7 +493,8 @@ func coverageOfChannels(pixels []byte, bitmap *textBitmap, width, height int, dr
 // weight and decorations of their own, each character on its cell of the grid (Viva's, not the
 // font's), or the whole value of a monospaced label. Colors are applied as the text is drawn
 // (premultiplied BGRA, grayscale antialiasing), so a line is one texture however many colors it holds.
-func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, scale float32, width, height int) error {
+// skip is the device columns of the line left of the texture, for a line wider than a texture holds.
+func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel, scale float32, width, height, skip int) error {
 	family := monoFamily(label.MonoFace)
 	fallback := rasterizer.fontFallback(label.MonoFace)
 	size := label.FontSize * scale
@@ -498,7 +508,7 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 	fill(scratch, width, height, d2dColor{})
 	target.begin(d2dColor{A: 1}, d2dAntialiasGrayscale)
 	var drawErr error
-	for _, piece := range rasterizer.gridPieces(label, pitch) {
+	for _, piece := range rasterizer.gridPieces(label, pitch, skip) {
 		target.setColor(piece.color)
 		if err := rasterizer.drawRun(target, family, fallback, size, piece.weight, piece.run, piece.text, piece.left, piece.span, pitch, baseline, pieceClip{}); err != nil && drawErr == nil {
 			drawErr = err
@@ -520,36 +530,13 @@ func (rasterizer *directRasterizer) grid(pixels []byte, label platform.TextLabel
 // exactly the pitch of the grid, a single wider character is centered on its cells, and
 // the run's decorations are DirectWrite's own.
 func (rasterizer *directRasterizer) drawRun(target *directTarget, family string, fallback uintptr, size, weight float32, run gfx.TextRun, piece string, left, span, pitch, baseline float32, clip pieceClip) error {
-	format, err := rasterizer.services.formatMono(family, size, weight, run.Italic)
+	formatKey, format, err := rasterizer.gridFormat(family, size, weight, run.Italic, fallback)
 	if err != nil {
 		return err
 	}
-	defer release(&format)
-	setFontFallback(format, fallback)
-	units, err := syscall.UTF16FromString(piece)
+	shaped, err := rasterizer.gridShaped(formatKey, format, piece, run, span, pitch)
 	if err != nil {
 		return err
-	}
-	var layout uintptr
-	if err := hresult(rasterizer.services.createLayout(rasterizer.services.write, &units[0], uint32(len(units)-1), format, 1<<20, 1<<20, &layout)); err != nil {
-		return fmt.Errorf("windows: lay out grid text: %w", err)
-	}
-	defer release(&layout)
-	var metrics textMetrics
-	if err := hresult(comCall(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
-		return err
-	}
-	var line lineMetrics
-	var lines uint32
-	if err := hresult(comCall(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&line)), 1, uintptr(unsafe.Pointer(&lines)))); err != nil && lines == 0 {
-		return err
-	}
-	all := uint64(len(units)-1) << 32
-	if run.Underline {
-		comCall(layout, writeSetUnderline, 1, uintptr(all))
-	}
-	if run.Strike {
-		comCall(layout, writeSetStrikethrough, 1, uintptr(all))
 	}
 	x := left
 	scaled := false
@@ -566,28 +553,15 @@ func (rasterizer *directRasterizer) drawRun(target *directTarget, family string,
 		// it is used only when the widths differ.
 		// Terminal padding occupies cells too. Width excludes trailing spaces
 		// and would stretch a short command across its following blank cells.
-		scaled = metrics.WidthTrailing > 0 && span > 0 && metrics.WidthTrailing != span
+		scaled = shaped.metrics.WidthTrailing > 0 && span > 0 && shaped.metrics.WidthTrailing != span
 		if scaled {
-			scale := span / metrics.WidthTrailing
+			scale := span / shaped.metrics.WidthTrailing
 			target.setTransform(d2dMatrix{M11: scale, M22: 1, DX: left * (1 - scale)})
 		}
-	case pitch > 0 && printableASCII(piece):
-		// Every character stands on its cell, whatever the advance of the font.
-		advance := metrics.WidthTrailing / float32(len(units)-1)
-		if reduction := advance - pitch; reduction != 0 {
-			var extended uintptr
-			if comCall(layout, 0, uintptr(unsafe.Pointer(&writeLayout1IID)), uintptr(unsafe.Pointer(&extended))) == 0 && extended != 0 {
-				if rasterizer.spacing == nil {
-					purego.RegisterFunc(&rasterizer.spacing, vtable(extended, writeSetCharacterSpacing))
-				}
-				rasterizer.spacing(extended, 0, -reduction, 0, all)
-				release(&extended)
-			}
-		}
 	case run.Cells > 0 && isSingleCharacter(piece):
-		x = left + (span-metrics.Width)/2
+		x = left + (span-shaped.metrics.Width)/2
 	}
-	target.draw(x, baseline-line.Baseline, layout, d2dEnableColorFont)
+	target.draw(x, baseline-shaped.line.Baseline, shaped.layout, d2dEnableColorFont)
 	if scaled {
 		target.setTransform(identityMatrix)
 	}

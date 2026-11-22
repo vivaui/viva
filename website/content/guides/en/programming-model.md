@@ -17,7 +17,7 @@ A page names its elements by their place among their siblings, and a row by `c.K
 
 ## Events
 
-A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Page.Config`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
+A button is handled where it is declared: `ui.Button(c, "Save").Clicked()` is true in the one paint that delivers its click, and only there may a paint change state. For a handler that changes the list being declared, use `c.After(func() { ... })`; it runs after the paint, may block or open a native dialog, and repaints. The page wires the window's pointer, key, wheel and text input itself through `Configure`; a `ui.Control`'s `ui.Handlers` takes the events for a control of your own. For input the page does not model, `app.Config` still has typed callbacks, each returning a `gfx.EventResult`:
 
 | Callback | Receives |
 | --- | --- |
@@ -42,7 +42,15 @@ All callbacks run on the window thread and must not block.
 
 ## Background work
 
-Other goroutines never touch the window. A goroutine publishes its result under your own synchronization, then calls `Invalidator.Invalidate`. The window thread wakes once, runs `OnWake`, and repaints.
+Three tools hand work back to the window thread; pick by what the work belongs to:
+
+| The work | Use |
+| --- | --- |
+| Belongs to a page and should stop when its key changes or the page stops declaring it | `ui.Effect` |
+| Is a function a goroutine finished that must run on the window thread (the application's loop, any window) | `Application.Post` |
+| Is yours alone, with no page key: a goroutine hands its result to one window | `Invalidator.Post` |
+
+Other goroutines never touch the window. A goroutine hands its result to `Invalidator.Post` as a function; the window thread runs it, then `OnWake`, then repaints, so the page only ever reads state the window thread wrote. `Post` refuses updates once the window has closed and when 256 are already waiting.
 
 This ownership includes the model and text editors, not just native window methods. Read `ui.Field.Text()` or `text.Editor.String()` on the window thread **before** launching a worker, and pass the returned immutable string to it. A getter is not necessarily a pure read: these methods populate caches, and a field can initialize its editor on first use. A lock used only by your worker does not synchronize with native editing or painting. Apply results on the window thread; for page-scoped work, use a snapshot as a keyed effect's key, as shown in [Text input and forms](text-input).
 
@@ -52,7 +60,6 @@ package main
 
 import (
 	"log"
-	"sync"
 	"time"
 
 	"github.com/vivaui/viva/app"
@@ -67,8 +74,6 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu          sync.Mutex
-	pending     string // written by the worker goroutine, under mu
 	status      string // read by the page, written only on the window thread
 	invalidator *app.Invalidator
 }
@@ -79,10 +84,9 @@ func (m *model) page(c ui.C) {
 			m.status = "working"
 			go func() {
 				result := slowWork()
-				m.mu.Lock()
-				m.pending = result
-				m.mu.Unlock()
-				m.invalidator.Invalidate() // wakes the window thread once
+				// Post runs the update on the window thread, then repaints: the
+				// goroutine never touches what the page reads.
+				m.invalidator.Post(func() { m.status = result })
 			}()
 		}
 		ui.Text(c, m.status)
@@ -93,16 +97,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
-
-	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that the page reads.
-	config.OnWake = func() {
-		m.mu.Lock()
-		m.status, m.pending = m.pending, ""
-		m.mu.Unlock()
-	}
-	return config
+	return ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 }
 
 func main() {
@@ -114,7 +109,7 @@ func main() {
 }
 ```
 
-`Invalidator` owns no goroutine, timer or channel. An application that never calls it pays nothing for it, and the page only ever reads state that `OnWake` already moved onto the window thread.
+`Invalidator` owns no goroutine, timer or channel. An application that never calls it pays nothing for it. `OnWake` runs on every wake, a running transition's frames included, so it is for state the window thread advances itself (a status icon); a result handed over with `Post` is applied exactly once.
 
 ### Scoped effects
 
@@ -138,7 +133,7 @@ The key names one run. The same key does not start the work again; a different k
 
 The run function receives a context and must return when it is done; the framework does not kill goroutines or poll. A new key starts its run at once by default, so a cancelled run that is slow to return can overlap the next one; `.Sequential()` on the state waits for the previous run to return, and a key declared while it waits replaces the one that will run. A page that only draws into a canvas of your own gives `PageConfig.Invalidator` the invalidator of that window, and calls `Page.Close` when the page goes away; a page given no invalidator keeps the result for the next paint but cannot wake the window by itself.
 
-A goroutine of your own, for something with no page key to cancel it, still publishes under its own lock and calls `Invalidator.Invalidate`.
+A goroutine of your own, for something with no page key to cancel it, hands its result to `Invalidator.Post`.
 
 ## Text input
 

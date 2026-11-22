@@ -50,11 +50,14 @@ opening one, `viva.toml`, and an `AGENTS.md` describing the programming model.
 platform's own bundle.
 
 Requirements: Go 1.26 or newer (viva fetches it when missing). On macOS the Xcode command-line tools, because
-Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB and
-Vulkan loaders; on Windows, Win32 with Direct3D 11 and DirectWrite. Viva loads
-the system libraries at runtime and bundles none of them.
+Viva reaches Cocoa and Metal through cgo; on Linux, X11 with the system XCB,
+Pango and Cairo libraries (the opt-in GTK 3 shell, `-tags vivagtk`, is a native
+Wayland client and needs the system's GTK 3), and a Vulkan loader and driver for GPU acceleration
+(a machine without them draws on the CPU); on Windows, Win32 with Direct3D 11
+and DirectWrite. Viva loads the system libraries at runtime and bundles none of
+them.
 
-The current release is `v0.6.5`; name it explicitly (`@v0.6.5`) to pin it. Guides,
+The current release is `v0.6.7`; name it explicitly (`@v0.6.7`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -66,7 +69,8 @@ and how to work on the framework rather than with it.
 ## Scope
 
 Viva targets native desktop applications on macOS, Windows, and Linux, and
-treats WebAssembly/Canvas2D as a supported web deployment target. Both targets
+treats WebAssembly as a supported web deployment target, rendered with WebGL2
+and falling back to Canvas2D when WebGL2 is unavailable. Both targets
 share components, input, text, focus and accessibility semantics; capabilities
 the browser does not have are reported through explicit asynchronous APIs and
 `Capability`, never faked. The web target must not add cost to native builds.
@@ -108,6 +112,8 @@ WebView and no bundled rendering runtime.
   StatusNotifier host; `StatusItemConfig.Menu` makes it open the system's own
   menu (NSMenu, a Win32 popup menu, `com.canonical.dbusmenu`); `WindowPanel` is
   the borderless popup that opens beside it and closes when it loses focus;
+  `WindowNotification` is a clickable popup that does not take the keyboard and
+  stays open when focus moves away;
   `Window.Hide`/`Show` keep an application running without a visible window.
 - `Application.SetDockBadge` puts a label in the red badge macOS draws at the
   corner of the application's Dock tile, and an empty label removes it.
@@ -127,6 +133,10 @@ WebView and no bundled rendering runtime.
 - `Application.Post` hands work a background goroutine finished to the window
   thread: accepted functions run there in order, with no goroutine, timer or
   blocking wait added, and no "call the loop and wait" form that could deadlock.
+- `audio.Open` plays interleaved 16-bit PCM on the system's default output
+  (AudioUnit on macOS, WASAPI shared mode on Windows, ALSA on Linux), with no
+  background work and no backend linked into an application that does not
+  import it. See [docs/audio.md](docs/audio.md).
 - `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
   CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
   static settings), and the environment on Linux. A policy the platform cannot
@@ -153,7 +163,8 @@ WebView and no bundled rendering runtime.
 - Focus-driven dynamic native text editors on macOS, Windows, and Linux, with
   explicit enable/replace/disable frame updates. macOS and Windows caret timers
   exist only while an editable field is focused. Linux composes through the IBus
-  protocol (IBus and Fcitx5's IBus frontend); XIM is still open.
+  protocol (IBus and Fcitx5's IBus frontend) or Fcitx 4's own protocol; XIM is
+  still open.
 - A separate retained semantic accessibility tree.
 - Direct CoreText shaping, system-font fallback, GPU-composited text textures,
   and a bounded measurement cache.
@@ -206,8 +217,9 @@ without changing build commands. Unconfigured windows keep the ordinary renderer
 limits, fallback behavior and the platforms actually verified.
 
 Native label renderers draw single-line labels. The browser target runs the same
-components on the Canvas2D backend; see [Web deployment](docs/web-deployment.md)
-for its capability matrix and hosting requirements.
+components on the WebGL2 backend, with Canvas2D as its fallback; see
+[Web deployment](docs/web-deployment.md) for its capability matrix and hosting
+requirements.
 
 ## Run the repository
 
@@ -220,8 +232,9 @@ tools/build_web.sh           # viva build --target web, then serves http://127.0
 go run ./tools/docs -check   # the API and component data the website generates from
 ```
 
-The browser build paints the same Go components through the Canvas2D
-WebAssembly backend. It is a deployment target, not only a gallery: file
+The browser build paints the same Go components through WebGL2, falling back to
+the Canvas2D WebAssembly backend when WebGL2 is unavailable or a context is
+lost. It is a deployment target, not only a gallery: file
 pickers, drops, clipboard, notifications, encrypted secret storage and embedded
 fonts have typed asynchronous APIs. Its visual direction and measured costs are
 recorded in `docs/benchmarks/m3-gallery-style-darwin-arm64.md`.

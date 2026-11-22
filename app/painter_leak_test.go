@@ -34,20 +34,20 @@ func TestAPageThatIsRemovedLeavesNothingRetained(t *testing.T) {
 	}
 
 	settle(0)
-	scenes, semantics, rectangles := painter.graph.Len(), painter.semantics.Len(), len(painter.renderer.Rectangles())
+	scenes, nodes, rectangles := painter.frame.Graph().Len(), len(painter.accessibility), len(painter.frame.Rectangles())
 	for round := 0; round < 5; round++ {
 		settle(12)
-		if painter.graph.Len() <= scenes || painter.semantics.Len() <= semantics {
+		if painter.frame.Graph().Len() <= scenes || len(painter.accessibility) <= nodes {
 			t.Fatal("the busy page retained nothing; the test is not exercising what it claims")
 		}
 		settle(0)
-		if got := painter.graph.Len(); got != scenes {
+		if got := painter.frame.Graph().Len(); got != scenes {
 			t.Fatalf("round %d: the scene holds %d nodes after the page was removed, %d before it was shown", round, got, scenes)
 		}
-		if got := painter.semantics.Len(); got != semantics {
-			t.Fatalf("round %d: the semantic tree holds %d nodes after the page was removed, %d before", round, got, semantics)
+		if got := len(painter.accessibility); got != nodes {
+			t.Fatalf("round %d: the accessibility payload holds %d nodes after the page was removed, %d before", round, got, nodes)
 		}
-		if got := len(painter.renderer.Rectangles()); got != rectangles {
+		if got := len(painter.frame.Rectangles()); got != rectangles {
 			t.Fatalf("round %d: the renderer holds %d rectangles after the page was removed, %d before", round, got, rectangles)
 		}
 	}
@@ -72,11 +72,11 @@ func TestALargePageThenASmallOneReleasesSlots(t *testing.T) {
 		}
 	}
 	settle(5000)
-	if painter.graph.Slots() < 5000 || painter.semantics.Slots() < 5000 {
-		t.Fatalf("the large page did not allocate its slots: graph=%d semantics=%d", painter.graph.Slots(), painter.semantics.Slots())
+	if painter.frame.Graph().Slots() < 5000 || cap(painter.accessibility) < 5000 {
+		t.Fatalf("the large page did not allocate its slots: graph=%d accessibility=%d", painter.frame.Graph().Slots(), cap(painter.accessibility))
 	}
 	settle(1)
-	if painter.graph.Slots() > 64 || painter.semantics.Slots() > 64 {
-		t.Fatalf("the small page kept the large page's slots: graph=%d semantics=%d", painter.graph.Slots(), painter.semantics.Slots())
+	if painter.frame.Graph().Slots() > 64 || cap(painter.accessibility) > 4096 {
+		t.Fatalf("the small page kept the large page's slots: graph=%d accessibility=%d", painter.frame.Graph().Slots(), cap(painter.accessibility))
 	}
 }

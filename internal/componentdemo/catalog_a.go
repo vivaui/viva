@@ -7,6 +7,7 @@ var groupAComponents = []Component{
 	aspectRatioComponent,
 	attachmentComponent,
 	avatarComponent,
+	avatarEditorComponent,
 	breadcrumbComponent,
 	bubbleComponent,
 	buttonGroupComponent,
@@ -19,4 +20,5 @@ var groupAComponents = []Component{
 	chartDownsampleComponent,
 	collapsibleComponent,
 	comboboxComponent,
+	graphComponent,
 }

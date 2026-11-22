@@ -221,7 +221,8 @@ for (const locale of ['zh', 'en']) {
     assert.ok(html.includes(`<html lang="${lang(locale)}"`));
     for (const language of ['zh', 'en']) assert.ok(html.includes(`href="/${language}/components/"`));
     for (const page of catalog.pages) assert.ok(html.includes(`href="/${locale}/ui/${page.ID}/"`), `index lacks ${page.ID}`);
-    assert.ok(html.includes('class="component-index-grid"'));
+    assert.ok(html.includes('class="component-index"'));
+    assert.ok(html.includes('class="component-index-link"'));
     assert.ok(html.includes(locale === 'zh' ? '按钮' : 'Button'));
   });
 

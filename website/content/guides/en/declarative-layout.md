@@ -31,12 +31,12 @@ func (m *model) page(c ui.C) {
 - `Basis(px)` is what an element starts from before free room is shared, and `WidthPercent` and `HeightPercent` take a share of the container. `MinWidth`, `MaxWidth`, `MinHeight` and `MaxHeight` bound a size; room a capped element cannot take goes to the others, as in CSS, so `Grow(1).MaxWidth(470)` beside a `Spacer()` keeps what follows against the far edge.
 - `Items(ui.Baseline)` lines a Row's children up on their first line of text, so a large heading, a small caption and a button sit on one baseline. A `Text` shrinks and clips before a fixed-size sibling does.
 - `Background`, `Radius`, `Border`, `Shadow` and `Clip` style a container. On a control such as an `Input`, `Select` or `Button`, `Radius` and `FontSize` give that control its own corner radius and text size, and a `Height` on a `Button` is how tall the button is painted.
-- `Paragraph(text, maxLines)` is text that wraps to the width it gets, so a longer label makes the row taller and pushes what follows down. `LineHeight` sets its leading.
+- `Paragraph(text, maxLines)` is text that wraps to the width it gets, so a longer label makes the row taller and pushes what follows down. `LineHeight` sets its leading. A paragraph its container does not stretch asks for the width of its widest line, so a word no line is wide enough for, such as a long URL or path, runs out over the edges of what holds it; `OverflowWrap(ui.OverflowWrapAnywhere)` makes it ask for the room it is given instead and break that word between whole characters (never inside an emoji sequence or a letter with its marks) where it does not fit. While the text fits, nothing changes.
 - `Grid(minCell)` fits as many equal columns as the width allows and wraps onto new rows.
 - `Flow()` is a Row that wraps: children of their own widths go left to right and start a new line when the next one does not fit, as CSS's `flex-wrap` does. Each line shares its room as a Row does, so `Grow` and `Justify` apply to every line alone, and `Items` lines the children up within their line. `Gap` is the space between children and between lines, unless `LineGap` sets the latter. Tags, chips and toolbars that wrap are Flows.
 - `Scroll(offset)` is a clipped column taller than itself. You own the offset (the wheel arrives in `Config.OnScroll`); after `End`, `Content()` is how tall the children are, so the offset can be clamped.
 
-Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. Any element can be made a pointer target with `Hit(id, label)`; what it looks like under the pointer, pressed and focused is declared with `Hover`, `Pressed` and `Focus` (below).
+Controls are the ones in `components`, with the same look: `Button` (with `Outline`, `Ghost`, `Secondary`, `Destructive`, `Small` and the other variants), `Checkbox`, `Switch`, `Icon`, `Divider`. `Clicked()` is read where the control is declared: it is true in the one paint that delivers the click. A Checkbox or Switch in a fixed slot can be made to target that slot with `.HitExact()`. Any element can be made a pointer target with `Hit(id, label)`; what it looks like under the pointer, pressed and focused is declared with `Hover`, `Pressed` and `Focus` (below).
 
 ## Pages: ui.C
 
@@ -54,7 +54,7 @@ func (m *model) page(c ui.C) {
 	})
 }
 
-ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.page})
 ```
 
 `ui.Choice` and `ui.Tabs` are one tab stop each: Left and Right (Up and Down for vertical tabs) move to the next enabled option, wrapping, and choose it; Home and End go to the first and last.
@@ -83,11 +83,11 @@ An element is named by where it is: its kind and its number among the elements o
 
 ### Menus, search fields and context menus
 
-`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, typing a letter goes to the item it begins, and choosing one closes the menu. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is an item with a submenu beside it, which opens as the pointer rests on the item, on a click, or on Right, Enter or Space with its first item focused; Left goes back, Escape closes every menu, and choosing in it closes them all. `menu.Item("Model").Description("What answers")` adds a second line under an item, `menu.WidthRange(140, 320)` bounds the menu's width, `menu.Above()` opens it over the anchor, for a trigger along the bottom of a panel, and `menu.Beside()` to its right, for a row of a list or popup whose menu should leave the rows under it in sight. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `.Clearable()` gives it a button that clears the choice, `.Empty("No zone matches")` is what its list says when nothing matches, and `.Creatable("")` offers what was typed as a new choice ("Create dev"), which `.Created()` reports for the application to add. A Button takes an icon before its label with `.Icon(plus)`, or alone with `.IconOnly()`. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads.
+`ui.Menu(c, anchor, &m.menu, func(menu *ui.MenuItems) { ... })` is shadcn's dropdown menu of actions: `menu.Item("Rename").Clicked()` reads one as a button is read, the arrows move between items, typing a letter goes to the item it begins, and choosing one closes the menu. `menu.Sub("Move to", func(to *ui.MenuItems) { ... })` is an item with a submenu beside it, which opens as the pointer rests on the item, on a click, or on Right, Enter or Space with its first item focused; Left goes back, Escape closes every menu, and choosing in it closes them all. `menu.Item("Model").Description("What answers")` adds a second line under an item, `menu.Item("Rename").ID()` is the row's identity for anchoring a part or context menu, `menu.WidthRange(140, 320)` bounds the menu's width, `menu.Above()` opens it over the anchor, for a trigger along the bottom of a panel, and `menu.Beside()` to its right, for a row of a list or popup whose menu should leave the rows under it in sight. `ui.Combobox(c, &m.zone, zones, Zone.String, "Time zone")` takes Select's arguments and a label, and filters the choices as the user types into it, with the platform's input methods. `.Clearable()` gives it a button that clears the choice, `.Empty("No zone matches")` is what its list says when nothing matches, and `.Creatable("")` offers what was typed as a new choice ("Create dev"), which `.Created()` reports for the application to add. A multi-select with removable chips is the opt-in `ui/multiselect` package: `picker := multiselect.New(&m.tags)`, then `picker.View(c, multiselect.Spec{Label: "Tags", Options: tagOptions, Removes: tagRemoves}).FillWidth()`; importing it is what links it, so applications that do not use it pay nothing. Hierarchical paths use the opt-in `ui/hierarchypicker` package the same way: `state := hierarchypicker.NewState(paths)`, `picker := hierarchypicker.New(state)`, then `picker.View(c, hierarchypicker.Spec{Label: "Group", OptionIDs: groupOptions}).FillWidth()`; `state.Value` is the full chosen path. A Button takes an icon before its label with `.Icon(plus)`, or alone with `.IconOnly()`. `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { ... })` opens the same items at the pointer on a secondary press of `row`, or under it on Shift+F10; items take an `.Icon`, the keycaps of a shortcut with `.Keys(ui.Primary, "c")` (shown only: the shortcut is a `Shortcut` where its action is), and `.Checked` or `.Chosen` to be a checkbox or a radio item. A search field is a TextField with `.Icon(search)` before its text and `.Action(cross, "Clear")`, a small button at its end that `.ActionClicked()` reads.
 
 ### Drawers
 
-`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise.
+`ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)` slides a panel in from an edge, as shadcn's Sheet: with an empty title the body has the whole panel, and `NonModal` leaves the keyboard on the page behind it; `Swipe` adds a handle at its inner edge, and a drag on it moves the panel toward its edge, closing it when dragged past half its size or thrown, sliding it back otherwise. `Inset` keeps the drawer and its dismiss target out of a strip the page does not own, such as a title bar.
 
 ### Trees
 
@@ -247,15 +247,15 @@ func (m *model) row(c ui.C, h *host) {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-`ui.Scroll(c)` keeps its offset by the area's own name; `.ScrollState()` on it (or on the area a `ui.List` or `ui.Tree` returns) has `Offset`, `Content` and `Viewport` as of the last layout, and moves it by program with `ScrollTo` and `ScrollToEnd`, for instance to bring the selected row into view. Ask for it in each paint rather than keeping the pointer: an area a paint does not declare forgets its offset.
+`ui.Scroll(c)` keeps its offset by the area's own name; `.ScrollState()` on it (or on the area a `ui.List` or `ui.Tree` returns) has `Offset`, `Content` and `Viewport` as of the last layout, and moves it by program with `ScrollTo` and `ScrollToEnd`, for instance to bring the selected row into view. Ask for it in each paint rather than keeping the pointer: an area a paint does not declare forgets its offset. `Following()` says whether the area is attached to its end now, and `Prepend(delta)` keeps the rows a reader is looking at in place when content above them is added or removed; a List's `RowOffset(row)` gives the row's top for anchoring. `ScrollState.Key` applies the arrow, page and Home/End keys to the area when the page gives it the keyboard, and `BarGeometry(bounds, barSize)` computes the tracks and thumb for an application that paints its own scrollbar.
 
-`.Sideways()` makes the area scroll left and right as well: its children keep the width they ask for, the widest sets how wide the content is, and they are all laid out as wide as that, or as the area where it is wider, so a row of tabs keeps its tabs' widths and a highlighted row runs the whole width. A `Paragraph` does not wrap there. As with its height, the area's width is the one it is given (a `Row` needs `Grow`), not its content's. The horizontal wheel, or the wheel with Shift held, moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX` and `ScrollToX`. `.Scrollbars()` draws thin bars over the edges the content overflows; the pointer drags them, and a press beside a thumb brings it there.
+`.Sideways()` makes the area scroll left and right as well: its children keep the width they ask for, the widest sets how wide the content is, and they are all laid out as wide as that, or as the area where it is wider, so a row of tabs keeps its tabs' widths and a highlighted row runs the whole width. A `Paragraph` does not wrap there. As with its height, the area's width is the one it is given (a `Row` needs `Grow`), not its content's. The horizontal wheel, or the wheel with Shift held, moves it, and the state has `OffsetX`, `ContentWidth`, `ViewportWidth`, `MaxX` and `ScrollToX`. `.Scrollbars()` draws thin bars over the edges the content overflows; the pointer drags them, and a press beside a thumb brings it there. `.ScrollbarValues(vertical, horizontal)` gives the bars the values assistive technology reads.
 
 ```go
 ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
@@ -267,7 +267,7 @@ ui.Scroll(c).Grow(1).Sideways().Scrollbars().Children(func() {
 
 A custom layout is `ui.CustomLayout(c, &m.masonry)`: the container's in-flow children are measured and placed by a `ui.Layout` kept in the model. `MeasureWidth` and `MeasureHeight` say how wide and tall the content wants to be; `PlaceWidth` and `PlaceHeight` give every child its extent and origin. The page keeps identities, focus, hits, clipping and absolute children; the layout owns the children's sizes and positions. `PlaceHeight` may also move a child horizontally once heights are known—a masonry chooses its columns there; the page moves the child's subtree with it and places its popups again from the new anchor. Wrap it in `Scroll`, `List` or `Tree` for scrolling and virtualization, and do not declare it inside a `Memo`.
 
-`c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Page.Config` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. Application code does not reach the engine underneath the page; component authors have their own guide.
+`c.Bounds()` and `c.Canvas()` give the page's rectangle and canvas, for measuring text or components and reading pointer and focus state; declare and paint through the page. `c.Part("word")` gives the next element a name of yours, which a test or the headless driver can use. An application window is one page: `ui.Run` or `Configure` wires its input, and a pane is a keyed container in that page, not a second `Page`. `ui.Dialog(c, ui.DialogSpec{...})` declares a dialog with targets the application names itself when `Modal`'s generated ones do not fit. Application code does not reach the engine underneath the page; component authors have their own guide.
 
 The fleet page of `examples/guides/page` (a choice, a scroll area with eight rows each holding a checkbox, a progress bar and a button) declares, lays out and paints in 9.8 µs on an Apple M2 Pro, and allocates nothing once warm; a list of a thousand keyed rows costs 0.75 ms. With each row in a `Memo` a list of two hundred rows costs 87 µs instead of 271 µs, and 37 µs with the whole list in one; the copies keep the last paint's commands, about 0.5 MB for those two hundred rows (`go test ./ui -bench 'Fleet$|Rows1000|Rows200'`).
 
@@ -314,7 +314,6 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -332,8 +331,9 @@ func newModel() *model {
 	}}
 }
 
-// page declares the table. A header click sorts the rows and a row click
-// selects it; the table keeps the selection and the scroll position itself.
+// page declares the table. A header click sorts the rows; a row click and the
+// arrow keys select a row, and the table keeps the selection and the scroll
+// position itself.
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 		ui.Text(c, "Servers").FontSize(20).Bold()
@@ -342,11 +342,8 @@ func (m *model) page(c ui.C) {
 			Sortable: []bool{true, true, true},
 			Source:   &m.rows,
 			Striped:  true,
-			Columns:  []components.TableColumn{{Width: 200}, {Width: 120}, {}},
+			Columns:  []ui.TableColumn{{Width: 200}, {Width: 120}, {}},
 		})
-		if row, ok := table.RowClicked(); ok {
-			m.table.Select(row)
-		}
 		if column, ok := table.HeaderClicked(); ok {
 			m.table.SortBy(column)
 			m.sortRows()
@@ -374,7 +371,7 @@ func (m *model) sortRows() {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -420,7 +417,7 @@ func (m *model) page(c ui.C) {
 func newConfig(m *model) app.Config {
 	theme := gfx.LightTheme()
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	return page.Config(app.Config{Title: "Layout", Width: 420, Height: 220})
+	return ui.Configure(page, app.Config{Title: "Layout", Width: 420, Height: 220})
 }
 
 func main() {

@@ -24,11 +24,11 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, ui.PopoverSpec{Width: 180, Align: ui.Start}, &m.menuOpen, func() {
+		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
-			if ui.Button(c, "Delete…").Ghost().Destructive().Clicked() {
+			if ui.Button(c, "Delete…").Ghost().Color(c.Theme().Danger).Clicked() {
 				m.menuOpen, m.dialogOpen = false, true
 			}
 		})
@@ -48,7 +48,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Overlays", Width: 640, Height: 360}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

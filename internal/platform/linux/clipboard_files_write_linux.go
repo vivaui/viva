@@ -46,6 +46,7 @@ func SetClipboardFiles(paths []string) error {
 	win.clipboard = strings.Join(names, "\n")
 	win.clipboardHTML = ""
 	win.clipboardFiles = append([]string(nil), paths...)
+	win.clipboardImage = nil
 	win.ownsClipboard = true
 	return nil
 }

@@ -7,7 +7,7 @@ group: guides
 
 ## One window or several
 
-`app.RunCanvas` opens a single window and returns when it closes. For anything with more than one window, or a window that can hide while the application keeps running, use `app.RunApplication`. Its start callback runs once on the native event-loop thread and opens the first window with `Application.OpenWindow`; later windows are opened from that callback or from another window's callbacks, which run on the same thread.
+`app.RunCanvas` opens a single window and returns when it closes. For anything with more than one window, or a window that can hide while the application keeps running, use `app.RunApplication`. Its start callback runs once on the native event-loop thread and opens the first window with `ui.OpenWindow(application, config, ui.PageConfig{View: ...})`, which makes the page and its canvas; a page reaches its application with `ui.Application(c)` to open more; later windows are opened from that callback or from another window's callbacks, which run on the same thread.
 
 Every window has its own canvas, paint callback, focus, input state and close handling. The loop ends when the last window closes, or when something calls `Application.Quit`, which closes every window whatever their close handlers say.
 
@@ -21,6 +21,7 @@ Every window has its own canvas, paint callback, focus, input state and close ha
 | `WindowFrameless` | No chrome at all, traffic lights included. |
 | `WindowCustomTitlebar` | Content runs full height behind a transparent title bar. The window moves from the regions you declare with `MovesWindow` (or `Canvas.MoveRegion`), and from nowhere else. |
 | `WindowPanel` | A transient popup with no chrome, above other windows, meant to open beside a status icon. |
+| `WindowNotification` | A desktop popup that accepts pointer input without taking keyboard focus, meant for the outcome of background work. On Wayland the compositor decides its placement, stacking and focus. |
 
 With a custom title bar the window buttons are the system's on macOS and are drawn by Viva on Windows and Linux. Either way they cover part of the strip, so ask `app.TitlebarInsets` how much and keep your own content clear of it. `Config.TitlebarHeight` sets the strip's height (where Viva puts its buttons and the traffic lights); the window moves from the row you mark `MovesWindow`, controls inside it keep their own clicks, and a menu or dialog open over it is dismissed by a click there, with the window moving once the pointer drags. `Config.WindowControls` styles the buttons Viva draws so they follow your theme.
 
@@ -96,7 +97,6 @@ type notes struct {
 	unsaved        bool
 	confirmClosing bool
 	allowClose     func()
-	application    *app.Application
 }
 
 func (state *notes) page(c ui.C) {
@@ -111,8 +111,8 @@ func (state *notes) page(c ui.C) {
 			if ui.Button(c, "Settings").Outline().Clicked() {
 				// Windows are opened from the start callback or from another
 				// window's callbacks, which run on the native event-loop thread.
-				var settings gfx.Canvas
-				_, _ = state.application.OpenWindow(app.Config{Title: "Settings", Width: 420, Height: 320}, &settings)
+				_, _ = ui.OpenWindow(ui.Application(c), app.Config{Title: "Settings", Width: 420, Height: 320},
+					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
 		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
@@ -135,26 +135,21 @@ func main() {
 	state := &notes{unsaved: true}
 
 	err := app.RunApplication(func(application *app.Application) error {
-		var main gfx.Canvas
-		state.application = application
-		page := ui.NewPage(ui.PageConfig{View: state.page, Theme: &theme})
-		config := page.Config(app.Config{
+		_, err := ui.OpenWindow(application, app.Config{
 			Title: "Notes", Width: 720, Height: 480,
 			// Content runs full height under a transparent title bar; the window
 			// moves from the row marked MovesWindow. Keep your own content clear of
 			// the window buttons.
 			WindowMode: app.WindowCustomTitlebar,
-		})
-		// The close button asks. Call allow now, later, or never to keep the window.
-		config.OnCloseRequest = func(allow func()) {
-			if !state.unsaved {
-				allow()
-				return
-			}
-			state.confirmClosing, state.allowClose = true, allow
-		}
-
-		_, err := application.OpenWindow(config, &main)
+			// The close button asks. Call allow now, later, or never to keep the window.
+			OnCloseRequest: func(allow func()) {
+				if !state.unsaved {
+					allow()
+					return
+				}
+				state.confirmClosing, state.allowClose = true, allow
+			},
+		}, ui.PageConfig{View: state.page, Theme: &theme})
 		return err
 	})
 	if err != nil {

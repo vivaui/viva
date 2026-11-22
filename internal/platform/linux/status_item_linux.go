@@ -59,8 +59,12 @@ const panelDismissWindow = 350 * time.Millisecond
 // panelOrigin is where a panel's window is created: beside its anchor, or in the
 // middle of the screen without one.
 func (win *window) panelOrigin(config platform.Config) (x, y int16) {
+	if config.WindowMode == platform.WindowPreview {
+		scale := win.displayScale()
+		return clampInt16(int(config.Origin.X * scale)), clampInt16(int(config.Origin.Y * scale))
+	}
 	monitors := win.placementMonitors()
-	if config.WindowMode != platform.WindowPanel {
+	if config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowNotification {
 		if config.HasOrigin {
 			// The origin is in logical screen coordinates, like Frame's result.
 			scale := win.displayScale()
@@ -79,7 +83,7 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 	width, height := float32(win.width), float32(win.height)
 	area := platform.ScreenRect{Width: float32(win.screen.WidthPixels), Height: float32(win.screen.HeightPixels)}
 	focusX, focusY := int(area.Width)/2, int(area.Height)/2
-	if config.HasAnchor {
+	if config.WindowMode == platform.WindowPanel && config.HasAnchor {
 		focusX, focusY = int(config.Anchor.X+config.Anchor.Width/2), int(config.Anchor.Y+config.Anchor.Height/2)
 	} else if pointerX, pointerY, ok := win.pointerPosition(); ok {
 		focusX, focusY = pointerX, pointerY
@@ -90,7 +94,9 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 		area = platform.ScreenRect{X: float32(usable.x), Y: float32(usable.y), Width: float32(usable.width), Height: float32(usable.height)}
 	}
 	var fx, fy float32
-	if config.HasAnchor {
+	if config.WindowMode == platform.WindowNotification {
+		fx, fy = platform.PlaceNotification(width, height, 12*win.displayScale(), area)
+	} else if config.HasAnchor {
 		fx, fy = platform.PlacePanel(config.Anchor, width, height, area)
 	} else {
 		fx, fy = area.X+(area.Width-width)/2, area.Y+(area.Height-height)/2
@@ -125,7 +131,23 @@ func (win *window) markPanel(config platform.Config, x, y int16) error {
 		api.changeProperty(connection, xcbPropertyReplace, win.id, name, xcbAtomAtom, 32, uint32(len(atoms)), unsafe.Pointer(&atoms[0]))
 		return nil
 	}
-	if err := setAtoms("_NET_WM_WINDOW_TYPE", "_NET_WM_WINDOW_TYPE_DIALOG"); err != nil {
+	windowType := "_NET_WM_WINDOW_TYPE_DIALOG"
+	if config.WindowMode == platform.WindowNotification {
+		windowType = "_NET_WM_WINDOW_TYPE_NOTIFICATION"
+		atom, err := api.atom(connection, "_NET_WM_USER_TIME")
+		if err != nil {
+			return err
+		}
+		input, err := api.atom(connection, "WM_HINTS")
+		if err != nil {
+			return err
+		}
+		hints := [9]uint32{1, 0} // ICCCM input hint: clicks act without moving keyboard focus.
+		api.changeProperty(connection, xcbPropertyReplace, win.id, input, input, 32, uint32(len(hints)), unsafe.Pointer(&hints[0]))
+		var timestamp uint32 // EWMH: mapping this window should not acquire focus.
+		api.changeProperty(connection, xcbPropertyReplace, win.id, atom, xcbAtomCardinal, 32, 1, unsafe.Pointer(&timestamp))
+	}
+	if err := setAtoms("_NET_WM_WINDOW_TYPE", windowType); err != nil {
 		return err
 	}
 	if err := setAtoms("_NET_WM_STATE", "_NET_WM_STATE_ABOVE", "_NET_WM_STATE_SKIP_TASKBAR", "_NET_WM_STATE_SKIP_PAGER"); err != nil {
@@ -147,6 +169,8 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 	switch command {
 	case commandSetTitle:
 		win.applyPendingTitle()
+	case commandSetIcon:
+		win.applyPendingIcon()
 	case commandSetSize:
 		if len(data) < 12 || win.frame.maximized || win.minimized || win.fullscreen.Load() {
 			return nil
@@ -178,19 +202,40 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 		}
 	case commandHide:
 		state.hidden = true
+		state.exposed = false
 		win.api.unmapWindow(win.connection, win.id)
 		win.api.flush(win.connection)
+		// Hide may arrive before the window manager has mapped a new window: the
+		// unmap is then a no-op and no UnmapNotify follows. Report the window as
+		// hidden now, so no wake paints what the user just hid.
+		if state.config.OnVisibility != nil && state.visible {
+			state.visible = false
+			state.config.OnVisibility(false)
+		}
 	case commandShow:
+		if state.config.WindowMode == platform.WindowNotification {
+			if state.hidden {
+				x, y := win.panelOrigin(state.config)
+				if err := win.markPanel(state.config, x, y); err != nil {
+					return err
+				}
+			}
+		} else {
+			win.setUserTime(state.application.lastUserTime)
+		}
+		state.hidden = false
 		win.api.mapWindow(win.connection, win.id)
-		if win.topmostConfigured.Load() {
+		if state.config.WindowMode == platform.WindowNotification {
+			win.sendToRoot(win.frame.stateAtom, [5]uint32{1, win.frame.above, 0, sourceApp})
+		} else if win.topmostConfigured.Load() {
 			action := uint32(0)
 			if win.topmost.Load() {
 				action = 1
 			}
 			win.sendToRoot(win.frame.stateAtom, [5]uint32{action, win.frame.above, 0, sourceApp})
 		}
-		if state.config.WindowMode != platform.WindowPanel {
-			if err := win.requestActivation(); err != nil {
+		if state.config.WindowMode != platform.WindowPanel && state.config.WindowMode != platform.WindowNotification {
+			if err := state.requestActivation(); err != nil {
 				return err
 			}
 		}
@@ -207,16 +252,32 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 	return nil
 }
 
-// requestActivation asks the window manager to bring this window forward, as a
-// pager does: with a _NET_ACTIVE_WINDOW message to the root window.
-func (win *window) requestActivation() error {
+func (win *window) setUserTime(timestamp uint32) {
+	if timestamp != 0 && win.userTimeAtom != 0 {
+		win.api.changeProperty(win.connection, xcbPropertyReplace, win.id, win.userTimeAtom, xcbAtomCardinal, 32, 1, unsafe.Pointer(&timestamp))
+	}
+}
+
+// Send the user action along with the request. A focus-stealing policy may
+// reject a transfer between two application windows without this information.
+func (state *linuxWindowState) requestActivation() error {
+	win := state.win
 	active, err := win.api.atom(win.connection, "_NET_ACTIVE_WINDOW")
 	if err != nil {
 		return err
 	}
-	event := xcbClientEvent{ResponseType: xcbClientMessage, Format: 32, Window: win.id, Type: active}
-	event.Data[0] = 1 // the request comes from an application
-	win.api.sendEvent(win.connection, 0, win.screen.Root, xcbEventSubstructureRedirect|xcbEventSubstructureNotify, (*byte)(unsafe.Pointer(&event)))
+	const xcbAtomWindow = 33
+	var requestor uint32
+	if data, ok := win.tracker.property(win.screen.Root, active, xcbAtomWindow); ok && len(data) == 4 {
+		id := binary.LittleEndian.Uint32(data)
+		for _, other := range state.application.windows {
+			if other.win.id == id {
+				requestor = id
+				break
+			}
+		}
+	}
+	win.sendToRoot(active, [5]uint32{sourceApp, state.application.lastUserTime, requestor})
 	return nil
 }
 

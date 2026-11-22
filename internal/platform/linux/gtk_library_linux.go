@@ -40,55 +40,64 @@ type gtkLibrary struct {
 	unixFDAdd             func(fd int32, condition uint32, function, data uintptr) uint32
 
 	// GTK: application and windows.
-	initCheck           func(argc *int32, argv uintptr) int32
-	main                func()
-	mainQuit            func()
-	windowNew           func(kind int32) uintptr
-	windowSetTitle      func(window uintptr, title *byte)
-	windowSetDefault    func(window uintptr, width, height int32)
-	windowResize        func(window uintptr, width, height int32)
-	windowMove          func(window uintptr, x, y int32)
-	windowSetDecorated  func(window uintptr, decorated int32)
-	windowSetGeometry   func(window, widget uintptr, geometry *gdkGeometry, mask uint32)
-	windowSetTypeHint   func(window uintptr, hint int32)
-	windowSkipTaskbar   func(window uintptr, skip int32)
-	windowKeepAbove     func(window uintptr, keep int32)
-	windowAcceptFocus   func(window uintptr, accept int32)
-	windowSetWMClass    func(window uintptr, name, class *byte)
-	windowSetIconList   func(window, list uintptr)
-	windowIconify       func(window uintptr)
-	windowDeiconify     func(window uintptr)
-	windowMaximize      func(window uintptr)
-	windowUnmaximize    func(window uintptr)
-	windowIsMaximized   func(window uintptr) int32
-	windowFullscreen    func(window uintptr)
-	windowUnfullscreen  func(window uintptr)
-	windowPresent       func(window uintptr)
-	windowGetPosition   func(window uintptr, x, y *int32)
-	windowGetSize       func(window uintptr, width, height *int32)
-	windowBeginMove     func(window uintptr, button, rootX, rootY int32, timestamp uint32)
-	windowBeginResize   func(window uintptr, edge, button, rootX, rootY int32, timestamp uint32)
-	windowSetFocus      func(window, widget uintptr)
-	windowSetHasFrame   func(window uintptr, frame int32)
-	windowSetTransient  func(window, parent uintptr)
-	windowSetAppPaint   func(widget uintptr, paintable int32)
-	windowSetVisual     func(widget, visual uintptr)
-	windowSetIcon       func(window, pixbuf uintptr)
-	windowSetTitlebar   func(window, titlebar uintptr)
-	windowGetModalHint  func(window uintptr) int32
-	widgetShow          func(widget uintptr)
-	widgetShowAll       func(widget uintptr)
-	widgetHide          func(widget uintptr)
-	widgetDestroy       func(widget uintptr)
-	widgetRealize       func(widget uintptr)
-	widgetQueueDraw     func(widget uintptr)
-	widgetQueueDrawArea func(widget uintptr, x, y, width, height int32)
-	widgetGetWindow     func(widget uintptr) uintptr
-	widgetAddEvents     func(widget uintptr, events int32)
-	widgetSetEvents     func(widget uintptr, events int32)
-	widgetSetSize       func(widget uintptr, width, height int32)
-	widgetSetCanFocus   func(widget uintptr, can int32)
-	widgetGrabFocus     func(widget uintptr)
+	initCheck            func(argc *int32, argv uintptr) int32
+	main                 func()
+	mainQuit             func()
+	windowNew            func(kind int32) uintptr
+	windowSetTitle       func(window uintptr, title *byte)
+	windowSetDefault     func(window uintptr, width, height int32)
+	windowResize         func(window uintptr, width, height int32)
+	windowMove           func(window uintptr, x, y int32)
+	windowSetDecorated   func(window uintptr, decorated int32)
+	windowSetGeometry    func(window, widget uintptr, geometry *gdkGeometry, mask uint32)
+	windowSetTypeHint    func(window uintptr, hint int32)
+	windowSkipTaskbar    func(window uintptr, skip int32)
+	windowKeepAbove      func(window uintptr, keep int32)
+	windowAcceptFocus    func(window uintptr, accept int32)
+	windowFocusOnMap     func(window uintptr, focus int32)
+	windowSetWMClass     func(window uintptr, name, class *byte)
+	windowSetIconList    func(window, list uintptr)
+	windowIconify        func(window uintptr)
+	windowDeiconify      func(window uintptr)
+	windowMaximize       func(window uintptr)
+	windowUnmaximize     func(window uintptr)
+	windowIsMaximized    func(window uintptr) int32
+	windowFullscreen     func(window uintptr)
+	windowUnfullscreen   func(window uintptr)
+	windowPresent        func(window uintptr)
+	windowGetPosition    func(window uintptr, x, y *int32)
+	windowGetSize        func(window uintptr, width, height *int32)
+	windowBeginMove      func(window uintptr, button, rootX, rootY int32, timestamp uint32)
+	windowBeginResize    func(window uintptr, edge, button, rootX, rootY int32, timestamp uint32)
+	windowSetFocus       func(window, widget uintptr)
+	windowGetFocus       func(window uintptr) uintptr
+	windowSetHasFrame    func(window uintptr, frame int32)
+	windowSetTransient   func(window, parent uintptr)
+	windowSetAppPaint    func(widget uintptr, paintable int32)
+	windowSetVisual      func(widget, visual uintptr)
+	windowSetIcon        func(window, pixbuf uintptr)
+	windowSetTitlebar    func(window, titlebar uintptr)
+	windowGetModalHint   func(window uintptr) int32
+	widgetShow           func(widget uintptr)
+	widgetShowAll        func(widget uintptr)
+	widgetHide           func(widget uintptr)
+	widgetDestroy        func(widget uintptr)
+	widgetRealize        func(widget uintptr)
+	widgetQueueDraw      func(widget uintptr)
+	widgetQueueDrawArea  func(widget uintptr, x, y, width, height int32)
+	widgetGetWindow      func(widget uintptr) uintptr
+	widgetAddEvents      func(widget uintptr, events int32)
+	widgetSetEvents      func(widget uintptr, events int32)
+	widgetSetSize        func(widget uintptr, width, height int32)
+	widgetSetCanFocus    func(widget uintptr, can int32)
+	widgetGrabFocus      func(widget uintptr)
+	gestureMultiPressNew func(widget uintptr) uintptr
+	controllerSetPhase   func(controller uintptr, phase int32)
+	gestureSetState      func(gesture uintptr, state int32) int32
+
+	widgetRegisterWindow   func(widget, window uintptr)
+	widgetUnregisterWindow func(widget, window uintptr)
+
 	widgetAllocW        func(widget uintptr) int32
 	widgetAllocH        func(widget uintptr) int32
 	widgetGetScale      func(widget uintptr) int32
@@ -150,9 +159,17 @@ type gtkLibrary struct {
 	gdkScreenDefault     func() uintptr
 	gdkDisplayName       func(display uintptr) uintptr
 	gdkDisplaySeat       func(display uintptr) uintptr
+	gdkMonitorAtPoint    func(display uintptr, x, y int32) uintptr
+	gdkMonitorAtIndex    func(display uintptr, index int32) uintptr
 	gdkDisplayMonitorAt  func(display, window uintptr) uintptr
+	gdkMonitorWorkarea   func(monitor uintptr, rect *[4]int32)
 	gdkMonitorGeometry   func(monitor uintptr, rect *[4]int32)
 	gdkWindowSetCursor   func(window, cursor uintptr)
+	gdkWindowNew         func(parent uintptr, attrs *gdkWindowAttr, mask int32) uintptr
+	gdkWindowShow        func(window uintptr)
+	gdkWindowDestroy     func(window uintptr)
+	gdkWindowMoveResize  func(window uintptr, x, y, width, height int32)
+	gdkWindowTransient   func(window, parent uintptr)
 	gdkCursorFromName    func(display uintptr, name *byte) uintptr
 	gdkCursorFromPixbuf  func(display, pixbuf uintptr, x, y int32) uintptr
 	gdkCursorFromSurface func(display, surface uintptr, x, y float64) uintptr
@@ -228,6 +245,22 @@ type gdkGeometry struct {
 	MinAspect, MaxAspect  float64
 	WinGravity            int32
 	_                     [4]byte
+}
+
+// GDK window attributes on LP64 Linux, shared by GTK 3 on amd64 and arm64.
+type gdkWindowAttr struct {
+	Title            uintptr
+	EventMask        int32
+	X, Y             int32
+	Width, Height    int32
+	Class            int32
+	Visual           uintptr
+	WindowType       int32
+	Cursor           uintptr
+	WMClassName      uintptr
+	WMClassClass     uintptr
+	OverrideRedirect int32
+	TypeHint         int32
 }
 
 const (
@@ -327,6 +360,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.windowSkipTaskbar, "gtk_window_set_skip_taskbar_hint")
 	b(&g.windowKeepAbove, "gtk_window_set_keep_above")
 	b(&g.windowAcceptFocus, "gtk_window_set_accept_focus")
+	b(&g.windowFocusOnMap, "gtk_window_set_focus_on_map")
 	b(&g.windowSetWMClass, "gtk_window_set_wmclass")
 	b(&g.windowSetIconList, "gtk_window_set_icon_list")
 	b(&g.windowIconify, "gtk_window_iconify")
@@ -342,6 +376,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.windowBeginMove, "gtk_window_begin_move_drag")
 	b(&g.windowBeginResize, "gtk_window_begin_resize_drag")
 	b(&g.windowSetFocus, "gtk_window_set_focus")
+	b(&g.windowGetFocus, "gtk_window_get_focus")
 	b(&g.windowSetTransient, "gtk_window_set_transient_for")
 	b(&g.windowSetAppPaint, "gtk_widget_set_app_paintable")
 	b(&g.windowSetVisual, "gtk_widget_set_visual")
@@ -359,6 +394,11 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.widgetSetSize, "gtk_widget_set_size_request")
 	b(&g.widgetSetCanFocus, "gtk_widget_set_can_focus")
 	b(&g.widgetGrabFocus, "gtk_widget_grab_focus")
+	b(&g.gestureMultiPressNew, "gtk_gesture_multi_press_new")
+	b(&g.controllerSetPhase, "gtk_event_controller_set_propagation_phase")
+	b(&g.gestureSetState, "gtk_gesture_set_state")
+	b(&g.widgetRegisterWindow, "gtk_widget_register_window")
+	b(&g.widgetUnregisterWindow, "gtk_widget_unregister_window")
 	b(&g.widgetAllocW, "gtk_widget_get_allocated_width")
 	b(&g.widgetAllocH, "gtk_widget_get_allocated_height")
 	b(&g.widgetGetScale, "gtk_widget_get_scale_factor")
@@ -419,8 +459,16 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.gdkDisplayName, "gdk_display_get_name")
 	b(&g.gdkDisplaySeat, "gdk_display_get_default_seat")
 	b(&g.gdkDisplayMonitorAt, "gdk_display_get_monitor_at_window")
+	b(&g.gdkMonitorAtPoint, "gdk_display_get_monitor_at_point")
+	b(&g.gdkMonitorAtIndex, "gdk_display_get_monitor")
+	b(&g.gdkMonitorWorkarea, "gdk_monitor_get_workarea")
 	b(&g.gdkMonitorGeometry, "gdk_monitor_get_geometry")
 	b(&g.gdkWindowSetCursor, "gdk_window_set_cursor")
+	b(&g.gdkWindowNew, "gdk_window_new")
+	b(&g.gdkWindowShow, "gdk_window_show")
+	b(&g.gdkWindowDestroy, "gdk_window_destroy")
+	b(&g.gdkWindowMoveResize, "gdk_window_move_resize")
+	b(&g.gdkWindowTransient, "gdk_window_set_transient_for")
 	b(&g.gdkCursorFromName, "gdk_cursor_new_from_name")
 	b(&g.gdkCursorFromPixbuf, "gdk_cursor_new_from_pixbuf")
 	b(&g.gdkCursorFromSurface, "gdk_cursor_new_from_surface")

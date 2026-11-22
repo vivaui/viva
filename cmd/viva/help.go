@@ -106,7 +106,9 @@ func commands() []command {
 			}},
 		{name: "add", usage: "add [flags] <component>...",
 			summary: "Copy component source into your project.",
-			detail: "The files are yours to change; nothing links back to viva. See viva list for the names. The recipes come\n" +
+			detail: "The files are yours to change; nothing links back to viva. A copy is a painting recipe: it draws into a gfx.Canvas\n" +
+				"in the rectangle you give it, so call it from a Draw callback of a page's element or from a whole-window Paint.\n" +
+				"See viva list for the names. The recipes come\n" +
 				"with the viva command, so they match the Viva version it was built from; when the project's go.mod\n" +
 				"requires a different version, add says so (go tool viva runs the version the project pins).",
 			run: func(arguments []string, output, errorOutput io.Writer) error {

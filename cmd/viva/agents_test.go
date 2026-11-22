@@ -153,20 +153,24 @@ func TestAgentGuideQuotesRealPanics(t *testing.T) {
 	if end := strings.Index(section[1:], "\n## "); end >= 0 {
 		section = section[:1+end]
 	}
+	// The panics live with the engine in base and with the styled controls in ui;
+	// both quote the application-facing "ui:" prefix.
 	var sources strings.Builder
-	entries, err := os.ReadDir("../../ui")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join("../../ui", entry.Name()))
+	for _, dir := range []string{"../../ui", "../../base"} {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sources.Write(data)
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			sources.Write(data)
+		}
 	}
 	for _, match := range regexp.MustCompile("`(ui: [^`]+)`").FindAllStringSubmatch(section, -1) {
 		if !strings.Contains(sources.String(), match[1]) {
@@ -213,4 +217,36 @@ func readDocument(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// The optional page packages are listed in the maintaining guide, the
+// app-building skill, the generated app guide and both component guides. A
+// package that exists but is missing from one of them is invisible to the
+// audience that reads that document.
+func TestAgentDocsListEveryOptionalPagePackage(t *testing.T) {
+	entries, err := os.ReadDir("../../ui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var packages []string
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "testdata" {
+			packages = append(packages, entry.Name())
+		}
+	}
+	documents := []string{
+		"initfiles/AGENTS.md.txt",
+		"../../docs/maintaining-controls.md",
+		"../../docs/skills/building-with-viva/SKILL.md",
+		"../../website/content/guides/en/components.md",
+		"../../website/content/guides/zh/components.md",
+	}
+	for _, document := range documents {
+		text := readDocument(t, document)
+		for _, name := range packages {
+			if !strings.Contains(text, "ui/"+name) {
+				t.Errorf("%s does not list the optional package ui/%s", document, name)
+			}
+		}
+	}
 }

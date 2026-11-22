@@ -21,41 +21,61 @@ func captureWeb(t *testing.T) *web.Config {
 }
 
 func TestRunCanvasHandsTheApplicationToThePage(t *testing.T) {
-	got := captureWeb(t)
 	var tree gfx.Tree
 	var invalidator Invalidator
 	canvas := &gfx.Canvas{}
-	woken := false
+	wakeCount, requests := 0, 0
+	updated := false
+	forwarded := [2]float32{}
+	previous := runWeb
+	t.Cleanup(func() { runWeb = previous })
+	runWeb = func(got web.Config) error {
+		if got.Title != "Notes" || got.Width <= 0 || got.Height <= 0 {
+			t.Errorf("page got title %q and size %dx%d, want the title and the default size", got.Title, got.Width, got.Height)
+		}
+		if got.Canvas != canvas {
+			t.Error("the page must paint into the caller's canvas")
+		}
+		if got.Paint == nil || got.TextInput == nil {
+			t.Error("Paint and TextInput must reach the page")
+		}
+		if got.ForwardWheel == nil || got.Waker == nil || got.OnWake == nil || got.OnClosed == nil {
+			t.Fatal("wheel, wake and close handlers must reach the page")
+		}
+		got.ForwardWheel(1.5, -2.5)
+		if forwarded != [2]float32{1.5, -2.5} {
+			t.Errorf("the page forwarded %v, want the application's callback", forwarded)
+		}
+		got.Waker.Bind(func() { requests++ })
+		defer got.Waker.Unbind()
+		if !invalidator.Post(func() { updated = true }) || requests != 1 || updated {
+			t.Fatal("Post must schedule a page wake without running the update inline")
+		}
+		got.OnWake()
+		got.OnClosed()
+		if invalidator.Post(func() { t.Error("late update ran") }) {
+			t.Error("a closed page must refuse posts")
+		}
+		got.OnWake()
+		return nil
+	}
 	err := RunCanvas(Config{
-		Title: "Notes", Tree: &tree, Invalidator: &invalidator, OnWake: func() { woken = true },
-		Paint:     func(*gfx.Canvas, gfx.Size) {},
-		TextInput: func(TextInputContext) *TextInput { return nil },
+		Title: "Notes", Tree: &tree, Invalidator: &invalidator,
+		OnWake: func() {
+			wakeCount++
+			if !updated {
+				t.Error("the page must apply the posted update before OnWake")
+			}
+		},
+		Paint:        func(*gfx.Canvas, gfx.Size) {},
+		TextInput:    func(TextInputContext) *TextInput { return nil },
+		ForwardWheel: func(deltaX, deltaY float32) { forwarded = [2]float32{deltaX, deltaY} },
 	}, canvas)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Title != "Notes" || got.Width <= 0 || got.Height <= 0 {
-		t.Errorf("page got title %q and size %dx%d, want the title and the default size", got.Title, got.Width, got.Height)
-	}
-	if got.Canvas != canvas {
-		t.Error("the page must paint into the caller's canvas")
-	}
-	if got.Paint == nil || got.TextInput == nil {
-		t.Error("Paint and TextInput must reach the page")
-	}
-	if got.Waker == nil {
-		t.Fatal("an Invalidator must reach the page as its waker")
-	}
-	got.OnWake()
-	if !woken {
-		t.Error("OnWake must reach the page")
-	}
-	// What the page binds is what Invalidator.Invalidate calls.
-	called := false
-	got.Waker.Bind(func() { called = true })
-	invalidator.Invalidate()
-	if !called {
-		t.Error("Invalidate must wake the page")
+	if wakeCount != 1 || requests != 1 {
+		t.Errorf("got %d requested wakes and %d callbacks, want one each before close", requests, wakeCount)
 	}
 }
 

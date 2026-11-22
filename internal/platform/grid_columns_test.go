@@ -45,3 +45,16 @@ func TestGridColumnsOfAnEmptyRunAreEmpty(t *testing.T) {
 		t.Errorf("a run without cells = %d,%d", from, to)
 	}
 }
+
+// Columns planned along a whole line land on the window of it a texture holds: a run that
+// straddles the window's edge keeps the part inside, and a run outside owns nothing.
+func TestShiftGridSpansMovesTheColumnsOntoTheWindow(t *testing.T) {
+	spans := []GridSpan{{From: 0, To: 100}, {From: 100, To: 300}, {From: 300, To: 500}, {From: 500, To: 520}, {From: 700, To: 700}}
+	ShiftGridSpans(spans, 200, 300)
+	want := []GridSpan{{From: 0, To: 0}, {From: 0, To: 100}, {From: 100, To: 300}, {From: 300, To: 300}, {From: 300, To: 300}}
+	for index := range want {
+		if spans[index] != want[index] {
+			t.Errorf("span %d = %+v, want %+v", index, spans[index], want[index])
+		}
+	}
+}

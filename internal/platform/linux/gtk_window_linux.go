@@ -30,9 +30,10 @@ type gtkWindow struct {
 
 	toplevel, area uintptr
 	// overlay holds the area and the web pages above it; it exists when the application may open pages.
-	overlay uintptr
-	ime     *gtkIME
-	wl      *waylandSurface
+	overlay        uintptr
+	ime            *gtkIME
+	wl             *waylandSurface
+	pointerCapture uintptr
 
 	// unit is the device pixels in one unit of the widget's size: GTK's own scale on X11, where
 	// the drawing area is the canvas; 1 on Wayland, where the area holds no pixels. scale is Viva's
@@ -46,18 +47,21 @@ type gtkWindow struct {
 	allocated0    bool
 	cairoSurface  uintptr
 
-	frame      atomic.Pointer[gfx.Rect]
-	maximized  bool
-	fullscreen atomic.Bool
-	minimized  bool
-	focused    bool
+	frame       atomic.Pointer[gfx.Rect]
+	maximized   bool
+	fullscreen  atomic.Bool
+	minimized   bool
+	focused     bool
+	focusSerial uint64 // coalesces GDK focus transfers between a Wayland parent and its child
+	// visible is the last visibility reported to OnVisibility; known says it was reported at
+	// least once. GTK's map and unmap are the visibility the compositor can express here.
+	visibleKnown, visible bool
 
 	regionsDirty bool
 	// dragging and dropping follow a drag of files over the window.
 	dragging, dropping bool
-	// iconData keeps the pixels the window's icon pixbufs point at; originPending says the window
-	// was asked to open at a place and has not been checked there yet.
-	iconData      [][]byte
+	// originPending says the window was asked to open at a place and has not
+	// been checked there yet.
 	originPending bool
 	// cursors are the GDK cursors made so far, by shape; cursorShape is the one in use plus one.
 	cursors     [len(cursorNames) + 1]uintptr // the last is the hidden one
@@ -140,6 +144,20 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	switch config.WindowMode {
 	case platform.WindowFrameless, platform.WindowCustomTitlebar:
 		g.windowSetDecorated(w.toplevel, 0)
+	case platform.WindowNotification:
+		g.windowSetDecorated(w.toplevel, 0)
+		g.windowSetTypeHint(w.toplevel, 11) // GDK_WINDOW_TYPE_HINT_NOTIFICATION
+		g.windowSkipTaskbar(w.toplevel, 1)
+		g.windowKeepAbove(w.toplevel, 1)
+		g.windowAcceptFocus(w.toplevel, 0)
+		g.windowFocusOnMap(w.toplevel, 0)
+		if monitor := w.notificationMonitor(display); monitor != 0 {
+			var rect [4]int32
+			g.gdkMonitorWorkarea(monitor, &rect)
+			area := platform.ScreenRect{X: float32(rect[0]), Y: float32(rect[1]), Width: float32(rect[2]), Height: float32(rect[3])}
+			x, y := platform.PlaceNotification(float32(config.Width)*w.ratio, float32(config.Height)*w.ratio, 12*w.ratio, area)
+			g.windowMove(w.toplevel, int32(x), int32(y))
+		}
 	case platform.WindowPanel:
 		g.windowSetDecorated(w.toplevel, 0)
 		g.windowSetTypeHint(w.toplevel, 8) // GDK_WINDOW_TYPE_HINT_POPUP_MENU
@@ -170,6 +188,15 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	g.connect(w.area, "size-allocate", cb.allocate, data)
 	for _, signal := range []string{"button-press-event", "button-release-event", "motion-notify-event", "enter-notify-event", "leave-notify-event", "scroll-event"} {
 		g.connect(w.area, signal, cb.event, data)
+	}
+	if a.wayland {
+		g.widgetAddEvents(w.area, gdkKeyPressMask|gdkKeyReleaseMask|gdkFocusChangeMask)
+		for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event"} {
+			g.connect(w.area, signal, cb.event, data)
+		}
+		w.pointerCapture = g.gestureMultiPressNew(w.toplevel)
+		g.controllerSetPhase(w.pointerCapture, 1) // GTK_PHASE_CAPTURE
+		g.connect(w.pointerCapture, "begin", cb.capturePress, data)
 	}
 	for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event", "window-state-event", "configure-event"} {
 		g.connect(w.toplevel, signal, cb.event, data)
@@ -221,8 +248,47 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 			}
 		})
 	}
+	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview {
+		g.windowMaximize(w.toplevel)
+		// The state event that confirms it may come after the loop starts, or not at
+		// all on a compositor of its own: report the state the window opens in now,
+		// as the other adapters do, and let the event only report changes.
+		if !w.maximized {
+			w.maximized = true
+			if config.OnMaximize != nil {
+				config.OnMaximize(true)
+			}
+		}
+	}
 	g.widgetShowAll(w.toplevel)
+	if a.firstErr != nil {
+		err := a.firstErr
+		w.destroy()
+		return nil, err
+	}
 	return w, nil
+}
+
+// On X11 the popup follows the pointer's monitor and respects its work area.
+// Native Wayland clients leave placement to the compositor.
+func (w *gtkWindow) notificationMonitor(display uintptr) uintptr {
+	if w.app.wayland {
+		return 0
+	}
+	g := w.g
+	if seat := g.gdkDisplaySeat(display); seat != 0 {
+		if pointer := g.gdkSeatPointer(seat); pointer != 0 {
+			var x, y int32
+			g.gdkDevicePosition(pointer, nil, &x, &y)
+			if m := g.gdkMonitorAtPoint(display, x, y); m != 0 {
+				return m
+			}
+		}
+	}
+	if monitor := g.gdkDisplayPrimary(display); monitor != 0 {
+		return monitor
+	}
+	return g.gdkMonitorAtIndex(display, 0)
 }
 
 // x11Scale decides the unit and the scale on X11 from the desktop's settings, in the order
@@ -299,7 +365,8 @@ func (w *gtkWindow) SetAlwaysOnTop(enabled bool) error {
 	if w == nil || w.app == nil {
 		return fmt.Errorf("linux: window is closed")
 	}
-	if w.config.WindowMode == platform.WindowPanel || w.config.WindowMode == platform.WindowPreview {
+	switch w.config.WindowMode {
+	case platform.WindowPanel, platform.WindowPreview, platform.WindowNotification:
 		return platform.ErrAlwaysOnTopUnsupported
 	}
 	if w.app.wayland {
@@ -325,7 +392,7 @@ func (w *gtkWindow) Show() {
 				w.g.widgetShowAll(w.toplevel)
 			case w.minimized:
 				w.g.windowDeiconify(w.toplevel)
-			case !w.app.wayland:
+			case !w.app.wayland && w.config.WindowMode != platform.WindowNotification:
 				w.g.windowPresent(w.toplevel)
 			}
 			// A Wayland client cannot raise its window: gtk_window_present on a window that is
@@ -416,6 +483,10 @@ func (w *gtkWindow) cleanup() {
 		w.wl.close()
 		w.wl = nil
 	}
+	if w.pointerCapture != 0 {
+		w.g.objectUnref(w.pointerCapture)
+		w.pointerCapture = 0
+	}
 	w.releaseSurface()
 	if w.scene != nil {
 		w.scene.close()
@@ -442,6 +513,20 @@ func (w *gtkWindow) closeRequested() bool {
 
 // mapChanged is the window being shown or hidden.
 func (w *gtkWindow) mapChanged(on bool) {
+	if !on && w.wl != nil {
+		// GDK can unmap the parent before reporting a focus-out for its child.
+		// End this IM session before the parent's Wayland surface is replaced.
+		// This runs inside GTK's unmap emission, where a panel must not be
+		// destroyed: Hide keeps the window for Show, so only the keyboard state
+		// changes here. A focus-out that GDK reports later finds the state
+		// already changed and does nothing.
+		w.focusSerial++
+		if w.focused {
+			w.setKeyboard(false)
+		}
+		*w.pointer.clicks = input.ClickCounter{}
+		w.pointer.pending, w.pointer.pendingDelivery = false, false
+	}
 	if on && w.originPending {
 		// The window manager decorates the window after it is mapped; its frame is known a moment
 		// later.
@@ -451,6 +536,10 @@ func (w *gtkWindow) mapChanged(on bool) {
 		// Whether the compositor has a surface for the window decides whether there is anything to
 		// attach to.
 		w.wl.mapped(w, on)
+	}
+	if w.config.OnVisibility != nil && (!w.visibleKnown || w.visible != on) {
+		w.visibleKnown, w.visible = true, on
+		w.config.OnVisibility(on)
 	}
 }
 

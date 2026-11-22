@@ -1,7 +1,10 @@
 package platform
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -17,6 +20,18 @@ var ErrWebViewUnsupported = errors.New("platform: this window cannot host web pa
 
 // WebProxyDirect explicitly bypasses system proxies for one page's network context.
 const WebProxyDirect = "direct"
+
+// PartitionIdentifier is the identifier a platform that names a store by an identifier gives a storage
+// partition: a UUID made from the name, the same for a name in every run of the application, so a name
+// is one store. macOS's WKWebsiteDataStore names its persistent stores this way; WebView2 names a
+// profile by the partition's name itself, and WebKitGTK by the directory it keeps, one of the name.
+func PartitionIdentifier(name string) string {
+	sum := sha1.Sum([]byte("viva-storage-partition:" + name))
+	sum[6] = sum[6]&0x0f | 0x50 // a name-based UUID, version 5
+	sum[8] = sum[8]&0x3f | 0x80 // the variant a UUID carries
+	text := hex.EncodeToString(sum[:])
+	return strings.ToUpper(text[0:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:32])
+}
 
 // NativeView is a place in the window that a native view fills.
 type NativeView struct {
@@ -67,6 +82,12 @@ type WebViewConfig struct {
 	TopCornerRadius float32
 	// OnLoad reports the page's navigation.
 	OnLoad func(WebLoad)
+	// OnProcessFailed reports the page's process gone: it crashed, the system or the engine
+	// stopped it, or it never started. The page cannot draw again until it is loaded again, so an
+	// application says so and loads it, and the failure names which of those it was. Every engine
+	// here reports it; WebKitGTK before 2.20 has no signal for it, and says so once rather than
+	// leaving the callback silently unset.
+	OnProcessFailed func(WebProcessFailure)
 	// Navigate decides a navigation before it starts; nil allows every navigation.
 	Navigate func(WebNavigation) bool
 	// NewWindow decides a window.open or target=_blank before it opens; nil refuses it. That is a
@@ -83,8 +104,18 @@ type WebViewConfig struct {
 	// Ephemeral keeps the page's cookies, storage and caches in memory only, separate from every
 	// other page, and drops them when the page closes: a run of the application leaves nothing the
 	// page kept on disk. A platform without such a store must refuse the page rather than open one
-	// that persists.
+	// that persists. On Windows it needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer; on Linux,
+	// WebKitGTK 2.16 or newer.
 	Ephemeral bool
+	// Partition names the store the page keeps its cookies, storage and caches in: pages of the same
+	// partition share them, pages of different partitions do not, and neither shares with the pages
+	// that name none. Empty keeps the platform's default store, which is the whole of the behaviour
+	// without a partition. A platform that cannot give a page a store of its own returns
+	// ErrWebViewUnsupported rather than open a page that shares the default one.
+	// The name is already validated and folded to lower case: the application layer does that, once,
+	// so that a name means the same store on every engine. A name is persistent unless Ephemeral is
+	// also set, which makes it a memory-only store shared by the pages of that name.
+	Partition string
 }
 
 // WebNavigation is one navigation the page wants to make.
@@ -148,6 +179,15 @@ const (
 type WebLoad struct {
 	Phase WebLoadPhase
 	URL   string
+	// Title is the title of the document the engine holds at this step: empty before a page has
+	// one, and still the title of the document being left at Started.
+	Title string
+	// Code is why a navigation failed, when Phase is WebLoadFinished and the page did not load;
+	// WebLoadNoError when it did, and at every earlier step.
+	// Description is the engine's own message for it, when the engine gives one: WebView2 names
+	// a status and no text, so it is empty on Windows.
+	Code        WebLoadError
+	Description string
 }
 
 // WebView is one open page.
@@ -163,5 +203,18 @@ type WebView interface {
 	PostMessage(text string)
 	// Focus gives the page the keyboard.
 	Focus()
+	// Title is the title of the page's current document: empty before the engine has one, and
+	// after the page closes.
+	Title() string
+	// CanGoBack and CanGoForward report whether the page's history has an entry each way.
+	CanGoBack() bool
+	CanGoForward() bool
+	// IsLoading reports whether the page is loading a navigation: from the engine's start of one
+	// until it finishes or fails. WebView2 has no property for it, so Windows follows the
+	// navigation's events.
+	IsLoading() bool
+	// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there: the
+	// value OnProcessFailed was given, until the page starts a navigation again.
+	ProcessFailure() WebProcessFailure
 	Close()
 }

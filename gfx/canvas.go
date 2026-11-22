@@ -313,6 +313,13 @@ type Image struct {
 	// Backdrop marks an image drawn beneath every other primitive of the frame,
 	// whatever layer they are on. See Canvas.DrawBackdrop.
 	Backdrop bool
+	// Radius rounds the image's corners: the pixels outside the rounded box are
+	// not drawn. Zero is a square image.
+	Radius float32
+	// Fade is how much of the image is transparent, 1-opacity, the same
+	// convention as Extra.fade: zero draws it fully opaque. It is a draw-time
+	// value: changing it does not rebuild the image's texture.
+	Fade float32
 	// DevicePixels marks an image whose Bounds and Source are whole device pixels
 	// and whole bitmap pixels, drawn one bitmap pixel to one device pixel. The
 	// painter keeps it so, at a fractional display scale too, instead of rounding
@@ -358,6 +365,9 @@ const (
 	RoleHeading
 	RoleStatus
 	RoleSeparator
+	// RoleProgressBar is a read-only progress indicator: it reports a value
+	// between bounds while an operation runs, and activates nothing.
+	RoleProgressBar
 )
 
 // roleNames are the names of the roles: what a selector or a printed tree calls
@@ -368,7 +378,7 @@ var roleNames = [...]string{
 	RoleTextField: "textfield", RoleSlider: "slider", RoleTerminal: "terminal", RoleGroup: "group",
 	RoleMenu: "menu", RoleMenubar: "menubar", RoleListBox: "listbox", RoleOption: "option",
 	RoleGrid: "grid", RoleGridCell: "gridcell", RoleHeading: "heading", RoleStatus: "status",
-	RoleSeparator: "separator",
+	RoleSeparator: "separator", RoleProgressBar: "progressbar",
 }
 
 // String is the role's name as selectors and printed trees write it, such as
@@ -469,6 +479,10 @@ type HitOptions struct {
 	Expandable bool
 	Multiline  bool
 	ReadOnly   bool
+	// Invalid marks a control whose value failed validation, for the runtime to
+	// announce to assistive technology (aria-invalid). The control's own
+	// appearance is the recipe's; this is its semantic state.
+	Invalid bool
 	// Secure marks a password field. Its Value is always dropped so no
 	// accessibility, mirroring, or reload path can expose it, and the runtime
 	// masks what the platform text service draws.
@@ -611,8 +625,10 @@ type Hit struct {
 	Expandable bool
 	Multiline  bool
 	ReadOnly   bool
-	Secure     bool
-	Focusable  bool
+	// Invalid is HitOptions.Invalid.
+	Invalid   bool
+	Secure    bool
+	Focusable bool
 	// Description, Level, PosInSet, SetSize, Live and Range are the
 	// HitOptions fields of the same names.
 	Description       string
@@ -673,6 +689,7 @@ type Canvas struct {
 	triangles   []Triangle
 	shadows     []Shadow
 	images      []Image
+	tails       canvasTails // see releaseTail
 	nativeViews []NativeView
 	texts       []Text
 	runs        []TextRun
@@ -733,7 +750,7 @@ type Canvas struct {
 	cell      cellGlyph // scratch of CellGlyphGeometry
 	// cellCache holds the cell glyphs the last paints built, keyed by character
 	// and metrics; it survives Reset and is bounded by cellCacheLimit.
-	cellCache []cellGlyphCacheEntry
+	cellCache cellGlyphCache
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
@@ -777,6 +794,7 @@ type Canvas struct {
 	// non-modal popover does. The runtime honors a given request once, so
 	// painting it every frame never pulls focus back after the user leaves.
 	focusRequest ID
+	focusOnce    ID
 	// focusRelease takes the focus away from one hit if it still has it, and
 	// focusReturns are the non-modal scopes that give the focus back on closing.
 	focusRelease ID
@@ -1021,6 +1039,7 @@ func (canvas *Canvas) Reset() {
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
 	canvas.focusRequest = ID{}
+	canvas.focusOnce = ID{}
 	canvas.focusRelease = ID{}
 	canvas.focusReturns = canvas.focusReturns[:0]
 	canvas.trapDepth, canvas.escapeDepth, canvas.initialDepth = -1, -1, -1
@@ -1042,6 +1061,14 @@ func (canvas *Canvas) Trim() {
 	if canvas.previous.keep {
 		canvas.trimPrevious()
 	}
+	// A list cut short by Reset keeps what it held in its array: a picture no
+	// longer drawn, the labels of hits that are gone. Clear what this paint did
+	// not reach of what an earlier one did.
+	releaseTail(canvas.images, &canvas.tails.images)
+	releaseTail(canvas.texts, &canvas.tails.texts)
+	releaseTail(canvas.hits, &canvas.tails.hits)
+	releaseTail(canvas.hitTexts, &canvas.tails.hitTexts)
+	releaseTail(canvas.nativeViews, &canvas.tails.nativeViews)
 	canvas.rectangles = trimCapacity(canvas.rectangles)
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)
@@ -1109,6 +1136,13 @@ func (canvas *Canvas) DrawBitmap(bitmap Bitmap, bounds Rect) {
 // DrawBitmapRegion appends a source region of bitmap sampled into bounds.
 // Source is clipped to the bitmap without allocating or copying pixels.
 func (canvas *Canvas) DrawBitmapRegion(bitmap Bitmap, source, bounds Rect) {
+	canvas.DrawBitmapShaded(bitmap, source, bounds, 0, 0)
+}
+
+// DrawBitmapShaded appends a source region of bitmap sampled into bounds with its
+// corners rounded to radius and faded by fade (1-opacity); zero keeps the plain
+// square, opaque image DrawBitmapRegion draws.
+func (canvas *Canvas) DrawBitmapShaded(bitmap Bitmap, source, bounds Rect, radius, fade float32) {
 	if bitmap.Width <= 0 || bitmap.Height <= 0 || bitmap.Stride < bitmap.Width*4 || bounds.Width <= 0 || bounds.Height <= 0 {
 		return
 	}
@@ -1127,6 +1161,8 @@ func (canvas *Canvas) DrawBitmapRegion(bitmap Bitmap, source, bounds Rect) {
 		Bitmap: bitmap,
 		Source: Rect{X: left, Y: top, Width: right - left, Height: bottom - top},
 		Bounds: bounds,
+		Radius: max(radius, 0),
+		Fade:   min(max(fade, 0), 1),
 		Layer:  canvas.currentLayer(),
 		Order:  canvas.nextOrder(),
 	}
@@ -1657,7 +1693,7 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 		SecondaryWhenDisabled: options.Disabled && options.SecondaryWhenDisabled,
 		Checked:               options.Checked, Mixed: options.Mixed,
 		Selected: options.Selected, Expanded: options.Expanded, Expandable: options.Expandable || options.Expanded,
-		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Secure: options.Secure,
+		Multiline: options.Multiline, ReadOnly: options.ReadOnly, Invalid: options.Invalid, Secure: options.Secure,
 		Description: options.Description, Level: options.Level, PosInSet: options.PosInSet, SetSize: options.SetSize,
 		Live: options.Live, Range: options.Range,
 		Focusable: focusable, SkipTab: focusable && options.SkipTab, Autofocus: options.Autofocus && focusable, IsLabel: options.label, Backdrop: options.Backdrop,
@@ -1837,6 +1873,10 @@ func (canvas *Canvas) TrapFocus(scope ID) {
 	}
 }
 
+// FocusScope returns the focus scope the next paint primitive is declared in, or
+// zero outside any scope.
+func (canvas *Canvas) FocusScope() ID { return canvas.currentFocusScope() }
+
 // TrappedFocusScope returns the top-most active focus trap.
 func (canvas *Canvas) TrappedFocusScope() ID {
 	return canvas.trappedScope
@@ -1854,6 +1894,22 @@ func (canvas *Canvas) RequestFocus(id ID) {
 
 // FocusRequest returns the non-modal focus request, or zero.
 func (canvas *Canvas) FocusRequest() ID { return canvas.focusRequest }
+
+// RequestFocusOnce requests an explicit focus change, even if id has already
+// been claimed by a persistent RequestFocus or AutoFocus declaration. Call it
+// only in response to an action, or from state consumed by the next paint.
+// The request is carried across an event pass and applied at most once.
+func (canvas *Canvas) RequestFocusOnce(id ID) { canvas.focusOnce = id }
+
+// FocusOnce returns the explicit focus request, or zero.
+func (canvas *Canvas) FocusOnce() ID { return canvas.focusOnce }
+
+// TakeFocusOnce consumes the explicit focus request.
+func (canvas *Canvas) TakeFocusOnce() ID {
+	id := canvas.focusOnce
+	canvas.focusOnce = ID{}
+	return id
+}
 
 // ReleaseFocus asks the runtime to take the keyboard focus away from id if id
 // still has it when this paint ends, and does nothing otherwise. A control that

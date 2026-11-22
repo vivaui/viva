@@ -7,7 +7,7 @@ group: guides
 
 ## 一个窗口还是多个
 
-`app.RunCanvas` 打开单个窗口，窗口关闭时返回。需要多个窗口，或者窗口隐藏后应用仍要继续运行时，使用 `app.RunApplication`。它的启动回调在原生事件循环线程上运行一次，用 `Application.OpenWindow` 打开第一个窗口；之后的窗口从这个回调里，或者从别的窗口的回调里打开，那些回调运行在同一个线程上。
+`app.RunCanvas` 打开单个窗口，窗口关闭时返回。需要多个窗口，或者窗口隐藏后应用仍要继续运行时，使用 `app.RunApplication`。它的启动回调在原生事件循环线程上运行一次，用 `ui.OpenWindow(application, config, ui.PageConfig{View: ...})` 打开第一个窗口，它会创建页面和画布；页面通过 `ui.Application(c)` 拿到所属的应用，用来打开更多窗口；之后的窗口从这个回调里，或者从别的窗口的回调里打开，那些回调运行在同一个线程上。
 
 每个窗口都有自己的画布、绘制回调、焦点、输入状态和关闭处理。最后一个窗口关闭时，或有人调用 `Application.Quit` 时，事件循环结束；`Quit` 会关闭所有窗口，无论它们的关闭处理怎么说。
 
@@ -21,6 +21,7 @@ group: guides
 | `WindowFrameless` | 没有任何外框，包括红绿灯按钮。 |
 | `WindowCustomTitlebar` | 内容延伸到透明标题栏之后，占满整个高度，窗口从你用 `MovesWindow`（或 `Canvas.MoveRegion`）声明的区域移动，别处不能。 |
 | `WindowPanel` | 无外框的临时弹出窗口，位于其他窗口之上，用来在状态栏图标旁边打开。 |
+| `WindowNotification` | 接受鼠标操作但不抢键盘焦点的桌面浮窗，用于后台任务的结果提示；Wayland 下位置、层级与焦点由合成器决定。 |
 
 使用自定义标题栏时，窗口按钮在 macOS 上由系统绘制，在 Windows 和 Linux 上由 Viva 绘制。无论哪种，它们都会盖住条带的一部分，所以用 `app.TitlebarInsets` 询问盖住多少，让自己的内容避开。`Config.TitlebarHeight` 设置条带高度（Viva 放置自绘按钮和 macOS 红绿灯的位置）；窗口从你标记了 `MovesWindow` 的那一行移动，行内的控件仍然接收自己的点击，行上方打开的菜单或对话框会被那里的点击关闭，指针拖动后窗口才移动。`Config.WindowControls` 给 Viva 绘制的按钮定样式，使它们跟随你的主题。
 
@@ -62,7 +63,6 @@ type notes struct {
 	unsaved        bool
 	confirmClosing bool
 	allowClose     func()
-	application    *app.Application
 }
 
 func (state *notes) page(c ui.C) {
@@ -77,8 +77,8 @@ func (state *notes) page(c ui.C) {
 			if ui.Button(c, "Settings").Outline().Clicked() {
 				// Windows are opened from the start callback or from another
 				// window's callbacks, which run on the native event-loop thread.
-				var settings gfx.Canvas
-				_, _ = state.application.OpenWindow(app.Config{Title: "Settings", Width: 420, Height: 320}, &settings)
+				_, _ = ui.OpenWindow(ui.Application(c), app.Config{Title: "Settings", Width: 420, Height: 320},
+					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
 		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
@@ -101,26 +101,21 @@ func main() {
 	state := &notes{unsaved: true}
 
 	err := app.RunApplication(func(application *app.Application) error {
-		var main gfx.Canvas
-		state.application = application
-		page := ui.NewPage(ui.PageConfig{View: state.page, Theme: &theme})
-		config := page.Config(app.Config{
+		_, err := ui.OpenWindow(application, app.Config{
 			Title: "Notes", Width: 720, Height: 480,
 			// Content runs full height under a transparent title bar; the window
 			// moves from the row marked MovesWindow. Keep your own content clear of
 			// the window buttons.
 			WindowMode: app.WindowCustomTitlebar,
-		})
-		// The close button asks. Call allow now, later, or never to keep the window.
-		config.OnCloseRequest = func(allow func()) {
-			if !state.unsaved {
-				allow()
-				return
-			}
-			state.confirmClosing, state.allowClose = true, allow
-		}
-
-		_, err := application.OpenWindow(config, &main)
+			// The close button asks. Call allow now, later, or never to keep the window.
+			OnCloseRequest: func(allow func()) {
+				if !state.unsaved {
+					allow()
+					return
+				}
+				state.confirmClosing, state.allowClose = true, allow
+			},
+		}, ui.PageConfig{View: state.page, Theme: &theme})
 		return err
 	})
 	if err != nil {

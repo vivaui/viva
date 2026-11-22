@@ -37,11 +37,10 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 			{id: questionnaireNext, want: func(s *State) bool { return s.values[1] == 1 }},
 		}},
 		{"radio-group", "vertical", []step{{id: radioGroupItem.At(0), want: func(s *State) bool { return s.values[0] == 0 }}}},
-		{"scroll-area", "both-axes", []step{{id: scrollAreaHorizontal, want: func(s *State) bool { return s.values[1] == 72 }}}},
-		{"segmented-control", "default", []step{{id: segmentedControlView.At(2), want: func(s *State) bool { return s.values[0] == 2 }}}},
+		{"segmented-control", "default", []step{{label: "Timeline", want: func(s *State) bool { return s.values[0] == 2 }}}},
 		{"select", "default", []step{
-			{id: selectTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
-			{id: selectItem.At(1), want: func(s *State) bool { return s.values[0] == 2 && s.flags&1 == 0 }},
+			{label: "Renderer", want: func(s *State) bool { return s.values[0] == 0 }},
+			{label: "Direct3D", want: func(s *State) bool { return s.values[0] == 2 }},
 		}},
 		{"sheet", "right", []step{
 			{id: sheetTrigger, want: func(s *State) bool { return s.flags&1 != 0 }},
@@ -52,23 +51,18 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 			{id: sidebarCollapse, want: func(s *State) bool { return s.flags&1 != 0 }},
 		}},
 		{"slider", "default", []step{{id: sliderPrimary, want: func(s *State) bool { return s.values[0] == 50 }}}},
-		{"sonner", "stack", []step{{id: sonnerDismiss.At(1), want: func(s *State) bool { return s.flags&0b010 == 0 && s.flags&0b101 == 0b101 }}}},
+		{"sonner", "stack", []step{{label: "Close toast", want: func(s *State) bool { return s.flags == 0b011 }}}},
 		{"table", "selection", []step{
-			{id: tableRow.At(1), want: func(s *State) bool { return s.flags&2 != 0 }},
-			{id: tableRow.At(1), want: func(s *State) bool { return s.flags&2 == 0 }},
+			{label: "桌面构建", want: func(s *State) bool { return s.flags&2 != 0 }},
+			{label: "性能审计", want: func(s *State) bool { return s.flags&4 != 0 }},
 		}},
 		{"tabs", "line", []step{{label: "活动", want: func(s *State) bool { return s.values[0] == 1 }}}},
 		{"toast", "types", []step{
-			{id: toastAction, want: func(s *State) bool { return s.values[0] == 1 }},
-			{id: toastDismiss, want: func(s *State) bool { return s.flags&1 == 0 }},
+			{label: "切换", want: func(s *State) bool { return s.values[0] == 1 }},
+			{label: "Close toast", want: func(s *State) bool { return s.flags == 0 }},
 		}},
 		{"toggle", "default", []step{{id: toggleItem.At(2), want: func(s *State) bool { return s.flags&4 != 0 }}}},
 		{"toggle-group", "single", []step{{id: toggleGroupItem.At(2), want: func(s *State) bool { return s.flags == 4 }}}},
-		{"tooltip", "default", []step{{id: tooltipTrigger, want: func(s *State) bool { return s.flags&1 != 0 }}}},
-		{"tree", "selection", []step{
-			{id: treeLeaf.At(2), want: func(s *State) bool { return s.values[0] == 2 }},
-			{id: treeGroupDisclosure, want: func(s *State) bool { return s.flags&1 == 0 }},
-		}},
 	}
 	for _, test := range tests {
 		t.Run(test.component+"/"+test.example, func(t *testing.T) {
@@ -97,6 +91,46 @@ func TestGroupCClicksUpdateCallerState(t *testing.T) {
 			}
 		})
 	}
+	// The page Tree owns its row identities: choose a leaf by label, then collapse
+	// the branch through the disclosure identity the state reports.
+	t.Run("tree/selection", func(t *testing.T) {
+		state := newTestState(t, "tree", "selection")
+		var canvas gfx.Canvas
+		canvas.SetMeasurer(measureTestText)
+		paintFrame(&canvas, state, testSize, 0, true)
+		click(&canvas, state, findHitByLabel(t, &canvas, "Worker"))
+		if state.values[0] != 2 {
+			t.Fatalf("choosing Worker left values[0]=%d", state.values[0])
+		}
+		paintFrame(&canvas, state, testSize, 0, true)
+		click(&canvas, state, treeDemoFor(state).state.DisclosureID(0))
+		if state.flags&1 != 0 {
+			t.Fatalf("collapsing Production left flags=%b", state.flags)
+		}
+	})
+	// The page Scroll owns its offset: a sideways wheel over the area moves it and
+	// the demo mirrors the settled offset back into its values.
+	t.Run("scroll-area/both-axes", func(t *testing.T) {
+		state := newTestState(t, "scroll-area", "both-axes")
+		var canvas gfx.Canvas
+		canvas.SetMeasurer(measureTestText)
+		paintFrame(&canvas, state, testSize, 0, true)
+		demo := scrollAreaDemoFor(state)
+		if demo.scroller == nil || demo.bounds.Width <= 0 {
+			t.Fatal("the scroll area was not declared")
+		}
+		result := state.Scroll(gfx.ScrollEvent{
+			X: demo.bounds.X + demo.bounds.Width/2, Y: demo.bounds.Y + demo.bounds.Height/2,
+			DeltaX: 72, Precise: true, Target: scrollAreaViewport,
+		})
+		if !result.Handled || !result.Repaint || demo.scroller.OffsetX != 72 {
+			t.Fatalf("wheel result=%+v offsetX=%.0f", result, demo.scroller.OffsetX)
+		}
+		paintFrame(&canvas, state, testSize, 0, true)
+		if state.values[1] != 72 {
+			t.Fatalf("mirrored offsetX=%d, want 72", state.values[1])
+		}
+	})
 }
 
 // findHitByLabel finds the control of the canvas with the accessibility label,

@@ -11,7 +11,7 @@ import (
 func open(t *testing.T, m *model) *app.Driver {
 	t.Helper()
 	page := ui.NewPage(ui.PageConfig{View: m.page})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 720, Height: 480}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 720, Height: 480}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

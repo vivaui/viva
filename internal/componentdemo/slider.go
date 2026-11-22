@@ -14,16 +14,50 @@ var sliderComponent = Component{
     Step(10).Paint("Volume")
 if canvas.Clicked(tree.ID(page, "volume")) {
     volume = (volume + 10) % 110
-}`},
+}`, PageSnippet: `volume := ui.SliderState{Value: 40}
+ui.Slider(c, &volume).Range(0, 100).Step(10).Label("Volume")`, PageSnippetZh: `volume := ui.SliderState{Value: 40}
+ui.Slider(c, &volume).Range(0, 100).Step(10).Label("音量")`},
 		{ID: "range", Title: "价格区间", Description: "两个稳定 thumb ID 分别接收坐标并约束下限与上限。", Snippet: `thumbs := []components.SliderThumbValue{
     {ID: tree.ID(page, "lower"), Label: "Minimum price", ValueText: "25", Value: 25},
     {ID: tree.ID(page, "upper"), Label: "Maximum price", ValueText: "75", Value: 75},
 }
-components.BeginRangeSlider(canvas, theme, bounds, thumbs).Step(5).Paint("Price range")`},
+components.BeginRangeSlider(canvas, theme, bounds, thumbs).Step(5).Paint("Price range")`, PageSnippet: `// m.price starts at 25–75.
+price := ui.NewRangeSliderState(25, 75)
+price.Step = 5
+price.LowLabel = "Minimum price"
+price.HighLabel = "Maximum price"
+ui.RangeSlider(c, &price)`, PageSnippetZh: `// m.price 初始为 25–75。
+price := ui.NewRangeSliderState(25, 75)
+price.Step = 5
+price.LowLabel = "最低价格"
+price.HighLabel = "最高价格"
+ui.RangeSlider(c, &price)`},
 		{ID: "states", Title: "方向与禁用", Description: "同时展示竖向滑块与禁用状态。", Snippet: `components.BeginSlider(canvas, theme, tree.ID(page, "volume"), volumeBounds,
     float32(volume)).Vertical().Step(10).Paint("Volume")
 components.BeginSlider(canvas, theme, tree.ID(page, "disabled"), disabledBounds, 64).
-    Disabled().Paint("Disabled slider")`},
+    Disabled().Paint("Disabled slider")`, PageSnippet: `volume := ui.SliderState{Value: 40}
+fixed := ui.SliderState{Value: 64}
+ui.Row(c).Gap(40).Children(func() {
+    ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
+        ui.Slider(c, &volume).Range(0, 100).Step(10).Vertical().Height(160).Label("Volume")
+        ui.Text(c, "Vertical")
+    })
+    ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
+        ui.Slider(c, &fixed).Range(0, 100).Disabled(true).Label("Disabled slider")
+        ui.Text(c, "Disabled").Muted()
+    })
+})`, PageSnippetZh: `volume := ui.SliderState{Value: 40}
+fixed := ui.SliderState{Value: 64}
+ui.Row(c).Gap(40).Children(func() {
+    ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
+        ui.Slider(c, &volume).Range(0, 100).Step(10).Vertical().Height(160).Label("音量")
+        ui.Text(c, "竖向")
+    })
+    ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
+        ui.Slider(c, &fixed).Range(0, 100).Disabled(true).Label("禁用滑块")
+        ui.Text(c, "禁用").Muted()
+    })
+})`},
 	},
 }
 
@@ -32,6 +66,8 @@ var (
 	sliderPrimary  = tree.ID(sliderUI, "primary")
 	sliderLower    = tree.ID(sliderUI, "lower")
 	sliderUpper    = tree.ID(sliderUI, "upper")
+	sliderTrack    = tree.ID(sliderUI, "track")
+	sliderValue    = tree.ID(sliderUI, "value")
 	sliderDisabled = tree.ID(sliderUI, "disabled")
 )
 
@@ -160,49 +196,78 @@ func (state *State) sliderForExample() components.Slider {
 }
 
 func (state *State) paintSlider(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	var track, disabled ui.Box
+	if state.exampleID == "range" {
+		state.paintSliderRange(canvas, theme, size)
+		return
+	}
+	var track, live ui.Box
+	var volume *ui.SliderState
 	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
-		switch state.exampleID {
-		case "range":
-			track = ui.Slot(c).Height(16)
-			ui.Text(c, state.Text("下限 / 上限", "Lower / upper bound")).FontSize(theme.Metrics.FontSizeM)
-			caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
-		case "states":
+		volume = ui.State[ui.SliderState](c, "volume")
+		volume.Value = float32(state.values[0])
+		if state.exampleID == "states" {
 			ui.Row(c).Gap(40).Children(func() {
 				ui.Column(c).Gap(10).Items(ui.Center).Children(func() {
-					track = ui.Slot(c).Size(24, 160)
+					live = ui.Slider(c, volume).Range(0, 100).Step(10).Vertical().Height(160).Label(state.Text("音量", "Volume")).Hit(sliderPrimary, state.Text("音量", "Volume"))
 					ui.Text(c, state.Text("竖向", "Vertical")).FontSize(theme.Metrics.FontSizeM)
 				})
 				ui.Column(c).Grow(1).Basis(0).Gap(10).Children(func() {
-					disabled = ui.Slot(c).Height(16)
+					fixed := ui.State[ui.SliderState](c, "fixed")
+					fixed.Value = 64
+					ui.Slider(c, fixed).Range(0, 100).Disabled(true).Label(state.Text("禁用滑块", "Disabled slider"))
 					ui.Text(c, state.Text("禁用", "Disabled")).FontSize(theme.Metrics.FontSizeM).Muted()
 				})
 			})
-		default:
-			track = ui.Slot(c).Height(16)
-			caption(c, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
+			return
 		}
+		track = ui.Slider(c, volume).Range(0, 100).Step(10).Label(state.Text("音量", "Volume")).Hit(sliderPrimary, state.Text("音量", "Volume"))
+		caption(c, state.Text("拖动滑块按十为步长更新；激活仍可循环。", "Dragging steps by ten; activating cycles the caller's value."))
 	})
-
-	bounds := track.Rect()
-	if bag := state.slider; bag != nil {
-		bag.placed = bounds
-	}
-	switch state.exampleID {
-	case "range":
-		components.BeginRangeSlider(canvas, theme, bounds, state.bag().thumbs[:]).Step(5).Paint(state.Text("价格区间", "Price range"))
-		if canvas.Clicked(sliderLower) || canvas.Clicked(sliderUpper) {
-			state.toggleSliderRangePreset()
-		}
-		return
-	case "states":
-		components.BeginSlider(canvas, theme, sliderPrimary, bounds, float32(state.values[0])).Vertical().Step(10).Paint(state.Text("音量", "Volume"))
-		components.BeginSlider(canvas, theme, sliderDisabled, disabled.Rect(), 64).Disabled().Paint(state.Text("禁用滑块", "Disabled slider"))
-	default:
-		components.BeginSlider(canvas, theme, sliderPrimary, bounds, float32(state.values[0])).Step(10).ValueText(sliderDemoValueText(state.values[0])).Paint(state.Text("音量", "Volume"))
+	if state.exampleID == "states" {
+		state.values[0] = int32(volume.Value + 0.5)
+		state.bag().placed = live.Rect()
+	} else {
+		state.values[0] = int32(volume.Value + 0.5)
+		state.bag().placed = track.Rect()
 	}
 	if canvas.Clicked(sliderPrimary) {
 		state.values[0] = (state.values[0] + 10) % 110
+	}
+}
+
+// paintSliderRange is the page RangeSlider with caller-named parts: the demo's
+// pointer and key handlers address the two thumbs, the track and the filled
+// value range by the stable tree IDs below, so they read and update the same
+// control the page paints.
+func (state *State) paintSliderRange(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	var price *ui.RangeSliderState
+	state.drawPage(canvas, theme, size, 520, state.Text("Slider · 显式数值", "Slider · Explicit values"), func(c ui.C) {
+		price = ui.State[ui.RangeSliderState](c, "price")
+		// State gives a zero RangeSliderState; the example's range is 0..100.
+		price.Min, price.Max, price.Step = 0, 100, 5
+		price.Low, price.High = float32(state.values[0]), float32(state.values[1])
+		price.LowLabel = state.Text("最低价格", "Minimum price")
+		price.HighLabel = state.Text("最高价格", "Maximum price")
+		price.LowValueText = sliderDemoValueText(state.values[0])
+		price.HighValueText = sliderDemoValueText(state.values[1])
+		price.LowID, price.HighID = sliderLower, sliderUpper
+		price.TrackID, price.ValueID = sliderTrack, sliderValue
+		if price.Handlers.Pointer == nil {
+			// The demo owns the drag and the key steps so its caller state and
+			// the page control stay one value; the page routes its named parts
+			// here.
+			price.Handlers.Pointer = state.pointerSlider
+			price.Handlers.Key = state.keySlider
+		}
+		ui.Text(c, state.Text("价格区间", "Price range")).FontSize(theme.Metrics.FontSizeM)
+		ui.RangeSlider(c, price)
+		caption(c, state.Text("分别激活两个圆形滑块，演示调用方更新范围。", "Activate each round thumb to see the caller update the range."))
+	})
+	if price != nil {
+		state.bag().placed = price.Track()
+	}
+	if canvas.Clicked(sliderLower) || canvas.Clicked(sliderUpper) {
+		state.toggleSliderRangePreset()
 	}
 }
 

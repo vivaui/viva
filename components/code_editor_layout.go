@@ -158,6 +158,10 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 		if newline := strings.IndexByte(value[start:], '\n'); newline >= 0 {
 			end = start + newline
 		}
+		rowEnd := end
+		if end < len(value) && end > start && value[end-1] == '\r' {
+			rowEnd--
+		}
 		for foldIndex < len(editor.folds) && editor.folds[foldIndex].LastLine < line {
 			foldIndex++
 		}
@@ -167,7 +171,7 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 			hidden = fold.Header >= 0 && fold.LastLine > fold.Header && fold.Header < line && line <= fold.LastLine
 		}
 		if !hidden {
-			editor.appendLine(value, start, end, line)
+			editor.appendLine(value, start, rowEnd, line)
 		}
 		if end >= len(value) {
 			break

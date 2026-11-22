@@ -9,14 +9,16 @@ import (
 )
 
 // Label is a prepared image placed in the canvas: text the platform's text engine rasterized, or
-// a bitmap, already at device resolution. Pix is premultiplied BGRA like the canvas, unless LCD is
+// a bitmap. Pix is premultiplied BGRA like the canvas, unless LCD is
 // set: then it holds the coverage of each channel of subpixel-antialiased text and an alpha that is
 // their luminance, and the renderer tints it per channel instead.
 type Label struct {
 	Pix    []byte
 	Stride int // bytes per row of Pix
-	Width  int // pixels per row
+	Width  int // destination pixels per row
 	Height int
+	// SourceWidth and SourceHeight are nonzero only for a bitmap sampled into a different size.
+	SourceWidth, SourceHeight int
 	// X and Y are the device pixel of the image's top-left corner in the canvas.
 	X, Y  int
 	Layer uint16
@@ -33,6 +35,12 @@ type Label struct {
 	LCD   bool
 	Color scene.Color
 	Spans []Span
+	// Image marks a label drawn from a bitmap rather than text; Radius rounds its
+	// corners (logical pixels) and Fade is how much of it is transparent
+	// (1-opacity). Both are zero for an ordinary square, opaque image.
+	Image  bool
+	Radius float32
+	Fade   float32
 }
 
 // Span is a range of device columns [From, To) of an LCD label's picture that
@@ -192,7 +200,7 @@ func (c *Canvas) clearRegion(s render.Scissor, color scene.Color) {
 }
 
 func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
-	if l.Width <= 0 || l.Height <= 0 || len(l.Pix) < (l.Height-1)*l.Stride+l.Width*4 {
+	if l.Width <= 0 || l.Height <= 0 {
 		return
 	}
 	area := intersect(damage, render.Scissor{Left: l.X, Top: l.Y, Right: l.X + l.Width, Bottom: l.Y + l.Height})
@@ -200,6 +208,16 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 		area = intersect(area, l.Clip)
 	}
 	if empty(area) {
+		return
+	}
+	if l.Image && l.Fade >= 1 {
+		return
+	}
+	if l.SourceWidth > 0 {
+		drawScaledBitmap(c, area, l)
+		return
+	}
+	if len(l.Pix) < (l.Height-1)*l.Stride+l.Width*4 {
 		return
 	}
 	if !l.LCD {
@@ -222,6 +240,38 @@ func drawLabel(c *Canvas, damage render.Scissor, l *Label) {
 	}
 }
 
+func drawScaledBitmap(canvas *Canvas, area render.Scissor, label *Label) {
+	width, height := label.SourceWidth, label.SourceHeight
+	if height <= 0 || label.Stride/4 < width || len(label.Pix) < width*4 ||
+		height-1 > (len(label.Pix)-width*4)/label.Stride {
+		return
+	}
+	ratioX, ratioY := float64(width)/float64(label.Width), float64(height)/float64(label.Height)
+	for y := area.Top; y < area.Bottom; y++ {
+		sourceY := min(max((float64(y-label.Y)+0.5)*ratioY-0.5, 0), float64(height-1))
+		upper := int(sourceY)
+		lower := min(upper+1, height-1)
+		weightY := float32(sourceY - float64(upper))
+		for x := area.Left; x < area.Right; x++ {
+			sourceX := min(max((float64(x-label.X)+0.5)*ratioX-0.5, 0), float64(width-1))
+			left := int(sourceX)
+			right := min(left+1, width-1)
+			weightX := float32(sourceX - float64(left))
+			mask := imageMask(label, x, y)
+			if mask <= 0 {
+				continue
+			}
+			var sample [4]float32
+			for channel := range sample {
+				top := float32(label.Pix[upper*label.Stride+left*4+channel])*(1-weightX) + float32(label.Pix[upper*label.Stride+right*4+channel])*weightX
+				bottom := float32(label.Pix[lower*label.Stride+left*4+channel])*(1-weightX) + float32(label.Pix[lower*label.Stride+right*4+channel])*weightX
+				sample[channel] = (top*(1-weightY) + bottom*weightY) * (1.0 / 255)
+			}
+			over(canvas.Pix, y*canvas.Stride+x*4, sample[2]*mask, sample[1]*mask, sample[0]*mask, sample[3]*mask)
+		}
+	}
+}
+
 // drawPremultipliedLabel composites an image already in its color, as every
 // bitmap and grayscale text is.
 func drawPremultipliedLabel(c *Canvas, area render.Scissor, l *Label) {
@@ -230,22 +280,48 @@ func drawPremultipliedLabel(c *Canvas, area render.Scissor, l *Label) {
 		src := l.Pix[(y-l.Y)*l.Stride+(area.Left-l.X)*4:]
 		di := y*c.Stride + area.Left*4
 		for x := area.Left; x < area.Right; x++ {
-			a := src[3]
+			sr, sg, sb, a := src[0], src[1], src[2], src[3]
+			if l.Image {
+				mask := imageMask(l, x, y)
+				if mask <= 0 {
+					src, di = src[4:], di+4
+					continue
+				}
+				if mask < 1 {
+					a = unorm8(float32(a) * inv * mask)
+					sr = unorm8(float32(sr) * inv * mask)
+					sg = unorm8(float32(sg) * inv * mask)
+					sb = unorm8(float32(sb) * inv * mask)
+				}
+			}
 			switch a {
 			case 0:
 			case 255:
-				c.Pix[di], c.Pix[di+1], c.Pix[di+2], c.Pix[di+3] = src[0], src[1], src[2], 255
+				c.Pix[di], c.Pix[di+1], c.Pix[di+2], c.Pix[di+3] = sr, sg, sb, 255
 			default:
 				k := 1 - float32(a)*inv
-				c.Pix[di] = unorm8(float32(src[0])*inv + float32(c.Pix[di])*inv*k)
-				c.Pix[di+1] = unorm8(float32(src[1])*inv + float32(c.Pix[di+1])*inv*k)
-				c.Pix[di+2] = unorm8(float32(src[2])*inv + float32(c.Pix[di+2])*inv*k)
+				c.Pix[di] = unorm8(float32(sr)*inv + float32(c.Pix[di])*inv*k)
+				c.Pix[di+1] = unorm8(float32(sg)*inv + float32(c.Pix[di+1])*inv*k)
+				c.Pix[di+2] = unorm8(float32(sb)*inv + float32(c.Pix[di+2])*inv*k)
 				c.Pix[di+3] = unorm8(float32(a)*inv + float32(c.Pix[di+3])*inv*k)
 			}
 			src = src[4:]
 			di += 4
 		}
 	}
+}
+
+// imageMask is how much of device pixel (x, y) an image label draws: its rounded
+// corner coverage times its opacity. A square, opaque image covers fully.
+func imageMask(l *Label, x, y int) float32 {
+	if !l.Image {
+		return 1
+	}
+	mask := 1 - l.Fade
+	if l.Radius > 0 {
+		mask *= Coverage(scene.Rect{X: float32(l.X), Y: float32(l.Y), Width: float32(l.Width), Height: float32(l.Height)}, l.Radius, 1, x, y)
+	}
+	return mask
 }
 
 // drawLCDLabel tints the per-channel coverage of white text with color and

@@ -36,6 +36,8 @@ type gtkApplication struct {
 	wayland  bool
 	started  bool
 	stopping bool
+
+	mainRunning bool
 	// mainThread is the thread that runs the loop, which is where GTK may be called.
 	mainThread int
 	// active is the window the keyboard or the pointer was last in.
@@ -51,6 +53,14 @@ type gtkApplication struct {
 	watched map[int]uint32
 	// Retired input contexts stay alive until the native callback stack returns.
 	retiredIMESources []uint32
+	// clipboardGet and clipboardClear answer the clipboard's data callbacks, made
+	// once: purego keeps every callback it makes, so a pair per copy would retain
+	// what the user copied for the life of the process. clipboardBytes is what they
+	// answer now, by target atom, and clipboardGeneration tells a clear from an
+	// older copy apart from the current one.
+	clipboardGet, clipboardClear uintptr
+	clipboardBytes               map[uintptr][]byte
+	clipboardGeneration          uintptr
 }
 
 // gtkTasks are the functions other goroutines asked the loop to run.
@@ -113,8 +123,10 @@ func RunGTKApplication(start platform.ApplicationStart) error {
 		application.destroyAll()
 		return err
 	}
-	if len(application.windows) > 0 {
+	if len(application.windows) > 0 && !application.stopping {
+		application.mainRunning = true
 		g.main()
+		application.mainRunning = false
 	}
 	application.destroyAll()
 	return application.firstErr
@@ -195,7 +207,9 @@ func (a *gtkApplication) fail(err error) {
 func (a *gtkApplication) stop() {
 	if !a.stopping {
 		a.stopping = true
-		a.g.mainQuit()
+		if a.mainRunning {
+			a.g.mainQuit()
+		}
 	}
 }
 
@@ -312,7 +326,7 @@ func typeNameOf(g *gtkLibrary, object uintptr) string {
 // frees a callback and allows a fixed number, so a window must not make its own. The window a call
 // is for travels in the data pointer, as its id.
 type gtkCallbacks struct {
-	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
+	task, descriptor, settings, dragMotion, dragLeave, dragDrop, dragData, event, capturePress, draw, allocate, destroy, deleteEvent, mapped, unmapped, commit, preeditStart, preedit, preeditEnd, surrounding, deleteSurrounding, retireIME, releaseIME, redraw, webMessage, webLoad, webFailed, webProcessTerminated, webScheme, webDecide, webCreate, webDownload, webDestination uintptr
 }
 
 var (
@@ -386,6 +400,12 @@ func callbacks() *gtkCallbacks {
 				}
 				return 0
 			}),
+			capturePress: purego.NewCallback(func(gesture, sequence, id uintptr) uintptr {
+				if w := gtkWindowByID(id); w != nil && w.wl != nil && w.wl.s.focus == w.wl {
+					w.g.gestureSetState(gesture, 1) // GTK_EVENT_SEQUENCE_CLAIMED
+				}
+				return 0
+			}),
 			draw: purego.NewCallback(func(widget, cr, id uintptr) uintptr {
 				if w := gtkWindowByID(id); w != nil {
 					w.draw(widget, cr)
@@ -437,6 +457,21 @@ func callbacks() *gtkCallbacks {
 			webLoad: purego.NewCallback(func(view, event, handle uintptr) uintptr {
 				if v := webViews[handle]; v != nil {
 					v.loadChanged(int32(event))
+				}
+				return 0
+			}),
+			// gboolean load-failed(view, WebKitLoadEvent, failing URI, GError, handle). The engine
+			// shows its own error page, so the signal is left unhandled after it is read.
+			webFailed: purego.NewCallback(func(view, event, uri, failure, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					v.loadFailed(uri, failure)
+				}
+				return 0
+			}),
+			// void web-process-terminated(view, WebKitWebProcessTerminationReason, handle).
+			webProcessTerminated: purego.NewCallback(func(view, reason, handle uintptr) uintptr {
+				if v := webViews[handle]; v != nil {
+					v.processTerminated(int32(reason))
 				}
 				return 0
 			}),

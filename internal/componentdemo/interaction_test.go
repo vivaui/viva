@@ -35,14 +35,29 @@ func TestButtonCountsAndDisabledVariants(t *testing.T) {
 		paintFrame(&canvas, state, testSize, time.Second, true)
 		if example.ID == "disabled" {
 			wantCount = 0
-			for _, label := range canvas.Texts()[1:7] {
-				if label.Style.Color.Alpha != 0.5 {
-					t.Fatalf("disabled variant not visibly dimmed: %+v", label)
+			for _, value := range []string{"Default", "Destructive", "Outline", "Secondary", "Ghost", "Link"} {
+				found := false
+				for _, label := range canvas.Texts() {
+					if label.Value == value {
+						found = true
+						if label.Style.Color.Alpha != 0.5 {
+							t.Fatalf("disabled variant %q not visibly dimmed: %+v", value, label)
+						}
+					}
+				}
+				if !found {
+					t.Fatalf("disabled variant %q not painted", value)
 				}
 			}
 		}
 		if !hasText(&canvas, state.Text("点击：", "Clicks: ")+strconv.Itoa(wantCount)) {
-			t.Fatal("button activation did not update the visible count")
+			t.Fatalf("button activation did not update the visible count; texts=%v", func() []string {
+				var v []string
+				for _, x := range canvas.Texts() {
+					v = append(v, x.Value)
+				}
+				return v
+			}())
 		}
 		before := state.button
 		click(&canvas, state, buttonPress.At(6))

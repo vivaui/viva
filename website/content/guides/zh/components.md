@@ -11,7 +11,7 @@ group: guides
 
 ## 使用组件
 
-引入 `github.com/vivaui/viva/components`，在绘制时声明组件。这是常规用法，[第一个窗口](/zh/docs/getting-started/)就是这样做的。
+页面用 `ui` 包编写：`ui.Button`、`ui.Checkbox`、`ui.Select` 等控件内部就是用这些组件绘制的，[第一个窗口](/zh/docs/getting-started/)就是这样做的。只有在手工向 `gfx.Canvas` 绘制，或要安装组件源码来修改时，才需要自己引入 `github.com/vivaui/viva/components`。
 
 ```go
 components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
@@ -19,9 +19,41 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 主题是一个值，`gfx.LightTheme()` 或 `gfx.DarkTheme()`。切换外观就是改用另一个主题绘制。
 
+`Begin*` 是样式层的构造器，不是第二套页面 API。页面控件用 `ui.*`、`ui.*Base` 和 `ui.Control` 声明；`components` 包里的 `Begin*` 用于 `Draw` 内部、纯测量或 `viva add` 复制出的源码。“零 Begin”不是目标：边界是页面行为不再手拼，而不是绘制构造器消失。`ui/multiselect`、`ui/hierarchypicker` 这类可复用的重型复合控件走 opt-in 包。
+
+## 可选页面包
+
+重功能或有状态的页面控件放在 `ui/<能力名>` 的独立包里。用到才 import；包本身就是按需付费的边界。
+
+- 编辑器与可视化：`ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
+- 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
+- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`
+
+包名是能力名，没有 `view` 后缀；状态类型按角色命名，不重复包名：`calendar.State`、`message.Row`、`attachment.Card`。局部变量避让包名（`cal`、`msg`、`pic`）；model 字段可以保留领域名词（`m.calendar`），因为选择器不会遮蔽包。
+
+有些包暴露 `pkg.View(c, label, &state)`（`calendar.View`、`markdown.View`），有些则是状态上的方法（`avatar.New().View(c, label)`、`questionnaire.New().View(c, label)`）。用 `go doc github.com/vivaui/viva/ui/<package>` 查看具体形式。
+
+```go
+cal := &m.calendar
+calendar.View(c, "Calendar", cal).FillWidth()
+msg := message.New().Name("Ari").Body("Ready")
+message.View(c, "Ari", msg)
+```
+
+保留自己布局的自定义表面可以在 `ui.Slot` 里、按组件原来的矩形放一个页面控件：
+
+```go
+slot := ui.Slot(c).Size(22, 24).Shrink(0)
+slot.Children(func() {
+    ui.Checkbox(c, &copy, "").Absolute().Left(0).Top(0).Size(16, 16).Hit(id, "Select")
+})
+```
+
+应用自己的 dispatcher 管理真实值时，绑定一个副本。表面其余部分继续用 `Draw`/canvas；不要为了统一把整个表面改成页面声明。`ui/slot_parity_test.go` 保证 Checkbox、Switch、FormField 这条路径与 `components` 包里的 `Begin*` 的像素和 hit 一致。
+
 ## 树形导航
 
-`BeginTree` 根据应用自己扁平化的层级绘制可见行。处理键盘事件时，将可见行的实际深度、展开状态和禁用状态传给 `components.NavigateTree`；深度不能使用为了适应宽度而截断的视觉缩进。它返回下一个可见行的索引，或者展开、折叠动作。子节点加载、展开状态、选择和焦点仍由应用负责，不产生隐藏模型或后台工作；导航切片可作为调用方拥有的临时存储复用。
+`BeginTree` 根据应用自己扁平化的层级绘制可见行。处理键盘事件时，将可见行的实际深度、展开状态和禁用状态传给 `ui.NavigateTree`；深度不能使用为了适应宽度而截断的视觉缩进。它返回下一个可见行的索引，或者展开、折叠动作。子节点加载、展开状态、选择和焦点仍由应用负责，不产生隐藏模型或后台工作；导航切片可作为调用方拥有的临时存储复用。
 
 ## 图表
 
@@ -44,7 +76,7 @@ plot := components.PaintAreaChart(canvas, theme, bounds, chartID, chart, &state)
 
 ## 拥有一份副本
 
-想修改组件时，就复制它。`viva list` 列出安装器能复制的配方，`viva add` 把它们作为普通 Go 文件写进你的项目：
+想修改组件时，就复制它。`viva list` 列出安装器能复制的配方，`viva add` 把它们作为普通 Go 文件写进你的项目。复制出来的是绘制配方：它在你给定的矩形里往 `gfx.Canvas` 上画（`BeginButton(canvas, theme, id, bounds)`），所以要在页面元素的 `Draw` 回调里或整窗的 `Paint` 里使用，外观就是你要改的那段代码。想改变所有 `ui.Button` 的外观又不想复制任何东西，给页面设置 `PageConfig.Styles`；想基于 `ui` 自带的行为做自己外观的控件，用 `ui.ButtonBase` 等 Base。
 
 ```sh
 # 先安装 viva（见「构建与打包」）；viva init 生成的项目里用 go tool viva

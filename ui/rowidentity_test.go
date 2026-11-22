@@ -12,7 +12,7 @@ import (
 
 type rowIdentityModel struct {
 	rows   ui.TableRows
-	first  ui.TableState
+	First  ui.TableState
 	second ui.TableState
 	target gfx.ID
 	row    int
@@ -36,7 +36,7 @@ func (m *rowIdentityModel) table(c ui.C, state *ui.TableState) {
 }
 
 func (m *rowIdentityModel) page(c ui.C) {
-	m.table(c, &m.first)
+	m.table(c, &m.First)
 }
 
 func (m *rowIdentityModel) pointer(event gfx.PointerEvent) gfx.EventResult {
@@ -44,7 +44,7 @@ func (m *rowIdentityModel) pointer(event gfx.PointerEvent) gfx.EventResult {
 		return gfx.EventResult{}
 	}
 	m.target = event.Target
-	m.row, m.ok = event.Target.In(m.first.Rows())
+	m.row, m.ok = event.Target.In(m.First.Rows())
 	return gfx.EventResult{}
 }
 
@@ -61,9 +61,9 @@ func (m *rowIdentityModel) press(t *testing.T, d *pageDriver, row int) {
 	if m.row != row {
 		t.Fatalf("pointer routed to source row %d, want %d", m.row, row)
 	}
-	id, ok := m.first.RowID(row)
-	if !ok || id != m.target || id.Scope() != m.first.Rows() {
-		t.Fatalf("RowID(%d) = %v, %v; pointer target = %v, Rows = %v", row, id, ok, m.target, m.first.Rows())
+	id, ok := m.First.RowID(row)
+	if !ok || id != m.target || id.Scope() != m.First.Rows() {
+		t.Fatalf("RowID(%d) = %v, %v; pointer target = %v, Rows = %v", row, id, ok, m.target, m.First.Rows())
 	}
 }
 
@@ -83,7 +83,7 @@ func TestTableRowIDRoutesRealPointerAcrossScroll(t *testing.T) {
 	m.press(t, d, 0)
 	firstRowID := m.target
 	m.press(t, d, 3)
-	if _, ok := m.first.RowID(20); ok {
+	if _, ok := m.First.RowID(20); ok {
 		t.Fatal("RowID names an undeclared row below the table's viewport")
 	}
 
@@ -91,7 +91,7 @@ func TestTableRowIDRoutesRealPointerAcrossScroll(t *testing.T) {
 	if err := d.driver.Scroll(gfx.ScrollEvent{X: at.X + 1, Y: at.Y + 1, DeltaY: 200, Precise: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := m.first.RowID(0); ok {
+	if _, ok := m.First.RowID(0); ok {
 		t.Fatal("RowID still names row 0 after the second page replaces the first")
 	}
 	m.press(t, d, 10)
@@ -99,9 +99,9 @@ func TestTableRowIDRoutesRealPointerAcrossScroll(t *testing.T) {
 	if firstRowID == m.target {
 		t.Fatal("a second-page source row reused the old first-page identity")
 	}
-	hits := declaredRowHits(d, m.first.Rows())
+	hits := declaredRowHits(d, m.First.Rows())
 	for row, id := range hits {
-		if got, ok := m.first.RowID(row); !ok || got != id {
+		if got, ok := m.First.RowID(row); !ok || got != id {
 			t.Fatalf("declared source row %d has RowID %v, %v, hit %v", row, got, ok, id)
 		}
 	}
@@ -109,7 +109,7 @@ func TestTableRowIDRoutesRealPointerAcrossScroll(t *testing.T) {
 		t.Fatal("the second page declares no row hits")
 	}
 	for _, row := range []int{-1, 50, 100} {
-		if id, ok := m.first.RowID(row); ok || !id.IsZero() {
+		if id, ok := m.First.RowID(row); ok || !id.IsZero() {
 			t.Fatalf("RowID(%d) = %v, %v, want zero, false", row, id, ok)
 		}
 	}
@@ -120,23 +120,23 @@ func TestTableRowsIdentitiesArePerTableAndStableInAnOuterScroll(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			ui.Scroll(c).Grow(1).Children(func() {
-				m.table(c, &m.first)
+				m.table(c, &m.First)
 				m.table(c, &m.second)
 			})
 		})
 	})
-	firstID, firstOK := m.first.RowID(0)
+	firstID, firstOK := m.First.RowID(0)
 	secondID, secondOK := m.second.RowID(0)
-	if !firstOK || !secondOK || m.first.Rows().IsZero() || m.second.Rows().IsZero() {
+	if !firstOK || !secondOK || m.First.Rows().IsZero() || m.second.Rows().IsZero() {
 		t.Fatal("the default scopes do not expose declared rows")
 	}
-	if firstID == secondID || m.first.Rows() == m.second.Rows() {
+	if firstID == secondID || m.First.Rows() == m.second.Rows() {
 		t.Fatal("two tables on one page share row identities")
 	}
 	if row, ok := firstID.In(m.second.Rows()); ok || row != 0 {
 		t.Fatal("the first table's row belongs to the second table's scope")
 	}
-	for _, hit := range declaredRowHits(d, m.first.Rows()) {
+	for _, hit := range declaredRowHits(d, m.First.Rows()) {
 		if hit == secondID {
 			t.Fatal("the default scope passed to Table changed its row identity")
 		}
@@ -146,7 +146,7 @@ func TestTableRowsIdentitiesArePerTableAndStableInAnOuterScroll(t *testing.T) {
 	if err := d.driver.Scroll(gfx.ScrollEvent{X: at.X + 1, Y: at.Y + 1, DeltaY: 20, Precise: true}); err != nil {
 		t.Fatal(err)
 	}
-	movedID, movedOK := m.first.RowID(0)
+	movedID, movedOK := m.First.RowID(0)
 	if !movedOK || movedID != firstID {
 		t.Fatal("a row's identity changed as an outer scroll moved it on screen")
 	}
@@ -155,7 +155,7 @@ func TestTableRowsIdentitiesArePerTableAndStableInAnOuterScroll(t *testing.T) {
 	}
 
 	d.repaint()
-	if next, ok := m.first.RowID(0); !ok || next != firstID {
+	if next, ok := m.First.RowID(0); !ok || next != firstID {
 		t.Fatal("the first table's identity changed after a repaint with unchanged layout")
 	}
 }
@@ -177,9 +177,9 @@ func TestTableRowIDLastDeclarationAndZeroState(t *testing.T) {
 	second := false
 	var state ui.TableState
 	d := openPage(t, func(c ui.C) {
-		ui.Table(c, &state, ui.TableSpec{Rows: rows, Source: &m.rows, RowHeight: 20})
+		ui.Table(c, &state, ui.TableSpec{Rows: rows, Columns: []ui.TableColumn{{}}, Source: &m.rows, RowHeight: 20})
 		if second {
-			ui.Table(c, &state, ui.TableSpec{Rows: other, Source: &m.rows, RowHeight: 20})
+			ui.Table(c, &state, ui.TableSpec{Rows: other, Columns: []ui.TableColumn{{}}, Source: &m.rows, RowHeight: 20})
 		}
 	})
 	firstID, ok := state.RowID(0)

@@ -5,30 +5,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vivaui/viva/base"
+
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
-
-// TableAlignment selects text placement within a table column.
-type TableAlignment uint8
-
-const (
-	TableAlignLeft TableAlignment = iota
-	TableAlignCenter
-	TableAlignRight
-)
-
-// TableColumn is a statically typed column declaration. Width is measured in
-// logical pixels; the final non-positive width consumes the remaining space.
-type TableColumn struct {
-	Width     float32
-	Alignment TableAlignment
-	// Inset reserves leading content space inside a left-aligned cell, for
-	// example an application-painted file icon.
-	Inset float32
-	// EndInset reserves trailing content space inside a left-aligned cell, for
-	// example an application-painted expander.
-	EndInset float32
-}
 
 // TableSelection is an optional text selection for a Table. Anchor and Focus
 // are UTF-8 byte offsets into the serialized table text. Cells are represented
@@ -74,6 +55,10 @@ type Table struct {
 	headerSet    bool
 	Selection    TableSelection
 	text         *tableTextState
+	// foreground is the element's text color when hasForeground is set; the rows
+	// and headers paint in it instead of the theme's.
+	foreground    gfx.Color
+	hasForeground bool
 }
 
 type tableTextState struct {
@@ -116,13 +101,6 @@ type TableRowLayout struct {
 	Bounds gfx.Rect
 	Cells  []gfx.Rect
 }
-
-// TableRowHeight is the default height of a body or footer row: TableCell's p-2
-// around one 20px line, scaled to the theme's control height.
-func TableRowHeight(theme gfx.Theme) float32 { return theme.Metrics.ControlHeight + 4 }
-
-// TableHeaderHeight is the default height of the header row, TableHead's h-10.
-func TableHeaderHeight(theme gfx.Theme) float32 { return theme.Metrics.ControlHeight + 8 }
 
 // BeginTable starts a table whose first painted row is at bounds.Y. Cells use the
 // theme's GapItem of horizontal padding unless CellPadding overrides it. A cell
@@ -361,7 +339,7 @@ func (table *Table) paintRow(id gfx.ID, cells []string, state TableRowState, kin
 	collect := cellsOut != nil
 	cellsOut = cellsOut[:0]
 	background := table.theme.Background
-	foreground := table.theme.Foreground
+	foreground := table.textColor()
 	weight := gfx.WeightRegular
 	paintBackground := false
 	if kind == tableRowHeader {
@@ -606,16 +584,6 @@ func tableSerializedColumnOffset(value string, offset int) int {
 	return len(value)
 }
 
-// tableColumnWidth is the width a column gets of the room remaining: its own, or
-// all that is left for a column with no width (and for a last one too wide).
-func tableColumnWidth(column TableColumn, last bool, remaining float32) float32 {
-	width := column.Width
-	if width <= 0 || last && width > remaining {
-		width = remaining
-	}
-	return min(width, remaining)
-}
-
 // FitTableHeadings widens each fixed-width column of columns that is narrower than
 // its heading to the width the heading needs, so that no heading is cut or ends in an
 // ellipsis. It is what shadcn's TableHead gets from whitespace-nowrap in an auto-width
@@ -646,24 +614,6 @@ func FitTableHeadings(canvas *gfx.Canvas, theme gfx.Theme, columns []TableColumn
 		// A heading is measured to the pixel, so round it up: it must fit, not tie.
 		column.Width = max(column.Width, float32(math.Ceil(float64(need)))+pad+inset)
 	}
-}
-
-// TableCellBounds appends to dst the cells of a row that fills row, as Header and
-// Row paint them: fixed widths in order, a column without one taking what is left,
-// cells that no longer fit left out. It lets a caller put something on a cell, a
-// sort arrow or a hit region, without painting the row first.
-func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
-	x, remaining := row.X, row.Width
-	for index, column := range columns {
-		width := tableColumnWidth(column, index == len(columns)-1, remaining)
-		if width <= 0 {
-			break
-		}
-		dst = append(dst, gfx.Rect{X: x, Y: row.Y, Width: width, Height: row.Height})
-		x += width
-		remaining -= width
-	}
-	return dst
 }
 
 // TextLen is the length in bytes of the tab-separated text represented by the
@@ -767,6 +717,22 @@ func nearestTableTextCell(cells []tableTextCell, x float32) int {
 
 // tableSelectionColors keeps the table recipe self-contained while preserving
 // the Primary fallback used by hand-built themes from before Selection existed.
+// Foreground paints the rows and headers in color instead of the theme's;
+// selection colors keep their own foreground.
+func (table Table) Foreground(color gfx.Color) Table {
+	table.foreground, table.hasForeground = color, true
+	return table
+}
+
+// textColor is the color of row and header text: the element's own when it set
+// one, else the theme's foreground.
+func (table Table) textColor() gfx.Color {
+	if table.hasForeground {
+		return table.foreground
+	}
+	return table.theme.Foreground
+}
+
 func tableSelectionColors(theme gfx.Theme) (background, foreground gfx.Color) {
 	background, foreground = theme.Selection, theme.SelectionForeground
 	if background.Alpha == 0 {
@@ -951,7 +917,7 @@ func (table *Table) paintSortableHeaderCell(
 ) tableTextCell {
 	canvas, theme := table.canvas, table.theme
 	interactive := !cell.ID.IsZero()
-	color := theme.Foreground
+	color := table.textColor()
 	if cell.Disabled {
 		color.Alpha *= 0.5
 	}
@@ -1059,3 +1025,24 @@ var tableDescendingIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Jo
 	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 12, Y: 5}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}},
 	{Kind: gfx.PathCommandMove, Point: gfx.Point{X: 7, Y: 14}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 12, Y: 19}}, {Kind: gfx.PathCommandLine, Point: gfx.Point{X: 17, Y: 14}},
 }}
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type TableColumn = style.TableColumn
+type TableAlignment = style.TableAlignment
+
+const (
+	TableAlignCenter = style.TableAlignCenter
+	TableAlignLeft   = style.TableAlignLeft
+	TableAlignRight  = style.TableAlignRight
+)
+
+func TableCellBounds(columns []TableColumn, row gfx.Rect, dst []gfx.Rect) []gfx.Rect {
+	return base.TableCellBounds(columns, row, dst)
+}
+
+func tableColumnWidth(column TableColumn, last bool, remaining float32) float32 {
+	return base.TableColumnWidth(column, last, remaining)
+}
+func TableRowHeight(theme gfx.Theme) float32 { return base.TableRowHeight(theme) }
+
+func TableHeaderHeight(theme gfx.Theme) float32 { return base.TableHeaderHeight(theme) }

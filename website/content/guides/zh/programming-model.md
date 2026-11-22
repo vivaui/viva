@@ -17,7 +17,7 @@ Viva 应用把自己的状态放在普通的 Go 值里。页面函数 `func (m *
 
 ## 事件
 
-按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Page.Config` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
+按钮在声明处处理：`ui.Button(c, "Save").Clicked()` 只在递送这次点击的那一遍里为真，也只有在这一遍里绘制才可以修改状态。会改变正在声明的列表的处理函数放进 `c.After(func() { ... })`：它在绘制之后运行，可以阻塞或打开原生对话框，随后重绘。页面通过 `Configure` 自己接好窗口的指针、按键、滚轮和文本输入；自己的控件由 `ui.Control` 的 `ui.Handlers` 接收事件。页面没有建模的输入仍可用 `app.Config` 的有类型回调，每个都返回 `gfx.EventResult`：
 
 | 回调 | 收到什么 |
 | --- | --- |
@@ -42,7 +42,15 @@ config.OnKey = func(event gfx.KeyEvent) gfx.EventResult {
 
 ## 后台任务
 
-其他 goroutine 从不直接操作窗口。goroutine 在你自己的同步保护下发布结果，然后调用 `Invalidator.Invalidate`。窗口线程被唤醒一次，运行 `OnWake`，再重绘。
+有三种方式把工作交回窗口线程，按工作归属来选：
+
+| 工作 | 使用 |
+| --- | --- |
+| 属于某个页面，键变化或页面不再声明时应当停止 | `ui.Effect` |
+| 是后台 goroutine 完成后必须在窗口线程上执行的函数（应用的事件循环，任意窗口） | `Application.Post` |
+| 只归你自己所有，没有页面键：goroutine 把结果交给一个窗口 | `Invalidator.Post` |
+
+其他 goroutine 从不直接操作窗口。goroutine 把结果包成函数交给 `Invalidator.Post`；窗口线程先运行它，再运行 `OnWake`，然后重绘，所以页面读到的始终是窗口线程写下的状态。窗口关闭后，或已有 256 个更新在排队时，`Post` 会拒绝新的更新。
 
 这个所有权也覆盖模型和文本编辑器，不只是原生窗口方法。必须在启动 worker **之前**，在窗口线程上调用 `ui.Field.Text()` 或 `text.Editor.String()`，再把返回的不可变字符串传给 worker。getter 不一定是纯读：这些方法会填充缓存，字段还可能在首次使用时初始化编辑器。只有 worker 使用的锁无法与原生编辑、绘制同步。结果在窗口线程上应用；页面作用域的任务可以把快照作为 keyed effect 的 key，见[文本输入与表单](text-input)。
 
@@ -52,7 +60,6 @@ package main
 
 import (
 	"log"
-	"sync"
 	"time"
 
 	"github.com/vivaui/viva/app"
@@ -67,8 +74,6 @@ var slowWork = func() string {
 }
 
 type model struct {
-	mu          sync.Mutex
-	pending     string // written by the worker goroutine, under mu
 	status      string // read by the page, written only on the window thread
 	invalidator *app.Invalidator
 }
@@ -79,10 +84,9 @@ func (m *model) page(c ui.C) {
 			m.status = "working"
 			go func() {
 				result := slowWork()
-				m.mu.Lock()
-				m.pending = result
-				m.mu.Unlock()
-				m.invalidator.Invalidate() // wakes the window thread once
+				// Post runs the update on the window thread, then repaints: the
+				// goroutine never touches what the page reads.
+				m.invalidator.Post(func() { m.status = result })
 			}()
 		}
 		ui.Text(c, m.status)
@@ -93,16 +97,7 @@ func newConfig(m *model, invalidator *app.Invalidator) app.Config {
 	theme := gfx.LightTheme()
 	m.invalidator = invalidator
 	page := ui.NewPage(ui.PageConfig{View: m.page, Theme: &theme})
-	config := page.Config(app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
-
-	// OnWake runs on the window thread right before the repaint Invalidate asked
-	// for: move what the goroutine published into state that the page reads.
-	config.OnWake = func() {
-		m.mu.Lock()
-		m.status, m.pending = m.pending, ""
-		m.mu.Unlock()
-	}
-	return config
+	return ui.Configure(page, app.Config{Title: "Background", Width: 480, Height: 240, Invalidator: invalidator})
 }
 
 func main() {
@@ -114,7 +109,7 @@ func main() {
 }
 ```
 
-`Invalidator` 不拥有 goroutine、定时器或 channel。从不调用它的应用不为它付出任何代价，而页面读到的始终是 `OnWake` 已经搬到窗口线程上的状态。
+`Invalidator` 不拥有 goroutine、定时器或 channel。从不调用它的应用不为它付出任何代价。`OnWake` 在每次唤醒时都会运行，包括过渡动画的每一帧，所以它适合窗口线程自己推进的状态（例如状态栏图标）；用 `Post` 交来的结果只会应用一次。
 
 ### 页面作用域的 effect
 
@@ -138,7 +133,7 @@ key 命名一次 run。同一个 key 不会再次启动；key 改变会取消旧
 
 run 函数收到的 context 是取消信号，它必须在该 context 结束时返回；框架不杀 goroutine、不轮询。key 改变时新 run 默认立刻启动，所以返回得慢的旧 run 可能与它重叠；在 state 上调用 `.Sequential()` 会等上一个 run 返回后再启动下一个，等待期间声明的 key 只有最新的那个会运行。只把页面绘制到自己 canvas 里的应用，把该窗口的 invalidator 交给 `PageConfig.Invalidator`，并在页面消失时调用 `Page.Close`；没有给 invalidator 的页面保留结果到下一次绘制，但无法主动唤醒窗口。
 
-没有页面 key 可取消的长时间 watcher 仍然用自己的锁发布结果并调用 `Invalidator.Invalidate`。
+没有页面 key 可取消的长时间 watcher 把结果交给 `Invalidator.Post`。
 
 ## 文本输入
 

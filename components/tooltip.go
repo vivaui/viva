@@ -4,16 +4,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
-)
-
-// TooltipSide selects the anchor edge used by a tooltip.
-type TooltipSide uint8
-
-const (
-	TooltipTop TooltipSide = iota
-	TooltipRight
-	TooltipBottom
-	TooltipLeft
+	"github.com/vivaui/viva/style"
 )
 
 // TooltipAlign selects tooltip placement along the cross axis.
@@ -382,3 +373,13 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 	hover.shown = id
 	return true
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type TooltipSide = style.TooltipSide
+
+const (
+	TooltipBottom = style.TooltipBottom
+	TooltipLeft   = style.TooltipLeft
+	TooltipRight  = style.TooltipRight
+	TooltipTop    = style.TooltipTop
+)

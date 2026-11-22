@@ -44,8 +44,8 @@ func TestPresenceExitPublishesLabelsPastTheWindowEdge(t *testing.T) {
 	if _, err := painter.repaint(); err != nil {
 		t.Fatal(err)
 	}
-	startPanelX := painter.clipped[0].Bounds.X
-	startLabelX := painter.labels[0].X
+	startPanelX := painter.frame.ClippedRectangles()[0].Bounds.X
+	startLabelX := painter.frame.Labels()[0].X
 	show = false
 	now += 16 * time.Millisecond
 	if _, err := painter.repaint(); err != nil {
@@ -62,7 +62,7 @@ func TestPresenceExitPublishesLabelsPastTheWindowEdge(t *testing.T) {
 	if frame.TextLabels[0].OriginX != 0 || frame.TextLabels[0].OriginY != 0 {
 		t.Fatalf("moving label kept sub-pixel origin %v,%v", frame.TextLabels[0].OriginX, frame.TextLabels[0].OriginY)
 	}
-	movedPanelX, movedLabelX := painter.clipped[0].Bounds.X, frame.TextLabels[0].X
+	movedPanelX, movedLabelX := painter.frame.ClippedRectangles()[0].Bounds.X, frame.TextLabels[0].X
 	if movedPanelX >= startPanelX || movedLabelX >= startLabelX {
 		t.Fatalf("leaving panel %v->%v and label %v->%v did not move left", startPanelX, movedPanelX, startLabelX, movedLabelX)
 	}

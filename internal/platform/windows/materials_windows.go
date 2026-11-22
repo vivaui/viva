@@ -16,6 +16,9 @@ type compositionState struct {
 }
 
 func (state *windowState) backdropWindowStyle() uintptr {
+	if state.config.WindowMode == platform.WindowPreview {
+		return wsExNoRedirectionBitmap
+	}
 	if state.config.WindowBackdrop != nil && nativeBackdropAPI() != backdropUnavailable {
 		return wsExNoRedirectionBitmap
 	}

@@ -347,6 +347,29 @@ func TestVulkanSceneUploadWritesOnlyChangedRange(t *testing.T) {
 	}
 }
 
+func TestVulkanSceneUploadShrinksRetainedInstances(t *testing.T) {
+	storage := make([]byte, 3*vkInstanceBytes)
+	sceneState := vulkanScene{capacity: 3, mapped: unsafe.Pointer(&storage[0])}
+	rectangles := []render.Rectangle{
+		{Bounds: scene.Rect{X: 1, Width: 10}, Color: scene.Color{Alpha: 1}},
+		{Bounds: scene.Rect{X: 2, Width: 20}, Color: scene.Color{Alpha: 1}},
+		{Bounds: scene.Rect{X: 3, Width: 30}, Color: scene.Color{Alpha: 1}},
+	}
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles, render.Update{Count: len(rectangles), Rebuild: true}); err != nil {
+		t.Fatal(err)
+	}
+	rectangles[1].Bounds.Width = 99
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles[:2], render.Update{First: 1, Count: 1, Shrink: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(sceneState.instances) != 2 || sceneState.instances[1].Bounds[2] != 99 {
+		t.Fatalf("shrunk instances = %d, second width %g", len(sceneState.instances), sceneState.instances[1].Bounds[2])
+	}
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles[:1], render.Update{First: 1, Count: 0}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
+	}
+}
+
 func TestSwapchainStatusClassification(t *testing.T) {
 	if swapchainNeedsRebuild(vkSuccess) || swapchainNeedsRebuild(vkSuboptimal) || !swapchainNeedsRebuild(vkErrorOutOfDate) {
 		t.Fatal("unexpected swapchain status classification")
@@ -492,9 +515,9 @@ func TestVulkanWithoutDriverManifestDoesNotLoadDriver(t *testing.T) {
 	if vulkanDriverConfigured() {
 		t.Fatal("a missing ICD manifest counts as a Vulkan driver")
 	}
-	_, err := loadVulkan()
+	_, err := openVulkan()
 	if !errors.Is(err, platform.ErrNoGraphics) {
-		t.Fatalf("loadVulkan error = %v, want platform.ErrNoGraphics", err)
+		t.Fatalf("openVulkan error = %v, want platform.ErrNoGraphics", err)
 	}
 }
 
@@ -936,22 +959,25 @@ func TestResizeRecordsStagedCommandsAtAnAlreadyMatchingExtent(t *testing.T) {
 		recordings++
 		return vkSuccess
 	}
-	// Recovery may already have rebuilt the surface to the requested extent,
-	// but retrying a staged upload still resets its drawing commands.
+	// A staged scene makes the commands stale; a resize to the extent the
+	// surface already has rebuilds nothing, and the stale commands are recorded
+	// once, when their image is submitted.
 	if changed, err := renderer.stage(platform.Frame{TextLabels: []platform.TextLabel{}}); !changed || err != nil {
 		t.Fatalf("stage: changed=%v err=%v", changed, err)
 	}
 	if err := renderer.resize(100, 100); err != nil {
 		t.Fatal(err)
 	}
-	if recordings != 1 || recreations != 0 {
+	if recordings != 0 || recreations != 0 {
 		t.Fatalf("matching extent recorded %d times and rebuilt %d times", recordings, recreations)
 	}
-	if err := renderer.resize(100, 100); err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if err := renderer.ensureRecorded(0); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if recordings != 1 {
-		t.Fatalf("unchanged resize recorded commands again: %d", recordings)
+		t.Fatalf("submitting the stale image recorded it %d times, want once", recordings)
 	}
 }
 

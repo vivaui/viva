@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -17,7 +18,7 @@ func TestPopoverHeaderAndFixedBody(t *testing.T) {
 	var body ui.Box
 	d := openPage(t, func(c ui.C) {
 		more := ui.Button(c, "More")
-		ui.PopoverWith(c, more, ui.PopoverSpec{Width: 200, Title: "Transfers", Description: long}, &open, func() {
+		ui.PopoverWith(c, more, &open, ui.PopoverSpec{Width: 200, Title: "Transfers", Description: long}, func() {
 			body = ui.Column(c).FillWidth().Height(120).Children(func() { ui.Text(c, "Body") })
 		})
 	})
@@ -52,14 +53,14 @@ func TestPopoverHeaderAndFixedBody(t *testing.T) {
 // it: the space between description and body follows the theme's PadSurface, not
 // the panel's item gap.
 func TestPopoverHeaderToBodyFollowsSurfacePadding(t *testing.T) {
-	gapFor := func(pad float32) float32 {
+	gapFor := func(Pad float32) float32 {
 		theme := pageTheme
-		theme.Metrics.PadSurface = pad
+		theme.Metrics.PadSurface = Pad
 		open := true
 		var body ui.Box
 		d := openPageWith(t, ui.PageConfig{Theme: &theme, View: func(c ui.C) {
 			more := ui.Button(c, "More")
-			ui.PopoverWith(c, more, ui.PopoverSpec{Width: 300, Title: "Transfers", Description: "Active transfers"}, &open, func() {
+			ui.PopoverWith(c, more, &open, ui.PopoverSpec{Width: 300, Title: "Transfers", Description: "Active transfers"}, func() {
 				body = ui.Column(c).FillWidth().Height(40).Children(func() { ui.Text(c, "Body") })
 			})
 		}}, app.Config{})
@@ -76,5 +77,111 @@ func TestPopoverHeaderToBodyFollowsSurfacePadding(t *testing.T) {
 	}
 	if small, large := gapFor(16), gapFor(24); large-small < 7.5 || large-small > 8.5 {
 		t.Fatalf("raising PadSurface by 8 moved the body %v away from the description", large-small)
+	}
+}
+
+// AlignOffset moves a Popover along its anchor from where Align put it, as the
+// hover-card option of the same name does.
+func TestPopoverAlignOffset(t *testing.T) {
+	x := func(shift float32) float32 {
+		open := true
+		var body ui.Box
+		d := openPage(t, func(c ui.C) {
+			ui.Column(c).Pad(20).Children(func() {
+				more := ui.Button(c, "More").Width(200)
+				ui.PopoverWith(c, more, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, AlignOffset: shift, Width: 100}, func() {
+					body = ui.Column(c).FillWidth().Height(40)
+				})
+			})
+		})
+		_ = d
+		return body.Rect().X
+	}
+	base, shifted := x(0), x(40)
+	if shifted != base+40 {
+		t.Fatalf("an AlignOffset of 40 moved the panel from %v to %v, want %v", base, shifted, base+40)
+	}
+}
+
+// A hover preview can leave out the dismiss target: no press-outside hit and no
+// Escape target, as a hand-painted hover card had. Radius is how it keeps the
+// popup recipe's corners rather than a popover's.
+func TestPopoverCanBeAHoverPreview(t *testing.T) {
+	open := true
+	d := openPage(t, func(c ui.C) {
+		anchor := ui.Button(c, "Anchor")
+		ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Title: "Details", Width: 200, Radius: 10, NoDismiss: true}, func() {
+			ui.Text(c, "Body")
+		})
+	})
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.Label == "Dismiss popover" {
+			t.Fatal("a hover preview declared a dismiss target")
+		}
+	}
+	if err := d.driver.Key(gfx.KeyEscape, 0); err != nil {
+		t.Fatal(err)
+	}
+	if !open {
+		t.Fatal("Escape closed a hover preview")
+	}
+}
+
+// Margin is the room the panel keeps from the window's edges as it shifts to fit:
+// a page that does not own the title strip asks for more than the default 8.
+func TestPopoverMarginKeepsClearOfTheWindowEdge(t *testing.T) {
+	x := func(margin float32) float32 {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+				anchor := ui.Button(c, "Anchor").Width(100)
+				ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, Width: 200, Margin: margin}, func() {
+					body = ui.Column(c).FillWidth().Height(40)
+				})
+			})
+		})
+		return body.Rect().X
+	}
+	if tight, roomy := x(8), x(40); roomy != tight-32 {
+		t.Fatalf("a margin of 40 put the panel at %v against %v at 8, want 32 to the left", roomy, tight)
+	}
+}
+
+// Padding insets the panel's content from its surface: a menu-like panel gives a
+// smaller one so its rows line up with the menus around it.
+func TestPopoverPaddingInsetsTheBody(t *testing.T) {
+	x := func(padding float32) float32 {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			anchor := ui.Button(c, "Anchor")
+			ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Width: 200, Padding: padding}, func() {
+				body = ui.Column(c).FillWidth().Height(40)
+			})
+		})
+		return body.Rect().X
+	}
+	if tight, roomy := x(4), x(20); roomy != tight+16 {
+		t.Fatalf("a padding of 20 put the body at %v against %v at 4, want 16 further in", roomy, tight)
+	}
+}
+
+// Instant only removes the entrance motion: the panel and its body keep the same
+// geometry as an animated one.
+func TestPopoverInstantKeepsTheLayout(t *testing.T) {
+	rect := func(instant bool) gfx.Rect {
+		open := true
+		var body ui.Box
+		openPage(t, func(c ui.C) {
+			anchor := ui.Button(c, "Anchor")
+			ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Width: 200, Instant: instant}, func() {
+				body = ui.Column(c).FillWidth().Height(40)
+			})
+		})
+		return body.Rect()
+	}
+	if animated, instant := rect(false), rect(true); instant != animated {
+		t.Fatalf("instant body %+v, animated %+v", instant, animated)
 	}
 }

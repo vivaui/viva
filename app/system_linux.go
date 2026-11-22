@@ -44,9 +44,18 @@ func nativeSetClipboardFiles(paths []string) error {
 	return linuxSystemError(linuxplatform.SetClipboardFiles(paths))
 }
 
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	effect, err := linuxplatform.StartFileDrag(paths, allowed)
+	return effect, linuxSystemError(err)
+}
+
 func nativeClipboardImagePNG() ([]byte, error) {
 	png, err := linuxplatform.ClipboardImagePNG()
 	return png, linuxSystemError(err)
+}
+
+func nativeSetClipboardImage(png []byte) error {
+	return linuxSystemError(linuxplatform.SetClipboardImage(png))
 }
 
 func nativeSetCursor(cursor Cursor) error {

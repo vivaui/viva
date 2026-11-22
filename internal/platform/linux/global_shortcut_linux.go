@@ -21,7 +21,7 @@ func RegisterGlobalShortcut(modifiers gfx.Modifiers, symbol uint32, pressed func
 	if err != nil {
 		return nil, err
 	}
-	closeConnection := func() { api.disconnect(connection); api.close() }
+	closeConnection := func() { api.disconnect(connection) }
 	success := false
 	defer func() {
 		if !success {

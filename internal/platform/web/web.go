@@ -17,6 +17,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/render"
 )
 
 // Config describes the browser deployment.
@@ -79,6 +80,8 @@ type runtime struct {
 	focusRoot  js.Value
 	surface    js.Value
 	context    js.Value
+	gl         *glRenderer
+	renderer   string
 	a11y       *accessibilityMirror
 	dpr        float32
 	pending    bool
@@ -89,6 +92,15 @@ type runtime struct {
 	measurer   *domMeasurer
 	clock      frameClock
 	paths      pathCache
+	batches    []render.Batch
+	labelOrder []render.LabelOrder
+	plan       []render.PlanOp
+	planOrder  []int
+	triangles  []gfx.Triangle
+	bitmaps    map[bitmapKey]js.Value
+	warps      map[warpKey]js.Value
+	warpTint   js.Value
+	warpCtx    js.Value
 	sized      bool
 	hidden     bool
 	missed     bool
@@ -170,7 +182,30 @@ func (runtime *runtime) mount() {
 	body.Call("appendChild", focusRoot)
 	runtime.focusRoot = focusRoot
 	runtime.surface = surface
-	runtime.context = surface.Call("getContext", "2d")
+	runtime.renderer = "canvas2d"
+	if choice := rendererChoice(runtime.window); choice != "canvas2d" {
+		if renderer, err := newGLRenderer(runtime, surface); err == nil {
+			runtime.gl = renderer
+			runtime.renderer = "webgl2"
+		} else {
+			runtime.window.Get("console").Call("warn", "viva: WebGL2 unavailable, using Canvas2D: "+err.Error())
+		}
+	}
+	if runtime.gl == nil {
+		runtime.context = surface.Call("getContext", "2d")
+	} else {
+		surface.Call("addEventListener", "webglcontextlost", js.FuncOf(func(_ js.Value, args []js.Value) any {
+			if len(args) > 0 {
+				args[0].Call("preventDefault")
+			}
+			runtime.fallbackToCanvas2D("context lost")
+			return nil
+		}))
+	}
+	runtime.document.Get("documentElement").Get("dataset").Set("vivaRenderer", runtime.renderer)
+	if stats := runtime.window.Get("vivaWebStats"); stats.Type() == js.TypeObject {
+		stats.Set("renderer", runtime.renderer)
+	}
 	runtime.a11y = newAccessibilityMirror(runtime.document, focusRoot, accessibilityLayer, runtime.config.Title)
 
 	runtime.canvas = runtime.config.Canvas
@@ -214,6 +249,45 @@ func (runtime *runtime) mount() {
 	runtime.resize()
 }
 
+func rendererChoice(window js.Value) string {
+	query := window.Get("location").Get("search").String()
+	switch {
+	case strings.Contains(query, "viva-renderer=canvas2d"):
+		return "canvas2d"
+	case strings.Contains(query, "viva-renderer=webgl2"):
+		return "webgl2"
+	}
+	return "auto"
+}
+
+// fallbackToCanvas2D replaces a lost or failed WebGL2 canvas with a Canvas2D
+// one. Input listeners live on the focus root, so the swap does not lose them;
+// the next frame rebuilds the frame from the retained canvas.
+func (runtime *runtime) fallbackToCanvas2D(reason string) {
+	if runtime.gl == nil {
+		return
+	}
+	runtime.gl.Destroy()
+	runtime.gl = nil
+	runtime.window.Get("console").Call("warn", "viva: WebGL2 stopped, using Canvas2D: "+reason)
+	old := runtime.surface
+	surface := runtime.document.Call("createElement", "canvas")
+	surface.Get("style").Set("cssText", old.Get("style").Get("cssText").String())
+	surface.Set("width", old.Get("width").Int())
+	surface.Set("height", old.Get("height").Int())
+	runtime.focusRoot.Call("insertBefore", surface, old)
+	runtime.focusRoot.Call("removeChild", old)
+	runtime.surface = surface
+	runtime.context = surface.Call("getContext", "2d")
+	runtime.renderer = "canvas2d"
+	runtime.document.Get("documentElement").Get("dataset").Set("vivaRenderer", runtime.renderer)
+	if stats := runtime.window.Get("vivaWebStats"); stats.Type() == js.TypeObject {
+		stats.Set("renderer", runtime.renderer)
+	}
+	runtime.nextPaint = true
+	runtime.requestFrame()
+}
+
 // resizeSync reads the viewport size and reflows backing store and layout.
 func (runtime *runtime) resize() {
 	previous := runtime.dpr
@@ -241,6 +315,9 @@ func (runtime *runtime) resize() {
 	changed := runtime.painter != nil && (runtime.painter.width != float32(width) || runtime.painter.height != float32(height))
 	runtime.surface.Set("width", int(float32(width)*runtime.dpr))
 	runtime.surface.Set("height", int(float32(height)*runtime.dpr))
+	if runtime.gl != nil {
+		runtime.gl.Resize(int(float32(width)*runtime.dpr), int(float32(height)*runtime.dpr), runtime.dpr)
+	}
 	if changed && runtime.sized && runtime.config.OnResize != nil {
 		runtime.config.OnResize(gfx.Size{Width: float32(width), Height: float32(height)})
 	}
@@ -394,7 +471,7 @@ func fullscreenActive(document js.Value) bool {
 
 // bindEvents wires pointer and keyboard input to the interaction router.
 func (runtime *runtime) bindEvents() {
-	surface := runtime.surface
+	events := runtime.focusRoot
 	runtime.document.Call("addEventListener", "visibilitychange", js.FuncOf(func(js.Value, []js.Value) any {
 		hidden := runtime.document.Get("hidden").Bool()
 		if hidden == runtime.hidden {
@@ -451,6 +528,10 @@ func (runtime *runtime) bindEvents() {
 			}
 			runtime.closed = true
 			runtime.config.OnClosed()
+			if runtime.gl != nil {
+				runtime.gl.Destroy()
+				runtime.gl = nil
+			}
 			return nil
 		}
 		runtime.window.Call("addEventListener", "pagehide", js.FuncOf(func(_ js.Value, args []js.Value) any {
@@ -472,51 +553,53 @@ func (runtime *runtime) bindEvents() {
 		return nil
 	}))
 
-	surface.Call("addEventListener", "pointermove", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "pointermove", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
 		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerMove, event)) {
 			runtime.requestFrame()
 		}
 		return nil
 	}))
-	surface.Call("addEventListener", "pointerdown", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "pointerdown", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
 		pointerID := event.Get("pointerId").Int()
-		surface.Call("setPointerCapture", pointerID)
+		event.Get("target").Call("setPointerCapture", pointerID)
 		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerDown, event)) {
 			runtime.requestFrame()
 		}
 		runtime.focusRoot.Call("focus", map[string]any{"preventScroll": true})
 		return nil
 	}))
-	surface.Call("addEventListener", "pointerup", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "pointerup", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
 		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerUp, event)) {
 			runtime.requestFrame()
 		}
 		pointerID := event.Get("pointerId").Int()
-		if surface.Call("hasPointerCapture", pointerID).Bool() {
-			surface.Call("releasePointerCapture", pointerID)
+		target := event.Get("target")
+		if target.Call("hasPointerCapture", pointerID).Bool() {
+			target.Call("releasePointerCapture", pointerID)
 		}
 		return nil
 	}))
-	surface.Call("addEventListener", "pointerleave", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "pointerleave", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		if runtime.painter.pointerEvent(pointerEvent(gfx.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		return nil
 	}))
-	surface.Call("addEventListener", "pointercancel", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "pointercancel", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		if runtime.painter.pointerCancel(pointerEvent(gfx.PointerExit, args[0])) {
 			runtime.requestFrame()
 		}
 		pointerID := args[0].Get("pointerId").Int()
-		if surface.Call("hasPointerCapture", pointerID).Bool() {
-			surface.Call("releasePointerCapture", pointerID)
+		target := args[0].Get("target")
+		if target.Call("hasPointerCapture", pointerID).Bool() {
+			target.Call("releasePointerCapture", pointerID)
 		}
 		return nil
 	}))
-	surface.Call("addEventListener", "contextmenu", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "contextmenu", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		args[0].Call("preventDefault")
 		return nil
 	}))
@@ -525,7 +608,7 @@ func (runtime *runtime) bindEvents() {
 		runtime.requestFrame()
 		return nil
 	}))
-	surface.Call("addEventListener", "wheel", js.FuncOf(func(_ js.Value, args []js.Value) any {
+	events.Call("addEventListener", "wheel", js.FuncOf(func(_ js.Value, args []js.Value) any {
 		event := args[0]
 		event.Call("preventDefault")
 		deltaX, deltaY, precise := wheelDeltas(

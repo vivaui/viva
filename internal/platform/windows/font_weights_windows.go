@@ -32,24 +32,24 @@ func FontWeights(family string) []int {
 		return nil
 	}
 	var index, exists uint32
-	if err := hresult(comCall(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
+	if err := hresult(comCall3(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
 		return nil
 	}
 	var list uintptr
-	if err := hresult(comCall(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&list)))); err != nil || list == 0 {
+	if err := hresult(comCall2(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&list)))); err != nil || list == 0 {
 		return nil
 	}
 	defer release(&list)
 	// GetFontCount returns the count itself, as GetFontFamilyCount does.
-	count := uint32(comCall(list, writeFontListGetFontCount))
+	count := uint32(comCall0(list, writeFontListGetFontCount))
 	weights := make([]int, 0, count)
 	for face := uint32(0); face < count; face++ {
 		var font uintptr
-		if err := hresult(comCall(list, writeFontListGetFont, uintptr(face), uintptr(unsafe.Pointer(&font)))); err != nil || font == 0 {
+		if err := hresult(comCall2(list, writeFontListGetFont, uintptr(face), uintptr(unsafe.Pointer(&font)))); err != nil || font == 0 {
 			continue
 		}
 		// GetWeight returns the DWRITE_FONT_WEIGHT itself.
-		weight := int(uint32(comCall(font, writeFontGetWeight)))
+		weight := int(uint32(comCall0(font, writeFontGetWeight)))
 		release(&font)
 		if !slices.Contains(weights, weight) {
 			weights = append(weights, weight)

@@ -99,6 +99,17 @@ func TestSameAccessibilityOrder(t *testing.T) {
 	}
 }
 
+func TestDescribeAccessibilityCarriesInvalid(t *testing.T) {
+	hits := []gfx.Hit{
+		{ID: gfx.Item(1), Role: gfx.RoleTextField, Label: "Email", Invalid: true},
+		{ID: gfx.Item(2), Role: gfx.RoleTextField, Label: "Name"},
+	}
+	descriptions := describeAccessibility(nil, hits, gfx.ID{})
+	if !descriptions[0].Invalid || descriptions[1].Invalid {
+		t.Fatalf("invalid state = %+v", descriptions)
+	}
+}
+
 func TestDescribeAccessibilityCarriesStructureAndRange(t *testing.T) {
 	hits := []gfx.Hit{{
 		ID: gfx.Item(1), Role: gfx.RoleSlider, Label: "Volume", Hint: "Drag", Description: "Output level",

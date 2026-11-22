@@ -407,6 +407,9 @@ func (bridge *atspiBridge) announceChanges(window *atspiWindow, path string, old
 		state("enabled", !next.Disabled)
 		state("sensitive", !next.Disabled)
 	}
+	if changed&platform.ChangedInvalid != 0 {
+		state("invalid-entry", next.Invalid)
+	}
 	if changed&platform.ChangedToggle != 0 {
 		if old.Mixed != next.Mixed {
 			state("indeterminate", next.Mixed)
@@ -1125,7 +1128,7 @@ func (bridge *atspiBridge) answerProperties(target atspiTarget, call *dbus.Messa
 		name := args.String()
 		signature := args.Signature()
 		node, ok := target.node()
-		if interfaceName != atspiIfaceValue || name != "CurrentValue" || signature != "d" || !ok || !node.Range.Set {
+		if interfaceName != atspiIfaceValue || name != "CurrentValue" || signature != "d" || !ok || !node.Range.Set || node.Role != platform.A11yRoleSlider {
 			return answerError("org.freedesktop.DBus.Error.PropertyReadOnly", interfaceName+"."+name)
 		}
 		value := decodeDouble(args)

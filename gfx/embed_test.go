@@ -360,6 +360,21 @@ func TestAdoptEmbeddedTakesTheViewsFocusAndModalState(t *testing.T) {
 	}
 }
 
+func TestAdoptEmbeddedConsumesExplicitFocusOnce(t *testing.T) {
+	var child, page Canvas
+	mount := testMount(&page, 1)
+	child.RequestFocusOnce(Item(4))
+	page.AdoptEmbedded(&child, mount)
+	want := page.Tree().MountID(mount, Item(4))
+	if got := page.TakeFocusOnce(); got != want {
+		t.Fatalf("adopted focus = %v, want %v", got, want)
+	}
+	page.AdoptEmbedded(&child, mount)
+	if got := page.FocusOnce(); !got.IsZero() {
+		t.Fatalf("repeated adoption requested focus %v", got)
+	}
+}
+
 func TestEmbedTranslatesShadowsAndTheirPaintOrder(t *testing.T) {
 	var child, page Canvas
 	page.Fill(Rect{Width: 10, Height: 10}, Color{Alpha: 1})

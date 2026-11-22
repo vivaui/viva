@@ -46,6 +46,29 @@ scheme, a message in each direction and a menu that stands over the page.
   engine's failed load. macOS (`NSHTTPURLResponse`) and Windows (`CreateWebResourceResponse`) answer with
   the full response. The feature was tested on macOS in a real WKWebView page; Linux (WebKitGTK) and Windows
   (WebView2) were type-checked only, because no engine of either was available.
+- The page answers for its own state: `Title` is the engine's title for the document it has now,
+  `CanGoBack` and `CanGoForward` say whether its history has an entry each way, and `IsLoading` says
+  whether a navigation is in flight. They are read from the engine when they are asked, not cached, so
+  a toolbar that draws Back, Forward and a title follows the page by reading them on the paint it draws
+  for.
+- `OnLoad` reports each step of a navigation (`WebLoadStarted`, `WebLoadCommitted`, `WebLoadFinished`)
+  with the address as you wrote it and the title the engine has at that step. The step that ends a load
+  that failed carries `Code`, a `WebLoadError` that names the same failures on every engine, and
+  `Description`, the engine's own words for it. A navigation your `Navigate` refused is not reported:
+  that is the answer you gave, and the engine's interruption of it would be the same thing twice.
+- `OnProcessFailed` reports the page's process gone: it crashed, the system or the engine stopped it, or
+  it never started. That is not a navigation that failed — the page was there, and its process is gone —
+  so it cannot draw again until it is loaded again with `Reload`, and what the user typed into it may be
+  lost. The `WebProcessFailure` says which of those it was, in the terms every engine can be held to:
+  `WebProcessCrashed` (a fault, whose unsaved input is probably gone), `WebProcessKilled` (memory
+  pressure, an out-of-memory kill, or the engine ending it itself, which the page did nothing to cause),
+  `WebProcessUnresponsive`, `WebProcessLaunchFailed`, or `WebProcessUnknown` (including macOS, which
+  names no reason at all). `WebProcessHostGone` is the engine's own process gone: the control is
+  unusable, so close the page and open a new one instead of reloading. A notice that tells the user
+  whether their input is lost, or just offers a reload, is written from that value rather than from the
+  engine's own enum. `IsCrashed` answers whether the page is gone and `ProcessFailure` why, until the
+  page starts a navigation again, which clears it:
+  no engine offers a way to ask, so both are kept from what the engine reported.
 - The page and the application talk through `window.viva.postMessage(text)` / `window.viva.onmessage` and
   `OnMessage` / `WebView.PostMessage`. A page sees nothing else of the application.
 - `Navigate` decides a navigation before it starts, the application's own `Load` included: the
@@ -111,6 +134,33 @@ scheme, a message in each direction and a menu that stands over the page.
   in it, and the context ends with the page (WebKitGTK 2.16 or newer); a page that also asks for a `Proxy` gets
   its own ephemeral context with the proxy's settings, not the context shared behind that proxy. Where the engine
   cannot do it, the page is refused or closed rather than opened with a store that persists.
+- `Partition` names the store the page keeps its cookies, `localStorage`, IndexedDB and caches in. Pages that
+  name the same partition share them, pages that name different partitions do not, and neither shares with the
+  pages that name none: one window can show two accounts of one site, or a workspace's page apart from every
+  other workspace's. A named partition persists across runs, and with `Ephemeral` it is memory-only instead,
+  shared by the pages of that name and gone when the application exits. Empty keeps the store of every page
+  without a partition, which is the whole of the behaviour before partitions existed: nothing about a page that
+  names no partition changes.
+  A name is at most 64 characters of ASCII letters, digits and `# @ $ ( ) + - _ ~ .` or space, does not end in a
+  period or a space, and is matched without case. Those are WebView2's rules for a profile name, and Viva keeps
+  them on every engine so that a name means one store wherever the application runs: a name WebView2 would refuse
+  is refused by `Open` with an error of its own, before any engine sees it. Windows needs WebView2 Runtime 101
+  (SDK 1.0.1210.39, the first runtime with `ICoreWebView2ControllerOptions`) or newer, and opens the page in a
+  controller whose options name the profile: WebView2 keeps that profile's cookies, storage and caches in a
+  folder of the user data folder that only that name reaches, and an `Ephemeral` partition of the same name is a
+  separate off-the-record profile, so its pages never see what the persistent one kept. macOS needs 14 or newer
+  and gives the configuration `WKWebsiteDataStore`'s store for an identifier derived from the name
+  (`dataStoreForIdentifier:`), so the store is the same one in every run; older systems, and a name asked for as
+  a non-persistent store, are refused with `ErrUnsupported`, because `WKWebsiteDataStore` has one non-persistent
+  store and no way to name a second. Linux makes a `WebKitWebsiteDataManager` per partition (WebKitGTK 2.10 or
+  newer) whose `base-data-directory` and `base-cache-directory` are folders of the partition's name under the
+  user's data and cache directories, and creates the page's `WebKitWebContext` over it
+  (`webkit_web_context_new_with_website_data_manager`); the manager is asked what it took before a page is put in
+  it, and the page is refused if the engine did not take the directory; a name already open as the other kind of
+  store is refused there too, since one WebKit context per name can only be one of the two. A page of one partition that asks for a
+  different proxy than the rest cannot be served on macOS or Linux, where the proxy is a setting of the store the
+  partition names, so the combination is refused with `ErrUnsupported` rather than served with a route another
+  page of its partition picked; Windows keeps the proxy in the page's environment, so both work there.
 - `Canvas.NativeView` declares where the page is, on the current layer and inside the current clip. What Viva
   paints on that layer or below is hidden by the page; what it paints on a higher layer (a menu, a tooltip,
   `ui`'s `f.PopupLayer`) stands over it, and a hit region on a higher layer takes the pointer where it lies
@@ -143,14 +193,36 @@ The decisions are the engine's own, and each one has a limit worth knowing:
   from the navigation type: a link click and a form submission are gestures, a script's navigation is not.
   A form submitted by a script therefore reads as a gesture, and a redirect keeps the gesture that started
   it. Downloads need macOS 11.3 (`WKDownload`); on an older system a download response is refused rather
-  than saved, and `Download` is not asked.
+  than saved, and `Download` is not asked. A failed load arrives as an `NSError`: `WebLoad.Code` is mapped
+  from its domain and code, and `WebLoad.Description` is the system's own message, which is localized. A
+  page whose content process is gone arrives as `webViewWebContentProcessDidTerminate:`, which names no
+  reason at all: `ProcessFailure` is `WebProcessUnknown` there, so a notice may say the page was lost but
+  not whether it crashed or the system reclaimed it, and the page draws nothing until it is loaded again.
 - **Linux**: WebKitGTK's navigation action names no target frame (there is no way from the action to
   the frame), so `WebNavigation.MainFrame` is always true here and a subframe cannot be told apart from
   the main frame. The decision still cancels the right request. The redirect flag needs WebKitGTK 2.20;
   on an older engine a redirect keeps the gesture of the request that led to it. WebKitGTK starts a
   download for a response it treats as a download (an attachment, or a type it cannot show); the
-  application decides it in `decide-destination`, before the body is written.
+  application decides it in `decide-destination`, before the body is written. A failed load arrives as a
+  `GError` from `load-failed`: `WebLoad.Code` is mapped from its code and `WebLoad.Description` is the
+  engine's message. A certificate the engine refuses reaches the load as a cancellation rather than
+  `WebLoadBadCertificate`, because the TLS error signal is the engine's own to answer. A page whose web
+  process is gone arrives as `web-process-terminated`, which needs WebKitGTK 2.20: an older engine opens
+  the page and never calls `OnProcessFailed`, and a warning through `diag` says so once, when the page
+  opens, rather than leaving the callback silently unset. The signal's reason maps to `WebProcessCrashed`,
+  or `WebProcessKilled` for a process that exceeded the memory limit or was terminated by API.
 - **Windows**: `DownloadStarting` needs `ICoreWebView2_4`. A runtime older than that (2021) cannot report a
   download before it starts, so `Download` is not asked and the engine saves the file its own way in the
   user's downloads folder; a warning through `diag` says so once, when the page opens. `NewWindow` and
-  `Navigate` are on the base interface and are always available.
+  `Navigate` are on the base interface and are always available. `WebLoad.Code` is mapped from
+  `WebErrorStatus`, which carries no text: `WebLoad.Description` is empty here, so show `Code`. The base
+  interface has no property for `IsLoading`, so the page follows `NavigationStarting` and
+  `NavigationCompleted` instead: it becomes true on the turn of the window's thread that reports the
+  navigation's start, not inside the call to `Load` itself. `ProcessFailed` is on the base interface too,
+  and its kind decides whether the page hears of it: the browser process, which every renderer is a child
+  of, and the renderer that draws the main frame end the page, while a frame's own renderer (the runtime
+  puts its error page in that frame) and a GPU, utility, sandbox helper or plugin process are the
+  runtime's to start again and are not reported, which is what the other engines' signals do as well. The
+  reason needs `ICoreWebView2ProcessFailedEventArgs2` (Runtime 94, inside what an ephemeral page already
+  asks for): a runtime without it gives the kind alone, and an exit with no reason reads
+  `WebProcessUnknown`.

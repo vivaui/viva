@@ -53,6 +53,7 @@ func TestUIAControlTypeMapping(t *testing.T) {
 		{platform.A11yRoleOption, uiaListItemControlType},
 		{platform.A11yRoleHeading, uiaTextControlType},
 		{platform.A11yRoleSeparator, uiaSeparatorControlType},
+		{platform.A11yRoleProgress, uiaProgressBarControlType},
 		{0, uiaGroupControlType},
 		{255, uiaGroupControlType},
 	}
@@ -83,6 +84,22 @@ func TestUIAQueuesTypedStateChanges(t *testing.T) {
 		if events[index].property != property {
 			t.Fatalf("event %d property = %d, want %d", index, events[index].property, property)
 		}
+	}
+}
+
+func TestUIAQueuesInvalidFormState(t *testing.T) {
+	provider := &uiaProvider{}
+	events := appendPropertyChanges(nil, provider, platform.AccessibilityNode{}, platform.AccessibilityNode{Invalid: true})
+	if len(events) != 1 || events[0].property != uiaIsDataValidForFormProperty {
+		t.Fatalf("invalid event = %+v", events)
+	}
+	value, ok := propertyVariant(uiaIsDataValidForFormProperty, platform.AccessibilityNode{Invalid: true})
+	if !ok || value.Type != variantBool || value.Value != 0 {
+		t.Fatalf("invalid property = %+v, %v", value, ok)
+	}
+	value, ok = propertyVariant(uiaIsDataValidForFormProperty, platform.AccessibilityNode{})
+	if !ok || value.Type != variantBool || value.Value == 0 {
+		t.Fatalf("valid property = %+v, %v", value, ok)
 	}
 }
 
@@ -195,6 +212,7 @@ func TestUIAOffersPatternsFromTheNode(t *testing.T) {
 		{ID: gfx.Item(2), Role: platform.A11yRoleCheckbox},
 		{ID: gfx.Item(3), Role: platform.A11yRoleSlider, Range: gfx.ValueRange{Now: 1, Max: 10, Set: true}},
 		{ID: gfx.Item(4), Role: platform.A11yRoleTextField, Value: "hello"},
+		{ID: gfx.Item(5), Role: platform.A11yRoleProgress, Range: gfx.ValueRange{Now: 4, Min: 0, Max: 10, Set: true}},
 		{Role: platform.A11yRoleHeading},
 	}
 	tree := engagedTree(t, true, nodes)
@@ -203,6 +221,7 @@ func TestUIAOffersPatternsFromTheNode(t *testing.T) {
 		{patternToggle},
 		{patternRangeValue, patternValue},
 		{patternValue, patternText},
+		{patternRangeValue},
 		{},
 	}
 	for index, kinds := range want {
@@ -222,6 +241,9 @@ func TestUIAOffersPatternsFromTheNode(t *testing.T) {
 	passive := engagedTree(t, false, nodes)
 	if passive.children[0].supports(patternInvoke) || passive.children[2].supports(patternRangeValue) {
 		t.Error("an action pattern is offered without a handler")
+	}
+	if !passive.children[4].supports(patternRangeValue) {
+		t.Error("a progress bar's read-only range was not offered without a handler")
 	}
 	if !passive.children[3].supports(patternText) {
 		t.Error("reading text needs no handler")

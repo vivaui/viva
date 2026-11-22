@@ -108,6 +108,12 @@ type Editor struct {
 	// frame does not allocate; every mutation of runes clears textValid.
 	text      string
 	textValid bool
+	// textBase says text is the value as it was before the edits since, and
+	// that its first keepPrefix runes and its last keepSuffix runes (the last
+	// keepSuffixBytes bytes) are still the value's: String then rebuilds only
+	// what lies between, once, however many edits came between two reads.
+	textBase                                bool
+	keepPrefix, keepSuffix, keepSuffixBytes int
 
 	// offsets remembers the last rune/byte pair ByteOffset and RuneIndex
 	// resolved, so a caret that moves or types a little is found by walking from
@@ -148,8 +154,7 @@ func (editor *Editor) String() string {
 		editor.compositionBaseValid = false
 	}
 	if !editor.textValid {
-		editor.text = string(editor.runes)
-		editor.textValid = true
+		editor.rebuildText()
 	}
 	return editor.text
 }
@@ -629,7 +634,7 @@ func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite b
 	if lines != nil && lines.labels != nil {
 		lines.labels.ops.replace(lines.labels, context.line, change.removed, replacement)
 	}
-	editor.textValid = false
+	editor.spliceText(target.Start, target.End, replacement)
 	editor.offsets.trim(target.Start)
 	delta := len(replacement) - removed
 	if delta > 0 {
@@ -1011,6 +1016,7 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	if lines != nil && lines.labels != nil {
 		lines.labels.ops.replace(lines.labels, context.line, editor.runes[start:end], replacement)
 	}
+	editor.spliceText(start, end, replacement)
 	delta := len(replacement) - (end - start)
 	if delta > 0 {
 		editor.runes = append(editor.runes, make([]rune, delta)...)
@@ -1021,7 +1027,6 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	}
 	copy(editor.runes[start:], replacement)
 	editor.lastReplaceStart = start
-	editor.textValid = false
 	editor.offsets.trim(start)
 	editor.recordEdit(edit)
 	if lines != nil {

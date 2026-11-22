@@ -1,5 +1,9 @@
-// Package components contains source-oriented UI recipes built from ui
-// primitives.
+// Package components contains source-oriented UI recipes that paint into a
+// gfx.Canvas: the style library of the layers gfx -> style -> base -> ui.
+// Recipes may read the engine's state and metrics from package base, and they
+// never import package ui or app; package ui paints its own controls with these
+// recipes, and a page is written with ui. Use a recipe directly when painting
+// into a canvas by hand, or install its source with viva add to change it.
 //
 // Every recipe is a plain Go value: one component per file, no runtime
 // registry, no reflection, no package init, no hidden workers. Linkage is
@@ -22,9 +26,9 @@
 //	BeginButton(canvas, theme, id, bounds).Default("Save")
 //
 // Hit declaration, hover/press/focus feedback, focus rings, and semantic
-// labels are built into each recipe. Keep hit IDs as explicit literals in
-// disjoint ranges and stable across paints so retained scenes, focus, and
-// accessibility targets stay stable.
+// labels are built into each recipe. Keep each hit identity stable across
+// paints, named in a gfx.Tree rather than numbered by hand, so retained scenes,
+// focus, and accessibility targets stay stable.
 //
 // Editing components (input, textarea, OTP, combobox) render caller-owned
 // snapshots such as InputSnapshot: value, caret, selection, and IME
@@ -52,15 +56,27 @@
 //
 // Multi-selection:
 //   - MultiSelect: `PaintMultiSelect` combines removable chips, a native query
-//     input and a filtered popup. `MultiSelectState` handles multi-selection,
-//     optional item creation, limits and keyboard/IME-safe confirmation. Bind
-//     its Query editor to the application's text-input provider.
+//     input and a filtered popup. The engine's `base.MultiSelectState` handles
+//     multi-selection, optional item creation, limits and keyboard/IME-safe
+//     confirmation; `components.MultiSelectState` is that type. Bind its Query
+//     editor to the application's text-input provider.
 //
 // Actions:
+//   - Avatar editor: `BeginAvatarEditor` paints a crop surface inside
+//     caller-provided bounds. It owns drag-to-position, pointer-centered wheel
+//     zoom, a zoom slider and buttons, keyboard controls, an optional circular
+//     preview, and a caller-configurable aspect ratio. Titles, modal chrome,
+//     and confirm/cancel actions remain with the surrounding application.
+//     Start with a zero AvatarEditorState, keep the state returned from Paint
+//     and from the layout's Pointer, Scroll and Key handlers, and read Crop in
+//     source bitmap pixels only when Ready. Reset the state when the source
+//     changes.
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.
-//     `ButtonRecipe` is the look of a variant in a state as plain values.
+//     `ButtonRecipe` is the look of a variant in a state as plain values, and
+//     `PaintButtonContent` paints a button's icon and label alone, centered in
+//     the area a surface the caller painted leaves for them.
 //   - Icon hover: `IconHover` plays one short gesture after an icon-only
 //     control's pointer rests, and `Button.IconTransform` paints the resulting
 //     transform inside the button's hit region.
@@ -68,7 +84,7 @@
 //     edge of a footer, each as wide as its label, shrinking together when
 //     they do not fit.
 //   - Button group: `BeginButtonGroup` joins a row of buttons into one
-//     bordered control.
+//     bordered control, with labels or icon-only actions and caller-owned selection.
 //   - Split button: `BeginSplitButton` joins a primary action to a fixed-width,
 //     independently focusable menu trigger while sharing one visual surface.
 //   - Toggle: `BeginToggle` paints a two-state icon button.
@@ -123,6 +139,9 @@
 //     `CodeRepresentation` labels and inverted blobs, optional indentation
 //     guides, soft wrap with optional end markers, sideways scrolling and
 //     draggable scrollbars, with native selection and IME geometry retained.
+//     Optional `CodeEditorDecorations` reserve a leading gutter for layered bars
+//     and paint caller-colored byte underlines and insertion-position points;
+//     the component owns their wrap, fold, scroll and caret-layer geometry.
 //     `CodeEditorCommandForKey` maps key events to the editing commands of a
 //     text.Editor given code options (SetCode), and
 //     `TextareaMovementForKey` with `CodeEditor.Move` moves by row. The scroll
@@ -303,6 +322,16 @@
 //     `ChartState` holds the hovered point and the label caches,
 //     `ChartStepForKey` maps the arrow keys, and `ChartDownsample` reduces a
 //     long series to the points a plot can show.
+//   - Graph: `PaintGraph` paints a force-directed link graph (the link view
+//     note applications show) from a `GraphSim` layout and `GraphNode` display data:
+//     edges as batched paths, nodes as circles sized by link count, neighbor
+//     highlighting and labels on hover, one hit region per node.
+//     `GraphState` holds the caller-owned viewport (Zoom zero keeps the
+//     whole graph in view) and selection, `GraphStepForKey` steps the
+//     keyboard through a node's neighbors, and a `GraphLayout` maps between
+//     window and graph coordinates for the application's pointer and wheel
+//     handlers. The simulation advances one tick per painted frame until it
+//     settles and then costs nothing.
 //   - Message: `Message` paints one chat row; `BeginMessageGroup` stacks the
 //     rows of consecutive messages; `BeginMessageScroller` paints the
 //     scrollback viewport with jump controls, and `MessageScrollState` holds

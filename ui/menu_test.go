@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -56,12 +57,12 @@ func TestMenuChoosesAnItem(t *testing.T) {
 
 	d.click("More")
 	d.key(gfx.KeyDown) // the first item
-	if d.focused() != "Rename" {
-		t.Fatalf("Down from the anchor focused %q", d.focused())
+	if d.Focused() != "Rename" {
+		t.Fatalf("Down from the anchor focused %q", d.Focused())
 	}
 	d.key(gfx.KeyUp) // loops to the last
-	if d.focused() != "Delete" {
-		t.Fatalf("Up from the first focused %q", d.focused())
+	if d.Focused() != "Delete" {
+		t.Fatalf("Up from the first focused %q", d.Focused())
 	}
 	d.key(gfx.KeyUp)
 	d.key(gfx.KeyEnter)
@@ -71,8 +72,8 @@ func TestMenuChoosesAnItem(t *testing.T) {
 	if err := d.driver.Advance(300 * time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
-	if d.focused() != "More" {
-		t.Fatalf("the focus went to %q, not back to the anchor", d.focused())
+	if d.Focused() != "More" {
+		t.Fatalf("the focus went to %q, not back to the anchor", d.Focused())
 	}
 }
 
@@ -82,14 +83,14 @@ func TestMenuTypeahead(t *testing.T) {
 	m := &menuModel{}
 	d := openPage(t, m.page)
 	d.click("More")
-	typed := func(letter rune, want string) {
+	typed := func(letter rune, Want string) {
 		t.Helper()
 		// A window offers a printable key to OnShortcut when nothing edits text.
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != want {
-			t.Fatalf("%q went to %q, not %q", letter, d.focused(), want)
+		if d.Focused() != Want {
+			t.Fatalf("%q went to %q, not %q", letter, d.Focused(), Want)
 		}
 	}
 	typed('d', "Delete")
@@ -116,8 +117,8 @@ func TestMenuDisabledItem(t *testing.T) {
 	d.click("More")
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyDown)
-	if d.focused() != "Delete" {
-		t.Fatalf("Down from Rename went to %q, not past the disabled Copy", d.focused())
+	if d.Focused() != "Delete" {
+		t.Fatalf("Down from Rename went to %q, not past the disabled Copy", d.Focused())
 	}
 	d.click("Copy")
 	if m.copied != 0 {
@@ -276,9 +277,9 @@ func (m *submenuModel) page(c ui.C) {
 	})
 }
 
-func (d *pageDriver) rest(label string, for_ time.Duration) {
+func (d *pageDriver) rest(Label string, for_ time.Duration) {
 	d.t.Helper()
-	if err := d.driver.Move(center(d.hit(label).Bounds)); err != nil {
+	if err := d.driver.Move(center(d.hit(Label).Bounds)); err != nil {
 		d.t.Fatal(err)
 	}
 	if err := d.driver.Advance(for_); err != nil {
@@ -328,24 +329,24 @@ func TestSubmenuKeyboard(t *testing.T) {
 	d.click("More")
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyDown)
-	if d.focused() != "Move to" {
-		t.Fatalf("on %q", d.focused())
+	if d.Focused() != "Move to" {
+		t.Fatalf("on %q", d.Focused())
 	}
 	d.key(gfx.KeyRight)
-	if d.focused() != "Production" {
-		t.Fatalf("Right went to %q", d.focused())
+	if d.Focused() != "Production" {
+		t.Fatalf("Right went to %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
-	if d.focused() != "Staging" {
-		t.Fatalf("Down in the submenu went to %q", d.focused())
+	if d.Focused() != "Staging" {
+		t.Fatalf("Down in the submenu went to %q", d.Focused())
 	}
 	d.key(gfx.KeyLeft)
-	if d.focused() != "Move to" || d.has("Production") {
-		t.Fatalf("Left went to %q, submenu shown %v", d.focused(), d.has("Production"))
+	if d.Focused() != "Move to" || d.has("Production") {
+		t.Fatalf("Left went to %q, submenu shown %v", d.Focused(), d.has("Production"))
 	}
 	d.key(gfx.KeyEnter)
-	if d.focused() != "Production" {
-		t.Fatalf("Enter went to %q", d.focused())
+	if d.Focused() != "Production" {
+		t.Fatalf("Enter went to %q", d.Focused())
 	}
 	d.key(gfx.KeyEscape)
 	if m.open || d.has("Rename") || d.has("Production") {
@@ -405,7 +406,7 @@ type menuOptionsModel struct {
 	beside          bool
 	least, greatest float32
 	description     string
-	label           string
+	Label           string
 	picked          int
 }
 
@@ -426,7 +427,7 @@ func (m *menuOptionsModel) page(c ui.C) {
 			if m.beside {
 				menu.Beside()
 			}
-			label := m.label
+			label := m.Label
 			if label == "" {
 				label = "Model"
 			}
@@ -472,10 +473,10 @@ func TestMenuWidthRange(t *testing.T) {
 		}
 	})
 	t.Run("greatest", func(t *testing.T) {
-		m := &menuOptionsModel{greatest: 160, label: "A model name that is far too long for a narrow menu"}
+		m := &menuOptionsModel{greatest: 160, Label: "A model name that is far too long for a narrow menu"}
 		d := openPage(t, m.page)
 		d.click("More")
-		if got := d.hit(m.label).Bounds.Width; got > 160 {
+		if got := d.hit(m.Label).Bounds.Width; got > 160 {
 			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
 		}
 	})
@@ -507,5 +508,205 @@ func TestMenuAbove(t *testing.T) {
 	anchor, item := d.hit("More").Bounds, d.hit("Model").Bounds
 	if item.Y+item.Height > anchor.Y+0.5 {
 		t.Fatalf("the menu at %v is not over its anchor at %v", item, anchor)
+	}
+}
+
+type tallMenuModel struct {
+	open   bool
+	chosen string
+}
+
+// A menu taller than the window scrolls: the keyboard reaches its last item and
+// brings it into view, the wheel moves it, and choosing the last item works.
+func TestMenuTallerThanTheWindowScrollsToItsLastItem(t *testing.T) {
+	m := &tallMenuModel{open: true}
+	names := []string{"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"}
+	d := openPageWith(t, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			anchor := ui.Button(c, "More")
+			ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) {
+				for _, name := range names {
+					if menu.Item(name).Clicked() {
+						m.chosen = name
+					}
+				}
+			})
+		})
+	}}, app.Config{Width: 300, Height: 160})
+	window := gfx.Rect{Width: 300, Height: 160}
+	inside := func(Label string) bool {
+		for _, hit := range d.driver.Snapshot().Hits {
+			if hit.Label == Label && hit.Role == gfx.RoleMenuItem {
+				return hit.Bounds.Y >= 0 && hit.Bounds.Y+hit.Bounds.Height <= window.Height
+			}
+		}
+		return false
+	}
+	if !inside("One") || inside("Twelve") {
+		t.Fatalf("the first item is shown %v and the last %v before anything scrolled", inside("One"), inside("Twelve"))
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnd)
+	if !inside("Twelve") {
+		t.Fatal("End did not bring the last item into view")
+	}
+	d.click("Twelve")
+	if m.chosen != "Twelve" || m.open {
+		t.Fatalf("chosen %q, open %v", m.chosen, m.open)
+	}
+}
+
+// A context menu opened at a point is modal: the arrows move through it while the
+// focus is still on the control that was focused when it opened.
+func TestContextMenuAtTakesTheArrowsFromTheFocusedControl(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			ui.Button(c, "Anchor")
+			ui.ContextMenuAt(c, ui.Button(c, "Header"), &m.open, gfx.Point{X: 100, Y: 100}, func(Items *ui.MenuItems) {
+				Items.Item("One")
+				if Items.Item("Two").Clicked() {
+					m.connected = "two"
+				}
+			})
+		})
+	})
+	d.click("Anchor")
+	m.open = true
+	d.repaint()
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.connected != "two" || m.open {
+		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
+	}
+}
+
+func TestContextMenuAtNamedByAZeroSizeSlotTakesTheArrows(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, func(c ui.C) {
+		ui.PopupLayer(c, 600)
+		anchor := ui.Slot(c).Absolute().Left(100).Top(100).Size(0, 0).HitWith(ui.ID(c), "", gfx.HitOptions{SkipFocus: true, SkipTab: true})
+		ui.ContextMenuAt(c, anchor, &m.open, gfx.Point{X: 100, Y: 100}, func(Items *ui.MenuItems) {
+			Items.RowHeight(24)
+			Items.Item("One")
+			if Items.Item("Two").Clicked() {
+				m.connected = "two"
+			}
+		})
+	})
+	m.open = true
+	d.repaint()
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.connected != "two" || m.open {
+		t.Fatalf("connected %q, open %v: the arrows did not reach the menu", m.connected, m.open)
+	}
+}
+
+// A Content row takes room in the menu and is painted by the caller; the arrows pass over it.
+func TestMenuContentRow(t *testing.T) {
+	m := &menuModel{open: true}
+	painted := gfx.Rect{}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+				menu.Item("One")
+				menu.Content(40, func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
+					painted = bounds
+					Surface.Hit(gfx.Item(77), bounds)
+				})
+				if menu.Item("Two").Clicked() {
+					m.renamed++
+				}
+			})
+		})
+	})
+	one, two := d.hit("One").Bounds, d.hit("Two").Bounds
+	if painted.Height != 40 || two.Y-one.Y < 40 {
+		t.Fatalf("content %v, rows %v and %v: the row took no room", painted, one, two)
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if m.renamed != 1 {
+		t.Fatalf("the arrows did not pass over the content row to Two (%d)", m.renamed)
+	}
+}
+
+// A Trailing control has a hit of its own at the row's end: pressing it does not choose the row.
+func TestMenuItemTrailingControl(t *testing.T) {
+	m := &menuModel{open: true}
+	var eye gfx.Rect
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+				if menu.Item("One").Trailing(24, func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
+					eye = bounds
+					Surface.HitWithOptions(gfx.Item(88), bounds, "Hide", gfx.HitOptions{Role: gfx.RoleButton})
+				}).Clicked() {
+					m.renamed++
+				}
+			})
+		})
+	})
+	row := d.hit("One").Bounds
+	if eye.Width != 24 || eye.X+eye.Width > row.X+row.Width {
+		t.Fatalf("trailing slot %v not at the end of row %v", eye, row)
+	}
+	d.click("Hide")
+	if m.renamed != 0 {
+		t.Fatal("pressing the trailing control chose the row")
+	}
+}
+
+// A ContentPage row takes room in the menu and declares its controls in the page:
+// a swatch there is clicked without closing the menu.
+func TestMenuPageContentRow(t *testing.T) {
+	chosen := false
+	open := true
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Children(func() {
+			more := ui.Button(c, "More")
+			ui.Menu(c, more, &open, func(menu *ui.MenuItems) {
+				menu.Item("One")
+				menu.ContentPage(40, func(c ui.C, _ ui.Rect) {
+					if ui.ColorSwatch(c, gfx.RGB(220, 38, 38), chosen, "Red").Clicked() {
+						chosen = true
+					}
+				})
+				menu.Item("Two")
+			})
+		})
+	})
+	one, two := d.hit("One").Bounds, d.hit("Two").Bounds
+	if two.Y-one.Y < 40 {
+		t.Fatalf("the page row took no room: One %v, Two %v", one, two)
+	}
+	d.click("Red")
+	if !chosen || !open {
+		t.Fatalf("the swatch chose %v, menu open %v", chosen, open)
+	}
+}
+
+// MenuItem.ID is the row's identity: a caller can anchor a context menu or a
+// part to the row it declared, without knowing the menu's numbering.
+func TestMenuItemIDNamesItsRow(t *testing.T) {
+	open := true
+	var row gfx.ID
+	d := openPage(t, func(c ui.C) {
+		anchor := ui.Button(c, "More")
+		ui.Menu(c, anchor, &open, func(menu *ui.MenuItems) {
+			row = menu.Item("Rename").ID()
+		})
+	})
+	if row.IsZero() {
+		t.Fatal("MenuItem.ID is zero")
+	}
+	if hit := d.hit("Rename"); hit.ID != row {
+		t.Fatalf("the row's hit is %v, ID says %v", hit.ID, row)
 	}
 }

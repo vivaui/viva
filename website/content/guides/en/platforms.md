@@ -26,21 +26,26 @@ Win32 events, Direct3D 11 with embedded precompiled shaders, DirectWrite for mea
 
 ## Linux
 
-X11 through dynamically loaded system XCB, Vulkan, Pango and Cairo, with a blocking event loop that does no idle redraw.
+X11 through dynamically loaded system XCB, Pango and Cairo, and Vulkan when a GPU driver is available, with a blocking event loop that does no idle redraw. The default build is an X11 client, so a Wayland session runs it through XWayland; an opt-in GTK 3 shell is a native Wayland client instead.
 
-- X11 with the system's XCB and Vulkan libraries.
+- X11 with the system's XCB, Pango and Cairo libraries; a Vulkan loader and driver add GPU acceleration, and the CPU renderer covers a machine without them.
+- `-tags vivagtk` builds the GTK 3 shell: on a Wayland session it is a native client drawn at the compositor's fractional scale, and on X11 it runs through GTK. GTK owns the window, the pointer, the keyboard and the input method; Viva draws the content with the CPU rasterizer, so this build does not use Vulkan. The system's GTK 3 must be installed at run time, and the public API is the same.
 - Pango and Cairo for text.
 - Packaging to a `tar.gz` with an install script, or a `.deb`.
 - File dialogs, URL opening and notifications use installed desktop utilities; see [System integration](/en/docs/system-integration/).
 
 ## Browser (optional)
 
-A secondary target: the same Go components compiled to WebAssembly and drawn with Canvas2D. The component catalog's previews use it.
+A secondary target: the same Go components compiled to WebAssembly and drawn
+with WebGL2, falling back to Canvas2D when WebGL2 is unavailable or a context
+is lost. The component catalog's previews use it.
 
 - The browser build uses the same application, layout and component code as the native backends.
 - Clipboard and file pickers use the browser's asynchronous APIs.
 - Text editing is available in the Input example, and the same Go editor backs it as the native preview.
-- WebGPU is a planned backend.
+- WebGL2 is the primary browser renderer, with Canvas2D as the compatibility
+  fallback. WebGPU is not required; it may be added later as an optional backend
+  only if measurements show a need.
 
 The browser backend is built separately and never makes a native artifact larger, slower or more complicated.
 

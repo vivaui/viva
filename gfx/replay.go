@@ -283,6 +283,16 @@ func (canvas *Canvas) HitsSince(from Mark) []Hit {
 	return canvas.hits[from.hits:]
 }
 
+// DisableHitsSince makes every descendant region declared after from inert.
+// A child's own opt-in focusability cannot escape a disabled ancestor.
+func (canvas *Canvas) DisableHitsSince(from Mark) {
+	for i := range canvas.HitsSince(from) {
+		hit := &canvas.hits[int(from.hits)+i]
+		hit.Disabled, hit.Focusable, hit.SkipTab = true, false, true
+		hit.FocusableDisabled, hit.SecondaryWhenDisabled = false, false
+	}
+}
+
 // HintSince gives the hits named id that the canvas took since from the Hint
 // hint: the tooltip and accessibility description of a control whose painter
 // declared its hit without one.
@@ -316,6 +326,7 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 	scratch.texts = append(scratch.texts, canvas.texts[:span.from.texts]...)
 	scratch.runs = append(scratch.runs, canvas.runs[:span.from.runs]...)
 	scratch.hits = append(scratch.hits, canvas.hits[:span.from.hits]...)
+	scratch.hitTexts = append(scratch.hitTexts, canvas.hitTexts[:span.from.hitTexts]...)
 	scratch.nativeViews = append(scratch.nativeViews, canvas.nativeViews[:span.from.nativeViews]...)
 	prev.from.clip, prev.from.clipped, prev.from.layer, prev.from.scope = span.from.clip, span.from.clipped, span.from.layer, span.from.scope
 	copied, ok := scratch.ReplayAt(prev, dx, dy)
@@ -328,7 +339,8 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 		slices.EqualFunc(canvas.images[span.from.images:span.to.images], scratch.images[copied.from.images:], sameImage) &&
 		slices.EqualFunc(canvas.texts[span.from.texts:span.to.texts], scratch.texts[copied.from.texts:], sameText) &&
 		slices.Equal(canvas.runs[span.from.runs:span.to.runs], scratch.runs[copied.from.runs:]) &&
-		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:], sameHit) &&
+		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:copied.to.hits], sameHit) &&
+		slices.Equal(canvas.hitTexts[span.from.hitTexts:span.to.hitTexts], scratch.hitTexts[copied.from.hitTexts:copied.to.hitTexts]) &&
 		slices.Equal(canvas.nativeViews[span.from.nativeViews:span.to.nativeViews], scratch.nativeViews[copied.from.nativeViews:])
 }
 
@@ -342,14 +354,10 @@ func sameText(a, b Text) bool           { a.Order, b.Order = 0, 0; return a == b
 
 func sameImage(a, b Image) bool {
 	return a.Source == b.Source && a.Bounds == b.Bounds && a.Layer == b.Layer && a.ClipOf == b.ClipOf && a.HasClip == b.HasClip &&
-		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
+		a.Backdrop == b.Backdrop && a.DevicePixels == b.DevicePixels && a.Radius == b.Radius && a.Fade == b.Fade && a.Bitmap.Width == b.Bitmap.Width && a.Bitmap.Height == b.Bitmap.Height
 }
 
-func sameHit(a, b Hit) bool {
-	return a.ID == b.ID && a.Bounds == b.Bounds && a.Label == b.Label && a.Value == b.Value && a.Layer == b.Layer && a.Scope == b.Scope &&
-		a.Role == b.Role && a.Disabled == b.Disabled && a.Checked == b.Checked && a.Selected == b.Selected && a.Focusable == b.Focusable &&
-		a.IsLabel == b.IsLabel && a.Backdrop == b.Backdrop && a.Block == b.Block && a.BlockSurface == b.BlockSurface
-}
+func sameHit(a, b Hit) bool { return a == b }
 
 func contains(outer, inner Rect) bool {
 	return inner.X >= outer.X && inner.Y >= outer.Y && inner.X+inner.Width <= outer.X+outer.Width && inner.Y+inner.Height <= outer.Y+outer.Height
@@ -422,6 +430,21 @@ type previousPaint struct {
 	keep  bool
 	epoch uint32
 	lists primitiveLists
+	tails canvasTails // the lists' tails, kept with them as they swap
+}
+
+// canvasTails is how long each pointer-holding list of a paint was when the
+// canvas last trimmed it: what lies past its length up to there is stale.
+type canvasTails struct{ images, texts, hits, hitTexts, nativeViews int }
+
+// releaseTail clears items[len(items):*end], what an earlier paint held past this
+// one's length, and records this length. Everything past it was cleared before,
+// so the cost is what the list shrank by, not its capacity.
+func releaseTail[T any](items []T, end *int) {
+	if *end > len(items) && *end <= cap(items) {
+		clear(items[len(items):*end])
+	}
+	*end = len(items)
 }
 
 // rotate starts a paint: with keep, the lists just painted become the previous
@@ -441,6 +464,7 @@ func (canvas *Canvas) rotate() {
 	canvas.hits, old.hits = old.hits[:0], canvas.hits
 	canvas.hitTexts, old.hitTexts = old.hitTexts[:0], canvas.hitTexts
 	canvas.nativeViews, old.nativeViews = old.nativeViews[:0], canvas.nativeViews
+	canvas.tails, canvas.previous.tails = canvas.previous.tails, canvas.tails
 }
 
 // trimPrevious gives back the previous paint's arrays after a large page, as Trim

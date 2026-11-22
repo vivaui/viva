@@ -1,6 +1,10 @@
 package app
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"fmt"
+
+	"github.com/vivaui/viva/internal/platform"
+)
 
 var (
 	// ErrNoImage reports that the clipboard holds no image.
@@ -51,4 +55,31 @@ func ClipboardImagePNG() ([]byte, error) {
 // ClipboardImagePNG. done runs exactly once.
 func RequestClipboardImage(done func(png []byte, err error)) {
 	nativeRequestClipboardImage(done)
+}
+
+// SetClipboardImage makes png the picture the clipboard holds, as copying an
+// image in a browser or a photo viewer does, so that any application's Paste
+// puts it there. It replaces whatever the clipboard held, text included: one
+// clipboard holds one copy. This is the write side of ClipboardImagePNG, and a
+// paste of what it wrote reads back as the same picture.
+//
+// Each platform offers the picture in the flavours its readers ask for: macOS
+// public.png beside its TIFF conversion, Windows the registered "PNG" format
+// beside CF_DIB, and Linux the X11 CLIPBOARD's image/png target (the GTK shell
+// serves the same target through GTK). png must be a PNG within
+// MaxClipboardImageBytes and must carry a picture the platform can hold; a PNG
+// that fails either check is an error and leaves the clipboard as it was. The
+// Web target writes through a Promise and returns ErrAsyncRequired;
+// SetClipboardImageAsync writes there.
+func SetClipboardImage(png []byte) error {
+	if len(png) == 0 {
+		return fmt.Errorf("app: no image to put on the clipboard")
+	}
+	if err := platform.CheckClipboardPNG(png); err != nil {
+		return err
+	}
+	if err, handled := driverSetClipboardImage(png); handled {
+		return err
+	}
+	return nativeSetClipboardImage(png)
 }

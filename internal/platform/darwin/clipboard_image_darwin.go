@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // The conversion is exercised on private pasteboards, never the user's
@@ -39,6 +41,23 @@ func putPrivatePasteboardImage(name string, png []byte, asTIFF bool) error {
 	}
 	if C.viva_system_pasteboard_put_image(cName, (*C.uint8_t)(unsafe.Pointer(&png[0])), C.size_t(len(png)), tiff) != 0 {
 		return fmt.Errorf("darwin: put image on pasteboard %q failed", name)
+	}
+	return nil
+}
+
+// SetClipboardImage puts png on the general pasteboard, as copying a picture in
+// Preview does: public.png as it is beside its public.tiff conversion, because
+// an application that asks only for TIFF (Mail, TextEdit, Notes) pastes the
+// picture from that one and an application that knows PNG keeps the original
+// bytes. Everything the pasteboard held is gone, as after any copy. png must be
+// a PNG within platform.MaxClipboardImageBytes and one AppKit reads into a
+// picture; anything else is an error and the pasteboard is left as it was.
+func SetClipboardImage(png []byte) error {
+	if err := platform.CheckClipboardPNG(png); err != nil {
+		return err
+	}
+	if C.viva_system_pasteboard_put_image_flavours(nil, (*C.uint8_t)(unsafe.Pointer(&png[0])), C.size_t(len(png))) != 0 {
+		return fmt.Errorf("darwin: put image on the clipboard failed")
 	}
 	return nil
 }
