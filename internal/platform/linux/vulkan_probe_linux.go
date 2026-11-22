@@ -3,8 +3,6 @@ package linux
 import (
 	"encoding/binary"
 	"sync"
-
-	"github.com/ebitengine/purego"
 )
 
 // vkPhysicalDeviceTypeCPU is the type a software rasterizer reports (lavapipe).
@@ -29,7 +27,6 @@ func vulkanDeviceIsSoftware() bool {
 			softwareProbe.software = true
 			return
 		}
-		defer purego.Dlclose(api.library)
 		renderer := &vulkanRenderer{api: api}
 		if err := renderer.createInstance(nil); err != nil {
 			softwareProbe.software = true

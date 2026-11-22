@@ -18,7 +18,7 @@ package base
 //		})
 //	}
 //
-//	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, m.page)
+//	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, ui.PageConfig{View: m.page})
 //
 // Identity has one rule a user needs: an element is named by its place among the
 // elements of its kind in its parent, and a Key names a row, so that the row and
@@ -162,6 +162,7 @@ const (
 	pkList
 	pkDisclosure
 	pkProgress
+	pkAlertDialog
 	pkKinds
 )
 
@@ -321,6 +322,7 @@ type Page struct {
 	groupRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a FocusGroup
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
 	splitRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Splitter
+	tableKeyRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves the selection of a Table
 	selectRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // opens and moves the list of a Select
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
@@ -462,6 +464,11 @@ func (p *Page) RouteKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.splitRoute != nil {
 		if result, ok := p.splitRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.tableKeyRoute != nil {
+		if result, ok := p.tableKeyRoute(p, event); ok {
 			return result, true
 		}
 	}

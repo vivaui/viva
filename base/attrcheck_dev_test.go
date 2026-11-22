@@ -196,3 +196,10 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 		})
 	}
 }
+
+// A Table with neither Columns nor Headers has nothing to lay its cells out in.
+func TestATableWithoutColumnsIsReported(t *testing.T) {
+	expectAttributePanic(t, func(f *Frame) {
+		f.Table(&TableState{}, TableSpec{Rows: tree.Sub(page, tree.Name("attr-table")), Source: &devTableRows{n: 1}})
+	}, "Table", "rows without Columns or Headers")
+}

@@ -40,12 +40,12 @@ func (rasterizer *directRasterizer) fontFallback(face gfx.MonoFace) uintptr {
 
 func (rasterizer *directRasterizer) buildFontFallback(names []string) uintptr {
 	var factory2 uintptr
-	if comCall(rasterizer.services.write, 0, uintptr(unsafe.Pointer(&writeFactory2IID)), uintptr(unsafe.Pointer(&factory2))) != 0 || factory2 == 0 {
+	if comCall2(rasterizer.services.write, 0, uintptr(unsafe.Pointer(&writeFactory2IID)), uintptr(unsafe.Pointer(&factory2))) != 0 || factory2 == 0 {
 		return 0
 	}
 	defer release(&factory2)
 	var builder uintptr
-	if hresult(comCall(factory2, writeFactoryCreateFallbackBuilder, uintptr(unsafe.Pointer(&builder)))) != nil || builder == 0 {
+	if hresult(comCall1(factory2, writeFactoryCreateFallbackBuilder, uintptr(unsafe.Pointer(&builder)))) != nil || builder == 0 {
 		return 0
 	}
 	defer release(&builder)
@@ -75,10 +75,10 @@ func (rasterizer *directRasterizer) buildFontFallback(names []string) uintptr {
 	}
 	if system := rasterizer.engine.fallback; system != 0 {
 		// What none of the families has is left to the system, as before.
-		comCall(builder, writeBuilderAddMappings, system)
+		comCall1(builder, writeBuilderAddMappings, system)
 	}
 	var fallback uintptr
-	if hresult(comCall(builder, writeBuilderCreateFontFallback, uintptr(unsafe.Pointer(&fallback)))) != nil {
+	if hresult(comCall1(builder, writeBuilderCreateFontFallback, uintptr(unsafe.Pointer(&fallback)))) != nil {
 		return 0
 	}
 	return fallback

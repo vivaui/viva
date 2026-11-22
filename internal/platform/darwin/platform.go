@@ -837,7 +837,7 @@ func needsSceneShader(config Config) bool {
 }
 
 func validateTextState(state TextState) error {
-	runeCount := len([]rune(state.Value))
+	runeCount := utf8.RuneCountInString(state.Value)
 	if !validTextRange(state.Selection, runeCount) {
 		return fmt.Errorf("darwin: invalid text selection %+v for %d runes", state.Selection, runeCount)
 	}
@@ -853,11 +853,10 @@ func validTextRange(value text.Range, length int) bool {
 
 func makeNativeTextInput(input TextInput, value unsafe.Pointer) C.viva_text_input_config {
 	syncMonoFamilies()
-	editor := text.NewEditor(input.State.Value)
-	selectedStart := editor.RuneIndexToUTF16(input.State.Selection.Start)
-	selectedEnd := editor.RuneIndexToUTF16(input.State.Selection.End)
-	markedStart := editor.RuneIndexToUTF16(input.State.Composition.Start)
-	markedEnd := editor.RuneIndexToUTF16(input.State.Composition.End)
+	selectedStart := text.UTF16Offset(input.State.Value, input.State.Selection.Start)
+	selectedEnd := text.UTF16Offset(input.State.Value, input.State.Selection.End)
+	markedStart := text.UTF16Offset(input.State.Value, input.State.Composition.Start)
+	markedEnd := text.UTF16Offset(input.State.Value, input.State.Composition.End)
 	return C.viva_text_input_config{
 		utf8:                  (*C.uchar)(value),
 		utf8_length:           C.size_t(len(input.State.Value)),

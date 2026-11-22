@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -18,17 +17,21 @@ components.BeginAlertDialog(canvas, theme, viewport, options).
     Paint("Delete this project?", "This cannot be undone.", "Delete", "Cancel")
 if canvas.Clicked(m.confirmID) || canvas.Clicked(m.cancelID) {
     open = false
-}`, PageSnippet: `ui.AlertDialog(c, ui.AlertDialogSpec{
+}`, PageSnippet: `if ui.AlertDialog(c, &m.confirmDelete, ui.AlertDialogSpec{
     Title: "Permanently delete this project?",
     Description: "This cannot be undone. Local data will be removed.",
-    Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     ActionLabel: "Delete", CancelLabel: "Cancel",
-})`, PageSnippetZh: `ui.AlertDialog(c, ui.AlertDialogSpec{
+    ActionVariant: ui.ButtonDestructive,
+}) {
+    m.deleteProject()
+}`, PageSnippetZh: `if ui.AlertDialog(c, &m.confirmDelete, ui.AlertDialogSpec{
     Title: "永久删除这个项目？",
     Description: "此操作无法撤销，本地数据将被移除。",
-    Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     ActionLabel: "删除", CancelLabel: "取消",
-})`},
+    ActionVariant: ui.ButtonDestructive,
+}) {
+    m.deleteProject()
+}`},
 		{ID: "media", Title: "带媒体的小尺寸", Description: "预留可由调用方绘制的媒体区域。", Snippet: `dialog := components.BeginAlertDialog(canvas, theme, viewport, components.AlertDialogOptions{
     Layer: 8, Scope: m.scope, ActionID: m.confirmID, CancelID: m.cancelID,
     Size: components.AlertDialogSmall,
@@ -78,16 +81,14 @@ var (
 	alertDialogScope  = tree.ID(alertDialogUI, "scope")
 )
 
-const alertDialogOpenFlag uint64 = 1
-
-func initializeAlertDialog(state *State) { state.flags |= alertDialogOpenFlag }
+func initializeAlertDialog(state *State) { state.alertOpen = true }
 
 func (state *State) paintAlertDialog(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	if state.flags&alertDialogOpenFlag == 0 {
+	if !state.alertOpen {
 		state.drawPage(canvas, theme, size, 320, state.Text("操作已取消", "Action canceled"), func(c ui.C) {
 			label := state.Text("再次打开警告", "Reopen alert")
 			if ui.Button(c, label).Hit(alertDialogOpen, label).Clicked() {
-				state.flags |= alertDialogOpenFlag
+				state.alertOpen = true
 			}
 		})
 		return
@@ -107,26 +108,23 @@ func (state *State) paintAlertDialog(canvas *gfx.Canvas, theme gfx.Theme, size g
 			dialog.Footer(func() {
 				cancel, replace := state.Text("取消", "Cancel"), state.Text("替换", "Replace")
 				if ui.Button(c, cancel).Outline().Hit(alertDialogCancel, cancel).Clicked() {
-					state.flags &^= alertDialogOpenFlag
+					state.alertOpen = false
 				}
 				if ui.Button(c, replace).Hit(alertDialogAction, replace).Clicked() {
-					state.flags &^= alertDialogOpenFlag
+					state.alertOpen = false
 				}
 			})
 			if dialog.Dismissed() {
-				state.flags &^= alertDialogOpenFlag
+				state.alertOpen = false
 			}
 			return
 		}
-		dialog := ui.AlertDialog(c, ui.AlertDialogSpec{
+		ui.AlertDialog(c, &state.alertOpen, ui.AlertDialogSpec{
 			Title:       state.Text("永久删除这个项目？", "Permanently delete this project?"),
 			Description: state.Text("此操作无法撤销，本地数据将被移除。", "This cannot be undone. Local data will be removed."),
 			Scope:       alertDialogScope, ActionID: alertDialogAction, CancelID: alertDialogCancel,
 			ActionLabel: state.Text("删除", "Delete"), CancelLabel: state.Text("取消", "Cancel"),
-			ActionVariant: components.ButtonDestructive,
+			ActionVariant: ui.ButtonDestructive,
 		})
-		if id, ok := dialog.Chosen(); ok && (id == alertDialogAction || id == alertDialogCancel) {
-			state.flags &^= alertDialogOpenFlag
-		}
 	})
 }

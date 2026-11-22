@@ -105,7 +105,7 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 	} else {
 		side := components.OverlayRight // the edge the menu slides in from, its anchor's
 		if m.Parent == nil {
-			anchor := f.Nodes[m.Anchor].Rect
+			anchor := m.AnchorRect()
 			switch {
 			case m.GetSide() == MenuBeside:
 				if bounds.X+bounds.Width <= anchor.X+anchor.Width/2 {

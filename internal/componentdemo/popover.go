@@ -24,20 +24,20 @@ trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
 }
-ui.PopoverWith(c, trigger, ui.PopoverSpec{
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
     Scope: m.scope, DismissID: m.dismissID,
-}, &open, func() {})`, PageSnippetZh: `open := false
+}, func() {})`, PageSnippetZh: `open := false
 trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
 }
-ui.PopoverWith(c, trigger, ui.PopoverSpec{
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
     Scope: m.scope, DismissID: m.dismissID,
-}, &open, func() {})`},
+}, func() {})`},
 		{ID: "custom-body", Title: "自定义内容", Description: "使用 Begin/End 槽位在浮层正文中追加状态。", Snippet: `label := "Diagnostics disabled"
 if enabled {
     label = "Diagnostics enabled"
@@ -55,11 +55,11 @@ if trigger.Clicked() {
     open = !open
 }
 enabled := false
-ui.PopoverWith(c, trigger, ui.PopoverSpec{
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
     Scope: m.scope, DismissID: m.dismissID,
-}, &open, func() {
+}, func() {
     label := "Diagnostics disabled"
     if enabled {
         label = "Diagnostics enabled"
@@ -73,11 +73,11 @@ if trigger.Clicked() {
     open = !open
 }
 enabled := false
-ui.PopoverWith(c, trigger, ui.PopoverSpec{
+ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
     Scope: m.scope, DismissID: m.dismissID,
-}, &open, func() {
+}, func() {
     label := "Diagnostics disabled"
     if enabled {
         label = "Diagnostics enabled"
@@ -112,10 +112,10 @@ func (state *State) paintPopover(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		if state.exampleID == "custom-body" {
 			title, description = "Build status", "The stable host owns this overlay state."
 		}
-		ui.PopoverWith(c, trigger, ui.PopoverSpec{
+		ui.PopoverWith(c, trigger, &demo.open, ui.PopoverSpec{
 			Title: title, Description: description,
 			Scope: popoverScope, DismissID: popoverDismiss,
-		}, &demo.open, func() {
+		}, func() {
 			if state.exampleID != "custom-body" {
 				return
 			}

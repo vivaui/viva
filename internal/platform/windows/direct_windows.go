@@ -71,6 +71,8 @@ type directTarget struct {
 	scratch       *textBitmap
 	width, height int                                        // of the scratch bitmap
 	clip          struct{ Left, Top, Right, Bottom float32 } // the rectangle pushClip hands Direct2D, kept here so that it is not allocated
+	color         d2dColor                                   // what setColor hands Direct2D, kept for the same reason
+	matrix        d2dMatrix                                  // what setTransform hands Direct2D
 }
 
 // d2dMatrix is D2D1_MATRIX_3X2_F: x' = M11*x + M21*y + DX, y' = M12*x + M22*y + DY.
@@ -85,12 +87,12 @@ func newDirectTarget(factory uintptr, alphaMode uint32) (*directTarget, error) {
 	// device; 96 dpi: label sizes are device pixels already.
 	properties := d2dRenderTargetProperties{Type: 1, Format: 87, AlphaMode: alphaMode, DPIX: 96, DPIY: 96}
 	var target uintptr
-	if err := hresult(comCall(factory, d2dFactoryCreateDCTarget, uintptr(unsafe.Pointer(&properties)), uintptr(unsafe.Pointer(&target)))); err != nil {
+	if err := hresult(comCall2(factory, d2dFactoryCreateDCTarget, uintptr(unsafe.Pointer(&properties)), uintptr(unsafe.Pointer(&target)))); err != nil {
 		return nil, fmt.Errorf("windows: create Direct2D target: %w", err)
 	}
 	white := d2dColor{R: 1, G: 1, B: 1, A: 1}
 	direct := &directTarget{target: target}
-	if err := hresult(comCall(target, d2dCreateSolidColorBrush, uintptr(unsafe.Pointer(&white)), 0, uintptr(unsafe.Pointer(&direct.brush)))); err != nil {
+	if err := hresult(comCall3(target, d2dCreateSolidColorBrush, uintptr(unsafe.Pointer(&white)), 0, uintptr(unsafe.Pointer(&direct.brush)))); err != nil {
 		direct.close()
 		return nil, fmt.Errorf("windows: create Direct2D brush: %w", err)
 	}
@@ -116,7 +118,7 @@ func (target *directTarget) bind(width, height int) (*textBitmap, error) {
 			return nil, err
 		}
 		bounds := rect{Right: int32(grown.Width), Bottom: int32(grown.Height)}
-		if err := hresult(comCall(target.target, d2dBindDC, grown.dc, uintptr(unsafe.Pointer(&bounds)))); err != nil {
+		if err := hresult(comCall2(target.target, d2dBindDC, grown.dc, uintptr(unsafe.Pointer(&bounds)))); err != nil {
 			grown.close()
 			return nil, fmt.Errorf("windows: bind Direct2D target: %w", err)
 		}
@@ -131,28 +133,30 @@ func (target *directTarget) bind(width, height int) (*textBitmap, error) {
 // begin sets the color and the antialiasing mode and starts drawing. The scratch bitmap
 // holds the background: Direct2D draws over it.
 func (target *directTarget) begin(foreground d2dColor, mode uint32) {
-	comCall(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&foreground)))
-	comCall(target.target, d2dSetTextAntialiasMode, uintptr(mode))
-	comCall(target.target, d2dBeginDraw)
+	target.setColor(foreground)
+	comCall1(target.target, d2dSetTextAntialiasMode, uintptr(mode))
+	comCall0(target.target, d2dBeginDraw)
 }
 
 func (target *directTarget) setColor(color d2dColor) {
-	comCall(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&color)))
+	target.color = color
+	comCall1(target.brush, d2dSetColor, uintptr(unsafe.Pointer(&target.color)))
 }
 
 func (target *directTarget) setTransform(matrix d2dMatrix) {
-	comCall(target.target, d2dSetTransform, uintptr(unsafe.Pointer(&matrix)))
+	target.matrix = matrix
+	comCall1(target.target, d2dSetTransform, uintptr(unsafe.Pointer(&target.matrix)))
 }
 
 // pushClip limits what is drawn to the device columns [left, right) of a label height rows
 // high, until popClip. The rectangle is in the target's transform, so push it before setting one.
 func (target *directTarget) pushClip(left, right, height int) {
 	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), 0, float32(right), float32(height)
-	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+	comCall2(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
 }
 
 func (target *directTarget) popClip() {
-	comCall(target.target, d2dPopAxisAlignedClip)
+	comCall0(target.target, d2dPopAxisAlignedClip)
 }
 
 func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
@@ -160,7 +164,7 @@ func (target *directTarget) draw(x, y float32, layout uintptr, options uint32) {
 }
 
 func (target *directTarget) end() error {
-	if err := hresult(comCall(target.target, d2dEndDraw, 0, 0)); err != nil {
+	if err := hresult(comCall2(target.target, d2dEndDraw, 0, 0)); err != nil {
 		return fmt.Errorf("windows: end Direct2D drawing: %w", err)
 	}
 	return nil
@@ -407,7 +411,7 @@ func (rasterizer *directRasterizer) batchTarget(translucent bool) (*directTarget
 // rectangle instead of to the bitmap's corner.
 func (target *directTarget) pushClipRect(left, top, right, bottom int) {
 	target.clip.Left, target.clip.Top, target.clip.Right, target.clip.Bottom = float32(left), float32(top), float32(right), float32(bottom)
-	comCall(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
+	comCall2(target.target, d2dPushAxisAlignedClip, uintptr(unsafe.Pointer(&target.clip)), d2dClipAliased)
 }
 
 // fill sets the top left width by height pixels of the bitmap to color.

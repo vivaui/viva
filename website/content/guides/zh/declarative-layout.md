@@ -54,7 +54,7 @@ func (m *model) page(c ui.C) {
 	})
 }
 
-ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.page})
 ```
 
 `ui.Choice` 和 `ui.Tabs` 各占一个 Tab 停靠点：左右方向键（垂直的标签页用上下键）移动到下一个可用选项并选中它，到头会回绕；Home 和 End 去第一个和最后一个。
@@ -248,7 +248,7 @@ func (m *model) row(c ui.C, h *host) {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -315,7 +315,6 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -333,8 +332,9 @@ func newModel() *model {
 	}}
 }
 
-// page declares the table. A header click sorts the rows and a row click
-// selects it; the table keeps the selection and the scroll position itself.
+// page declares the table. A header click sorts the rows; a row click and the
+// arrow keys select a row, and the table keeps the selection and the scroll
+// position itself.
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 		ui.Text(c, "Servers").FontSize(20).Bold()
@@ -343,11 +343,8 @@ func (m *model) page(c ui.C) {
 			Sortable: []bool{true, true, true},
 			Source:   &m.rows,
 			Striped:  true,
-			Columns:  []components.TableColumn{{Width: 200}, {Width: 120}, {}},
+			Columns:  []ui.TableColumn{{Width: 200}, {Width: 120}, {}},
 		})
-		if row, ok := table.RowClicked(); ok {
-			m.table.Select(row)
-		}
 		if column, ok := table.HeaderClicked(); ok {
 			m.table.SortBy(column)
 			m.sortRows()
@@ -375,7 +372,7 @@ func (m *model) sortRows() {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }

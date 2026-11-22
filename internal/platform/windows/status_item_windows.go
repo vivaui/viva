@@ -49,6 +49,7 @@ const (
 	swHide             = 0
 	swShow             = 5
 	swShowNoActivate   = 4
+	swShowMaximized    = 3
 	swRestore          = 9
 	smSmallIconWidth   = 49
 	monitorNearest     = 2

@@ -250,23 +250,10 @@ func (referenceEngine) OffsetAt(value string, size, weight, x float32) int {
 }
 
 // offsetAtByPrefix is the character boundary of value whose prefix width is nearest to
-// x: OffsetAt for a measurer that only knows widths.
+// x: OffsetAt for a measurer that only knows widths. Boundaries are those of grapheme
+// clusters, so a click never lands between a letter and its marks.
 func offsetAtByPrefix(value string, x float32, width func(prefix string) float32) int {
-	best, bestDistance := 0, abs32(x-width(""))
-	for offset := range value {
-		if offset == 0 {
-			continue
-		}
-		if distance := abs32(x - width(value[:offset])); distance < bestDistance {
-			best, bestDistance = offset, distance
-		}
-	}
-	if len(value) > 0 {
-		if distance := abs32(x - width(value)); distance < bestDistance {
-			best = len(value)
-		}
-	}
-	return best
+	return textmetrics.NearestBoundary(value, x, func(offset int) float32 { return width(value[:offset]) })
 }
 
 // clampOffset is offset limited to [0, len(value)] and moved back to the start of the

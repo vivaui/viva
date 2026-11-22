@@ -1,2 +1,2 @@
-// Package semantic owns the platform-neutral accessibility tree.
+// Package semantic names the platform-neutral accessibility roles.
 package semantic

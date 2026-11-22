@@ -62,7 +62,7 @@ func TestWindowSwapChainDoesNotStretchStaleFrames(t *testing.T) {
 		state := opened.(*nativeWindow).state
 		var description swapChainDesc1
 		// IDXGISwapChain1::GetDesc1.
-		if err := hresult(comCall(state.renderer.swap, 18, uintptr(unsafe.Pointer(&description)))); err != nil {
+		if err := hresult(comCall1(state.renderer.swap, 18, uintptr(unsafe.Pointer(&description)))); err != nil {
 			return err
 		}
 		if description.Scaling != 1 { // DXGI_SCALING_NONE
@@ -70,7 +70,7 @@ func TestWindowSwapChainDoesNotStretchStaleFrames(t *testing.T) {
 		}
 		var background [4]float32
 		// IDXGISwapChain1::GetBackgroundColor follows SetBackgroundColor.
-		if err := hresult(comCall(state.renderer.swap, 26, uintptr(unsafe.Pointer(&background)))); err != nil {
+		if err := hresult(comCall1(state.renderer.swap, 26, uintptr(unsafe.Pointer(&background)))); err != nil {
 			return err
 		}
 		color := state.renderer.color
@@ -645,7 +645,7 @@ func resizeTestPresentCount(t *testing.T, state *windowState) uint32 {
 	t.Helper()
 	var count uint32
 	// IDXGISwapChain::GetLastPresentCount.
-	if err := hresult(comCall(state.renderer.swap, 17, uintptr(unsafe.Pointer(&count)))); err != nil {
+	if err := hresult(comCall1(state.renderer.swap, 17, uintptr(unsafe.Pointer(&count)))); err != nil {
 		t.Fatal(err)
 	}
 	return count

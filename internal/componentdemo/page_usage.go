@@ -22,10 +22,10 @@ var pageUsage = map[string]string{
 	"slider":        `ui.Slider(c, &m.volume).Range(0, 100)`,
 	"tabs":          `ui.Tabs(c, &m.tab, tabs, tabLabel)`,
 	"dialog":        `ui.Dialog(c, ui.DialogSpec{Title: "Edit host", Scope: scope, DismissID: dismiss})`,
-	"alert-dialog":  `ui.AlertDialog(c, ui.AlertDialogSpec{Title: "Delete?", ActionLabel: "Delete", CancelLabel: "Cancel", ActionID: action, CancelID: cancel})`,
+	"alert-dialog":  `ui.AlertDialog(c, &m.confirm, ui.AlertDialogSpec{Title: "Delete?", ActionLabel: "Delete", CancelLabel: "Cancel"})`,
 	"drawer":        `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
 	"sheet":         `ui.Drawer(c, &m.open, "Details", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
-	"popover":       `ui.PopoverWith(c, anchor, ui.PopoverSpec{Title: "Details"}, &m.open, body)`,
+	"popover":       `ui.PopoverWith(c, anchor, &m.open, ui.PopoverSpec{Title: "Details"}, body)`,
 	"dropdown-menu": `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { menu.Item("Rename") })`,
 	"context-menu":  `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { menu.Item("Delete") })`,
 	"table": `bills := ui.TableRows{

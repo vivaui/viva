@@ -54,20 +54,63 @@ func vtable(object uintptr, index int) uintptr {
 	return *(*uintptr)(unsafe.Add(pointer(*(*uintptr)(pointer(object))), index*int(unsafe.Sizeof(uintptr(0)))))
 }
 
+// comCall0 to comCall7 call method index of a COM object with that many
+// arguments after the object itself. They have a fixed arity because a variadic
+// wrapper allocates its argument slice on every call; uintptrescapes keeps what
+// an argument points at alive through the call, which a pointer converted at the
+// call site needs.
+
 //go:uintptrescapes
-func comCall(object uintptr, index int, arguments ...uintptr) uintptr {
-	var values [16]uintptr
-	if len(arguments) >= len(values) {
-		panic("windows: COM call exceeds argument limit")
-	}
-	values[0] = object
-	copy(values[1:], arguments)
-	result, _, _ := syscall.SyscallN(vtable(object, index), values[:len(arguments)+1]...)
+func comCall0(object uintptr, index int) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object)
 	return result
 }
+
+//go:uintptrescapes
+func comCall1(object uintptr, index int, a0 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0)
+	return result
+}
+
+//go:uintptrescapes
+func comCall2(object uintptr, index int, a0 uintptr, a1 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1)
+	return result
+}
+
+//go:uintptrescapes
+func comCall3(object uintptr, index int, a0 uintptr, a1 uintptr, a2 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1, a2)
+	return result
+}
+
+//go:uintptrescapes
+func comCall4(object uintptr, index int, a0 uintptr, a1 uintptr, a2 uintptr, a3 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1, a2, a3)
+	return result
+}
+
+//go:uintptrescapes
+func comCall5(object uintptr, index int, a0 uintptr, a1 uintptr, a2 uintptr, a3 uintptr, a4 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1, a2, a3, a4)
+	return result
+}
+
+//go:uintptrescapes
+func comCall6(object uintptr, index int, a0 uintptr, a1 uintptr, a2 uintptr, a3 uintptr, a4 uintptr, a5 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1, a2, a3, a4, a5)
+	return result
+}
+
+//go:uintptrescapes
+func comCall7(object uintptr, index int, a0 uintptr, a1 uintptr, a2 uintptr, a3 uintptr, a4 uintptr, a5 uintptr, a6 uintptr) uintptr {
+	result, _, _ := syscall.SyscallN(vtable(object, index), object, a0, a1, a2, a3, a4, a5, a6)
+	return result
+}
+
 func release(object *uintptr) {
 	if *object != 0 {
-		comCall(*object, 2)
+		comCall0(*object, 2)
 		*object = 0
 	}
 }

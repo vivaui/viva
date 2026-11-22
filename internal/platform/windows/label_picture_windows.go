@@ -144,7 +144,7 @@ func (renderer *renderer) pictureHasCompleteInk(label *labelTexture, scale float
 	value := label.label
 	err := renderer.direct.engine.drawStyle(value.Value, value.FontSize*scale, value.Weight, value.Italic, func(line *shapedLine) error {
 		var overhang [4]float32
-		if err := hresult(comCall(line.layout, writeGetOverhangMetrics, uintptr(unsafe.Pointer(&overhang[0])))); err != nil {
+		if err := hresult(comCall1(line.layout, writeGetOverhangMetrics, uintptr(unsafe.Pointer(&overhang[0])))); err != nil {
 			return err
 		}
 		right := float64(1<<20) + float64(overhang[2]) - float64(line.left)
@@ -227,10 +227,10 @@ func (renderer *renderer) uploadLabelPicture(label *labelTexture, key labelPictu
 	picture := &labelPicture{key: key, x: left, y: top, width: right - left, height: bottom - top, lcd: label.lcd, complete: renderer.pictureHasCompleteInk(label, key.scale, key.skip, width)}
 	description := textureDesc{Width: uint32(picture.width), Height: uint32(picture.height), Mips: 1, Array: 1, Format: 87, Samples: 1, Usage: 1, Bind: 8}
 	data := resourceData{Data: unsafe.Pointer(&pixels[(top*width+left)*4]), Pitch: uint32(width * 4)}
-	if err := hresult(comCall(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&picture.texture)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&picture.texture)))); err != nil {
 		return err
 	}
-	if err := hresult(comCall(renderer.device, 7, picture.texture, 0, uintptr(unsafe.Pointer(&picture.view)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 7, picture.texture, 0, uintptr(unsafe.Pointer(&picture.view)))); err != nil {
 		release(&picture.texture)
 		return err
 	}

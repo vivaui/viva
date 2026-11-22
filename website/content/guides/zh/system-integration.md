@@ -125,7 +125,7 @@ func (m *model) page(c ui.C) {
 				m.menuOpen = !m.menuOpen
 			}
 			ui.Text(c, m.status).Muted()
-			ui.PopoverWith(c, menu, ui.PopoverSpec{Width: 220, Align: ui.Start}, &m.menuOpen, func() {
+			ui.PopoverWith(c, menu, &m.menuOpen, ui.PopoverSpec{Width: 220, Align: ui.Start}, func() {
 				if ui.Button(c, "Say hello to the page").Ghost().Clicked() && m.view != nil {
 					m.view.PostMessage("hello from Viva")
 					m.menuOpen = false
@@ -143,7 +143,7 @@ func main() {
 	m := &model{}
 	m.web.OnReady = m.open
 	config := app.Config{Title: "Web view", Width: 760, Height: 520, Web: &m.web}
-	if err := ui.Run(config, m.page); err != nil {
+	if err := ui.Run(config, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

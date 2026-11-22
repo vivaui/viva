@@ -172,12 +172,18 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 			layout.Popup.X = max(o.Viewport.X+1, min(layout.Popup.X, o.Viewport.X+o.Viewport.Width-1-layout.Popup.Width))
 		}
 	}
-	placePopupBelow(&layout.Popup, bounds, height, o.Viewport)
+	placeList(&layout.Popup, bounds, height, o.Viewport)
 	if floating {
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()
 	}
 	canvas.Block(layout.Popup)
+	// The list enters and leaves as a select's does: faded and slid from the
+	// trigger's side, its last frame kept while it leaves.
+	side := popupSideOf(layout.Popup, bounds)
+	canvas.BeginPresence(overlayKey(o.TriggerID, o.DismissID, o.Scope), overlaySurfacePart,
+		popupPresence(theme, overlayDuration, side), popupPivot(layout.Popup, side, bounds))
+	defer canvas.EndPresence()
 	canvas.Container(layout.Popup, gfx.RoleListBox, o.Label)
 	paintPopupSurface(canvas, &theme, layout.Popup, gfx.ShadowMD)
 	s.Scroll.BarID = o.ScrollID

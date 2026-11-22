@@ -98,6 +98,9 @@ func componentLess(left, right Component) bool {
 func Catalog() []Component { return catalog }
 
 type State struct {
+	// alertOpen is whether the alert dialog example is open: the bool a page
+	// gives ui.AlertDialog lives in the model, as an application's does.
+	alertOpen   bool
 	componentID string
 	exampleID   string
 	descriptor  *Component

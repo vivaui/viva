@@ -67,7 +67,7 @@ func collectionFamilyNames(services *textServices) ([]string, bool) {
 	}
 	defer unlock()
 	// GetFontFamilyCount returns the count itself; it takes no out parameter.
-	count := uint32(comCall(collection, writeCollectionGetFontFamilyCount))
+	count := uint32(comCall0(collection, writeCollectionGetFontFamilyCount))
 	names := make([]string, 0, count)
 	for index := uint32(0); index < count; index++ {
 		name, ok := collectionFamilyName(collection, index)
@@ -96,7 +96,7 @@ func openCollection(services *textServices) (collection uintptr, unlock func(), 
 	}
 	customFonts.RUnlock()
 	system := uintptr(0)
-	status := comCall(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&system)), 0)
+	status := comCall2(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&system)), 0)
 	if err := hresult(status); err != nil || system == 0 {
 		return 0, func() {}, false
 	}
@@ -107,21 +107,21 @@ func openCollection(services *textServices) (collection uintptr, unlock func(), 
 // font lists first — the name CreateTextFormat resolves.
 func collectionFamilyName(collection uintptr, index uint32) (string, bool) {
 	var family uintptr
-	if err := hresult(comCall(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil || family == 0 {
+	if err := hresult(comCall2(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil || family == 0 {
 		return "", false
 	}
 	defer release(&family)
 	var strings uintptr
-	if err := hresult(comCall(family, writeFontFamilyGetFamilyNames, uintptr(unsafe.Pointer(&strings)))); err != nil || strings == 0 {
+	if err := hresult(comCall1(family, writeFontFamilyGetFamilyNames, uintptr(unsafe.Pointer(&strings)))); err != nil || strings == 0 {
 		return "", false
 	}
 	defer release(&strings)
 	var length uint32
-	if err := hresult(comCall(strings, writeStringsGetStringLength, 0, uintptr(unsafe.Pointer(&length)))); err != nil || length == 0 {
+	if err := hresult(comCall2(strings, writeStringsGetStringLength, 0, uintptr(unsafe.Pointer(&length)))); err != nil || length == 0 {
 		return "", false
 	}
 	buffer := make([]uint16, length+1)
-	if err := hresult(comCall(strings, writeStringsGetString, 0, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))); err != nil {
+	if err := hresult(comCall3(strings, writeStringsGetString, 0, uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)))); err != nil {
 		return "", false
 	}
 	return syscall.UTF16ToString(buffer), true

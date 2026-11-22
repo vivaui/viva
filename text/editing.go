@@ -3,6 +3,9 @@ package text
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
+
+	"github.com/vivaui/viva/internal/grapheme"
 )
 
 // SingleLine folds pasted lines and tabs into spaces and drops other control
@@ -89,51 +92,76 @@ func (editor *Editor) MoveWord(forward, extend bool) {
 }
 
 // WordRange returns the run around a pointer position, on grapheme boundaries.
+// It reads value in place: what it walks is the word, and the rune index is found
+// by counting, so a drag that extends a selection by words through a long text
+// allocates nothing.
 func WordRange(value string, index int) Range {
-	runes := []rune(value)
-	if len(runes) == 0 {
+	at, index, ok := lastRuneAt(value, index)
+	if !ok {
 		return Range{}
 	}
-	index = max(0, min(index, len(runes)-1))
-	start := 0
-	for next := nextBoundary(runes, start); next <= index; next = nextBoundary(runes, start) {
-		start = next
+	start := at
+	for start > 0 && !grapheme.Boundary(value, start) {
+		_, size := utf8.DecodeLastRuneInString(value[:start])
+		start -= size
 	}
-	kind := wordClass(runes[start])
-	end := nextBoundary(runes, start)
+	first, _ := utf8.DecodeRuneInString(value[start:])
+	kind := wordClass(first)
+	end := grapheme.Next(value, start)
 	for start > 0 {
-		previous := previousBoundary(runes, start)
-		if wordClass(runes[previous]) != kind {
+		previous := grapheme.Prev(value, start)
+		if r, _ := utf8.DecodeRuneInString(value[previous:]); wordClass(r) != kind {
 			break
 		}
 		start = previous
 	}
-	for end < len(runes) && wordClass(runes[end]) == kind {
-		end = nextBoundary(runes, end)
+	for end < len(value) {
+		if r, _ := utf8.DecodeRuneInString(value[end:]); wordClass(r) != kind {
+			break
+		}
+		end = grapheme.Next(value, end)
 	}
-	return Range{Start: start, End: end}
+	return Range{
+		Start: index - utf8.RuneCountInString(value[start:at]),
+		End:   index + utf8.RuneCountInString(value[at:end]),
+	}
 }
 
 // LineRange returns the logical line around a pointer position, including its
 // trailing newline when it has one. It is the selection a triple click takes.
 func LineRange(value string, index int) Range {
-	runes := []rune(value)
-	if len(runes) == 0 {
+	at, index, ok := lastRuneAt(value, index)
+	if !ok {
 		return Range{}
 	}
-	index = max(0, min(index, len(runes)-1))
-	start := index
-	for start > 0 && runes[start-1] != '\n' {
-		start--
+	start := strings.LastIndexByte(value[:at], '\n') + 1
+	end := len(value)
+	if newline := strings.IndexByte(value[at:], '\n'); newline >= 0 {
+		end = at + newline + 1 // the newline belongs to the line it ends
 	}
-	end := index
-	for end < len(runes) && runes[end] != '\n' {
-		end++
+	return Range{
+		Start: index - utf8.RuneCountInString(value[start:at]),
+		End:   index + utf8.RuneCountInString(value[at:end]),
 	}
-	if end < len(runes) {
-		end++ // the newline belongs to the line it ends
+}
+
+// lastRuneAt is the byte offset of the rune at index in value, index clamped to
+// the runes value has (the last one past its end), and the clamped index; ok is
+// false for an empty value.
+func lastRuneAt(value string, index int) (at, clamped int, ok bool) {
+	if value == "" {
+		return 0, 0, false
 	}
-	return Range{Start: start, End: end}
+	index = max(index, 0)
+	n, last := 0, 0
+	for offset := range value {
+		if n == index {
+			return offset, index, true
+		}
+		last = offset
+		n++
+	}
+	return last, n - 1, true
 }
 
 // DeleteWord removes a selection or a word as one undo unit. Undo restores the

@@ -689,6 +689,7 @@ type Canvas struct {
 	triangles   []Triangle
 	shadows     []Shadow
 	images      []Image
+	tails       canvasTails // see releaseTail
 	nativeViews []NativeView
 	texts       []Text
 	runs        []TextRun
@@ -1060,6 +1061,14 @@ func (canvas *Canvas) Trim() {
 	if canvas.previous.keep {
 		canvas.trimPrevious()
 	}
+	// A list cut short by Reset keeps what it held in its array: a picture no
+	// longer drawn, the labels of hits that are gone. Clear what this paint did
+	// not reach of what an earlier one did.
+	releaseTail(canvas.images, &canvas.tails.images)
+	releaseTail(canvas.texts, &canvas.tails.texts)
+	releaseTail(canvas.hits, &canvas.tails.hits)
+	releaseTail(canvas.hitTexts, &canvas.tails.hitTexts)
+	releaseTail(canvas.nativeViews, &canvas.tails.nativeViews)
 	canvas.rectangles = trimCapacity(canvas.rectangles)
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)

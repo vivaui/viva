@@ -1363,7 +1363,6 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		if connection != 0 {
 			api.disconnect(connection)
 		}
-		api.close()
 		return nil, fmt.Errorf("linux: connect to X server")
 	}
 	iterator := api.rootsIterator(api.getSetup(connection))
@@ -1372,7 +1371,6 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 	}
 	if iterator.Data == nil || iterator.Remaining == 0 {
 		api.disconnect(connection)
-		api.close()
 		return nil, fmt.Errorf("linux: X server has no screen")
 	}
 	win := &window{api: api, connection: connection, screen: iterator.Data}
@@ -1566,6 +1564,9 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 			return nil, fmt.Errorf("%w: %v", platform.ErrDragPreviewUnsupported, err)
 		}
 	}
+	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview && win.frame.stateAtom != 0 {
+		win.requestInitialMaximized()
+	}
 	api.mapWindow(connection, win.id)
 	if api.flush(connection) <= 0 || api.connectionHasError(connection) != 0 {
 		win.close()
@@ -1642,7 +1643,6 @@ func (win *window) close() {
 		win.connection = 0
 	}
 	if win.api != nil {
-		win.api.close()
 		win.api = nil
 	}
 }

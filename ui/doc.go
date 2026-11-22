@@ -12,7 +12,7 @@
 //		})
 //	}
 //
-//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.GetPage())
+//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.GetPage()})
 //
 // Controls write into the values they are given, a list's rows are keyed with
 // c.Key, a long list is a List, a part that rarely changes a Memo, and Popover and

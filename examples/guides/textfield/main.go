@@ -29,7 +29,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Form", Width: 480, Height: 240}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Form", Width: 480, Height: 240}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

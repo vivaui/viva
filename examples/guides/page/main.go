@@ -114,7 +114,7 @@ func (m *model) row(c ui.C, h *host) {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
