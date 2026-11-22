@@ -7,7 +7,7 @@
 
 static JavaVM *vm;
 static jclass hostClass, textClass;
-static jmethodID hostFinish, hostSetTitle;
+static jmethodID hostFinish, hostSetTitle, hostEditor, hostKeyboard;
 static jmethodID textWidth, textMetrics, textRects, textSetFamily, textBegin, textDraw, textEnd;
 
 /* A JNI_OnLoad finds the host's classes while the loader that holds them is the caller's. */
@@ -26,6 +26,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
 	textClass = (*env)->NewGlobalRef(env, text);
 	hostFinish = (*env)->GetStaticMethodID(env, hostClass, "finish", "()V");
 	hostSetTitle = (*env)->GetStaticMethodID(env, hostClass, "setTitle", "(Ljava/lang/String;)V");
+	hostEditor = (*env)->GetStaticMethodID(env, hostClass, "editor", "(Ljava/lang/String;IIII)V");
+	hostKeyboard = (*env)->GetStaticMethodID(env, hostClass, "keyboard", "(ZZZ)V");
 	textWidth = (*env)->GetStaticMethodID(env, textClass, "width", "(Ljava/lang/String;FIZZ)F");
 	textMetrics = (*env)->GetStaticMethodID(env, textClass, "metrics", "(FIZZ[F)V");
 	textRects = (*env)->GetStaticMethodID(env, textClass, "rects", "(Ljava/lang/String;FIZZZ[I[F[F)V");
@@ -208,3 +210,23 @@ void viva_host_set_title(const uint16_t *title, int length) {
 }
 
 void viva_log(int priority, const char *line) { __android_log_write(priority, "viva", line); }
+
+void viva_host_editor(const uint16_t *text, int length, int selectionStart, int selectionEnd, int compositionStart, int compositionEnd) {
+	JNIEnv *e = env();
+	if (e == NULL) {
+		return;
+	}
+	jstring s = (*e)->NewString(e, (const jchar *)text, length);
+	(*e)->CallStaticVoidMethod(e, hostClass, hostEditor, s, selectionStart, selectionEnd, compositionStart, compositionEnd);
+	failed(e);
+	(*e)->DeleteLocalRef(e, s);
+}
+
+void viva_host_keyboard(int editing, int multiline, int secure) {
+	JNIEnv *e = env();
+	if (e != NULL) {
+		(*e)->CallStaticVoidMethod(e, hostClass, hostKeyboard, editing != 0, multiline != 0, secure != 0);
+		failed(e);
+	}
+}
+

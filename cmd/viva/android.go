@@ -571,6 +571,9 @@ func runOnAndroid(plan buildPlan, requested string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := waitForPackageService(sdk, device.Serial, output); err != nil {
+		return err
+	}
 	if _, err := adb(sdk, device.Serial, "install", "-r", plan.out); err != nil {
 		return err
 	}
@@ -580,4 +583,29 @@ func runOnAndroid(plan buildPlan, requested string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "started %s on %s\n", id, device.Serial)
 	return nil
+}
+
+// bootWait bounds how long run waits for a device that has just started.
+const (
+	bootAttempts = 90
+	bootPause    = 2 * time.Second
+)
+
+// pause waits between boot checks; tests replace it.
+var pause = time.Sleep
+
+// waitForPackageService waits for the device to have its package service: an emulator
+// that is still starting is a device adb already lists, and answers an install with
+// "Can't find service: package".
+func waitForPackageService(sdk androidSDK, serial string, output io.Writer) error {
+	for attempt := 0; attempt < bootAttempts; attempt++ {
+		if _, err := adb(sdk, serial, "shell", "pm", "path", "android"); err == nil {
+			return nil
+		}
+		if attempt == 0 {
+			fmt.Fprintf(output, "waiting for %s to finish starting\n", serial)
+		}
+		pause(bootPause)
+	}
+	return fmt.Errorf("%s did not finish starting in %v", serial, bootAttempts*bootPause)
 }

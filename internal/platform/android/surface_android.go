@@ -38,6 +38,7 @@ func (win *window) surfaceSource() (vulkan.SurfaceSource, error) {
 	}
 	return vulkan.SurfaceSource{
 		Extension: "VK_KHR_android_surface",
+		HostSize:  true,
 		Create: func(instance uintptr) (uintptr, error) {
 			native := win.native
 			if native == nil {
