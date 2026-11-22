@@ -214,7 +214,10 @@ func TestEventRouterSkipsUnknownKeysAndPropagatesErrors(t *testing.T) {
 	}
 }
 
-func TestRendererApplyReRecordsOnlyChangedFrames(t *testing.T) {
+// A frame stages its scene and leaves the commands to the next submit: an image is
+// recorded once for a scene, a frame that only changes instance data (a caret
+// blinking) records nothing, and one that changes the batches records again.
+func TestRendererRecordsAnImageOnlyWhenItsCommandsAreStale(t *testing.T) {
 	waits, resets, begins, ends := 0, 0, 0, 0
 	storage := make([]byte, 64*vkInstanceBytes)
 	renderer := vulkanRenderer{
@@ -260,13 +263,41 @@ func TestRendererApplyReRecordsOnlyChangedFrames(t *testing.T) {
 	if waits != 0 || resets != 0 {
 		t.Fatalf("empty apply waited=%d reset=%d", waits, resets)
 	}
+	renderer.recordExtent = vkExtent2D{Width: 100, Height: 80}
 	rectangles := []render.Rectangle{{Bounds: scene.Rect{Width: 10, Height: 10}, Color: scene.Color{Alpha: 1}}}
 	changed, err := renderer.apply(platform.Frame{Update: render.Update{Rebuild: true, Count: 1}, Rectangles: rectangles})
 	if err != nil || !changed {
 		t.Fatalf("changed apply changed=%v err=%v", changed, err)
 	}
-	if waits != 1 || resets != 1 || begins != 2 || ends != 2 {
-		t.Fatalf("command lifecycle waits=%d resets=%d begins=%d ends=%d", waits, resets, begins, ends)
+	if waits != 1 || resets != 0 || begins != 0 {
+		t.Fatalf("staging waits=%d resets=%d begins=%d, want the fence and no recording", waits, resets, begins)
+	}
+	submit := func() {
+		t.Helper()
+		if err := renderer.ensureRecorded(0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	submit()
+	submit()
+	if begins != 1 || ends != 1 {
+		t.Fatalf("one scene recorded image 0 begins=%d ends=%d, want once", begins, ends)
+	}
+	rectangles[0].Color.Alpha = 0.5 // a caret fading: new instance data, same batches
+	if _, err := renderer.apply(platform.Frame{Update: render.Update{First: 0, Count: 1}, Rectangles: rectangles}); err != nil {
+		t.Fatal(err)
+	}
+	submit()
+	if begins != 1 {
+		t.Fatalf("a frame that changed instance data recorded again: begins=%d", begins)
+	}
+	rectangles = append(rectangles, render.Rectangle{Bounds: scene.Rect{Width: 5, Height: 5}, Color: scene.Color{Alpha: 1}, Layer: 3})
+	if _, err := renderer.apply(platform.Frame{Update: render.Update{First: 1, Count: 1}, Rectangles: rectangles}); err != nil {
+		t.Fatal(err)
+	}
+	submit()
+	if begins != 2 {
+		t.Fatalf("a frame that changed the batches did not record again: begins=%d", begins)
 	}
 	rectangles[0].Bounds.Width = 99
 	if renderer.rectangles[0].Bounds.Width != 10 {

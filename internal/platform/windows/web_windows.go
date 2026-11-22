@@ -249,19 +249,19 @@ func (page *windowsWeb) createController(environment uintptr) {
 	handler := newHandler(func(status, controller uintptr) uintptr {
 		if int32(uint32(status)) < 0 || controller == 0 || page.closed {
 			if page.closed && controller != 0 {
-				comCall(controller, controllerClose)
+				comCall0(controller, controllerClose)
 			}
 			return 0
 		}
-		comCall(controller, 1)
+		comCall0(controller, 1)
 		page.controller = controller
-		comCall(controller, controllerGetWebView, uintptr(unsafe.Pointer(&page.view)))
+		comCall1(controller, controllerGetWebView, uintptr(unsafe.Pointer(&page.view)))
 		page.attach(environment)
 		return 0
 	})
 	name, inPrivate, options := controllerProfile(page.config)
 	if !options {
-		comCall(environment, envCreateController, page.window, handler)
+		comCall2(environment, envCreateController, page.window, handler)
 		return
 	}
 	// A runtime too old to offer the options cannot make a page in a profile of its own, and must not
@@ -276,26 +276,26 @@ func (page *windowsWeb) createController(environment uintptr) {
 // off the record when inPrivate is set.
 func (page *windowsWeb) createOptionsController(environment, handler uintptr, name string, inPrivate bool) error {
 	var environment10 uintptr
-	status := comCall(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
+	status := comCall2(environment, 0, uintptr(unsafe.Pointer(&iidEnvironment10)), uintptr(unsafe.Pointer(&environment10)))
 	if int32(uint32(status)) < 0 || environment10 == 0 {
 		return fmt.Errorf("%w: a page in a storage partition or an ephemeral page needs WebView2 Runtime 101 (SDK 1.0.1210.39) or newer", platform.ErrWebViewUnsupported)
 	}
-	defer comCall(environment10, 2)
+	defer comCall0(environment10, 2)
 	var options uintptr
-	if status := comCall(environment10, envCreateControllerOptions, uintptr(unsafe.Pointer(&options))); int32(uint32(status)) < 0 || options == 0 {
+	if status := comCall1(environment10, envCreateControllerOptions, uintptr(unsafe.Pointer(&options))); int32(uint32(status)) < 0 || options == 0 {
 		return fmt.Errorf("windows: make the WebView2 controller options: HRESULT %#x", uint32(status))
 	}
-	defer comCall(options, 2)
+	defer comCall0(options, 2)
 	profile := wide(name)
-	if status := comCall(options, optionsPutProfileName, uintptr(unsafe.Pointer(profile))); int32(uint32(status)) < 0 {
+	if status := comCall1(options, optionsPutProfileName, uintptr(unsafe.Pointer(profile))); int32(uint32(status)) < 0 {
 		return fmt.Errorf("windows: name the WebView2 profile %q: HRESULT %#x", name, uint32(status))
 	}
 	if inPrivate {
-		if status := comCall(options, optionsPutInPrivateMode, 1); int32(uint32(status)) < 0 {
+		if status := comCall1(options, optionsPutInPrivateMode, 1); int32(uint32(status)) < 0 {
 			return fmt.Errorf("windows: turn on WebView2 InPrivate mode: HRESULT %#x", uint32(status))
 		}
 	}
-	if status := comCall(environment10, envCreateControllerWithOptions, page.window, options, handler); int32(uint32(status)) < 0 {
+	if status := comCall3(environment10, envCreateControllerWithOptions, page.window, options, handler); int32(uint32(status)) < 0 {
 		return fmt.Errorf("windows: create the WebView2 controller in profile %q: HRESULT %#x", name, uint32(status))
 	}
 	return nil
@@ -317,35 +317,35 @@ func (page *windowsWeb) fail(err error) {
 func (page *windowsWeb) attach(environment uintptr) {
 	view := page.view
 	var token int64
-	comCall(view, viewAddMessageReceived, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddMessageReceived, newHandler(func(_, args uintptr) uintptr {
 		var text uintptr
-		if comCall(args, messageTryGetString, uintptr(unsafe.Pointer(&text))) == 0 && page.config.OnMessage != nil {
+		if comCall1(args, messageTryGetString, uintptr(unsafe.Pointer(&text))) == 0 && page.config.OnMessage != nil {
 			page.config.OnMessage(wideString(text))
 		}
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
-	comCall(view, viewAddNavStarting, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddNavStarting, newHandler(func(_, args uintptr) uintptr {
 		page.navigationStarting(args, true)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
-	comCall(view, viewAddFrameNavStarting, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddFrameNavStarting, newHandler(func(_, args uintptr) uintptr {
 		page.navigationStarting(args, false)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
-	comCall(view, viewAddNewWindowRequested, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddNewWindowRequested, newHandler(func(_, args uintptr) uintptr {
 		page.newWindowRequested(args)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
 	page.addDownloadHandler()
-	comCall(view, viewAddContentLoading, newHandler(func(_, _ uintptr) uintptr {
+	comCall2(view, viewAddContentLoading, newHandler(func(_, _ uintptr) uintptr {
 		page.loaded(platform.WebLoadCommitted, page.sourceAddress(), platform.WebLoadNoError, "")
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
-	comCall(view, viewAddNavCompleted, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddNavCompleted, newHandler(func(_, args uintptr) uintptr {
 		page.navigationCompleted(args)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
-	comCall(view, viewAddProcessFailed, newHandler(func(_, args uintptr) uintptr {
+	comCall2(view, viewAddProcessFailed, newHandler(func(_, args uintptr) uintptr {
 		page.processFailed(args)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
@@ -353,13 +353,13 @@ func (page *windowsWeb) attach(environment uintptr) {
 	if page.config.BridgeMainFrameOnly {
 		script = platform.WebBridgeMainFrameOnlyScript
 	}
-	comCall(view, viewAddScriptOnCreate, uintptr(unsafe.Pointer(wide(script))), 0)
+	comCall2(view, viewAddScriptOnCreate, uintptr(unsafe.Pointer(wide(script))), 0)
 	if scheme := page.config.Scheme; scheme != nil && scheme.Name != "" {
-		comCall(view, viewAddWebResourceReq, newHandler(func(_, args uintptr) uintptr {
+		comCall2(view, viewAddWebResourceReq, newHandler(func(_, args uintptr) uintptr {
 			page.serve(environment, args)
 			return 0
 		}), uintptr(unsafe.Pointer(&token)))
-		comCall(view, viewAddResourceFilter, uintptr(unsafe.Pointer(wide("https://"+scheme.Name+webSchemeTLD+"/*"))), resourceContextAll)
+		comCall2(view, viewAddResourceFilter, uintptr(unsafe.Pointer(wide("https://"+scheme.Name+webSchemeTLD+"/*"))), resourceContextAll)
 	}
 	switch {
 	case page.config.HTML != "":
@@ -411,10 +411,10 @@ func (page *windowsWeb) navigationCompleted(args uintptr) {
 	code := platform.WebLoadNoError
 	var success int32
 	if args != 0 {
-		comCall(args, navigationCompletedIsSuccess, uintptr(unsafe.Pointer(&success)))
+		comCall1(args, navigationCompletedIsSuccess, uintptr(unsafe.Pointer(&success)))
 		if success == 0 {
 			var status int32
-			comCall(args, navigationCompletedError, uintptr(unsafe.Pointer(&status)))
+			comCall1(args, navigationCompletedError, uintptr(unsafe.Pointer(&status)))
 			code = platform.WebLoadErrorFromWebView2Status(status)
 		}
 	}
@@ -432,14 +432,14 @@ func (page *windowsWeb) processFailed(args uintptr) {
 		return
 	}
 	var kind int32
-	comCall(args, processFailedKind, uintptr(unsafe.Pointer(&kind)))
+	comCall1(args, processFailedKind, uintptr(unsafe.Pointer(&kind)))
 	// A runtime older than ICoreWebView2ProcessFailedEventArgs2 says only the kind: -1 is the
 	// platform's way of hearing that nothing was said about why.
 	reason := int32(-1)
 	var detailed uintptr
-	if status := comCall(args, 0, uintptr(unsafe.Pointer(&iidProcessFailedArgs2)), uintptr(unsafe.Pointer(&detailed))); status == 0 && detailed != 0 {
-		comCall(detailed, processFailedReason, uintptr(unsafe.Pointer(&reason)))
-		comCall(detailed, 2)
+	if status := comCall2(args, 0, uintptr(unsafe.Pointer(&iidProcessFailedArgs2)), uintptr(unsafe.Pointer(&detailed))); status == 0 && detailed != 0 {
+		comCall1(detailed, processFailedReason, uintptr(unsafe.Pointer(&reason)))
+		comCall0(detailed, 2)
 	}
 	failure, pageProcess := platform.WebProcessFailureFromWebView2(kind, reason)
 	if !pageProcess {
@@ -457,7 +457,7 @@ func (page *windowsWeb) sourceAddress() string {
 		return ""
 	}
 	var address uintptr
-	comCall(page.view, viewGetSource, uintptr(unsafe.Pointer(&address)))
+	comCall1(page.view, viewGetSource, uintptr(unsafe.Pointer(&address)))
 	return wideString(address)
 }
 
@@ -467,7 +467,7 @@ func (page *windowsWeb) documentTitle() string {
 		return ""
 	}
 	var title uintptr
-	comCall(page.view, viewGetDocumentTitle, uintptr(unsafe.Pointer(&title)))
+	comCall1(page.view, viewGetDocumentTitle, uintptr(unsafe.Pointer(&title)))
 	return wideString(title)
 }
 
@@ -487,13 +487,13 @@ func (page *windowsWeb) appAddress(address string) string {
 // refused navigation is cancelled, so the foreign document is never fetched.
 func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 	var address uintptr
-	comCall(args, startingGetURI, uintptr(unsafe.Pointer(&address)))
+	comCall1(args, startingGetURI, uintptr(unsafe.Pointer(&address)))
 	url := wideString(address)
 	allowed := page.config.Navigate == nil
 	if !allowed {
 		var gesture, redirect int32
-		comCall(args, startingGetUserGesture, uintptr(unsafe.Pointer(&gesture)))
-		comCall(args, startingGetRedirected, uintptr(unsafe.Pointer(&redirect)))
+		comCall1(args, startingGetUserGesture, uintptr(unsafe.Pointer(&gesture)))
+		comCall1(args, startingGetRedirected, uintptr(unsafe.Pointer(&redirect)))
 		allowed = page.config.Navigate(platform.WebNavigation{
 			URL:         page.appAddress(url),
 			MainFrame:   mainFrame,
@@ -501,7 +501,7 @@ func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 		})
 	}
 	if !allowed {
-		comCall(args, startingPutCancel, 1)
+		comCall1(args, startingPutCancel, 1)
 		if mainFrame {
 			page.refused, page.loading = true, false
 		}
@@ -524,9 +524,9 @@ func (page *windowsWeb) navigationStarting(args uintptr, mainFrame bool) {
 // browser and a refused or nil NewWindow opens nothing.
 func (page *windowsWeb) newWindowRequested(args uintptr) {
 	var address uintptr
-	comCall(args, newWindowGetURI, uintptr(unsafe.Pointer(&address)))
+	comCall1(args, newWindowGetURI, uintptr(unsafe.Pointer(&address)))
 	url := page.appAddress(wideString(address))
-	comCall(args, newWindowPutHandled, 1)
+	comCall1(args, newWindowPutHandled, 1)
 	if page.config.NewWindow == nil || !page.config.NewWindow(url) || !platform.OpenableURL(url) {
 		return
 	}
@@ -538,15 +538,15 @@ func (page *windowsWeb) newWindowRequested(args uintptr) {
 // be refused; it is said once rather than pretended away.
 func (page *windowsWeb) addDownloadHandler() {
 	var extended uintptr
-	if err := hresult(comCall(page.view, 0, uintptr(unsafe.Pointer(&interfaceWebView4)), uintptr(unsafe.Pointer(&extended)))); err != nil || extended == 0 {
+	if err := hresult(comCall2(page.view, 0, uintptr(unsafe.Pointer(&interfaceWebView4)), uintptr(unsafe.Pointer(&extended)))); err != nil || extended == 0 {
 		if diag.Enabled(diag.Warn) {
 			diag.Report(diag.Warn, "web", "download", "the WebView2 runtime cannot report downloads (ICoreWebView2_4 is missing); Download cannot refuse them")
 		}
 		return
 	}
-	defer comCall(extended, 2)
+	defer comCall0(extended, 2)
 	var token int64
-	comCall(extended, viewAddDownloadStarting, newHandler(func(_, args uintptr) uintptr {
+	comCall2(extended, viewAddDownloadStarting, newHandler(func(_, args uintptr) uintptr {
 		page.downloadStarting(args)
 		return 0
 	}), uintptr(unsafe.Pointer(&token)))
@@ -557,30 +557,30 @@ func (page *windowsWeb) addDownloadHandler() {
 // hidden either way.
 func (page *windowsWeb) downloadStarting(args uintptr) {
 	var operation uintptr
-	if comCall(args, downloadArgsGetOperation, uintptr(unsafe.Pointer(&operation))) != 0 || operation == 0 {
-		comCall(args, downloadArgsPutCancel, 1)
+	if comCall1(args, downloadArgsGetOperation, uintptr(unsafe.Pointer(&operation))) != 0 || operation == 0 {
+		comCall1(args, downloadArgsPutCancel, 1)
 		return
 	}
 	var address uintptr
-	comCall(operation, downloadGetURI, uintptr(unsafe.Pointer(&address)))
+	comCall1(operation, downloadGetURI, uintptr(unsafe.Pointer(&address)))
 	url := page.appAddress(wideString(address))
-	comCall(args, downloadArgsPutHandled, 1)
+	comCall1(args, downloadArgsPutHandled, 1)
 	if page.config.Download == nil || !page.config.Download(url) {
-		comCall(args, downloadArgsPutCancel, 1)
+		comCall1(args, downloadArgsPutCancel, 1)
 		return
 	}
 	suggested := ""
 	var result uintptr
-	if comCall(args, downloadArgsGetResultPath, uintptr(unsafe.Pointer(&result))) == 0 && result != 0 {
+	if comCall1(args, downloadArgsGetResultPath, uintptr(unsafe.Pointer(&result))) == 0 && result != 0 {
 		suggested = filepath.Base(wideString(result))
 	}
 	folder := downloadsFolder()
 	if err := os.MkdirAll(folder, 0o700); err != nil {
-		comCall(args, downloadArgsPutCancel, 1)
+		comCall1(args, downloadArgsPutCancel, 1)
 		return
 	}
 	destination := platform.FreeDownloadPath(folder, platform.DownloadFileName(suggested, url))
-	comCall(args, downloadArgsPutResultPath, uintptr(unsafe.Pointer(wide(destination))))
+	comCall1(args, downloadArgsPutResultPath, uintptr(unsafe.Pointer(wide(destination))))
 }
 
 // downloadsFolder is the user's downloads folder: the known folder, which may have been moved
@@ -599,9 +599,9 @@ func downloadsFolder() string {
 func (page *windowsWeb) serve(environment, args uintptr) {
 	scheme := page.config.Scheme
 	var request, address uintptr
-	comCall(args, resourceArgsGetRequest, uintptr(unsafe.Pointer(&request)))
-	comCall(request, resourceRequestGetURI, uintptr(unsafe.Pointer(&address)))
-	comCall(request, 2)
+	comCall1(args, resourceArgsGetRequest, uintptr(unsafe.Pointer(&request)))
+	comCall1(request, resourceRequestGetURI, uintptr(unsafe.Pointer(&address)))
+	comCall0(request, 2)
 	parsed, err := url.Parse(wideString(address))
 	if err != nil || scheme == nil {
 		return
@@ -629,15 +629,15 @@ func (page *windowsWeb) answer(environment, args uintptr, answer platform.WebAns
 		stream, _, _ = createMemoryBlob.Call(0, 0)
 	}
 	var response uintptr
-	comCall(environment, envCreateResponse, stream, uintptr(answer.Status),
+	comCall5(environment, envCreateResponse, stream, uintptr(answer.Status),
 		uintptr(unsafe.Pointer(wide(answer.Reason))), uintptr(unsafe.Pointer(wide(answer.HeaderBlock()))),
 		uintptr(unsafe.Pointer(&response)))
 	if response != 0 {
-		comCall(args, resourceArgsPutResponse, response)
-		comCall(response, 2)
+		comCall1(args, resourceArgsPutResponse, response)
+		comCall0(response, 2)
 	}
 	if stream != 0 {
-		comCall(stream, 2)
+		comCall0(stream, 2)
 	}
 }
 
@@ -646,7 +646,7 @@ func (page *windowsWeb) answer(environment, args uintptr, answer platform.WebAns
 // page's window, which is where the runtime's objects may be touched.
 func (page *windowsWeb) hold(args uintptr, path string) {
 	var deferral uintptr
-	comCall(args, resourceArgsGetDeferral, uintptr(unsafe.Pointer(&deferral)))
+	comCall1(args, resourceArgsGetDeferral, uintptr(unsafe.Pointer(&deferral)))
 	if deferral == 0 {
 		return // the runtime will not wait, so there is nothing to answer into
 	}
@@ -680,12 +680,12 @@ func answerSchemeRequest(id uintptr) {
 		return
 	}
 	if entry.page.closed || entry.page.environment == nil || entry.page.environment.object == 0 {
-		comCall(entry.deferral, 2)
+		comCall0(entry.deferral, 2)
 		return
 	}
 	entry.page.answer(entry.page.environment.object, entry.args, platform.AnswerWebResponse(entry.response, true))
-	comCall(entry.deferral, deferralComplete)
-	comCall(entry.deferral, 2)
+	comCall0(entry.deferral, deferralComplete)
+	comCall0(entry.deferral, 2)
 }
 
 // releaseAnswers lets go of the requests the runtime holds open for a page that is closing. An answer
@@ -701,7 +701,7 @@ func (page *windowsWeb) releaseAnswers() {
 	}
 	webAnswersMu.Unlock()
 	for _, entry := range held {
-		comCall(entry.deferral, 2)
+		comCall0(entry.deferral, 2)
 	}
 }
 
@@ -728,16 +728,16 @@ func (page *windowsWeb) mapAddress(address string) string {
 
 func (page *windowsWeb) Load(address string) {
 	address = page.mapAddress(address)
-	page.do(func() { comCall(page.view, viewNavigate, uintptr(unsafe.Pointer(wide(address)))) })
+	page.do(func() { comCall1(page.view, viewNavigate, uintptr(unsafe.Pointer(wide(address)))) })
 }
 
 func (page *windowsWeb) LoadHTML(html, base string) {
-	page.do(func() { comCall(page.view, viewNavigateToString, uintptr(unsafe.Pointer(wide(html)))) })
+	page.do(func() { comCall1(page.view, viewNavigateToString, uintptr(unsafe.Pointer(wide(html)))) })
 }
 
-func (page *windowsWeb) Reload()  { page.do(func() { comCall(page.view, viewReload) }) }
-func (page *windowsWeb) Back()    { page.do(func() { comCall(page.view, viewGoBack) }) }
-func (page *windowsWeb) Forward() { page.do(func() { comCall(page.view, viewGoForward) }) }
+func (page *windowsWeb) Reload()  { page.do(func() { comCall0(page.view, viewReload) }) }
+func (page *windowsWeb) Back()    { page.do(func() { comCall0(page.view, viewGoBack) }) }
+func (page *windowsWeb) Forward() { page.do(func() { comCall0(page.view, viewGoForward) }) }
 
 // Title is the title of the page's current document, which the runtime keeps for the page it made:
 // empty before it has one, and once the page has closed.
@@ -752,7 +752,7 @@ func (page *windowsWeb) canGo(slot int) bool {
 		return false
 	}
 	var can int32
-	comCall(page.view, slot, uintptr(unsafe.Pointer(&can)))
+	comCall1(page.view, slot, uintptr(unsafe.Pointer(&can)))
 	return can != 0
 }
 
@@ -764,7 +764,7 @@ func (page *windowsWeb) IsLoading() bool { return page.loading }
 func (page *windowsWeb) ProcessFailure() platform.WebProcessFailure { return page.processFailure }
 
 func (page *windowsWeb) Eval(script string) {
-	page.do(func() { comCall(page.view, viewExecuteScript, uintptr(unsafe.Pointer(wide(script))), 0) })
+	page.do(func() { comCall2(page.view, viewExecuteScript, uintptr(unsafe.Pointer(wide(script))), 0) })
 }
 
 func (page *windowsWeb) PostMessage(text string) {
@@ -776,7 +776,7 @@ func (page *windowsWeb) PostMessage(text string) {
 }
 
 func (page *windowsWeb) Focus() {
-	page.do(func() { comCall(page.controller, controllerMoveFocus, 0) })
+	page.do(func() { comCall1(page.controller, controllerMoveFocus, 0) })
 }
 
 func (page *windowsWeb) Close() {
@@ -793,9 +793,9 @@ func (page *windowsWeb) Close() {
 func (page *windowsWeb) release() {
 	page.releaseAnswers()
 	if page.controller != 0 {
-		comCall(page.controller, controllerClose)
-		comCall(page.view, 2)
-		comCall(page.controller, 2)
+		comCall0(page.controller, controllerClose)
+		comCall0(page.view, 2)
+		comCall0(page.controller, 2)
 		page.controller, page.view = 0, 0
 	}
 	for _, cover := range page.covers {
@@ -849,7 +849,7 @@ func (w *webHost) layout(page *windowsWeb, force bool) {
 				showWindow.Call(cover, swHide)
 			}
 			showWindow.Call(page.window, swHide)
-			comCall(page.controller, controllerPutVisible, 0)
+			comCall1(page.controller, controllerPutVisible, 0)
 			page.shown = false
 		}
 		return
@@ -866,7 +866,7 @@ func (w *webHost) layout(page *windowsWeb, force bool) {
 	page.device, page.cutsSet, page.shown = device, append(page.cutsSet[:0], w.cuts...), true
 	width, height := device.Right-device.Left, device.Bottom-device.Top
 	setWindowPosition.Call(page.window, 0, uintptr(device.Left), uintptr(device.Top), uintptr(width), uintptr(height), swpNoActive|swpShow)
-	comCall(page.controller, controllerPutVisible, 1)
+	comCall1(page.controller, controllerPutVisible, 1)
 	putBounds(page.controller, rect{Right: width, Bottom: height})
 	region, _, _ := createRectRgn.Call(0, 0, uintptr(width), uintptr(height))
 	logicalRadius := min(max(page.config.TopCornerRadius, 0), view.Bounds.Width/2, view.Bounds.Height)

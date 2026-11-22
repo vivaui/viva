@@ -228,6 +228,14 @@ type CodeEditor struct {
 	shown     []string
 	widest    int
 	lineCount int
+	// deadShown counts the entries of shown no row points at any more, left by
+	// refits; a full layout clears them once they are half of it.
+	deadShown   int
+	scratchRows []codeRow
+	// rawIndents is each line's own indentation, -1 when blank, which indents
+	// resolves blank lines from.
+	rawIndents     []int
+	scratchIndents []int
 
 	// What the last paint showed.
 	painted    bool
@@ -416,8 +424,8 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		cols--
 	}
 	editor.fitWithRepresentations(value, cols, snapshot.Wrap, tabWidth, snapshot.FoldedLines, snapshot.Representations)
-	if snapshot.ShowIndentGuides && editor.indents == nil {
-		editor.indents = indentationLevels(editor.text, tabWidth, editor.reps)
+	if snapshot.ShowIndentGuides {
+		editor.measureIndents()
 	}
 	editor.content, editor.cellWidth, editor.lineHeight = content, cellWidth, lineHeight
 
@@ -1304,4 +1312,15 @@ func (command CodeEditorCommand) Apply(editor *text.Editor) bool {
 		return false
 	}
 	return true
+}
+
+// measureIndents finds every line's indent guide level once for the laid out
+// text; a refit keeps them up to date from then on.
+func (editor *CodeEditor) measureIndents() {
+	if editor.indents != nil {
+		return
+	}
+	editor.rawIndents = appendRawIndents(editor.rawIndents[:0], editor.text, editor.tabWidth, editor.reps)
+	editor.indents = append(make([]int, 0, len(editor.rawIndents)), editor.rawIndents...)
+	resolveIndents(editor.indents, editor.rawIndents, 0, len(editor.indents))
 }

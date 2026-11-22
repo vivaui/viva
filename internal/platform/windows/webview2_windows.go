@@ -223,7 +223,7 @@ func (env *webEnvironment) leave() {
 	}
 	delete(webEnvironments, env.key)
 	if env.object != 0 {
-		comCall(env.object, 2)
+		comCall0(env.object, 2)
 		env.object = 0
 	}
 }
@@ -241,7 +241,7 @@ func (env *webEnvironment) join(userData string, then func(object uintptr, err e
 	env.waiting = append(env.waiting, then)
 	finish := func(object uintptr, err error) {
 		if object != 0 && env.pages == 0 && env.proxy != "" {
-			comCall(object, 2) // every page closed while it started
+			comCall0(object, 2) // every page closed while it started
 			object = 0
 		}
 		env.object, env.failed = object, err
@@ -289,7 +289,7 @@ func (env *webEnvironment) join(userData string, then func(object uintptr, err e
 			finish(0, fmt.Errorf("windows: create the WebView2 environment: HRESULT %#x", uint32(status)))
 			return 0
 		}
-		comCall(object, 1) // the runtime releases its reference when the call returns
+		comCall0(object, 1) // the runtime releases its reference when the call returns
 		finish(object, nil)
 		return 0
 	})

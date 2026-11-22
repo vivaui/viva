@@ -515,9 +515,9 @@ func TestVulkanWithoutDriverManifestDoesNotLoadDriver(t *testing.T) {
 	if vulkanDriverConfigured() {
 		t.Fatal("a missing ICD manifest counts as a Vulkan driver")
 	}
-	_, err := loadVulkan()
+	_, err := openVulkan()
 	if !errors.Is(err, platform.ErrNoGraphics) {
-		t.Fatalf("loadVulkan error = %v, want platform.ErrNoGraphics", err)
+		t.Fatalf("openVulkan error = %v, want platform.ErrNoGraphics", err)
 	}
 }
 
@@ -611,13 +611,13 @@ func writeVulkanManifest(t *testing.T, dir string) {
 // rendering failure: the application must be able to tell them apart and the text
 // must say what to install. Any other enumeration result stays a real failure.
 func TestUnusableVulkanDriverIsNamedAndSaysWhatToInstall(t *testing.T) {
-	renderer := func(status int32) *vulkanRenderer {
-		return &vulkanRenderer{api: &vulkanAPI{
+	device := func(status int32) *vulkanDevice {
+		return &vulkanDevice{api: &vulkanAPI{
 			enumeratePhysicalDevices: func(uintptr, *uint32, *uintptr) int32 { return status },
 		}}
 	}
 	for _, status := range []int32{vkErrorInitializationFailed, vkErrorIncompatibleDriver} {
-		err := renderer(status).selectDevice()
+		err := device(status).selectPhysical(0)
 		if !errors.Is(err, platform.ErrNoGraphics) {
 			t.Errorf("result %d: %v does not wrap platform.ErrNoGraphics", status, err)
 		}
@@ -628,18 +628,19 @@ func TestUnusableVulkanDriverIsNamedAndSaysWhatToInstall(t *testing.T) {
 			t.Errorf("result %d: %q does not report the Vulkan result", status, err)
 		}
 	}
-	if err := renderer(-1).selectDevice(); errors.Is(err, platform.ErrNoGraphics) {
+	if err := device(-1).selectPhysical(0); errors.Is(err, platform.ErrNoGraphics) {
 		t.Errorf("a real failure is reported as no graphics: %v", err)
 	}
 }
 
 func newSuboptimalTestRenderer(acquireStatus, presentStatus int32, recreations *int) *vulkanRenderer {
 	return &vulkanRenderer{
-		device:    10,
-		queue:     20,
-		swapchain: 30,
-		commands:  []uintptr{40},
-		fence:     50,
+		device:       10,
+		queue:        20,
+		swapchain:    30,
+		commands:     []uintptr{40},
+		framebuffers: []uintptr{45},
+		fence:        50,
 		api: &vulkanAPI{
 			waitForFences: func(uintptr, uint32, *uintptr, uint32, uint64) int32 { return vkSuccess },
 			resetFences:   func(uintptr, uint32, *uintptr) int32 { return vkSuccess },
@@ -959,22 +960,25 @@ func TestResizeRecordsStagedCommandsAtAnAlreadyMatchingExtent(t *testing.T) {
 		recordings++
 		return vkSuccess
 	}
-	// Recovery may already have rebuilt the surface to the requested extent,
-	// but retrying a staged upload still resets its drawing commands.
+	// A staged scene makes the commands stale; a resize to the extent the
+	// surface already has rebuilds nothing, and the stale commands are recorded
+	// once, when their image is submitted.
 	if changed, err := renderer.stage(platform.Frame{TextLabels: []platform.TextLabel{}}); !changed || err != nil {
 		t.Fatalf("stage: changed=%v err=%v", changed, err)
 	}
 	if err := renderer.resize(100, 100); err != nil {
 		t.Fatal(err)
 	}
-	if recordings != 1 || recreations != 0 {
+	if recordings != 0 || recreations != 0 {
 		t.Fatalf("matching extent recorded %d times and rebuilt %d times", recordings, recreations)
 	}
-	if err := renderer.resize(100, 100); err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if err := renderer.ensureRecorded(0); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if recordings != 1 {
-		t.Fatalf("unchanged resize recorded commands again: %d", recordings)
+		t.Fatalf("submitting the stale image recorded it %d times, want once", recordings)
 	}
 }
 

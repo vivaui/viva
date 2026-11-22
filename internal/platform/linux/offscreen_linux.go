@@ -101,15 +101,11 @@ func (offscreen *Offscreen) Close() {
 }
 
 func (renderer *vulkanRenderer) initializeOffscreen() error {
-	if err := renderer.createInstance(nil); err != nil {
+	device := vulkanDevice{api: renderer.api}
+	if err := device.open(); err != nil {
 		return err
 	}
-	if err := renderer.selectDevice(); err != nil {
-		return err
-	}
-	if err := renderer.createDevice(nil); err != nil {
-		return err
-	}
+	renderer.adopt(&device)
 	if err := renderer.scene.upload(renderer, nil, render.Update{Rebuild: true}); err != nil {
 		return err
 	}
@@ -210,6 +206,9 @@ func (renderer *vulkanRenderer) createOffscreenTarget() (err error) {
 func (renderer *vulkanRenderer) readImage() (*image.RGBA, error) {
 	target := &renderer.offscreen
 	if err := vkCheck(renderer.api.waitForFences(renderer.device, 1, &renderer.fence, 1, math.MaxUint64), "wait before readback"); err != nil {
+		return nil, err
+	}
+	if err := renderer.ensureRecorded(0); err != nil {
 		return nil, err
 	}
 	begin := vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo, Flags: vkCommandOneTimeSubmit}

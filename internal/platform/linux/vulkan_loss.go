@@ -33,3 +33,10 @@ func isGraphicsLoss(err error) bool {
 	var result *vulkanResultError
 	return errors.As(err, &result) && (result.status == vkErrorDeviceLost || result.status == vkErrorSurfaceLost)
 }
+
+// isDeviceLoss reports whether err says the device itself was lost, not only a
+// window's surface.
+func isDeviceLoss(err error) bool {
+	var result *vulkanResultError
+	return errors.As(err, &result) && result.status == vkErrorDeviceLost
+}

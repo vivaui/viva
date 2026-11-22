@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 	"unsafe"
@@ -70,7 +71,7 @@ func readSelectionTextX11(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer closeClipboardRequest(api, connection, requestor)
+	defer closeClipboardRequest()
 	if owner == xcbAtomNone {
 		return "", nil
 	}
@@ -114,7 +115,7 @@ func clipboardOffersImage() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer closeClipboardRequest(api, connection, requestor)
+	defer closeClipboardRequest()
 	if owner == xcbAtomNone {
 		return false, nil
 	}
@@ -172,7 +173,7 @@ func ClipboardImagePNG() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer closeClipboardRequest(api, connection, requestor)
+	defer closeClipboardRequest()
 	if owner == xcbAtomNone {
 		return nil, platform.ErrNoClipboardImage
 	}
@@ -223,7 +224,7 @@ func ClipboardFiles() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer closeClipboardRequest(api, connection, requestor)
+	defer closeClipboardRequest()
 	if owner == xcbAtomNone {
 		return nil, platform.ErrNoClipboardFiles
 	}
@@ -317,38 +318,68 @@ func ownedClipboardFiles() ([]string, bool) {
 	return append([]string(nil), win.clipboardFiles...), true
 }
 
-// openClipboardRequest connects to the X server with a 1x1 input window to
-// receive a selection reply, and finds the CLIPBOARD owner.
+// selections is the process's connection for reading selections: one X
+// connection and one 1x1 input window that every clipboard and primary read
+// shares, made by the first read and kept, instead of a connection, a window
+// and a round trip per atom for each paste. A read holds mu from
+// openSelectionRequest to closeClipboardRequest, so two reads take turns: the
+// replies a read waits for arrive on this connection and only it may take
+// them. A connection the X server dropped is made again by the next read.
+var selections struct {
+	mu         sync.Mutex
+	api        *xcbAPI
+	connection uintptr
+	requestor  uint32
+}
+
+// openClipboardRequest finds the CLIPBOARD owner on the selection connection,
+// whose 1x1 input window receives the reply.
 func openClipboardRequest() (api *xcbAPI, connection uintptr, requestor, clipboard, owner uint32, err error) {
 	return openSelectionRequest("CLIPBOARD")
 }
 
 // openSelectionRequest is openClipboardRequest for any selection, by name.
 func openSelectionRequest(name string) (api *xcbAPI, connection uintptr, requestor, selection, owner uint32, err error) {
-	var screen *xcbScreen
-	api, connection, screen, err = openSystemConnection()
-	if err != nil {
-		return nil, 0, 0, 0, 0, err
+	selections.mu.Lock()
+	if selections.connection != 0 && selections.api.connectionHasError(selections.connection) != 0 {
+		selections.api.disconnect(selections.connection)
+		selections.connection = 0
 	}
-	requestor = api.generateID(connection)
-	// PropertyNotify events pace an INCR transfer: the owner writes each chunk when
-	// the previous one is deleted.
-	eventMask := uint32(xcbEventPropertyChange)
-	api.createWindow(connection, xcbCopyFromParent, requestor, screen.Root, 0, 0, 1, 1, 0, xcbWindowClassInput, screen.RootVisual, xcbCWEventMask, &eventMask)
+	if selections.connection == 0 {
+		var screen *xcbScreen
+		api, connection, screen, err = openSystemConnection()
+		if err != nil {
+			selections.mu.Unlock()
+			return nil, 0, 0, 0, 0, err
+		}
+		api.atoms = make(map[string]uint32, 16)
+		requestor = api.generateID(connection)
+		// PropertyNotify events pace an INCR transfer: the owner writes each chunk
+		// when the previous one is deleted.
+		eventMask := uint32(xcbEventPropertyChange)
+		api.createWindow(connection, xcbCopyFromParent, requestor, screen.Root, 0, 0, 1, 1, 0, xcbWindowClassInput, screen.RootVisual, xcbCWEventMask, &eventMask)
+		selections.api, selections.connection, selections.requestor = api, connection, requestor
+	}
+	api, connection, requestor = selections.api, selections.connection, selections.requestor
+	// A reply that came after the read that asked for it gave up is not this
+	// read's answer.
+	for event := api.pollForEvent(connection); event != nil; event = api.pollForEvent(connection) {
+		api.free(event)
+	}
 	if selection, err = api.atom(connection, name); err == nil {
 		owner, err = selectionOwner(api, connection, selection)
 	}
 	if err != nil {
-		closeClipboardRequest(api, connection, requestor)
+		closeClipboardRequest()
 		return nil, 0, 0, 0, 0, err
 	}
 	return api, connection, requestor, selection, owner, nil
 }
 
-func closeClipboardRequest(api *xcbAPI, connection uintptr, requestor uint32) {
-	api.destroyWindow(connection, requestor)
-	api.disconnect(connection)
-	api.close()
+// closeClipboardRequest ends a read: the selection connection is free for the
+// next one, and kept.
+func closeClipboardRequest() {
+	selections.mu.Unlock()
 }
 
 // readSelectionBytes asks the selection owner to convert to target and returns
@@ -990,7 +1021,6 @@ func openSystemConnection() (*xcbAPI, uintptr, *xcbScreen, error) {
 		if connection != 0 {
 			api.disconnect(connection)
 		}
-		api.close()
 		return nil, 0, nil, fmt.Errorf("linux: connect to X server")
 	}
 	iterator := api.rootsIterator(api.getSetup(connection))
@@ -999,7 +1029,6 @@ func openSystemConnection() (*xcbAPI, uintptr, *xcbScreen, error) {
 	}
 	if iterator.Data == nil || iterator.Remaining == 0 {
 		api.disconnect(connection)
-		api.close()
 		return nil, 0, nil, fmt.Errorf("linux: X server has no screen")
 	}
 	return api, connection, iterator.Data, nil

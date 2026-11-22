@@ -50,9 +50,9 @@ func (editor *Editor) ValidateReplaceRanges(edits []Replacement, options Replace
 		return fmt.Errorf("cannot replace ranges in a restricted editor")
 	}
 	previousStart, previousEnd := -1, -1
-	resultingRunes := len(editor.runes)
+	resultingRunes := editor.runes.Len()
 	for index, edit := range edits {
-		if edit.Range.Start < 0 || edit.Range.End < edit.Range.Start || edit.Range.End > len(editor.runes) ||
+		if edit.Range.Start < 0 || edit.Range.End < edit.Range.Start || edit.Range.End > editor.runes.Len() ||
 			index > 0 && (edit.Range.Start <= previousStart || edit.Range.Start < previousEnd) {
 			return fmt.Errorf("invalid or overlapping replacement at index %d", index)
 		}
@@ -96,19 +96,19 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 	var labelSpans []lfLabelSpan
 	for _, edit := range edits {
 		for runePosition < edit.Range.Start {
-			if contexts != nil && editor.runes[runePosition] == '\n' {
+			if contexts != nil && editor.runes.At(runePosition) == '\n' {
 				linePosition++
 			}
-			bytePosition += runeBytes(editor.runes[runePosition])
+			bytePosition += runeBytes(editor.runes.At(runePosition))
 			runePosition++
 		}
 		primitive := Edit{Start: bytePosition}
 		sourceLine := linePosition
 		for runePosition < edit.Range.End {
-			if contexts != nil && editor.runes[runePosition] == '\n' {
+			if contexts != nil && editor.runes.At(runePosition) == '\n' {
 				linePosition++
 			}
-			width := runeBytes(editor.runes[runePosition])
+			width := runeBytes(editor.runes.At(runePosition))
 			primitive.Removed += width
 			bytePosition += width
 			runePosition++
@@ -117,13 +117,13 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		for _, character := range inserted {
 			primitive.Inserted += runeBytes(character)
 		}
-		replacement = append(replacement, editor.runes[position:edit.Range.Start]...)
+		replacement = append(replacement, editor.runes.Slice(position, edit.Range.Start)...)
 		if primitive.Removed != 0 || primitive.Inserted != 0 {
 			primitives = append(primitives, primitive)
 			if contexts != nil {
-				atLineStart := edit.Range.Start == 0 || editor.runes[edit.Range.Start-1] == '\n'
+				atLineStart := edit.Range.Start == 0 || editor.runes.At(edit.Range.Start-1) == '\n'
 				if options.Forward {
-					atLineStart = start == 0 || editor.runes[start-1] == '\n'
+					atLineStart = start == 0 || editor.runes.At(start-1) == '\n'
 					if len(replacement) > 0 {
 						atLineStart = replacement[len(replacement)-1] == '\n'
 					}
@@ -132,18 +132,18 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 				if options.Forward {
 					line += lineShift
 				}
-				context := makeLineContext(line, atLineStart, editor.runes[edit.Range.Start:edit.Range.End], inserted)
+				context := makeLineContext(line, atLineStart, editor.runes.Slice(edit.Range.Start, edit.Range.End), inserted)
 				contexts = append(contexts, context)
 				lineShift += context.inserted - context.removed
 				if labels != nil && (context.removed != 0 || context.inserted != 0) {
-					labelSpans = append(labelSpans, lfLabelSpan{line: line, removed: editor.runes[edit.Range.Start:edit.Range.End], inserted: inserted})
+					labelSpans = append(labelSpans, lfLabelSpan{line: line, removed: editor.runes.Slice(edit.Range.Start, edit.Range.End), inserted: inserted})
 				}
 			}
 		}
 		replacement = append(replacement, inserted...)
 		position = edit.Range.End
 	}
-	changed := !slices.Equal(replacement, editor.runes[start:end])
+	changed := !slices.Equal(replacement, editor.runes.Slice(start, end))
 	if !options.Forward {
 		slices.Reverse(labelSpans)
 	}
@@ -175,7 +175,7 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 }
 
 func (editor *Editor) commitBatch(target Range, replacement string, primitives []Edit, contexts []lineContext, after *Range, labelPlan *lfLabelPlan) {
-	target = normalizeRange(target, len(editor.runes))
+	target = normalizeRange(target, editor.runes.Len())
 	// Empty targets do not become primitives. Retain only the accepted backing
 	// in producer mode, including the line contexts keyed by that same slice.
 	if editor.historyState() != nil {

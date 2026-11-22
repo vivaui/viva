@@ -51,7 +51,7 @@ func TestWindowIconUpdatesOnTheWindowThread(t *testing.T) {
 			for id, want := range map[uint32]string{3: icon.ResourcePath + ",0", 5: "dev.viva.icon-test"} {
 				key := propertyKey{Format: appModelKey, ID: id}
 				var got stringProperty
-				if err := hresult(comCall(store, 5 /* GetValue */, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&got)))); err != nil {
+				if err := hresult(comCall2(store, 5 /* GetValue */, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&got)))); err != nil {
 					t.Fatal(err)
 				}
 				if got.Kind != 31 || syscall.UTF16ToString(unsafe.Slice(got.Text, len(want)+1)) != want {

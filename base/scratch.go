@@ -1,5 +1,7 @@
 package base
 
+import "unsafe"
+
 // scratch is the memory the layout borrows beyond the node tree, reused from frame to
 // frame so a warm page allocates nothing.
 type scratch struct {
@@ -12,13 +14,32 @@ type scratch struct {
 
 func (s *scratch) reset() { s.abs = s.abs[:0] }
 
+// frameTails is the length each pointer-holding slice of a Frame had when the
+// last frame ended.
+type frameTails struct {
+	nodes, exts, images, lines, addons, states, stops, wraps, ellipses int
+}
+
+// releaseTail clears items[len(items):*end], what the last frame held past this
+// one's length, and records this length for the next. Everything past it was
+// cleared before, so the cost is what the slice shrank by, not its capacity.
+func releaseTail[T any](items []T, end *int) {
+	if *end > len(items) && *end <= cap(items) {
+		clear(items[len(items):*end])
+	}
+	*end = len(items)
+}
+
 // trimFlexCapacity gives back a slice's backing array when it is far larger
 // than its content. A page that once had a large table should not keep that
-// capacity for the view's whole life.
+// capacity for the view's whole life. Large is counted in elements and in
+// bytes: 4096 small ones, or 64 KiB of large ones such as a 776-byte Extra.
 func trimFlexCapacity[T any](Items []T) []T {
-	const minCapacity = 4096
+	const minCapacity, minBytes = 4096, 64 << 10
 	const ratio = 4
-	if cap(Items) <= minCapacity || len(Items)*ratio >= cap(Items) {
+	var zero T
+	large := cap(Items) > minCapacity || uintptr(cap(Items))*unsafe.Sizeof(zero) > minBytes
+	if !large || len(Items)*ratio >= cap(Items) {
 		return Items
 	}
 	next := make([]T, len(Items), max(len(Items)*2, minCapacity/64))

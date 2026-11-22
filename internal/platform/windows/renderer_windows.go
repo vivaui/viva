@@ -127,6 +127,7 @@ func rectangleScissor(batch compositingBatch, scale float32, width, height int) 
 }
 
 type renderer struct {
+	drawScratch drawScratch // what draw hands Direct3D by address
 	compositionState
 	window, device, context, swap, target                        uintptr
 	rectangleVertex, rectangleFragment, textVertex, textFragment uintptr
@@ -288,7 +289,7 @@ func (renderer *renderer) createWindowSwapChain() error {
 		Scaling: 1, SwapEffect: 3, // DXGI_SCALING_NONE, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
 	}
 	// IDXGIFactory2::CreateSwapChainForHwnd.
-	status = comCall(factory, 15, renderer.device, renderer.window, uintptr(unsafe.Pointer(&description)), 0, 0, uintptr(unsafe.Pointer(&renderer.swap)))
+	status = comCall6(factory, 15, renderer.device, renderer.window, uintptr(unsafe.Pointer(&description)), 0, 0, uintptr(unsafe.Pointer(&renderer.swap)))
 	if err := hresult(status); err != nil {
 		return fmt.Errorf("create swap chain for window: %w", err)
 	}
@@ -297,7 +298,7 @@ func (renderer *renderer) createWindowSwapChain() error {
 	// only fills pixels a resize exposes, so its HRESULT is ignored: a failure must
 	// not fail device creation for hardware and WARP alike.
 	background := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
-	comCall(renderer.swap, 25, uintptr(unsafe.Pointer(&background)))
+	comCall1(renderer.swap, 25, uintptr(unsafe.Pointer(&background)))
 	return nil
 }
 
@@ -314,33 +315,33 @@ func (renderer *renderer) createResources() error {
 		if index%2 != 0 {
 			method = 15
 		}
-		status = comCall(renderer.device, method, uintptr(unsafe.Pointer(&code[0])), uintptr(len(code)), 0, uintptr(unsafe.Pointer(shader.Destination)))
+		status = comCall4(renderer.device, method, uintptr(unsafe.Pointer(&code[0])), uintptr(len(code)), 0, uintptr(unsafe.Pointer(shader.Destination)))
 		if err := hresult(status); err != nil {
 			return fmt.Errorf("create shader %d: %w", index, err)
 		}
 	}
 	buffer := bufferDesc{Bytes: uint32(unsafe.Sizeof(frameConstants{})), Bind: 4}
-	if err := hresult(comCall(renderer.device, 3, uintptr(unsafe.Pointer(&buffer)), 0, uintptr(unsafe.Pointer(&renderer.constants)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 3, uintptr(unsafe.Pointer(&buffer)), 0, uintptr(unsafe.Pointer(&renderer.constants)))); err != nil {
 		return err
 	}
 	blending := blendDesc{}
 	blending.Targets[0] = renderBlend{Enabled: 1, Source: 2, Destination: 6, Operation: 1, SourceAlpha: 2, DestinationAlpha: 6, AlphaOperation: 1, Mask: 15}
-	if err := hresult(comCall(renderer.device, 20, uintptr(unsafe.Pointer(&blending)), uintptr(unsafe.Pointer(&renderer.blend)))); err != nil {
+	if err := hresult(comCall2(renderer.device, 20, uintptr(unsafe.Pointer(&blending)), uintptr(unsafe.Pointer(&renderer.blend)))); err != nil {
 		return err
 	}
 	// Text is blended per channel: the second output of the text shader is the factor
 	// that keeps the background (dual-source blending, SRC1 = 16..19 in D3D11_BLEND).
 	textBlending := blendDesc{}
 	textBlending.Targets[0] = renderBlend{Enabled: 1, Source: 2, Destination: 17, Operation: 1, SourceAlpha: 2, DestinationAlpha: 19, AlphaOperation: 1, Mask: 15}
-	if err := hresult(comCall(renderer.device, 20, uintptr(unsafe.Pointer(&textBlending)), uintptr(unsafe.Pointer(&renderer.textBlend)))); err != nil {
+	if err := hresult(comCall2(renderer.device, 20, uintptr(unsafe.Pointer(&textBlending)), uintptr(unsafe.Pointer(&renderer.textBlend)))); err != nil {
 		return err
 	}
 	raster := rasterDesc{Fill: 3, Cull: 1, DepthClip: 1, Scissor: 1}
-	if err := hresult(comCall(renderer.device, 22, uintptr(unsafe.Pointer(&raster)), uintptr(unsafe.Pointer(&renderer.raster)))); err != nil {
+	if err := hresult(comCall2(renderer.device, 22, uintptr(unsafe.Pointer(&raster)), uintptr(unsafe.Pointer(&renderer.raster)))); err != nil {
 		return err
 	}
 	sampler := samplerDesc{Filter: 0x15, AddressU: 3, AddressV: 3, AddressW: 3, MaxLOD: math.MaxFloat32}
-	return hresult(comCall(renderer.device, 23, uintptr(unsafe.Pointer(&sampler)), uintptr(unsafe.Pointer(&renderer.sampler))))
+	return hresult(comCall2(renderer.device, 23, uintptr(unsafe.Pointer(&sampler)), uintptr(unsafe.Pointer(&renderer.sampler))))
 }
 
 // storeRectangles copies the changed instances and their layer and clip, then
@@ -425,7 +426,7 @@ func (renderer *renderer) apply(frame platform.Frame) error {
 		}
 		if count > 0 {
 			region := box{Left: uint32(first * rectangleInstanceBytes), Right: uint32((first + count) * rectangleInstanceBytes), Bottom: 1, Back: 1}
-			comCall(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[first])), 0, 0)
+			comCall6(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[first])), 0, 0)
 		}
 	}
 	if frame.TextLabels != nil {
@@ -518,11 +519,11 @@ func (renderer *renderer) growInstanceBuffer(capacity int) error {
 		return fmt.Errorf("windows: rectangle buffer exceeds device limit")
 	}
 	description := bufferDesc{Bytes: uint32(capacity * rectangleInstanceBytes), Bind: 8, Misc: 0x40, Stride: rectangleInstanceBytes}
-	if err := hresult(comCall(renderer.device, 3, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&renderer.buffer)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 3, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&renderer.buffer)))); err != nil {
 		return err
 	}
 	view := resourceViewDesc{Dimension: 1, Fields: [4]uint32{0, uint32(capacity)}}
-	if err := hresult(comCall(renderer.device, 7, renderer.buffer, uintptr(unsafe.Pointer(&view)), uintptr(unsafe.Pointer(&renderer.view)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 7, renderer.buffer, uintptr(unsafe.Pointer(&view)), uintptr(unsafe.Pointer(&renderer.view)))); err != nil {
 		return err
 	}
 	renderer.capacity = capacity
@@ -567,17 +568,17 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 	headroom := renderer.resizeHeadroom && sync == 0 && !renderer.usesComposition()
 	needResize, targetWidth, targetHeight := swapChainResize(renderer.bufferWidth, renderer.bufferHeight, width, height, renderer.target != 0, headroom)
 	if needResize {
-		comCall(renderer.context, 33, 0, 0, 0)
+		comCall3(renderer.context, 33, 0, 0, 0)
 		release(&renderer.target)
-		comCall(renderer.context, 111) // Flush outstanding GPU commands before ResizeBuffers
-		if err := hresult(comCall(renderer.swap, 13, 0, uintptr(targetWidth), uintptr(targetHeight), 0, 0)); err != nil {
+		comCall0(renderer.context, 111) // Flush outstanding GPU commands before ResizeBuffers
+		if err := hresult(comCall5(renderer.swap, 13, 0, uintptr(targetWidth), uintptr(targetHeight), 0, 0)); err != nil {
 			return fmt.Errorf("resize swap chain: %w", err)
 		}
 		var back uintptr
-		if err := hresult(comCall(renderer.swap, 9, 0, uintptr(unsafe.Pointer(&textureIID)), uintptr(unsafe.Pointer(&back)))); err != nil {
+		if err := hresult(comCall3(renderer.swap, 9, 0, uintptr(unsafe.Pointer(&textureIID)), uintptr(unsafe.Pointer(&back)))); err != nil {
 			return fmt.Errorf("get swap-chain texture: %w", err)
 		}
-		status := comCall(renderer.device, 9, back, 0, uintptr(unsafe.Pointer(&renderer.target)))
+		status := comCall3(renderer.device, 9, back, 0, uintptr(unsafe.Pointer(&renderer.target)))
 		release(&back)
 		if err := hresult(status); err != nil {
 			return err
@@ -588,7 +589,7 @@ func (renderer *renderer) presentWithSync(width, height int, scale float32, sync
 	if err := renderer.draw(width, height, scale); err != nil {
 		return err
 	}
-	return hresult(comCall(renderer.swap, 8, sync, 0))
+	return hresult(comCall2(renderer.swap, 8, sync, 0))
 }
 
 // swapChainResize reports whether a present at width by height must resize the
@@ -617,38 +618,43 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 	if err := renderer.prepareLabels(scale, width); err != nil {
 		return err
 	}
-	clear := [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
+	// What a draw call is handed by address lives in the renderer, not on the
+	// stack: an address converted for a COM call escapes, and would be a heap
+	// allocation per draw.
+	scratch := &renderer.drawScratch
+	scratch.clear = [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}
 	if renderer.usesComposition() {
-		clear[0] *= clear[3]
-		clear[1] *= clear[3]
-		clear[2] *= clear[3]
+		scratch.clear[0] *= scratch.clear[3]
+		scratch.clear[1] *= scratch.clear[3]
+		scratch.clear[2] *= scratch.clear[3]
 	}
-	comCall(renderer.context, 50, renderer.target, uintptr(unsafe.Pointer(&clear)))
-	comCall(renderer.context, 33, 1, uintptr(unsafe.Pointer(&renderer.target)), 0)
-	comCall(renderer.context, 35, renderer.blend, 0, uintptr(^uint32(0)))
-	comCall(renderer.context, 43, renderer.raster)
-	viewport := viewport{Width: float32(width), Height: float32(height), MaxDepth: 1}
-	comCall(renderer.context, 44, 1, uintptr(unsafe.Pointer(&viewport)))
+	comCall2(renderer.context, 50, renderer.target, uintptr(unsafe.Pointer(&scratch.clear)))
+	comCall3(renderer.context, 33, 1, uintptr(unsafe.Pointer(&renderer.target)), 0)
+	comCall3(renderer.context, 35, renderer.blend, 0, uintptr(^uint32(0)))
+	comCall1(renderer.context, 43, renderer.raster)
+	scratch.viewport = viewport{Width: float32(width), Height: float32(height), MaxDepth: 1}
+	comCall2(renderer.context, 44, 1, uintptr(unsafe.Pointer(&scratch.viewport)))
 	// Scissoring is on for every draw, so the whole target is set first and a
 	// rectangle batch or label cut by a canvas clip narrows it for its own draw.
 	whole := scissorRect{Right: int32(width), Bottom: int32(height)}
-	comCall(renderer.context, 45, 1, uintptr(unsafe.Pointer(&whole)))
-	comCall(renderer.context, 24, 4)
-	frame := frameConstants{Width: float32(width) / scale, Height: float32(height) / scale, PixelSize: 1 / scale}
-	comCall(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(&frame)), 0, 0)
-	comCall(renderer.context, 7, 0, 1, uintptr(unsafe.Pointer(&renderer.constants)))  // the vertex shaders
-	comCall(renderer.context, 16, 0, 1, uintptr(unsafe.Pointer(&renderer.constants))) // the text pixel shader
+	renderer.setScissor(whole)
+	comCall1(renderer.context, 24, 4)
+	frame := &scratch.frame
+	*frame = frameConstants{Width: float32(width) / scale, Height: float32(height) / scale, PixelSize: 1 / scale}
+	comCall6(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(frame)), 0, 0)
+	comCall3(renderer.context, 7, 0, 1, uintptr(unsafe.Pointer(&renderer.constants)))  // the vertex shaders
+	comCall3(renderer.context, 16, 0, 1, uintptr(unsafe.Pointer(&renderer.constants))) // the text pixel shader
 	boundKind := compositingBatchKind(0)
 	current := whole
-	var cut scissorRect // the columns of one span of a grid line; one variable, since its address escapes
+	var cut scissorRect // the columns of one span of a grid line
 	for _, batch := range renderer.compositingBatches {
 		switch batch.Kind {
 		case compositeRectangles:
 			if boundKind != compositeRectangles {
-				comCall(renderer.context, 35, renderer.blend, 0, uintptr(^uint32(0)))
-				comCall(renderer.context, 11, renderer.rectangleVertex, 0, 0)
-				comCall(renderer.context, 9, renderer.rectangleFragment, 0, 0)
-				comCall(renderer.context, 25, 0, 1, uintptr(unsafe.Pointer(&renderer.view)))
+				comCall3(renderer.context, 35, renderer.blend, 0, uintptr(^uint32(0)))
+				comCall3(renderer.context, 11, renderer.rectangleVertex, 0, 0)
+				comCall3(renderer.context, 9, renderer.rectangleFragment, 0, 0)
+				comCall3(renderer.context, 25, 0, 1, uintptr(unsafe.Pointer(&renderer.view)))
 				boundKind = compositeRectangles
 			}
 			scissor, visible := rectangleScissor(batch, scale, width, height)
@@ -656,18 +662,18 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 				continue
 			}
 			if scissor != current {
-				comCall(renderer.context, 45, 1, uintptr(unsafe.Pointer(&scissor)))
+				renderer.setScissor(scissor)
 				current = scissor
 			}
 			frame.InstanceOffset = uint32(batch.First)
-			comCall(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(&frame)), 0, 0)
-			comCall(renderer.context, 21, 6, uintptr(batch.Count), 0, uintptr(batch.First))
+			comCall6(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(frame)), 0, 0)
+			comCall4(renderer.context, 21, 6, uintptr(batch.Count), 0, uintptr(batch.First))
 		case compositeText:
 			if boundKind != compositeText {
-				comCall(renderer.context, 35, renderer.textBlend, 0, uintptr(^uint32(0)))
-				comCall(renderer.context, 11, renderer.textVertex, 0, 0)
-				comCall(renderer.context, 9, renderer.textFragment, 0, 0)
-				comCall(renderer.context, 10, 0, 1, uintptr(unsafe.Pointer(&renderer.sampler)))
+				comCall3(renderer.context, 35, renderer.textBlend, 0, uintptr(^uint32(0)))
+				comCall3(renderer.context, 11, renderer.textVertex, 0, 0)
+				comCall3(renderer.context, 9, renderer.textFragment, 0, 0)
+				comCall3(renderer.context, 10, 0, 1, uintptr(unsafe.Pointer(&renderer.sampler)))
 				boundKind = compositeText
 			}
 			for labelOffset := batch.First; labelOffset < batch.First+batch.Count; labelOffset++ {
@@ -704,14 +710,14 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 					frame.TextMode = 1
 					frame.TextColor = [4]float32{float32(label.label.Color.Red), float32(label.label.Color.Green), float32(label.label.Color.Blue), float32(label.label.Color.Alpha)}
 				}
-				comCall(renderer.context, 8, 1, 1, uintptr(unsafe.Pointer(&label.view)))
+				comCall3(renderer.context, 8, 1, 1, uintptr(unsafe.Pointer(&label.view)))
 				if len(label.spans) == 0 {
-					comCall(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(&frame)), 0, 0)
+					comCall6(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(frame)), 0, 0)
 					if scissor != current {
-						comCall(renderer.context, 45, 1, uintptr(unsafe.Pointer(&scissor)))
+						renderer.setScissor(scissor)
 						current = scissor
 					}
-					comCall(renderer.context, 13, 6, 0)
+					comCall2(renderer.context, 13, 6, 0)
 					continue
 				}
 				// A grid line has a color per run: its coverage is drawn once for each, cut to the
@@ -725,20 +731,35 @@ func (renderer *renderer) draw(width, height int, scale float32) error {
 						continue
 					}
 					frame.TextColor = [4]float32{span.color.R, span.color.G, span.color.B, span.color.A}
-					comCall(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(&frame)), 0, 0)
+					comCall6(renderer.context, 48, renderer.constants, 0, 0, uintptr(unsafe.Pointer(frame)), 0, 0)
 					if cut != current {
-						comCall(renderer.context, 45, 1, uintptr(unsafe.Pointer(&cut)))
+						renderer.setScissor(cut)
 						current = cut
 					}
-					comCall(renderer.context, 13, 6, 0)
+					comCall2(renderer.context, 13, 6, 0)
 				}
 			}
 		}
 	}
-	var empty uintptr
-	comCall(renderer.context, 8, 1, 1, uintptr(unsafe.Pointer(&empty)))
+	scratch.empty = 0
+	comCall3(renderer.context, 8, 1, 1, uintptr(unsafe.Pointer(&scratch.empty)))
 	renderer.submissions++
 	return nil
+}
+
+// drawScratch holds what draw hands Direct3D by address; see draw.
+type drawScratch struct {
+	clear    [4]float32
+	viewport viewport
+	scissor  scissorRect
+	frame    frameConstants
+	empty    uintptr
+}
+
+// setScissor narrows the draws that follow to r.
+func (renderer *renderer) setScissor(r scissorRect) {
+	renderer.drawScratch.scissor = r
+	comCall2(renderer.context, 45, 1, uintptr(unsafe.Pointer(&renderer.drawScratch.scissor)))
 }
 
 func (renderer *renderer) close() {
@@ -770,8 +791,8 @@ func (renderer *renderer) close() {
 // device made again can draw the same scene.
 func (renderer *renderer) releaseDevice() {
 	if renderer.context != 0 {
-		comCall(renderer.context, 110)
-		comCall(renderer.context, 111)
+		comCall0(renderer.context, 110)
+		comCall0(renderer.context, 111)
 	}
 	for index := range renderer.labels {
 		renderer.labels[index].dropTexture()

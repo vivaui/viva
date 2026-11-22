@@ -31,7 +31,7 @@ func main() {
 		WindowMode: app.WindowCustomTitlebar, TitlebarHeight: stripHeight,
 		ClearColor: app.Color{Red: 0.09, Green: 0.1, Blue: 0.13, Alpha: 1},
 		Paint: func(canvas *gfx.Canvas, size gfx.Size) {
-			leading, _ := app.TitlebarInsets()
+			leading, _ := canvas.TitlebarInsets()
 			canvas.MoveRegion(gfx.Rect{Width: size.Width, Height: stripHeight})
 			canvas.Fill(gfx.Rect{Width: size.Width, Height: stripHeight}, gfx.Color{Red: 0.14, Green: 0.16, Blue: 0.22, Alpha: 1})
 			canvas.Label("drag the strip; double-click maximizes", gfx.Rect{X: leading + 14, Y: 9, Width: 400, Height: 20}, gfx.TextStyle{Size: 13, Color: ink})

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"cmp"
 	"slices"
 	"sort"
 	"strconv"
@@ -35,17 +36,10 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
-// indentationLevels is the leading cells of every line, in the displayed columns
-// the layout uses, so a representation that hides or widens a leading tab moves
-// the indent guides with the text; a blank line takes the smaller indentation of
-// its nearest text lines so guides run through it.
-//
-// The forward pass stores a blank line as -2-previous, where previous is the
-// indentation of the last text line above it (-1 when there is none), so the
-// backward pass can resolve it without a second slice.
-func indentationLevels(value string, tabWidth int, reps []CodeRepresentation) []int {
-	levels := make([]int, 0, strings.Count(value, "\n")+1)
-	previous := -1
+// appendRawIndents appends the leading cells of each line of value, or -1 for a
+// blank line, in the displayed columns the layout uses, so a representation that
+// hides or widens a leading tab moves the indent guides with the text.
+func appendRawIndents(dst []int, value string, tabWidth int, reps []CodeRepresentation) []int {
 	for line := range strings.SplitSeq(value, "\n") {
 		column, blank := 0, true
 	leading:
@@ -59,31 +53,50 @@ func indentationLevels(value string, tabWidth int, reps []CodeRepresentation) []
 			}
 		}
 		if blank {
-			levels = append(levels, -2-previous)
-			continue
+			column = -1
 		}
-		levels = append(levels, column)
-		previous = column
+		dst = append(dst, column)
 	}
-	next := -1
-	for index := len(levels) - 1; index >= 0; index-- {
-		if levels[index] >= 0 {
-			next = levels[index]
+	return dst
+}
+
+// resolveIndents writes levels[from:to] from the raw indentation of every line:
+// a text line keeps its own, and a blank line takes the smaller of the nearest
+// text lines above and below it, or the one there is, or 0. levels may be raw.
+func resolveIndents(levels, raw []int, from, to int) {
+	for index := from; index < to; {
+		if raw[index] >= 0 {
+			levels[index] = raw[index]
+			index++
 			continue
 		}
-		above := -2 - levels[index]
+		start, end := index, index
+		for start > 0 && raw[start-1] < 0 {
+			start--
+		}
+		for end < len(raw) && raw[end] < 0 {
+			end++
+		}
+		above, below := -1, -1
+		if start > 0 {
+			above = raw[start-1]
+		}
+		if end < len(raw) {
+			below = raw[end]
+		}
+		level := 0
 		switch {
-		case above >= 0 && next >= 0:
-			levels[index] = min(above, next)
+		case above >= 0 && below >= 0:
+			level = min(above, below)
 		case above >= 0:
-			levels[index] = above
-		case next >= 0:
-			levels[index] = next
-		default:
-			levels[index] = 0
+			level = above
+		case below >= 0:
+			level = below
+		}
+		for ; index < min(end, to); index++ {
+			levels[index] = level
 		}
 	}
-	return levels
 }
 
 func representationOf(reps []CodeRepresentation, character rune) (CodeRepresentation, bool) {
@@ -127,16 +140,19 @@ func (editor *CodeEditor) fitWithFolds(value string, cols int, wrap bool, tabWid
 }
 
 func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bool, tabWidth int, folds []CodeEditorFoldRange, reps []CodeRepresentation) {
-	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value && slices.Equal(editor.foldInput, folds) && slices.Equal(editor.reps, reps) {
-		return
+	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && slices.Equal(editor.foldInput, folds) && slices.Equal(editor.reps, reps) {
+		if editor.text == value || editor.refit(value) {
+			return
+		}
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)
 	editor.reps = append(editor.reps[:0], reps...)
 	editor.folds = editor.folds[:0]
 	editor.rows = editor.rows[:0]
-	editor.indents = nil
+	editor.indents, editor.rawIndents = nil, editor.rawIndents[:0]
 	editor.shown = editor.shown[:0]
+	editor.deadShown = 0
 	editor.widest = 0
 	if len(value) > 1<<30 {
 		// Rows are indexed with 32 bits; a text this long is not an editor's.
@@ -180,6 +196,123 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 	}
 	editor.lineCount = line + 1
 	editor.runLine = -1
+}
+
+// refit lays out again only the logical lines an edit touched, when the text is
+// all that changed: the rows before them stand, and the rows after them move by
+// the bytes and lines the edit added. It reports false when the text needs a full
+// layout instead.
+func (editor *CodeEditor) refit(value string) bool {
+	old := editor.text
+	if len(editor.folds) > 0 || len(value) > 1<<30 || editor.deadShown > 64 && editor.deadShown > len(editor.shown)/2 {
+		return false
+	}
+	prefix := commonPrefix(old, value)
+	suffix := commonSuffix(old[prefix:], value[prefix:])
+	// The edit replaced old[prefix:len(old)-suffix]; the lines holding it are laid
+	// out again whole, from the start of the first to the line break after the last.
+	from := strings.LastIndexByte(old[:prefix], '\n') + 1
+	oldTo := len(old)
+	if newline := strings.IndexByte(old[len(old)-suffix:], '\n'); newline >= 0 {
+		oldTo = len(old) - suffix + newline
+	}
+	delta := len(value) - len(old)
+	newTo := oldTo + delta
+
+	first, _ := slices.BinarySearchFunc(editor.rows, int32(from), func(row codeRow, at int32) int { return cmp.Compare(row.lineStart, at) })
+	last, _ := slices.BinarySearchFunc(editor.rows, int32(oldTo), func(row codeRow, at int32) int { return cmp.Compare(row.lineStart, at+1) })
+	// Every logical line has a row, so the first row from the line's start is it.
+	line := int(editor.rows[first].line)
+	lostWidest := false
+	for _, row := range editor.rows[first:last] {
+		lostWidest = lostWidest || int(row.cells) == editor.widest
+		if row.shown >= 0 {
+			editor.deadShown++
+		}
+	}
+	lines := strings.Count(value[from:newTo], "\n") - strings.Count(old[from:oldTo], "\n")
+
+	// The new lines are laid out after the rows, then moved into place.
+	editor.text = value
+	tail := len(editor.rows)
+	for start := from; ; line++ {
+		end := newTo
+		if newline := strings.IndexByte(value[start:newTo], '\n'); newline >= 0 {
+			end = start + newline
+		}
+		rowEnd := end
+		if end < len(value) && end > start && value[end-1] == '\r' {
+			rowEnd--
+		}
+		editor.appendLine(value, start, rowEnd, line)
+		if end >= newTo {
+			break
+		}
+		start = end + 1
+	}
+	made := len(editor.rows) - tail
+	editor.rows = slices.Grow(editor.rows, made)
+	editor.scratchRows = append(editor.scratchRows[:0], editor.rows[tail:]...)
+	editor.rows = slices.Replace(editor.rows[:tail], first, last, editor.scratchRows...)
+	for index := first + made; index < len(editor.rows); index++ {
+		row := &editor.rows[index]
+		row.start += int32(delta)
+		row.end += int32(delta)
+		row.lineStart += int32(delta)
+		row.line += int32(lines)
+	}
+	if lostWidest {
+		editor.widest = 0
+		for _, row := range editor.rows {
+			editor.widest = max(editor.widest, int(row.cells))
+		}
+	}
+	editor.lineCount += lines
+	if editor.indents != nil {
+		// The indentation of the edited lines is measured again, and blank lines
+		// next to them, which take it from the nearest text lines, resolved again.
+		firstLine := int(editor.rows[first].line)
+		oldEnd := firstLine + strings.Count(old[from:oldTo], "\n") + 1
+		editor.scratchIndents = appendRawIndents(editor.scratchIndents[:0], value[from:newTo], editor.tabWidth, editor.reps)
+		editor.rawIndents = slices.Replace(editor.rawIndents, firstLine, oldEnd, editor.scratchIndents...)
+		editor.indents = slices.Replace(editor.indents, firstLine, oldEnd, editor.scratchIndents...)
+		before, after := firstLine, firstLine+len(editor.scratchIndents)
+		for before > 0 && editor.rawIndents[before-1] < 0 {
+			before--
+		}
+		for after < len(editor.rawIndents) && editor.rawIndents[after] < 0 {
+			after++
+		}
+		resolveIndents(editor.indents, editor.rawIndents, before, after)
+	}
+	editor.runLine = -1
+	return true
+}
+
+// commonPrefix is how many leading bytes a and b share, compared a block at a time.
+func commonPrefix(a, b string) int {
+	const block = 1024
+	n, at := min(len(a), len(b)), 0
+	for at+block <= n && a[at:at+block] == b[at:at+block] {
+		at += block
+	}
+	for at < n && a[at] == b[at] {
+		at++
+	}
+	return at
+}
+
+// commonSuffix is how many trailing bytes a and b share.
+func commonSuffix(a, b string) int {
+	const block = 1024
+	n, at := min(len(a), len(b)), 0
+	for at+block <= n && a[len(a)-at-block:len(a)-at] == b[len(b)-at-block:len(b)-at] {
+		at += block
+	}
+	for at < n && a[len(a)-at-1] == b[len(b)-at-1] {
+		at++
+	}
+	return at
 }
 
 // SoftWrapOffsets returns byte offsets where the last painted editor would

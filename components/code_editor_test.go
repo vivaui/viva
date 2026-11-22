@@ -1318,19 +1318,16 @@ func benchmarkCodeEditorPaintSteady(b *testing.B, wrapSymbol bool) {
 }
 
 // BenchmarkCodeEditorRelayoutOnEdit is the cost of a keystroke in a megabyte of
-// text: the rows are laid out again for the new text.
+// text: the rows of the edited line are laid out again for the new text.
 func BenchmarkCodeEditorRelayoutOnEdit(b *testing.B) {
 	base := strings.Repeat("key: value # comment with some 中文 and a long tail to wrap around the edge of the box\n", 12000)
 	b.SetBytes(int64(len(base)))
-	for _, wrap := range []bool{false, true} {
-		name := "no wrap"
-		if wrap {
-			name = "wrap"
-		}
-		b.Run(name, func(b *testing.B) {
+	for _, mode := range []string{"no wrap", "wrap", "indent guides"} {
+		b.Run(mode, func(b *testing.B) {
 			f := newCodeFixture(base)
 			f.bounds = gfx.Rect{Width: 900, Height: 600}
-			f.snapshot.Wrap = wrap
+			f.snapshot.Wrap = mode == "wrap"
+			f.snapshot.ShowIndentGuides = mode == "indent guides"
 			f.paint()
 			b.ReportAllocs()
 			toggle := false

@@ -1,12 +1,13 @@
 package linux
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -403,9 +404,17 @@ type vulkanRenderer struct {
 	uploadCommand                         uintptr
 	imageAvailable, renderFinished, fence uintptr
 	views, framebuffers, commands         []uintptr
-	// commandsStaged means a scene update reset the command pool and left
-	// recording to resize. Device recovery may already have changed its extent.
-	commandsStaged                     bool
+	// commandGeneration counts changes to what the commands draw: the batches,
+	// the label textures, the buffers they bind, the extent. recorded holds, for
+	// each target image, the generation its commands were recorded at; an image
+	// is recorded again only when it is about to be submitted with stale ones,
+	// so a frame that only changed instance data (a caret blink, a colour fading)
+	// records nothing. recordExtent is the extent commands are recorded at.
+	commandGeneration                  uint64
+	recorded                           []uint64
+	recordExtent                       vkExtent2D
+	recordings                         int
+	lastBatches                        []compositingBatch
 	queueFamily, width, height, format uint32
 	surfaceFormat                      vkSurfaceFormat
 	hasSurfaceFormat                   bool
@@ -420,6 +429,10 @@ type vulkanRenderer struct {
 	// the CPU renderer draws such a window instead (window_renderer_linux.go).
 	software        bool
 	enabledFeatures [vkFeatureCount]uint32
+	// shared is the process's window device the renderer draws with, which it
+	// releases instead of destroying; nil for a renderer that owns its device
+	// (offscreen). instance through enabledFeatures are copied from it.
+	shared *vulkanDevice
 	// scale is device pixels per logical pixel: width and height are device
 	// pixels, a scene is in logical pixels. Zero means 1.
 	scale                           float32
@@ -558,7 +571,25 @@ func vulkanDriverManifestsExist(paths []string) bool {
 	return false
 }
 
+// loadVulkan gives a copy of the process's libvulkan function table, loaded and
+// bound once and kept for the life of the process; a machine without a driver is
+// found once. Each renderer owns its copy, as each window owns its xcb table.
 func loadVulkan() (*vulkanAPI, error) {
+	vulkanOnce.Do(func() { vulkanShared, vulkanErr = openVulkan() })
+	if vulkanErr != nil {
+		return nil, vulkanErr
+	}
+	api := *vulkanShared
+	return &api, nil
+}
+
+var (
+	vulkanOnce   sync.Once
+	vulkanShared *vulkanAPI
+	vulkanErr    error
+)
+
+func openVulkan() (*vulkanAPI, error) {
 	if !vulkanDriverConfigured() {
 		return nil, noVulkan("Vulkan has no driver (no ICD manifest)", nil)
 	}
@@ -629,22 +660,19 @@ func newVulkanRenderer(connection uintptr, window, width, height uint32, scale f
 }
 
 func (renderer *vulkanRenderer) initialize(connection uintptr, window uint32) error {
-	surfaceExtension := append([]byte("VK_KHR_surface"), 0)
-	xcbExtension := append([]byte("VK_KHR_xcb_surface"), 0)
-	if err := renderer.createInstance([]*byte{&surfaceExtension[0], &xcbExtension[0]}); err != nil {
+	shared, err := acquireWindowDevice(renderer.api)
+	if err != nil {
 		return err
 	}
+	renderer.shared, renderer.instance = shared, shared.instance
 	surfaceInfo := vkXcbSurfaceCreateInfo{SType: vkStructureXcbSurfaceCreateInfo, Connection: connection, Window: window}
 	if err := vkCheck(renderer.api.createXcbSurface(renderer.instance, &surfaceInfo, nil, &renderer.surface), "create XCB surface"); err != nil {
 		return err
 	}
-	if err := renderer.selectDevice(); err != nil {
+	if err := shared.attach(renderer.surface); err != nil {
 		return err
 	}
-	swapExtension := append([]byte("VK_KHR_swapchain"), 0)
-	if err := renderer.createDevice([]*byte{&swapExtension[0]}); err != nil {
-		return err
-	}
+	renderer.adopt(shared)
 	if len(renderer.text.labels) > 0 {
 		if err := renderer.text.initialize(renderer); err != nil {
 			return err
@@ -665,126 +693,6 @@ func (renderer *vulkanRenderer) initialize(connection uintptr, window uint32) er
 	}
 	fenceInfo := vkFenceCreateInfo{SType: vkStructureFenceCreateInfo, Flags: vkFenceSignaled}
 	return vkCheck(renderer.api.createFence(renderer.device, &fenceInfo, nil, &renderer.fence), "create frame fence")
-}
-
-// createInstance creates the Vulkan instance with the given extensions: the
-// window path needs the surface ones, an offscreen renderer none.
-func (renderer *vulkanRenderer) createInstance(extensions []*byte) error {
-	applicationName := append([]byte("Viva"), 0)
-	engineName := append([]byte("Viva"), 0)
-	application := vkApplicationInfo{SType: vkStructureApplicationInfo, Application: &applicationName[0], Engine: &engineName[0], APIVersion: 1 << 22}
-	instanceInfo := vkInstanceCreateInfo{SType: vkStructureInstanceCreateInfo, Application: &application, ExtensionCount: uint32(len(extensions))}
-	if len(extensions) > 0 {
-		instanceInfo.Extensions = uintptr(unsafe.Pointer(&extensions[0]))
-	}
-	switch status := renderer.api.createInstance(&instanceInfo, nil, &renderer.instance); status {
-	case vkSuccess:
-		return nil
-	case vkErrorIncompatibleDriver, vkErrorInitializationFailed:
-		return noVulkan(fmt.Sprintf("Vulkan has no driver (result %d)", status), nil)
-	default:
-		return vkCheck(status, "create instance")
-	}
-}
-
-// createDevice creates the logical device and its graphics queue on the
-// selected physical device and queue family.
-func (renderer *vulkanRenderer) createDevice(extensions []*byte) error {
-	priority := float32(1)
-	queueInfo := vkDeviceQueueCreateInfo{SType: vkStructureDeviceQueueCreateInfo, Family: renderer.queueFamily, Count: 1, Priorities: &priority}
-	deviceInfo := vkDeviceCreateInfo{SType: vkStructureDeviceCreateInfo, QueueCount: 1, Queues: &queueInfo, ExtensionCount: uint32(len(extensions))}
-	// Dual-source blending (a core feature of nearly every desktop device) blends the
-	// per-channel coverage of LCD text; without it text is blended in grayscale.
-	var supported [vkFeatureCount]uint32
-	renderer.api.getPhysicalDeviceFeatures(renderer.physical, &supported)
-	if supported[vkFeatureDualSourceBlend] != 0 {
-		renderer.enabledFeatures[vkFeatureDualSourceBlend] = 1
-		deviceInfo.Features = uintptr(unsafe.Pointer(&renderer.enabledFeatures))
-		renderer.dualSource = true
-	}
-	if len(extensions) > 0 {
-		deviceInfo.Extensions = uintptr(unsafe.Pointer(&extensions[0]))
-	}
-	if err := vkCheck(renderer.api.createDevice(renderer.physical, &deviceInfo, nil, &renderer.device), "create device"); err != nil {
-		renderer.dualSource = false
-		return err
-	}
-	renderer.api.getDeviceQueue(renderer.device, renderer.queueFamily, 0, &renderer.queue)
-	if renderer.queue == 0 {
-		return fmt.Errorf("linux: Vulkan returned no graphics queue")
-	}
-	return nil
-}
-
-func (renderer *vulkanRenderer) selectDevice() error {
-	var deviceCount uint32
-	// A loader whose installed drivers fail to initialize fails enumeration with
-	// VK_ERROR_INITIALIZATION_FAILED, not only with the
-	// VK_ERROR_INCOMPATIBLE_DRIVER an empty driver list gives. Both are a machine
-	// with no usable Vulkan driver and need the same advice as one without a
-	// loader; any other result is a real failure.
-	switch status := renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, nil); status {
-	case vkSuccess:
-	case vkErrorInitializationFailed, vkErrorIncompatibleDriver:
-		return noVulkan(fmt.Sprintf("Vulkan has no driver (result %d)", status), nil)
-	default:
-		return vkCheck(status, "count physical devices")
-	}
-	if deviceCount == 0 {
-		return noVulkan("Vulkan reports no device", nil)
-	}
-	if deviceCount > 32 {
-		return fmt.Errorf("linux: Vulkan physical device count %d", deviceCount)
-	}
-	devices := make([]uintptr, deviceCount)
-	if err := vkCheck(renderer.api.enumeratePhysicalDevices(renderer.instance, &deviceCount, &devices[0]), "enumerate physical devices"); err != nil {
-		return err
-	}
-	// A CPU rasterizer (lavapipe) is not a hardware accelerator: the CPU
-	// renderer draws a changed region only, while software Vulkan redraws the
-	// whole window every frame. Prefer a hardware device; remember the software
-	// one in case no hardware device can present.
-	var softwareDevice uintptr
-	var softwareFamily uint32
-	for _, device := range devices[:deviceCount] {
-		var familyCount uint32
-		renderer.api.getQueueFamilyProperties(device, &familyCount, nil)
-		if familyCount == 0 || familyCount > 64 {
-			continue
-		}
-		families := make([]vkQueueFamilyProperties, familyCount)
-		renderer.api.getQueueFamilyProperties(device, &familyCount, &families[0])
-		for index, family := range families[:familyCount] {
-			if family.Flags&vkQueueGraphics == 0 || family.Count == 0 {
-				continue
-			}
-			var supported uint32
-			if renderer.surface == 0 || renderer.api.getSurfaceSupport(device, uint32(index), renderer.surface, &supported) == vkSuccess && supported != 0 {
-				if renderer.physicalDeviceIsCPU(device) {
-					if softwareDevice == 0 {
-						softwareDevice, softwareFamily = device, uint32(index)
-					}
-					continue
-				}
-				renderer.physical, renderer.queueFamily, renderer.software = device, uint32(index), false
-				return nil
-			}
-		}
-	}
-	if softwareDevice != 0 {
-		renderer.physical, renderer.queueFamily, renderer.software = softwareDevice, softwareFamily, true
-		return nil
-	}
-	return noVulkan("no Vulkan graphics queue can present to XCB", nil)
-}
-
-// physicalDeviceIsCPU reports whether the device is a CPU rasterizer, such as
-// Mesa's lavapipe: VkPhysicalDeviceType CPU. Its properties struct is 824 bytes
-// and deviceType sits at offset 16.
-func (renderer *vulkanRenderer) physicalDeviceIsCPU(device uintptr) bool {
-	var properties [vkPropertiesSize]byte
-	renderer.api.getPhysicalDeviceProperties(device, &properties)
-	return binary.LittleEndian.Uint32(properties[vkPropertiesDeviceTypeOffset:]) == vkPhysicalDeviceTypeCPU
 }
 
 func (renderer *vulkanRenderer) createSwapchain() (err error) {
@@ -937,7 +845,9 @@ func (renderer *vulkanRenderer) createCommands(images uint32) error {
 		renderer.commands = nil
 		renderer.uploadCommand = 0
 	}
-	poolInfo := vkCommandPoolCreateInfo{SType: vkStructureCommandPoolCreateInfo, Family: renderer.queueFamily}
+	// Command buffers are recorded one at a time, when an image is submitted with
+	// stale commands: beginning one resets it.
+	poolInfo := vkCommandPoolCreateInfo{SType: vkStructureCommandPoolCreateInfo, Flags: vkCommandPoolResetCommandBuffer, Family: renderer.queueFamily}
 	if err := vkCheck(renderer.api.createCommandPool(renderer.device, &poolInfo, nil, &renderer.commandPool), "create command pool"); err != nil {
 		return err
 	}
@@ -973,7 +883,41 @@ func (renderer *vulkanRenderer) createScenePipelines(extent vkExtent2D) error {
 	return renderer.recordCommands(extent)
 }
 
+// recordCommands makes every target image's commands stale and records them at
+// extent now: what a new swapchain, a new frame or a rebuilt device needs before
+// its first submit. A changed scene only invalidateCommands.
 func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
+	renderer.recordExtent = extent
+	renderer.invalidateCommands()
+	for index := range renderer.commands {
+		if err := renderer.ensureRecorded(uint32(index)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// invalidateCommands marks every image's commands stale.
+func (renderer *vulkanRenderer) invalidateCommands() { renderer.commandGeneration++ }
+
+// ensureRecorded records the commands of target image index when they are stale.
+func (renderer *vulkanRenderer) ensureRecorded(index uint32) error {
+	if len(renderer.recorded) != len(renderer.commands) {
+		renderer.recorded = make([]uint64, len(renderer.commands))
+		renderer.commandGeneration++ // a fresh slice holds zeros: none is current
+	}
+	if renderer.recorded[index] == renderer.commandGeneration {
+		return nil
+	}
+	if err := renderer.recordImage(index, renderer.recordExtent); err != nil {
+		return err
+	}
+	renderer.recorded[index] = renderer.commandGeneration
+	return nil
+}
+
+// recordImage records the commands that draw the scene into target image index.
+func (renderer *vulkanRenderer) recordImage(index uint32, extent vkExtent2D) error {
 	scratch := &renderer.scratch
 	scratch.clear = vkClearValue{Color: [4]float32{float32(renderer.color.Red), float32(renderer.color.Green), float32(renderer.color.Blue), float32(renderer.color.Alpha)}}
 	// A window frame leaves the margin transparent and draws the scene inside it.
@@ -985,7 +929,8 @@ func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
 		renderer.frame.upload(renderer, extent.Width, extent.Height)
 	}
 	scratch.contentX, scratch.contentY = contentX, contentY
-	for index, command := range renderer.commands {
+	{
+		command := renderer.commands[index]
 		scratch.begin = vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo}
 		if err := vkCheck(renderer.api.beginCommandBuffer(command, &scratch.begin), "begin clear command"); err != nil {
 			return err
@@ -1016,7 +961,7 @@ func (renderer *vulkanRenderer) recordCommands(extent vkExtent2D) error {
 		}
 	}
 	scratch.contentX, scratch.contentY = 0, 0
-	renderer.commandsStaged = false
+	renderer.recordings++
 	return nil
 }
 
@@ -1117,6 +1062,11 @@ func (renderer *vulkanRenderer) recoverFrom(err error, losses int) (retry bool, 
 	if err == nil || !isGraphicsLoss(err) || renderer.connection == 0 || losses >= maxLossRecoveries {
 		return false, err
 	}
+	if isDeviceLoss(err) && renderer.shared != nil {
+		// Every window drawing with the device has lost it; the next to make
+		// itself again gets a new one.
+		renderer.shared.markLost()
+	}
 	if recoverErr := renderer.recoverDevice(); recoverErr != nil {
 		return false, errors.Join(err, recoverErr)
 	}
@@ -1176,6 +1126,9 @@ func (renderer *vulkanRenderer) presentOnce() (bool, error) {
 	if image >= uint32(len(renderer.commands)) {
 		return false, fmt.Errorf("linux: Vulkan acquired invalid image %d", image)
 	}
+	if err := renderer.ensureRecorded(image); err != nil {
+		return false, err
+	}
 	if err := vkCheck(renderer.api.resetFences(renderer.device, 1, &renderer.fence), "reset frame fence"); err != nil {
 		return false, err
 	}
@@ -1231,15 +1184,10 @@ func (renderer *vulkanRenderer) stage(frame platform.Frame) (bool, error) {
 	}
 }
 
+// applyFrame stages frame; the commands it makes stale are recorded when their
+// image is next submitted.
 func (renderer *vulkanRenderer) applyFrame(frame platform.Frame) (bool, error) {
-	changed, err := renderer.stageFrame(frame)
-	if err != nil || !changed {
-		return changed, err
-	}
-	if err := renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height}); err != nil {
-		return false, err
-	}
-	return true, nil
+	return renderer.stageFrame(frame)
 }
 
 func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
@@ -1270,10 +1218,11 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 	if err := vkCheck(renderer.api.waitForFences(renderer.device, 1, &renderer.fence, 1, math.MaxUint64), "wait before scene update"); err != nil {
 		return false, err
 	}
-	if err := vkCheck(renderer.api.resetCommandPool(renderer.device, renderer.commandPool, 0), "reset scene commands"); err != nil {
+	// The last text upload may still be copying into images this frame replaces.
+	if err := renderer.text.staging.settle(renderer); err != nil {
 		return false, err
 	}
-	renderer.commandsStaged = true
+	buffer, textures := renderer.scene.buffer, renderer.text.generation
 	if !frame.Update.Empty() {
 		if frame.Update.Rebuild {
 			renderer.rectangles = append(renderer.rectangles[:0], frame.Rectangles...)
@@ -1307,6 +1256,14 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 	renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.text.labels, renderer.text.order, renderer.compositingBatches)
 	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return false, err
+	}
+	// The commands draw the batches and bind the scene buffer and the label
+	// textures: only a change to one of those makes them stale. New instance
+	// data in the same buffer is drawn by the commands already recorded.
+	if frame.TextLabels != nil || buffer != renderer.scene.buffer || textures != renderer.text.generation ||
+		!slices.Equal(renderer.lastBatches, renderer.compositingBatches) {
+		renderer.lastBatches = append(renderer.lastBatches[:0], renderer.compositingBatches...)
+		renderer.invalidateCommands()
 	}
 	return true, nil
 }
@@ -1383,11 +1340,7 @@ func (renderer *vulkanRenderer) resizeOnce(width, height uint32) error {
 		return nil
 	}
 	if width == renderer.width && height == renderer.height {
-		// Recovery during stage can rebuild the swapchain at this extent before
-		// retrying the scene upload. That retry still needs recorded commands.
-		if renderer.commandsStaged {
-			return renderer.recordCommands(vkExtent2D{Width: width, Height: height})
-		}
+		// Stale commands are recorded when their image is next submitted.
 		return nil
 	}
 	renderer.width, renderer.height = width, height
@@ -1495,16 +1448,32 @@ func (renderer *vulkanRenderer) close() {
 		if renderer.imageAvailable != 0 {
 			renderer.api.destroySemaphore(renderer.device, renderer.imageAvailable, nil)
 		}
-		renderer.api.destroyDevice(renderer.device, nil)
 	}
+	renderer.dropDevice()
+	renderer.api = nil // the function table is the process's: see loadVulkan
+}
+
+// adopt makes the renderer draw with device's instance, queue and features.
+func (renderer *vulkanRenderer) adopt(device *vulkanDevice) {
+	renderer.instance, renderer.physical, renderer.device, renderer.queue = device.instance, device.physical, device.handle, device.queue
+	renderer.queueFamily, renderer.software, renderer.dualSource = device.queueFamily, device.software, device.dualSource
+	renderer.enabledFeatures = device.features
+}
+
+// dropDevice is the last step of a teardown, once every object the renderer
+// made on the device is destroyed: the window's surface goes, and the device is
+// released, or destroyed when the renderer owns it.
+func (renderer *vulkanRenderer) dropDevice() {
 	if renderer.surface != 0 && renderer.instance != 0 {
 		renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
 	}
-	if renderer.instance != 0 {
-		renderer.api.destroyInstance(renderer.instance, nil)
+	if renderer.shared != nil {
+		renderer.shared.release()
+		renderer.shared = nil
+		return
 	}
-	purego.Dlclose(renderer.api.library)
-	renderer.api = nil
+	owned := vulkanDevice{api: renderer.api, instance: renderer.instance, handle: renderer.device}
+	owned.destroy()
 }
 
 // noVulkan is the error for a machine that cannot draw: it wraps
@@ -1573,21 +1542,15 @@ func (renderer *vulkanRenderer) releaseDevice() {
 		if renderer.imageAvailable != 0 {
 			renderer.api.destroySemaphore(renderer.device, renderer.imageAvailable, nil)
 		}
-		renderer.api.destroyDevice(renderer.device, nil)
 	}
-	if renderer.surface != 0 && renderer.instance != 0 {
-		renderer.api.destroySurface(renderer.instance, renderer.surface, nil)
-	}
-	if renderer.instance != 0 {
-		renderer.api.destroyInstance(renderer.instance, nil)
-	}
+	renderer.dropDevice()
 	renderer.instance, renderer.surface, renderer.physical, renderer.device, renderer.queue = 0, 0, 0, 0, 0
 	renderer.fence, renderer.renderFinished, renderer.imageAvailable = 0, 0, 0
 	renderer.dualSource = false
 	renderer.hasSurfaceFormat = false
 	renderer.hasPresentMode = false
 	renderer.hasPendingCapabilities = false
-	renderer.commandsStaged = false
+	renderer.recorded = nil
 }
 
 func (renderer *vulkanRenderer) selectPresentMode() uint32 {

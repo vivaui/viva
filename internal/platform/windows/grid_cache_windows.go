@@ -108,19 +108,19 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 			release(&layout)
 		}
 	}()
-	if err := hresult(comCall(layout, writeGetMetrics, uintptr(unsafe.Pointer(&shaped.metrics)))); err != nil {
+	if err := hresult(comCall1(layout, writeGetMetrics, uintptr(unsafe.Pointer(&shaped.metrics)))); err != nil {
 		return nil, err
 	}
 	var lines uint32
-	if err := hresult(comCall(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&shaped.line)), 1, uintptr(unsafe.Pointer(&lines)))); err != nil && lines == 0 {
+	if err := hresult(comCall3(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&shaped.line)), 1, uintptr(unsafe.Pointer(&lines)))); err != nil && lines == 0 {
 		return nil, err
 	}
 	all := uint64(shaped.chars) << 32
 	if run.Underline {
-		comCall(layout, writeSetUnderline, 1, uintptr(all))
+		comCall2(layout, writeSetUnderline, 1, uintptr(all))
 	}
 	if run.Strike {
-		comCall(layout, writeSetStrikethrough, 1, uintptr(all))
+		comCall2(layout, writeSetStrikethrough, 1, uintptr(all))
 	}
 	if !run.Ligatures && pitch > 0 && printableASCII(piece) {
 		// Every character stands on its cell, whatever the advance of the font.
@@ -143,7 +143,7 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 // setCharacterSpacing gives a layout direct-write's per-range character spacing.
 func (rasterizer *directRasterizer) setCharacterSpacing(layout uintptr, trailing float32, span uint64) {
 	var extended uintptr
-	if comCall(layout, 0, uintptr(unsafe.Pointer(&writeLayout1IID)), uintptr(unsafe.Pointer(&extended))) != 0 || extended == 0 {
+	if comCall2(layout, 0, uintptr(unsafe.Pointer(&writeLayout1IID)), uintptr(unsafe.Pointer(&extended))) != 0 || extended == 0 {
 		return
 	}
 	defer release(&extended)

@@ -205,7 +205,7 @@ func TestAWindowFollowsAnOLEDragOverIt(t *testing.T) {
 	}
 	const copyEffect, allEffects = 1, 1 | 2 | 4
 	effect := uint32(allEffects)
-	comCall(target, 3, object, 0, at(40, 20), uintptr(unsafe.Pointer(&effect)))
+	comCall4(target, 3, object, 0, at(40, 20), uintptr(unsafe.Pointer(&effect)))
 	if event := next(); event.Phase != platform.FileDropOver || event.X < 39 || event.X > 41 || event.Y < 19 || event.Y > 21 {
 		t.Fatalf("enter reported %+v", event)
 	}
@@ -213,19 +213,19 @@ func TestAWindowFollowsAnOLEDragOverIt(t *testing.T) {
 		t.Fatalf("a point that takes files answered effect %d, want copy", effect)
 	}
 	effect = allEffects
-	comCall(target, 4, 0, at(60, 30), uintptr(unsafe.Pointer(&effect)))
+	comCall3(target, 4, 0, at(60, 30), uintptr(unsafe.Pointer(&effect)))
 	if event := next(); event.Phase != platform.FileDropOver || event.X < 59 || event.X > 61 {
 		t.Fatalf("move reported %+v", event)
 	}
-	comCall(target, 5)
+	comCall0(target, 5)
 	if event := next(); event.Phase != platform.FileDropLeave {
 		t.Fatalf("leave reported %+v", event)
 	}
 	effect = allEffects
-	comCall(target, 3, object, 0, at(10, 10), uintptr(unsafe.Pointer(&effect)))
+	comCall4(target, 3, object, 0, at(10, 10), uintptr(unsafe.Pointer(&effect)))
 	next()
 	effect = allEffects
-	comCall(target, 6, object, 0, at(70, 40), uintptr(unsafe.Pointer(&effect)))
+	comCall4(target, 6, object, 0, at(70, 40), uintptr(unsafe.Pointer(&effect)))
 	event := next()
 	if event.Phase != platform.FileDropDrop || len(event.Paths) != 2 || event.Paths[0] != `C:\Temp\one.txt` || event.X < 69 || event.X > 71 {
 		t.Fatalf("drop reported %+v", event)
@@ -246,7 +246,7 @@ func TestAWindowThatRefusesFilesShowsTheNoDropCursor(t *testing.T) {
 	defer closeWindow()
 	data := &fakeDataObject{table: &fakeDataTable, drop: buildDrop(t, true, 0, 0, `C:\Temp\one.txt`)}
 	effect := uint32(1 | 2 | 4)
-	comCall(uintptr(unsafe.Pointer(state.drop)), 3, uintptr(unsafe.Pointer(data)), 0, 0, uintptr(unsafe.Pointer(&effect)))
+	comCall4(uintptr(unsafe.Pointer(state.drop)), 3, uintptr(unsafe.Pointer(data)), 0, 0, uintptr(unsafe.Pointer(&effect)))
 	if effect != 0 {
 		t.Fatalf("a refusing point answered effect %d", effect)
 	}

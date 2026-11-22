@@ -689,6 +689,7 @@ type Canvas struct {
 	triangles   []Triangle
 	shadows     []Shadow
 	images      []Image
+	tails       canvasTails // see releaseTail
 	nativeViews []NativeView
 	texts       []Text
 	runs        []TextRun
@@ -762,6 +763,8 @@ type Canvas struct {
 	// it. A menu row uses it to tell the menu's own padding from the world outside
 	// the menu.
 	onSurface bool
+	// titlebarLeading and titlebarTrailing are the window's TitlebarInsets.
+	titlebarLeading, titlebarTrailing float32
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -1060,6 +1063,14 @@ func (canvas *Canvas) Trim() {
 	if canvas.previous.keep {
 		canvas.trimPrevious()
 	}
+	// A list cut short by Reset keeps what it held in its array: a picture no
+	// longer drawn, the labels of hits that are gone. Clear what this paint did
+	// not reach of what an earlier one did.
+	releaseTail(canvas.images, &canvas.tails.images)
+	releaseTail(canvas.texts, &canvas.tails.texts)
+	releaseTail(canvas.hits, &canvas.tails.hits)
+	releaseTail(canvas.hitTexts, &canvas.tails.hitTexts)
+	releaseTail(canvas.nativeViews, &canvas.tails.nativeViews)
 	canvas.rectangles = trimCapacity(canvas.rectangles)
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)
@@ -2073,6 +2084,20 @@ func (canvas *Canvas) PointerOnSurface() bool {
 // BlockSurface. It is runtime-facing; application paint code should only read it.
 func (canvas *Canvas) SetPointerOnSurface(on bool) {
 	canvas.onSurface = on
+}
+
+// TitlebarInsets is how much of the titlebar strip a page draws itself the
+// window buttons cover: leading at its start, trailing at its end, in logical
+// pixels. Both are zero for a window whose titlebar is the system's and for one
+// in full screen. A page keeps the strip's own content clear of them.
+func (canvas *Canvas) TitlebarInsets() (leading, trailing float32) {
+	return canvas.titlebarLeading, canvas.titlebarTrailing
+}
+
+// SetTitlebarInsets records the window's TitlebarInsets; the runtime calls it
+// before each paint.
+func (canvas *Canvas) SetTitlebarInsets(leading, trailing float32) {
+	canvas.titlebarLeading, canvas.titlebarTrailing = leading, trailing
 }
 
 // HoverCrossed reports whether the pointer reached a different hit since the

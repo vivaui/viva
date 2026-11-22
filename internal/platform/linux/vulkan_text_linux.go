@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"hash/maphash"
 	"math"
-	"runtime"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
@@ -38,6 +37,7 @@ const (
 	vkSamplerMipmapLinear                    = 1
 	vkSamplerAddressClampEdge                = 2
 	vkCommandOneTimeSubmit                   = 1
+	vkCommandPoolResetCommandBuffer          = 2
 	vkMaximumTextLabels                      = 2048
 )
 
@@ -161,7 +161,10 @@ type vulkanLabelTexture struct {
 	label                    platform.TextLabel
 	runs                     []gfx.TextRun
 	image, memory, view, set uintptr
-	scale                    float32
+	// slice is where memory came from: a span of the pool's block, or its own.
+	slice imageSlice
+	pool  *imagePool
+	scale float32
 	// width and height are the texture's size in device pixels.
 	width, height int
 	// skip is the device column of the label the texture starts at: a line wider than a
@@ -194,6 +197,11 @@ type vulkanText struct {
 	used        []bool
 	candidates  map[vulkanTextureKey]int
 	reordered   []vulkanLabelTexture
+	// generation counts the uploads that replaced label textures: commands that
+	// bind the old ones are stale once it moves.
+	generation uint64
+	staging    textStaging
+	images     imagePool
 }
 
 type vulkanTextureKey struct {
@@ -245,8 +253,6 @@ func textureKey(label platform.TextLabel) vulkanTextureKey {
 	}
 	return key
 }
-
-type vulkanStagingBuffer struct{ buffer, memory uintptr }
 
 func registerVulkanText(api *vulkanAPI, library uintptr) {
 	puregoRegister(&api.createImage, library, "vkCreateImage")
@@ -685,17 +691,16 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32, vie
 	if !dirty {
 		return nil
 	}
+	textState.generation++
+	// The last upload's copies are done before its chunks, its command buffer
+	// and the images below are reused or replaced.
+	if err := textState.staging.begin(renderer); err != nil {
+		return err
+	}
 	begin := vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo, Flags: vkCommandOneTimeSubmit}
 	if err := vkCheck(renderer.api.beginCommandBuffer(renderer.uploadCommand, &begin), "begin text upload"); err != nil {
 		return err
 	}
-	staging := make([]vulkanStagingBuffer, 0, len(textState.labels))
-	closeStaging := func() {
-		for index := range staging {
-			staging[index].close(renderer)
-		}
-	}
-	defer closeStaging()
 	for index := range textState.labels {
 		label := &textState.labels[index]
 		if !label.needsUpload(scale, viewport) {
@@ -737,11 +742,9 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32, vie
 			}
 			spans = textState.services.spans
 		}
-		stage, err := label.createImage(renderer, textState, renderer.uploadCommand, pixels, uint32(width), uint32(height))
-		if err != nil {
+		if err := label.createImage(renderer, textState, renderer.uploadCommand, pixels, uint32(width), uint32(height)); err != nil {
 			return fmt.Errorf("linux: upload label %d: %w", index, err)
 		}
-		staging = append(staging, stage)
 		label.scale, label.lcd = scale, lcd
 		label.width, label.height, label.skip, label.wide = width, height, skip, wide
 		label.spans = append(label.spans[:0], spans...) // after createImage, which clears the label
@@ -749,12 +752,9 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32, vie
 	if err := vkCheck(renderer.api.endCommandBuffer(renderer.uploadCommand), "end text upload"); err != nil {
 		return err
 	}
-	command := renderer.uploadCommand
-	submit := vkSubmitInfo{SType: vkStructureSubmitInfo, CommandCount: 1, Commands: &command}
-	if err := vkCheck(renderer.api.queueSubmit(renderer.queue, 1, &submit, 0), "submit text upload"); err != nil {
-		return err
-	}
-	return vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait for text upload")
+	// The frame drawn after this reads the images through the barriers recorded
+	// with the copies: nothing waits for the device here.
+	return textState.staging.submit(renderer, renderer.uploadCommand)
 }
 
 // Reserve up to sixteen cells on a grid row, so a pixel-by-pixel window resize
@@ -793,16 +793,15 @@ func tightBitmap(source []byte, width, height, stride int) []byte {
 	return pixels
 }
 
-func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState *vulkanText, command uintptr, pixels []byte, width, height uint32) (vulkanStagingBuffer, error) {
+func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState *vulkanText, command uintptr, pixels []byte, width, height uint32) error {
 	label.closeImage(renderer)
-	stage, err := createTextStaging(renderer, pixels)
+	buffer, offset, err := textState.staging.stage(renderer, pixels)
 	if err != nil {
-		return vulkanStagingBuffer{}, err
+		return err
 	}
 	failed := true
 	defer func() {
 		if failed {
-			stage.close(renderer)
 			label.closeImage(renderer)
 		}
 	}()
@@ -813,20 +812,21 @@ func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState
 		Usage: vkImageUsageTransferDestination | vkImageUsageSampled, SharingMode: vkSharingExclusive,
 	}
 	if err := vkCheck(renderer.api.createImage(renderer.device, &imageInfo, nil, &label.image), "create text image"); err != nil {
-		return vulkanStagingBuffer{}, err
+		return err
 	}
 	var requirements vkMemoryRequirements
 	renderer.api.getImageMemoryRequirements(renderer.device, label.image, &requirements)
 	memoryType, ok := renderer.memoryType(requirements.MemoryTypeBits, vkMemoryDeviceLocal)
 	if !ok {
-		return vulkanStagingBuffer{}, fmt.Errorf("Vulkan device has no device-local image memory")
+		return fmt.Errorf("Vulkan device has no device-local image memory")
 	}
-	allocation := vkMemoryAllocateInfo{SType: vkStructureMemoryAllocateInfo, AllocationSize: requirements.Size, MemoryTypeIndex: memoryType}
-	if err := vkCheck(renderer.api.allocateMemory(renderer.device, &allocation, nil, &label.memory), "allocate text image memory"); err != nil {
-		return vulkanStagingBuffer{}, err
+	memory, slice, err := textState.images.allocate(renderer, memoryType, requirements)
+	if err != nil {
+		return err
 	}
-	if err := vkCheck(renderer.api.bindImageMemory(renderer.device, label.image, label.memory, 0), "bind text image memory"); err != nil {
-		return vulkanStagingBuffer{}, err
+	label.memory, label.slice, label.pool = memory, slice, &textState.images
+	if err := vkCheck(renderer.api.bindImageMemory(renderer.device, label.image, label.memory, slice.offset), "bind text image memory"); err != nil {
+		return err
 	}
 	barrier := vkImageMemoryBarrier{
 		SType: vkStructureImageMemoryBarrier, OldLayout: vkImageLayoutUndefined, NewLayout: vkImageLayoutTransferDestination,
@@ -834,8 +834,8 @@ func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState
 		Range: vkSubresourceRange{Aspect: vkImageAspectColor, LevelCount: 1, LayerCount: 1}, DestinationAccess: vkAccessTransferWrite,
 	}
 	renderer.api.cmdPipelineBarrier(command, vkPipelineStageTop, vkPipelineStageTransfer, 0, 0, nil, 0, nil, 1, &barrier)
-	region := vkBufferImageCopy{ImageSubresource: vkImageSubresourceLayers{Aspect: vkImageAspectColor, LayerCount: 1}, ImageExtent: vkExtent3D{Width: width, Height: height, Depth: 1}}
-	renderer.api.cmdCopyBufferToImage(command, stage.buffer, label.image, vkImageLayoutTransferDestination, 1, &region)
+	region := vkBufferImageCopy{BufferOffset: offset, ImageSubresource: vkImageSubresourceLayers{Aspect: vkImageAspectColor, LayerCount: 1}, ImageExtent: vkExtent3D{Width: width, Height: height, Depth: 1}}
+	renderer.api.cmdCopyBufferToImage(command, buffer, label.image, vkImageLayoutTransferDestination, 1, &region)
 	barrier.SourceAccess = vkAccessTransferWrite
 	barrier.DestinationAccess = vkAccessShaderRead
 	barrier.OldLayout = vkImageLayoutTransferDestination
@@ -843,62 +843,19 @@ func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState
 	renderer.api.cmdPipelineBarrier(command, vkPipelineStageTransfer, vkPipelineStageFragment, 0, 0, nil, 0, nil, 1, &barrier)
 	viewInfo := vkImageViewCreateInfo{SType: vkStructureImageViewCreateInfo, Image: label.image, ViewType: vkImageViewType2D, Format: vkFormatBGRA8, Range: vkSubresourceRange{Aspect: vkImageAspectColor, LevelCount: 1, LayerCount: 1}}
 	if err := vkCheck(renderer.api.createImageView(renderer.device, &viewInfo, nil, &label.view), "create text image view"); err != nil {
-		return vulkanStagingBuffer{}, err
+		return err
 	}
 	if label.set == 0 {
 		allocate := vkDescriptorSetAllocateInfo{SType: vkStructureDescriptorSetAllocateInfo, Pool: textState.descriptorPool, SetCount: 1, SetLayouts: &textState.descriptorLayout}
 		if err := vkCheck(renderer.api.allocateDescriptorSets(renderer.device, &allocate, &label.set), "allocate text descriptor"); err != nil {
-			return vulkanStagingBuffer{}, err
+			return err
 		}
 	}
 	imageDescriptor := vkDescriptorImageInfo{Sampler: textState.sampler, ImageView: label.view, ImageLayout: vkImageLayoutShaderReadOnly}
 	write := vkWriteDescriptorSet{SType: vkStructureWriteDescriptorSet, DestinationSet: label.set, DescriptorCount: 1, DescriptorType: vkDescriptorCombinedImageSampler, ImageInfo: &imageDescriptor}
 	renderer.api.updateDescriptorSets(renderer.device, 1, &write, 0, nil)
 	failed = false
-	return stage, nil
-}
-
-func createTextStaging(renderer *vulkanRenderer, pixels []byte) (vulkanStagingBuffer, error) {
-	var stage vulkanStagingBuffer
-	info := vkBufferCreateInfo{SType: vkStructureBufferCreateInfo, Size: uint64(len(pixels)), Usage: vkBufferUsageTransferSource, SharingMode: vkSharingExclusive}
-	if err := vkCheck(renderer.api.createBuffer(renderer.device, &info, nil, &stage.buffer), "create text staging buffer"); err != nil {
-		return stage, err
-	}
-	var requirements vkMemoryRequirements
-	renderer.api.getBufferMemoryRequirements(renderer.device, stage.buffer, &requirements)
-	memoryType, ok := renderer.memoryType(requirements.MemoryTypeBits, vkMemoryHostVisible|vkMemoryHostCoherent)
-	if !ok {
-		stage.close(renderer)
-		return stage, fmt.Errorf("Vulkan device has no coherent staging memory")
-	}
-	allocation := vkMemoryAllocateInfo{SType: vkStructureMemoryAllocateInfo, AllocationSize: requirements.Size, MemoryTypeIndex: memoryType}
-	if err := vkCheck(renderer.api.allocateMemory(renderer.device, &allocation, nil, &stage.memory), "allocate text staging memory"); err != nil {
-		stage.close(renderer)
-		return stage, err
-	}
-	if err := vkCheck(renderer.api.bindBufferMemory(renderer.device, stage.buffer, stage.memory, 0), "bind text staging memory"); err != nil {
-		stage.close(renderer)
-		return stage, err
-	}
-	var mapped unsafe.Pointer
-	if err := vkCheck(renderer.api.mapMemory(renderer.device, stage.memory, 0, uint64(len(pixels)), 0, &mapped), "map text staging memory"); err != nil {
-		stage.close(renderer)
-		return stage, err
-	}
-	copy(unsafe.Slice((*byte)(mapped), len(pixels)), pixels)
-	runtime.KeepAlive(pixels)
-	renderer.api.unmapMemory(renderer.device, stage.memory)
-	return stage, nil
-}
-
-func (stage *vulkanStagingBuffer) close(renderer *vulkanRenderer) {
-	if stage.buffer != 0 {
-		renderer.api.destroyBuffer(renderer.device, stage.buffer, nil)
-	}
-	if stage.memory != 0 {
-		renderer.api.freeMemory(renderer.device, stage.memory, nil)
-	}
-	stage.buffer, stage.memory = 0, 0
+	return nil
 }
 
 func (textState *vulkanText) record(renderer *vulkanRenderer, command uintptr, extent vkExtent2D, index int) {
@@ -1023,6 +980,7 @@ func (label *vulkanLabelTexture) closeImage(renderer *vulkanRenderer) {
 	if renderer == nil || renderer.api == nil || renderer.device == 0 {
 		label.image, label.memory, label.view, label.scale, label.lcd = 0, 0, 0, 0, false
 		label.width, label.height, label.spans = 0, 0, label.spans[:0]
+		label.slice, label.pool = imageSlice{}, nil
 		return
 	}
 	if label.view != 0 {
@@ -1031,10 +989,13 @@ func (label *vulkanLabelTexture) closeImage(renderer *vulkanRenderer) {
 	if label.image != 0 {
 		renderer.api.destroyImage(renderer.device, label.image, nil)
 	}
-	if label.memory != 0 {
+	if label.pool != nil {
+		label.pool.release(renderer, label.memory, label.slice)
+	} else if label.memory != 0 {
 		renderer.api.freeMemory(renderer.device, label.memory, nil)
 	}
 	label.image, label.memory, label.view, label.scale, label.lcd = 0, 0, 0, 0, false
+	label.slice, label.pool = imageSlice{}, nil
 	label.width, label.height, label.spans = 0, 0, label.spans[:0]
 }
 
@@ -1053,9 +1014,12 @@ func (textState *vulkanText) destroyPipeline(renderer *vulkanRenderer) {
 
 func (textState *vulkanText) close(renderer *vulkanRenderer) {
 	textState.destroyPipeline(renderer)
+	textState.staging.close(renderer)
 	for index := range textState.labels {
 		textState.labels[index].closeImage(renderer)
 	}
+	textState.images.close(renderer)
+
 	if renderer != nil && renderer.api != nil && renderer.device != 0 {
 		if textState.descriptorPool != 0 {
 			renderer.api.destroyDescriptorPool(renderer.device, textState.descriptorPool, nil)
@@ -1080,11 +1044,14 @@ func (textState *vulkanText) close(renderer *vulkanRenderer) {
 // the next time the textures are made.
 func (textState *vulkanText) release(renderer *vulkanRenderer) {
 	textState.destroyPipeline(renderer)
+	textState.staging.close(renderer)
 	for index := range textState.labels {
 		textState.labels[index].closeImage(renderer)
 		// The sets went with the pool below.
 		textState.labels[index].set = 0
 	}
+	textState.images.close(renderer)
+
 	if renderer.api != nil && renderer.device != 0 {
 		if textState.descriptorPool != 0 {
 			renderer.api.destroyDescriptorPool(renderer.device, textState.descriptorPool, nil)

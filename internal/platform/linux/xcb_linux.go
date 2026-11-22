@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -289,6 +290,10 @@ type pollFD struct {
 type xcbAPI struct {
 	library uintptr
 	libc    uintptr
+	// atoms, when set, keeps the atoms atom resolved: an atom names the same
+	// thing for as long as the X server runs, so a connection that resolves the
+	// same names again and again (the selection client) asks once.
+	atoms map[string]uint32
 
 	connect                   func(*byte, *int32) uintptr
 	disconnect                func(uintptr)
@@ -350,7 +355,27 @@ type xcbAPI struct {
 	free                      func(unsafe.Pointer)
 }
 
+// loadXCB gives a copy of the process's libxcb and libc function table: the
+// libraries are opened and bound the first time a window, the clipboard or a
+// desktop setting needs them and kept for the life of the process, as the Pango
+// services are; a failure is kept too. Each caller owns its copy, so one window's
+// table can be wrapped (as tests do) without reaching another's.
 func loadXCB() (*xcbAPI, error) {
+	xcbOnce.Do(func() { xcbShared, xcbErr = openXCB() })
+	if xcbErr != nil {
+		return nil, xcbErr
+	}
+	api := *xcbShared
+	return &api, nil
+}
+
+var (
+	xcbOnce   sync.Once
+	xcbShared *xcbAPI
+	xcbErr    error
+)
+
+func openXCB() (*xcbAPI, error) {
 	library, err := purego.Dlopen("libxcb.so.1", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil, fmt.Errorf("linux: load libxcb: %w", err)
@@ -422,12 +447,10 @@ func loadXCB() (*xcbAPI, error) {
 	return api, nil
 }
 
-func (api *xcbAPI) close() {
-	purego.Dlclose(api.libc)
-	purego.Dlclose(api.library)
-}
-
 func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
+	if atom, ok := api.atoms[name]; ok {
+		return atom, nil
+	}
 	value := append([]byte(name), 0)
 	cookie := api.internAtom(connection, 0, uint16(len(value)-1), &value[0])
 	var nativeError unsafe.Pointer
@@ -443,5 +466,8 @@ func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
 		return 0, fmt.Errorf("linux: resolve X atom %q", name)
 	}
 	defer api.free(unsafe.Pointer(reply))
+	if api.atoms != nil {
+		api.atoms[name] = reply.Atom
+	}
 	return reply.Atom, nil
 }

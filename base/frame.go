@@ -198,6 +198,8 @@ type Extra struct {
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
 	within        Rect             // what a Popup is kept inside, when not the frame; empty for the frame
 	moves         bool             // the element's rectangle moves a custom-titlebar window (MovesWindow)
+	contained     bool             // a Container: its width does not come from its children (responsive.go)
+	hidden        bool             // Hide: the element and what it holds are taken out of the page (hidden.go)
 	scrollManual  bool             // ScrollAt: the application owns the offset and wheel input
 	nativeView    gfx.NativeViewID // the native view that fills the element (NativeView)
 	bind          int32            // 1 + the index of the element's binding in frame.binds, or 0 (see bind.go)
@@ -246,6 +248,7 @@ type Frame struct {
 	Images                          []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts                            []Extra            // exts[0] is never written: an element without extras points at it
 	Floats                          []int32            // the Popups, which belong to no container
+	hidden                          []int32            // the elements Hide was called on, taken out of the page at End
 	States                          []stateLooks       // what Hover, Pressed and Focus declared, by element
 	Draws                           []drawHooks        // what Draw and DrawOver declared, by element
 	memoDepth                       int                // how many Memos of a page are recording what is declared now
@@ -284,14 +287,18 @@ type Frame struct {
 	Ellipses         []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	Wraps            []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor       int
-	scratch          scratch       // memory the layout borrows, see scratch.go
-	layoutCtx        LayoutContext // the context a CustomLayout is handed, reused
-	Scrolls          scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
-	Parent           int32
-	bounds           Rect
-	gen              uint32 // the paint this frame is declaring; a Box names it
-	shiftedX         bool   // a CustomLayout moved children after their width was solved
-	done             bool
+	// tails is how long each reused slice that holds pointers was when the last
+	// frame ended: what lies past its length up to there is the last frame's,
+	// cleared by releaseTail so a page that shrank does not keep it reachable.
+	tails     frameTails
+	scratch   scratch       // memory the layout borrows, see scratch.go
+	layoutCtx LayoutContext // the context a CustomLayout is handed, reused
+	Scrolls   scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
+	Parent    int32
+	bounds    Rect
+	gen       uint32 // the paint this frame is declaring; a Box names it
+	shiftedX  bool   // a CustomLayout moved children after their width was solved
+	done      bool
 }
 
 // view keeps the memory a page is laid out in between frames. It is the engine
@@ -337,6 +344,7 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
+	f.hidden = f.hidden[:0]
 	f.States, f.Gradients, f.Stops = f.States[:0], f.Gradients[:0], f.Stops[:0]
 	clear(f.Draws) // a callback holds what it captured: not past the frame it was declared in
 	f.Draws = f.Draws[:0]
@@ -373,6 +381,7 @@ func (f *Frame) End() {
 	f.done = true
 	f.checkHits()
 	f.checkAttributes()
+	f.detachHidden()
 	f.applyRecipes()
 	f.resolveTables()
 	f.resolveDialogFocus()
@@ -428,14 +437,25 @@ func (f *Frame) End() {
 // (Rect, Clicked, TabClicked and so on) stay valid.
 func (f *Frame) trim() {
 	// Cache entries past the wrapped texts this frame declared belong to a
-	// larger page that is gone. Drop them before trimming the outer slices so
-	// their strings do not stay reachable.
+	// larger page that is gone: they are cut off here and cleared below.
 	if f.wrapCursor < len(f.Wraps) {
 		f.Wraps = f.Wraps[:f.wrapCursor]
 	}
 	if f.wrapCursor < len(f.Ellipses) {
 		f.Ellipses = f.Ellipses[:f.wrapCursor]
 	}
+	// A slice cut short keeps what it held in its array: a picture an Image no
+	// longer shows, a CustomLayout, the strings of rows that are gone. Clear what
+	// this frame did not reach of what the last one did.
+	releaseTail(f.Nodes, &f.tails.nodes)
+	releaseTail(f.Exts, &f.tails.exts)
+	releaseTail(f.Images, &f.tails.images)
+	releaseTail(f.Lines, &f.tails.lines)
+	releaseTail(f.addons, &f.tails.addons)
+	releaseTail(f.States, &f.tails.states)
+	releaseTail(f.Stops, &f.tails.stops)
+	releaseTail(f.Wraps, &f.tails.wraps)
+	releaseTail(f.Ellipses, &f.tails.ellipses)
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.Nodes = trimFlexCapacity(f.Nodes)
 	f.Images = trimFlexCapacity(f.Images)
@@ -443,6 +463,7 @@ func (f *Frame) trim() {
 	f.Draws = trimFlexCapacity(f.Draws)
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
+	f.hidden = trimFlexCapacity(f.hidden)
 	f.Lines = trimFlexCapacity(f.Lines)
 	f.Ellipses = trimFlexCapacity(f.Ellipses)
 	f.Wraps = trimFlexCapacity(f.Wraps)

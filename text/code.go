@@ -57,25 +57,19 @@ func isIndentRune(r rune) bool { return r == ' ' || r == '\t' }
 
 // lineStartAt is the index of the first rune of the line that contains index.
 func (editor *Editor) lineStartAt(index int) int {
-	for index > 0 && editor.runes[index-1] != '\n' {
-		index--
-	}
-	return index
+	return editor.runes.LineStart(index)
 }
 
 // lineEndAt is the index of the newline that ends the line containing index, or
 // the length of the text.
 func (editor *Editor) lineEndAt(index int) int {
-	for index < len(editor.runes) && editor.runes[index] != '\n' {
-		index++
-	}
-	return index
+	return editor.runes.LineEnd(index)
 }
 
 // indentEnd is the index of the first rune of [start, end) that is not a space
 // or a tab: where the text of the line begins.
 func (editor *Editor) indentEnd(start, end int) int {
-	for start < end && isIndentRune(editor.runes[start]) {
+	for start < end && isIndentRune(editor.runes.At(start)) {
 		start++
 	}
 	return start
@@ -94,7 +88,7 @@ func cellsOf(r rune, column, tabWidth int) int {
 func (editor *Editor) column(index, tabWidth int) int {
 	column := 0
 	for at := editor.lineStartAt(index); at < index; at++ {
-		column += cellsOf(editor.runes[at], column, tabWidth)
+		column += cellsOf(editor.runes.At(at), column, tabWidth)
 	}
 	return column
 }
@@ -107,8 +101,8 @@ func (editor *Editor) editBlock(target Range, replacement []rune, anchor, caret 
 	before := editor.selectionState()
 	change := editor.replace(target, string(replacement), false)
 	editor.clearSecondary()
-	editor.anchor = clamp(anchor, 0, len(editor.runes))
-	editor.caret = clamp(caret, 0, len(editor.runes))
+	editor.anchor = clamp(anchor, 0, editor.runes.Len())
+	editor.caret = clamp(caret, 0, editor.runes.Len())
 	editor.composing = false
 	editor.releaseCompositionHistory()
 	editor.record(change, before, editor.selectionState(), editSeparate)
@@ -122,7 +116,7 @@ func (editor *Editor) selectedLines() (first, last int) {
 	selection := editor.Selection()
 	first = editor.lineStartAt(selection.Start)
 	end := selection.End
-	if end > selection.Start && editor.runes[end-1] == '\n' {
+	if end > selection.Start && editor.runes.At(end-1) == '\n' {
 		end--
 	}
 	return first, editor.lineEndAt(end)
@@ -148,7 +142,7 @@ func (editor *Editor) transformLines(first, last int, transform func(line []rune
 	)
 	for position := first; ; {
 		end := editor.lineEndAt(position)
-		out, change := transform(editor.runes[position:end])
+		out, change := transform(editor.runes.Slice(position, end))
 		oldStarts = append(oldStarts, position)
 		newStarts = append(newStarts, first+len(block))
 		changes = append(changes, change)
@@ -196,19 +190,19 @@ func (editor *Editor) InsertNewlineCode(options CodeOptions) {
 	selection := editor.Selection()
 	start := editor.lineStartAt(selection.Start)
 	indentEnd := min(editor.indentEnd(start, selection.Start), selection.Start)
-	indent := append([]rune(nil), editor.runes[start:indentEnd]...)
+	indent := editor.runes.Slice(start, indentEnd)
 	blank := indentEnd == selection.Start // nothing but indentation before the caret
 	extra := false
 	for at := selection.Start; at > start; at-- {
-		if r := editor.runes[at-1]; !isIndentRune(r) {
+		if r := editor.runes.At(at - 1); !isIndentRune(r) {
 			extra = containsRune(options.IndentAfter, r)
 			break
 		}
 	}
 	hasCloser := false
-	if extra && selection.End < len(editor.runes) {
+	if extra && selection.End < editor.runes.Len() {
 		if previous, ok := editor.previousCodeRune(selection.Start, start); ok {
-			hasCloser = isBracket(previous) && closerOf(previous) == editor.runes[selection.End]
+			hasCloser = isBracket(previous) && closerOf(previous) == editor.runes.At(selection.End)
 		}
 	}
 	text := append([]rune{'\n'}, indent...)
@@ -231,7 +225,7 @@ func (editor *Editor) InsertNewlineCode(options CodeOptions) {
 // lineStart that is not a space or a tab.
 func (editor *Editor) previousCodeRune(index, lineStart int) (rune, bool) {
 	for at := index; at > lineStart; at-- {
-		if r := editor.runes[at-1]; !isIndentRune(r) {
+		if r := editor.runes.At(at - 1); !isIndentRune(r) {
 			return r, true
 		}
 	}
@@ -247,7 +241,7 @@ func (editor *Editor) InsertTabCode(options CodeOptions) {
 		return
 	}
 	selection := editor.Selection()
-	if selection.Start != selection.End && containsRuneIn(editor.runes[selection.Start:selection.End], '\n') {
+	if selection.Start != selection.End && containsRuneIn(editor.runes.Slice(selection.Start, selection.End), '\n') {
 		editor.indentLines(options)
 		return
 	}
@@ -330,7 +324,7 @@ func (editor *Editor) ToggleLineComment(options CodeOptions) {
 			if depth := text - position; shallowest < 0 || depth < shallowest {
 				shallowest = depth
 			}
-			if !hasRunePrefix(editor.runes[text:end], prefix) {
+			if !hasRunePrefix(editor.runes.Slice(text, end), prefix) {
 				allCommented = false
 			}
 		}
@@ -401,11 +395,11 @@ func (editor *Editor) DuplicateLines(up bool) {
 	}
 	first, last := editor.selectedLines()
 	if up {
-		block := append(append([]rune(nil), editor.runes[first:last]...), '\n')
+		block := append(editor.runes.Slice(first, last), '\n')
 		editor.editBlock(Range{Start: first, End: first}, block, editor.anchor, editor.caret)
 		return
 	}
-	block := append([]rune{'\n'}, editor.runes[first:last]...)
+	block := append([]rune{'\n'}, editor.runes.Slice(first, last)...)
 	shift := len(block)
 	editor.editBlock(Range{Start: last, End: last}, block, editor.anchor+shift, editor.caret+shift)
 }
@@ -418,23 +412,23 @@ func (editor *Editor) MoveLines(up bool) {
 		return
 	}
 	first, last := editor.selectedLines()
-	block := editor.runes[first:last]
+	block := editor.runes.Slice(first, last)
 	if up {
 		if first == 0 {
 			return
 		}
 		previousStart := editor.lineStartAt(first - 1)
-		previous := editor.runes[previousStart : first-1]
+		previous := editor.runes.Slice(previousStart, first-1)
 		moved := append(append(append([]rune(nil), block...), '\n'), previous...)
 		shift := -(len(previous) + 1)
 		editor.editBlock(Range{Start: previousStart, End: last}, moved, editor.anchor+shift, editor.caret+shift)
 		return
 	}
-	if last >= len(editor.runes) {
+	if last >= editor.runes.Len() {
 		return
 	}
 	nextEnd := editor.lineEndAt(last + 1)
-	next := editor.runes[last+1 : nextEnd]
+	next := editor.runes.Slice(last+1, nextEnd)
 	moved := append(append(append([]rune(nil), next...), '\n'), block...)
 	shift := len(next) + 1
 	editor.editBlock(Range{Start: first, End: nextEnd}, moved, editor.anchor+shift, editor.caret+shift)
@@ -449,7 +443,7 @@ func (editor *Editor) DeleteLines() {
 	first, last := editor.selectedLines()
 	start, end, caret := first, last, first
 	switch {
-	case last < len(editor.runes):
+	case last < editor.runes.Len():
 		end++ // the line's own newline goes with it
 	case first > 0:
 		start-- // the last line has none: the one before it does
@@ -479,10 +473,10 @@ func (editor *Editor) TypeCode(value string, options CodeOptions) {
 	case opens && selection.Start != selection.End:
 		wrapped := make([]rune, 0, selection.End-selection.Start+2)
 		wrapped = append(wrapped, typed)
-		wrapped = append(wrapped, editor.runes[selection.Start:selection.End]...)
+		wrapped = append(wrapped, editor.runes.Slice(selection.Start, selection.End)...)
 		wrapped = append(wrapped, closer)
 		editor.editBlock(selection, wrapped, selection.Start+1, selection.End+1)
-	case selection.Start == selection.End && isCloserOrQuote(typed) && editor.caret < len(editor.runes) && editor.runes[editor.caret] == typed:
+	case selection.Start == selection.End && isCloserOrQuote(typed) && editor.caret < editor.runes.Len() && editor.runes.At(editor.caret) == typed:
 		editor.MoveTo(editor.caret+1, false)
 	case opens && selection.Start == selection.End && editor.mayPair(typed, editor.caret):
 		editor.editBlock(selection, []rune{typed, closer}, selection.Start+1, selection.Start+1)
@@ -493,14 +487,14 @@ func (editor *Editor) TypeCode(value string, options CodeOptions) {
 
 // mayPair reports whether an opener typed at index should insert its closer.
 func (editor *Editor) mayPair(typed rune, index int) bool {
-	if index < len(editor.runes) {
-		next := editor.runes[index]
+	if index < editor.runes.Len() {
+		next := editor.runes.At(index)
 		if !isIndentRune(next) && next != '\n' && !containsRune(";:.,=}])> ", next) {
 			return false
 		}
 	}
 	if isQuoteRune(typed) && index > 0 {
-		previous := editor.runes[index-1]
+		previous := editor.runes.At(index - 1)
 		if previous == typed || previous == '\\' || isWordRune(previous) {
 			return false
 		}
@@ -521,9 +515,9 @@ func (editor *Editor) DeleteBackwardCode(options CodeOptions) {
 		return
 	}
 	caret := selection.Start
-	previous := editor.runes[caret-1]
-	if options.AutoClose && caret < len(editor.runes) {
-		if closer, ok := pairCloser(previous); ok && editor.runes[caret] == closer {
+	previous := editor.runes.At(caret - 1)
+	if options.AutoClose && caret < editor.runes.Len() {
+		if closer, ok := pairCloser(previous); ok && editor.runes.At(caret) == closer {
 			before := editor.selectionState()
 			change := editor.replace(Range{Start: caret - 1, End: caret + 1}, "", false)
 			editor.collapse(caret - 1)
@@ -533,7 +527,7 @@ func (editor *Editor) DeleteBackwardCode(options CodeOptions) {
 	}
 	if options.AutoIndent && !options.HardTabs && previous == ' ' {
 		start := editor.lineStartAt(caret)
-		if onlySpaces(editor.runes[start:caret]) {
+		if onlySpaces(editor.runes.Slice(start, caret)) {
 			width := options.tabWidth()
 			remove := (caret - start) % width
 			if remove == 0 {
@@ -686,7 +680,7 @@ func (editor *Editor) Backspace() {
 // them. It ends an active composition, which the replaced text may include.
 func (editor *Editor) ReplaceRange(target Range, value string) {
 	editor.sealTentativeHistory()
-	target = normalizeRange(target, len(editor.runes))
+	target = normalizeRange(target, editor.runes.Len())
 	before := editor.selectionState()
 	change := editor.replace(target, value, false)
 	editor.clearSecondary() // one range replaced, one caret left
