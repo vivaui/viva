@@ -258,3 +258,7 @@ func TestCodeEditorCoreTextForcedLTRAppliesToEveryWrappedRow(t *testing.T) {
 func TestCodeEditorCoreTextRTLAlignsPaintAndPlacement(t *testing.T) {
 	testCodeEditorRTLAlignsPaintAndPlacement(t, darwin.SharedTextEngine())
 }
+
+func TestCodeEditorCoreTextRTLKeyboardSelectionAcrossWrap(t *testing.T) {
+	testCodeEditorRTLKeyboardSelectionAcrossWrap(t, darwin.SharedTextEngine())
+}

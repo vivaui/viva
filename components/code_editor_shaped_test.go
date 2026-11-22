@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 func testCodeEditorRTLAlignsPaintAndPlacement(t *testing.T, engine gfx.TextEngine) {
@@ -107,6 +108,84 @@ func TestCodeEditorRetainsTheClickedShapedCaretEdge(t *testing.T) {
 	f.paint()
 	if caret, ok := f.editor.CaretBounds(); !ok || !near(caret.X, left+cell) {
 		t.Errorf("turning off shape kept an alternate edge: %+v, %v", caret, ok)
+	}
+}
+
+func TestCodeEditorHorizontalMovementKeepsShapedAffinity(t *testing.T) {
+	const value = "a\u05d0\u05d1z"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	f.paint()
+	cell, _, line := f.cell()
+	left, top := f.editor.content.X, f.editor.content.Y
+	f.snapshot.Caret, _ = f.editor.OffsetAt(gfx.Point{X: left + 0.9*cell, Y: top + line/2})
+	f.paint()
+	for _, step := range []struct {
+		right  bool
+		offset int
+		column float32
+	}{{true, 3, 2}, {true, 1, 3}, {true, len(value), 4}, {true, len(value), 4}, {false, 5, 3}, {false, 3, 2}, {false, 5, 1}, {false, 0, 0}} {
+		offset, ok := f.editor.MoveHorizontal(value, f.snapshot.Caret, step.right)
+		if !ok || offset != step.offset {
+			t.Fatalf("right=%t from %d got byte %d, %t; want %d", step.right, f.snapshot.Caret, offset, ok, step.offset)
+		}
+		f.snapshot.Caret = offset
+		f.paint()
+		if caret, ok := f.editor.CaretBounds(); !ok || !near(caret.X, left+step.column*cell) {
+			t.Fatalf("right=%t to %d drew %+v, %t; want column %g", step.right, offset, caret, ok, step.column)
+		}
+	}
+	if _, ok := f.editor.MoveHorizontal(value+"!", 0, true); ok {
+		t.Fatal("movement accepted stale painted geometry")
+	}
+}
+
+func testCodeEditorRTLKeyboardSelectionAcrossWrap(t *testing.T, engine gfx.TextEngine) {
+	t.Helper()
+	const value = "\u05d0\u05d1\u05d2\u05d3"
+	doc := text.NewEditor(value)
+	doc.SetSelection(text.Range{})
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionRTL
+	f.bounds.Width = f.widthFor(2)
+	paint := func() gfx.Rect {
+		t.Helper()
+		f.snapshot.Value, f.snapshot.Caret = doc.String(), doc.ByteOffset(doc.Caret())
+		range_ := doc.Selection()
+		f.snapshot.SelectionStart, f.snapshot.SelectionEnd = doc.ByteOffset(range_.Start), doc.ByteOffset(range_.End)
+		f.paint()
+		caret, ok := f.editor.CaretBounds()
+		if !ok {
+			t.Fatal("native caret anchor missing")
+		}
+		return caret
+	}
+	move := func(want int, extend bool) gfx.Rect {
+		t.Helper()
+		at, ok := f.editor.MoveHorizontal(doc.String(), doc.ByteOffset(doc.Caret()), false)
+		if !ok || at != want {
+			t.Fatalf("Left from rune %d returned byte %d, %t; want byte %d", doc.Caret(), at, ok, want)
+		}
+		doc.MoveTo(doc.RuneIndex(at), extend)
+		return paint()
+	}
+	start, first, wrap := paint(), move(2, false), move(4, false)
+	if first.X >= start.X || wrap.X >= first.X || wrap.Y != start.Y {
+		t.Fatalf("Left did not traverse the first RTL row: %+v, %+v, %+v", start, first, wrap)
+	}
+	next := move(4, false)
+	if next.Y <= wrap.Y || next.X <= wrap.X {
+		t.Fatalf("soft wrap lost the second visual position of the same byte: before %+v, after %+v", wrap, next)
+	}
+	selected := move(6, true)
+	if selected.Y != next.Y || selected.X >= next.X || doc.Selection() != (text.Range{Start: 2, End: 3}) || len(f.fills(f.theme.Selection)) != 1 {
+		t.Fatalf("Shift+Left did not select the next RTL grapheme on the wrapped row: %+v, selection %+v", selected, doc.Selection())
+	}
+	doc.Insert("x")
+	if doc.String() != "\u05d0\u05d1x\u05d3" || !doc.Undo() || doc.String() != value || doc.Selection() != (text.Range{Start: 2, End: 3}) {
+		t.Fatalf("edit and Undo did not preserve the logical selection: text %q, range %+v", doc.String(), doc.Selection())
 	}
 }
 

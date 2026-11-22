@@ -219,6 +219,77 @@ func (editor *CodeEditor) rememberShapedHit(row codeRow, hit gfx.TextHit) {
 	}
 }
 
+// MoveHorizontal returns the next visual byte offset on a shaped row, and
+// retains its edge for the next paint. Put the document caret at that offset;
+// the caller owns selection and edit history. False means the last paint has
+// no usable shaped geometry for the move. At a document edge it handles the
+// move and returns the current offset.
+func (editor *CodeEditor) MoveHorizontal(value string, caret int, right bool) (int, bool) {
+	if editor.shaping == nil || !editor.painted || editor.text != value || len(editor.rows) == 0 {
+		return caret, false
+	}
+	caret = gridCaretStart(value, caret)
+	index := editor.rowOf(caret)
+	row := editor.rows[index]
+	x, shaped := editor.shapedCaretX(row, caret)
+	if !shaped {
+		return caret, false
+	}
+	hit, ok := stepCodeShapedRow(editor.shapedRow(row), int(row.start), x-editor.shapedRowInset(row), right)
+	if !ok {
+		// In an RTL paragraph, its next visual row lies beyond its left edge.
+		direction := editor.shaping.direction
+		if direction == gfx.DirectionAuto {
+			direction = gfx.TextDirectionOf(editor.shaping.rows[row.start].value)
+		}
+		if right == (direction != gfx.DirectionRTL) {
+			index++
+		} else {
+			index--
+		}
+		if index < 0 || index >= len(editor.rows) {
+			return caret, true
+		}
+		row = editor.rows[index]
+		x = -1
+		if !right {
+			x = float32(row.cells)*editor.cellWidth + 1
+		}
+		hit, ok = editor.shapedHit(row, editor.shapedRowInset(row)+x)
+		if !ok {
+			return caret, false
+		}
+	}
+	editor.arrive(hit.Offset, hit.Offset == int(row.end) && editor.softWrapped(index))
+	editor.rememberShapedHit(row, hit)
+	return hit.Offset, true
+}
+
+func stepCodeShapedRow(carets []gfx.FittedMonoCaret, start int, x float32, right bool) (gfx.TextHit, bool) {
+	var best gfx.TextHit
+	var distance float32
+	for i := 0; i+1 < len(carets); i++ {
+		lead, trail := carets[i].Leading, carets[i+1].Trailing
+		if lead == trail {
+			continue
+		}
+		// Take the far edge of the grapheme being traversed. At a bidi join
+		// the next grapheme's near edge can have the same X but another offset.
+		position, boundary := trail, i+1
+		if right == (lead > trail) {
+			position, boundary = lead, i
+		}
+		delta := position - x
+		if !right {
+			delta = -delta
+		}
+		if delta > 0.001 && (distance == 0 || delta < distance) {
+			best, distance = gfx.TextHit{Offset: start + carets[boundary].Offset, X: position}, delta
+		}
+	}
+	return best, distance > 0
+}
+
 func codeShapedSpans(dst []gfx.TextSpan, carets []gfx.FittedMonoCaret, start, end int) []gfx.TextSpan {
 	dst = dst[:0]
 	if start >= end {
