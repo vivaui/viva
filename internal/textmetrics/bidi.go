@@ -322,16 +322,72 @@ func absf(v float32) float32 {
 
 // OffsetAt is the byte offset of the character boundary nearest to x, a distance in
 // logical pixels from the left end of the line, which a click at x puts the caret at.
+// Of two boundaries as near, the earlier.
 func OffsetAt(value string, size, weight float32, x float32) int {
+	if !bidi.NeedsBidi(value) {
+		return NearestBoundary(value, x, func(offset int) float32 { return Width(value[:offset], size, weight) })
+	}
+	// A line read in more than one direction has carets that do not grow with the
+	// offset: every boundary is measured, against one resolution of the line.
+	table := weightIndex(weight)
+	b := bidiPool.Get().(*bidiLine)
+	b.resolve(value, table)
 	best, bestDistance := 0, float32(-1)
 	for offset := 0; ; {
-		d := absf(Caret(value, size, weight, offset) - x)
+		d := absf(float32(b.edge(value, offset))*size/unitsPerEm - x)
 		if bestDistance < 0 || d < bestDistance {
 			best, bestDistance = offset, d
 		}
 		if offset >= len(value) {
-			return best
+			break
 		}
 		offset = grapheme.Next(value, offset)
 	}
+	b.release()
+	return best
+}
+
+// NearestBoundary is the grapheme cluster boundary of value whose caret is nearest to
+// x, given carets that do not decrease along the line: caret(offset) is the caret at a
+// boundary. Of two boundaries as near, the earlier, and of a run of boundaries at one
+// caret (characters with no advance), the first. It measures a logarithmic number of
+// boundaries, so a click on a long line costs its length times that, not its square.
+func NearestBoundary(value string, x float32, caret func(offset int) float32) int {
+	if len(value) == 0 || x <= caret(0) {
+		return 0
+	}
+	lo := len(value)
+	if caret(lo) >= x {
+		// The first boundary whose caret reaches x, found by bisection: hi reaches
+		// it, lo does not.
+		var hi int
+		lo, hi = 0, len(value)
+		for {
+			mid := snap(value, lo+(hi-lo)/2)
+			if mid <= lo {
+				if mid = grapheme.Next(value, lo); mid >= hi {
+					break
+				}
+			}
+			if caret(mid) >= x {
+				hi = mid
+			} else {
+				lo = mid
+			}
+		}
+		// lo is the boundary before hi: hi when nearer, else lo.
+		if caret(hi)-x < x-caret(lo) {
+			return hi
+		}
+	}
+	// lo is the answer's caret; the first boundary at it is the answer.
+	at := caret(lo)
+	for lo > 0 {
+		before := grapheme.Prev(value, lo)
+		if caret(before) != at {
+			break
+		}
+		lo = before
+	}
+	return lo
 }

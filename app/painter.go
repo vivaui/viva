@@ -467,14 +467,19 @@ func placeUnitSelection(value string, index, unit int, anchor text.Range) TextRa
 	}
 }
 
-// rangeIsSpace reports whether a range of value holds only whitespace.
+// rangeIsSpace reports whether a range of value, in runes, holds only whitespace.
+// It reads value in place, so a drag by words through a long text allocates
+// nothing here.
 func rangeIsSpace(value string, r text.Range) bool {
-	runes := []rune(value)
-	start, end := max(0, min(r.Start, len(runes))), max(0, min(r.End, len(runes)))
-	for _, r := range runes[start:end] {
-		if !unicode.IsSpace(r) {
+	index := 0
+	for _, c := range value {
+		if index >= r.End {
+			break
+		}
+		if index >= r.Start && !unicode.IsSpace(c) {
 			return false
 		}
+		index++
 	}
 	return true
 }
