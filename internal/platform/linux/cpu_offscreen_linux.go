@@ -30,12 +30,12 @@ type CPUOffscreen struct {
 // NewCPUOffscreen is NewOffscreen for the CPU: a width x height scene in logical pixels, drawn at
 // scale device pixels per logical pixel and cleared to clear before each render.
 func NewCPUOffscreen(width, height int, scale float64, clear platform.Color) (*CPUOffscreen, error) {
-	if width < 1 || height < 1 || width > offscreenLimit || height > offscreenLimit || math.IsNaN(scale) || scale < 1 || scale > maxScale {
+	if width < 1 || height < 1 || width > platform.MaxOffscreenSize || height > platform.MaxOffscreenSize || math.IsNaN(scale) || scale < 1 || scale > maxScale {
 		return nil, fmt.Errorf("linux: invalid offscreen size %dx%d at %gx", width, height, scale)
 	}
 	deviceWidth, deviceHeight := int(math.Ceil(float64(width)*scale)), int(math.Ceil(float64(height)*scale))
-	if deviceWidth > offscreenLimit || deviceHeight > offscreenLimit {
-		return nil, fmt.Errorf("linux: offscreen size %dx%d at %gx is beyond %d device pixels", width, height, scale, offscreenLimit)
+	if deviceWidth > platform.MaxOffscreenSize || deviceHeight > platform.MaxOffscreenSize {
+		return nil, fmt.Errorf("linux: offscreen size %dx%d at %gx is beyond %d device pixels", width, height, scale, platform.MaxOffscreenSize)
 	}
 	services, err := newTextServices()
 	if err != nil {
@@ -161,7 +161,7 @@ func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32,
 		case shownWidth <= width && shownHeight <= height && (shownWidth < width || shownHeight < height):
 			return labelImage{pixels: platform.ResampleBGRA(l.Bitmap, l.BitmapStride, width, height, shownWidth, shownHeight), width: shownWidth, height: shownHeight}, true, nil
 		}
-		return labelImage{pixels: tightBitmap(l.Bitmap, width, height, l.BitmapStride), width: width, height: height}, true, nil
+		return labelImage{pixels: platform.TightBitmap(l.Bitmap, width, height, l.BitmapStride), width: width, height: height}, true, nil
 	}
 	skip, width, height, wide, shown := textWindow(l, scale, canvasWidth, have)
 	if !shown {
@@ -176,8 +176,8 @@ func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32,
 		image.spans = make([]raster.Span, len(services.spans))
 		for index, span := range services.spans {
 			image.spans[index] = raster.Span{
-				From: span.left, To: span.right,
-				Color: scene.Color{Red: span.color[0], Green: span.color[1], Blue: span.color[2], Alpha: span.color[3]},
+				From: span.Left, To: span.Right,
+				Color: scene.Color{Red: span.Color[0], Green: span.Color[1], Blue: span.Color[2], Alpha: span.Color[3]},
 			}
 		}
 	}

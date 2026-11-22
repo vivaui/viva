@@ -105,7 +105,7 @@ func TestCPULCDTextMatchesTheGPUPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dualSource := gpu.renderer.dualSource
+	dualSource := gpu.DualSource()
 	if err := gpu.Set(nil, labels); err != nil {
 		gpu.Close()
 		t.Fatal(err)

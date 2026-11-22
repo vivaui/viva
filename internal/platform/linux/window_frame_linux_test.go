@@ -8,6 +8,8 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/platform/windowframe"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -120,8 +122,8 @@ func TestFramedWindowKeepsItsContentWhenTheScaleChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	win := state.win
-	if win.margin != frameMargin(2) || state.renderer.frameMargin() != frameMargin(2) {
-		t.Fatalf("margin %d (renderer %d), want %d at 2x", win.margin, state.renderer.frameMargin(), frameMargin(2))
+	if win.margin != windowframe.Margin(2) || state.renderer.frameMargin() != windowframe.Margin(2) {
+		t.Fatalf("margin %d (renderer %d), want %d at 2x", win.margin, state.renderer.frameMargin(), windowframe.Margin(2))
 	}
 	if size := win.logicalSize(); size.Scale != 2 {
 		t.Fatalf("scale %v", size.Scale)
@@ -159,7 +161,7 @@ func TestFramedWindowSuppressesFrameChangeWhileMaximized(t *testing.T) {
 	// When restored, reportFrame reports the restored frame.
 	win.frame.maximized = false
 	scale := win.displayScale()
-	win.margin = frameMargin(scale)
+	win.margin = windowframe.Margin(scale)
 	win.width = deviceLength(300, scale) + 2*win.margin
 	win.height = deviceLength(200, scale) + 2*win.margin
 	// Simulate move to a different position
@@ -224,8 +226,8 @@ func TestConfigureNotifySynchronizesMarginAndGeometry(t *testing.T) {
 	win.api.flush(win.connection)
 
 	resizesCountBeforeRestore := len(resizes)
-	restoreWidth := deviceLength(300, scale) + 2*frameMargin(scale)
-	restoreHeight := deviceLength(200, scale) + 2*frameMargin(scale)
+	restoreWidth := deviceLength(300, scale) + 2*windowframe.Margin(scale)
+	restoreHeight := deviceLength(200, scale) + 2*windowframe.Margin(scale)
 	restoreConfigure := xcbConfigureEvent{
 		ResponseType: xcbConfigureNotify,
 		Width:        uint16(restoreWidth),
@@ -236,8 +238,8 @@ func TestConfigureNotifySynchronizesMarginAndGeometry(t *testing.T) {
 		t.Fatalf("handleEvent restore configure: close=%v, err=%v", closeWin, err)
 	}
 
-	if win.margin != frameMargin(scale) {
-		t.Fatalf("win.margin = %d, want %d after restore", win.margin, frameMargin(scale))
+	if win.margin != windowframe.Margin(scale) {
+		t.Fatalf("win.margin = %d, want %d after restore", win.margin, windowframe.Margin(scale))
 	}
 	if win.frame.maximized {
 		t.Fatal("win.frame.maximized = true, want false")
@@ -306,8 +308,8 @@ func TestPropertyNotifyBeforeConfigureNotifyDoesNotGlitch(t *testing.T) {
 	}
 
 	// Now deliver ConfigureNotify
-	restoreWidth := deviceLength(300, scale) + 2*frameMargin(scale)
-	restoreHeight := deviceLength(200, scale) + 2*frameMargin(scale)
+	restoreWidth := deviceLength(300, scale) + 2*windowframe.Margin(scale)
+	restoreHeight := deviceLength(200, scale) + 2*windowframe.Margin(scale)
 	restoreConfigure := xcbConfigureEvent{
 		ResponseType: xcbConfigureNotify,
 		Width:        uint16(restoreWidth),
@@ -415,8 +417,8 @@ func TestConfigureNotifyBeforePropertyNotifySynchronizesMargin(t *testing.T) {
 	// Now test restore with ConfigureNotify FIRST, PropertyNotify SECOND:
 	win.toggleMaximize()
 	resizesBeforeRestore := len(resizes)
-	restoreWidth := deviceLength(300, scale) + 2*frameMargin(scale)
-	restoreHeight := deviceLength(200, scale) + 2*frameMargin(scale)
+	restoreWidth := deviceLength(300, scale) + 2*windowframe.Margin(scale)
+	restoreHeight := deviceLength(200, scale) + 2*windowframe.Margin(scale)
 	restoreConfigure := xcbConfigureEvent{
 		ResponseType: xcbConfigureNotify,
 		Width:        uint16(restoreWidth),
@@ -450,8 +452,8 @@ func TestConfigureNotifyBeforePropertyNotifySynchronizesMargin(t *testing.T) {
 	}
 
 	// Verify margin was restored and final size is 300x200
-	if win.margin != frameMargin(scale) {
-		t.Fatalf("win.margin = %d, want %d after restore", win.margin, frameMargin(scale))
+	if win.margin != windowframe.Margin(scale) {
+		t.Fatalf("win.margin = %d, want %d after restore", win.margin, windowframe.Margin(scale))
 	}
 	if win.frame.maximized {
 		t.Fatal("win.frame.maximized = true, want false after restore")

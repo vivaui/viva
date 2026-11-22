@@ -5,6 +5,9 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/platform/vulkan"
+	"github.com/vivaui/viva/internal/platform/windowframe"
+
 	"github.com/ebitengine/purego"
 
 	"github.com/vivaui/viva/internal/platform"
@@ -120,7 +123,7 @@ func TestSoftwareVulkanDeviceDrawsOnTheCPU(t *testing.T) {
 	}
 	t.Cleanup(application.closeAll)
 	state := control.(*nativeWindow).state
-	if !vulkanDeviceIsSoftware() {
+	if !vulkan.DeviceIsSoftware() {
 		t.Skip("this machine has a hardware Vulkan device")
 	}
 	if _, ok := state.renderer.(*cpuWindowRenderer); !ok {
@@ -163,9 +166,9 @@ func TestSoftwareRendererDrawsTheFrame(t *testing.T) {
 	if err := state.renderer.present(); err != nil {
 		t.Fatal(err)
 	}
-	content := frameContent(win.width, win.height, win.margin)
+	content := windowframe.Content(win.width, win.height, win.margin)
 	margin := int(win.margin)
-	centerX, centerY := margin+int(content.width)/2, margin+int(content.height)/2
+	centerX, centerY := margin+int(content.Width)/2, margin+int(content.Height)/2
 
 	center := readWindowPixels(t, win, int16(centerX), int16(centerY), 1, 1)
 	if center[0] != 0 || center[1] != 0 || center[2] != 255 || center[3] != 255 {

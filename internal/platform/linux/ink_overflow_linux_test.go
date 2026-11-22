@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/platform/vulkan"
 )
 
 // testIconsFont is a fixed-pitch font of 600 units whose private-use glyphs have ink from 120 to
@@ -41,7 +42,7 @@ type gridResult struct {
 	width    int
 	height   int
 	lcd      bool
-	spans    []colorSpan
+	spans    []vulkan.ColorSpan
 }
 
 func gridLine(t *testing.T, services *textServices, face gfx.MonoFace, size, cell float32, value string, runs []gfx.TextRun, cells int) gridResult {
@@ -55,7 +56,7 @@ func gridLine(t *testing.T, services *textServices, face gfx.MonoFace, size, cel
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := gridResult{coverage: make([]byte, width), pixels: pixels, width: width, height: height, lcd: lcd, spans: append([]colorSpan(nil), services.spans...)}
+	result := gridResult{coverage: make([]byte, width), pixels: pixels, width: width, height: height, lcd: lcd, spans: append([]vulkan.ColorSpan(nil), services.spans...)}
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			result.coverage[x] = max(result.coverage[x], pixels[(y*width+x)*4+3])
@@ -69,8 +70,8 @@ func gridLine(t *testing.T, services *textServices, face gfx.MonoFace, size, cel
 func (result gridResult) white(column int) bool {
 	if result.lcd {
 		for _, span := range result.spans {
-			if column >= span.left && column < span.right {
-				return span.color[0] == 1 && span.color[1] == 1 && span.color[2] == 1
+			if column >= span.Left && column < span.Right {
+				return span.Color[0] == 1 && span.Color[1] == 1 && span.Color[2] == 1
 			}
 		}
 		return false

@@ -151,7 +151,7 @@ func validateLinuxTextInput(inputState *platform.TextInput) error {
 	if inputState == nil {
 		return nil
 	}
-	if inputState.Width <= 0 || inputState.Height <= 0 || !validFontSize(inputState.FontSize) {
+	if inputState.Width <= 0 || inputState.Height <= 0 || !platform.ValidFontSize(inputState.FontSize) {
 		return fmt.Errorf("linux: text input dimensions and font size must be positive")
 	}
 	if inputState.OnEvent == nil {

@@ -77,9 +77,9 @@ func newWindowPainter(win *window, scale float32, clear platform.Color, rectangl
 	if cpuRendererPreferred.Load() && !vulkanRenderingRequested() {
 		return cpu()
 	}
-	vulkan, err := newVulkanRenderer(win.connection, win.id, win.width, win.height, scale, clear, rectangles, labels, win.margin)
+	vulkan, err := newVulkanWindow(win, scale, clear, rectangles, labels)
 	if err == nil {
-		if !vulkan.software || vulkanRenderingRequested() {
+		if !vulkan.software() || vulkanRenderingRequested() {
 			return vulkan, nil
 		}
 		vulkan.close()

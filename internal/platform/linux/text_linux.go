@@ -8,6 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/platform/vulkan"
+
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
@@ -25,7 +27,7 @@ type textServices struct {
 	context, layout                   uintptr
 
 	// spans are the colors of the last LCD grid label rasterized, valid until the next call.
-	spans []colorSpan
+	spans []vulkan.ColorSpan
 
 	owner    platform.GridOwner // which run owns which column of a grid label
 	ink      []platform.GridInk // how far each run's glyphs reach past its cells
@@ -286,10 +288,6 @@ func cString(value string) []byte {
 	return result
 }
 
-func validFontSize(size float32) bool {
-	return size > 0 && !math.IsNaN(float64(size)) && !math.IsInf(float64(size), 0)
-}
-
 func pangoWeight(weight float32) int32 {
 	switch {
 	case weight >= 0.35:
@@ -339,7 +337,7 @@ func (services *textServices) description(family string, size, weight float32, i
 }
 
 func (services *textServices) configureLayout(value, family string, size, weight float32, italic bool) (text.Metrics, error) {
-	if !validFontSize(size) {
+	if !platform.ValidFontSize(size) {
 		return text.Metrics{}, fmt.Errorf("linux: invalid font size")
 	}
 	if !utf8.ValidString(value) {
@@ -377,7 +375,7 @@ func (services *textServices) layoutValue(description uintptr, value string) (lo
 // thicknesses of the strokes the face draws a light and a heavy box drawing line with, in
 // logical pixels. The stroke is the ink width of the stem glyph in the face's own family.
 func (services *textServices) configureMonoLayout(family string, size float32) (text.Metrics, error) {
-	if !validFontSize(size) {
+	if !platform.ValidFontSize(size) {
 		return text.Metrics{}, fmt.Errorf("linux: invalid font size")
 	}
 	description, err := services.description(family, size, 0, false)
@@ -513,7 +511,7 @@ func (services *textServices) draw(label platform.TextLabel, scale float32, skip
 	if !platform.LabelTextureFits(width, height) || skip < 0 {
 		return nil, fmt.Errorf("linux: label texture exceeds bounded size")
 	}
-	if !validFontSize(label.FontSize) || scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+	if !platform.ValidFontSize(label.FontSize) || scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
 		return nil, fmt.Errorf("linux: invalid label font size or scale")
 	}
 	pixels := make([]byte, width*height*4)
@@ -624,14 +622,6 @@ func (services *textServices) setSourceUIColor(context uintptr, color gfx.Color)
 
 func clampUnit64(value float64) float64 {
 	return min(max(value, 0), 1)
-}
-
-// colorSpan is the columns of an LCD grid label's texture, left to right in device pixels, that
-// are text of one color. Its coverage is the same for every color, so the renderer draws the
-// one texture once per span, with the span's color, scissored to its columns.
-type colorSpan struct {
-	left, right int
-	color       [4]float32
 }
 
 // drawRuns draws a fixed-pitch label's runs. With lcd they are drawn white, for their coverage,
@@ -759,11 +749,11 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 // addSpan records a run's columns and color, joined to the span before it when they touch and
 // the color is the same.
 func (services *textServices) addSpan(left, right int, color [4]float32) {
-	if n := len(services.spans); n > 0 && services.spans[n-1].color == color && services.spans[n-1].right >= left {
-		services.spans[n-1].right = max(services.spans[n-1].right, right)
+	if n := len(services.spans); n > 0 && services.spans[n-1].Color == color && services.spans[n-1].Right >= left {
+		services.spans[n-1].Right = max(services.spans[n-1].Right, right)
 		return
 	}
-	services.spans = append(services.spans, colorSpan{left: left, right: right, color: color})
+	services.spans = append(services.spans, vulkan.ColorSpan{Left: left, Right: right, Color: color})
 }
 
 func printableASCII(value string) bool {
@@ -788,3 +778,13 @@ func isSingleCharacter(value string) bool {
 	}
 	return count == 1
 }
+
+// Rasterize, Spans and Close make the text services the Vulkan renderer's
+// rasterizer (vulkan.TextRasterizer).
+func (services *textServices) Rasterize(label platform.TextLabel, scale float32, skip, width, height int, allowLCD bool) ([]byte, bool, error) {
+	return services.rasterizeWindow(label, scale, skip, width, height, allowLCD)
+}
+
+func (services *textServices) Spans() []vulkan.ColorSpan { return services.spans }
+
+func (services *textServices) Close() { services.close() }

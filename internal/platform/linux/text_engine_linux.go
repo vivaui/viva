@@ -206,7 +206,7 @@ func (engine *textEngine) shape(value string, size, weight float32) (*shapedLine
 
 func (engine *textEngine) shapeStyle(value string, size, weight float32, italic bool) (*shapedLine, error) {
 	services := engine.services
-	if !validFontSize(size) {
+	if !platform.ValidFontSize(size) {
 		return nil, fmt.Errorf("linux: invalid font size")
 	}
 	if !utf8.ValidString(value) {
