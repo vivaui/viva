@@ -95,3 +95,66 @@ func Java_dev_viva_host_Native_lowMemory(env *C.JNIEnv, _ C.jclass) {
 func Java_dev_viva_host_Native_closeRequested(env *C.JNIEnv, _ C.jclass) {
 	send(event{kind: eventClose})
 }
+
+// edit queues an input method's edit and returns when the program has applied it: the
+// input method asks what is around the cursor as soon as it has typed.
+func queueEdit(operation textOperation, text string, first, last int32, codePoints bool) {
+	ack := make(chan struct{})
+	send(event{kind: eventText, ack: ack, edit: edit{operation: operation, text: text, first: first, last: last, codePoints: codePoints}})
+	<-ack
+}
+
+//export Java_dev_viva_host_Native_commitText
+func Java_dev_viva_host_Native_commitText(env *C.JNIEnv, _ C.jclass, text C.jstring, newCursor C.jint) {
+	queueEdit(opCommit, goString(env, text), int32(newCursor), 0, false)
+}
+
+//export Java_dev_viva_host_Native_setComposingText
+func Java_dev_viva_host_Native_setComposingText(env *C.JNIEnv, _ C.jclass, text C.jstring, newCursor C.jint) {
+	queueEdit(opSetComposing, goString(env, text), int32(newCursor), 0, false)
+}
+
+//export Java_dev_viva_host_Native_finishComposing
+func Java_dev_viva_host_Native_finishComposing(env *C.JNIEnv, _ C.jclass) {
+	queueEdit(opFinish, "", 0, 0, false)
+}
+
+//export Java_dev_viva_host_Native_deleteSurrounding
+func Java_dev_viva_host_Native_deleteSurrounding(env *C.JNIEnv, _ C.jclass, before, after C.jint, codePoints C.jboolean) {
+	queueEdit(opDeleteSurrounding, "", int32(before), int32(after), codePoints != 0)
+}
+
+//export Java_dev_viva_host_Native_setSelection
+func Java_dev_viva_host_Native_setSelection(env *C.JNIEnv, _ C.jclass, start, end C.jint) {
+	queueEdit(opSelect, "", int32(start), int32(end), false)
+}
+
+//export Java_dev_viva_host_Native_setComposingRegion
+func Java_dev_viva_host_Native_setComposingRegion(env *C.JNIEnv, _ C.jclass, start, end C.jint) {
+	queueEdit(opMarkRange, "", int32(start), int32(end), false)
+}
+
+//export Java_dev_viva_host_Native_editorAction
+func Java_dev_viva_host_Native_editorAction(env *C.JNIEnv, _ C.jclass, action C.jint) {
+	send(event{kind: eventText, edit: edit{operation: opAction, editorAction: int32(action)}})
+}
+
+//export Java_dev_viva_host_Native_key
+func Java_dev_viva_host_Native_key(env *C.JNIEnv, _ C.jclass, keyCode, meta, unicode C.jint, repeat C.jboolean) {
+	send(event{kind: eventKey, keyCode: int32(keyCode), modifiers: int32(meta), unicode: int32(unicode), repeat: repeat != 0})
+}
+
+//export Java_dev_viva_host_Native_hover
+func Java_dev_viva_host_Native_hover(env *C.JNIEnv, _ C.jclass, x, y C.jfloat, meta C.jint, uptime C.jlong) {
+	sendMove(event{kind: eventHover, x: float32(x), y: float32(y), modifiers: int32(meta), time: int64(uptime)})
+}
+
+//export Java_dev_viva_host_Native_hoverExit
+func Java_dev_viva_host_Native_hoverExit(env *C.JNIEnv, _ C.jclass) {
+	send(event{kind: eventHoverExit})
+}
+
+//export Java_dev_viva_host_Native_scroll
+func Java_dev_viva_host_Native_scroll(env *C.JNIEnv, _ C.jclass, x, y, dx, dy C.jfloat, meta C.jint) {
+	send(event{kind: eventScroll, x: float32(x), y: float32(y), dx: float32(dx), dy: float32(dy), modifiers: int32(meta)})
+}

@@ -118,3 +118,52 @@ func (application *application) touch(ev event) {
 		application.fail(err)
 	}
 }
+
+// hover gives the application a mouse over the surface, as a pointer that moves with no
+// button, and its leaving.
+func (application *application) hover(ev event) {
+	win := application.window
+	if win == nil || win.closed || win.config.OnPointer == nil || win.renderer == nil || win.native == nil || win.density <= 0 {
+		return
+	}
+	defer application.guard()
+	event := platform.PointerEvent{Kind: platform.PointerMove, Device: gfx.PointerMouse}
+	if ev.kind == eventHoverExit {
+		if !win.hovering {
+			return
+		}
+		win.hovering = false
+		event.Kind = platform.PointerExit
+	} else {
+		win.hovering = true
+		x, y := ev.x/win.density, ev.y/win.density
+		event.X, event.Y, event.ScreenX, event.ScreenY, event.Modifiers = x, y, x, y, modifiers(ev.modifiers)
+	}
+	frame, err := win.config.OnPointer(event)
+	if err == nil {
+		err = win.present(frame)
+	}
+	if err != nil {
+		application.fail(err)
+	}
+}
+
+// scroll gives the application a wheel. Android reports a wheel up as positive; a scroll
+// that moves the content up is a positive distance here, as on the other platforms.
+func (application *application) scroll(ev event) {
+	win := application.window
+	if win == nil || win.closed || win.config.OnScroll == nil || win.renderer == nil || win.native == nil || win.density <= 0 {
+		return
+	}
+	defer application.guard()
+	x, y := ev.x/win.density, ev.y/win.density
+	frame, err := win.config.OnScroll(platform.ScrollEvent{
+		Modifiers: modifiers(ev.modifiers), X: x, Y: y, DeltaX: ev.dx / win.density, DeltaY: -ev.dy / win.density,
+	})
+	if err == nil {
+		err = win.present(frame)
+	}
+	if err != nil {
+		application.fail(err)
+	}
+}

@@ -8,9 +8,31 @@ public final class Host {
     private Host() {}
 
     private static volatile Activity activity;
+    private static volatile VivaView view;
 
-    static void attach(Activity current) {
+    static void attach(Activity current, VivaView surface) {
         activity = current;
+        view = surface;
+    }
+
+    /**
+     * The program's focused text input has this text: the input method reads it from
+     * here, and is told when it changes under it.
+     */
+    public static void editor(String text, int selectionStart, int selectionEnd, int compositionStart, int compositionEnd) {
+        Editor.set(text, selectionStart, selectionEnd, compositionStart, compositionEnd);
+        final VivaView current = view;
+        if (current != null) {
+            current.post(current::editorChanged);
+        }
+    }
+
+    /** Shows the keyboard for a text input, or takes it away when editing is false. */
+    public static void keyboard(final boolean editing, final boolean multiline, final boolean secure) {
+        final VivaView current = view;
+        if (current != null) {
+            current.post(() -> current.configure(editing, multiline, secure));
+        }
     }
 
     /** Ends the activity; the program's window is gone with it. */

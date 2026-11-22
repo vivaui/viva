@@ -24,5 +24,7 @@ void viva_text_draw(const uint16_t *value, int length, float x, float baseline, 
 int viva_text_end(void *out, int64_t capacity);
 
 /* The host (dev.viva.host.Host). */
+void viva_host_editor(const uint16_t *text, int length, int selectionStart, int selectionEnd, int compositionStart, int compositionEnd);
+void viva_host_keyboard(int editing, int multiline, int secure);
 void viva_host_finish(void);
 void viva_host_set_title(const uint16_t *title, int length);
