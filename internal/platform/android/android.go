@@ -38,6 +38,11 @@ const (
 	eventClose                            // the user asked to close the window
 	eventWake                             // something was posted
 	eventRedraw                           // the application asked for a frame
+	eventText                             // the input method edits the text input
+	eventKey                              // a key of a keyboard
+	eventHover                            // a mouse over the surface
+	eventHoverExit                        // the mouse left it
+	eventScroll                           // a wheel
 )
 
 // event is one thing that happened, small enough to queue by value.
@@ -52,8 +57,16 @@ type event struct {
 	action, pointer, tool, buttons, modifiers int32
 	x, y                                      float32
 	time                                      int64
-	// ack is answered once the program no longer uses the surface it is told to let go of.
+	// ack is answered once the program no longer uses the surface it is told to let go of,
+	// or has applied the edit it was sent.
 	ack chan struct{}
+	// edit is eventText's operation.
+	edit edit
+	// A key: its Android code, the character it types and whether it repeats; the modifiers
+	// are modifiers above. A scroll's distances are dx and dy.
+	keyCode, unicode int32
+	repeat           bool
+	dx, dy           float32
 	// visible is eventVisible's state.
 	visible bool
 }
@@ -192,6 +205,14 @@ func (application *application) handle(ev event) {
 		application.runPosts()
 	case eventRedraw:
 		application.redrawNow()
+	case eventText:
+		application.textEdit(ev)
+	case eventKey:
+		application.keyEvent(ev)
+	case eventHover, eventHoverExit:
+		application.hover(ev)
+	case eventScroll:
+		application.scroll(ev)
 	case eventLowMemory:
 	}
 }
@@ -237,6 +258,8 @@ type window struct {
 	height   uint32
 	density  float32 // device pixels per logical pixel
 	renderer *vulkan.Renderer
+	text     *textInput // the application's focused text input, if it has one
+	hovering bool       // a mouse is over the surface
 }
 
 func (win *window) Close() {
@@ -275,6 +298,7 @@ func (application *application) closeWindow() {
 		win.renderer.Close()
 		win.renderer = nil
 	}
+	win.setTextInput(platform.TextInputUpdate{Changed: true})
 	win.releaseNative()
 	application.done = true
 	if win.config.OnClosed != nil {
@@ -401,6 +425,7 @@ func (win *window) resized(swapchain bool) error {
 		} else if _, err := renderer.Apply(frame); err != nil {
 			return err
 		}
+		win.setTextInput(frame.TextInput)
 	}
 	if err := renderer.Present(); err != nil {
 		return err
@@ -439,6 +464,9 @@ func (win *window) present(frame platform.Frame) error {
 	changed, err := win.renderer.Apply(frame)
 	if err == nil && changed {
 		err = win.renderer.Present()
+	}
+	if err == nil {
+		win.setTextInput(frame.TextInput)
 	}
 	if err == nil && win.config.FramePresented != nil {
 		win.config.FramePresented()

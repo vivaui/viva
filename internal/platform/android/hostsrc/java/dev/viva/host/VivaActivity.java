@@ -5,7 +5,6 @@ import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -17,14 +16,14 @@ import android.widget.FrameLayout;
  * what happened; nothing here lays anything out.
  */
 public class VivaActivity extends Activity implements SurfaceHolder.Callback {
-    private SurfaceView view;
+    private VivaView view;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
-        Host.attach(this);
-        view = new SurfaceView(this);
+        view = new VivaView(this);
+        Host.attach(this, view);
         view.getHolder().addCallback(this);
         view.setOnTouchListener(this::onTouch);
         // The surface lies inside what the system covers: its bars, the display cutout

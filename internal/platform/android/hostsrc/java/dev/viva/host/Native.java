@@ -34,4 +34,32 @@ public final class Native {
 
     /** The user asked to close the window (the back gesture at the root). */
     public static native void closeRequested();
+
+    // The input method's edits of the program's focused text input, in UTF-16 units. Each
+    // returns when the program has applied it and sent the editor's state (Host.editor).
+
+    public static native void commitText(String text, int newCursorPosition);
+
+    public static native void setComposingText(String text, int newCursorPosition);
+
+    public static native void finishComposing();
+
+    public static native void deleteSurrounding(int before, int after, boolean codePoints);
+
+    public static native void setSelection(int start, int end);
+
+    public static native void setComposingRegion(int start, int end);
+
+    public static native void editorAction(int action);
+
+    /** A key of a keyboard: its Android key code, the meta state and the character it types. */
+    public static native void key(int keyCode, int meta, int unicode, boolean repeat);
+
+    /** A mouse over the surface. */
+    public static native void hover(float x, float y, int meta, long uptimeMillis);
+
+    public static native void hoverExit();
+
+    /** A wheel, in pixels. */
+    public static native void scroll(float x, float y, float dx, float dy, int meta);
 }

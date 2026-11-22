@@ -3,11 +3,13 @@ package main
 import (
 	"archive/zip"
 	"encoding/xml"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Releases are ordered by a number: a later version is never a smaller one, and a
@@ -228,5 +230,39 @@ func TestAddToAPKStoresTheLibraryAndKeepsTheBase(t *testing.T) {
 	const name = "lib/arm64-v8a/libviva.so"
 	if contents[name] != "library bytes" || methods[name] != zip.Store {
 		t.Errorf("library entry %q method %d, want it stored", contents[name], methods[name])
+	}
+}
+
+// A device adb lists while it is still starting answers nothing yet: run waits for it
+// and then installs, instead of failing on the first try.
+func TestRunWaitsForADeviceThatIsStillStarting(t *testing.T) {
+	asked := 0
+	previous, previousPause := adb, pause
+	t.Cleanup(func() { adb, pause = previous, previousPause })
+	adb = func(sdk androidSDK, serial string, arguments ...string) (string, error) {
+		asked++
+		if asked < 4 {
+			return "", errors.New("cmd: Can't find service: package")
+		}
+		return "package:/system/framework/framework-res.apk", nil
+	}
+	pauses := 0
+	pause = func(time.Duration) { pauses++ }
+	var output strings.Builder
+	if err := waitForPackageService(androidSDK{}, "emulator-5554", &output); err != nil {
+		t.Fatal(err)
+	}
+	if asked != 4 || pauses != 3 || !strings.Contains(output.String(), "waiting") {
+		t.Fatalf("asked %d times, paused %d, said %q", asked, pauses, output.String())
+	}
+}
+
+func TestRunGivesUpOnADeviceThatNeverStarts(t *testing.T) {
+	previous, previousPause := adb, pause
+	t.Cleanup(func() { adb, pause = previous, previousPause })
+	adb = func(androidSDK, string, ...string) (string, error) { return "", errors.New("no service") }
+	pause = func(time.Duration) {}
+	if err := waitForPackageService(androidSDK{}, "emulator-5554", io.Discard); err == nil {
+		t.Fatal("a device that never started was waited for forever")
 	}
 }

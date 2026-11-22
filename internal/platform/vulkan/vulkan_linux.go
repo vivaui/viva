@@ -554,6 +554,11 @@ type SurfaceSource struct {
 	// Create makes the surface on instance. The renderer calls it again after the
 	// device or the surface was lost.
 	Create func(instance uintptr) (surface uintptr, err error)
+	// HostSize says the window system gives the surface's size with its events, which is
+	// truer than what the surface reports while it changes: Android learns the new size
+	// of a surface a frame after it told the program. The swapchain is then made at the
+	// size the renderer was given, and the compositor fits it to the window.
+	HostSize bool
 }
 
 // Config is what a window's renderer is made from.
@@ -693,7 +698,7 @@ func (renderer *Renderer) createSwapchain() (err error) {
 		renderer.hasSurfaceFormat = true
 	}
 	extent := capabilities.Current
-	if extent.Width == math.MaxUint32 {
+	if extent.Width == math.MaxUint32 || renderer.source.HostSize {
 		extent.Width = clamp(renderer.width, capabilities.Minimum.Width, capabilities.Maximum.Width)
 		extent.Height = clamp(renderer.height, capabilities.Minimum.Height, capabilities.Maximum.Height)
 	}
