@@ -29,7 +29,7 @@ func openOutput(t *testing.T, lines ...string) *output {
 	t.Helper()
 	o := &output{t: t, lines: textview.Strings(lines), trail: -1}
 	page := ui.NewPage(ui.PageConfig{View: o.declare})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 320}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 640, Height: 320}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestSiblingViewsKeepTheirInputSeparate(t *testing.T) {
 			}
 		})
 	}})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 320}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 640, Height: 320}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +371,7 @@ func TestClosedMenusLeaveTheNextSiblingsIdentityAlone(t *testing.T) {
 			ui.Button(c, "After the views")
 		})
 	}})
-	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 320}), nil)
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 640, Height: 320}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

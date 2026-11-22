@@ -73,7 +73,7 @@ func TestVisualCapture(t *testing.T) {
 						ui.Button(c, "After the views / 后续按钮")
 					})
 				}})
-				session, err := headless.Open(page.Config(app.Config{
+				session, err := headless.Open(ui.Configure(page, app.Config{
 					Title: "Textview", Width: 800, Height: 420, WindowMode: app.WindowFrameless,
 				}), nil, headless.Options{Scale: 2, Strict: true})
 				if err != nil {
