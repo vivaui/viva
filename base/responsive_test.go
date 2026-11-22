@@ -153,3 +153,43 @@ func TestResponsivePaintDoesNotAllocate(t *testing.T) {
 		t.Fatalf("a steady responsive paint allocated %v times", allocations)
 	}
 }
+
+// A hidden element takes no room, paints no hit and so takes no pointer or
+// focus, while what it holds keeps its identity; From can show it again.
+func TestHideTakesAnElementOutOfThePage(t *testing.T) {
+	theme := gfx.LightTheme()
+	page := NewPage(PageConfig{Theme: &theme})
+	canvas := testCanvas()
+	var before, after Box
+	var buttonID gfx.ID
+	view := func(c C) {
+		Column(c).Children(func() {
+			before = Column(c).Size(100, 40)
+			Row(c).Height(40).Hide().From(Expanded, func(b Box) { b.Show() }).Children(func() {
+				button := Button(c, "Details")
+				buttonID = button.N().ID
+			})
+			after = Column(c).Size(100, 40)
+		})
+	}
+	hasHit := func() bool {
+		for _, hit := range canvas.Hits() {
+			if hit.ID == buttonID {
+				return true
+			}
+		}
+		return false
+	}
+	page.Draw(canvas, gfx.Rect{Width: Expanded.minimum() - 1, Height: 400}, view)
+	hiddenID := buttonID
+	if gap := after.Rect().Y - (before.Rect().Y + before.Rect().Height); gap != 0 || hasHit() {
+		t.Fatalf("hidden: the next block is %v below the first, hit painted %v; want 0 and none", gap, hasHit())
+	}
+	page.Draw(canvas, gfx.Rect{Width: Expanded.minimum(), Height: 400}, view)
+	if gap := after.Rect().Y - (before.Rect().Y + before.Rect().Height); gap != 40 || !hasHit() {
+		t.Fatalf("shown: the next block is %v below the first, hit painted %v; want 40 and one", gap, hasHit())
+	}
+	if buttonID != hiddenID {
+		t.Fatal("the button changed identity when it was shown")
+	}
+}
