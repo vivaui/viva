@@ -39,8 +39,12 @@ type Config struct {
 	MinHeight int
 	// Origin, when HasOrigin, is where the top-left of the content area opens, in
 	// screen coordinates. Without one the system places the window.
-	Origin     gfx.Point
-	HasOrigin  bool
+	Origin    gfx.Point
+	HasOrigin bool
+	// Maximized asks the window manager to open the window maximized on
+	// platforms that support maximization, keeping Width, Height and Origin as
+	// its restored floating bounds.
+	Maximized  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
 	// titlebar leaves for the application. Zero means DefaultTitlebarHeight.

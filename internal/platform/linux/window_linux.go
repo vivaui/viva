@@ -1566,6 +1566,9 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 			return nil, fmt.Errorf("%w: %v", platform.ErrDragPreviewUnsupported, err)
 		}
 	}
+	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview && win.frame.stateAtom != 0 {
+		win.requestInitialMaximized()
+	}
 	api.mapWindow(connection, win.id)
 	if api.flush(connection) <= 0 || api.connectionHasError(connection) != 0 {
 		win.close()

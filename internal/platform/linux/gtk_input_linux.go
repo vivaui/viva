@@ -437,12 +437,14 @@ func (w *gtkWindow) stateChanged(e *gdkEventWindowState) {
 
 	}
 	if e.Changed&gdkWindowStateMaximized != 0 {
-		w.maximized = e.New&gdkWindowStateMaximized != 0
+		maximized := e.New&gdkWindowStateMaximized != 0
+		changed := maximized != w.maximized
+		w.maximized = maximized
 		w.regionsDirty = true
 		if w.wl != nil {
 			w.wl.updateRegions(w, int32(w.width+0.5), int32(w.height+0.5))
 		}
-		if w.config.OnMaximize != nil {
+		if changed && w.config.OnMaximize != nil {
 			w.config.OnMaximize(w.maximized)
 		}
 		if w.config.OnRedraw != nil {
