@@ -145,7 +145,8 @@ type CodeEditorSnapshot struct {
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// Direction sets the paragraph direction for shaped rows. Auto takes it
-	// from each logical line. It does not change the gutter or keyboard policy.
+	// from each logical line. RTL aligns shaped and empty rows to the right.
+	// It does not change the gutter or keyboard policy.
 	Direction gfx.TextDirection
 	// TabWidth is the width of a tab stop in cells; zero is four.
 	TabWidth int
@@ -1075,9 +1076,10 @@ func (paint *codePaint) overlays(index int, y float32) {
 	left := editor.content.X - editor.scrollX
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
 		if carets := editor.shapedRow(row); len(carets) != 0 {
+			shapedLeft := left + editor.shapedRowInset(row)
 			paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, paint.compositionStart-rowStart, paint.compositionEnd-rowStart)
 			for _, span := range paint.shapedSpans {
-				canvas.Fill(gfx.Rect{X: left + span.X, Y: y + paint.lineHeight - 3, Width: span.Width, Height: 1}, paint.foreground)
+				canvas.Fill(gfx.Rect{X: shapedLeft + span.X, Y: y + paint.lineHeight - 3, Width: span.Width, Height: 1}, paint.foreground)
 			}
 		} else {
 			walker := columnWalker{editor: editor, row: row, at: rowStart}

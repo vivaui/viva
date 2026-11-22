@@ -254,3 +254,7 @@ func TestCodeEditorCoreTextForcedLTRAppliesToEveryWrappedRow(t *testing.T) {
 		}
 	}
 }
+
+func TestCodeEditorCoreTextRTLAlignsPaintAndPlacement(t *testing.T) {
+	testCodeEditorRTLAlignsPaintAndPlacement(t, darwin.SharedTextEngine())
+}

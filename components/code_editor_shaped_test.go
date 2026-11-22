@@ -1,10 +1,71 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
 )
+
+func testCodeEditorRTLAlignsPaintAndPlacement(t *testing.T, engine gfx.TextEngine) {
+	t.Helper()
+	const short = "\u05d0\u05d1\u05d2"
+	const value = short + "\n"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionRTL
+	f.snapshot.SelectionEnd = len(short)
+	f.snapshot.CompositionStart, f.snapshot.CompositionEnd = 2, 4
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) != 1 || labels[0].Bounds.X < f.editor.content.X+f.editor.content.Width/2 {
+		t.Fatalf("short RTL label was not aligned to the right: %+v", labels)
+	}
+	label := labels[0].Bounds
+	end := label.X + label.Width
+	selection := f.fills(f.theme.Selection)
+	if len(selection) != 1 || !near(selection[0].X, label.X) || !near(selection[0].Width, label.Width) {
+		t.Errorf("selection did not move with the label: %+v; want %+v", selection, label)
+	}
+	underline := false
+	for _, fill := range f.fills(f.theme.Foreground) {
+		if fill.Height == 1 && fill.X >= label.X && fill.X+fill.Width <= end+0.01 {
+			underline = true
+		}
+	}
+	if !underline {
+		t.Error("composition underline did not move with the label")
+	}
+	y := f.editor.content.Y + f.editor.lineHeight/2
+	if at, ok := f.editor.OffsetAt(gfx.Point{X: end - 0.25, Y: y}); !ok || at != 0 {
+		t.Fatalf("hit at RTL line start = %d, %t; want byte 0", at, ok)
+	}
+	f.paint()
+	if caret, ok := f.editor.CaretBounds(); !ok || !near(caret.X, end) {
+		t.Errorf("IME anchor = %+v, %t; want X=%g", caret, ok, end)
+	}
+	f.snapshot.Caret = f.editor.Move(value, 0, TextareaMoveDown)
+	f.paint()
+	if caret, ok := f.editor.CaretBounds(); f.snapshot.Caret != len(value) || !ok || !near(caret.X, end) {
+		t.Errorf("movement to the blank RTL row: offset %d, caret %+v, %t; want byte %d, X=%g", f.snapshot.Caret, caret, ok, len(value), end)
+	}
+
+	f.snapshot.Value, f.snapshot.Caret = value+strings.Repeat(short, 30), 0
+	f.paint()
+	shift := f.editor.cellWidth / 2
+	if f.editor.ScrollX() < shift {
+		t.Fatal("the caret on a short RTL row did not follow the wide document's right edge")
+	}
+	f.editor.ScrollBy(-shift, 0)
+	f.paint()
+	label = f.canvas.Texts()[0].Bounds
+	if at, ok := f.editor.OffsetAt(gfx.Point{X: label.X + label.Width - 0.25, Y: y}); !ok || at != 0 {
+		t.Errorf("click after horizontal scroll = %d, %t; want byte 0", at, ok)
+	}
+	if !near(label.X+label.Width, end+shift) {
+		t.Errorf("right edge after horizontal scroll = %g; want %g", label.X+label.Width, end+shift)
+	}
+}
 
 type shapedCodeTestEngine struct{ gfx.TextEngine }
 

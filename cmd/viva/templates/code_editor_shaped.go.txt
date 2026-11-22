@@ -40,6 +40,9 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 	style := gfx.TextStyle{Size: size, Mono: true, MonoFace: snapshot.MonoFace}
 	generation := canvas.FontGeneration()
 	s := editor.shaping
+	if (s != nil && s.direction != snapshot.Direction) || (s == nil && snapshot.Direction == gfx.DirectionRTL) {
+		editor.followedValid, editor.goalActive = false, false
+	}
 	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.direction != snapshot.Direction || s.cell != cell || s.generation != generation ||
 		s.cols != editor.cols || s.tabWidth != editor.tabWidth || s.wrap != editor.wrap {
 		s = &codeShaping{canvas: canvas, value: editor.text, style: style, direction: snapshot.Direction, cell: cell, generation: generation,
@@ -138,11 +141,24 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	return codeShapedRow{value: label, carets: carets}
 }
 
+func (editor *CodeEditor) shapedRowInset(row codeRow) float32 {
+	if editor.shaping == nil || editor.shaping.direction != gfx.DirectionRTL {
+		return 0
+	}
+	width := editor.content.Width
+	if !editor.wrap {
+		width += editor.maxScrollX()
+	}
+	// Keep one cell beyond the rightmost caret, as the scroll range does.
+	return max(0, width-float32(row.cells+1)*editor.cellWidth)
+}
+
 func (editor *CodeEditor) shapedCaretX(row codeRow, offset int) (float32, bool) {
+	inset := editor.shapedRowInset(row)
 	if carets := editor.shapedRow(row); len(carets) != 0 {
 		s := editor.shaping
 		if s.hitValid && s.hitRow == row.start && s.hit.Offset == offset {
-			return s.hit.X, true
+			return inset + s.hit.X, true
 		}
 		local := max(0, min(offset-int(row.start), int(row.end-row.start)))
 		at, exact := slices.BinarySearchFunc(carets, local, func(caret gfx.FittedMonoCaret, local int) int {
@@ -152,18 +168,26 @@ func (editor *CodeEditor) shapedCaretX(row codeRow, offset int) (float32, bool) 
 			at = max(0, at-1)
 		}
 		if at == 0 {
-			return carets[0].Leading, true
+			return inset + carets[0].Leading, true
 		}
-		return carets[at].Trailing, true
+		return inset + carets[at].Trailing, true
+	}
+	if row.start == row.end && inset > 0 {
+		return inset, true
 	}
 	return 0, false
 }
 
 func (editor *CodeEditor) shapedHit(row codeRow, x float32) (gfx.TextHit, bool) {
 	carets := editor.shapedRow(row)
+	inset := editor.shapedRowInset(row)
 	if len(carets) == 0 {
+		if row.start == row.end && inset > 0 {
+			return gfx.TextHit{Offset: int(row.start)}, true
+		}
 		return gfx.TextHit{}, false
 	}
+	x -= inset
 	best := gfx.TextHit{Offset: int(row.start), X: carets[0].Leading}
 	gap := float32(-1)
 	for i := 0; i+1 < len(carets); i++ {
@@ -227,7 +251,7 @@ func codeShapedSpans(dst []gfx.TextSpan, carets []gfx.FittedMonoCaret, start, en
 
 func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gfx.FittedMonoCaret) {
 	start, end := int(row.start), int(row.end)
-	left := paint.editor.content.X - paint.editor.scrollX
+	left := paint.editor.content.X - paint.editor.scrollX + paint.editor.shapedRowInset(row)
 	fill := func(from, to int, color gfx.Color) {
 		paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, from-start, to-start)
 		for _, span := range paint.shapedSpans {
