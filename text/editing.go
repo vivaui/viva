@@ -189,18 +189,12 @@ func (editor *Editor) insideCRLF(at int) bool {
 // lineBoundary finds the logical line's start or the first rune of its LF or
 // CRLF ending, or the end of the text.
 func (editor *Editor) lineBoundary(end bool) int {
-	at := editor.caret
-	if end {
-		for at < editor.runes.Len() && editor.runes.At(at) != '\n' {
-			at++
-		}
-		if at > 0 && at < editor.runes.Len() && editor.runes.At(at-1) == '\r' {
-			at--
-		}
-	} else {
-		for at > 0 && editor.runes.At(at-1) != '\n' {
-			at--
-		}
+	if !end {
+		return editor.runes.LineStart(editor.caret)
+	}
+	at := editor.runes.LineEnd(editor.caret)
+	if at > 0 && at < editor.runes.Len() && editor.runes.At(at-1) == '\r' {
+		at--
 	}
 	return at
 }

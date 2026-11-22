@@ -109,17 +109,16 @@ type Editor struct {
 	text      string
 	textValid bool
 	// textBase says text is the value as it was before the edits since, and
-	// that its first keepPrefix runes and its last keepSuffix runes (the last
-	// keepSuffixBytes bytes) are still the value's: String then rebuilds only
-	// what lies between, once, however many edits came between two reads.
-	textBase                                bool
-	keepPrefix, keepSuffix, keepSuffixBytes int
+	// that its first keepPrefixBytes and last keepSuffixBytes bytes are still
+	// the value's: String then rebuilds only what lies between, once, however
+	// many edits came between two reads.
+	textBase                         bool
+	keepPrefixBytes, keepSuffixBytes int
 
-	// offsets remembers the last rune/byte pair ByteOffset and RuneIndex
-	// resolved, so a caret that moves or types a little is found by walking from
-	// there instead of from the start; every mutation of runes trims it.
-	offsets offsetMemo
 	journal *editJournal
+	// rollback is the composition planner's reading of the text before the
+	// tentative suffix, reused from event to event.
+	rollback rolledBackText
 
 	history      []historyEdit
 	historyIndex int
@@ -137,9 +136,9 @@ type Editor struct {
 
 // NewEditor creates an editor with its caret at the end of initial text.
 func NewEditor(initial string) *Editor {
-	runes := []rune(initial)
-	end := len(runes)
-	return &Editor{runes: runeStore{runes: runes}, anchor: end, caret: end}
+	editor := &Editor{runes: newRuneStore(initial)}
+	editor.anchor, editor.caret = editor.runes.Len(), editor.runes.Len()
+	return editor
 }
 
 // String returns the current UTF-8 text. The conversion is cached until the
@@ -523,39 +522,14 @@ func (editor *Editor) MoveRight(extend bool) bool {
 
 // RuneIndexToUTF16 converts a rune index to a native UTF-16 code-unit index.
 func (editor *Editor) RuneIndexToUTF16(index int) int {
-	index = clamp(index, 0, editor.runes.Len())
-	units := 0
-	for _, value := range editor.runes.Slice(0, index) {
-		if value > 0xffff {
-			units += 2
-		} else {
-			units++
-		}
-	}
-	return units
+	return editor.runes.UTF16Offset(index)
 }
 
 // UTF16ToRuneIndex converts a native UTF-16 code-unit index to the nearest
 // preceding rune boundary.
 func (editor *Editor) UTF16ToRuneIndex(units int) int {
-	if units <= 0 {
-		return 0
-	}
-	consumed := 0
-	for index, value := range editor.runes.View() {
-		width := 1
-		if value > 0xffff {
-			width = 2
-		}
-		if consumed+width > units {
-			return index
-		}
-		consumed += width
-		if consumed == units {
-			return index + 1
-		}
-	}
-	return editor.runes.Len()
+	index, _ := editor.runes.RuneAtUTF16(units)
+	return index
 }
 
 func (editor *Editor) deleteSelectionOrComposition() bool {
@@ -619,7 +593,7 @@ func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite b
 	}
 	change := textChange{
 		start:    target.Start,
-		removed:  append([]rune(nil), editor.runes.Slice(target.Start, target.End)...),
+		removed:  editor.runes.Slice(target.Start, target.End),
 		inserted: replacement,
 	}
 	edit := editor.prepareEdit(target.Start, target.End, replacement)
@@ -634,8 +608,7 @@ func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite b
 	if lines != nil && lines.labels != nil {
 		lines.labels.ops.replace(lines.labels, context.line, change.removed, replacement)
 	}
-	editor.spliceText(target.Start, target.End, replacement)
-	editor.offsets.trim(target.Start)
+	editor.spliceText(target.Start, target.End)
 	editor.runes.Replace(target.Start, target.End, replacement)
 	editor.recordEdit(edit)
 	if lines != nil {
@@ -1008,10 +981,9 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 	if lines != nil && lines.labels != nil {
 		lines.labels.ops.replace(lines.labels, context.line, editor.runes.Slice(start, end), replacement)
 	}
-	editor.spliceText(start, end, replacement)
+	editor.spliceText(start, end)
 	editor.runes.Replace(start, end, replacement)
 	editor.lastReplaceStart = start
-	editor.offsets.trim(start)
 	editor.recordEdit(edit)
 	if lines != nil {
 		editor.recordLineContext(edit, context)

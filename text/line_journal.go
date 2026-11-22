@@ -35,11 +35,10 @@ const (
 )
 
 type lineJournal struct {
-	entries        []lineContext
-	batches        map[*Edit][]lineContext
-	position, line int
-	delivery       *lineDelivery
-	labels         *lfLabelState
+	entries  []lineContext
+	batches  map[*Edit][]lineContext
+	delivery *lineDelivery
+	labels   *lfLabelState
 }
 
 // TrackLineEdits enables optional LF context on the existing byte journal and
@@ -117,25 +116,7 @@ func (editor *Editor) prepareLineContext(start, end int, replacement []rune) lin
 	if editor.journal == nil || editor.journal.lines == nil {
 		return lineContext{}
 	}
-	lines := editor.journal.lines
-	position, line := lines.position, lines.line
-	if position > editor.runes.Len() || start < position && start <= position-start {
-		position, line = 0, 0
-	}
-	for position < start {
-		if editor.runes.At(position) == '\n' {
-			line++
-		}
-		position++
-	}
-	for position > start {
-		position--
-		if editor.runes.At(position) == '\n' {
-			line--
-		}
-	}
-	lines.position, lines.line = start, line
-	return makeLineContext(line, start == 0 || editor.runes.At(start-1) == '\n', editor.runes.Slice(start, end), replacement)
+	return makeLineContext(editor.runes.Line(start), start == 0 || editor.runes.At(start-1) == '\n', editor.runes.Slice(start, end), replacement)
 }
 
 func makeLineContext(line int, atLineStart bool, removed, inserted []rune) lineContext {

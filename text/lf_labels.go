@@ -72,7 +72,7 @@ func (editor *Editor) TrackLFLabels(labels []byte, defaultLabel byte, mapper LFL
 	if editor == nil || editor.composing || editor.CanUndo() || editor.CanRedo() || editor.lfLabelState() != nil || editor.journal != nil && editor.journal.private {
 		return false
 	}
-	if countLabelLF(editor.runes.View()) != len(labels) {
+	if editor.runes.Newlines() != len(labels) {
 		return false
 	}
 	editor.TrackLineEdits()

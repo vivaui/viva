@@ -365,7 +365,7 @@ func (editor *Editor) planCompositionEvent(state *compositionState, event Compos
 	case CompositionEmptyCommit:
 		needBase = !state.active
 	}
-	base := editor.runes.View()
+	var base runeText = &editor.runes
 	if needBase {
 		var baseOK bool
 		base, baseOK = editor.compositionPlanBase(state)
@@ -490,7 +490,7 @@ func (editor *Editor) compositionPlanFits(state *compositionState, plan composit
 // editor. base is post-rollback text; deleted counts an ordinary pre-start or
 // explicit deletion before the scalars; grouped counts an implicit selection
 // deletion that belongs to the first scalar's ordinary unit.
-func (editor *Editor) compositionPlanScalars(plan *compositionPlan, base []rune, start int, text []rune, deleted, grouped int) {
+func (editor *Editor) compositionPlanScalars(plan *compositionPlan, base runeText, start int, text []rune, deleted, grouped int) {
 	if len(text) == 0 {
 		return
 	}
@@ -516,7 +516,7 @@ func (editor *Editor) compositionPlanScalars(plan *compositionPlan, base []rune,
 			shift -= grouped
 		case overwrite:
 			position := cursor - shift
-			if cursor < len(base)+shift && position >= 0 && position < len(base) && !compositionLineEnd(base[position]) {
+			if cursor < base.Len()+shift && position >= 0 && position < base.Len() && !compositionLineEnd(base.At(position)) {
 				plan.payload++
 				plan.steps += 2
 			} else {
@@ -531,53 +531,48 @@ func (editor *Editor) compositionPlanScalars(plan *compositionPlan, base []rune,
 	}
 }
 
-// compositionPlanBase reconstructs the text after rolling back the owned
-// tentative suffix, without touching the live editor. Inactive events use the
-// current text directly.
-func (editor *Editor) compositionPlanBase(state *compositionState) ([]rune, bool) {
+// compositionPlanBase is the text after rolling back the owned tentative
+// suffix, without touching the live editor. Inactive events use the current text
+// directly.
+func (editor *Editor) compositionPlanBase(state *compositionState) (runeText, bool) {
 	if !state.active {
-		return editor.runes.View(), true
+		return &editor.runes, true
 	}
-	return editor.compositionRollbackRunes(state)
+	return editor.compositionRollback(state)
 }
 
-// compositionRollbackRunes reconstructs the post-rollback text in one forward
-// pass over the final buffer and the owned suffix units. Each unit's recorded
-// start is its final rune position; replacing those inserted segments with the
-// recorded removed text restores the pre-event buffer without copying the whole
-// document once per unit. The returned slice is owned by the caller.
-func (editor *Editor) compositionRollbackRunes(state *compositionState) ([]rune, bool) {
+// compositionRollback is the post-rollback text, found in one forward pass over
+// the owned suffix units. Each unit's recorded start is its final rune position;
+// reading those inserted segments as the recorded removed text is the pre-event
+// buffer, without copying the document. It is valid until the next edit or
+// rollback.
+func (editor *Editor) compositionRollback(state *compositionState) (runeText, bool) {
 	if state == nil || !state.active {
-		return editor.runes.View(), true
+		return &editor.runes, true
 	}
 	if state.unitStart < 0 || state.unitStart > len(editor.history) {
 		return nil, false
 	}
-	final := editor.runes.View()
-	capacity := len(final)
-	for index := state.unitStart; index < len(editor.history); index++ {
-		edit := &editor.history[index]
-		capacity += len(edit.removed) - len(edit.inserted)
-	}
-	if capacity < 0 {
-		capacity = 0
-	}
-	base := make([]rune, 0, capacity)
+	final := &editor.runes
+	base := &editor.rollback
+	*base = rolledBackText{store: final, pieces: base.pieces[:0]}
 	previous := 0
 	for index := state.unitStart; index < len(editor.history); index++ {
 		edit := &editor.history[index]
 		start := edit.start
-		if start < previous || start < 0 || start > len(final) || start+len(edit.inserted) > len(final) {
+		if start < previous || start < 0 || start > final.Len() || start+len(edit.inserted) > final.Len() {
 			return nil, false
 		}
-		if !runesEqual(final[start:start+len(edit.inserted)], edit.inserted) {
-			return nil, false
+		for offset, character := range edit.inserted {
+			if final.At(start+offset) != character {
+				return nil, false
+			}
 		}
-		base = append(base, final[previous:start]...)
-		base = append(base, edit.removed...)
+		base.add(rolledBackPiece{start: previous, length: start - previous})
+		base.add(rolledBackPiece{removed: edit.removed, history: true, length: len(edit.removed)})
 		previous = start + len(edit.inserted)
 	}
-	base = append(base, final[previous:]...)
+	base.add(rolledBackPiece{start: previous, length: final.Len() - previous})
 	return base, true
 }
 
@@ -588,11 +583,11 @@ func compositionCommittedText(state *compositionState) (string, bool) {
 	if state == nil || state.owner == nil {
 		return "", false
 	}
-	committed, ok := state.owner.compositionRollbackRunes(state)
+	committed, ok := state.owner.compositionRollback(state)
 	if !ok {
 		return "", false
 	}
-	return string(committed), true
+	return runeTextString(committed), true
 }
 
 func compositionLineEnd(value rune) bool {
@@ -627,17 +622,17 @@ func (editor *Editor) compositionRollbackSteps(state *compositionState) int {
 }
 
 func (editor *Editor) compositionReplacementRange(event CompositionEvent) Range {
-	return editor.compositionReplacementRangeFor(editor.runes.View(), event)
+	return editor.compositionReplacementRangeFor(&editor.runes, event)
 }
 
-func (editor *Editor) compositionReplacementRangeFor(base []rune, event CompositionEvent) Range {
+func (editor *Editor) compositionReplacementRangeFor(base runeText, event CompositionEvent) Range {
 	if event.HasReplacementUTF16 {
 		return editor.compositionUTF16RangeFor(base, event.ReplacementUTF16)
 	}
 	if event.HasReplacement {
-		return normalizeRange(event.Replacement, len(base))
+		return normalizeRange(event.Replacement, base.Len())
 	}
-	if len(base) == editor.runes.Len() {
+	if base.Len() == editor.runes.Len() {
 		return editor.Selection()
 	}
 	return Range{Start: editor.caret, End: editor.caret}
@@ -967,20 +962,20 @@ func (editor *Editor) compositionReplaceAndInsert(target Range, text []rune) {
 // the pinned source start-from-zero/relative-length conversion; out-of-range or
 // split-surrogate boundaries fall to the document end as the E1 contract binds.
 func (editor *Editor) compositionUTF16Range(raw UTF16Range) Range {
-	return editor.compositionUTF16RangeFor(editor.runes.View(), raw)
+	return editor.compositionUTF16RangeFor(&editor.runes, raw)
 }
 
-func (editor *Editor) compositionUTF16RangeFor(text []rune, raw UTF16Range) Range {
-	total := editor.compositionUTF16Length(text)
-	start, startOK := editor.compositionUTF16StartIn(text, raw.Start, total)
+func (editor *Editor) compositionUTF16RangeFor(text runeText, raw UTF16Range) Range {
+	total := text.UTF16Offset(text.Len())
+	start, startOK := compositionUTF16StartIn(text, raw.Start, total)
 	if !startOK {
 		// An invalid start maps both ends to the document end.
-		end := len(text)
+		end := text.Len()
 		return Range{Start: end, End: end}
 	}
-	end, endOK := editor.compositionUTF16RelativeIn(text, start, raw.Length)
+	end, endOK := compositionUTF16RelativeIn(text, start, raw.Length, total)
 	if !endOK {
-		end = len(text)
+		end = text.Len()
 	}
 	if end < start {
 		end = start
@@ -988,77 +983,28 @@ func (editor *Editor) compositionUTF16RangeFor(text []rune, raw UTF16Range) Rang
 	return Range{Start: start, End: end}
 }
 
-// compositionUTF16Relative converts a nonnegative code-unit length relative to
+// compositionUTF16RelativeIn converts a nonnegative code-unit length relative to
 // an already resolved rune start. It never adds the raw start and length, so a
 // huge positive length simply falls to the document end instead of overflowing.
-func (editor *Editor) compositionUTF16Relative(start, units int) (int, bool) {
-	return editor.compositionUTF16RelativeIn(editor.runes.View(), start, units)
-}
-
-func (editor *Editor) compositionUTF16RelativeIn(text []rune, start, units int) (int, bool) {
+func compositionUTF16RelativeIn(text runeText, start, units, total int) (int, bool) {
 	if units == 0 {
 		return start, true
 	}
-	if start < 0 || start > len(text) {
+	if start < 0 || start > text.Len() {
 		return 0, false
 	}
-	remaining := units
-	for index := start; index < len(text); index++ {
-		width := 1
-		if text[index] > 0xffff {
-			width = 2
-		}
-		if remaining < width {
-			return 0, false
-		}
-		remaining -= width
-		if remaining == 0 {
-			return index + 1, true
-		}
+	from := text.UTF16Offset(start)
+	if units < 0 || units > total-from {
+		return 0, false
 	}
-	return 0, false
+	return text.RuneAtUTF16(from + units)
 }
 
-func (editor *Editor) compositionUTF16Start(units, total int) (int, bool) {
-	return editor.compositionUTF16StartIn(editor.runes.View(), units, total)
-}
-
-func (editor *Editor) compositionUTF16StartIn(text []rune, units, total int) (int, bool) {
+// compositionUTF16StartIn converts a code-unit start measured from zero; one
+// past the text or inside a surrogate pair is not a start.
+func compositionUTF16StartIn(text runeText, units, total int) (int, bool) {
 	if units < 0 || units > total {
 		return 0, false
 	}
-	consumed := 0
-	for index, character := range text {
-		width := 1
-		if character > 0xffff {
-			width = 2
-		}
-		if consumed == units {
-			return index, true
-		}
-		if consumed+width > units {
-			// The raw position splits a surrogate pair.
-			return 0, false
-		}
-		consumed += width
-		if consumed == units {
-			return index + 1, true
-		}
-	}
-	if consumed == units {
-		return len(text), true
-	}
-	return 0, false
-}
-
-func (editor *Editor) compositionUTF16Length(text []rune) int {
-	units := 0
-	for _, value := range text {
-		if value > 0xffff {
-			units += 2
-		} else {
-			units++
-		}
-	}
-	return units
+	return text.RuneAtUTF16(units)
 }

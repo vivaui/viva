@@ -34,18 +34,12 @@ func (editor *Editor) stepRight(caret int) int {
 // to the boundary with the next place along the screen; boundaries drawn at the same place
 // are one stop.
 func (editor *Editor) visualStep(caret, direction int) (int, bool) {
-	lineStart, lineEnd := caret, caret
-	for lineStart > 0 && editor.runes.At(lineStart-1) != '\n' {
-		lineStart--
-	}
-	for lineEnd < editor.runes.Len() && editor.runes.At(lineEnd) != '\n' {
-		lineEnd++
-	}
-	lineRunes := editor.runes.Slice(lineStart, lineEnd)
-	if !bidi.NeedsBidiRunes(lineRunes) {
+	lineStart, lineEnd := editor.runes.LineStart(caret), editor.runes.LineEnd(caret)
+	lineOffset := editor.runes.ByteOffset(lineStart)
+	line := editor.String()[lineOffset:editor.runes.ByteOffset(lineEnd)]
+	if !bidi.NeedsBidi(line) {
 		return 0, false
 	}
-	line := string(lineRunes)
 	resolver := &editor.visualResolve
 	paragraph := resolver.Resolve(line, bidi.Auto)
 	runs := resolver.LineRuns(paragraph, 0, len(line), nil)
@@ -124,10 +118,7 @@ func (editor *Editor) visualStep(caret, direction int) (int, bool) {
 		}
 		return leading(k)
 	}
-	byteOffset := 0
-	for _, r := range editor.runes.Slice(lineStart, caret) {
-		byteOffset += utf8.RuneLen(r)
-	}
+	byteOffset := editor.runes.ByteOffset(caret) - lineOffset
 	current := index(byteOffset)
 	if current > n || starts[current] != byteOffset {
 		return 0, false

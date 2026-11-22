@@ -57,19 +57,13 @@ func isIndentRune(r rune) bool { return r == ' ' || r == '\t' }
 
 // lineStartAt is the index of the first rune of the line that contains index.
 func (editor *Editor) lineStartAt(index int) int {
-	for index > 0 && editor.runes.At(index-1) != '\n' {
-		index--
-	}
-	return index
+	return editor.runes.LineStart(index)
 }
 
 // lineEndAt is the index of the newline that ends the line containing index, or
 // the length of the text.
 func (editor *Editor) lineEndAt(index int) int {
-	for index < editor.runes.Len() && editor.runes.At(index) != '\n' {
-		index++
-	}
-	return index
+	return editor.runes.LineEnd(index)
 }
 
 // indentEnd is the index of the first rune of [start, end) that is not a space
@@ -196,7 +190,7 @@ func (editor *Editor) InsertNewlineCode(options CodeOptions) {
 	selection := editor.Selection()
 	start := editor.lineStartAt(selection.Start)
 	indentEnd := min(editor.indentEnd(start, selection.Start), selection.Start)
-	indent := append([]rune(nil), editor.runes.Slice(start, indentEnd)...)
+	indent := editor.runes.Slice(start, indentEnd)
 	blank := indentEnd == selection.Start // nothing but indentation before the caret
 	extra := false
 	for at := selection.Start; at > start; at-- {
@@ -401,7 +395,7 @@ func (editor *Editor) DuplicateLines(up bool) {
 	}
 	first, last := editor.selectedLines()
 	if up {
-		block := append(append([]rune(nil), editor.runes.Slice(first, last)...), '\n')
+		block := append(editor.runes.Slice(first, last), '\n')
 		editor.editBlock(Range{Start: first, End: first}, block, editor.anchor, editor.caret)
 		return
 	}
