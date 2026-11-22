@@ -3,7 +3,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-shader_dir="$root/internal/platform/linux/shaders"
+shader_dir="$root/internal/platform/vulkan/shaders"
 
 glslc --target-env=vulkan1.0 -O "$shader_dir/scene.vert" -o "$shader_dir/scene.vert.spv"
 glslc --target-env=vulkan1.0 -O "$shader_dir/scene.frag" -o "$shader_dir/scene.frag.spv"

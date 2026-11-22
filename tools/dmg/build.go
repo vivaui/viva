@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -197,6 +198,9 @@ func attachedDevice(output, mount string) (string, error) {
 // detach unmounts the image, retrying while the system still holds it, and
 // forcing it as the last resort.
 func detach(mount, device string) error {
+	// Detaching a partition's node unmounts that volume and leaves the image attached,
+	// which the disk image service then holds: the whole disk is what goes.
+	device = wholeDisk(device)
 	mounted, err := volumeMounted(mount)
 	if err != nil {
 		return err
@@ -224,6 +228,16 @@ func detach(mount, device string) error {
 		return fmt.Errorf("%w; checking mount: %v", err, checkErr)
 	}
 	return err
+}
+
+var partitionNode = regexp.MustCompile(`^(/dev/disk\d+)s\d+$`)
+
+// wholeDisk is the device node of the disk a node is on: /dev/disk7 for /dev/disk7s1.
+func wholeDisk(device string) string {
+	if match := partitionNode.FindStringSubmatch(device); match != nil {
+		return match[1]
+	}
+	return device
 }
 
 // releaseAttempts and releaseWait bound how long released waits for the disk

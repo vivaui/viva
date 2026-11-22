@@ -117,3 +117,13 @@ func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
 		t.Fatalf("an image that stays attached gave %v", err)
 	}
 }
+
+// A volume's node is a slice of a disk, and detaching the slice leaves the image
+// attached: detach is given the disk.
+func TestDetachTargetsTheWholeDisk(t *testing.T) {
+	for node, want := range map[string]string{"/dev/disk7s1": "/dev/disk7", "/dev/disk12s3": "/dev/disk12", "/dev/disk7": "/dev/disk7", "/dev/diskimage": "/dev/diskimage"} {
+		if got := wholeDisk(node); got != want {
+			t.Errorf("wholeDisk(%q) = %q, want %q", node, got, want)
+		}
+	}
+}
