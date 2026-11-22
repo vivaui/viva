@@ -63,6 +63,6 @@ func vivaIOSTextOp(handle C.uintptr_t, view unsafe.Pointer, operation C.int, utf
 		session.Command(platform.TextDeleteBackward)
 	case iosTextEnter:
 		// Enter in a field of one line is the application's, as a key.
-		vivaIOSKeyEvent(handle, view, 0x28, 0, 0, nil, 0)
+		_ = vivaIOSKeyEvent(handle, view, 0x28, 0, 0, nil, 0)
 	}
 }

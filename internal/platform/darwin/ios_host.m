@@ -16,8 +16,8 @@ extern void vivaViewResized(uintptr_t callbackHandle, void *view, double width, 
 extern void vivaWindowClosed(uintptr_t callbackHandle);
 extern void vivaTouchEvent(uintptr_t callbackHandle, void *view, int kind, int identifier,
                            double x, double y, double screenX, double screenY);
-extern void vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
-                            const unsigned char *utf8, size_t utf8Length);
+extern int vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
+                           const unsigned char *utf8, size_t utf8Length);
 extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
 extern void vivaIOSTextOp(uintptr_t callbackHandle, void *view, int operation, const unsigned char *utf8, size_t utf8Length,
                           int64_t first, int64_t last);
@@ -369,22 +369,21 @@ enum {
 // text arrive as key events and the chords with Control or Command as shortcut
 // offers; what is typed is the text input's (see UITextInput).
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
-    BOOL handled = NO;
+    NSMutableSet<UIPress *> *others = [NSMutableSet set];
     for (UIPress *press in presses) {
         UIKey *key = press.key;
-        if (key == nil || _closed) {
-            continue;
-        }
-        if (_editor.enabled && [VivaIOSEditor textSystemTakes:key]) {
+        if (key == nil || _closed || (_editor.enabled && [VivaIOSEditor textSystemTakes:key])) {
+            [others addObject:press];
             continue;
         }
         const char *chars = key.charactersIgnoringModifiers.UTF8String;
         size_t length = chars != NULL ? strlen(chars) : 0;
-        vivaIOSKeyEvent(_callbackHandle, self, (int)key.keyCode, (int)key.modifierFlags, 0, (const unsigned char *)chars, length);
-        handled = YES;
+        if (vivaIOSKeyEvent(_callbackHandle, self, (int)key.keyCode, (int)key.modifierFlags, 0, (const unsigned char *)chars, length) == 0) {
+            [others addObject:press];
+        }
     }
-    if (!handled) {
-        [super pressesBegan:presses withEvent:event];
+    if (others.count > 0) {
+        [super pressesBegan:others withEvent:event];
     }
 }
 
@@ -406,7 +405,6 @@ enum {
         _selected = NSMakeRange(0, 0);
         _marked = NSMakeRange(NSNotFound, 0);
         self.alpha = 0;
-        self.userInteractionEnabled = NO;
     }
     return self;
 }
@@ -439,6 +437,16 @@ enum {
 - (BOOL)canBecomeFirstResponder {
     return _enabled;
 }
+
+/* The editor is not there to be touched: the surface under it is. */
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    return NO;
+}
+
+- (UIView *)textInputView {
+    return self;
+}
+
 
 - (void)setEnabled:(BOOL)enabled multiline:(BOOL)multiline secure:(BOOL)secure {
     BOOL restart = _enabled != enabled || _multiline != multiline || _secure != secure;
