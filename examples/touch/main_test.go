@@ -196,3 +196,26 @@ func TestTheListGivesAtItsStartAndSpringsBack(t *testing.T) {
 		t.Fatalf("the drag chose row %d", m.list.Selected())
 	}
 }
+
+// A finger that lands a little beside a small control presses it, as a fingertip is
+// bigger than the control is drawn.
+func TestAFingerBesideASwitchTurnsItOn(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	b := control(t, driver, "Notifications").Bounds
+	if b.Height >= 44 && b.Width >= 44 {
+		t.Skip("the switch is already as big as a fingertip")
+	}
+	// Just above the switch, outside what it is drawn as but within the 44 px a fingertip needs.
+	x, y := b.X+b.Width/2, b.Y-3
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !m.notify {
+		t.Fatal("a finger just beside the switch did not turn it on")
+	}
+}

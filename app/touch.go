@@ -28,18 +28,31 @@ type touchState struct {
 	modifiers          input.Modifiers
 	screenDX, screenDY float32 // screen position less window position
 	advancing          bool    // a timed step is being carried out: repaint must not start another
+	snapDX, snapDY     float32 // how far the touch was moved onto a small control, for all of the finger's events
 }
+
+// touchTargetSize is the least a control is to a finger, in logical pixels: the
+// 44-point minimum of Apple's guidelines (Material's 48 dp, less its padding, is the
+// same on a screen). A control drawn smaller reaches out to it for a touch.
+const touchTargetSize = 44
 
 // touchEvent reads one event of a finger.
 func (painter *painter) touchEvent(event platform.PointerEvent) (platform.Frame, error) {
 	t := &painter.touch
 	now := painter.canvas.Now()
 	var step interaction.TouchStep
+	if event.Kind == platform.PointerDown && (!t.Active() || event.PointerID == t.id) {
+		x, y := painter.focus.Router().TouchPoint(event.X, event.Y, touchTargetSize)
+		t.snapDX, t.snapDY = x-event.X, y-event.Y
+	}
+	if event.PointerID == t.id || event.Kind == platform.PointerDown {
+		event.X, event.Y = event.X+t.snapDX, event.Y+t.snapDY
+	}
 	switch event.Kind {
 	case platform.PointerDown:
 		if !t.Active() || event.PointerID == t.id {
 			t.id, t.modifiers = event.PointerID, event.Modifiers
-			t.screenDX, t.screenDY = event.ScreenX-event.X, event.ScreenY-event.Y
+			t.screenDX, t.screenDY = event.ScreenX-(event.X-t.snapDX), event.ScreenY-(event.Y-t.snapDY)
 		}
 		step = t.Down(event.PointerID, event.X, event.Y, now, painter.claimsDrag(event.X, event.Y))
 	case platform.PointerMove:
