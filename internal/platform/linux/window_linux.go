@@ -1567,8 +1567,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		}
 	}
 	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview && win.frame.stateAtom != 0 {
-		states := [2]uint32{win.frame.maximizedVertical, win.frame.maximizedHorizontal}
-		api.changeProperty(connection, xcbPropertyReplace, win.id, win.frame.stateAtom, xcbAtomAtom, 32, uint32(len(states)), unsafe.Pointer(&states[0]))
+		win.requestInitialMaximized()
 	}
 	api.mapWindow(connection, win.id)
 	if api.flush(connection) <= 0 || api.connectionHasError(connection) != 0 {
