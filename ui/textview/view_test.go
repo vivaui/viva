@@ -293,6 +293,149 @@ func TestCopyGoesThroughTheSpecHook(t *testing.T) {
 	}
 }
 
+func TestSiblingViewsKeepTheirInputSeparate(t *testing.T) {
+	var views [2]textview.View
+	lines := [2]string{"first output", "second output"}
+	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			for i := range views {
+				views[i].Declare(c, textview.Spec{
+					Label: lines[i], Source: textview.Strings{lines[i]},
+					Font: gfx.TextStyle{Size: 13}, LineHeight: 18,
+				})
+			}
+		})
+	}})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 320}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(driver.Paint())
+	for _, i := range []int{1, 0} {
+		at, ok := views[i].PointOf(textview.Point{Line: 0, Byte: 2})
+		if !ok {
+			t.Fatalf("view %d is not on screen", i)
+		}
+		must(driver.DoubleClick(at.X, at.Y))
+		if got, want := views[i].Text(), strings.Fields(lines[i])[0]; got != want {
+			t.Fatalf("double clicking view %d selected %q, want %q", i, got, want)
+		}
+		_, err := driver.ShortcutChord(keymap.Primary, 'a')
+		must(err)
+		_, err = driver.ShortcutChord(keymap.Primary, 'c')
+		must(err)
+		must(driver.Paint())
+		if got := driver.Clipboard(); got != lines[i] {
+			t.Fatalf("copy in view %d got %q, want %q", i, got, lines[i])
+		}
+		must(driver.Key(gfx.KeyEscape, 0))
+		if views[0].Has() || views[1].Has() {
+			t.Fatal("input in one view left a selection in its sibling")
+		}
+	}
+	seen := map[gfx.ID]string{}
+	for _, node := range driver.Accessibility() {
+		if node.ID.IsZero() {
+			continue
+		}
+		if other, ok := seen[node.ID]; ok {
+			t.Fatalf("%q and %q share the identity %v", other, node.Label, node.ID)
+		}
+		seen[node.ID] = node.Label
+	}
+}
+
+func TestClosedMenusLeaveTheNextSiblingsIdentityAlone(t *testing.T) {
+	var views [2]textview.View
+	pressed := -1
+	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			for i := range views {
+				views[i].Declare(c, textview.Spec{
+					Label: "Output", Source: textview.Strings{"first", "second"}, Scroll: true,
+					Font: gfx.TextStyle{Size: 13}, LineHeight: 18,
+					Menu: func(menu *ui.MenuItems) {
+						if menu.Item("Copy line").Clicked() {
+							pressed = i
+						}
+					},
+				}).Height(80)
+			}
+			ui.Button(c, "After the views")
+		})
+	}})
+	driver, err := app.NewDriver(page.Config(app.Config{Width: 640, Height: 320}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(driver.Paint())
+	for i := range views {
+		at, ok := views[i].PointOf(textview.Point{Line: 1})
+		if !ok {
+			t.Fatalf("view %d is not on screen", i)
+		}
+		must(driver.ClickButton(at.X, at.Y, gfx.PointerButtonSecondary))
+		if line, ok := views[i].MenuLine(); !ok || line != 1 {
+			t.Fatalf("view %d opened the menu on line %d (%v), want 1", i, line, ok)
+		}
+		hit := trailHit(t, driver, "Copy line")
+		must(driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2))
+		if pressed != i {
+			t.Fatalf("view %d's menu pressed view %d", i, pressed)
+		}
+		must(driver.Paint())
+	}
+}
+
+func TestPaintAndCopyKeepGraphemesWhole(t *testing.T) {
+	for _, test := range []struct{ line, word string }{
+		{"cafe\u0301", "cafe\u0301"}, {"a👩‍💻b", "👩‍💻"}, {"a🇨🇳b", "🇨🇳"}, {"क्ष", "क्ष"}, {"\u0301x", ""},
+	} {
+		line := test.line
+		t.Run(line, func(t *testing.T) {
+			o := openOutput(t, line)
+			var drawn strings.Builder
+			for _, label := range o.driver.Snapshot().Labels {
+				drawn.WriteString(label.Value)
+				end := 0
+				for _, run := range label.Runs {
+					end += int(run.Bytes)
+					if gfx.GraphemeStart(label.Value, end) != end {
+						t.Fatalf("run ending at %d splits a grapheme of %q", end, label.Value)
+					}
+				}
+				if end != len(label.Value) {
+					t.Fatalf("runs hold %d bytes of %q", end, label.Value)
+				}
+			}
+			if got := drawn.String(); got != line {
+				t.Fatalf("paint drew %q, want the complete text %q", got, line)
+			}
+			if test.word != "" {
+				x, y := o.at(0, 1)
+				o.must(o.driver.DoubleClick(x, y))
+				if got := o.copyShortcut(); got != test.word {
+					t.Fatalf("double clicking %q copied %q, want %q", line, got, test.word)
+				}
+			}
+		})
+	}
+}
+
 func trailHit(t *testing.T, driver *app.Driver, label string) gfx.Hit {
 	t.Helper()
 	for _, hit := range driver.Snapshot().Hits {

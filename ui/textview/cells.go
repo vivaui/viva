@@ -1,10 +1,6 @@
 package textview
 
-import (
-	"unicode/utf8"
-
-	"github.com/vivaui/viva/text"
-)
+import "github.com/vivaui/viva/text"
 
 // tabSize is how many columns a tab stop is apart.
 const tabSize = 4
@@ -39,17 +35,20 @@ func cellsOf(text string, at int) int {
 func byteAt(text string, column float32, nearest bool) int {
 	cells := 0
 	for i := 0; i < len(text); {
-		r, size := utf8.DecodeRuneInString(text[i:])
-		width := runeCells(r, cells)
+		endByte := nextGrapheme(text, i)
+		width := cellsOf(text[i:endByte], cells)
 		end := float32(cells + width)
 		if column < end {
 			if nearest && width > 0 && column >= float32(cells)+float32(width)/2 {
-				return i + size
+				return endByte
 			}
 			return i
 		}
 		cells += width
-		i += size
+		i = endByte
 	}
 	return len(text)
 }
+
+// nextGrapheme uses the same boundaries for painting, wrapping and hit testing.
+func nextGrapheme(value string, at int) int { return text.NextGraphemeBoundary(value, at) }

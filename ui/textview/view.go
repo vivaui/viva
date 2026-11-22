@@ -224,7 +224,7 @@ func (v *View) PointOf(p Point) (gfx.Point, bool) {
 	}
 	_, from, _ := v.rowBytes(index)
 	text := src.Line(p.Line)
-	at := min(max(p.Byte, from), len(text))
+	at := boundary(text, min(max(p.Byte, from), len(text)))
 	x := v.rect.X + v.spec.PadX + (float32(cellsOf(text[from:at], 0))+0.25)*v.cellW
 	y := v.rect.Y + v.spec.PadY + (float32(index)+0.5)*v.lineH
 	if y < v.clip.Y || y >= v.clip.Y+v.clip.Height {
@@ -244,8 +244,8 @@ func (v *View) Visible() (int, int) {
 	return v.rowLine(from), v.rowLine(max(to-1, from)) + 1
 }
 
-// Declare declares the view with spec and returns its outermost box: the scrolling area,
-// or the text itself.
+// Declare declares the view with spec and returns its outermost box: the scrolling area
+// or the container sized to its text.
 func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 	v.spec = spec
 	if v.draw == nil {
@@ -289,8 +289,11 @@ func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 			control = v.control(c, spec.Label)
 		})
 	} else {
-		control = v.control(c, spec.Label).FillWidth().Height(height)
-		outer = control
+		// Parts belong to one instance, including when the view has no scroll or wrap
+		// container. This also consumes a Key the caller gave this view.
+		outer = ui.Column(c).FillWidth().Height(height).Children(func() {
+			control = v.control(c, spec.Label).Fill()
+		})
 	}
 	if control.Shortcut(ui.Primary, "c") && v.Has() {
 		text, copy := v.Text(), spec.Copy
@@ -306,7 +309,7 @@ func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 		v.SelectAll()
 	}
 	if spec.Menu != nil {
-		ui.ContextMenuAt(c.Key("menu"), control, &v.menuOpen, v.menuAt, spec.Menu)
+		ui.ContextMenuAt(c, control, &v.menuOpen, v.menuAt, spec.Menu)
 	}
 	return outer
 }

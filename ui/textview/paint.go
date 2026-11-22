@@ -185,7 +185,8 @@ func (v *View) paintSelection(canvas *gfx.Canvas, text string, line, start, end,
 
 // row draws the bytes start to end of a line, the columns before cols of it, as labels
 // of at most limit columns: each character on its cells, in the color of the span it is
-// in. A tab or a control character leaves its cells empty; a combining mark is not drawn.
+// in. Each non-ASCII grapheme is shaped as one run, including all its marks. A tab or a
+// control character leaves its cells empty.
 func (p *painter) row(text string, start, end, cols, limit int) int {
 	v := p.v
 	span := 0
@@ -195,13 +196,8 @@ func (p *painter) row(text string, start, end, cols, limit int) int {
 	for i := start; i < end; {
 		at := i
 		r, size := utf8.DecodeRuneInString(text[i:])
-		i += size
-		width := runeCells(r, cells)
-		if width == 0 {
-			p.flush(text[labelAt:labelTo], label, labelEnd)
-			label = -1
-			continue
-		}
+		i = nextGrapheme(text, i)
+		width := cellsOf(text[at:i], cells)
 		if cells >= cols || p.fit >= 0 && cells+width > cols {
 			p.flush(text[labelAt:labelTo], label, labelEnd)
 			return at
@@ -233,13 +229,13 @@ func (p *painter) row(text string, start, end, cols, limit int) int {
 			}
 		}
 		italic := styled && style.Italic
-		ascii := r < 0x80
+		ascii := r < 0x80 && i-at == 1
 		if ascii && runASCII && run >= 0 && p.runs[run].Color == color && p.runs[run].Weight == weight &&
 			p.runs[run].Italic == italic && p.runs[run].Underline == style.Underline && p.runs[run].Strike == style.Strike {
-			p.runs[run].Bytes += int32(size)
+			p.runs[run].Bytes += int32(i - at)
 			p.runs[run].Cells += int32(width)
 		} else {
-			bytes := size
+			bytes := i - at
 			if invalid {
 				bytes = len(replacementChar)
 			}

@@ -57,8 +57,9 @@ func (v *View) trailCells(n int) int {
 func wrapLine(rows []row, n int, text string, cols int) []row {
 	start, cells, space := 0, 0, -1
 	for i := 0; i < len(text); {
-		r, size := utf8.DecodeRuneInString(text[i:])
-		width := runeCells(r, cells)
+		r, _ := utf8.DecodeRuneInString(text[i:])
+		endByte := nextGrapheme(text, i)
+		width := cellsOf(text[i:endByte], cells)
 		if cells+width > cols && cells > 0 {
 			end := i
 			if space > start {
@@ -70,7 +71,7 @@ func wrapLine(rows []row, n int, text string, cols int) []row {
 			continue
 		}
 		cells += width
-		i += size
+		i = endByte
 		if r == ' ' || r == '\t' {
 			space = i
 		}
