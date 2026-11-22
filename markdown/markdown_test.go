@@ -127,6 +127,27 @@ func TestTextThatIsNotClosedStaysAsTyped(t *testing.T) {
 	}
 }
 
+func TestInlineCharacterReferences(t *testing.T) {
+	for _, tc := range []struct {
+		name, source, want string
+	}{
+		{"documentation indent", "&nbsp;&nbsp;&nbsp;&nbsp;(...)  Matches the expression.", "P0 {\u00a0\u00a0\u00a0\u00a0(...)  Matches the expression.}\n"},
+		{"number and name", "A&#160;B &#x1F680; &NotEqualTilde; &semi;", "P0 {A\u00a0B 🚀 ≂̸ ;}\n"},
+		{"malformed references", "&notit; &noti; &copy &#160 &#12345678; &;", "P0 {&notit; &noti; &copy &#160 &#12345678; &;}\n"},
+		{"invalid code points", "&#0; &#xD800; &#x110000;", "P0 {� � �}\n"},
+		{"decoded once as text", "&amp;nbsp; &#42;word&#42;", "P0 {&nbsp; *word*}\n"},
+		{"escaped ampersand", `\&nbsp;`, "P0 {&nbsp;}\n"},
+		{"link text and emphasis", "[a &amp; b](https://example.com) **A&nbsp;B**", "P0 {a & b -> https://example.com}{ }{A\u00a0B:b}\n"},
+		{"code", "`&nbsp;`\n\n```\n&nbsp;\n```", "P0 {&nbsp;:m}\nCODE[] \"&nbsp;\"\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parse(tc.source); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestOnlyWebAndMailLinksAreKept(t *testing.T) {
 	for _, dest := range []string{"javascript:alert(1)", "file:///etc/passwd", "ssh://host", "./local.md", "data:text/html,x"} {
 		got := parse("[click me](" + dest + ")")
