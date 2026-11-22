@@ -124,7 +124,11 @@ type Config struct {
 	// node: press it, focus it, set its value. The adapter calls it on the
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
-	OnRedraw        RedrawHandler
+	// AccessibilityTree, when set, answers with the tree the window has now, for an adapter
+	// whose assistive technology starts after the window opened: frames carry the tree only
+	// when it changes. The slice is the application's, read at once and not kept.
+	AccessibilityTree func() []AccessibilityNode
+	OnRedraw          RedrawHandler
 	// SetFrameInterval, when set, is called by the adapter on the window thread
 	// once it knows how the window's frames are paced: the interval between
 	// display frames, or zero when presenting a frame blocks until the display
@@ -492,6 +496,10 @@ type PointerEvent struct {
 	// ClickCount is the number of consecutive presses this Down or Up belongs
 	// to (2 for a double click). Move and Exit events leave it 0.
 	ClickCount int
+	// Device is what the event comes from (gfx.PointerDevice), and PointerID
+	// tells apart the fingers or pens touching at once.
+	Device    gfx.PointerDevice
+	PointerID int32
 }
 
 // Size is a window client size in logical pixels.
@@ -665,6 +673,8 @@ func ShortcutCandidate(event KeyEvent) bool {
 // system already applied. Precise reports whether the deltas are device pixels
 // (trackpad) or scaled line approximations (classic mouse wheels).
 type ScrollEvent struct {
+	// Phase is what moves the content; the zero value is a wheel or a touchpad.
+	Phase     gfx.ScrollPhase
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32

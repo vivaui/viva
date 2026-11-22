@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -69,6 +70,12 @@ func Build(options Options) error {
 	if err := settle(writable, options, app); err != nil {
 		return err
 	}
+	// Detaching returns before the disk image service lets go of the file;
+	// converting it while the service still holds it fails with "Resource
+	// temporarily unavailable", which hosted runners show for over a minute.
+	if err := released(writable); err != nil {
+		return err
+	}
 
 	// Write beside the target first so a failure leaves the previous image alone.
 	temporary := strings.TrimSuffix(options.Image, ".dmg") + ".viva-tmp.dmg"
@@ -104,7 +111,7 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	defer func() {
-		if detachErr := detach(mount, device); err == nil {
+		if detachErr := detach(device); err == nil {
 			err = detachErr
 		}
 	}()
@@ -188,36 +195,113 @@ func attachedDevice(output, mount string) (string, error) {
 	return "", fmt.Errorf("dmg: attached image has no device at %s", mount)
 }
 
-// detach unmounts the image, retrying while the system still holds it, and
-// forcing it as the last resort.
-func detach(mount, device string) error {
-	mounted, err := volumeMounted(mount)
-	if err != nil {
-		return err
-	}
-	if !mounted {
-		return nil
-	}
+// detach unmounts the image and detaches its disk, retrying while the system still
+// holds it, and forcing it as the last resort. The volume being unmounted already
+// (by the system, or by an earlier try) is not the end of it: the image stays
+// attached, and the disk image service keeps holding the file, until its disk is
+// detached. What ends it is the disk no longer being attached.
+func detach(device string) error {
+	// Detaching a partition's node unmounts that volume and leaves the image attached,
+	// which the disk image service then holds: the whole disk is what goes.
+	device = wholeDisk(device)
+	var err error
 	for attempt := 0; attempt < 5; attempt++ {
 		if err = hdiutil("detach", device); err == nil {
 			return nil
 		}
-		if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
+		if gone, checkErr := diskGone(device); checkErr != nil {
+			return fmt.Errorf("%w; checking the disk: %v", err, checkErr)
+		} else if gone {
 			return nil
-		} else if checkErr != nil {
-			return fmt.Errorf("%w; checking mount: %v", err, checkErr)
 		}
-		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+		pause(time.Duration(attempt+1) * 500 * time.Millisecond)
 	}
 	if forced := hdiutil("detach", "-force", device); forced == nil {
 		return nil
 	}
-	if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
+	if gone, checkErr := diskGone(device); checkErr == nil && gone {
 		return nil
 	} else if checkErr != nil {
-		return fmt.Errorf("%w; checking mount: %v", err, checkErr)
+		return fmt.Errorf("%w; checking the disk: %v", err, checkErr)
 	}
 	return err
+}
+
+// diskGone says no attached image has this disk, as hdiutil info lists them.
+func diskGone(device string) (bool, error) {
+	out, err := hdiutilOutput("info", "-plist")
+	if err != nil {
+		return false, err
+	}
+	return !strings.Contains(out, "<string>"+device+"</string>"), nil
+}
+
+var partitionNode = regexp.MustCompile(`^(/dev/disk\d+)s\d+$`)
+
+// wholeDisk is the device node of the disk a node is on: /dev/disk7 for /dev/disk7s1.
+func wholeDisk(device string) string {
+	if match := partitionNode.FindStringSubmatch(device); match != nil {
+		return match[1]
+	}
+	return device
+}
+
+// releaseAttempts and releaseWait bound how long released waits for the disk
+// image service: up to two minutes.
+const (
+	releaseAttempts = 120
+	releaseWait     = time.Second
+)
+
+// released waits until no attached image is the file at image, as hdiutil info
+// lists them. It reports the list when the image is still attached at the end.
+func released(image string) error {
+	path := image
+	if resolved, err := filepath.EvalSymlinks(image); err == nil {
+		path = resolved
+	}
+	var attached string
+	for attempt := 0; attempt < releaseAttempts; attempt++ {
+		out, err := hdiutilOutput("info", "-plist")
+		if err != nil {
+			return err
+		}
+		if !strings.Contains(out, "<string>"+path+"</string>") && !strings.Contains(out, "<string>"+image+"</string>") {
+			return nil
+		}
+		attached = out
+		if redetachAt[attempt] {
+			// The service can keep an image attached, and hold the file, after a detach
+			// that reported success: take its disk away again.
+			if device := diskOf(out, path, image); device != "" {
+				_ = hdiutil("detach", "-force", device)
+			}
+		}
+		pause(releaseWait)
+	}
+	return fmt.Errorf("the disk image service still holds %s after detaching it:\n%s", image, attached)
+}
+
+// redetachAt are the attempts of released at which an image still attached has its disk
+// detached again.
+var redetachAt = map[int]bool{5: true, 20: true, 50: true, 90: true}
+
+var diskNode = regexp.MustCompile(`<string>(/dev/disk\d+)</string>`)
+
+// diskOf is the disk of the attached image at one of the paths, from hdiutil info's
+// list: the first disk its entry names, since an entry lists its image's path before
+// its system entities.
+func diskOf(info string, paths ...string) string {
+	for _, path := range paths {
+		at := strings.Index(info, "<string>"+path+"</string>")
+		if at < 0 {
+			continue
+		}
+		if match := diskNode.FindStringSubmatch(info[at:]); match != nil {
+			return match[1]
+		}
+	}
+	return ""
 }
 
 func hdiutil(arguments ...string) error {
@@ -241,6 +325,15 @@ var (
 // resources beyond the previous ten-second window after detaching its volume.
 const busyAttempts = 10
 
+// transient says a failure of hdiutil is the disk image service being unready rather
+// than a mistake of ours: it is busy or unavailable, or, for create, it lost the staged
+// folder it was just given ("No such file or directory" with the folder there), which
+// is how it answers while the service starts under load. Another run takes.
+func transient(command, output string) bool {
+	return strings.Contains(output, "Resource busy") || strings.Contains(output, "Resource temporarily unavailable") ||
+		command == "create" && strings.Contains(output, "create failed - No such file or directory")
+}
+
 func hdiutilOutput(arguments ...string) (string, error) {
 	for attempt := 1; ; attempt++ {
 		out, err := runHdiutil(arguments...)
@@ -251,8 +344,7 @@ func hdiutilOutput(arguments ...string) (string, error) {
 			return "", errors.New("a .dmg needs hdiutil, which ships with macOS")
 		}
 		// detach has its own way of waiting, which checks whether the volume is gone.
-		if arguments[0] != "detach" && attempt < busyAttempts &&
-			(strings.Contains(string(out), "Resource busy") || strings.Contains(string(out), "Resource temporarily unavailable")) {
+		if arguments[0] != "detach" && attempt < busyAttempts && transient(arguments[0], string(out)) {
 			pause(time.Duration(attempt) * time.Second)
 			continue
 		}

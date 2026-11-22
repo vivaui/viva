@@ -23,6 +23,8 @@ import (
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
 	fullscreen bool
+	// touch reads a finger's presses, pans and flings (touch.go).
+	touch touchState
 	// customTitlebar says the page draws the window's titlebar strip itself
 	// (WindowCustomTitlebar), so the window buttons cover part of it.
 	customTitlebar bool
@@ -230,6 +232,15 @@ func (painter *painter) pressAt(x, y float32) platform.PressKind {
 // backdrop would, and the second is the same press aimed at what the overlay
 // was covering, once the paint has taken it away.
 func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Frame, error) {
+	if event.Device == gfx.PointerTouch && touchRuntime.event != nil {
+		return touchRuntime.event(painter, event)
+	}
+	return painter.pointerInput(event)
+}
+
+// pointerInput is pointerEvent for a press the runtime reads as it comes: a
+// mouse's or a pen's, or a finger's once touchEvent decided it is a press.
+func (painter *painter) pointerInput(event platform.PointerEvent) (platform.Frame, error) {
 	if event.Kind == platform.PointerDown {
 		painter.tap.Cancel()
 		painter.pointerOutside = false
@@ -346,14 +357,14 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.Eve
 		result = painter.onPointer(gfx.PointerEvent{
 			Kind: gfx.PointerEventKind(event.Kind), Button: event.Button, Modifiers: gfx.Modifiers(event.Modifiers),
 			X: event.X, Y: event.Y, ScreenX: event.ScreenX, ScreenY: event.ScreenY, Viewport: painter.size, Target: target, Captured: captured,
-			ClickCount: event.ClickCount,
+			ClickCount: event.ClickCount, Device: event.Device, PointerID: event.PointerID,
 		})
 	}
 	if !result.Handled && pointerIsDelivered(event.Kind, target, captured) {
 		if painter.deliverPointer(gfx.PointerEvent{
 			Kind: gfx.PointerEventKind(event.Kind), Button: event.Button, Modifiers: gfx.Modifiers(event.Modifiers),
 			X: event.X, Y: event.Y, ScreenX: event.ScreenX, ScreenY: event.ScreenY, Viewport: painter.size, Target: target, Captured: captured,
-			ClickCount: event.ClickCount,
+			ClickCount: event.ClickCount, Device: event.Device, PointerID: event.PointerID,
 		}) {
 			result.Handled, result.Repaint = true, true
 		}
@@ -780,8 +791,19 @@ func (painter *painter) fileDrop(event platform.FileDropEvent) (platform.Frame, 
 
 func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, error) {
 	painter.tap.Cancel()
-	if event.DeltaY == 0 && event.DeltaX == 0 {
+	painter.touch.StopFling() // a wheel or a touchpad takes over from a fling
+	if !painter.applyScroll(event) {
 		return platform.Frame{}, nil
+	}
+	return painter.repaintAfterInput()
+}
+
+// applyScroll gives a scroll to the application, or scrolls the page itself when
+// the application leaves it, and reports whether anything changed that needs a
+// repaint.
+func (painter *painter) applyScroll(event platform.ScrollEvent) bool {
+	if event.DeltaY == 0 && event.DeltaX == 0 && event.Phase != gfx.ScrollPhaseEnd {
+		return false
 	}
 	target := gfx.ID{}
 	if hit, ok := painter.focus.Router().HitTest(event.X, event.Y); ok {
@@ -790,7 +812,7 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 	response := gfx.EventResult{}
 	if painter.onScroll != nil {
 		response = painter.onScroll(gfx.ScrollEvent{
-			Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
+			Phase: event.Phase, Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
 			DeltaX: event.DeltaX, DeltaY: event.DeltaY, Viewport: painter.size, Target: target, Precise: event.Precise,
 		})
 	}
@@ -800,10 +822,7 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 		painter.scrollX = max(0, painter.scrollX+event.DeltaX)
 		painter.scrollY = max(0, painter.scrollY+event.DeltaY)
 	}
-	if painter.scrollX == beforeX && painter.scrollY == beforeY && !focusChanged && !response.Repaint {
-		return platform.Frame{}, nil
-	}
-	return painter.repaintAfterInput()
+	return painter.scrollX != beforeX || painter.scrollY != beforeY || focusChanged || response.Repaint
 }
 
 // initialTextInput is the native editor the first paint already calls for: a
@@ -893,6 +912,11 @@ func (painter *painter) deliverPointer(event gfx.PointerEvent) bool {
 // repaint reruns the paint callback with current interaction state and
 // synchronizes the result with the retained renderer.
 func (painter *painter) repaint() (platform.Frame, error) {
+	if touchRuntime.advance != nil {
+		if frame, done, err := touchRuntime.advance(painter); done {
+			return frame, err
+		}
+	}
 	if painter.noteFrameStart != nil {
 		painter.noteFrameStart()
 	}

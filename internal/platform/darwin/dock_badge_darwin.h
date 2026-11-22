@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_DOCK_BADGE_DARWIN_H
 #define VIVA_DOCK_BADGE_DARWIN_H
 

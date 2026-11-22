@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_SYSTEM_DARWIN_H
 #define VIVA_SYSTEM_DARWIN_H
 

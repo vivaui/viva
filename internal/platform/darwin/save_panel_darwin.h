@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_SAVE_PANEL_DARWIN_H
 #define VIVA_SAVE_PANEL_DARWIN_H
 

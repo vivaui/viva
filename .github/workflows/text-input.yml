@@ -194,7 +194,9 @@ jobs:
         run: go test -tags vivagtk ./internal/platform/linux -run '^TestGTKDestroyDetachesInputMethodBeforeNativeWidget$' -count=1 -v
       - name: Linux clipboard, compositing and icon contracts
         if: runner.os == 'Linux'
-        run: go test -tags vivagtk ./internal/platform/linux -run '^Test(AClipboardHTML|SetClipboardHTML|GTKClipboardHTML|CompositingLayers|NetWMIcon)' -count=1 -v
+        run: |
+          go test -tags vivagtk ./internal/platform/linux -run '^Test(AClipboardHTML|SetClipboardHTML|GTKClipboardHTML|NetWMIcon)' -count=1 -v
+          go test ./internal/platform/vulkan -run '^TestCompositingLayers' -count=1 -v
       # A terminal input is a preedit surface with a cursor of its own: the native
       # editor must draw no caret or selection over it, and blink none.
       - name: Windows terminal preedit draws no native caret

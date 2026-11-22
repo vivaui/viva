@@ -91,6 +91,22 @@ const (
 	PointerButtonForward
 )
 
+// PointerDevice is what a pointer event comes from, as the Pointer Events
+// standard's pointerType: it decides whether the pointer hovers and how a press
+// that moves is read.
+type PointerDevice uint8
+
+const (
+	// PointerMouse is a mouse or a touchpad: it hovers, and a press acts at once.
+	PointerMouse PointerDevice = iota
+	// PointerTouch is a finger on a screen: it hovers only while it touches, a
+	// press that moves at once scrolls instead of pressing, and a long press is a
+	// secondary press.
+	PointerTouch
+	// PointerPen is a stylus: it hovers over the screen and presses as a mouse.
+	PointerPen
+)
+
 // PointerEvent is delivered in logical window pixels. Target is the stable hit
 // ID under the pointer, or the press target while Captured is true. Viewport is
 // the current logical window size, allowing coordinate-driven controls to
@@ -116,6 +132,10 @@ type PointerEvent struct {
 	Target           ID
 	Captured         bool
 	ClickCount       int
+	// Device is what the event comes from, and PointerID tells apart the
+	// fingers or pens touching at once; a mouse is pointer 0.
+	Device    PointerDevice
+	PointerID int32
 }
 
 // Win32Key is the Windows console INPUT_RECORD data of a key event: the
@@ -192,6 +212,8 @@ type ModifierTapEvent struct {
 // Target is the stable hit ID at X,Y. Viewport is the current logical window
 // size, allowing coordinate-driven controls to derive their local geometry.
 type ScrollEvent struct {
+	// Phase says what moves the content; the zero value is a wheel or a touchpad.
+	Phase     ScrollPhase
 	Modifiers Modifiers
 	X         float32
 	Y         float32
@@ -201,6 +223,24 @@ type ScrollEvent struct {
 	Target    ID
 	Precise   bool
 }
+
+// ScrollPhase is what a scroll event comes from. A wheel or a touchpad is the zero value
+// and stops at the ends of what it scrolls; a finger on a touch screen carries the
+// content past an end, where it gives like rubber and springs back once the finger lets go.
+type ScrollPhase uint8
+
+const (
+	// ScrollPhaseWheel is a mouse wheel or a touchpad.
+	ScrollPhaseWheel ScrollPhase = iota
+	// ScrollPhaseFinger is a finger dragging the content: it follows the finger, and
+	// past an end it follows at a fraction.
+	ScrollPhaseFinger
+	// ScrollPhaseMomentum is the content still moving after the finger lifted.
+	ScrollPhaseMomentum
+	// ScrollPhaseEnd says the finger lifted. It moves nothing: content held past an end
+	// springs back.
+	ScrollPhaseEnd
+)
 
 // StepY is DeltaY for content that moves in steps of unit pixels, such as the
 // rows of a list or terminal. A classic wheel never moves less than one unit per

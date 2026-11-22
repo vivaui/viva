@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <Foundation/Foundation.h>
 #import <CFNetwork/CFNetwork.h>
 

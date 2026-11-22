@@ -2350,6 +2350,17 @@ func (canvas *Canvas) Consume() {
 	}
 }
 
+// PointerPass is the pointer event being delivered in this paint, whoever it is aimed at, and
+// whether a control has already consumed it; ok is false outside an event pass. A control
+// that comes last in the paint, as a tooltip does, reads what the others left of the event.
+func (canvas *Canvas) PointerPass() (event PointerEvent, consumed, ok bool) {
+	canvas.listensForPointer = true
+	if !canvas.hasPointer {
+		return PointerEvent{}, false, false
+	}
+	return canvas.pointer, canvas.consumed, true
+}
+
 // ListensForPointer reports whether the last paint asked PointerOn or PointerIn:
 // whether a pointer event needs the event pass.
 func (canvas *Canvas) ListensForPointer() bool { return canvas.listensForPointer }

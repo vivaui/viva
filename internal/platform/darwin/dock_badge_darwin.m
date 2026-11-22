@@ -1,3 +1,5 @@
+//go:build !ios
+
 #include "dock_badge_darwin.h"
 
 #import <Cocoa/Cocoa.h>

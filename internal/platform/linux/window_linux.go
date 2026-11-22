@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -11,6 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform/windowframe"
+	"github.com/vivaui/viva/internal/render"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/diag"
@@ -131,7 +136,7 @@ func (win *window) storeScale(scale float32) { win.scaleBits.Store(math.Float32b
 // logicalSize is the window's size in logical pixels.
 func (win *window) logicalSize() platform.Size {
 	scale := win.displayScale()
-	return platform.Size{Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale, Scale: scale}
+	return platform.Size{Width: float32(windowframe.ContentSize(win.width, win.margin)) / scale, Height: float32(windowframe.ContentSize(win.height, win.margin)) / scale, Scale: scale}
 }
 
 func Run(config platform.Config) error {
@@ -167,6 +172,9 @@ type linuxWindowState struct {
 	exposed bool
 	// visible is the last visibility reported to OnVisibility; a window starts as visible.
 	visible bool
+	// touch is the window's touch events through the X Input extension; nil where the
+	// server or the library lacks it, and the finger then reaches the window as a pointer.
+	touch *xinputTouch
 }
 
 type linuxApplication struct {
@@ -334,6 +342,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 		return nil, err
 	}
 	state.win = win
+	state.touch = loadXInputTouch(win.api, win.connection, win.id)
 	textInput, err := newLinuxTextInput(&config)
 	if err != nil {
 		win.close()
@@ -351,7 +360,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 	}
 	state.renderer = renderer
 	if config.SetFrameInterval != nil {
-		if _, vulkan := renderer.(*vulkanRenderer); vulkan {
+		if _, vulkan := renderer.(*vulkanWindow); vulkan {
 			// A FIFO present blocks until the compositor takes the frame, so the
 			// display paces the window; the runtime asks for the next frame as
 			// soon as the last one is shown.
@@ -850,7 +859,7 @@ func (state *linuxWindowState) reportFrame() (int32, int32, bool) {
 	scale := win.displayScale()
 	frame := gfx.Rect{
 		X: float32(x) / scale, Y: float32(y) / scale,
-		Width: float32(contentSize(win.width, win.margin)) / scale, Height: float32(contentSize(win.height, win.margin)) / scale,
+		Width: float32(windowframe.ContentSize(win.width, win.margin)) / scale, Height: float32(windowframe.ContentSize(win.height, win.margin)) / scale,
 	}
 	if frame == win.lastFrame {
 		return x, y, true
@@ -895,6 +904,15 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		activeWindow.Store(win)
 	}
 	kind := (*xcbGenericEvent)(event).ResponseType & 0x7f
+	if state.touch != nil && kind == xcbGenericEventType {
+		if touch, ok := state.touch.read(event); ok {
+			if touch.kind == platform.PointerDown {
+				state.application.lastUserTime = touch.timestamp
+				win.setUserTime(touch.timestamp)
+			}
+			return false, router.touch(touch, float32(win.margin))
+		}
+	}
 	if kind == xcbButtonPress || kind == xcbKeyPress {
 		if timestamp := (*xcbInputEvent)(event).Time; timestamp != 0 {
 			state.application.lastUserTime = timestamp
@@ -1299,8 +1317,8 @@ func (state *linuxWindowState) refreshScale(reload bool) error {
 func (state *linuxWindowState) applyScale(scale float32) error {
 	win := state.win
 	old := win.displayScale()
-	logicalWidth := int(math.Round(float64(contentSize(win.width, win.margin)) / float64(old)))
-	logicalHeight := int(math.Round(float64(contentSize(win.height, win.margin)) / float64(old)))
+	logicalWidth := int(math.Round(float64(windowframe.ContentSize(win.width, win.margin)) / float64(old)))
+	logicalHeight := int(math.Round(float64(windowframe.ContentSize(win.height, win.margin)) / float64(old)))
 	win.storeScale(scale)
 	if err := state.renderer.setScale(scale); err != nil {
 		return err
@@ -1308,7 +1326,7 @@ func (state *linuxWindowState) applyScale(scale float32) error {
 	margin := uint32(0)
 	if win.margin > 0 {
 		// The margin is a whole number of device pixels at every scale.
-		margin = frameMargin(scale)
+		margin = windowframe.Margin(scale)
 		win.setMargin(margin)
 		if err := state.renderer.setFrameMargin(margin); err != nil {
 			return err
@@ -1344,10 +1362,10 @@ func validateConfig(config platform.Config) error {
 	if config.WindowMode > platform.WindowNotification {
 		return fmt.Errorf("linux: invalid window mode %d", config.WindowMode)
 	}
-	if err := validateRectangles(config.Rectangles); err != nil {
+	if err := render.ValidateRectangles(config.Rectangles); err != nil {
 		return err
 	}
-	if err := validateInitialTextLabels(config.TextLabels); err != nil {
+	if err := platform.ValidateTextLabels(config.TextLabels); err != nil {
 		return err
 	}
 	return nil
@@ -1404,7 +1422,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		// composites it draws the shadow and the round corners too, in a margin.
 		if visual, framed := win.wantsFrame(screenIndex); framed {
 			frameVisual, win.frameWanted = visual, true
-			win.margin = frameMargin(scale)
+			win.margin = windowframe.Margin(scale)
 			win.width, win.height = win.width+2*win.margin, win.height+2*win.margin
 		}
 	}

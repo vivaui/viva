@@ -16,6 +16,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/lineengine"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 )
@@ -213,7 +214,7 @@ func (runtime *runtime) mount() {
 		runtime.canvas = &gfx.Canvas{}
 	}
 	runtime.measurer = newDOMMeasurer(runtime.document)
-	runtime.canvas.SetTextEngine(newLineEngine(runtime.measurer))
+	runtime.canvas.SetTextEngine(lineengine.New(runtime.measurer))
 	started := time.Now()
 	runtime.canvas.SetClock(func() time.Duration { return time.Since(started) })
 	runtime.canvas.SetReduceMotion(runtime.window.Call("matchMedia", "(prefers-reduced-motion: reduce)").Get("matches").Bool())
@@ -221,12 +222,13 @@ func (runtime *runtime) mount() {
 	runtime.fullscreen = fullscreenActive(runtime.document)
 	// A font that loads late changes the baselines and widths as it does every line.
 	clearLines := runtime.measurer.invalidate
-	runtime.measurer.setInvalidate(func() {
+	runtime.measurer.SetInvalidate(func() {
 		clearLines()
 		runtime.metrics.clear()
 	})
 	runtime.metrics = newTextMetrics(runtime.measurer)
 	runtime.painter = newPainter(runtime.canvas, &runtime.config)
+	runtime.painter.scheduleFrame = runtime.scheduleFrame
 	runtime.a11y.setActions(
 		func(id gfx.ID) {
 			// The painter repaints its own canvas; the runtime still has to
@@ -896,7 +898,16 @@ func pointerEvent(kind gfx.PointerEventKind, event js.Value) gfx.PointerEvent {
 	if kind == gfx.PointerDown || kind == gfx.PointerUp {
 		clicks = max(event.Get("detail").Int(), 1)
 	}
+	device := gfx.PointerMouse
+	switch event.Get("pointerType").String() {
+	case "touch":
+		device = gfx.PointerTouch
+	case "pen":
+		device = gfx.PointerPen
+	}
 	return gfx.PointerEvent{
+		Device:     device,
+		PointerID:  int32(event.Get("pointerId").Int()),
 		Kind:       kind,
 		Button:     button,
 		Modifiers:  webModifiers(event.Get("shiftKey").Bool(), event.Get("ctrlKey").Bool(), event.Get("altKey").Bool(), event.Get("metaKey").Bool()),

@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_PROXY_DARWIN_H
 #define VIVA_PROXY_DARWIN_H
 
