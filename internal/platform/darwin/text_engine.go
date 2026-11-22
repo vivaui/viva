@@ -326,6 +326,21 @@ func (engine *TextEngine) OffsetAt(value string, size, weight, x float32) int {
 	return engine.OffsetAtStyle(value, size, weight, false, x)
 }
 
+// HitAt reports the selected CoreText boundary and the caret edge nearest x.
+func (engine *TextEngine) HitAt(value string, size, weight, x float32) gfx.TextHit {
+	if value == "" || size <= 0 {
+		return gfx.TextHit{}
+	}
+	engine.mutex.Lock()
+	defer engine.mutex.Unlock()
+	line := engine.line(value, size, weight)
+	if line == nil {
+		return gfx.TextHit{}
+	}
+	hit := C.viva_text_line_hit_at(line, C.double(x))
+	return gfx.TextHit{Offset: byteOffset(value, int(hit.index)), X: float32(hit.x)}
+}
+
 func (engine *TextEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	if value == "" || size <= 0 {
 		return 0
