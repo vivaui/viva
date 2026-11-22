@@ -92,11 +92,12 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 	} else if pointerX, pointerY, ok := win.pointerPosition(); ok {
 		focusX, focusY = pointerX, pointerY
 	}
+	monitor, ok := monitorAt(monitors, focusX, focusY)
 	if config.WindowMode == platform.WindowNotification && config.HasOrigin {
 		scale := win.displayScale()
-		focusX, focusY = int(config.Origin.X*scale+width/2), int(config.Origin.Y*scale+height/2)
+		monitor, ok = notificationMonitorAt(monitors, int(config.Origin.X*scale), int(config.Origin.Y*scale))
 	}
-	if monitor, ok := monitorAt(monitors, focusX, focusY); ok && monitor.Width > 0 && monitor.Height > 0 {
+	if ok && monitor.Width > 0 && monitor.Height > 0 {
 		work, haveWork := win.workArea()
 		usable := usableArea(monitorRect(monitor), work, haveWork)
 		area = platform.ScreenRect{X: float32(usable.x), Y: float32(usable.y), Width: float32(usable.width), Height: float32(usable.height)}
@@ -106,8 +107,7 @@ func (win *window) panelOrigin(config platform.Config) (x, y int16) {
 		fx, fy = platform.PlaceNotification(width, height, 12*win.displayScale(), area)
 		if config.HasOrigin {
 			scale := win.displayScale()
-			fx = min(max(config.Origin.X*scale, area.X), area.X+max(0, area.Width-width))
-			fy = min(max(config.Origin.Y*scale, area.Y), area.Y+max(0, area.Height-height))
+			fx, fy = platform.RestoreNotification(config.Origin.X*scale, config.Origin.Y*scale, width, height, area)
 		}
 	} else if config.HasAnchor {
 		fx, fy = platform.PlacePanel(config.Anchor, width, height, area)

@@ -79,6 +79,21 @@ int main(void) {
         assert(window.isVisible && NSApp.keyWindow == key);
         assert(NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == foreground);
         [popup hideWindow];
+        if (NSScreen.screens.count == 1) {
+            NSRect area = NSScreen.screens.firstObject.visibleFrame;
+            CGFloat height = NSScreen.screens.firstObject.frame.size.height;
+            [popup setValue:[NSValue valueWithPoint:NSMakePoint(NSMinX(area) + 20, height - NSMaxY(area) + 20)]
+                     forKey:@"origin"];
+            [popup placeAtOrigin];
+            assert(NSMinX(window.frame) == NSMinX(area) + 20 && NSMaxY(window.frame) == NSMaxY(area) - 20);
+            [popup setValue:[NSValue valueWithPoint:NSMakePoint(NSMaxX(area) - 1, height - NSMinY(area) - 1)]
+                     forKey:@"origin"];
+            [popup placeAtOrigin];
+            assert(NSMaxX(window.frame) == NSMaxX(area) && NSMinY(window.frame) == NSMinY(area));
+            [popup setValue:[NSValue valueWithPoint:NSMakePoint(-100000, -100000)] forKey:@"origin"];
+            [popup placeAtOrigin];
+            assert(NSMinX(window.frame) == NSMinX(area) && NSMaxY(window.frame) == NSMaxY(area));
+        }
         [owner orderOut:nil];
         [popup release];
         [queue release];

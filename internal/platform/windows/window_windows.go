@@ -103,6 +103,7 @@ type windowState struct {
 	maximized                              bool
 	lastFrame                              gfx.Rect
 	scale                                  float32
+	placingNotification                    bool
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
 	pointerEvents, resizeEvents, keyEvents uint64
@@ -436,15 +437,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
 	if config.WindowMode == platform.WindowNotification {
-		// Moving onto a monitor can synchronously resize the popup for its DPI.
-		// Anchor again using the resulting native size before revealing it.
-		if config.HasOrigin {
-			state.placeAtOrigin(config.Origin)
-			state.placeAtOrigin(config.Origin)
-		} else {
-			state.placePanel()
-			state.placePanel()
-		}
+		state.placeNotification()
 		showWindow.Call(state.window, swShowNoActivate)
 	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
@@ -872,7 +865,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		resizes := state.resizeEvents
 		if state.fullscreen.Load() {
 			state.fitFullscreenMonitor()
-		} else {
+		} else if !state.placingNotification {
 			setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
 		}
 		if state.sizingMove || state.sizing {

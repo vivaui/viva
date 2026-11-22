@@ -158,8 +158,7 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 			width, height := float32(config.Width)*w.ratio, float32(config.Height)*w.ratio
 			x, y := platform.PlaceNotification(width, height, 12*w.ratio, area)
 			if config.HasOrigin {
-				x = min(max(config.Origin.X*w.ratio, area.X), area.X+max(0, area.Width-width))
-				y = min(max(config.Origin.Y*w.ratio, area.Y), area.Y+max(0, area.Height-height))
+				x, y = platform.RestoreNotification(config.Origin.X*w.ratio, config.Origin.Y*w.ratio, width, height, area)
 			}
 			g.windowMove(w.toplevel, int32(x), int32(y))
 		}

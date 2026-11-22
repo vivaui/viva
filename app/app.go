@@ -44,7 +44,9 @@ const (
 	// WindowNotification opens a desktop popup that accepts pointer input and
 	// stays open when focus changes. On Windows, macOS and X11 it requests the
 	// bottom-right of the pointer monitor's work area without taking keyboard
-	// focus. On native Wayland, the compositor decides placement, stacking and
+	// focus. Mark the parts the user may drag with gfx.Canvas.MoveRegion or
+	// ui.Box.MovesWindow and save Frame's X and Y for Config.Origin.
+	// On native Wayland, the compositor decides placement, stacking and
 	// keyboard focus. Use SendNotification for a system-managed notification.
 	WindowNotification WindowMode = WindowMode(platform.WindowNotification)
 )
@@ -78,7 +80,10 @@ type Config struct {
 	// system. It is a request: on Windows and macOS the content area lands there
 	// (kept on a screen); an X11 window manager places the window's frame there,
 	// so the content area sits below the title bar. Window.Frame reports where it
-	// really is.
+	// really is. WindowNotification restores to the nearest available monitor
+	// and clamps to its work area. On Windows a notification's origin is in
+	// physical desktop pixels, matching Frame's X and Y across mixed-DPI
+	// displays. A Wayland compositor may ignore the requested position.
 	Origin *gfx.Point
 	// Maximized asks the window manager to open the window maximized on Windows
 	// and Linux, while keeping Width, Height and Origin as its restored floating

@@ -4056,6 +4056,29 @@ static void viva_set_secure_event_input(BOOL on) {
         return;
     }
     NSScreen *screen = nil;
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+        NSPoint topLeft = NSMakePoint(NSMinX(frame), NSMaxY(frame));
+        CGFloat nearestDistance = CGFLOAT_MAX;
+        for (NSScreen *candidate in NSScreen.screens) {
+            NSRect bounds = candidate.frame;
+            CGFloat dx = topLeft.x - MIN(MAX(topLeft.x, NSMinX(bounds)), NSMaxX(bounds));
+            CGFloat dy = topLeft.y - MIN(MAX(topLeft.y, NSMinY(bounds)), NSMaxY(bounds));
+            CGFloat distance = dx * dx + dy * dy;
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                screen = candidate;
+            }
+        }
+        if (screen != nil) {
+            NSRect area = screen.visibleFrame;
+            frame.size.width = MIN(frame.size.width, area.size.width);
+            frame.size.height = MIN(frame.size.height, area.size.height);
+            frame.origin.x = MIN(MAX(NSMinX(area), frame.origin.x), NSMaxX(area) - frame.size.width);
+            frame.origin.y = MIN(MAX(NSMinY(area), frame.origin.y), NSMaxY(area) - frame.size.height);
+        }
+        [_window setFrame:frame display:NO];
+        return;
+    }
     NSPoint middle = NSMakePoint(NSMidX(frame), NSMidY(frame));
     for (NSScreen *candidate in NSScreen.screens) {
         if (NSPointInRect(middle, candidate.frame)) {
@@ -4065,15 +4088,6 @@ static void viva_set_secure_event_input(BOOL on) {
     }
     if (screen == nil) {
         screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
-    }
-    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
-        NSRect area = screen.visibleFrame;
-        frame.size.width = MIN(frame.size.width, area.size.width);
-        frame.size.height = MIN(frame.size.height, area.size.height);
-        frame.origin.x = MIN(MAX(NSMinX(area), frame.origin.x), NSMaxX(area) - frame.size.width);
-        frame.origin.y = MIN(MAX(NSMinY(area), frame.origin.y), NSMaxY(area) - frame.size.height);
-        [_window setFrame:frame display:NO];
-        return;
     }
     [_window setFrame:[_window constrainFrameRect:frame toScreen:screen] display:NO];
 }
