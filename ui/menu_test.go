@@ -487,6 +487,16 @@ func TestMenuWidthRange(t *testing.T) {
 		if got := d.hit(m.Label).Bounds.Width; got > m.greatest {
 			t.Fatalf("item width = %v, exceeds the menu maximum of %v", got, m.greatest)
 		}
+		var menuWidth float32
+		for _, hit := range d.driver.Snapshot().Hits {
+			if hit.Role == gfx.RoleMenu {
+				menuWidth = hit.Bounds.Width
+				break
+			}
+		}
+		if menuWidth != m.greatest {
+			t.Fatalf("menu surface width = %v, want %v", menuWidth, m.greatest)
+		}
 		d.click(m.Label)
 		if m.picked != 1 || m.open {
 			t.Fatalf("picked=%d open=%v", m.picked, m.open)
