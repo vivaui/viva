@@ -97,3 +97,23 @@ func TestHdiutilReportsOtherFailuresAtOnce(t *testing.T) {
 		})
 	}
 }
+
+// The image is converted only once the disk image service has let go of it:
+// released waits while hdiutil info still lists it, and says so if it never
+// does.
+func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
+	const image = "/tmp/viva-release-test/writable.dmg"
+	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string></dict></array></plist>", nil}
+	free := reply{"<plist><array></array></plist>", nil}
+	runs, waits := stub(t, []reply{held, held, free})
+	if err := released(image); err != nil {
+		t.Fatal(err)
+	}
+	if len(*runs) != 3 || len(*waits) != 2 {
+		t.Fatalf("%d checks and %d waits, want 3 and 2", len(*runs), len(*waits))
+	}
+	stub(t, []reply{held})
+	if err := released(image); err == nil || !strings.Contains(err.Error(), image) {
+		t.Fatalf("an image that stays attached gave %v", err)
+	}
+}
