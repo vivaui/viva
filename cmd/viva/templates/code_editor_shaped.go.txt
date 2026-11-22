@@ -32,8 +32,7 @@ type codeShapedRow struct {
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
-	if !snapshot.ShapedBidi || snapshot.ShowWhitespace || snapshot.ShowEOL ||
-		(snapshot.Decorations != nil && snapshot.Decorations.codeEditorHasIndicators()) {
+	if !snapshot.ShapedBidi || snapshot.ShowWhitespace || snapshot.ShowEOL {
 		editor.shaping = nil
 		return
 	}
@@ -169,22 +168,26 @@ func (editor *CodeEditor) shapedCaretX(row codeRow, offset int) (float32, bool) 
 		if s.hitValid && s.hitRow == row.start && s.hit.Offset == offset {
 			return inset + s.hit.X, true
 		}
-		local := max(0, min(offset-int(row.start), int(row.end-row.start)))
-		at, exact := slices.BinarySearchFunc(carets, local, func(caret gfx.FittedMonoCaret, local int) int {
-			return cmp.Compare(caret.Offset, local)
-		})
-		if !exact {
-			at = max(0, at-1)
-		}
-		if at == 0 {
-			return inset + carets[0].Leading, true
-		}
-		return inset + carets[at].Trailing, true
+		return inset + codeShapedBoundaryX(carets, offset-int(row.start)), true
 	}
 	if row.start == row.end && inset > 0 {
 		return inset, true
 	}
 	return 0, false
+}
+
+// codeShapedBoundaryX ignores hit affinity so source markers remain stationary.
+func codeShapedBoundaryX(carets []gfx.FittedMonoCaret, local int) float32 {
+	at, exact := slices.BinarySearchFunc(carets, local, func(caret gfx.FittedMonoCaret, local int) int {
+		return cmp.Compare(caret.Offset, local)
+	})
+	if !exact {
+		at = max(0, at-1)
+	}
+	if at == 0 {
+		return carets[0].Leading
+	}
+	return carets[at].Trailing
 }
 
 func (editor *CodeEditor) shapedHit(row codeRow, x float32) (gfx.TextHit, bool) {
@@ -404,7 +407,9 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 	if paint.showWrapSymbol && paint.editor.softWrapped(index) {
 		paint.wrapSymbol(y)
 	}
-	paint.overlays(index, y)
+	if !paint.deferOverlays {
+		paint.overlays(index, y)
+	}
 }
 
 func (paint *codePaint) shapedIndentGuides(row codeRow, y, left float32, carets []gfx.FittedMonoCaret) {

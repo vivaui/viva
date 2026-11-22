@@ -141,7 +141,7 @@ type CodeEditorSnapshot struct {
 	MonoFace gfx.MonoFace
 	// ShapedBidi opts grid rows into native bidi shaping where available.
 	// Rows with represented characters use the logical grid, as do editors
-	// showing whitespace, line endings, or inline decoration indicators.
+	// showing whitespace or line endings.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// Direction sets the paragraph direction for shaped rows. Auto takes it

@@ -204,6 +204,8 @@ func (paint *codeDecorationPaint) indicatorLayers(layers []CodeEditorIndicatorLa
 	if baseline > 0 {
 		pointHeight = float32(math.Floor(float64(max(float32(3), paint.lineHeight-baseline))))
 	}
+	var scratch [8]gfx.TextSpan
+	visual := scratch[:0]
 	for _, layer := range layers {
 		if layer.Color.Alpha == 0 || !validIndicatorLayer(editor.text, layer) {
 			continue
@@ -223,14 +225,26 @@ func (paint *codeDecorationPaint) indicatorLayers(layers []CodeEditorIndicatorLa
 				}
 				return layer.Spans[at].End > start
 			})
+			if first == len(layer.Spans) || layer.Spans[first].Start > end {
+				continue
+			}
 			walker := columnWalker{editor: editor, row: row, at: start}
 			left := editor.content.X - editor.scrollX
+			carets := editor.shapedRow(row)
+			if len(carets) != 0 || row.start == row.end {
+				left += editor.shapedRowInset(row)
+			}
 			for _, span := range layer.Spans[first:] {
 				if span.Start > end || span.Start == end && (!point || editor.softWrapped(index)) {
 					break
 				}
 				if point {
-					x := left + float32(walker.column(span.Start))*paint.cellWidth
+					x := left
+					if len(carets) != 0 {
+						x += codeShapedBoundaryX(carets, span.Start-start)
+					} else {
+						x += float32(walker.column(span.Start)) * paint.cellWidth
+					}
 					bottom := y + paint.lineHeight
 					if baseline > 0 {
 						bottom = y + max(paint.lineHeight, baseline+3)
@@ -242,14 +256,24 @@ func (paint *codeDecorationPaint) indicatorLayers(layers []CodeEditorIndicatorLa
 				if a >= b {
 					continue
 				}
-				x0 := left + float32(walker.column(a))*paint.cellWidth + 1
-				x1 := left + float32(walker.column(b))*paint.cellWidth - 1
-				x0, x1 = max(x0, editor.content.X), min(x1, editor.content.X+editor.content.Width)
-				if x1 > x0 {
-					paint.canvas.Fill(gfx.Rect{X: x0, Y: y + paint.lineHeight - 2, Width: x1 - x0, Height: 2}, color)
+				if len(carets) != 0 {
+					visual = codeShapedSpans(visual, carets, a-start, b-start)
+					for _, part := range visual {
+						paint.indicatorUnderline(left+part.X, left+part.X+part.Width, y, color)
+					}
+				} else {
+					paint.indicatorUnderline(left+float32(walker.column(a))*paint.cellWidth, left+float32(walker.column(b))*paint.cellWidth, y, color)
 				}
 			}
 		}
+	}
+}
+
+func (paint *codeDecorationPaint) indicatorUnderline(left, right, y float32, color gfx.Color) {
+	content := paint.editor.content
+	left, right = max(left+1, content.X), min(right-1, content.X+content.Width)
+	if right > left {
+		paint.canvas.Fill(gfx.Rect{X: left, Y: y + paint.lineHeight - 2, Width: right - left, Height: 2}, color)
 	}
 }
 
