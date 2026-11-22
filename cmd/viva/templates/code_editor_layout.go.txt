@@ -519,7 +519,17 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point gfx.Point) (offset, virtualC
 	}
 	index = max(0, min(index, len(editor.rows)-1))
 	row := editor.rows[index]
-	column := (point.X - editor.content.X + editor.scrollX) / editor.cellWidth
+	x := point.X - editor.content.X + editor.scrollX
+	if hit, shaped := editor.shapedHit(row, x); shaped {
+		editor.rememberShapedHit(row, hit)
+		editor.goalActive = false
+		editor.setUpstream(hit.Offset, false)
+		return hit.Offset, 0, true
+	}
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
+	column := x / editor.cellWidth
 	offset = editor.offsetAtColumn(row, column)
 	editor.setUpstream(offset, offset == int(row.end) && editor.softWrapped(index))
 	if offset == int(row.end) && !editor.softWrapped(index) {
@@ -541,6 +551,9 @@ func (editor *CodeEditor) setUpstream(offset int, upstream bool) {
 
 // arrive notes where a movement ended and returns it.
 func (editor *CodeEditor) arrive(offset int, upstream bool) int {
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
 	editor.setUpstream(offset, upstream)
 	editor.goalActive = false
 	return offset
@@ -595,21 +608,34 @@ func (editor *CodeEditor) Move(text string, caret int, movement TextareaMovement
 	}
 	if !editor.goalActive || editor.goalCaret != caret {
 		editor.goal = float32(editor.columnOf(row, caret))
+		if x, shaped := editor.shapedCaretX(row, caret); shaped && editor.cellWidth > 0 {
+			editor.goal = x / editor.cellWidth
+		}
 	}
 	target := index + step
 	var offset int
 	var upstream bool
+	var hit gfx.TextHit
+	var shaped bool
 	switch {
 	case target < 0:
 		offset = 0
 	case target >= len(editor.rows):
 		offset = len(text)
 	default:
-		offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		hit, shaped = editor.shapedHit(editor.rows[target], editor.goal*editor.cellWidth)
+		if shaped {
+			offset = hit.Offset
+		} else {
+			offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		}
 		upstream = offset == int(editor.rows[target].end) && editor.softWrapped(target)
 	}
 	goal := editor.goal
 	offset = editor.arrive(offset, upstream)
+	if shaped {
+		editor.rememberShapedHit(editor.rows[target], hit)
+	}
 	editor.goal, editor.goalCaret, editor.goalActive = goal, offset, true
 	return offset
 }
@@ -682,7 +708,7 @@ func clampScroll(scroll, most float32) float32 {
 // follow scrolls to keep the caret in view when the caret, or the row it is on,
 // is not where the last paint left it. A wheel or a drag of a scrollbar moves the
 // view and the next paint leaves it there until the caret moves.
-func (editor *CodeEditor) follow(caret, row, column int) {
+func (editor *CodeEditor) follow(caret, row, column int, x float32, shaped bool) {
 	if !editor.followedValid || editor.followed != caret || editor.followedRow != row {
 		top := float32(row) * editor.lineHeight
 		if top < editor.scrollY {
@@ -692,6 +718,9 @@ func (editor *CodeEditor) follow(caret, row, column int) {
 		}
 		if !editor.wrap {
 			left, right := float32(column)*editor.cellWidth, float32(column+1)*editor.cellWidth
+			if shaped {
+				left, right = x, x+editor.cellWidth
+			}
 			if left < editor.scrollX {
 				editor.scrollX = max(0, left-editor.cellWidth*2)
 			} else if right > editor.scrollX+editor.content.Width {

@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/grapheme"
 	"github.com/vivaui/viva/internal/textcache"
 )
 
@@ -339,6 +340,38 @@ func (engine *TextEngine) HitAt(value string, size, weight, x float32) gfx.TextH
 	}
 	hit := C.viva_text_line_hit_at(line, C.double(x))
 	return gfx.TextHit{Offset: byteOffset(value, int(hit.index)), X: float32(hit.x)}
+}
+
+// FittedMonoCarets measures boundaries in the same fitted font used by a
+// shaped grid label. The cache for proportional text is not used for this.
+func (engine *TextEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	if value == "" || !validTextSize(style.Size) || style.Italic || !validTextSize(span) {
+		return dst, false
+	}
+	var scratch [64]C.viva_fitted_mono_caret
+	native := scratch[:0]
+	units := 0
+	start := len(dst)
+	for at := 0; ; {
+		dst = append(dst, gfx.FittedMonoCaret{Offset: at})
+		native = append(native, C.viva_fitted_mono_caret{index: C.size_t(units)})
+		if at == len(value) {
+			break
+		}
+		next := grapheme.Next(value, at)
+		for _, r := range value[at:next] {
+			units += utf16Units(r)
+		}
+		at = next
+	}
+	bytes := (*C.uchar)(unsafe.Pointer(unsafe.StringData(value)))
+	if C.viva_fitted_mono_carets(bytes, C.size_t(len(value)), C.double(style.Size), C.double(style.Weight), C.int(style.MonoFace), C.double(span), &native[0], C.size_t(len(native))) == 0 {
+		return dst[:start], false
+	}
+	for i, caret := range native {
+		dst[start+i].Leading, dst[start+i].Trailing = float32(caret.leading), float32(caret.trailing)
+	}
+	return dst, true
 }
 
 func (engine *TextEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
