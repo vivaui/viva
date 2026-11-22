@@ -172,6 +172,9 @@ type linuxWindowState struct {
 	exposed bool
 	// visible is the last visibility reported to OnVisibility; a window starts as visible.
 	visible bool
+	// touch is the window's touch events through the X Input extension; nil where the
+	// server or the library lacks it, and the finger then reaches the window as a pointer.
+	touch *xinputTouch
 }
 
 type linuxApplication struct {
@@ -338,6 +341,7 @@ func (application *linuxApplication) OpenWindow(config platform.Config) (platfor
 		return nil, err
 	}
 	state.win = win
+	state.touch = loadXInputTouch(win.api, win.connection, win.id)
 	textInput, err := newLinuxTextInput(&config)
 	if err != nil {
 		win.close()
@@ -899,6 +903,15 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		activeWindow.Store(win)
 	}
 	kind := (*xcbGenericEvent)(event).ResponseType & 0x7f
+	if state.touch != nil && kind == xcbGenericEventType {
+		if touch, ok := state.touch.read(event); ok {
+			if touch.kind == platform.PointerDown {
+				state.application.lastUserTime = touch.timestamp
+				win.setUserTime(touch.timestamp)
+			}
+			return false, router.touch(touch, float32(win.margin))
+		}
+	}
 	if kind == xcbButtonPress || kind == xcbKeyPress {
 		if timestamp := (*xcbInputEvent)(event).Time; timestamp != 0 {
 			state.application.lastUserTime = timestamp

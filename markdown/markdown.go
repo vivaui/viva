@@ -5,10 +5,9 @@
 //
 // It is a reader for display, not a CommonMark implementation. The result is a
 // flat list of blocks (lists and quotes are a depth on a block, not a tree)
-// whose text is sliced from the source, so parsing builds no strings except for
-// the rare fenced block that sits inside a list or a quote. A Document keeps its
-// storage between calls to Parse: re-parsing a message that grows by a few
-// words allocates nothing once the Document is warm.
+// whose text is normally sliced from the source. Parsing builds strings when
+// decoding inline character references or collecting fenced code inside a list
+// or quote. A Document reuses its storage between calls to Parse.
 //
 // A newline inside a paragraph is a line break, as it is in chat. Text that is
 // not closed (a "**" with no partner, a fence nobody ended yet) stays as typed,

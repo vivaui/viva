@@ -58,6 +58,20 @@ func TestHdiutilWaitsOutABusySystem(t *testing.T) {
 	}
 }
 
+// create answers "No such file or directory" while the disk image service starts under
+// load, with the folder it was given there: that is waited out too, but only for create.
+func TestHdiutilCreateRetriesALostFolder(t *testing.T) {
+	lost := reply{"hdiutil: create failed - No such file or directory", errExit}
+	runs, _ := stub(t, []reply{lost, {"ready", nil}})
+	if out, err := hdiutilOutput("create", "image"); err != nil || out != "ready" || len(*runs) != 2 {
+		t.Fatalf("output %q, error %v, %d runs", out, err, len(*runs))
+	}
+	runs, _ = stub(t, []reply{{"hdiutil: attach failed - No such file or directory", errExit}})
+	if _, err := hdiutilOutput("attach", "image"); err == nil || len(*runs) != 1 {
+		t.Fatalf("a missing image was retried: %v, %d runs", err, len(*runs))
+	}
+}
+
 // It does not wait for ever, and the error says what the tool said.
 func TestHdiutilGivesUpOnAStaysBusySystem(t *testing.T) {
 	for _, message := range []string{"Resource busy", "Resource temporarily unavailable"} {
@@ -101,6 +115,30 @@ func TestHdiutilReportsOtherFailuresAtOnce(t *testing.T) {
 // The image is converted only once the disk image service has let go of it:
 // released waits while hdiutil info still lists it, and says so if it never
 // does.
+func TestReleasedDetachesTheDiskAgainWhileTheImageStaysAttached(t *testing.T) {
+	const image = "/tmp/viva-release-test/writable.dmg"
+	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string><key>dev-entry</key><string>/dev/disk7</string></dict></array></plist>", nil}
+	free := reply{"<plist><array></array></plist>", nil}
+	replies := []reply{}
+	for i := 0; i < 7; i++ { // attempts 0 to 5 find it held, and the force detach of attempt 5 is one more run
+		replies = append(replies, held)
+	}
+	replies = append(replies, free)
+	runs, _ := stub(t, replies)
+	if err := released(image); err != nil {
+		t.Fatal(err)
+	}
+	forced := false
+	for _, arguments := range *runs {
+		if len(arguments) == 3 && arguments[0] == "detach" && arguments[1] == "-force" && arguments[2] == "/dev/disk7" {
+			forced = true
+		}
+	}
+	if !forced {
+		t.Fatalf("the disk was never detached again: %v", *runs)
+	}
+}
+
 func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
 	const image = "/tmp/viva-release-test/writable.dmg"
 	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string></dict></array></plist>", nil}

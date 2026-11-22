@@ -156,3 +156,164 @@ func skipWithoutTouchRuntime(t *testing.T) {
 		t.Skip("macOS windows do not install the touch gestures")
 	}
 }
+
+// A finger that drags the list down at its start carries it past the start, and it
+// springs back to where it began when the finger lifts.
+func TestTheListGivesAtItsStartAndSpringsBack(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	_, rest := centerOf(t, driver, "Row 1")
+	x, y := centerOf(t, driver, "Row 5")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	for step := float32(1); step <= 10; step++ {
+		if err := driver.Advance(10 * time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+		if err := driver.TouchMove(1, x, y+step*15); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, held := centerOf(t, driver, "Row 1")
+	if held <= rest {
+		t.Fatalf("the first row is at %v while the finger holds the list past its start, want it below %v", held, rest)
+	}
+	if held-rest >= 150 {
+		t.Fatalf("the list followed the finger all %v px past its start, want it to give", held-rest)
+	}
+	if err := driver.TouchUp(1, x, y+150); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if _, home := centerOf(t, driver, "Row 1"); home != rest {
+		t.Fatalf("the first row is at %v after the finger lifted, want %v", home, rest)
+	}
+	if m.list.Selected() >= 0 {
+		t.Fatalf("the drag chose row %d", m.list.Selected())
+	}
+}
+
+// A finger that lands a little beside a small control presses it, as a fingertip is
+// bigger than the control is drawn.
+func TestAFingerBesideASwitchTurnsItOn(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	b := control(t, driver, "Notifications").Bounds
+	if b.Height >= 44 && b.Width >= 44 {
+		t.Skip("the switch is already as big as a fingertip")
+	}
+	// Just above the switch, outside what it is drawn as but within the 44 px a fingertip needs.
+	x, y := b.X+b.Width/2, b.Y-3
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !m.notify {
+		t.Fatal("a finger just beside the switch did not turn it on")
+	}
+}
+
+// A finger held on a control that has a tooltip and no menu shows it, and it goes away
+// by itself.
+func TestAHeldFingerShowsTheTooltipAndItGoesAway(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	x, y := centerOf(t, driver, "Tap me")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip did not open under a held finger")
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if m.taps != 0 {
+		t.Fatalf("a long press also tapped: %d", m.taps)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip went away at once when the finger lifted")
+	}
+	if err := driver.Advance(300 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip went away as soon as the finger lifted")
+	}
+	if err := driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip stayed")
+	}
+}
+
+// A row with a menu opens the menu, not a tooltip.
+func TestAHeldFingerOnAControlWithAMenuShowsNoTooltip(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	x, y := centerOf(t, driver, "Row 1")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Open") {
+		t.Fatal("the long press did not open the row's menu")
+	}
+}
+
+// A page keeps inside the bars a phone's system draws over its window, and the page's own
+// background reaches the edges: the window being told the bars grow moves the content down.
+func TestThePageKeepsInsideTheSafeArea(t *testing.T) {
+	m := newModel()
+	driver := open(t, m)
+	before := control(t, driver, "Tap me").Bounds
+	if err := driver.SetSafeArea(gfx.Insets{Top: 47, Bottom: 34, Left: 10, Right: 10}); err != nil {
+		t.Fatal(err)
+	}
+	after := control(t, driver, "Tap me").Bounds
+	if after.Y != before.Y+47 || after.X != before.X+10 {
+		t.Fatalf("the button moved from %v, %v to %v, %v, want 10 right and 47 down", before.X, before.Y, after.X, after.Y)
+	}
+	rows := driver.Snapshot().Hits
+	last := rows[len(rows)-1]
+	if bottom := last.Bounds.Y + last.Bounds.Height; bottom > 760-34+0.5 {
+		t.Fatalf("content reaches %v, into the 34 px the home indicator covers", bottom)
+	}
+}
+
+// What the system does to the application shows on the page once the application says so.
+func TestThePageShowsWhatTheSystemDid(t *testing.T) {
+	m := newModel()
+	m.invalidator = new(app.Invalidator)
+	page := ui.NewPage(ui.PageConfig{View: m.page, Invalidator: m.invalidator})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnLifecycle: m.systemChanged}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	driver.Lifecycle(app.LifecycleMemoryWarning)
+	if err := driver.Pump(); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "System: memory warning") {
+		t.Fatal("the page does not show the memory warning")
+	}
+}

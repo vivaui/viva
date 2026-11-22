@@ -83,6 +83,10 @@ type Config struct {
 	// as far as the platform says so. An adapter that cannot tell never calls it,
 	// and the window counts as visible.
 	OnVisibility VisibilityHandler
+	// OnLifecycle, when set, runs on the window thread when the system moves the
+	// application between the foreground and the background, or warns it of low memory.
+	// Only the phone adapters call it.
+	OnLifecycle func(Lifecycle)
 	// OnMaximize, when set, runs on the window thread when the window is
 	// maximized or restored.
 	OnMaximize MaximizeHandler
@@ -502,6 +506,19 @@ type PointerEvent struct {
 	PointerID int32
 }
 
+// Lifecycle is a change the system makes to the state of a phone application.
+type Lifecycle uint8
+
+const (
+	// LifecycleBackground is the application going behind another: the time to save what
+	// the user would miss, as the system may end it from there without a word.
+	LifecycleBackground Lifecycle = iota + 1
+	// LifecycleForeground is the application coming back to the front.
+	LifecycleForeground
+	// LifecycleMemoryWarning is the system asking applications to give memory back.
+	LifecycleMemoryWarning
+)
+
 // Size is a window client size in logical pixels.
 type Size struct {
 	Width  float32
@@ -510,6 +527,9 @@ type Size struct {
 	// (1.25 at 125%), or zero when the platform does not say. The application paints
 	// what must land on whole device pixels for it.
 	Scale float32
+	// SafeArea is how far the system covers each edge of the window, in logical pixels
+	// (status bar, sensor housing, home indicator); zero where it covers nothing.
+	SafeArea gfx.Insets
 }
 
 // KeyEvent is one normalized keyboard event. Key identities mirror
@@ -673,6 +693,8 @@ func ShortcutCandidate(event KeyEvent) bool {
 // system already applied. Precise reports whether the deltas are device pixels
 // (trackpad) or scaled line approximations (classic mouse wheels).
 type ScrollEvent struct {
+	// Phase is what moves the content; the zero value is a wheel or a touchpad.
+	Phase     gfx.ScrollPhase
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32

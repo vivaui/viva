@@ -139,7 +139,7 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 		_ = hdiutil("detach", "-force", mount)
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = detach(mount, device) })
+	t.Cleanup(func() { _ = detach(device) })
 	if mounted, err := volumeMounted(mount); err != nil || !mounted {
 		t.Fatalf("attached image is not mounted: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 			t.Errorf(".DS_Store has no position for %s", name)
 		}
 	}
-	if err := detach(mount, device); err != nil {
+	if err := detach(device); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -181,7 +181,7 @@ func TestDetachAcceptsAnAlreadyUnmountedImage(t *testing.T) {
 	if err := os.Mkdir(mount, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := detach(mount, "/dev/disk-not-attached"); err != nil {
+	if err := detach("/dev/disk-not-attached"); err != nil {
 		t.Fatal(err)
 	}
 }

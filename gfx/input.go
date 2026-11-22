@@ -212,6 +212,8 @@ type ModifierTapEvent struct {
 // Target is the stable hit ID at X,Y. Viewport is the current logical window
 // size, allowing coordinate-driven controls to derive their local geometry.
 type ScrollEvent struct {
+	// Phase says what moves the content; the zero value is a wheel or a touchpad.
+	Phase     ScrollPhase
 	Modifiers Modifiers
 	X         float32
 	Y         float32
@@ -221,6 +223,24 @@ type ScrollEvent struct {
 	Target    ID
 	Precise   bool
 }
+
+// ScrollPhase is what a scroll event comes from. A wheel or a touchpad is the zero value
+// and stops at the ends of what it scrolls; a finger on a touch screen carries the
+// content past an end, where it gives like rubber and springs back once the finger lets go.
+type ScrollPhase uint8
+
+const (
+	// ScrollPhaseWheel is a mouse wheel or a touchpad.
+	ScrollPhaseWheel ScrollPhase = iota
+	// ScrollPhaseFinger is a finger dragging the content: it follows the finger, and
+	// past an end it follows at a fraction.
+	ScrollPhaseFinger
+	// ScrollPhaseMomentum is the content still moving after the finger lifted.
+	ScrollPhaseMomentum
+	// ScrollPhaseEnd says the finger lifted. It moves nothing: content held past an end
+	// springs back.
+	ScrollPhaseEnd
+)
 
 // StepY is DeltaY for content that moves in steps of unit pixels, such as the
 // rows of a list or terminal. A classic wheel never moves less than one unit per

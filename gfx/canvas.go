@@ -765,6 +765,8 @@ type Canvas struct {
 	onSurface bool
 	// titlebarLeading and titlebarTrailing are the window's TitlebarInsets.
 	titlebarLeading, titlebarTrailing float32
+	// safeArea is the window's SafeArea.
+	safeArea Insets
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -2094,6 +2096,15 @@ func (canvas *Canvas) TitlebarInsets() (leading, trailing float32) {
 	return canvas.titlebarLeading, canvas.titlebarTrailing
 }
 
+// SafeArea is how far the system covers the edges of the window: the status bar and the
+// sensor housing, the home indicator or navigation bar, a cutout or rounded corner. A page
+// keeps its content inside of on a phone, where the window runs under the bars. Zero for
+// a desktop window.
+func (canvas *Canvas) SafeArea() Insets { return canvas.safeArea }
+
+// SetSafeArea records the window's SafeArea; the runtime calls it before each paint.
+func (canvas *Canvas) SetSafeArea(insets Insets) { canvas.safeArea = insets }
+
 // SetTitlebarInsets records the window's TitlebarInsets; the runtime calls it
 // before each paint.
 func (canvas *Canvas) SetTitlebarInsets(leading, trailing float32) {
@@ -2348,6 +2359,17 @@ func (canvas *Canvas) Consume() {
 	if canvas.hasPointer {
 		canvas.consumed = true
 	}
+}
+
+// PointerPass is the pointer event being delivered in this paint, whoever it is aimed at, and
+// whether a control has already consumed it; ok is false outside an event pass. A control
+// that comes last in the paint, as a tooltip does, reads what the others left of the event.
+func (canvas *Canvas) PointerPass() (event PointerEvent, consumed, ok bool) {
+	canvas.listensForPointer = true
+	if !canvas.hasPointer {
+		return PointerEvent{}, false, false
+	}
+	return canvas.pointer, canvas.consumed, true
 }
 
 // ListensForPointer reports whether the last paint asked PointerOn or PointerIn:
