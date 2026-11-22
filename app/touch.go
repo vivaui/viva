@@ -99,11 +99,22 @@ func (painter *painter) carryTouch(step interaction.TouchStep) (platform.Frame, 
 		return platform.Frame{}, err
 	}
 	if step.Scrolls() {
-		moved := painter.applyScroll(platform.ScrollEvent{X: step.ScrollAtX, Y: step.ScrollAtY, DeltaX: step.ScrollX, DeltaY: step.ScrollY, Precise: true})
+		phase := gfx.ScrollPhaseFinger
+		if step.Momentum {
+			phase = gfx.ScrollPhaseMomentum
+		}
+		moved := painter.applyScroll(platform.ScrollEvent{Phase: phase, X: step.ScrollAtX, Y: step.ScrollAtY, DeltaX: step.ScrollX, DeltaY: step.ScrollY, Precise: true})
 		if !moved {
 			t.FlingBlocked() // at the end of what it scrolls
 			step.Wake = false
 		} else if !t.advancing {
+			frame, err = painter.repaintAfterInput()
+		}
+	}
+	if step.ScrollEnds {
+		// The finger lifted: content held past an end springs back, and the frames
+		// that does it come from the layout asking for them.
+		if painter.applyScroll(platform.ScrollEvent{Phase: gfx.ScrollPhaseEnd, X: step.ScrollAtX, Y: step.ScrollAtY}) && !t.advancing {
 			frame, err = painter.repaintAfterInput()
 		}
 	}

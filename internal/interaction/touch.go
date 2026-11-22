@@ -55,9 +55,14 @@ type TouchStep struct {
 	// is, and Clicks the press's count among quick taps (2 for a double tap).
 	X, Y   float32
 	Clicks int
-	// ScrollX and ScrollY scroll the content under ScrollAtX, ScrollAtY.
+	// ScrollX and ScrollY scroll the content under ScrollAtX, ScrollAtY: by the
+	// finger's motion, or, when Momentum, by what is left of a fling.
 	ScrollX, ScrollY     float32
 	ScrollAtX, ScrollAtY float32
+	Momentum             bool
+	// ScrollEnds says the finger that was scrolling lifted or was taken: what it held
+	// past an end of the content is let go.
+	ScrollEnds bool
 	// Wake asks for a frame after WakeAfter, when Advance has more to do.
 	Wake      bool
 	WakeAfter time.Duration
@@ -153,10 +158,12 @@ func (t *Touch) Up(id int32, x, y float32, now time.Duration) TouchStep {
 		return TouchStep{Release: true, Lift: true, X: x, Y: y, Clicks: t.clicks}
 	case touchPanning:
 		vx, vy := t.velocity(now)
+		step := TouchStep{ScrollEnds: true, ScrollAtX: t.startX, ScrollAtY: t.startY}
 		if math.Hypot(float64(vx), float64(vy)) >= flingMinVelocity {
 			t.flinging, t.flingVX, t.flingVY, t.flingAt = true, vx, vy, now
-			return TouchStep{Wake: true}
+			step.Wake = true
 		}
+		return step
 	case touchLong:
 		return TouchStep{Lift: true, X: x, Y: y}
 	}
@@ -168,6 +175,9 @@ func (t *Touch) Up(id int32, x, y float32, now time.Duration) TouchStep {
 func (t *Touch) Cancel() TouchStep {
 	phase := t.phase
 	t.phase, t.pressDue, t.longPressDue, t.flinging = touchIdle, false, false, false
+	if phase == touchPanning {
+		return TouchStep{ScrollEnds: true, ScrollAtX: t.startX, ScrollAtY: t.startY}
+	}
 	if phase != touchPressed {
 		return TouchStep{}
 	}
@@ -224,7 +234,7 @@ func (t *Touch) fling(now time.Duration) TouchStep {
 	}
 	t.flingAt = now
 	seconds := float32(elapsed.Seconds())
-	step := TouchStep{ScrollX: -t.flingVX * seconds, ScrollY: -t.flingVY * seconds, ScrollAtX: t.startX, ScrollAtY: t.startY}
+	step := TouchStep{ScrollX: -t.flingVX * seconds, ScrollY: -t.flingVY * seconds, ScrollAtX: t.startX, ScrollAtY: t.startY, Momentum: true}
 	decay := float32(math.Pow(flingDecay, float64(elapsed)/float64(time.Millisecond)))
 	t.flingVX, t.flingVY = t.flingVX*decay, t.flingVY*decay
 	if math.Hypot(float64(t.flingVX), float64(t.flingVY)) < flingStopVelocity {

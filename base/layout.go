@@ -517,7 +517,11 @@ func (f *Frame) solveFlow(n *Node, First, stop int32, axis int, start, avail flo
 		if state := f.Exts[n.Ext].scrollState; state != nil && state.pinned() {
 			n.Scroll = max(used-avail, 0) // at the end of what is there now, not of last frame's
 		}
-		pos -= snapScroll(n.Scroll)
+		over := float32(0)
+		if state := f.Exts[n.Ext].scrollState; state != nil {
+			over = state.overscroll()
+		}
+		pos -= snapScroll(n.Scroll + over)
 	}
 	for c := First; c != stop; c = f.Nodes[c].Next {
 		child := &f.Nodes[c]

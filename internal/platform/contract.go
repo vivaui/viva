@@ -673,6 +673,8 @@ func ShortcutCandidate(event KeyEvent) bool {
 // system already applied. Precise reports whether the deltas are device pixels
 // (trackpad) or scaled line approximations (classic mouse wheels).
 type ScrollEvent struct {
+	// Phase is what moves the content; the zero value is a wheel or a touchpad.
+	Phase     gfx.ScrollPhase
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32

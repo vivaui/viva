@@ -802,7 +802,7 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 // the application leaves it, and reports whether anything changed that needs a
 // repaint.
 func (painter *painter) applyScroll(event platform.ScrollEvent) bool {
-	if event.DeltaY == 0 && event.DeltaX == 0 {
+	if event.DeltaY == 0 && event.DeltaX == 0 && event.Phase != gfx.ScrollPhaseEnd {
 		return false
 	}
 	target := gfx.ID{}
@@ -812,7 +812,7 @@ func (painter *painter) applyScroll(event platform.ScrollEvent) bool {
 	response := gfx.EventResult{}
 	if painter.onScroll != nil {
 		response = painter.onScroll(gfx.ScrollEvent{
-			Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
+			Phase: event.Phase, Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
 			DeltaX: event.DeltaX, DeltaY: event.DeltaY, Viewport: painter.size, Target: target, Precise: event.Precise,
 		})
 	}
