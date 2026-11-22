@@ -30,19 +30,22 @@ import (
 type eventKind uint8
 
 const (
-	eventSurface     eventKind = iota + 1 // a surface, of a size, on a display of a density
-	eventSurfaceLost                      // the surface is going away: let go of it, then answer
-	eventTouch                            // a finger, a pen or a mouse
-	eventVisible                          // the activity is in front or behind
-	eventLowMemory                        // the system is short of memory
-	eventClose                            // the user asked to close the window
-	eventWake                             // something was posted
-	eventRedraw                           // the application asked for a frame
-	eventText                             // the input method edits the text input
-	eventKey                              // a key of a keyboard
-	eventHover                            // a mouse over the surface
-	eventHoverExit                        // the mouse left it
-	eventScroll                           // a wheel
+	eventSurface       eventKind = iota + 1 // a surface, of a size, on a display of a density
+	eventSurfaceLost                        // the surface is going away: let go of it, then answer
+	eventTouch                              // a finger, a pen or a mouse
+	eventVisible                            // the activity is in front or behind
+	eventLowMemory                          // the system is short of memory
+	eventClose                              // the user asked to close the window
+	eventWake                               // something was posted
+	eventRedraw                             // the application asked for a frame
+	eventText                               // the input method edits the text input
+	eventKey                                // a key of a keyboard
+	eventHover                              // a mouse over the surface
+	eventHoverExit                          // the mouse left it
+	eventScroll                             // a wheel
+	eventAppearance                         // the theme, the language or the animation setting may have changed
+	eventAccessibility                      // a screen reader started or stopped
+	eventAccessible                         // a screen reader asks something of a node
 )
 
 // event is one thing that happened, small enough to queue by value.
@@ -67,6 +70,11 @@ type event struct {
 	keyCode, unicode int32
 	repeat           bool
 	dx, dy           float32
+	// An accessibility request: the node (an index of the tree last sent), the action (above), the
+	// text and the span; the number is dx.
+	index      int32
+	text       string
+	start, end int32
 	// visible is eventVisible's state.
 	visible bool
 }
@@ -213,6 +221,12 @@ func (application *application) handle(ev event) {
 		application.hover(ev)
 	case eventScroll:
 		application.scroll(ev)
+	case eventAppearance:
+		platform.NotifyAppearanceChanged()
+	case eventAccessibility:
+		application.accessibilityState(ev.visible)
+	case eventAccessible:
+		application.accessible(ev)
 	case eventLowMemory:
 	}
 }
@@ -260,6 +274,8 @@ type window struct {
 	renderer *vulkan.Renderer
 	text     *textInput // the application's focused text input, if it has one
 	hovering bool       // a mouse is over the surface
+	a11y     bool       // a screen reader reads the window
+	treeIDs  []gfx.ID   // the nodes of the tree last sent to the host, by place
 }
 
 func (win *window) Close() {
@@ -426,6 +442,7 @@ func (win *window) resized(swapchain bool) error {
 			return err
 		}
 		win.setTextInput(frame.TextInput)
+		win.syncTree(frame)
 	}
 	if err := renderer.Present(); err != nil {
 		return err
@@ -467,6 +484,7 @@ func (win *window) present(frame platform.Frame) error {
 	}
 	if err == nil {
 		win.setTextInput(frame.TextInput)
+		win.syncTree(frame)
 	}
 	if err == nil && win.config.FramePresented != nil {
 		win.config.FramePresented()
@@ -534,4 +552,11 @@ func setTitle(title string) {
 		return
 	}
 	C.viva_host_set_title((*C.uint16_t)(unsafe.Pointer(&units[0])), C.int(len(units)))
+}
+
+// syncTree gives the host the accessibility tree a frame carries, when a screen reader reads.
+func (win *window) syncTree(frame platform.Frame) {
+	if win.a11y && frame.Accessibility != nil {
+		win.pushTree(frame.Accessibility)
+	}
 }

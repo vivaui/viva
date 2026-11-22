@@ -6,6 +6,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.SurfaceView;
 import android.view.ViewConfiguration;
+import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityNodeProvider;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -19,10 +21,32 @@ final class VivaView extends SurfaceView {
     private boolean multiline;
     private boolean secure;
 
+    private final Accessibility accessibility = new Accessibility(this);
+
     VivaView(Context context) {
         super(context);
         setFocusable(true);
         setFocusableInTouchMode(true);
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
+    }
+
+    Accessibility accessibility() {
+        return accessibility;
+    }
+
+    @Override
+    public AccessibilityNodeProvider getAccessibilityNodeProvider() {
+        return accessibility;
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        AccessibilityManager manager = (AccessibilityManager) getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+        if (manager != null) {
+            Native.accessibility(manager.isEnabled());
+            manager.addAccessibilityStateChangeListener(Native::accessibility);
+        }
     }
 
     /** Makes the view a text editor, or not, and restarts the input method on it. */

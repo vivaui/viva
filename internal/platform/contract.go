@@ -124,7 +124,11 @@ type Config struct {
 	// node: press it, focus it, set its value. The adapter calls it on the
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
-	OnRedraw        RedrawHandler
+	// AccessibilityTree, when set, answers with the tree the window has now, for an adapter
+	// whose assistive technology starts after the window opened: frames carry the tree only
+	// when it changes. The slice is the application's, read at once and not kept.
+	AccessibilityTree func() []AccessibilityNode
+	OnRedraw          RedrawHandler
 	// SetFrameInterval, when set, is called by the adapter on the window thread
 	// once it knows how the window's frames are paced: the interval between
 	// display frames, or zero when presenting a frame blocks until the display

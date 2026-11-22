@@ -56,6 +56,7 @@ public class VivaActivity extends Activity implements SurfaceHolder.Callback {
     @Override
     public void onConfigurationChanged(Configuration config) {
         super.onConfigurationChanged(config);
+        Native.appearanceChanged();
     }
 
     @Override
