@@ -307,8 +307,8 @@ func (s *ScrollState) BarGeometry(bounds Rect, barSize float32) ScrollAreaGeomet
 // panel painted on the page that the pointer cannot reach through (an open Popover's
 // panel, a Dialog, an AlertDialog or a Drawer) only the areas inside the panel are
 // offered the wheel, wherever in the page the panel was declared, and an event none
-// of them can use stops at the panel, handled, rather than scrolling what is under it. It is the
-// function to give as Config.OnScroll for a page whose areas are all ScrollAreas;
+// of them can use stops at the panel, handled, rather than scrolling what is under it.
+// It is the function to give as Config.OnScroll for a page whose areas are all ScrollAreas;
 // handle a Select's open list and a self-scrolling Table first, as they own the
 // wheel while they are open or under the pointer. It reports an event that no area
 // under the pointer can use, beside every such panel, as not handled.
@@ -336,8 +336,10 @@ func (f *Frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventR
 	if f.Surface != nil {
 		trap = f.Surface.TrappedFocusScope()
 	}
-	first := int(max(panel, 0)) // what a panel holds is declared after its root
-	for i := len(f.Nodes) - 1; i >= first; i-- {
+	for i := len(f.Nodes) - 1; i >= 0; i-- {
+		if int32(i) < panel { // what a panel holds is declared after its root
+			break
+		}
 		n := &f.Nodes[i]
 		if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil {
 			continue

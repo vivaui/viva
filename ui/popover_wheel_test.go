@@ -23,7 +23,7 @@ func TestAWheelOverAPopoverStaysInThePanel(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			projects := ui.Button(c, "Projects")
-			ui.PopoverWith(c, projects, ui.PopoverSpec{Width: 200}, &open, func() {
+			ui.PopoverWith(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
 				list = ui.Scroll(c).FillWidth().MaxHeight(150).Children(func() {
 					for range 20 {
 						ui.Slot(c).Height(30)
@@ -89,7 +89,7 @@ func TestATableInAPopoverTakesTheWheelAndTheTableUnderItDoesNot(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			projects := ui.Button(c, "Projects")
-			ui.PopoverWith(c, projects, ui.PopoverSpec{Width: 200}, &open, func() {
+			ui.PopoverWith(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
 				panelTable = ui.Table(c, &inner, ui.TableSpec{
 					Columns: []components.TableColumn{{}}, Rows: gfx.Item(1).Scope(), Source: &rows,
 				}).FillWidth().Height(150)
@@ -169,7 +169,7 @@ func TestAlertDialogKeepsTheWheelFromTheTableBehindIt(t *testing.T) {
 			Columns: []components.TableColumn{{}}, Rows: tree.Sub(scope, tree.Name("rows")), Source: &rows,
 		}).Fill()
 		if open {
-			ui.AlertDialog(c, ui.AlertDialogSpec{
+			ui.AlertDialog(c, &open, ui.AlertDialogSpec{
 				Title: "Discard changes?", Description: "This cannot be undone.",
 				Scope: scope.At(0), ActionID: scope.At(1), CancelID: scope.At(2),
 				ActionLabel: "Discard", CancelLabel: "Cancel",
