@@ -205,3 +205,52 @@ func TestCodeEditorCoreTextWrapInheritsLTRBeforeHebrew(t *testing.T) {
 		t.Errorf("inherited LTR label=%t, wrap marker=%t; both should paint", label, marker)
 	}
 }
+
+func TestCodeEditorCoreTextSwitchesParagraphDirection(t *testing.T) {
+	const value = "a \u05d0\u05d1"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi = true
+	f.paint()
+	auto, ok := f.editor.CaretBounds()
+	if !ok {
+		t.Fatal("automatic caret missing")
+	}
+	f.snapshot.Direction = gfx.DirectionRTL
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) != 1 || labels[0].Value != "\u200f"+value {
+		t.Fatalf("forced RTL did not change the fitted paragraph: %+v", labels)
+	}
+	rtl, ok := f.editor.CaretBounds()
+	if !ok || rtl.X <= auto.X {
+		t.Fatalf("paragraph direction did not update the caret: auto=%+v RTL=%+v", auto, rtl)
+	}
+	if at, ok := f.editor.OffsetAt(gfx.Point{X: rtl.X + 0.25, Y: rtl.Y + rtl.Height/2}); !ok || at != 0 {
+		t.Errorf("clicked visual start = %d, %t; want the original byte 0", at, ok)
+	}
+	f.snapshot.Direction = gfx.DirectionLTR
+	f.paint()
+	if ltr, ok := f.editor.CaretBounds(); !ok || ltr != auto {
+		t.Errorf("switch back to LTR returned stale caret %+v, %t; want %+v", ltr, ok, auto)
+	}
+}
+
+func TestCodeEditorCoreTextForcedLTRAppliesToEveryWrappedRow(t *testing.T) {
+	const first, second = "\u05d0\u05d1 ", "\u05d2\u05d3"
+	f := newCodeFixture(first + second)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionLTR
+	f.bounds.Width = f.widthFor(3)
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) != 2 || labels[0].Value != "\u200e"+first || labels[1].Value != "\u200e"+second {
+		t.Fatalf("wrapped rows did not use the forced direction: %+v", labels)
+	}
+	for _, row := range f.editor.rows {
+		carets := f.editor.shapedRow(row)
+		if len(carets) == 0 || carets[0].Offset != 0 || carets[len(carets)-1].Offset != int(row.end-row.start) {
+			t.Errorf("direction mark escaped into source offsets: %+v", carets)
+		}
+	}
+}

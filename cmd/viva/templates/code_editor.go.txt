@@ -144,6 +144,9 @@ type CodeEditorSnapshot struct {
 	// grid, as do editors with custom decorations.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
+	// Direction sets the paragraph direction for shaped rows. Auto takes it
+	// from each logical line. It does not change the gutter or keyboard policy.
+	Direction gfx.TextDirection
 	// TabWidth is the width of a tab stop in cells; zero is four.
 	TabWidth int
 	// Wrap folds a line longer than the box onto several rows. Without it each

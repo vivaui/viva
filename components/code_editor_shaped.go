@@ -13,6 +13,7 @@ type codeShaping struct {
 	canvas     *gfx.Canvas
 	value      string
 	style      gfx.TextStyle
+	direction  gfx.TextDirection
 	cell       float32
 	generation uint32
 	cols       int
@@ -39,9 +40,9 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 	style := gfx.TextStyle{Size: size, Mono: true, MonoFace: snapshot.MonoFace}
 	generation := canvas.FontGeneration()
 	s := editor.shaping
-	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.cell != cell || s.generation != generation ||
+	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.direction != snapshot.Direction || s.cell != cell || s.generation != generation ||
 		s.cols != editor.cols || s.tabWidth != editor.tabWidth || s.wrap != editor.wrap {
-		s = &codeShaping{canvas: canvas, value: editor.text, style: style, cell: cell, generation: generation,
+		s = &codeShaping{canvas: canvas, value: editor.text, style: style, direction: snapshot.Direction, cell: cell, generation: generation,
 			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow)}
 		editor.shaping = s
 	}
@@ -70,7 +71,7 @@ func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	s := editor.shaping
 	value := editor.rowText(row)
-	var prefix string
+	direction := s.direction
 	if editor.wrap {
 		// Give each plain continuation the base direction of its logical line.
 		// Explicit embedding and isolate state cannot be reconstructed by a mark.
@@ -84,12 +85,19 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 		if len(line) > 4096 || strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069") {
 			return codeShapedRow{}
 		}
-		dir := gfx.TextDirectionOf(line)
-		if dir != gfx.TextDirectionOf(value) {
+		if direction == gfx.DirectionAuto {
+			direction = gfx.TextDirectionOf(line)
+		}
+	}
+	var prefix string
+	switch direction {
+	case gfx.DirectionLTR:
+		if gfx.TextDirectionOf(value) == gfx.DirectionRTL {
 			prefix = "\u200e"
-			if dir == gfx.DirectionRTL {
-				prefix = "\u200f"
-			}
+		}
+	case gfx.DirectionRTL:
+		if gfx.TextDirectionOf(value) == gfx.DirectionLTR {
+			prefix = "\u200f"
 		}
 	}
 	label := prefix + value

@@ -87,4 +87,13 @@ func TestCodeEditorPangoWrapAndTabKeepSourceOffsets(t *testing.T) {
 			t.Errorf("hit at %g of tab = %d, %v; want byte %d", fraction, at, ok, len(first)+2+i)
 		}
 	}
+	f.snapshot.Direction = gfx.DirectionLTR
+	f.paint()
+	labels = f.canvas.Texts()
+	if len(labels) != 2 || labels[0].Value != "\u200e"+first || labels[1].Value != "ab  cd" {
+		t.Fatalf("forced LTR retained the old paragraph direction: %+v", labels)
+	}
+	if carets := f.editor.shapedRow(f.editor.rows[1]); len(carets) != 0 {
+		t.Errorf("LTR continuation kept its old RTL geometry: %+v", carets)
+	}
 }
