@@ -161,7 +161,10 @@ type vulkanLabelTexture struct {
 	label                    platform.TextLabel
 	runs                     []gfx.TextRun
 	image, memory, view, set uintptr
-	scale                    float32
+	// slice is where memory came from: a span of the pool's block, or its own.
+	slice imageSlice
+	pool  *imagePool
+	scale float32
 	// width and height are the texture's size in device pixels.
 	width, height int
 	// skip is the device column of the label the texture starts at: a line wider than a
@@ -198,6 +201,7 @@ type vulkanText struct {
 	// bind the old ones are stale once it moves.
 	generation uint64
 	staging    textStaging
+	images     imagePool
 }
 
 type vulkanTextureKey struct {
@@ -816,11 +820,12 @@ func (label *vulkanLabelTexture) createImage(renderer *vulkanRenderer, textState
 	if !ok {
 		return fmt.Errorf("Vulkan device has no device-local image memory")
 	}
-	allocation := vkMemoryAllocateInfo{SType: vkStructureMemoryAllocateInfo, AllocationSize: requirements.Size, MemoryTypeIndex: memoryType}
-	if err := vkCheck(renderer.api.allocateMemory(renderer.device, &allocation, nil, &label.memory), "allocate text image memory"); err != nil {
+	memory, slice, err := textState.images.allocate(renderer, memoryType, requirements)
+	if err != nil {
 		return err
 	}
-	if err := vkCheck(renderer.api.bindImageMemory(renderer.device, label.image, label.memory, 0), "bind text image memory"); err != nil {
+	label.memory, label.slice, label.pool = memory, slice, &textState.images
+	if err := vkCheck(renderer.api.bindImageMemory(renderer.device, label.image, label.memory, slice.offset), "bind text image memory"); err != nil {
 		return err
 	}
 	barrier := vkImageMemoryBarrier{
@@ -975,6 +980,7 @@ func (label *vulkanLabelTexture) closeImage(renderer *vulkanRenderer) {
 	if renderer == nil || renderer.api == nil || renderer.device == 0 {
 		label.image, label.memory, label.view, label.scale, label.lcd = 0, 0, 0, 0, false
 		label.width, label.height, label.spans = 0, 0, label.spans[:0]
+		label.slice, label.pool = imageSlice{}, nil
 		return
 	}
 	if label.view != 0 {
@@ -983,10 +989,13 @@ func (label *vulkanLabelTexture) closeImage(renderer *vulkanRenderer) {
 	if label.image != 0 {
 		renderer.api.destroyImage(renderer.device, label.image, nil)
 	}
-	if label.memory != 0 {
+	if label.pool != nil {
+		label.pool.release(renderer, label.memory, label.slice)
+	} else if label.memory != 0 {
 		renderer.api.freeMemory(renderer.device, label.memory, nil)
 	}
 	label.image, label.memory, label.view, label.scale, label.lcd = 0, 0, 0, 0, false
+	label.slice, label.pool = imageSlice{}, nil
 	label.width, label.height, label.spans = 0, 0, label.spans[:0]
 }
 
@@ -1009,6 +1018,8 @@ func (textState *vulkanText) close(renderer *vulkanRenderer) {
 	for index := range textState.labels {
 		textState.labels[index].closeImage(renderer)
 	}
+	textState.images.close(renderer)
+
 	if renderer != nil && renderer.api != nil && renderer.device != 0 {
 		if textState.descriptorPool != 0 {
 			renderer.api.destroyDescriptorPool(renderer.device, textState.descriptorPool, nil)
@@ -1039,6 +1050,8 @@ func (textState *vulkanText) release(renderer *vulkanRenderer) {
 		// The sets went with the pool below.
 		textState.labels[index].set = 0
 	}
+	textState.images.close(renderer)
+
 	if renderer.api != nil && renderer.device != 0 {
 		if textState.descriptorPool != 0 {
 			renderer.api.destroyDescriptorPool(renderer.device, textState.descriptorPool, nil)
