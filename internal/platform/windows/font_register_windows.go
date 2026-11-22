@@ -126,16 +126,16 @@ func newFontCollection(files []string) (collection uintptr, err error) {
 	if err := hresult(status); err != nil {
 		return 0, err
 	}
-	if comCall(factory, 0, uintptr(unsafe.Pointer(&writeFactory3IID)), uintptr(unsafe.Pointer(&factory3))) != 0 || factory3 == 0 {
+	if comCall2(factory, 0, uintptr(unsafe.Pointer(&writeFactory3IID)), uintptr(unsafe.Pointer(&factory3))) != 0 || factory3 == 0 {
 		return 0, errors.New("windows: DirectWrite cannot add fonts at run time before Windows 10 version 1607")
 	}
-	if err := hresult(comCall(factory3, writeFactory3GetSystemFontSet, uintptr(unsafe.Pointer(&systemSet)))); err != nil {
+	if err := hresult(comCall1(factory3, writeFactory3GetSystemFontSet, uintptr(unsafe.Pointer(&systemSet)))); err != nil {
 		return 0, err
 	}
-	if err := hresult(comCall(factory3, writeFactory3CreateFontSetBuilder, uintptr(unsafe.Pointer(&builder)))); err != nil {
+	if err := hresult(comCall1(factory3, writeFactory3CreateFontSetBuilder, uintptr(unsafe.Pointer(&builder)))); err != nil {
 		return 0, err
 	}
-	if err := hresult(comCall(builder, writeSetBuilderAddFontSet, systemSet)); err != nil {
+	if err := hresult(comCall1(builder, writeSetBuilderAddFontSet, systemSet)); err != nil {
 		return 0, err
 	}
 	for _, path := range files {
@@ -143,10 +143,10 @@ func newFontCollection(files []string) (collection uintptr, err error) {
 			return 0, err
 		}
 	}
-	if err := hresult(comCall(builder, writeSetBuilderCreateFontSet, uintptr(unsafe.Pointer(&fontSet)))); err != nil {
+	if err := hresult(comCall1(builder, writeSetBuilderCreateFontSet, uintptr(unsafe.Pointer(&fontSet)))); err != nil {
 		return 0, err
 	}
-	if err := hresult(comCall(factory3, writeFactory3CollectionFromFontSet, fontSet, uintptr(unsafe.Pointer(&collection)))); err != nil {
+	if err := hresult(comCall2(factory3, writeFactory3CollectionFromFontSet, fontSet, uintptr(unsafe.Pointer(&collection)))); err != nil {
 		return 0, err
 	}
 	return collection, nil
@@ -159,13 +159,13 @@ func addFontFaces(factory, factory3, builder uintptr, path string) error {
 		return err
 	}
 	var file uintptr
-	if err := hresult(comCall(factory, writeFactoryCreateFontFileReference, uintptr(unsafe.Pointer(name)), 0, uintptr(unsafe.Pointer(&file)))); err != nil {
+	if err := hresult(comCall3(factory, writeFactoryCreateFontFileReference, uintptr(unsafe.Pointer(name)), 0, uintptr(unsafe.Pointer(&file)))); err != nil {
 		return err
 	}
 	defer release(&file)
 	var supported int32
 	var fileType, faceType, faces uint32
-	if err := hresult(comCall(file, writeFontFileAnalyze, uintptr(unsafe.Pointer(&supported)), uintptr(unsafe.Pointer(&fileType)), uintptr(unsafe.Pointer(&faceType)), uintptr(unsafe.Pointer(&faces)))); err != nil {
+	if err := hresult(comCall4(file, writeFontFileAnalyze, uintptr(unsafe.Pointer(&supported)), uintptr(unsafe.Pointer(&fileType)), uintptr(unsafe.Pointer(&faceType)), uintptr(unsafe.Pointer(&faces)))); err != nil {
 		return err
 	}
 	if supported == 0 || faces == 0 {
@@ -173,10 +173,10 @@ func addFontFaces(factory, factory3, builder uintptr, path string) error {
 	}
 	for index := uint32(0); index < faces; index++ {
 		var reference uintptr
-		if err := hresult(comCall(factory3, writeFactory3CreateFaceReference, file, uintptr(index), 0, uintptr(unsafe.Pointer(&reference)))); err != nil {
+		if err := hresult(comCall4(factory3, writeFactory3CreateFaceReference, file, uintptr(index), 0, uintptr(unsafe.Pointer(&reference)))); err != nil {
 			return err
 		}
-		status := comCall(builder, writeSetBuilderAddFace, reference)
+		status := comCall1(builder, writeSetBuilderAddFace, reference)
 		release(&reference)
 		if err := hresult(status); err != nil {
 			return err

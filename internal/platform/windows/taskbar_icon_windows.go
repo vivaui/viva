@@ -32,7 +32,7 @@ func setStringProperty(store uintptr, id uint32, text string) error {
 	}
 	key := propertyKey{Format: appModelKey, ID: id}
 	value := stringProperty{Kind: 31 /* VT_LPWSTR */, Text: encoded}
-	return hresult(comCall(store, 6 /* SetValue */, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&value))))
+	return hresult(comCall2(store, 6 /* SetValue */, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&value))))
 }
 
 // WM_SETICON supplies an individual window. Explorer reads the group's picture
@@ -79,7 +79,7 @@ func (state *windowState) clearTaskbarIcon() {
 	for _, id := range []uint32{3, 5} {
 		key := propertyKey{Format: appModelKey, ID: id}
 		var empty stringProperty // VT_EMPTY releases the window's stored value.
-		comCall(store, 6, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&empty)))
+		comCall2(store, 6, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&empty)))
 	}
 	state.taskbarIconSet = false
 }

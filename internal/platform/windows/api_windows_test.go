@@ -123,18 +123,9 @@ func TestCOMCallKeepsPointersAlive(t *testing.T) {
 	table := [1]uintptr{callback}
 	object := struct{ Table *uintptr }{Table: &table[0]}
 	var output uint64
-	status := comCall(uintptr(unsafe.Pointer(&object)), 0, uintptr(unsafe.Pointer(&output)))
+	status := comCall1(uintptr(unsafe.Pointer(&object)), 0, uintptr(unsafe.Pointer(&output)))
 	if status != 1 || output != 0x123456789abcdef0 {
 		t.Fatalf("COM call lost Go output pointer: %#x, %#x", status, output)
 	}
 	runtime.KeepAlive(table)
-}
-
-func TestCOMCallArgumentLimit(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("overlong COM call was not rejected")
-		}
-	}()
-	comCall(0, 0, make([]uintptr, 16)...)
 }

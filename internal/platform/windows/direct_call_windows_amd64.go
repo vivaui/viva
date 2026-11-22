@@ -9,7 +9,7 @@ type directTextCall struct{}
 
 func (*directTarget) initTextCall() {}
 func (target *directTarget) drawTextLayout(x, y float32, layout uintptr, options uint32) {
-	comCall(target.target, d2dDrawTextLayout, pointArgument(x, y), layout, target.brush, uintptr(options))
+	comCall4(target.target, d2dDrawTextLayout, pointArgument(x, y), layout, target.brush, uintptr(options))
 }
 
 func pointArgument(x, y float32) uintptr {

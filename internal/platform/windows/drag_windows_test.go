@@ -36,11 +36,11 @@ func TestTheDataObjectHandsOutTheFilesAsADropList(t *testing.T) {
 	data, object := newDragObject(paths)
 	defer runtime.KeepAlive(data)
 	format := fileFormat()
-	if status := uint32(comCall(object, 5, uintptr(unsafe.Pointer(&format)))); status != sOK {
+	if status := uint32(comCall1(object, 5, uintptr(unsafe.Pointer(&format)))); status != sOK {
 		t.Fatalf("QueryGetData = %#x, want S_OK", status)
 	}
 	var medium storageMedium
-	if status := uint32(comCall(object, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&medium)))); status != sOK {
+	if status := uint32(comCall2(object, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&medium)))); status != sOK {
 		t.Fatalf("GetData = %#x, want S_OK", status)
 	}
 	defer releaseStgMedium.Call(uintptr(unsafe.Pointer(&medium)))
@@ -64,7 +64,7 @@ func TestTheDataObjectHandsOutTheFilesAsADropList(t *testing.T) {
 	// Every answer is the target's own memory: a second question cannot be given
 	// the block the first one took.
 	var again storageMedium
-	if status := uint32(comCall(object, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&again)))); status != sOK {
+	if status := uint32(comCall2(object, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&again)))); status != sOK {
 		t.Fatalf("the second GetData = %#x, want S_OK", status)
 	}
 	defer releaseStgMedium.Call(uintptr(unsafe.Pointer(&again)))
@@ -79,30 +79,30 @@ func TestTheDataObjectRefusesWhatItDoesNotOffer(t *testing.T) {
 	data, object := newDragObject([]string{`C:\Temp\one.txt`})
 	defer runtime.KeepAlive(data)
 	text := formatEtc{Format: 13 /* CF_UNICODETEXT */, Aspect: dvAspectContent, Index: lindexNone, Medium: tymedHGlobal}
-	if status := uint32(comCall(object, 5, uintptr(unsafe.Pointer(&text)))); status != dvEFormatEtc {
+	if status := uint32(comCall1(object, 5, uintptr(unsafe.Pointer(&text)))); status != dvEFormatEtc {
 		t.Errorf("QueryGetData of text = %#x, want DV_E_FORMATETC", status)
 	}
 	var medium storageMedium
-	if status := uint32(comCall(object, 3, uintptr(unsafe.Pointer(&text)), uintptr(unsafe.Pointer(&medium)))); status != dvEFormatEtc {
+	if status := uint32(comCall2(object, 3, uintptr(unsafe.Pointer(&text)), uintptr(unsafe.Pointer(&medium)))); status != dvEFormatEtc {
 		t.Errorf("GetData of text = %#x, want DV_E_FORMATETC", status)
 	}
 	thumbnail := fileFormat()
 	thumbnail.Aspect = 2 // DVASPECT_THUMBNAIL
-	if status := uint32(comCall(object, 5, uintptr(unsafe.Pointer(&thumbnail)))); status != dvEFormatEtc {
+	if status := uint32(comCall1(object, 5, uintptr(unsafe.Pointer(&thumbnail)))); status != dvEFormatEtc {
 		t.Errorf("QueryGetData of a thumbnail = %#x, want DV_E_FORMATETC", status)
 	}
 	stream := fileFormat()
 	stream.Medium = 4 // TYMED_ISTREAM
-	if status := uint32(comCall(object, 5, uintptr(unsafe.Pointer(&stream)))); status != dvEFormatEtc {
+	if status := uint32(comCall1(object, 5, uintptr(unsafe.Pointer(&stream)))); status != dvEFormatEtc {
 		t.Errorf("QueryGetData of a stream = %#x, want DV_E_FORMATETC", status)
 	}
-	if status := uint32(comCall(object, 4, uintptr(unsafe.Pointer(&stream)), uintptr(unsafe.Pointer(&medium)))); status != eNotImpl {
+	if status := uint32(comCall2(object, 4, uintptr(unsafe.Pointer(&stream)), uintptr(unsafe.Pointer(&medium)))); status != eNotImpl {
 		t.Errorf("GetDataHere = %#x, want E_NOTIMPL", status)
 	}
-	if status := uint32(comCall(object, 9, uintptr(unsafe.Pointer(&stream)), 0, 0, 0)); status != oleEAdviseNotSupported {
+	if status := uint32(comCall4(object, 9, uintptr(unsafe.Pointer(&stream)), 0, 0, 0)); status != oleEAdviseNotSupported {
 		t.Errorf("DAdvise = %#x, want OLE_E_ADVISENOTSUPPORTED", status)
 	}
-	if status := uint32(comCall(object, 10, 1)); status != oleEAdviseNotSupported {
+	if status := uint32(comCall1(object, 10, 1)); status != oleEAdviseNotSupported {
 		t.Errorf("DUnadvise = %#x, want OLE_E_ADVISENOTSUPPORTED", status)
 	}
 }
@@ -113,7 +113,7 @@ func TestTheFormatEnumeratorListsTheDropList(t *testing.T) {
 	data, object := newDragObject([]string{`C:\Temp\one.txt`})
 	defer runtime.KeepAlive(data)
 	var enum uintptr
-	if status := uint32(comCall(object, 8, dataDirGet, uintptr(unsafe.Pointer(&enum)))); status != sOK {
+	if status := uint32(comCall2(object, 8, dataDirGet, uintptr(unsafe.Pointer(&enum)))); status != sOK {
 		t.Fatalf("EnumFormatEtc = %#x, want S_OK", status)
 	}
 	if enum == 0 {
@@ -121,34 +121,34 @@ func TestTheFormatEnumeratorListsTheDropList(t *testing.T) {
 	}
 	var offered formatEtc
 	var fetched uint32
-	if status := uint32(comCall(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sOK || fetched != 1 {
+	if status := uint32(comCall3(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sOK || fetched != 1 {
 		t.Fatalf("Next(1) = %#x with %d formats, want S_OK with 1", status, fetched)
 	}
 	if offered.Format != cfHDrop || offered.Aspect != dvAspectContent || offered.Index != lindexNone || offered.Medium != tymedHGlobal {
 		t.Errorf("the format is %+v, want the list of files", offered)
 	}
-	if status := uint32(comCall(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 0 {
+	if status := uint32(comCall3(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 0 {
 		t.Errorf("Next after the end = %#x with %d formats, want S_FALSE with 0", status, fetched)
 	}
-	comCall(enum, 5) // Reset
-	if status := uint32(comCall(enum, 3, 2, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 1 {
+	comCall0(enum, 5) // Reset
+	if status := uint32(comCall3(enum, 3, 2, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 1 {
 		t.Errorf("Next(2) = %#x with %d formats, want S_FALSE with 1", status, fetched)
 	}
-	comCall(enum, 5)
-	comCall(enum, 4, 1) // Skip
-	if status := uint32(comCall(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 0 {
+	comCall0(enum, 5)
+	comCall1(enum, 4, 1) // Skip
+	if status := uint32(comCall3(enum, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sFalse || fetched != 0 {
 		t.Errorf("Next after Skip = %#x with %d formats, want S_FALSE with 0", status, fetched)
 	}
-	comCall(enum, 5)
-	if status := uint32(comCall(enum, 4, 2)); status != sFalse {
+	comCall0(enum, 5)
+	if status := uint32(comCall1(enum, 4, 2)); status != sFalse {
 		t.Errorf("Skip(2) with one format = %#x, want S_FALSE", status)
 	}
-	comCall(enum, 5)
+	comCall0(enum, 5)
 	var clone uintptr
-	if status := uint32(comCall(enum, 6, uintptr(unsafe.Pointer(&clone)))); status != sOK || clone == 0 {
+	if status := uint32(comCall1(enum, 6, uintptr(unsafe.Pointer(&clone)))); status != sOK || clone == 0 {
 		t.Fatalf("Clone = %#x, want S_OK with an enumerator", status)
 	}
-	if status := uint32(comCall(clone, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sOK || fetched != 1 {
+	if status := uint32(comCall3(clone, 3, 1, uintptr(unsafe.Pointer(&offered)), uintptr(unsafe.Pointer(&fetched)))); status != sOK || fetched != 1 {
 		t.Errorf("the clone's Next = %#x with %d formats, want S_OK with 1", status, fetched)
 	}
 }
@@ -172,11 +172,11 @@ func TestTheDropSourceEndsTheDragWhereWindowsDoes(t *testing.T) {
 		{0, 0x10 | 8, sOK},    // MK_MBUTTON with MK_CONTROL beside it
 		{0, 8, dragdropSDrop}, // no button, only a modifier
 	} {
-		if got := uint32(comCall(object, 3, test.escape, test.keys)); got != uint32(test.want) {
+		if got := uint32(comCall2(object, 3, test.escape, test.keys)); got != uint32(test.want) {
 			t.Errorf("QueryContinueDrag(escape=%d, keys=%#x) = %#x, want %#x", test.escape, test.keys, got, uint32(test.want))
 		}
 	}
-	if got := uint32(comCall(object, 4, uintptr(platform.DragEffectCopy))); got != dragdropSUseDefaultCursors {
+	if got := uint32(comCall1(object, 4, uintptr(platform.DragEffectCopy))); got != dragdropSUseDefaultCursors {
 		t.Errorf("GiveFeedback = %#x, want DRAGDROP_S_USEDEFAULTCURSORS", got)
 	}
 }
@@ -188,22 +188,22 @@ func TestTheObjectsAnswerForTheirOwnInterfaces(t *testing.T) {
 	data, object := newDragObject([]string{`C:\Temp\one.txt`})
 	defer runtime.KeepAlive(data)
 	var asked uintptr
-	if status := uint32(comCall(object, 0, uintptr(unsafe.Pointer(&iidDataObject)), uintptr(unsafe.Pointer(&asked)))); status != sOK || asked != object {
+	if status := uint32(comCall2(object, 0, uintptr(unsafe.Pointer(&iidDataObject)), uintptr(unsafe.Pointer(&asked)))); status != sOK || asked != object {
 		t.Errorf("the data object answered IDataObject with %#x and %#x, want S_OK and itself", status, asked)
 	}
 	if data.refs != 2 {
 		t.Errorf("the data object counts %d references after one grant, want 2", data.refs)
 	}
 	asked = 1
-	if status := uint32(comCall(object, 0, uintptr(unsafe.Pointer(&iidDropSource)), uintptr(unsafe.Pointer(&asked)))); status != eNoInterface || asked != 0 {
+	if status := uint32(comCall2(object, 0, uintptr(unsafe.Pointer(&iidDropSource)), uintptr(unsafe.Pointer(&asked)))); status != eNoInterface || asked != 0 {
 		t.Errorf("the data object answered IDropSource with %#x and %#x, want E_NOINTERFACE and no object", status, asked)
 	}
 	source, sourceObject := newDragSource()
 	defer runtime.KeepAlive(source)
-	if status := uint32(comCall(sourceObject, 0, uintptr(unsafe.Pointer(&iidDropSource)), uintptr(unsafe.Pointer(&asked)))); status != sOK {
+	if status := uint32(comCall2(sourceObject, 0, uintptr(unsafe.Pointer(&iidDropSource)), uintptr(unsafe.Pointer(&asked)))); status != sOK {
 		t.Errorf("the drop source refused IDropSource with %#x", status)
 	}
-	if status := uint32(comCall(sourceObject, 0, uintptr(unsafe.Pointer(&iidDataObject)), uintptr(unsafe.Pointer(&asked)))); status != eNoInterface {
+	if status := uint32(comCall2(sourceObject, 0, uintptr(unsafe.Pointer(&iidDataObject)), uintptr(unsafe.Pointer(&asked)))); status != eNoInterface {
 		t.Errorf("the drop source answered IDataObject with %#x, want E_NOINTERFACE", status)
 	}
 }
