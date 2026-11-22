@@ -19,6 +19,7 @@ extern void vivaTouchEvent(uintptr_t callbackHandle, void *view, int kind, int i
 extern int vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
                            const unsigned char *utf8, size_t utf8Length);
 extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
+extern void vivaIOSAppearanceChanged(void);
 extern int vivaAccessibilityAction(uintptr_t callbackHandle, void *view, uint64_t node, int action, double number,
                                    const unsigned char *utf8, size_t utf8Length, int start, int end);
 extern void vivaIOSTextOp(uintptr_t callbackHandle, void *view, int operation, const unsigned char *utf8, size_t utf8Length,
@@ -901,6 +902,15 @@ static NSString *viva_string(const char *chars, size_t length) {
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
     return UIInterfaceOrientationMaskAll;
+}
+
+// traitCollectionDidChange tells the application when the system switches between
+// its light and dark looks.
+- (void)traitCollectionDidChange:(UITraitCollection *)previous {
+    [super traitCollectionDidChange:previous];
+    if (previous != nil && previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
+        vivaIOSAppearanceChanged();
+    }
 }
 
 @end
