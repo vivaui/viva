@@ -954,7 +954,9 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
         const unsigned char *start = bytes + offset;
         size_t count = run->bytes;
         offset += count;
-        BOOL italic = (run->flags & VIVA_RUN_ITALIC) != 0;
+        BOOL fitted = (run->flags & VIVA_RUN_LIGATURES) != 0;
+        BOOL slant = (run->flags & VIVA_RUN_ITALIC) != 0;
+        BOOL italic = slant && !fitted;
         CTFontRef font = NULL;
         for (int slot = 0; slot < cacheCount; slot++) {
             if (cachedWeight[slot] == run->weight && cachedItalic[slot] == italic) {
@@ -987,7 +989,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
         for (size_t at = 0; ascii && at < count; at++) {
             ascii = start[at] >= 0x20 && start[at] < 0x7F;
         }
-        if ((run->flags & VIVA_RUN_LIGATURES) != 0 && count > 0) {
+        if (fitted && count > 0) {
             // A ligature run is shaped as one line and scaled to its cells, so
             // the font's substitutions survive and the run still ends where
             // the grid says it does.
@@ -1002,6 +1004,10 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
                         CGContextSaveGState(context);
                         CGContextTranslateCTM(context, cellLeft, baseline);
                         CGContextScaleCTM(context, span / width, 1);
+                        // Oblique fitted text keeps the unmodified font's shaping and caret advances.
+                        if (slant) {
+                            CGContextConcatCTM(context, CGAffineTransformMake(1, 0, 0.2126, 1, 0, 0));
+                        }
                         CGFloat origin = ascii ? 0 : viva_fitted_mono_origin(line, (CFIndex)shown.length);
                         CGContextSetTextPosition(context, -origin, 0);
                         CTLineDraw(line, context);

@@ -22,6 +22,7 @@ type codeShaping struct {
 	hit        gfx.TextHit
 	hitRow     int32
 	hitValid   bool
+	styles     []codeShapedStyle
 }
 
 type codeShapedRow struct {
@@ -31,7 +32,7 @@ type codeShapedRow struct {
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
 	if !snapshot.ShapedBidi || len(snapshot.Representations) != 0 || snapshot.ShowWhitespace ||
-		snapshot.ShowIndentGuides || snapshot.ShowEOL || snapshot.Decorations != nil || snapshot.Highlight != nil || snapshot.HighlightLine != nil {
+		snapshot.ShowIndentGuides || snapshot.ShowEOL || snapshot.Decorations != nil {
 		editor.shaping = nil
 		return
 	}
@@ -284,38 +285,95 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 	}
 	value := paint.editor.shaping.rows[row.start].value
 	bounds := gfx.Rect{X: left, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: float32(row.cells) * paint.cellWidth, Height: paint.cellHeight}
-	run := gfx.TextRun{Bytes: int32(len(value)), Cells: row.cells, Ligatures: true, Color: paint.foreground}
-	style := gfx.TextStyle{Size: paint.size, Color: paint.foreground, Mono: true, MonoFace: paint.face}
-	paint.canvas.LabelRuns(value, bounds, style, paint.cellWidth, []gfx.TextRun{run})
-	run.Color = paint.selectionForeground
-	paint.shapedSelectionText(carets, start, end, value, bounds, run)
+	paint.shapedText(row, value, bounds, carets)
 	if paint.showWrapSymbol && paint.editor.softWrapped(index) {
 		paint.wrapSymbol(y)
 	}
 	paint.overlays(index, y)
 }
 
-func (paint *codePaint) shapedSelectionText(carets []gfx.FittedMonoCaret, start, end int, value string, bounds gfx.Rect, run gfx.TextRun) {
-	style := gfx.TextStyle{Size: paint.size, Mono: true, MonoFace: paint.face, Color: run.Color}
-	paintSelection := func(from, to int) {
-		paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, from-start, to-start)
-		for _, span := range paint.shapedSpans {
-			paint.canvas.Clip(gfx.Rect{X: bounds.X + span.X, Y: bounds.Y, Width: span.Width, Height: bounds.Height})
-			// Clipping a duplicate of the complete run preserves its joins.
+type codeShapedStyle struct {
+	left, right float32
+	color       gfx.Color
+	italic      bool
+}
+
+func (paint *codePaint) shapedText(row codeRow, value string, bounds gfx.Rect, carets []gfx.FittedMonoCaret) {
+	style := gfx.TextStyle{Size: paint.size, Mono: true, MonoFace: paint.face, Color: paint.foreground}
+	run := gfx.TextRun{Bytes: int32(len(value)), Cells: row.cells, Ligatures: true, Color: paint.foreground}
+	start, end := int(row.start), int(row.end)
+	highlight := paint.lineRuns(row)
+	selection := sort.Search(len(paint.selectionRanges), func(i int) bool { return paint.selectionRanges[i].End > start })
+	selected := paint.selectionStart < paint.selectionEnd && paint.selectionStart < end && paint.selectionEnd > start
+	if len(paint.selectionRanges) > 0 {
+		selected = selection < len(paint.selectionRanges) && paint.selectionRanges[selection].Start < end
+	}
+	if !selected && len(highlight) == 0 {
+		paint.canvas.LabelRuns(value, bounds, style, paint.cellWidth, []gfx.TextRun{run})
+		return
+	}
+
+	// Assign styles in source order, then paint disjoint visual intervals.
+	// Each interval draws the complete fitted label, preserving shaping and joins.
+	s := paint.editor.shaping
+	intervals := s.styles[:0]
+	for i := 0; i+1 < len(carets); i++ {
+		from, to := start+carets[i].Offset, start+carets[i+1].Offset
+		local := from - int(row.lineStart)
+		for len(highlight) > 0 && highlight[0].End <= local {
+			highlight = highlight[1:]
+		}
+		color, italic := paint.foreground, false
+		if len(highlight) > 0 && highlight[0].Start <= local {
+			color, italic = highlight[0].Color, highlight[0].Italic
+			if paint.editor.disabled {
+				color.Alpha *= 0.5
+			}
+		}
+		if selected {
+			inSelection := paint.selectionStart < to && paint.selectionEnd > from
+			if len(paint.selectionRanges) > 0 {
+				for selection < len(paint.selectionRanges) && paint.selectionRanges[selection].End <= from {
+					selection++
+				}
+				inSelection = selection < len(paint.selectionRanges) && paint.selectionRanges[selection].Start < to
+			}
+			if inSelection {
+				color = paint.selectionForeground
+			}
+		}
+		a, b := carets[i].Leading, carets[i+1].Trailing
+		left, right := max(0, min(a, b)), min(bounds.Width, max(a, b))
+		if right > left {
+			intervals = append(intervals, codeShapedStyle{left, right, color, italic})
+		}
+	}
+	s.styles = intervals
+	slices.SortFunc(intervals, func(a, b codeShapedStyle) int { return cmp.Compare(a.left, b.left) })
+	pos := float32(0)
+	draw := func(left, right float32, color gfx.Color, italic bool) {
+		if right <= left {
+			return
+		}
+		run.Color, run.Italic, style.Color = color, italic, color
+		if left == 0 && right == bounds.Width {
 			paint.canvas.LabelRuns(value, bounds, style, paint.cellWidth, []gfx.TextRun{run})
-			paint.canvas.Unclip()
+			return
 		}
+		paint.canvas.Clip(gfx.Rect{X: bounds.X + left, Y: bounds.Y, Width: right - left, Height: bounds.Height})
+		paint.canvas.LabelRuns(value, bounds, style, paint.cellWidth, []gfx.TextRun{run})
+		paint.canvas.Unclip()
 	}
-	if len(paint.selectionRanges) != 0 {
-		for _, selection := range paint.selectionRanges {
-			if selection.Start >= end {
-				break
-			}
-			if selection.End > start {
-				paintSelection(selection.Start, selection.End)
-			}
+	for i := 0; i < len(intervals); {
+		span := intervals[i]
+		i++
+		for i < len(intervals) && intervals[i].left <= span.right && intervals[i].color == span.color && intervals[i].italic == span.italic {
+			span.right = max(span.right, intervals[i].right)
+			i++
 		}
-	} else if paint.selectionEnd > start && paint.selectionStart < end {
-		paintSelection(paint.selectionStart, paint.selectionEnd)
+		draw(pos, span.left, paint.foreground, false)
+		draw(max(pos, span.left), span.right, span.color, span.italic)
+		pos = max(pos, span.right)
 	}
+	draw(pos, bounds.Width, paint.foreground, false)
 }

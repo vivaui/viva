@@ -46,6 +46,32 @@ func TestCodeEditorCoreTextKeepsFittedArabicCaretEdges(t *testing.T) {
 			t.Errorf("IME placement at byte %d: %+v, %v; want X=%g", at, got, ok, want)
 		}
 	}
+	before, ok := f.editor.CaretBounds()
+	if !ok {
+		t.Fatal("shaped caret missing before applying styles")
+	}
+	comment := gfx.RGB(30, 110, 65)
+	f.snapshot.HighlightLine = func(_ string, index int, source string, dst []CodeEditorRun) []CodeEditorRun {
+		if index != 0 || source != value {
+			t.Fatalf("highlight got line %d %q; want the logical source", index, source)
+		}
+		return append(dst, CodeEditorRun{Start: len(prefix), End: len(value) - 2, Color: comment, Italic: true})
+	}
+	f.paint()
+	if after, ok := f.editor.CaretBounds(); !ok || after != before {
+		t.Fatalf("applying an italic style moved the remembered caret: before %+v, after %+v, %v", before, after, ok)
+	}
+	styled := false
+	for _, label := range f.canvas.Texts() {
+		runs := f.canvas.TextRuns(label)
+		if len(runs) != 1 || !runs[0].Ligatures || label.Value != value {
+			t.Fatalf("highlight split the fitted run: label=%q runs=%+v", label.Value, runs)
+		}
+		styled = styled || (label.HasClip && runs[0].Color == comment && runs[0].Italic)
+	}
+	if !styled {
+		t.Fatal("the fitted Arabic range was not drawn in the requested style")
+	}
 }
 
 func TestCodeEditorCoreTextWrapKeepsBothRowsOfTheBoundary(t *testing.T) {
