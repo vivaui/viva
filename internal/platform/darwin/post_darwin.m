@@ -1,4 +1,4 @@
-//go:build !ios
+// Portable: macOS and iOS
 
 #import <dispatch/dispatch.h>
 

@@ -1,4 +1,4 @@
-//go:build darwin && !ios
+// Portable: macOS and iOS
 
 package darwin
 

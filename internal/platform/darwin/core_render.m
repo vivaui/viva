@@ -1394,6 +1394,130 @@ void viva_encode_scene(
 }
 
 
+// viva_make_scene_resources makes the Metal objects a window's first scene is
+// drawn with: the device, its queue, the two pipelines the window's events and
+// content call for, and the rectangle buffer. Every object it returns is
+// retained for the caller. It answers 0, or the status the window reports when
+// the object it names cannot be made (1 device, 2 queue, 3 library, 4 rectangle
+// pipeline, 5 buffer, 6 text pipeline), with everything made so far released.
+int viva_make_scene_resources(
+    const viva_window_config *config_in,
+    id<MTLDevice> *device_out,
+    id<MTLCommandQueue> *queue_out,
+    id<MTLRenderPipelineState> *rectangle_pipeline_out,
+    id<MTLRenderPipelineState> *text_pipeline_out,
+    id<MTLBuffer> *rectangle_buffer_out
+) {
+    const viva_window_config config = *config_in;
+    *device_out = nil;
+    *queue_out = nil;
+    *rectangle_pipeline_out = nil;
+    *text_pipeline_out = nil;
+    *rectangle_buffer_out = nil;
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    if (device == nil) {
+        return 1;
+    }
+
+    id<MTLCommandQueue> commandQueue = [device newCommandQueue];
+    if (commandQueue == nil) {
+        [device release];
+        return 2;
+    }
+
+    id<MTLRenderPipelineState> rectanglePipeline = nil;
+    id<MTLRenderPipelineState> textPipeline = nil;
+    id<MTLBuffer> rectangleBuffer = nil;
+    if (config.shader_library != NULL && config.shader_library_length > 0) {
+        viva_remember_shader_library(config.shader_library, config.shader_library_length);
+        _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
+        _Static_assert(sizeof(viva_text_label) == 272, "text label ABI must be 272 bytes");
+        _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
+        _Static_assert(sizeof(viva_composite_command) == 36, "composite command ABI must be 36 bytes");
+        dispatch_data_t libraryData = dispatch_data_create(
+            config.shader_library,
+            config.shader_library_length,
+            dispatch_get_main_queue(),
+            DISPATCH_DATA_DESTRUCTOR_DEFAULT
+        );
+        NSError *libraryError = nil;
+        id<MTLLibrary> library = [device newLibraryWithData:libraryData
+                                                     error:&libraryError];
+        dispatch_release(libraryData);
+        if (library == nil) {
+            fprintf(stderr, "viva: Metal library error: %s\n",
+                    libraryError.localizedDescription.UTF8String);
+            [commandQueue release];
+            [device release];
+            return 3;
+        }
+
+        NSError *pipelineError = nil;
+        if (config.rectangle_count > 0 || config.pointer_events_enabled ||
+            config.resize_events_enabled || config.redraw_events_enabled) {
+            rectanglePipeline = viva_create_pipeline(
+                device,
+                library,
+                @"viva_rectangle_vertex",
+                @"viva_rectangle_fragment",
+                &pipelineError
+            );
+            if (rectanglePipeline == nil) {
+                fprintf(stderr, "viva: rectangle pipeline error: %s\n",
+                        pipelineError.localizedDescription.UTF8String);
+                [library release];
+                [commandQueue release];
+                [device release];
+                return 4;
+            }
+        }
+        if (config.text_input.enabled || config.dynamic_text_input || config.text_label_count > 0 ||
+            config.resize_events_enabled || config.redraw_events_enabled) {
+            pipelineError = nil;
+            textPipeline = viva_create_pipeline(
+                device,
+                library,
+                @"viva_text_vertex",
+                @"viva_text_fragment",
+                &pipelineError
+            );
+            if (textPipeline == nil) {
+                fprintf(stderr, "viva: text pipeline error: %s\n",
+                        pipelineError.localizedDescription.UTF8String);
+                [rectanglePipeline release];
+                [library release];
+                [commandQueue release];
+                [device release];
+                return 6;
+            }
+        }
+        [library release];
+
+        if (config.rectangle_count > 0) {
+            rectangleBuffer = [device
+                newBufferWithBytes:config.rectangles
+                            length:config.rectangle_count * sizeof(viva_rectangle)
+                           options:MTLResourceStorageModeShared];
+            if (rectangleBuffer == nil) {
+                [textPipeline release];
+                [rectanglePipeline release];
+                [commandQueue release];
+                [device release];
+                return 5;
+            }
+            viva_gpu_uploaded_bytes +=
+                config.rectangle_count * sizeof(viva_rectangle);
+            viva_gpu_full_rebuild_count++;
+        }
+    }
+    *device_out = device;
+    *queue_out = commandQueue;
+    *rectangle_pipeline_out = rectanglePipeline;
+    *text_pipeline_out = textPipeline;
+    *rectangle_buffer_out = rectangleBuffer;
+    return 0;
+}
+
 @interface VivaRenderer (Plan)
 - (BOOL)replaceCompositePlanForRectangles:(const viva_rectangle *)rectangles
                                     clips:(const viva_clip *)clips

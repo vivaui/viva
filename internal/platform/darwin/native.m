@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import "core.h"
 #include "cursor_owner_darwin.h"
 #include "label_geometry.h"
@@ -4315,107 +4317,16 @@ void *viva_application_open_window(viva_window_config config) {
             viva_application_status = 8;
             return NULL;
         }
-        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-        if (device == nil) {
-            viva_application_status = 1;
-            return NULL;
-        }
-
-        id<MTLCommandQueue> commandQueue = [device newCommandQueue];
-        if (commandQueue == nil) {
-            [device release];
-            viva_application_status = 2;
-            return NULL;
-        }
-
+        id<MTLDevice> device = nil;
+        id<MTLCommandQueue> commandQueue = nil;
         id<MTLRenderPipelineState> rectanglePipeline = nil;
         id<MTLRenderPipelineState> textPipeline = nil;
         id<MTLBuffer> rectangleBuffer = nil;
-        if (config.shader_library != NULL && config.shader_library_length > 0) {
-            viva_remember_shader_library(config.shader_library, config.shader_library_length);
-            _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
-            _Static_assert(sizeof(viva_text_label) == 272, "text label ABI must be 272 bytes");
-            _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
-            _Static_assert(sizeof(viva_composite_command) == 36, "composite command ABI must be 36 bytes");
-            dispatch_data_t libraryData = dispatch_data_create(
-                config.shader_library,
-                config.shader_library_length,
-                dispatch_get_main_queue(),
-                DISPATCH_DATA_DESTRUCTOR_DEFAULT
-            );
-            NSError *libraryError = nil;
-            id<MTLLibrary> library = [device newLibraryWithData:libraryData
-                                                         error:&libraryError];
-            dispatch_release(libraryData);
-            if (library == nil) {
-                fprintf(stderr, "viva: Metal library error: %s\n",
-                        libraryError.localizedDescription.UTF8String);
-                [commandQueue release];
-                [device release];
-                viva_application_status = 3;
-                return NULL;
-            }
-
-            NSError *pipelineError = nil;
-            if (config.rectangle_count > 0 || config.pointer_events_enabled ||
-                config.resize_events_enabled || config.redraw_events_enabled) {
-                rectanglePipeline = viva_create_pipeline(
-                    device,
-                    library,
-                    @"viva_rectangle_vertex",
-                    @"viva_rectangle_fragment",
-                    &pipelineError
-                );
-                if (rectanglePipeline == nil) {
-                    fprintf(stderr, "viva: rectangle pipeline error: %s\n",
-                            pipelineError.localizedDescription.UTF8String);
-                    [library release];
-                    [commandQueue release];
-                    [device release];
-                    viva_application_status = 4;
-                    return NULL;
-                }
-            }
-            if (config.text_input.enabled || config.dynamic_text_input || config.text_label_count > 0 ||
-                config.resize_events_enabled || config.redraw_events_enabled) {
-                pipelineError = nil;
-                textPipeline = viva_create_pipeline(
-                    device,
-                    library,
-                    @"viva_text_vertex",
-                    @"viva_text_fragment",
-                    &pipelineError
-                );
-                if (textPipeline == nil) {
-                    fprintf(stderr, "viva: text pipeline error: %s\n",
-                            pipelineError.localizedDescription.UTF8String);
-                    [rectanglePipeline release];
-                    [library release];
-                    [commandQueue release];
-                    [device release];
-                    viva_application_status = 6;
-                    return NULL;
-                }
-            }
-            [library release];
-
-            if (config.rectangle_count > 0) {
-                rectangleBuffer = [device
-                    newBufferWithBytes:config.rectangles
-                                length:config.rectangle_count * sizeof(viva_rectangle)
-                               options:MTLResourceStorageModeShared];
-                if (rectangleBuffer == nil) {
-                    [textPipeline release];
-                    [rectanglePipeline release];
-                    [commandQueue release];
-                    [device release];
-                    viva_application_status = 5;
-                    return NULL;
-                }
-                viva_gpu_uploaded_bytes +=
-                    config.rectangle_count * sizeof(viva_rectangle);
-                viva_gpu_full_rebuild_count++;
-            }
+        int resourceStatus = viva_make_scene_resources(
+            &config, &device, &commandQueue, &rectanglePipeline, &textPipeline, &rectangleBuffer);
+        if (resourceStatus != 0) {
+            viva_application_status = resourceStatus;
+            return NULL;
         }
 
         VivaAppDelegate *delegate = [[VivaAppDelegate alloc] initWithConfig:config
@@ -4959,117 +4870,6 @@ int viva_view_move_text_input(void *view, float x, float y, float width, float h
     }
     @autoreleasepool {
         return [(VivaMetalView *)view moveTextInputToFrame:NSMakeRect(x, y, width, height)];
-    }
-}
-
-int viva_measure_text(
-    const unsigned char *utf8,
-    size_t utf8_length,
-    double font_size,
-    double font_weight,
-    viva_text_metrics *metrics
-) {
-    if (metrics == NULL || font_size <= 0 || (utf8 == NULL && utf8_length > 0)) {
-        return 1;
-    }
-    @autoreleasepool {
-        CFStringRef string = CFStringCreateWithBytes(
-            kCFAllocatorDefault,
-            utf8,
-            utf8_length,
-            kCFStringEncodingUTF8,
-            false
-        );
-        if (string == NULL) {
-            return 2;
-        }
-
-        // The font a label of this weight is drawn in (drawLineInContext).
-        NSFont *nativeFont = [NSFont systemFontOfSize:font_size weight:font_weight];
-        CTFontRef font = (CTFontRef)CFRetain(nativeFont);
-        if (font == NULL) {
-            CFRelease(string);
-            return 3;
-        }
-
-        const void *keys[] = {kCTFontAttributeName};
-        const void *values[] = {font};
-        CFDictionaryRef attributes = CFDictionaryCreate(
-            kCFAllocatorDefault,
-            keys,
-            values,
-            1,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks
-        );
-        CFAttributedStringRef attributed = CFAttributedStringCreate(
-            kCFAllocatorDefault,
-            string,
-            attributes
-        );
-        CTLineRef line = CTLineCreateWithAttributedString(attributed);
-
-        CGFloat ascent = 0;
-        CGFloat descent = 0;
-        CGFloat leading = 0;
-        double width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading);
-        metrics->width = width;
-        metrics->height = ascent + descent + leading;
-        metrics->ascent = ascent;
-        metrics->descent = descent;
-        metrics->leading = leading;
-
-        CFRelease(line);
-        CFRelease(attributed);
-        CFRelease(attributes);
-        CFRelease(font);
-        CFRelease(string);
-        return 0;
-    }
-}
-
-int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *rule, double *heavy) {
-    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || rule == NULL || heavy == NULL || font_size <= 0) {
-        return 1;
-    }
-    @autoreleasepool {
-        // The cell is the primary font's, whatever the face's fallbacks hold.
-        NSFont *native = viva_mono_font_primary(font_size, 0, mono_face);
-        if (native == nil) {
-            return 2;
-        }
-        CTFontRef font = CTFontCreateWithName((CFStringRef)native.fontName, font_size, NULL);
-        if (font == NULL) {
-            return 3;
-        }
-        UniChar glyphCharacter = 'M';
-        CGGlyph glyph = 0;
-        CTFontGetGlyphsForCharacters(font, &glyphCharacter, &glyph, 1);
-        CGSize advances;
-        CTFontGetAdvancesForGlyphs(font, kCTFontOrientationHorizontal, &glyph, &advances, 1);
-        *advance = advances.width;
-        *ascent = CTFontGetAscent(font);
-        *descent = CTFontGetDescent(font);
-        *leading = CTFontGetLeading(font);
-        // The weight of the face's own box drawing lines: the ink width of a light and a
-        // heavy stem, which the face may draw at a different weight than its underline.
-        // The lookup answers false when either is missing, and still fills the other, so
-        // each glyph is checked on its own.
-        *rule = 0;
-        *heavy = 0;
-        UniChar boxCharacters[2] = {0x2502, 0x2503};  /* │ ┃ */
-        CGGlyph boxGlyphs[2] = {0, 0};
-        CTFontGetGlyphsForCharacters(font, boxCharacters, boxGlyphs, 2);
-        CGRect bounds[2] = {CGRectZero, CGRectZero};
-        CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationHorizontal, boxGlyphs, bounds, 2);
-        if (boxGlyphs[0] != 0) {
-            *rule = bounds[0].size.width;
-        }
-        if (boxGlyphs[1] != 0) {
-            *heavy = bounds[1].size.width;
-        }
-        CFRelease(font);
-        return *advance > 0 ? 0 : 4;
     }
 }
 

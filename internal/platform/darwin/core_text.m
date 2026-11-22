@@ -1332,3 +1332,113 @@ id<MTLTexture> viva_text_input_texture(
     return texture;
 }
 
+int viva_measure_text(
+    const unsigned char *utf8,
+    size_t utf8_length,
+    double font_size,
+    double font_weight,
+    viva_text_metrics *metrics
+) {
+    if (metrics == NULL || font_size <= 0 || (utf8 == NULL && utf8_length > 0)) {
+        return 1;
+    }
+    @autoreleasepool {
+        CFStringRef string = CFStringCreateWithBytes(
+            kCFAllocatorDefault,
+            utf8,
+            utf8_length,
+            kCFStringEncodingUTF8,
+            false
+        );
+        if (string == NULL) {
+            return 2;
+        }
+
+        // The font a label of this weight is drawn in (drawLineInContext).
+        VivaFont *nativeFont = [VivaFont systemFontOfSize:font_size weight:font_weight];
+        CTFontRef font = (CTFontRef)CFRetain(nativeFont);
+        if (font == NULL) {
+            CFRelease(string);
+            return 3;
+        }
+
+        const void *keys[] = {kCTFontAttributeName};
+        const void *values[] = {font};
+        CFDictionaryRef attributes = CFDictionaryCreate(
+            kCFAllocatorDefault,
+            keys,
+            values,
+            1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks
+        );
+        CFAttributedStringRef attributed = CFAttributedStringCreate(
+            kCFAllocatorDefault,
+            string,
+            attributes
+        );
+        CTLineRef line = CTLineCreateWithAttributedString(attributed);
+
+        CGFloat ascent = 0;
+        CGFloat descent = 0;
+        CGFloat leading = 0;
+        double width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading);
+        metrics->width = width;
+        metrics->height = ascent + descent + leading;
+        metrics->ascent = ascent;
+        metrics->descent = descent;
+        metrics->leading = leading;
+
+        CFRelease(line);
+        CFRelease(attributed);
+        CFRelease(attributes);
+        CFRelease(font);
+        CFRelease(string);
+        return 0;
+    }
+}
+
+int viva_measure_mono(double font_size, int mono_face, double *advance, double *ascent, double *descent, double *leading, double *rule, double *heavy) {
+    if (advance == NULL || ascent == NULL || descent == NULL || leading == NULL || rule == NULL || heavy == NULL || font_size <= 0) {
+        return 1;
+    }
+    @autoreleasepool {
+        // The cell is the primary font's, whatever the face's fallbacks hold.
+        VivaFont *native = viva_mono_font_primary(font_size, 0, mono_face);
+        if (native == nil) {
+            return 2;
+        }
+        CTFontRef font = CTFontCreateWithName((CFStringRef)native.fontName, font_size, NULL);
+        if (font == NULL) {
+            return 3;
+        }
+        UniChar glyphCharacter = 'M';
+        CGGlyph glyph = 0;
+        CTFontGetGlyphsForCharacters(font, &glyphCharacter, &glyph, 1);
+        CGSize advances;
+        CTFontGetAdvancesForGlyphs(font, kCTFontOrientationHorizontal, &glyph, &advances, 1);
+        *advance = advances.width;
+        *ascent = CTFontGetAscent(font);
+        *descent = CTFontGetDescent(font);
+        *leading = CTFontGetLeading(font);
+        // The weight of the face's own box drawing lines: the ink width of a light and a
+        // heavy stem, which the face may draw at a different weight than its underline.
+        // The lookup answers false when either is missing, and still fills the other, so
+        // each glyph is checked on its own.
+        *rule = 0;
+        *heavy = 0;
+        UniChar boxCharacters[2] = {0x2502, 0x2503};  /* │ ┃ */
+        CGGlyph boxGlyphs[2] = {0, 0};
+        CTFontGetGlyphsForCharacters(font, boxCharacters, boxGlyphs, 2);
+        CGRect bounds[2] = {CGRectZero, CGRectZero};
+        CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationHorizontal, boxGlyphs, bounds, 2);
+        if (boxGlyphs[0] != 0) {
+            *rule = bounds[0].size.width;
+        }
+        if (boxGlyphs[1] != 0) {
+            *heavy = bounds[1].size.width;
+        }
+        CFRelease(font);
+        return *advance > 0 ? 0 : 4;
+    }
+}

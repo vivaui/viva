@@ -1,4 +1,4 @@
-//go:build !ios
+// Portable: macOS and iOS
 
 #ifndef VIVA_POST_DARWIN_H
 #define VIVA_POST_DARWIN_H

@@ -205,6 +205,14 @@ typedef struct {
 @end
 
 extern int vivaTerminalCells(uint32_t character);
+int viva_make_scene_resources(
+    const viva_window_config *config,
+    id<MTLDevice> *device,
+    id<MTLCommandQueue> *queue,
+    id<MTLRenderPipelineState> *rectangle_pipeline,
+    id<MTLRenderPipelineState> *text_pipeline,
+    id<MTLBuffer> *rectangle_buffer
+);
 extern void *viva_shader_library_bytes;
 extern size_t viva_shader_library_length;
 int viva_remember_shader_library(const unsigned char *bytes, size_t length);

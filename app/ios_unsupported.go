@@ -7,18 +7,12 @@ import (
 	"os"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/internal/platform"
 )
 
 // Until the iOS backend provides them (ADR 0095), the platform's native hooks
 // report that the system does not offer them: what a window and a UIKit host
 // give, such as the clipboard, the cursor, dialogs and notifications, is added
 // here one by one, and each moves out of this file as it lands.
-
-func runNative(platform.Config) error { return fmt.Errorf("%w: the iOS backend", ErrUnsupported) }
-func runNativeApplication(platform.ApplicationStart) error {
-	return fmt.Errorf("%w: the iOS backend", ErrUnsupported)
-}
 
 func currentPlatform() Platform { return PlatformUnknown }
 
