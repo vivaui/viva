@@ -32,7 +32,7 @@ func newModel() *model {
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
 		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-			if ui.Button(c, "Tap me").Clicked() {
+			if ui.Button(c, "Tap me").Tooltip("Counts your taps").Clicked() {
 				m.taps++
 			}
 			ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))

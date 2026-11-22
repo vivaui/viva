@@ -219,3 +219,62 @@ func TestAFingerBesideASwitchTurnsItOn(t *testing.T) {
 		t.Fatal("a finger just beside the switch did not turn it on")
 	}
 }
+
+// A finger held on a control that has a tooltip and no menu shows it, and it goes away
+// by itself.
+func TestAHeldFingerShowsTheTooltipAndItGoesAway(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	x, y := centerOf(t, driver, "Tap me")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip did not open under a held finger")
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if m.taps != 0 {
+		t.Fatalf("a long press also tapped: %d", m.taps)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip went away at once when the finger lifted")
+	}
+	if err := driver.Advance(300 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip went away as soon as the finger lifted")
+	}
+	if err := driver.Advance(2 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if shown(driver, "Counts your taps") {
+		t.Fatal("the tooltip stayed")
+	}
+}
+
+// A row with a menu opens the menu, not a tooltip.
+func TestAHeldFingerOnAControlWithAMenuShowsNoTooltip(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	x, y := centerOf(t, driver, "Row 1")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Open") {
+		t.Fatal("the long press did not open the row's menu")
+	}
+}
