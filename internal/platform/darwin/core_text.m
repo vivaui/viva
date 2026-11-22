@@ -243,6 +243,13 @@ size_t viva_text_line_index_at(const viva_text_line *line, double x) {
     return (size_t)index;
 }
 
+viva_text_hit viva_text_line_hit_at(const viva_text_line *line, double x) {
+    size_t index = viva_text_line_index_at(line, x);
+    CGFloat alternate = 0;
+    CGFloat primary = CTLineGetOffsetForStringIndex((CTLineRef)line->line, (CFIndex)index, &alternate);
+    return (viva_text_hit){index, fabs(x - alternate) < fabs(x - primary) ? alternate : primary};
+}
+
 // The most extents viva_text_line_selection tells apart before it folds the rest into the
 // last: a selection crossing a change of direction more often than this is not text.
 #define VIVA_SELECTION_PIECES 32

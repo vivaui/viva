@@ -32,6 +32,21 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
+// TextHit identifies a byte boundary and its visual position in logical pixels
+// from the left of the line. A mixed-direction boundary can have two positions.
+type TextHit struct {
+	Offset int
+	X      float32
+}
+
+// TextHitEngine is an optional capability for engines that can report which
+// visual position of a boundary was hit. Offset follows the TextEngine byte
+// offset contract. X is the caret position nearest the click on the side hit.
+type TextHitEngine interface {
+	TextEngine
+	HitAt(value string, size, weight, x float32) TextHit
+}
+
 // TextRasterizer is an optional TextEngine capability that draws one shaped
 // proportional line into a transparent premultiplied BGRA bitmap at scale.
 // Width and height are bitmap pixels. The same platform font, fallback and
@@ -247,6 +262,10 @@ func (referenceEngine) Selection(dst []TextSpan, value string, size, weight floa
 
 func (referenceEngine) OffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
+}
+
+func (referenceEngine) HitAt(value string, size, weight, x float32) TextHit {
+	return TextHit(textmetrics.HitAt(value, size, weight, x))
 }
 
 // offsetAtByPrefix is the character boundary of value whose prefix width is nearest to

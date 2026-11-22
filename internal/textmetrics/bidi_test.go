@@ -179,6 +179,32 @@ func TestOffsetAtInvertsCaret(t *testing.T) {
 	}
 }
 
+func TestHitAtUsesTheSideOfADirectionBoundary(t *testing.T) {
+	const left, first, second, right = "ab ", "\u05d0\u05b7", "\u05d1", " cd"
+	const value = left + first + second + right
+	const size = 20
+	lo, hi := len(left), len(left+first+second)
+	xLeft := Width(left, size, 0)
+	xRight := Width(left+first+second, size, 0)
+	for _, check := range []struct {
+		name string
+		x    float32
+		want int
+		edge float32
+	}{
+		{"Latin at the left edge", xLeft - 0.5, lo, xLeft},
+		{"Hebrew at the left edge", xLeft + 0.5, hi, xLeft},
+		{"Hebrew at the right edge", xRight - 0.5, lo, xRight},
+		{"Latin at the right edge", xRight + 0.5, hi, xRight},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			if got := HitAt(value, size, 0, check.x); got.Offset != check.want || abs(got.X-check.edge) > 0.01 {
+				t.Errorf("at x=%g: hit %+v, want byte %d at %g", check.x, got, check.want, check.edge)
+			}
+		})
+	}
+}
+
 func nextRuneOffset(value string, offset int) int {
 	if offset >= len(value) {
 		return offset + 1
