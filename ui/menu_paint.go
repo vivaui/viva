@@ -42,10 +42,12 @@ func rowExtent(m *MenuItems, i int) float32 {
 	case MenuRowContent, MenuRowPageContent:
 		return row.GetHeight()
 	}
+	// Both branches size a row by GetRowSize, which RowHeight sets: a dropdown of
+	// the application's own is asked for the same rows the context menu gets.
 	if m.GetContext() {
 		return components.ContextMenuItemHeight(m.GetF().Palette, contextItem(menuItemRow(m, i)), m.GetRowSize())
 	}
-	return components.DropdownMenuItemHeight(m.GetF().Palette, menuItemRow(m, i))
+	return components.DropdownMenuItemHeightFor(m.GetF().Palette, menuItemRow(m, i), m.GetRowSize())
 }
 
 // paintContent calls a content row's painter over its row, inside the menu's clip.
@@ -119,7 +121,7 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 		}
 		menu := components.BeginDropdownMenu(Surface, *Palette, bounds, components.DropdownMenuOptions{
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.GetBounds(), ID: id,
-			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil,
+			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil, RowHeight: m.GetRowSize(),
 			Unpainted: m.GetUnpainted(), PaintPanel: m.GetPanelPainter(), PaintItem: m.GetItemPainter(),
 		})
 		for i := range m.Items {
