@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import "save_panel_darwin.h"
 
 void viva_configure_save_panel(NSSavePanel *panel, NSString *name, NSArray<NSString *> *allowed) {

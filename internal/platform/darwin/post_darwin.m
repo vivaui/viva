@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <dispatch/dispatch.h>
 
 #include "post_darwin.h"

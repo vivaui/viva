@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_POST_DARWIN_H
 #define VIVA_POST_DARWIN_H
 

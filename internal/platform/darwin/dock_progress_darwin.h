@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_DOCK_PROGRESS_DARWIN_H
 #define VIVA_DOCK_PROGRESS_DARWIN_H
 

@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && !ios
 
 // Package darwin implements the native macOS application and Metal backend.
 package darwin
