@@ -189,6 +189,37 @@ func testCodeEditorRTLKeyboardSelectionAcrossWrap(t *testing.T, engine gfx.TextE
 	}
 }
 
+func testCodeEditorRTLWithDefaultEditorDecorations(t *testing.T, engine gfx.TextEngine) {
+	t.Helper()
+	const first, second = "\t\u05d0\u05d1", "x\x01\u05d2\u05d3"
+	f := newCodeFixture(first + "\n" + second)
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi, f.snapshot.ShowIndentGuides, f.snapshot.Direction = true, true, gfx.DirectionRTL
+	f.snapshot.TabWidth = 4
+	f.snapshot.InvisibleColor = gfx.RGB(38, 79, 126)
+	gutter := gfx.RGB(200, 230, 210)
+	f.snapshot.Decorations = &CodeEditorDecorations{GutterWidth: 8, GutterBackground: gutter}
+	f.snapshot.Representations = []CodeRepresentation{{Character: '\x01', Label: "SOH", Blob: true}}
+	f.paint()
+	rows := f.editor.rows
+	if len(rows) != 2 || len(f.editor.shapedRow(rows[0])) != 4 || len(f.editor.shapedRow(rows[1])) != 0 {
+		t.Fatal("settings hid shaped geometry on the ordinary row or shaped the represented control")
+	}
+	caret, shown := f.editor.CaretBounds()
+	guide := f.snapshot.InvisibleColor
+	guide.Alpha *= 0.5
+	marks := f.fills(guide)
+	if !shown || len(marks) != 1 || !near(marks[0].X, caret.X) || len(f.fills(gutter)) != 1 {
+		t.Errorf("indent guide or gutter lost: caret %+v, %t; guides %+v; lanes %+v", caret, shown, marks, f.fills(gutter))
+	}
+	f.snapshot.Representations = []CodeRepresentation{{Character: '\t', Label: "TAB", Blob: true}}
+	f.paint()
+	rows = f.editor.rows
+	if len(f.editor.shapedRow(rows[0])) != 0 || len(f.editor.shapedRow(rows[1])) == 0 {
+		t.Error("changing the representation table retained stale shaped rows")
+	}
+}
+
 func TestCodeEditorShapedSelectionAndCompositionUseVisualSpans(t *testing.T) {
 	f := newCodeFixture("a\u05d0\u05d1z")
 	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})

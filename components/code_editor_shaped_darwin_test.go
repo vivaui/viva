@@ -262,3 +262,7 @@ func TestCodeEditorCoreTextRTLAlignsPaintAndPlacement(t *testing.T) {
 func TestCodeEditorCoreTextRTLKeyboardSelectionAcrossWrap(t *testing.T) {
 	testCodeEditorRTLKeyboardSelectionAcrossWrap(t, darwin.SharedTextEngine())
 }
+
+func TestCodeEditorCoreTextRTLWithDefaultEditorDecorations(t *testing.T) {
+	testCodeEditorRTLWithDefaultEditorDecorations(t, darwin.SharedTextEngine())
+}

@@ -25,6 +25,14 @@ func TestCodeEditorPangoRTLKeyboardSelectionAcrossWrap(t *testing.T) {
 	testCodeEditorRTLKeyboardSelectionAcrossWrap(t, engine)
 }
 
+func TestCodeEditorPangoRTLWithDefaultEditorDecorations(t *testing.T) {
+	engine := linux.TextEngine()
+	if engine == nil {
+		t.Skip("Pango unavailable")
+	}
+	testCodeEditorRTLWithDefaultEditorDecorations(t, engine)
+}
+
 func TestCodeEditorPangoKeepsTheClickedEdgeUnderHighlighting(t *testing.T) {
 	const left, rtl, right = "a\u0301\U00010437 ", "\u0633\u0644\u0627\u0645", " z"
 	const value = left + rtl + right

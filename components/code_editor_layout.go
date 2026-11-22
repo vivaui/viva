@@ -173,6 +173,10 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 			return
 		}
 	}
+	if editor.shaping != nil {
+		editor.shaping = nil
+		editor.followedValid, editor.goalActive = false, false
+	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)
 	editor.reps = append(editor.reps[:0], reps...)

@@ -140,8 +140,8 @@ type CodeEditorSnapshot struct {
 	// MonoFace is the fixed-pitch font the code is set in.
 	MonoFace gfx.MonoFace
 	// ShapedBidi opts grid rows into native bidi shaping where available.
-	// Representations and visual whitespace/indent markers still use the logical
-	// grid, as do editors with custom decorations.
+	// Rows with represented characters use the logical grid, as do editors
+	// showing whitespace, line endings, or inline decoration indicators.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// Direction sets the paragraph direction for shaped rows. Auto takes it

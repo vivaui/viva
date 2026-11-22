@@ -32,8 +32,8 @@ type codeShapedRow struct {
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
-	if !snapshot.ShapedBidi || len(snapshot.Representations) != 0 || snapshot.ShowWhitespace ||
-		snapshot.ShowIndentGuides || snapshot.ShowEOL || snapshot.Decorations != nil {
+	if !snapshot.ShapedBidi || snapshot.ShowWhitespace || snapshot.ShowEOL ||
+		(snapshot.Decorations != nil && snapshot.Decorations.codeEditorHasIndicators()) {
 		editor.shaping = nil
 		return
 	}
@@ -73,6 +73,16 @@ func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 
 func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	s := editor.shaping
+	source := editor.text[row.start:row.end]
+	// The representation table applies only to rows that contain one of its
+	// characters. Tab expansion alone can still be mapped to source graphemes.
+	if row.shown >= 0 && len(editor.reps) != 0 {
+		for _, character := range source {
+			if _, represented := representationOf(editor.reps, character); represented {
+				return codeShapedRow{}
+			}
+		}
+	}
 	value := editor.rowText(row)
 	direction := s.direction
 	if editor.wrap {
@@ -111,7 +121,6 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	if row.shown >= 0 || prefix != "" {
 		// Retain only source grapheme boundaries. Every byte of an expanded tab
 		// lies between the same two source offsets; the direction mark has none.
-		source := editor.text[row.start:row.end]
 		mapped := carets[:0]
 		column, rendered, at := 0, len(prefix), 0
 		for offset := 0; ; {
@@ -323,6 +332,9 @@ func codeShapedSpans(dst []gfx.TextSpan, carets []gfx.FittedMonoCaret, start, en
 func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gfx.FittedMonoCaret) {
 	start, end := int(row.start), int(row.end)
 	left := paint.editor.content.X - paint.editor.scrollX + paint.editor.shapedRowInset(row)
+	if paint.showIndentGuides && paint.editor.firstOfLine(index) {
+		paint.shapedIndentGuides(row, y, left, carets)
+	}
 	fill := func(from, to int, color gfx.Color) {
 		paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, from-start, to-start)
 		for _, span := range paint.shapedSpans {
@@ -393,6 +405,32 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 		paint.wrapSymbol(y)
 	}
 	paint.overlays(index, y)
+}
+
+func (paint *codePaint) shapedIndentGuides(row codeRow, y, left float32, carets []gfx.FittedMonoCaret) {
+	editor := paint.editor
+	if int(row.line) >= len(editor.indents) {
+		return
+	}
+	limit := min(editor.indents[row.line], int(row.cells))
+	step := editor.tabWidth
+	color := paint.invisibleColor
+	color.Alpha *= 0.5
+	source := editor.text[row.start:row.end]
+	column := 0
+	for _, caret := range carets[:len(carets)-1] {
+		if column+step > limit {
+			break
+		}
+		if column%step == 0 {
+			x := left + caret.Leading
+			if x >= editor.content.X && x+1 <= editor.content.X+editor.content.Width {
+				paint.canvas.Fill(gfx.Rect{X: x, Y: y, Width: 1, Height: paint.lineHeight}, color)
+			}
+		}
+		_, cells := editor.gridCluster(source, caret.Offset, column)
+		column += cells
+	}
 }
 
 type codeShapedStyle struct {
