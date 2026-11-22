@@ -187,7 +187,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 		}
 		popup := gfx.Rect{X: left, Y: anchor.Y + anchor.Height + 6, Width: widths[l], Height: height}
 		if l == first {
-			placePopupBelow(&popup, anchor, height, o.Viewport)
+			placeList(&popup, anchor, height, o.Viewport)
 		} else {
 			prev, trigger := m.Panels[l-1], m.Triggers[l-1]
 			popup.X, popup.Y = prev.X+prev.Width-4, trigger.Y-4
@@ -405,24 +405,6 @@ func panelWidths(m *HierarchyMenuState, canvas *gfx.Canvas, theme gfx.Theme, anc
 		left = rootEnd - widths[0]
 	}
 	return widths, left, reverse
-}
-
-// placePopupBelow keeps a popup inside the viewport: above the anchor when that
-// holds a usable row and below does not fit, shortened to what room is left.
-func placePopupBelow(popup *gfx.Rect, anchor gfx.Rect, height float32, viewport gfx.Rect) {
-	if viewport.Height > 0 {
-		top, bottom := viewport.Y+1, viewport.Y+viewport.Height-1
-		if popup.Y+popup.Height > bottom {
-			// Prefer the room above the anchor, but only when it holds a usable
-			// row; otherwise the list scrolls inside what is left below.
-			if above := anchor.Y - 6 - top; above >= min(height, 40) {
-				popup.Height = min(height, above)
-				popup.Y = anchor.Y - popup.Height - 6
-			}
-		}
-		popup.Y = max(top, min(popup.Y, bottom-1))
-		popup.Height = max(1, min(popup.Height, bottom-popup.Y))
-	}
 }
 
 // unionRect is the smallest rect holding both; the first rect starts it.

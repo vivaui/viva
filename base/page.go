@@ -18,7 +18,7 @@ package base
 //		})
 //	}
 //
-//	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, m.page)
+//	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, ui.PageConfig{View: m.page})
 //
 // Identity has one rule a user needs: an element is named by its place among the
 // elements of its kind in its parent, and a Key names a row, so that the row and
@@ -54,8 +54,12 @@ type Ctx struct {
 	page *Page
 	f    *Frame
 	// next names the next element instead of its place: a Key, an index or a part.
-	Next     protoName
-	nextSet  bool
+	Next    protoName
+	nextSet bool
+	// nextAt is how many elements the frame held when Next was set: the element
+	// added at that index is the one Next names, and one added after it while
+	// Next is still unused means the named element had no identity to take it.
+	nextAt   int32
 	stateSeq map[stateName]uint32 // reset each paint: the States of each name asked for in each scope
 }
 
@@ -71,12 +75,14 @@ type protoName struct {
 // their siblings in a paint.
 func (c *Ctx) Key(key string) C {
 	c.Next, c.nextSet = protoName{key: keyKey{Text: key, isText: true}, kindOf: 1}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
 // KeyInt is Key for a number, a record's ID.
 func (c *Ctx) KeyInt(key int) C {
 	c.Next, c.nextSet = protoName{key: keyKey{number: key}, kindOf: 1}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
@@ -85,6 +91,7 @@ func (c *Ctx) KeyInt(key int) C {
 func (c *Ctx) Part(Name string) C {
 	checkName("Part", Name)
 	c.Next, c.nextSet = protoName{part: Name, kindOf: 2}, true
+	c.nextAt = int32(len(c.f.Nodes))
 	return c
 }
 
@@ -155,6 +162,7 @@ const (
 	pkList
 	pkDisclosure
 	pkProgress
+	pkAlertDialog
 	pkKinds
 )
 
@@ -165,6 +173,7 @@ type protoScope struct {
 	keySub    gfx.Scope
 	keys      slotPool
 	labels    []string
+	ids       []gfx.ID // the identity of each of labels, in the same order
 	prev      []string
 	prevEpoch uint32
 }
@@ -283,6 +292,7 @@ type Page struct {
 	drags       []*DragState          // the DragStates of the last paint
 	drag        *DragState            // the one following a press, if any
 	listStates  []*ListState          // the Lists of the last paint
+	splitters   []*SplitterState      // the Splitters of the last paint
 	tables      []tableRoute          // the Tables of the last paint, for the wheel and keys under the pointer
 	pointer     gfx.Point             // where the pointer was at the last pointer event
 	pointerIn   bool                  // a pointer event put it there, and no exit has taken it away
@@ -315,12 +325,14 @@ type Page struct {
 	roveRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a Choice or Tabs
 	groupRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // arrow keys in a FocusGroup
 	sliderRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Slider
+	splitRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // the keys of a Splitter
+	tableKeyRoute func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves the selection of a Table
 	selectRoute   func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // opens and moves the list of a Select
 	comboRoute    func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
 	treeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)
-	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)      // moves and chooses rows of a List
-	wheelXRoute   func(*Page, gfx.ScrollEvent, int32) (moved, only bool) // the sideways wheel of a List with RowWidth, inside a wheel panel
-	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool)      // a Tree's typeahead, from OnShortcut
+	listRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // moves and chooses rows of a List
+	wheelXRoute   func(*Page, gfx.ScrollEvent) (moved, only bool)   // the sideways wheel of a List with RowWidth
+	typeRoute     func(*Page, gfx.KeyEvent) (gfx.EventResult, bool) // a Tree's typeahead, from OnShortcut
 	wheelRoute    func(*Page, gfx.ScrollEvent) (gfx.EventResult, bool)
 	textRoute     func(*Page, gfx.ID) *window.TextInput
 }
@@ -355,6 +367,9 @@ type intKey struct {
 type stateName struct {
 	scope gfx.Scope
 	Name  string
+	// typ is a nil *T: two States of one name and different types are two
+	// states, not one that each paint would reset to the other's type.
+	typ any
 }
 
 type protoStateKey struct {
@@ -448,6 +463,16 @@ func (p *Page) RouteKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	}
 	if p.roveRoute != nil {
 		if result, ok := p.roveRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.splitRoute != nil {
+		if result, ok := p.splitRoute(p, event); ok {
+			return result, true
+		}
+	}
+	if p.tableKeyRoute != nil {
+		if result, ok := p.tableKeyRoute(p, event); ok {
 			return result, true
 		}
 	}
@@ -742,6 +767,7 @@ func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 		}
 	}
 	p.retry = false
+	p.settleHeld()
 	p.settleFocus()
 	p.settleEffects()
 	if len(p.memos) > 0 {
@@ -764,6 +790,8 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.rovers = p.rovers[:0]
 	clear(p.sliders)
 	p.sliders = p.sliders[:0]
+	clear(p.splitters)
+	p.splitters = p.splitters[:0]
 	p.groups, p.groupIDs = p.groups[:0], p.groupIDs[:0]
 	clear(p.contexts)
 	p.contexts = p.contexts[:0]
@@ -869,6 +897,7 @@ func (p *Page) record(scope gfx.Scope) *protoScope {
 	if s.epoch != p.epoch {
 		clear(s.prev)
 		s.prev, s.labels, s.prevEpoch = s.labels, s.prev[:0], s.epoch
+		s.ids = s.ids[:0]
 		s.epoch = p.epoch
 	}
 	return s
@@ -1031,6 +1060,7 @@ func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 	s := p.record(ID.Scope())
 	number := len(s.labels)
 	s.labels = append(s.labels, Label)
+	s.ids = append(s.ids, ID)
 	focused := canvas.Focused() == ID
 	if !focused && canvas.Pressed() != ID {
 		return
@@ -1060,7 +1090,44 @@ func (p *Page) Guard(b Box, ID gfx.ID, Label string) {
 			canvas.ReleaseFocus(ID)
 		}
 	default:
-		held.Label = Label
+		held.relabel, held.relabeling = Label, true
+	}
+}
+
+// settleHeld decides, once the paint has declared every button, what a held
+// button's new label meant. When its old label is now another button's in the
+// same scope, a button appeared before it and its number moved on (a banner's
+// Dismiss above Save): the focus follows the button it was on, and a press is
+// not delivered to the one that took its place. Otherwise the button was only
+// relabeled ("Connect" becoming "Connecting…") and keeps what it holds.
+func (p *Page) settleHeld() {
+	canvas := p.ctx.f.Surface
+	for i := range p.held {
+		held := &p.held[i]
+		if !held.relabeling {
+			continue
+		}
+		held.relabeling = false
+		moved := gfx.ID{}
+		if scope := held.ID.Scope(); int(scope) < len(p.scopes) && p.scopes[scope] != nil {
+			s := p.scopes[scope]
+			for j, label := range s.labels {
+				if label == held.Label && s.ids[j] != held.ID {
+					moved = s.ids[j]
+					break
+				}
+			}
+		}
+		if moved.IsZero() {
+			held.Label = held.relabel
+			continue
+		}
+		if canvas != nil && canvas.Focused() == held.ID {
+			canvas.RequestFocus(moved)
+			*held = armedButton{ID: moved, Label: held.Label}
+			continue
+		}
+		held.moved = true
 	}
 }
 
@@ -1125,10 +1192,12 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 }
 
 // RouteWheel scrolls an open Select, a TextArea under the pointer, or the scroll
-// area or sideways list under it, and reports an event none of them takes as not
-// handled. It is the page's own routing without the OnScroll fallback: a host
-// that forwards a wheel to the page from its own OnScroll calls this, so the page
-// cannot hand the same event back to the handler that is already routing it.
+// area or sideways list under it. Over a panel, only its contents take the wheel;
+// an event none of them takes stops there, handled, except over a ScrollAt area.
+// Beside every panel an event none takes is not handled. This is the page's own
+// routing without the OnScroll fallback: a host that forwards a wheel to the page
+// from its own OnScroll calls this, so the page cannot hand the same event back to
+// the handler that is already routing it.
 func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {
@@ -1160,7 +1229,7 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 	moved := false
 	if p.wheelXRoute != nil {
 		var only bool
-		if moved, only = p.wheelXRoute(p, event, panel); only && moved {
+		if moved, only = p.wheelXRoute(p, event); only && moved {
 			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
@@ -1203,8 +1272,9 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 //
 //	open := ui.State[bool](c, "open")
 //
-// The name is the state's in its container, so a State asked for only in some paints
-// (behind an if) does not take another's value. A component declared twice in one
+// The name and the type are the state's in its container, so a State asked for only
+// in some paints (behind an if) does not take another's value, and two States of one
+// name and different types are two states. A component declared twice in one
 // container asks for the same name twice: those are told apart by their order, as
 // two Buttons are, so give each its own container or a Key when one of them comes
 // and goes.
@@ -1216,13 +1286,13 @@ func State[T any](c C, Name string) *T {
 // value it is bound to rather than its place.
 func stateIn[T any](p *Page, scope gfx.Scope, Name string) *T {
 	c := &p.ctx
-	at := stateName{scope: scope, Name: Name}
+	at := stateName{scope: scope, Name: Name, typ: (*T)(nil)}
 	n := c.stateSeq[at]
 	c.stateSeq[at] = n + 1
 	key := protoStateKey{stateName: at, n: n}
 	entry, ok := p.States[key]
-	value, typed := entry.Value.(*T)
-	if !ok || !typed {
+	value, _ := entry.Value.(*T)
+	if !ok {
 		value = new(T)
 		entry.Value = value
 	}

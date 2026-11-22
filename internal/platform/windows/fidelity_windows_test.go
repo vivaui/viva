@@ -55,7 +55,7 @@ func nativeColorImage(t *testing.T, rasterizer *directRasterizer, c textsharp.Ca
 	defer release(&layout)
 	var line lineMetrics
 	var lines uint32
-	comCall(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&line)), 1, uintptr(unsafe.Pointer(&lines)))
+	comCall3(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&line)), 1, uintptr(unsafe.Pointer(&lines)))
 	scratch, err := rasterizer.opaque.bind(width, height)
 	if err != nil {
 		t.Fatal(err)

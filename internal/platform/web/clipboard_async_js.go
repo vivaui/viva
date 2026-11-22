@@ -145,6 +145,62 @@ func SetClipboardHTMLAsync(html, alt string, done func(error)) error {
 	return nil
 }
 
+// SetClipboardImageAsync writes png as the "image/png" flavour of one
+// ClipboardItem, the entry a browser copies: an application that pastes a
+// picture takes these exact bytes, transparency included. The browser resolves a
+// Promise; done runs on the event loop, exactly once. The call retains the user
+// gesture, so invoke it from an input handler when the browser asks for
+// permission.
+func SetClipboardImageAsync(png []byte, done func(error)) error {
+	if done == nil {
+		return fmt.Errorf("%w: nil clipboard callback", ErrUnavailable)
+	}
+	item := js.Global().Get("ClipboardItem")
+	if item.Type() != js.TypeFunction {
+		return fmt.Errorf("%w: ClipboardItem is missing", ErrUnavailable)
+	}
+	if js.Global().Get("Blob").Type() != js.TypeFunction {
+		return fmt.Errorf("%w: Blob is missing", ErrUnavailable)
+	}
+	var entry js.Value
+	if err := catchJS("write clipboard image", func() {
+		bytes := js.Global().Get("Uint8Array").New(len(png))
+		js.CopyBytesToJS(bytes, png)
+		blob := js.Global().Get("Blob").New([]any{bytes}, map[string]any{"type": "image/png"})
+		entry = item.New(map[string]any{"image/png": blob})
+	}); err != nil {
+		return err
+	}
+	promise, err := clipboardCall("write", js.Global().Get("Array").New(entry))
+	if err != nil {
+		return err
+	}
+	var release []js.Func
+	finish := func(err error) {
+		for _, function := range release {
+			function.Release()
+		}
+		done(err)
+	}
+	callback := func(handler func([]js.Value) any) js.Func {
+		function := js.FuncOf(func(_ js.Value, args []js.Value) any { return handler(args) })
+		release = append(release, function)
+		return function
+	}
+	fail := callback(func(args []js.Value) any {
+		finish(clipboardError(args))
+		return nil
+	})
+	then := callback(func([]js.Value) any {
+		finish(nil)
+		return nil
+	})
+	if err := catchJS("write clipboard image", func() { promise.Call("then", then, fail) }); err != nil {
+		finish(err)
+	}
+	return nil
+}
+
 func clipboardCall(name string, arguments ...any) (js.Value, error) {
 	navigator := js.Global().Get("navigator")
 	if navigator.Type() != js.TypeObject || navigator.IsNull() {

@@ -31,7 +31,7 @@ func (m *model) page(c ui.C) {
 - `Basis(px)` is what an element starts from before free room is shared, and `WidthPercent` and `HeightPercent` take a share of the container. `MinWidth`, `MaxWidth`, `MinHeight` and `MaxHeight` bound a size; room a capped element cannot take goes to the others, as in CSS, so `Grow(1).MaxWidth(470)` beside a `Spacer()` keeps what follows against the far edge.
 - `Items(ui.Baseline)` lines a Row's children up on their first line of text, so a large heading, a small caption and a button sit on one baseline. A `Text` shrinks and clips before a fixed-size sibling does.
 - `Background`, `Radius`, `Border`, `Shadow` and `Clip` style a container. On a control such as an `Input`, `Select` or `Button`, `Radius` and `FontSize` give that control its own corner radius and text size, and a `Height` on a `Button` is how tall the button is painted.
-- `Paragraph(text, maxLines)` is text that wraps to the width it gets, so a longer label makes the row taller and pushes what follows down. `LineHeight` sets its leading.
+- `Paragraph(text, maxLines)` is text that wraps to the width it gets, so a longer label makes the row taller and pushes what follows down. `LineHeight` sets its leading. A paragraph its container does not stretch asks for the width of its widest line, so a word no line is wide enough for, such as a long URL or path, runs out over the edges of what holds it; `OverflowWrap(ui.OverflowWrapAnywhere)` makes it ask for the room it is given instead and break that word between whole characters (never inside an emoji sequence or a letter with its marks) where it does not fit. While the text fits, nothing changes.
 - `Grid(minCell)` fits as many equal columns as the width allows and wraps onto new rows.
 - `Flow()` is a Row that wraps: children of their own widths go left to right and start a new line when the next one does not fit, as CSS's `flex-wrap` does. Each line shares its room as a Row does, so `Grow` and `Justify` apply to every line alone, and `Items` lines the children up within their line. `Gap` is the space between children and between lines, unless `LineGap` sets the latter. Tags, chips and toolbars that wrap are Flows.
 - `Scroll(offset)` is a clipped column taller than itself. You own the offset (the wheel arrives in `Config.OnScroll`); after `End`, `Content()` is how tall the children are, so the offset can be clamped.
@@ -54,7 +54,7 @@ func (m *model) page(c ui.C) {
 	})
 }
 
-ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.page})
 ```
 
 `ui.Choice` and `ui.Tabs` are one tab stop each: Left and Right (Up and Down for vertical tabs) move to the next enabled option, wrapping, and choose it; Home and End go to the first and last.
@@ -247,7 +247,7 @@ func (m *model) row(c ui.C, h *host) {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -314,7 +314,6 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -332,8 +331,9 @@ func newModel() *model {
 	}}
 }
 
-// page declares the table. A header click sorts the rows and a row click
-// selects it; the table keeps the selection and the scroll position itself.
+// page declares the table. A header click sorts the rows; a row click and the
+// arrow keys select a row, and the table keeps the selection and the scroll
+// position itself.
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 		ui.Text(c, "Servers").FontSize(20).Bold()
@@ -342,11 +342,8 @@ func (m *model) page(c ui.C) {
 			Sortable: []bool{true, true, true},
 			Source:   &m.rows,
 			Striped:  true,
-			Columns:  []components.TableColumn{{Width: 200}, {Width: 120}, {}},
+			Columns:  []ui.TableColumn{{Width: 200}, {Width: 120}, {}},
 		})
-		if row, ok := table.RowClicked(); ok {
-			m.table.Select(row)
-		}
 		if column, ok := table.HeaderClicked(); ok {
 			m.table.SortBy(column)
 			m.sortRows()
@@ -374,7 +371,7 @@ func (m *model) sortRows() {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }

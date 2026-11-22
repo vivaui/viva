@@ -57,7 +57,7 @@ Wayland client and needs the system's GTK 3), and a Vulkan loader and driver for
 and DirectWrite. Viva loads the system libraries at runtime and bundles none of
 them.
 
-The current release is `v0.6.6`; name it explicitly (`@v0.6.6`) to pin it. Guides,
+The current release is `v0.6.7`; name it explicitly (`@v0.6.7`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -112,6 +112,8 @@ WebView and no bundled rendering runtime.
   StatusNotifier host; `StatusItemConfig.Menu` makes it open the system's own
   menu (NSMenu, a Win32 popup menu, `com.canonical.dbusmenu`); `WindowPanel` is
   the borderless popup that opens beside it and closes when it loses focus;
+  `WindowNotification` is a clickable popup that does not take the keyboard and
+  stays open when focus moves away;
   `Window.Hide`/`Show` keep an application running without a visible window.
 - `Application.SetDockBadge` puts a label in the red badge macOS draws at the
   corner of the application's Dock tile, and an empty label removes it.

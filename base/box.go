@@ -424,6 +424,14 @@ func (b Box) TextDirection(direction gfx.TextDirection) Box {
 	return b
 }
 
+// Variant gives a button its look among the theme's variants, for one chosen at
+// run time; Secondary, Outline, Ghost, Link, Destructive and DestructiveOutline
+// name each one. A button has one variant: the last one set replaces the ones
+// before it, so a default can be given first and replaced by a condition.
+// Variants do not combine: Ghost then Destructive is the solid destructive
+// button, and the quiet one is a Ghost with the theme's Danger as its Color.
+func (b Box) Variant(v style.Variant) Box { return b.setVariant(v) }
+
 // Button variants and sizes.
 func (b Box) Secondary() Box   { return b.setVariant(style.VariantSecondary) }
 func (b Box) Outline() Box     { return b.setVariant(style.VariantOutline) }

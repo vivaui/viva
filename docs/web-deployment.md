@@ -123,6 +123,7 @@ The browser reports these integrations:
 | `CapabilityFileDrop` | Dropped files arrive with `gfx.FileDropEvent.Files`; no paths |
 | `CapabilityClipboardTextAsync` | `navigator.clipboard.readText` / `writeText` |
 | `CapabilityClipboardImageAsync` | `navigator.clipboard.read`; PNG only |
+| `CapabilityClipboardImageWriteAsync` | `navigator.clipboard.write` with `ClipboardItem`; PNG only |
 | `CapabilityFileDialogsAsync` | `showOpenFilePicker`, or an `<input type=file>` fallback |
 | `CapabilitySecretStoreAsync` | AES-GCM through WebCrypto, ciphertext in IndexedDB |
 | `CapabilityNotifications` | `Notification` after the page has permission |
@@ -234,6 +235,7 @@ The page is the window, so the lifecycle callbacks map onto document events:
 | `OnMinimize` | `visibilitychange` | The tab became hidden or visible; a hidden tab is not necessarily minimized |
 | `OnFullscreen` | `fullscreenchange` | Entered or left the browser's fullscreen mode |
 | `OnActivate` | `focus` on the window | The browser window gained focus; focus moving inside the page does not call it |
+| `OnDeactivate` | not reported | The page is the window and the browser keeps activation to itself |
 | `OnCloseRequest` | `beforeunload` | Ask before the page unloads; `allow` must be called synchronously |
 | `OnClosed` | `pagehide` (not persisted) and `unload` | The page is being torn down |
 | `OnFileDrop` | `dragenter`, `dragover`, `dragleave`, `drop` | Files dragged from outside the page |

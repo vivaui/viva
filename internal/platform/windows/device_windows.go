@@ -19,7 +19,7 @@ import (
 // itself (ID3D11Device::GetDeviceRemovedReason), which any failing call can then
 // be blamed on.
 func (renderer *renderer) deviceLost() bool {
-	return renderer.device != 0 && platform.DeviceLostCode(uint32(comCall(renderer.device, 39)))
+	return renderer.device != 0 && platform.DeviceLostCode(uint32(comCall0(renderer.device, 39)))
 }
 
 // recover makes the device, the swap chain and the pipeline again, on the
@@ -37,7 +37,7 @@ func (renderer *renderer) recover(software bool) error {
 		return err
 	}
 	region := box{Right: uint32(len(renderer.instances) * rectangleInstanceBytes), Bottom: 1, Back: 1}
-	comCall(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[0])), 0, 0)
+	comCall6(renderer.context, 48, renderer.buffer, 0, uintptr(unsafe.Pointer(&region)), uintptr(unsafe.Pointer(&renderer.instances[0])), 0, 0)
 	return nil
 }
 

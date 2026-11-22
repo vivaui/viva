@@ -53,6 +53,7 @@ type window struct {
 	clipboard      string
 	clipboardHTML  string
 	clipboardFiles []string
+	clipboardImage []byte
 	clipboardAtom  uint32
 	htmlAtom       uint32
 	utf8Atom       uint32
@@ -60,6 +61,7 @@ type window struct {
 	targetsAtom    uint32
 	uriListAtom    uint32
 	gnomeFilesAtom uint32
+	pngAtom        uint32
 	ownsClipboard  bool
 	// selections is the PRIMARY selection and the streams of data too large for one
 	// property (selection_linux.go).
@@ -868,6 +870,24 @@ func (state *linuxWindowState) refreshReadOnlyTextInput() error {
 	return state.router.presentFrame(config.OnRedraw())
 }
 
+// presentCaret draws a frame that changed only the native caret.
+func presentCaret(renderer windowRenderer, frame platform.Frame) error {
+	dirty, err := renderer.apply(frame)
+	if err == nil && dirty {
+		err = renderer.present()
+	}
+	return err
+}
+
+// followFocus shows or hides the native caret as the window gains or loses the
+// keyboard.
+func followFocus(renderer windowRenderer, textInput *linuxTextInput, focused bool) error {
+	if frame, changed := textInput.setWindowFocused(focused); changed {
+		return presentCaret(renderer, frame)
+	}
+	return nil
+}
+
 func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 	win, config, textInput, renderer, router := state.win, state.config, state.text, state.renderer, state.router
 	if !win.preview {
@@ -919,11 +939,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		case message.Format == 32 && message.Window == win.id && message.Type == win.caretAtom:
 			generation := binary.LittleEndian.Uint32(message.Data[:4])
 			if frame, changed := textInput.blinkCaret(generation); changed {
-				dirty, err := renderer.apply(frame)
-				if err == nil && dirty {
-					err = renderer.present()
-				}
-				return false, err
+				return false, presentCaret(renderer, frame)
 			}
 		case message.Format == 32 && message.Window == win.id && message.Type == win.redrawAtom && config.OnRedraw != nil:
 			frame, err := config.OnRedraw()
@@ -1146,6 +1162,11 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		if router.ime != nil && realFocus {
 			router.ime.setFocused(true)
 		}
+		if realFocus {
+			if err := followFocus(renderer, textInput, true); err != nil {
+				return false, err
+			}
+		}
 	case xcbFocusOut:
 		state.application.atspiActive(state, false)
 		focus := (*xcbFocusEvent)(event)
@@ -1159,8 +1180,19 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 				return false, err
 			}
 		}
+		if realFocusLoss && config.OnDeactivate != nil {
+			frame, err := config.OnDeactivate()
+			if err := router.presentFrame(frame, err); err != nil {
+				return false, err
+			}
+		}
 		if router.ime != nil && realFocusLoss {
 			router.ime.setFocused(false)
+		}
+		if realFocusLoss {
+			if err := followFocus(renderer, textInput, false); err != nil {
+				return false, err
+			}
 		}
 		if realFocusLoss {
 			if err := state.releaseHeldKeys(); err != nil {
@@ -1308,7 +1340,7 @@ func validateConfig(config platform.Config) error {
 	if config.Width < 1 || config.Height < 1 || config.Width > math.MaxUint16 || config.Height > math.MaxUint16 {
 		return fmt.Errorf("linux: X11 window dimensions must be between 1 and %d, got %dx%d", uint32(math.MaxUint16), config.Width, config.Height)
 	}
-	if config.WindowMode > platform.WindowPreview {
+	if config.WindowMode > platform.WindowNotification {
 		return fmt.Errorf("linux: invalid window mode %d", config.WindowMode)
 	}
 	if err := validateRectangles(config.Rectangles); err != nil {
@@ -1331,7 +1363,6 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		if connection != 0 {
 			api.disconnect(connection)
 		}
-		api.close()
 		return nil, fmt.Errorf("linux: connect to X server")
 	}
 	iterator := api.rootsIterator(api.getSetup(connection))
@@ -1340,7 +1371,6 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 	}
 	if iterator.Data == nil || iterator.Remaining == 0 {
 		api.disconnect(connection)
-		api.close()
 		return nil, fmt.Errorf("linux: X server has no screen")
 	}
 	win := &window{api: api, connection: connection, screen: iterator.Data}
@@ -1452,7 +1482,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		}
 		win.minimizeHandler = config.OnMinimize
 	}
-	if config.HasOrigin && config.WindowMode != platform.WindowPanel {
+	if config.HasOrigin && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowNotification {
 		// The user-specified position hint: without it a window manager places the
 		// window as it likes and ignores where it was created.
 		const usPosition = 1
@@ -1500,7 +1530,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		win.close()
 		return nil, err
 	}
-	if config.WindowMode == platform.WindowPanel {
+	if config.WindowMode == platform.WindowPanel || config.WindowMode == platform.WindowNotification {
 		if err := win.markPanel(config, x, y); err != nil {
 			win.close()
 			return nil, err
@@ -1533,6 +1563,9 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 			win.close()
 			return nil, fmt.Errorf("%w: %v", platform.ErrDragPreviewUnsupported, err)
 		}
+	}
+	if config.Maximized && config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowPreview && win.frame.stateAtom != 0 {
+		win.requestInitialMaximized()
 	}
 	api.mapWindow(connection, win.id)
 	if api.flush(connection) <= 0 || api.connectionHasError(connection) != 0 {
@@ -1610,7 +1643,6 @@ func (win *window) close() {
 		win.connection = 0
 	}
 	if win.api != nil {
-		win.api.close()
 		win.api = nil
 	}
 }

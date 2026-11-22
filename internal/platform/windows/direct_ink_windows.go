@@ -118,7 +118,7 @@ func (rasterizer *directRasterizer) measureInk(key inkKey) (platform.GridInk, er
 	}
 	defer release(&layout)
 	var metrics textMetrics
-	if err := hresult(comCall(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
+	if err := hresult(comCall1(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
 		return platform.GridInk{}, err
 	}
 	// The cell sits in the middle of the bitmap with a size of room on each side, which is

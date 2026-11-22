@@ -119,3 +119,38 @@ func TestTitlebarDoubleClickSlopTolerantToJitter(t *testing.T) {
 		t.Fatal("two presses with small cursor jitter should make a double click on HiDPI")
 	}
 }
+
+// A window that opens maximized asks before it is mapped, and records the request
+// so a ConfigureNotify that arrives before the manager's property does not make the
+// frame report its floating bounds as the maximized one.
+func TestOpeningMaximizedAsksForBothDirectionsBeforeMapping(t *testing.T) {
+	var mode, kind, items uint32
+	var property uint32
+	var values []uint32
+	win := &window{
+		connection: 1, id: 2,
+		api: &xcbAPI{
+			changeProperty: func(_ uintptr, m uint8, _ uint32, p, k uint32, _ uint8, n uint32, data unsafe.Pointer) xcbVoidCookie {
+				mode, property, kind, items = uint32(m), p, k, n
+				values = append([]uint32(nil), unsafe.Slice((*uint32)(data), n)...)
+				return xcbVoidCookie{}
+			},
+		},
+		frame: frameState{
+			stateAtom:           10,
+			maximizedVertical:   20,
+			maximizedHorizontal: 30,
+		},
+	}
+	win.requestInitialMaximized()
+	if mode != xcbPropertyReplace || property != 10 || kind != xcbAtomAtom || items != 2 {
+		t.Fatalf("initial request = mode %d property %d kind %d items %d", mode, property, kind, items)
+	}
+	if len(values) != 2 || values[0] != 20 || values[1] != 30 {
+		t.Fatalf("initial state = %v, want both directions", values)
+	}
+	if !win.frame.maximizePending || !win.frame.maximizeTarget {
+		t.Fatalf("initial request pending=%t target=%t, want it recorded as asked for",
+			win.frame.maximizePending, win.frame.maximizeTarget)
+	}
+}

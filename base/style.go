@@ -178,6 +178,23 @@ func (b Box) AutoFocus() Box {
 	return b
 }
 
+// RequestFocus asks to focus this element for the current action, even if its
+// AutoFocus declaration was already honored. Call it only in an event handler
+// or when consuming state set by one, not on every paint.
+func (b Box) RequestFocus() Box {
+	if b.f.memoDepth > 0 {
+		panic("ui: RequestFocus in a Memo: a copied part cannot request focus")
+	}
+	id := b.N().ID
+	if id.IsZero() {
+		panic("ui: RequestFocus needs an element with an identity")
+	}
+	if b.f.Surface != nil {
+		b.f.Surface.RequestFocusOnce(id)
+	}
+	return b
+}
+
 // Focused is how the element looks while the keyboard has it, however it got there: a click
 // on a text field focuses it without making the focus visible, and a field that is being typed
 // into still reads as the one with the keyboard (CSS's :focus, where Focus is :focus-visible).

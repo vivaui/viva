@@ -112,11 +112,12 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalized.attachPosts()
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
 	}
 	driver := &Driver{config: normalized, canvas: canvas, wakeSent: make(chan struct{}, 1),
-		origin: normalized.originPoint()}
+		origin: normalized.originPoint(), maximized: normalized.Maximized}
 	driver.frame = gfx.Rect{X: driver.origin.X, Y: driver.origin.Y, Width: float32(normalized.Width), Height: float32(normalized.Height)}
 
 	liveDrivers.Acquire()
@@ -166,6 +167,11 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 		return nil, err
 	}
 	built = true
+	// A window that opens maximized reports it like one maximized later, so an
+	// application hears the same state from every adapter.
+	if normalized.Maximized && normalized.OnMaximize != nil {
+		normalized.OnMaximize(true)
+	}
 	return driver, nil
 }
 
@@ -377,7 +383,8 @@ func (driver *Driver) SetMaximized(maximized bool) error {
 	return nil
 }
 
-// Maximized reports the state SetMaximized last reported.
+// Maximized reports whether the window is maximized: the state it opened in, then
+// what SetMaximized last reported.
 func (driver *Driver) Maximized() bool { return driver.maximized }
 
 // HitTest returns the front-most enabled interaction target at a logical-pixel
@@ -618,6 +625,20 @@ func (driver *Driver) KeyUp(key gfx.Key, character string) error {
 		Release: true, Modifiers: driver.heldModifiers(), Code: driverKeyCode(key, character),
 	})
 	return err
+}
+
+// DeactivateWindow reports the window as deactivated, as the window manager
+// would when the user switches away, and calls OnDeactivate after the keys
+// that were down are released. A closed driver reports nothing.
+func (driver *Driver) DeactivateWindow() error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	driver.modifierKeys = 0
+	if _, err := driver.painter.deactivate(); err != nil {
+		return err
+	}
+	return driver.Pump()
 }
 
 // LoseFocus makes the window lose the keyboard, as switching to another

@@ -3,11 +3,14 @@
 // caller owns the query, the filtered results, the selection and the scroll
 // position, and the wrapper paints the surface and routes its input.
 //
-//	palette := &command.State{
-//		Query: query, Selected: selected,
+//	// Once, with the model:
+//	m.palette = command.State{
 //		Filter: func(query string) { /* rebuild m.results */ },
 //		Choose: func(index int) { /* run m.results[index] */ },
 //	}
+//
+//	// Every paint:
+//	palette := &m.palette
 //	palette.Clear()
 //	palette.Group("Suggestions")
 //	palette.Item("Open workspace", "⌘O")

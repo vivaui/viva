@@ -246,13 +246,19 @@ func Slider(c C, state *SliderState) Box {
 	return c.f.Slider(c.page.boundID(pkSlider, unsafe.Pointer(state)), state)
 }
 
-// Splitter is a draggable divider between the panes around it, at state.Pos.
+// Splitter is a draggable divider between the panes around it, at state.Pos. The
+// page routes the arrow keys of the focused divider to SplitterState.Key, so they
+// work without giving it to the window's key callback.
 func Splitter(c C, state *SplitterState) Box {
+	c.page.splits(state)
 	return c.f.Splitter(c.page.boundID(pkSplitter, unsafe.Pointer(state)), state)
 }
 
 // Table is a Table; its Rows and Header scopes are made from state when spec leaves
-// them zero.
+// them zero. It is a whole control as declared: the page gives it the keys that
+// move its selection (TableState.Key), a click on a row selects that row as a
+// List's does, TableState.Changed reports either in the paint that delivers it,
+// and a table given Headers and no Columns shares its width between them.
 func Table(c C, state *TableState, spec TableSpec) Box {
 	p := c.page
 	if spec.Rows == 0 || spec.Header == 0 {
@@ -264,7 +270,17 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 			spec.Header = p.tree.Sub(scope, gfx.Index(1))
 		}
 	}
-	return c.f.Table(state, spec)
+	if p.tableKeyRoute == nil {
+		p.keyRoute, p.tableKeyRoute = (*Page).RouteKey, (*Page).tableKey
+	}
+	if state.changedAt != p.epoch {
+		state.changed = false
+	}
+	b := c.f.Table(state, spec)
+	if row, ok := b.RowClicked(); ok {
+		state.choose(row, p.epoch)
+	}
+	return b
 }
 
 // TextField adds a text field editing value, a string of the model or a Field; the
@@ -293,16 +309,25 @@ func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool
 
 // TextFieldID is TextField for a field the application already names: id is the
 // field's identity in the page's Tree, so a window's own input routing, an
-// initial focus or a test can address it. The page still gives the platform its
-// editor, as TextField does. Field.Bind gives it an editor the application keeps
-// and reads itself.
+// initial focus or a test can address it. It edits value, a string of the model
+// or a Field, as TextField does, and the page still gives the platform its
+// editor. Field.Bind gives it an editor the application keeps and reads itself.
 //
-//	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
-func TextFieldID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
-	if field == nil {
-		panic("ui: TextFieldID needs a Field")
-	}
+//	ui.TextFieldID(c, m.searchID, &m.query, "Search", "")
+func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string) Box {
 	p := c.page
+	var field *Field
+	switch v := any(Value).(type) {
+	case *Field:
+		field = v
+	case *string:
+		// The string's editor is kept under the name its pointer is given, as
+		// TextField keeps it; only the element takes the application's identity.
+		field, _ = fieldOf(p, pkField, v)
+	}
+	if field == nil {
+		panic("ui: TextFieldID needs a string or a Field to edit")
+	}
 	b := c.f.Field(field, ID, Label, placeholder)
 	c.f.bindField(b, field)
 	p.fields = append(p.fields, fieldEntry{ID: ID, field: field, box: b.i})
@@ -356,12 +381,12 @@ func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
 //	if more.Clicked() { m.menu = !m.menu }
 //	ui.Popover(c, more, &m.menu, func() { ... })
 func Popover(c C, Anchor Box, open *bool, body func()) bool {
-	return PopoverWith(c, Anchor, PopoverSpec{Align: Start}, open, body)
+	return PopoverWith(c, Anchor, open, PopoverSpec{Align: Start}, body)
 }
 
 // PopoverWith is Popover with a spec: the side, alignment, width and the rest of
 // PopoverSpec. The Scope and DismissID it leaves zero are made from open.
-func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
+func PopoverWith(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
 	p := c.page
 	p.ForbidInMemo("Popover")
 	if !*open {
@@ -477,7 +502,10 @@ func (p *Page) Describe(ID gfx.ID) string { return p.tree.Text(ID) }
 // footer, the one that takes the keyboard as it opens; the close button when it has
 // none.
 func (f *Frame) focusFirstControl(dialog Box) {
-	d := &WidgetsOf(f).dialogs[dialog.N().Aux]
+	f.focusFirstControlOf(&WidgetsOf(f).dialogs[dialog.N().Aux])
+}
+
+func (f *Frame) focusFirstControlOf(d *DialogDecl) {
 	for _, part := range [2]int32{d.body, d.footer} {
 		if id := f.FirstControl(part); !id.IsZero() {
 			d.spec.InitialFocusID = id

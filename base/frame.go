@@ -192,6 +192,7 @@ type Extra struct {
 	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to
 	maxPct        [2]float32       // MaxWidthPercent and MaxHeightPercent; zero is none
+	overflowWrap  OverflowWrap     // how a wrapped Text breaks a word too wide for its line, OverflowWrap
 	hitOut        [4]float32       // how far the hit region reaches beyond the rectangle: top, right, bottom, left
 	hitExact      bool             // a styled control targets its laid-out rectangle, not its enlarged desktop target
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
@@ -283,14 +284,18 @@ type Frame struct {
 	Ellipses         []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
 	Wraps            []wrapCache         // the full line sets of wrapped texts, kept between frames
 	wrapCursor       int
-	scratch          scratch       // memory the layout borrows, see scratch.go
-	layoutCtx        LayoutContext // the context a CustomLayout is handed, reused
-	Scrolls          scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
-	Parent           int32
-	bounds           Rect
-	gen              uint32 // the paint this frame is declaring; a Box names it
-	shiftedX         bool   // a CustomLayout moved children after their width was solved
-	done             bool
+	// tails is how long each reused slice that holds pointers was when the last
+	// frame ended: what lies past its length up to there is the last frame's,
+	// cleared by releaseTail so a page that shrank does not keep it reachable.
+	tails     frameTails
+	scratch   scratch       // memory the layout borrows, see scratch.go
+	layoutCtx LayoutContext // the context a CustomLayout is handed, reused
+	Scrolls   scrollStore   // the ScrollStates of the page's ScrollAreas, by identity
+	Parent    int32
+	bounds    Rect
+	gen       uint32 // the paint this frame is declaring; a Box names it
+	shiftedX  bool   // a CustomLayout moved children after their width was solved
+	done      bool
 }
 
 // view keeps the memory a page is laid out in between frames. It is the engine
@@ -374,6 +379,7 @@ func (f *Frame) End() {
 	f.checkAttributes()
 	f.applyRecipes()
 	f.resolveTables()
+	f.resolveDialogFocus()
 	root := &f.Nodes[0]
 	f.measure(AxisX)
 	root.Rect.X, root.Rect.Width = f.bounds.X, f.bounds.Width
@@ -426,14 +432,25 @@ func (f *Frame) End() {
 // (Rect, Clicked, TabClicked and so on) stay valid.
 func (f *Frame) trim() {
 	// Cache entries past the wrapped texts this frame declared belong to a
-	// larger page that is gone. Drop them before trimming the outer slices so
-	// their strings do not stay reachable.
+	// larger page that is gone: they are cut off here and cleared below.
 	if f.wrapCursor < len(f.Wraps) {
 		f.Wraps = f.Wraps[:f.wrapCursor]
 	}
 	if f.wrapCursor < len(f.Ellipses) {
 		f.Ellipses = f.Ellipses[:f.wrapCursor]
 	}
+	// A slice cut short keeps what it held in its array: a picture an Image no
+	// longer shows, a CustomLayout, the strings of rows that are gone. Clear what
+	// this frame did not reach of what the last one did.
+	releaseTail(f.Nodes, &f.tails.nodes)
+	releaseTail(f.Exts, &f.tails.exts)
+	releaseTail(f.Images, &f.tails.images)
+	releaseTail(f.Lines, &f.tails.lines)
+	releaseTail(f.addons, &f.tails.addons)
+	releaseTail(f.States, &f.tails.states)
+	releaseTail(f.Stops, &f.tails.stops)
+	releaseTail(f.Wraps, &f.tails.wraps)
+	releaseTail(f.Ellipses, &f.tails.ellipses)
 	f.layoutCtx.children = trimFlexCapacity(f.layoutCtx.children)
 	f.Nodes = trimFlexCapacity(f.Nodes)
 	f.Images = trimFlexCapacity(f.Images)
@@ -466,6 +483,12 @@ func (f *Frame) Add(k Kind) int32 {
 		panic("ui: an element was declared after the page was laid out (in a Draw callback, or after End): declare elements in the build function")
 	}
 	index := int32(len(f.Nodes))
+	if p := f.page; p != nil && p.ctx.nextSet && p.ctx.f == f && index > p.ctx.nextAt {
+		// The element Key or Part was given to took no name: it must not pass
+		// on to this one, which would take another element's identity.
+		p.ctx.nextSet = false
+		f.unusedName(p.ctx.nextAt, p.ctx.Next)
+	}
 	f.Nodes = append(f.Nodes, Node{Kind: k, Parent: f.Parent, First: -1, Last: -1, Next: -1, Items: Auto})
 	if f.Parent >= 0 {
 		parent := &f.Nodes[f.Parent]

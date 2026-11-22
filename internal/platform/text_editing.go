@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/text"
 )
 
 // TextClipboardAction recognizes the standard clipboard chords and returns 'c',
@@ -186,13 +187,11 @@ func TextClipboardEvent(state TextState, secure bool, action byte, read func() (
 	if secure || action != 'c' && action != 'x' {
 		return TextEvent{}, false, nil
 	}
-	runes := []rune(state.Value)
-	start := max(0, min(state.Selection.Start, len(runes)))
-	end := max(start, min(state.Selection.End, len(runes)))
+	start, end := text.ByteRange(state.Value, text.Range{Start: max(state.Selection.Start, 0), End: max(state.Selection.Start, state.Selection.End)})
 	if start == end {
 		return TextEvent{}, false, nil
 	}
-	if err := write(string(runes[start:end])); err != nil {
+	if err := write(state.Value[start:end]); err != nil {
 		return TextEvent{}, false, err
 	}
 	if action == 'x' {

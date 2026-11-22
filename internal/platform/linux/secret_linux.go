@@ -124,8 +124,13 @@ func (store *secretStore) waitPrompt(prompt string) error {
 		return secretCallError("show a prompt", err)
 	}
 	deadline := time.Now().Add(promptTimeout)
-	for time.Now().Before(deadline) {
-		messages, err := store.conn.Receive()
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		// Block on the bus until something arrives: the user may take minutes.
+		messages, err := store.conn.Wait(remaining)
 		if err != nil {
 			return fmt.Errorf("linux: secret service prompt: %w", err)
 		}
@@ -138,7 +143,6 @@ func (store *secretStore) waitPrompt(prompt string) error {
 				return nil
 			}
 		}
-		time.Sleep(25 * time.Millisecond)
 	}
 	return fmt.Errorf("%w: the prompt was not answered", platform.ErrSecretDenied)
 }

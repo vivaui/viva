@@ -42,4 +42,15 @@ func TestBackgroundResultReachesTheWindow(t *testing.T) {
 	if !found {
 		t.Fatal("the result did not reach the page")
 	}
+	// A wake that only animates applies no update: the status stays.
+	if err := driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	found = false
+	for _, label := range driver.Snapshot().Labels {
+		found = found || strings.Contains(label.Value, "done")
+	}
+	if !found {
+		t.Fatal("a later wake cleared the result")
+	}
 }

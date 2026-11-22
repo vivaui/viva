@@ -24,8 +24,9 @@ type Focus struct {
 	// carried is a request made while handling a click or a shortcut. The event
 	// pass paints with it, but the repaint that follows begins with a new frame
 	// and would clear it before Sync reads the published paint.
-	carried gfx.ID
-	escape  gfx.ID
+	carried     gfx.ID
+	carriedOnce gfx.ID
+	escape      gfx.ID
 	// painted is the hit list of the previous paint, so a newly appearing
 	// Autofocus hit takes the keyboard once. scratch is the next list.
 	painted []gfx.ID
@@ -61,6 +62,9 @@ func (f *Focus) SetKeyboardFocus(visible bool) { f.keyboardFocus = visible }
 // paints, and Sync reads only the paint it publishes. A request the repaint
 // makes itself replaces this one.
 func (f *Focus) Carry(canvas *gfx.Canvas) {
+	if request := canvas.TakeFocusOnce(); !request.IsZero() {
+		f.carriedOnce = request
+	}
 	// A channel that carries no request leaves the one a channel before it in
 	// the same event made: deliverPointer then deliverClick, each carrying.
 	if request := canvas.FocusRequest(); !request.IsZero() {
@@ -69,7 +73,7 @@ func (f *Focus) Carry(canvas *gfx.Canvas) {
 }
 
 // Carries reports whether an event-pass focus request waits for the next Sync.
-func (f *Focus) Carries() bool { return !f.carried.IsZero() }
+func (f *Focus) Carries() bool { return !f.carried.IsZero() || !f.carriedOnce.IsZero() }
 
 // PendingFocus returns a target whose paint-time reveal is not resolved yet.
 func (f *Focus) PendingFocus() gfx.ID { return f.pendingFocus }
@@ -139,6 +143,11 @@ func (f *Focus) Sync(canvas *gfx.Canvas) {
 	f.router.SetActiveScope(canvas.TrappedFocusScope(), input.Target(canvas.InitialFocus()))
 	f.applyAutofocus(hits)
 	request := canvas.FocusRequest()
+	once := canvas.TakeFocusOnce()
+	if once.IsZero() && (request.IsZero() || request == f.focusClaim) {
+		once = f.carriedOnce
+	}
+	f.carriedOnce = gfx.ID{}
 	carried := false
 	if request.IsZero() && !f.carried.IsZero() {
 		request, carried = f.carried, true
@@ -156,6 +165,9 @@ func (f *Focus) Sync(canvas *gfx.Canvas) {
 		}
 	} else {
 		f.focusClaim = gfx.ID{}
+	}
+	if !once.IsZero() {
+		f.router.Focus(input.Target(once))
 	}
 	if !f.pendingFocus.IsZero() {
 		target := input.Target(f.pendingFocus)

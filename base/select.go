@@ -120,7 +120,8 @@ func (s *SelectState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 // without regard to case; a pause of a second starts a new word, and the same letter
 // repeated cycles through the options that start with it). In an open list the match is
 // scrolled into view and takes the focus, so Enter picks it; on a closed select the list
-// opens on it. Give it to Config.OnKey, ahead of your own handling. It reacts to the
+// opens on it. A page routes a declared Select its keys; a host that keeps the state
+// without a page gives Key to Config.OnKey, ahead of its own handling. It reacts to the
 // characters in KeyEvent.Text of an unmodified key, which a window delivers there only
 // for the platforms and focus that report typed characters as keys; everywhere else it
 // is never called with one and does nothing.

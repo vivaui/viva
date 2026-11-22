@@ -37,13 +37,19 @@ static NSString *viva_string(const char *value) {
 }
 
 // The pasteboard has no change notification on macOS: what a clipboard viewer watches is its
-// change count, so this polls it on the main queue for as long as a caller wants the news.
-// The timer exists only between viva_system_watch_clipboard(1) and (0); an application that
-// never asks pays nothing.
+// change count, so this polls it on the main queue for as long as a caller wants the news, and
+// only while the application is active. Another application's copy while this one is in the
+// background is found by the comparison made the moment it becomes active again, which is when
+// the news can first matter to the user; a background application, or one that sits in the
+// status area, wakes for nothing. The timer and the observers exist only between
+// viva_system_watch_clipboard(1) and (0); an application that never asks pays nothing.
 extern void vivaSystemClipboardChanged(void);
 
 static dispatch_source_t viva_clipboard_timer = NULL;
 static NSInteger viva_clipboard_count = 0;
+static BOOL viva_clipboard_watching = NO;
+static id viva_clipboard_became_active = nil;
+static id viva_clipboard_resigned_active = nil;
 
 static void viva_clipboard_poll(void *unused) {
     (void)unused;
@@ -75,27 +81,68 @@ static void viva_on_main_async(dispatch_block_t operation) {
     dispatch_async(dispatch_get_main_queue(), operation);
 }
 
+static void viva_clipboard_start_timer(void) {
+    if (viva_clipboard_timer != NULL) {
+        return;
+    }
+    viva_clipboard_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    dispatch_source_set_timer(viva_clipboard_timer, dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), 250 * NSEC_PER_MSEC, 50 * NSEC_PER_MSEC);
+    dispatch_source_set_event_handler_f(viva_clipboard_timer, viva_clipboard_poll);
+    dispatch_resume(viva_clipboard_timer);
+}
+
+static void viva_clipboard_stop_timer(void) {
+    if (viva_clipboard_timer != NULL) {
+        dispatch_source_cancel(viva_clipboard_timer);
+        viva_clipboard_timer = NULL;
+    }
+}
+
 // viva_system_watch_clipboard starts (enable 1) or stops (0) reporting changes of the
-// pasteboard. Starting twice does nothing. The timer changes on the main queue in the order
+// pasteboard. Starting twice does nothing. The watch changes on the main queue in the order
 // the calls were made; a notification after a stop is dropped on the Go side, which clears its
 // callback before this runs.
 void viva_system_watch_clipboard(int enable) {
     viva_on_main_async(^{
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         if (!enable) {
-            if (viva_clipboard_timer != NULL) {
-                dispatch_source_cancel(viva_clipboard_timer);
-                viva_clipboard_timer = NULL;
+            if (!viva_clipboard_watching) {
+                return;
             }
+            viva_clipboard_watching = NO;
+            viva_clipboard_stop_timer();
+            [center removeObserver:viva_clipboard_became_active];
+            [center removeObserver:viva_clipboard_resigned_active];
+            [viva_clipboard_became_active release];
+            [viva_clipboard_resigned_active release];
+            viva_clipboard_became_active = nil;
+            viva_clipboard_resigned_active = nil;
             return;
         }
-        if (viva_clipboard_timer != NULL) {
+        if (viva_clipboard_watching) {
             return;
         }
+        viva_clipboard_watching = YES;
         viva_clipboard_count = [NSPasteboard generalPasteboard].changeCount;
-        viva_clipboard_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-        dispatch_source_set_timer(viva_clipboard_timer, dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), 250 * NSEC_PER_MSEC, 50 * NSEC_PER_MSEC);
-        dispatch_source_set_event_handler_f(viva_clipboard_timer, viva_clipboard_poll);
-        dispatch_resume(viva_clipboard_timer);
+        NSOperationQueue *main = [NSOperationQueue mainQueue];
+        viva_clipboard_became_active = [[center addObserverForName:NSApplicationDidBecomeActiveNotification
+                                                            object:nil
+                                                             queue:main
+                                                        usingBlock:^(NSNotification *note) {
+            (void)note;
+            viva_clipboard_poll(NULL);
+            viva_clipboard_start_timer();
+        }] retain];
+        viva_clipboard_resigned_active = [[center addObserverForName:NSApplicationDidResignActiveNotification
+                                                              object:nil
+                                                               queue:main
+                                                          usingBlock:^(NSNotification *note) {
+            (void)note;
+            viva_clipboard_stop_timer();
+        }] retain];
+        if (NSApp == nil || NSApp.active) {
+            viva_clipboard_start_timer();
+        }
     });
 }
 
@@ -455,6 +502,44 @@ int viva_system_pasteboard_put_image(const char *pasteboard, const uint8_t *png,
         NSData *tiff = representation.TIFFRepresentation;
         return tiff != nil && [board setData:tiff forType:NSPasteboardTypeTIFF] ? 0 : -1;
     }
+}
+
+// viva_system_pasteboard_put_image_flavours writes png as public.png beside its
+// public.tiff conversion, the pair an image copy leaves: a reader that knows PNG
+// takes the original bytes, and an application that asks only for TIFF (Mail,
+// TextEdit, Notes) still pastes the picture.
+int viva_system_pasteboard_put_image_flavours(const char *pasteboard, const uint8_t *png, size_t length) {
+    __block char *failure = NULL;
+    dispatch_block_t operation = ^{
+        @autoreleasepool {
+            NSData *bytes = [NSData dataWithBytes:png length:length];
+            NSBitmapImageRep *representation = [NSBitmapImageRep imageRepWithData:bytes];
+            NSData *tiff = representation.TIFFRepresentation;
+            if (tiff == nil) {
+                failure = viva_copy_utf8(@"clipboard image is not a picture AppKit reads");
+                return;
+            }
+            NSPasteboard *board = viva_pasteboard_named(pasteboard);
+            [board clearContents];
+            if (![board setData:bytes forType:NSPasteboardTypePNG]) {
+                failure = viva_copy_utf8(@"AppKit refused clipboard PNG");
+                return;
+            }
+            // The conversion is the flavour older readers ask for; the PNG stays
+            // the original, so a refusal here only costs that compatibility.
+            [board setData:tiff forType:NSPasteboardTypeTIFF];
+        }
+    };
+    if (pasteboard == NULL) {
+        viva_on_main_sync(operation);
+    } else {
+        operation();
+    }
+    if (failure != NULL) {
+        free(failure);
+        return -1;
+    }
+    return 0;
 }
 
 int viva_system_clipboard_files(const char *pasteboard, size_t max, viva_system_string_array *paths, char **error_message) {

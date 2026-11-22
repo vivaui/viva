@@ -331,6 +331,9 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	switch config.WindowMode {
 	case platform.WindowFrameless:
 		style = wsPopup
+	case platform.WindowNotification:
+		style = wsPopup
+		extendedStyle = wsExToolWindow | wsExTopmost | wsExNoActivate
 	case platform.WindowPanel:
 		// A popup that has no taskbar button and stays above other windows.
 		style = wsPopup
@@ -395,7 +398,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		}
 		setWindowPosition.Call(state.window, 0, 0, 0, uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x16)
 	}
-	if config.WindowMode != platform.WindowPanel {
+	if config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowNotification {
 		if config.HasOrigin {
 			state.placeAtOrigin(config.Origin)
 		} else {
@@ -432,7 +435,10 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
-	if config.WindowMode == platform.WindowPanel {
+	if config.WindowMode == platform.WindowNotification {
+		state.placePanel()
+		showWindow.Call(state.window, swShowNoActivate)
+	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
 		showWindow.Call(state.window, swShow)
 		setForegroundWindow.Call(state.window)
@@ -443,6 +449,8 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		state.paintPending = true
 		showWindow.Call(state.window, swShowNoActivate)
 		invalidateRect.Call(state.window, 0, 0)
+	} else if config.Maximized {
+		showWindow.Call(state.window, swShowMaximized)
 	} else {
 		showWindow.Call(state.window, 1)
 	}
@@ -561,7 +569,15 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmHideWindow:
 		showWindow.Call(window, swHide)
 		return 0
+	case 0x0021: // WM_MOUSEACTIVATE
+		if state.config.WindowMode == platform.WindowNotification {
+			return 3 // MA_NOACTIVATE: deliver the click, keep the previous keyboard focus.
+		}
 	case wmShowWindow:
+		if state.config.WindowMode == platform.WindowNotification {
+			showWindow.Call(window, swShowNoActivate)
+			return 0
+		}
 		showOrRaise(window)
 		return 0
 	case wmClose:
@@ -646,6 +662,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()
+			if state.config.OnDeactivate != nil {
+				frame, err := state.config.OnDeactivate()
+				state.frame(frame, err)
+			}
 		} else if state.config.OnActivate != nil {
 			state.config.OnActivate()
 		}
@@ -879,7 +899,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			}
 		}
 		if kind == wmLeftDown || kind == wmRightDown || kind == wmMiddleDown || kind == wmXButtonDown {
-			setFocus.Call(window)
+			if state.config.WindowMode != platform.WindowNotification {
+				setFocus.Call(window)
+			}
 			setCapture.Call(window)
 		}
 		if !state.tracking {

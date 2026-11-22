@@ -1,6 +1,8 @@
 package base
 
 import (
+	"unsafe"
+
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
@@ -58,15 +60,52 @@ func (f *Frame) AlertDialog(spec AlertDialogSpec) Box {
 	return root
 }
 
-// AlertDialog declares a confirmation on a page, as Dialog does: the page routes
-// its keys, pointer and shortcuts with the modal open. It declares no children;
-// declare it where it is open.
-func AlertDialog(c C, spec AlertDialogSpec) Box {
+// AlertDialog asks the user to confirm while *open, as Modal shows a dialog: a
+// scrim, the title and description, and the confirming action beside an outline
+// cancel action. It reports true in the paint that delivers the confirming
+// action. That action, the cancel action and Escape set *open to false; a press on
+// the scrim does not, as an alert dialog must be answered. The page routes its
+// keys, pointer and shortcuts while it is open, gives the keyboard to the cancel
+// action as it opens and back to where it was as it closes.
+//
+//	if ui.AlertDialog(c, &m.confirmDelete, ui.AlertDialogSpec{
+//		Title: "Delete host?", Description: "This cannot be undone.",
+//		ActionLabel: "Delete", CancelLabel: "Cancel", ActionVariant: ui.ButtonDestructive,
+//	}) {
+//		m.deleteHost()
+//	}
+//
+// Scope, ActionID and CancelID are named from open when the spec leaves them
+// zero; a page that addresses the actions itself (a test, a shortcut) names them.
+func AlertDialog(c C, open *bool, spec AlertDialogSpec) bool {
 	if c == nil || c.page == nil || c.f == nil {
 		panic("ui: AlertDialog is for a page")
 	}
 	p := c.page
 	p.ForbidInMemo("AlertDialog")
+	if !*open {
+		return false
+	}
 	p.overlay = true
-	return c.f.AlertDialog(spec)
+	if spec.Scope.IsZero() || spec.ActionID.IsZero() || spec.CancelID.IsZero() {
+		scope := p.BoundScope(pkAlertDialog, unsafe.Pointer(open))
+		if spec.Scope.IsZero() {
+			spec.Scope = scope.At(0)
+		}
+		if spec.ActionID.IsZero() {
+			spec.ActionID = scope.At(1)
+		}
+		if spec.CancelID.IsZero() {
+			spec.CancelID = scope.At(2)
+		}
+	}
+	if spec.InitialFocusID.IsZero() {
+		spec.InitialFocusID = spec.CancelID
+	}
+	id, chosen := c.f.AlertDialog(spec).Chosen()
+	if !chosen {
+		return false
+	}
+	*open = false
+	return id == spec.ActionID
 }

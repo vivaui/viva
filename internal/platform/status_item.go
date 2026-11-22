@@ -33,6 +33,12 @@ func PlacePanel(anchor ScreenRect, width, height float32, area ScreenRect) (x, y
 	return x, y
 }
 
+// PlaceNotification returns the bottom-right origin inside a screen's working
+// area. All coordinates and the margin use the same units.
+func PlaceNotification(width, height, margin float32, area ScreenRect) (float32, float32) {
+	return max(area.X, area.X+area.Width-width-margin), max(area.Y, area.Y+area.Height-height-margin)
+}
+
 // Scaled returns the icon at size x size pixels, each result pixel the average
 // of the source pixels it covers, weighted by their alpha so that a transparent
 // edge does not bleed its hidden color into the shape. Platforms that draw a

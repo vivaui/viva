@@ -430,6 +430,21 @@ type previousPaint struct {
 	keep  bool
 	epoch uint32
 	lists primitiveLists
+	tails canvasTails // the lists' tails, kept with them as they swap
+}
+
+// canvasTails is how long each pointer-holding list of a paint was when the
+// canvas last trimmed it: what lies past its length up to there is stale.
+type canvasTails struct{ images, texts, hits, hitTexts, nativeViews int }
+
+// releaseTail clears items[len(items):*end], what an earlier paint held past this
+// one's length, and records this length. Everything past it was cleared before,
+// so the cost is what the list shrank by, not its capacity.
+func releaseTail[T any](items []T, end *int) {
+	if *end > len(items) && *end <= cap(items) {
+		clear(items[len(items):*end])
+	}
+	*end = len(items)
 }
 
 // rotate starts a paint: with keep, the lists just painted become the previous
@@ -449,6 +464,7 @@ func (canvas *Canvas) rotate() {
 	canvas.hits, old.hits = old.hits[:0], canvas.hits
 	canvas.hitTexts, old.hitTexts = old.hitTexts[:0], canvas.hitTexts
 	canvas.nativeViews, old.nativeViews = old.nativeViews[:0], canvas.nativeViews
+	canvas.tails, canvas.previous.tails = canvas.previous.tails, canvas.tails
 }
 
 // trimPrevious gives back the previous paint's arrays after a large page, as Trim

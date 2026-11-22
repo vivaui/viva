@@ -31,7 +31,7 @@ func (m *model) page(c ui.C) {
 - `Basis(px)` 是在分配剩余空间之前元素的起始尺寸，`WidthPercent`、`HeightPercent` 取容器的一个比例。`MinWidth`、`MaxWidth`、`MinHeight`、`MaxHeight` 限定尺寸；被上限卡住的元素吃不下的空间会分给其他元素（和 CSS 一样），所以 `Grow(1).MaxWidth(470)` 旁边放一个 `Spacer()`，后面的元素仍然贴着远端。
 - `Items(ui.Baseline)` 让一行里的子元素按第一行文字的基线对齐，大标题、小说明和按钮可以落在同一条基线上。`Text` 会先于固定尺寸的兄弟元素收缩并裁剪。
 - `Background`、`Radius`、`Border`、`Shadow`、`Clip` 为容器设置样式。在 `Input`、`Select`、`Button` 等控件上，`Radius` 和 `FontSize` 为该控件设置它自己的圆角和字号；`Button` 上的 `Height` 就是按钮画出来的高度。
-- `Paragraph(text, maxLines)` 是会按所得宽度换行的文字，所以标签变长会让这一行变高，并把后面的内容往下推。`LineHeight` 设置行高。
+- `Paragraph(text, maxLines)` 是会按所得宽度换行的文字，所以标签变长会让这一行变高，并把后面的内容往下推。`LineHeight` 设置行高。容器没有拉伸它时，它要的是自己最宽那一行的宽度，所以没有哪一行放得下的长词（比如长 URL、长路径）会溢出到容器的两边；`OverflowWrap(ui.OverflowWrapAnywhere)` 让它改为要它实际得到的宽度，并在放不下时把那个词按完整字符断开（绝不会切碎 emoji 序列或带附加符号的字母）。文字放得下时一切不变。
 - `Grid(minCell)` 按宽度放下尽可能多的等宽列，并换到新的行。
 - `Flow()` 是会换行的 Row：子元素保持各自的宽度从左到右排列，放不下下一个时就换到新的一行，和 CSS 的 `flex-wrap` 一样。每一行像 Row 一样分配自己的空间，所以 `Grow` 和 `Justify` 对每一行单独生效，`Items` 在各自的行内对齐子元素。`Gap` 是子元素之间的间距，也是行与行之间的间距，除非用 `LineGap` 另行设置。会换行的标签、徽章和工具栏都用 Flow。
 - `Scroll(offset)` 是比自己更高的、带裁剪的列。偏移量由你持有（滚轮事件到 `Config.OnScroll`）；`End` 之后 `Content()` 是子元素的总高度，可据此限制偏移量。
@@ -54,7 +54,7 @@ func (m *model) page(c ui.C) {
 	})
 }
 
-ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.page)
+ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.page})
 ```
 
 `ui.Choice` 和 `ui.Tabs` 各占一个 Tab 停靠点：左右方向键（垂直的标签页用上下键）移动到下一个可用选项并选中它，到头会回绕；Home 和 End 去第一个和最后一个。
@@ -248,7 +248,7 @@ func (m *model) row(c ui.C, h *host) {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Viva fleet", Width: 460, Height: 560}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -315,7 +315,6 @@ import (
 	"sort"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -333,8 +332,9 @@ func newModel() *model {
 	}}
 }
 
-// page declares the table. A header click sorts the rows and a row click
-// selects it; the table keeps the selection and the scroll position itself.
+// page declares the table. A header click sorts the rows; a row click and the
+// arrow keys select a row, and the table keeps the selection and the scroll
+// position itself.
 func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 		ui.Text(c, "Servers").FontSize(20).Bold()
@@ -343,11 +343,8 @@ func (m *model) page(c ui.C) {
 			Sortable: []bool{true, true, true},
 			Source:   &m.rows,
 			Striped:  true,
-			Columns:  []components.TableColumn{{Width: 200}, {Width: 120}, {}},
+			Columns:  []ui.TableColumn{{Width: 200}, {Width: 120}, {}},
 		})
-		if row, ok := table.RowClicked(); ok {
-			m.table.Select(row)
-		}
 		if column, ok := table.HeaderClicked(); ok {
 			m.table.SortBy(column)
 			m.sortRows()
@@ -375,7 +372,7 @@ func (m *model) sortRows() {
 }
 
 func main() {
-	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, newModel().page); err != nil {
+	if err := ui.Run(app.Config{Title: "Servers", Width: 720, Height: 480}, ui.PageConfig{View: newModel().page}); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -2,6 +2,16 @@ package platform
 
 import "testing"
 
+func TestNotificationPlacementRespectsWorkAreaAndNegativeScreenOrigins(t *testing.T) {
+	area := ScreenRect{X: -1920, Y: 36, Width: 1920, Height: 1000}
+	if x, y := PlaceNotification(320, 128, 12, area); x != -332 || y != 896 {
+		t.Fatalf("notification at %g,%g", x, y)
+	}
+	if x, y := PlaceNotification(2000, 1200, 12, area); x != area.X || y != area.Y {
+		t.Fatalf("oversize notification at %g,%g", x, y)
+	}
+}
+
 func TestPlacePanelOpensTowardTheMiddleOfTheScreen(t *testing.T) {
 	work := ScreenRect{Width: 1920, Height: 1040} // a 40 pixel taskbar at the bottom
 	// An icon in the bottom-right corner of a bottom taskbar: the panel is above

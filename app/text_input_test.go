@@ -323,23 +323,16 @@ func TestSecureFieldIsMaskedForThePlatformAndSilentForAccessibility(t *testing.T
 	if enabled == nil || !enabled.Secure {
 		t.Fatalf("the platform was not told to mask the field: %+v", enabled)
 	}
+	checked := 0
 	for _, node := range painter.accessibility {
 		if node.Value != "" || strings.Contains(node.Label, "hunter2") {
 			t.Fatalf("native accessibility node exposes the password: %+v", node)
 		}
-		if node.Role == uint8(semantic.RoleTextField) && !node.Secure {
-			t.Fatalf("native accessibility node is not marked secure: %+v", node)
-		}
-	}
-	checked := 0
-	for _, id := range painter.semanticIDs {
-		node, ok := painter.semantics.Get(id)
-		if !ok || node.Role != semantic.RoleTextField {
-			continue
-		}
-		checked++
-		if node.Value != "" || !node.Secure {
-			t.Fatalf("semantic node = %+v, want a secure field without a value", node)
+		if node.Role == uint8(semantic.RoleTextField) {
+			if !node.Secure {
+				t.Fatalf("native accessibility node is not marked secure: %+v", node)
+			}
+			checked++
 		}
 	}
 	if checked != 1 {

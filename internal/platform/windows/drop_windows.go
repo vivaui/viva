@@ -128,14 +128,14 @@ func dropRelease(this uintptr) uintptr {
 // containsFiles reports whether a data object offers a list of files.
 func containsFiles(data uintptr) bool {
 	format := formatEtc{Format: cfHDrop, Aspect: dvAspectContent, Index: -1, Medium: tymedHGlobal}
-	return data != 0 && uint32(comCall(data, 5, uintptr(unsafe.Pointer(&format)))) == sOK
+	return data != 0 && uint32(comCall1(data, 5, uintptr(unsafe.Pointer(&format)))) == sOK
 }
 
 // filesOf reads the paths out of a data object that offers files.
 func filesOf(data uintptr) []string {
 	format := formatEtc{Format: cfHDrop, Aspect: dvAspectContent, Index: -1, Medium: tymedHGlobal}
 	var medium storageMedium
-	if hresult(comCall(data, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&medium)))) != nil {
+	if hresult(comCall2(data, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&medium)))) != nil {
 		return nil
 	}
 	defer releaseStgMedium.Call(uintptr(unsafe.Pointer(&medium)))

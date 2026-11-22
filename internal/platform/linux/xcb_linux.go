@@ -2,6 +2,7 @@ package linux
 
 import (
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -350,7 +351,21 @@ type xcbAPI struct {
 	free                      func(unsafe.Pointer)
 }
 
+// loadXCB is the process's libxcb and libc function table: loaded the first
+// time a window, the clipboard or a desktop setting needs it and kept for the
+// life of the process, as the Pango services are. A failure is kept too.
 func loadXCB() (*xcbAPI, error) {
+	xcbOnce.Do(func() { xcbShared, xcbErr = openXCB() })
+	return xcbShared, xcbErr
+}
+
+var (
+	xcbOnce   sync.Once
+	xcbShared *xcbAPI
+	xcbErr    error
+)
+
+func openXCB() (*xcbAPI, error) {
 	library, err := purego.Dlopen("libxcb.so.1", purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
 		return nil, fmt.Errorf("linux: load libxcb: %w", err)
@@ -420,11 +435,6 @@ func loadXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.errnoLocation, libc, "__errno_location")
 	purego.RegisterLibFunc(&api.free, libc, "free")
 	return api, nil
-}
-
-func (api *xcbAPI) close() {
-	purego.Dlclose(api.libc)
-	purego.Dlclose(api.library)
 }
 
 func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {

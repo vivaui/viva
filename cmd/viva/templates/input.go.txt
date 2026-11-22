@@ -85,7 +85,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 	}
 	if snapshot.Text.Mono {
 		snapshot.PlatformEditing = false
-		snapshot.ShowCaret = focused
+		snapshot.ShowCaret = focused && !snapshot.ReadOnly && !snapshot.Disabled
 	}
 	// A caret the component paints keeps its own blink phase, whether the field is fixed
 	// pitch or asked to hide the editor's text; the platform's caret is not drawn, so its

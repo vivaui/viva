@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"strings"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // NotificationPermission is the browser's answer to a notification permission
@@ -60,6 +62,30 @@ func SetClipboardHTMLAsync(html, alt string, done func(error)) error {
 		return nil
 	}
 	return nativeSetClipboardHTMLAsync(html, alt, done)
+}
+
+// SetClipboardImageAsync starts SetClipboardImage's write and calls done with
+// nil once the platform accepted it. The call returns immediately when the
+// request starts; an error means it could not start and done is not called. A
+// PNG the write refuses is such an error, not a completion: png must be one
+// within MaxClipboardImageBytes. Native targets complete before the call
+// returns; the browser writes one ClipboardItem with the "image/png" flavour,
+// which needs a user gesture.
+func SetClipboardImageAsync(png []byte, done func(error)) error {
+	if done == nil {
+		return fmt.Errorf("app: nil clipboard callback")
+	}
+	if len(png) == 0 {
+		return fmt.Errorf("app: no image to put on the clipboard")
+	}
+	if err := platform.CheckClipboardPNG(png); err != nil {
+		return err
+	}
+	if err, handled := driverSetClipboardImage(png); handled {
+		done(err)
+		return nil
+	}
+	return nativeSetClipboardImageAsync(png, done)
 }
 
 // RequestNotificationPermission asks the browser for permission to show

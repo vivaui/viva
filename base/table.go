@@ -97,11 +97,11 @@ type TableSpec struct {
 // tableRoute is a Table of the last paint that scrolls itself, and where: the
 // page gives it the wheel and the keys that reach it.
 type tableRoute struct {
-	root       int32
 	state      *TableState
 	bounds     Rect
 	Scrolls    bool
 	sideways   bool
+	root       int32 // the root of the tree the table is in: the page's or a panel's (frame.rootOf)
 	bar        gfx.ID
 	horizontal gfx.ID
 }
@@ -116,8 +116,12 @@ type TableState struct {
 	// state.Wheel, or call it for the table under the pointer. A table in a
 	// ScrollArea is as tall as its rows, as wide as its area makes it, and needs
 	// none of it.
-	Scroll           ScrollState
-	selected         int32 // 1 + the row, or 0
+	Scroll   ScrollState
+	selected int32 // 1 + the row, or 0
+	// changed is a selection the user made, reported by Changed in the paint
+	// changedAt: the one a click is delivered in, or the one after a key.
+	changed          bool
+	changedAt        uint32
 	sortColumn       int32 // 1 + the column, or 0
 	descending       bool
 	reveal           bool      // scroll the selected row into view at the next paint
@@ -135,6 +139,21 @@ type TableState struct {
 
 // Selected is the selected row, or -1.
 func (s *TableState) Selected() int { return int(s.selected) - 1 }
+
+// Changed reports whether the paint that declared the table delivered a row the
+// user chose: a click on a row, or a key that moved the selection. It is true in
+// the paint that delivers it, and in the one after a key between paints, and
+// false again in the next, as ListState.Changed is. Select by the program does
+// not set it.
+func (s *TableState) Changed() bool { return s.changed }
+
+// choose selects row as the user's choice, reported by Changed in epoch.
+func (s *TableState) choose(row int, epoch uint32) {
+	if s.Selected() != row {
+		s.changed, s.changedAt = true, epoch
+	}
+	s.Select(row)
+}
 
 // Select selects a row; a negative row clears the selection.
 func (s *TableState) Select(row int) { s.selected = int32(max(row, -1) + 1) }
@@ -164,11 +183,10 @@ func (s *TableState) Wheel(event gfx.ScrollEvent) gfx.EventResult { return s.Scr
 // Key moves the selection when a row of the table has the keyboard: Up and Down by a
 // row, PageUp and PageDown by what is on screen, Home and End to the first and last
 // row. The new row is selected, takes the keyboard focus and is scrolled into view
-// (in the table's own scroll position, or in the nearest ScrollArea around it). Give
-// it to Config.OnKey, or call it from yours; it ignores every other key and any other
-// focus, and reports Handled only for the keys it used.
-//
-//	config.OnKey = m.table.Key
+// (in the table's own scroll position, or in the nearest ScrollArea around it). A
+// page routes a declared Table its keys; a host that paints a table without a page
+// gives Key to Config.OnKey. It ignores every other key and any other focus, and
+// reports Handled only for the keys it used.
 func (s *TableState) Key(event gfx.KeyEvent) gfx.EventResult {
 	if s.rows == 0 || event.Modifiers&(gfx.ModifierControl|gfx.ModifierMeta|gfx.ModifierAlt) != 0 {
 		return gfx.EventResult{}
@@ -201,6 +219,25 @@ func (s *TableState) Key(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Handled: true, Repaint: true, Focus: s.scope.At(row), FocusVisible: true}
 }
 
+// tableKey gives a key to the Table whose row has the keyboard: TableState.Key,
+// for the tables of the last paint.
+func (p *Page) tableKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
+	if event.Release {
+		return gfx.EventResult{}, false
+	}
+	for i := range p.tables {
+		state := p.tables[i].state
+		before := state.Selected()
+		if result := state.Key(event); result.Handled {
+			if state.Selected() != before {
+				state.changed, state.changedAt = true, p.epoch+1
+			}
+			return result, true
+		}
+	}
+	return gfx.EventResult{}, false
+}
+
 type TableDecl struct {
 	spec  TableSpec
 	state *TableState
@@ -209,6 +246,9 @@ type TableDecl struct {
 	// and paints from. It keeps its capacity across frames, so a warm table
 	// fits no heading into a new allocation.
 	columns []style.TableColumn
+	// even is a table declared with Headers and no Columns: its columns share its
+	// width equally, the last taking what rounding leaves.
+	even bool
 	// fontSize and foreground are the element's explicit text style: what the
 	// recipe's spec default is replaced with when the element set one.
 	fontSize      float32
@@ -250,7 +290,7 @@ func (f *Frame) Table(state *TableState, spec TableSpec) Box {
 		rows = max(spec.Source.Len(), 0)
 	}
 	decl := TableDecl{spec: spec, state: state, rows: rows}
-	if spec.FitHeadings && index < cap(*decls) {
+	if (spec.FitHeadings || len(spec.Columns) == 0) && index < cap(*decls) {
 		// Reuse the fitted columns of this table from the last paint even though
 		// the fit itself waits for the element's FontSize in resolveTables.
 		decl.columns = (*decls)[:cap(*decls)][index].columns
@@ -275,6 +315,14 @@ func (f *Frame) resolveTables() {
 		}
 		if n.Flags&flagHasColor != 0 {
 			decl.foreground, decl.hasForeground = n.Color, true
+		}
+		if len(decl.spec.Columns) == 0 && len(decl.spec.Headers) > 0 {
+			// Columns are shared out when the table's width is known (paintTable);
+			// until then each is one that takes what is left.
+			decl.columns = append(decl.columns[:0], make([]style.TableColumn, len(decl.spec.Headers))...)
+			clear(decl.columns)
+			decl.spec.Columns, decl.even = decl.columns, true
+			continue
 		}
 		if !decl.spec.FitHeadings || f.Surface == nil || len(decl.spec.Columns) == 0 {
 			continue
@@ -412,6 +460,12 @@ func (f *Frame) paintTable(n *Node) {
 	// that do not fit move the whole grid across, with the header riding along —
 	// and never inside a ScrollArea, whose viewport (sideways or not) owns the
 	// table's width; such a table is only ever clipped.
+	if t.even {
+		share := float32(math.Floor(float64(r.Width / float32(len(t.spec.Columns)))))
+		for i := range t.spec.Columns[:len(t.spec.Columns)-1] {
+			t.spec.Columns[i].Width = share
+		}
+	}
 	declaredWidth := tableColumnsWidth(t.spec.Columns)
 	flexibleLast := len(t.spec.Columns) == 0 || t.spec.Columns[len(t.spec.Columns)-1].Width <= 0
 	selfContained := true

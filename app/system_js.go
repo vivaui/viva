@@ -39,6 +39,12 @@ func nativeClipboardFiles() ([]string, error) { return nil, ErrUnsupported }
 
 func nativeSetClipboardFiles([]string) error { return ErrUnsupported }
 
+// nativeSetClipboardImage cannot answer synchronously: Clipboard.write returns a
+// Promise, so use SetClipboardImageAsync.
+func nativeSetClipboardImage(png []byte) error {
+	return webSystemError("write clipboard image", webplatform.SetClipboardImage(png))
+}
+
 func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
 	return webplatform.StartFileDrag(paths, allowed)
 }

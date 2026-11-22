@@ -39,8 +39,12 @@ type Config struct {
 	MinHeight int
 	// Origin, when HasOrigin, is where the top-left of the content area opens, in
 	// screen coordinates. Without one the system places the window.
-	Origin     gfx.Point
-	HasOrigin  bool
+	Origin    gfx.Point
+	HasOrigin bool
+	// Maximized asks the window manager to open the window maximized on
+	// platforms that support maximization, keeping Width, Height and Origin as
+	// its restored floating bounds.
+	Maximized  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip a custom
 	// titlebar leaves for the application. Zero means DefaultTitlebarHeight.
@@ -106,7 +110,12 @@ type Config struct {
 	// the runtime can release the keys that were down: their releases will go
 	// to the other window.
 	OnFocusLost FocusLostHandler
-	OnScroll    ScrollHandler
+	// OnDeactivate, when set, runs on the window thread when the top-level
+	// window stops being the active window, after OnFocusLost released the
+	// keys that were down. Focus moving between views inside the window does
+	// not call it.
+	OnDeactivate DeactivateHandler
+	OnScroll     ScrollHandler
 	// OnFileDrop, when set, makes the window a target for files dragged from the
 	// system. The adapter reports hover and leave where the system does and
 	// always the drop.
@@ -628,6 +637,10 @@ type KeyHandler func(KeyEvent) (Frame, error)
 // optional repaint.
 type FocusLostHandler func() (Frame, error)
 
+// DeactivateHandler reports that the window stopped being the active window,
+// after the keys that were down were released, and returns the frame to paint.
+type DeactivateHandler func() (Frame, error)
+
 // ShortcutHandler offers one printable chord with any modifiers, or
 // Control or Meta with Enter, before native text handling and reports whether the
 // application consumed it.
@@ -840,6 +853,8 @@ const (
 	// whatever is under it still gets every event. Adapters that cannot make
 	// one refuse it. WindowMover moves it.
 	WindowPreview
+	// WindowNotification is an interactive, non-activating desktop popup.
+	WindowNotification
 )
 
 // DefaultTitlebarHeight is the custom titlebar strip, in logical pixels, of a

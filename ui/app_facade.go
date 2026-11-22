@@ -74,13 +74,18 @@ func Configure(page *Page, base app.Config) app.Config {
 // systemAppearance is the platform's appearance, which a window page follows.
 func systemAppearance() window.Appearance { return app.SystemAppearance() }
 
-// Run opens a window that declares view, and blocks until it closes: an
-// application in one call. The config's Tree, Paint, TextInput and OnScroll are
-// the page's (see Configure).
-func Run(config app.Config, View func(C)) error {
-	page := NewPage(PageConfig{View: View, Appearance: systemAppearance})
+// Run opens a window that shows page, and blocks until it closes: an application
+// in one call. page is what OpenWindow takes: its View declares what the window
+// shows, and its Theme, Styles and the rest configure the page. The config's
+// Tree, Paint, TextInput and OnScroll are the page's (see Configure).
+//
+//	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, ui.PageConfig{View: m.page})
+func Run(config app.Config, page PageConfig) error {
+	if page.Appearance == nil {
+		page.Appearance = systemAppearance
+	}
 	var canvas gfx.Canvas
-	return app.RunCanvas(Configure(page, config), &canvas)
+	return app.RunCanvas(Configure(NewPage(page), config), &canvas)
 }
 
 // OpenWindow opens a window of application that paints page, and returns it. It

@@ -25,6 +25,9 @@ typedef struct {
 int viva_application_set_icon(viva_status_icon icon);
 /* Replaces the Dock icon even in an .app bundle. Marshals to the main thread. */
 int viva_application_update_icon(viva_status_icon icon);
+/* The points an icon of this many pixels is declared at: the Dock draws it at
+ * half its pixel size. The test beside the implementation asserts it too. */
+double viva_dock_icon_points(viva_status_icon icon);
 void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu);
 int viva_status_item_set_icon(void *item, viva_status_icon icon);
 void viva_status_item_set_tooltip(void *item, const char *tooltip);

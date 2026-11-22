@@ -190,6 +190,7 @@ func (d *DrawerDeclaration) swipe(f *Frame, s *DrawerSwipe) bool {
 type drawerState struct {
 	spec         DrawerDeclaration
 	viewport     Rect
+	content      Rect  // the opaque panel; a non-modal drawer leaves the rest of the viewport reachable
 	body, footer int32 // the parts declared into; footer is -1 without one
 	layer        uint16
 }
@@ -216,7 +217,7 @@ func (f *Frame) Drawer(spec DrawerDeclaration, footer bool) Box {
 		f.paintDrawerFn = PaintDrawer
 	}
 	r.Aux = int32(len(WidgetsOf(f).drawers))
-	d := drawerState{spec: spec, viewport: viewport, layer: layer, footer: -1}
+	d := drawerState{spec: spec, viewport: viewport, content: layout.Content, layer: layer, footer: -1}
 	// A Stack's children sit at its top left; the margin moves each to its rectangle.
 	place := func(b Box, r Rect) Box {
 		return b.Size(r.Width, r.Height).Self(Start).MarginTop(r.Y - f.bounds.Y).MarginLeft(r.X - f.bounds.X)

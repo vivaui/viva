@@ -154,21 +154,28 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
+      - name: Native Linux text rasterization
+        run: |
+          sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
+            { sudo apt-get update && sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji; }
+          go test ./internal/platform/linux -run '^TestTextEngineRasterizesProportionalText$' -count=1 -v
       - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
-          go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter)$' -count=1
+          go test -tags vivagtk ./internal/platform/linux -run '^Test(GTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter|ClipboardImageWriteReportsUnsupportedWithoutSetWithData)|APartition(KeepsItsStoreInTheUsersDirectories|FollowsTheXdgDirectories|IsNamedAfterTheApplicationWithoutAClass))$' -count=1
       # The Linux package is not part of the sharded run (it drives X11), so the
       # titlebar contracts that do not need a server name their tests here.
       - name: Titlebar and window contracts
-        run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|PreviewMovePreservesSizeAndFocus)$' -count=1 -v
-      - name: Native X11 drag preview
+        run: go test ./internal/platform/linux -run '^Test(MaximizeButtonSetsBothDirections|OpeningMaximizedAsksForBothDirectionsBeforeMapping|PreviewMovePreservesSizeAndFocus|AClipboardImageIsOfferedAsPNGAndNoText|SetClipboardImageClaimsTheClipboardAndDropsOtherFlavours)$' -count=1 -v
+      - name: Native X11 drag preview and notification
         env:
           VIVA_TEST_PREVIEW_XVFB: '1'
+          VIVA_TEST_NOTIFICATION_XVFB: '1'
         run: |
-          sudo apt-get install -y xvfb libxcb-shape0 ||
-            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0; }
-          xvfb-run -a go test ./internal/platform/linux -run '^TestPreviewNativeX11Contract$' -count=1 -v
+          sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
+            { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
+          xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
+          GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
@@ -305,6 +312,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Native AppKit notification focus and click
+        working-directory: internal/platform/darwin
+        run: |
+          xcrun clang -fno-objc-arc -Werror -Wno-deprecated-declarations testdata/window_notification.m -o "$RUNNER_TEMP/window-notification" -framework Cocoa -framework CoreText -framework Metal -framework QuartzCore
+          "$RUNNER_TEMP/window-notification"
       # A package with no darwin file compiles to the same source on every
       # operating system, so the lint job's `go vet ./...` already covers it;
       # what is left here is the darwin build of the packages that have one. The
@@ -328,6 +340,7 @@ jobs:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
 
+
   windows-materials:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -344,17 +357,23 @@ jobs:
       # native structure ABI tests are here for the same reason: they build only
       # on Windows.
       - name: Material contracts and controls (WARP)
-        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
+        run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|OpeningMaximized|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview)' -count=1 -v
+      - name: Web view partitions
+        run: go test ./internal/platform/windows -run '^Test(APageWithoutAPartitionAsksForNoProfileOfItsOwn|APartitionNamesTheWebView2Profile|AnEphemeralPartitionIsAnOffTheRecordProfile|EphemeralPagesWithoutAPartitionEachGetAProfileOfTheirOwn)$' -count=1 -v
       - name: Terminal keyboard routing
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native window and grouped taskbar icons
         run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
+      - name: Non-activating desktop notification
+        env:
+          VIVA_TEST_NOTIFICATION_DESKTOP: '1'
+        run: go test ./internal/platform/windows -run '^TestNotificationNativeWindows$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
-      - name: Native Direct2D text origins
-        run: go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
+      - name: Native Direct2D text origins and hidden labels
+        run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText)$' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
       # compile and run on Windows.
       - name: Update installer contracts

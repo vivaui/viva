@@ -35,12 +35,12 @@ func (renderer *renderer) trim() {
 	if renderer.device == 0 || renderer.context == 0 {
 		return
 	}
-	comCall(renderer.context, 111) // ID3D11DeviceContext::Flush: lets destroyed objects go
+	comCall0(renderer.context, 111) // ID3D11DeviceContext::Flush: lets destroyed objects go
 	var dxgi uintptr
-	if hresult(comCall(renderer.device, 0, uintptr(unsafe.Pointer(&dxgiDevice3IID)), uintptr(unsafe.Pointer(&dxgi)))) != nil {
+	if hresult(comCall2(renderer.device, 0, uintptr(unsafe.Pointer(&dxgiDevice3IID)), uintptr(unsafe.Pointer(&dxgi)))) != nil {
 		return // Windows 8.1 and earlier have no Trim
 	}
-	comCall(dxgi, dxgiDevice3Trim)
+	comCall0(dxgi, dxgiDevice3Trim)
 	release(&dxgi)
 }
 

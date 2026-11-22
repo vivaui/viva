@@ -12,7 +12,7 @@
 //		})
 //	}
 //
-//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, m.GetPage())
+//	ui.Run(app.Config{Title: "Settings", Width: 480, Height: 320}, ui.PageConfig{View: m.GetPage()})
 //
 // Controls write into the values they are given, a list's rows are keyed with
 // c.Key, a long list is a List, a part that rarely changes a Memo, and Popover and
@@ -23,8 +23,9 @@
 // The page and its model, including Field and text.Editor getters, belong to the
 // window thread. Capture immutable values there before background work starts.
 // Use NewEffectKeyed to give a worker a value snapshot and EffectState.Take to
-// consume its result in the page; other workers publish under synchronization
-// and use app.Config.Invalidator with app.Config.OnWake to deliver results.
+// consume its result in the page; another goroutine hands its result to the
+// window's app.Invalidator with Post, which runs it on the window thread and
+// repaints.
 //
 // The engine underneath is not part of the public model. A component is a
 // function of the page (func(c ui.C) ui.Box); a custom control uses Control
@@ -67,7 +68,10 @@
 // the separators of a long path or URL, and as a last resort between whole
 // characters (an emoji sequence or a letter with its marks is never split); its
 // height follows its width, and the last line of one that is cut ends with an
-// ellipsis.
+// ellipsis. A paragraph its container does not stretch asks for its own width, so a
+// word no line is wide enough for runs out over the container; OverflowWrap with
+// OverflowWrapAnywhere makes it ask for the room it has instead, and break that word
+// between whole characters.
 //
 // How an element looks under the pointer, held down and focused is declared on it (Hover,
 // Pressed, Focus, each a Look, with StateFrom to follow a container and Transition to fade

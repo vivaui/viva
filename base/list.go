@@ -823,13 +823,13 @@ func (r ListRow) Focused() bool {
 // The rows are one stop of Tab, on the row chosen last or the first shown. Give the
 // list a name for assistive technology with Box.Label after it:
 //
-//	files := ui.List(c, &m.files, len(m.files), func(row ui.ListRow) {
+//	ui.List(c, &m.fileList, len(m.files), func(row ui.ListRow) {
 //		row.Element.PadX(8).Gap(8).Items(ui.Center).Children(func() {
 //			ui.Icon(row.C, iconOf(m.files[row.Index]))
 //			ui.Text(row.C, m.files[row.Index].Name)
 //		})
 //	}).Label("Files").Grow(1)
-//	if row, ok := m.files.Submitted(); ok { m.open(row) }
+//	if row, ok := m.fileList.Submitted(); ok { m.open(row) }
 func List(c C, state *ListState, n int, row func(ListRow)) Box {
 	p := c.page
 	p.ForbidInMemo("List")
@@ -1233,17 +1233,21 @@ func (p *Page) ListKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-// listWheelX scrolls the rows of the List with RowWidth under the pointer sideways,
-// by the horizontal wheel or by the wheel with Shift. It reports whether it moved a
-// list, and whether the event was a sideways one alone, left with nothing to scroll
-// down.
-func (p *Page) ListWheelX(event gfx.ScrollEvent, panel int32) (moved, only bool) {
+// ListWheelX scrolls the rows of the List with RowWidth under the pointer sideways,
+// by the horizontal wheel or by the wheel with Shift, within the panel under the
+// pointer when there is one. It reports whether it moved a list, and whether the
+// event was a sideways one alone, left with nothing to scroll down.
+func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx, only := event.DeltaX, event.DeltaY == 0
 	if dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
 		dx, only = event.DeltaY, true
 	}
 	if dx == 0 {
 		return false, false
+	}
+	panel := int32(-1)
+	if f := p.View.Frame; f != nil {
+		panel = f.wheelPanel(event.X, event.Y)
 	}
 	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
