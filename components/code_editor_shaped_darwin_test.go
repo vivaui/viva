@@ -3,11 +3,41 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
+
+func TestCodeEditorShapedHighlightSkipsClipsOutsideTheViewport(t *testing.T) {
+	const count = 120
+	const letter = "\u05d0"
+	f := newCodeFixture(strings.Repeat(letter, count))
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi = true
+	f.bounds.Width = f.widthFor(8)
+	f.snapshot.Highlight = func(_, source string, dst []CodeEditorRun) []CodeEditorRun {
+		for i := 0; i < len(source); i += len(letter) {
+			color := gfx.RGB(220, 40, 40)
+			if i/len(letter)%2 == 1 {
+				color = gfx.RGB(40, 40, 220)
+			}
+			dst = append(dst, CodeEditorRun{Start: i, End: i + len(letter), Color: color})
+		}
+		return dst
+	}
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) < 3 || len(labels) > 10 {
+		t.Fatalf("painted %d labels for an eight-cell viewport", len(labels))
+	}
+	for _, label := range labels {
+		if label.Value != f.snapshot.Value || !label.HasClip || label.ClipOf.Width <= 0 {
+			t.Errorf("nonvisible or split shaped label: clip=%+v, bytes=%d", label.ClipOf, len(label.Value))
+		}
+	}
+}
 
 func TestCodeEditorCoreTextKeepsFittedArabicCaretEdges(t *testing.T) {
 	const prefix = "a\u0301\U00010437 "

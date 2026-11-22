@@ -351,8 +351,10 @@ func (paint *codePaint) shapedText(row codeRow, value string, bounds gfx.Rect, c
 	s.styles = intervals
 	slices.SortFunc(intervals, func(a, b codeShapedStyle) int { return cmp.Compare(a.left, b.left) })
 	pos := float32(0)
+	visibleLeft := paint.editor.content.X - bounds.X
+	visibleRight := visibleLeft + paint.editor.content.Width
 	draw := func(left, right float32, color gfx.Color, italic bool) {
-		if right <= left {
+		if right <= left || right <= visibleLeft || left >= visibleRight {
 			return
 		}
 		run.Color, run.Italic, style.Color = color, italic, color
