@@ -119,23 +119,23 @@ func (editor *Editor) prepareLineContext(start, end int, replacement []rune) lin
 	}
 	lines := editor.journal.lines
 	position, line := lines.position, lines.line
-	if position > len(editor.runes) || start < position && start <= position-start {
+	if position > editor.runes.Len() || start < position && start <= position-start {
 		position, line = 0, 0
 	}
 	for position < start {
-		if editor.runes[position] == '\n' {
+		if editor.runes.At(position) == '\n' {
 			line++
 		}
 		position++
 	}
 	for position > start {
 		position--
-		if editor.runes[position] == '\n' {
+		if editor.runes.At(position) == '\n' {
 			line--
 		}
 	}
 	lines.position, lines.line = start, line
-	return makeLineContext(line, start == 0 || editor.runes[start-1] == '\n', editor.runes[start:end], replacement)
+	return makeLineContext(line, start == 0 || editor.runes.At(start-1) == '\n', editor.runes.Slice(start, end), replacement)
 }
 
 func makeLineContext(line int, atLineStart bool, removed, inserted []rune) lineContext {

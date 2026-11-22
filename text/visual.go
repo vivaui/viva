@@ -15,7 +15,7 @@ func (editor *Editor) stepLeft(caret int) int {
 	if next, ok := editor.visualStep(caret, -1); ok {
 		return next
 	}
-	return previousBoundary(editor.runes, caret)
+	return editor.runes.Prev(caret)
 }
 
 // stepRight is stepLeft to the right.
@@ -23,7 +23,7 @@ func (editor *Editor) stepRight(caret int) int {
 	if next, ok := editor.visualStep(caret, 1); ok {
 		return next
 	}
-	return nextBoundary(editor.runes, caret)
+	return editor.runes.Next(caret)
 }
 
 // visualStep moves the caret to the nearest place to its left or right on the screen in a
@@ -35,13 +35,13 @@ func (editor *Editor) stepRight(caret int) int {
 // are one stop.
 func (editor *Editor) visualStep(caret, direction int) (int, bool) {
 	lineStart, lineEnd := caret, caret
-	for lineStart > 0 && editor.runes[lineStart-1] != '\n' {
+	for lineStart > 0 && editor.runes.At(lineStart-1) != '\n' {
 		lineStart--
 	}
-	for lineEnd < len(editor.runes) && editor.runes[lineEnd] != '\n' {
+	for lineEnd < editor.runes.Len() && editor.runes.At(lineEnd) != '\n' {
 		lineEnd++
 	}
-	lineRunes := editor.runes[lineStart:lineEnd]
+	lineRunes := editor.runes.Slice(lineStart, lineEnd)
 	if !bidi.NeedsBidiRunes(lineRunes) {
 		return 0, false
 	}
@@ -125,7 +125,7 @@ func (editor *Editor) visualStep(caret, direction int) (int, bool) {
 		return leading(k)
 	}
 	byteOffset := 0
-	for _, r := range editor.runes[lineStart:caret] {
+	for _, r := range editor.runes.Slice(lineStart, caret) {
 		byteOffset += utf8.RuneLen(r)
 	}
 	current := index(byteOffset)

@@ -69,23 +69,23 @@ func (editor *Editor) prepareEdit(start, end int, replacement []rune) Edit {
 	at, offset := editor.offsets.index, editor.offsets.offset
 	if start < at && start <= at-start {
 		at, offset = 0, 0
-	} else if start >= at && editor.textValid && len(editor.runes)-start < start-at {
-		at, offset = len(editor.runes), len(editor.text)
+	} else if start >= at && editor.textValid && editor.runes.Len()-start < start-at {
+		at, offset = editor.runes.Len(), len(editor.text)
 	}
 	for at < start {
-		offset += runeBytes(editor.runes[at])
+		offset += runeBytes(editor.runes.At(at))
 		at++
 	}
 	for at > start {
 		at--
-		offset -= runeBytes(editor.runes[at])
+		offset -= runeBytes(editor.runes.At(at))
 	}
 	editor.offsets = offsetMemo{index: start, offset: offset}
 	if !editor.journal.tracking {
 		return Edit{}
 	}
 	edit := Edit{Start: offset}
-	for _, character := range editor.runes[start:end] {
+	for _, character := range editor.runes.Slice(start, end) {
 		edit.Removed += runeBytes(character)
 	}
 	for _, character := range replacement {

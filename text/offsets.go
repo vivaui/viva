@@ -23,18 +23,18 @@ func (memo *offsetMemo) trim(start int) {
 // text from every rune encodes the whole document; and an input method's many
 // small edits between two reads cost one rebuild, not one copy each.
 func (editor *Editor) spliceText(start, end int, replacement []rune) {
-	tail := len(editor.runes) - end
+	tail := editor.runes.Len() - end
 	switch {
 	case editor.textValid:
 		editor.keepPrefix, editor.keepSuffix = start, tail
-		editor.keepSuffixBytes = len(editor.text) - editor.byteAt(start) - runesBytes(editor.runes[start:end])
+		editor.keepSuffixBytes = len(editor.text) - editor.byteAt(start) - runesBytes(editor.runes.Slice(start, end))
 		editor.textValid, editor.textBase = false, true
 	case editor.textBase:
 		editor.keepPrefix = min(editor.keepPrefix, start)
 		if tail < editor.keepSuffix {
 			// The edit reaches into the kept tail: what it covers of it is no
 			// longer the cached text's.
-			editor.keepSuffixBytes -= runesBytes(editor.runes[len(editor.runes)-editor.keepSuffix : end])
+			editor.keepSuffixBytes -= runesBytes(editor.runes.Slice(editor.runes.Len()-editor.keepSuffix, end))
 			editor.keepSuffix = tail
 		}
 	}
@@ -44,11 +44,11 @@ func (editor *Editor) spliceText(start, end int, replacement []rune) {
 // runes between them when it has them, else from every rune.
 func (editor *Editor) rebuildText() {
 	if editor.textBase {
-		middle := editor.runes[editor.keepPrefix : len(editor.runes)-editor.keepSuffix]
+		middle := editor.runes.Slice(editor.keepPrefix, editor.runes.Len()-editor.keepSuffix)
 		head := editor.prefixBytes(editor.keepPrefix)
 		editor.text = editor.text[:head] + string(middle) + editor.text[len(editor.text)-editor.keepSuffixBytes:]
 	} else {
-		editor.text = string(editor.runes)
+		editor.text = editor.runes.String()
 	}
 	editor.textValid, editor.textBase = true, false
 }
@@ -62,7 +62,7 @@ func (editor *Editor) prefixBytes(index int) int {
 		at, offset = editor.offsets.index, editor.offsets.offset
 	}
 	for ; at < index; at++ {
-		offset += runeBytes(editor.runes[at])
+		offset += runeBytes(editor.runes.At(at))
 	}
 	editor.offsets = offsetMemo{index: index, offset: offset}
 	return offset
@@ -85,16 +85,16 @@ func (editor *Editor) byteAt(index int) int {
 		if index <= at-index {
 			at, offset = 0, 0
 		}
-	} else if len(editor.runes)-index < index-at {
-		at, offset = len(editor.runes), len(editor.text)
+	} else if editor.runes.Len()-index < index-at {
+		at, offset = editor.runes.Len(), len(editor.text)
 	}
 	for at < index {
-		offset += runeBytes(editor.runes[at])
+		offset += runeBytes(editor.runes.At(at))
 		at++
 	}
 	for at > index {
 		at--
-		offset -= runeBytes(editor.runes[at])
+		offset -= runeBytes(editor.runes.At(at))
 	}
 	editor.offsets = offsetMemo{index: at, offset: offset}
 	return offset
@@ -107,15 +107,15 @@ func (editor *Editor) byteAt(index int) int {
 // for a caret that moves or types a little costs a few runes however long the
 // text is.
 func (editor *Editor) ByteOffset(index int) int {
-	index = clamp(index, 0, len(editor.runes))
+	index = clamp(index, 0, editor.runes.Len())
 	value := editor.String()
 	at, offset := editor.offsets.index, editor.offsets.offset
 	if index < at {
 		if index <= at-index {
 			at, offset = 0, 0
 		}
-	} else if len(editor.runes)-index < index-at {
-		at, offset = len(editor.runes), len(value)
+	} else if editor.runes.Len()-index < index-at {
+		at, offset = editor.runes.Len(), len(value)
 	}
 	for at < index {
 		_, size := utf8.DecodeRuneInString(value[offset:])
@@ -143,7 +143,7 @@ func (editor *Editor) RuneIndex(offset int) int {
 			at, from = 0, 0
 		}
 	} else if len(value)-offset < offset-from {
-		at, from = len(editor.runes), len(value)
+		at, from = editor.runes.Len(), len(value)
 	}
 	for from < offset {
 		_, size := utf8.DecodeRuneInString(value[from:])

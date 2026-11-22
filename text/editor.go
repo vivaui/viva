@@ -68,7 +68,7 @@ type textChange struct {
 // thread, where native input and painting run. Read a string snapshot there
 // before starting background work; the returned string remains valid after edits.
 type Editor struct {
-	runes  []rune
+	runes  runeStore
 	anchor int
 	caret  int
 	// secondary is the multi-selection's other selections, normalized: ordered
@@ -139,7 +139,7 @@ type Editor struct {
 func NewEditor(initial string) *Editor {
 	runes := []rune(initial)
 	end := len(runes)
-	return &Editor{runes: runes, anchor: end, caret: end}
+	return &Editor{runes: runeStore{runes: runes}, anchor: end, caret: end}
 }
 
 // String returns the current UTF-8 text. The conversion is cached until the
@@ -169,10 +169,10 @@ func (editor *Editor) CommittedString() string {
 			}
 		}
 		if !editor.compositionBaseValid {
-			committed := make([]rune, 0, len(editor.runes)-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
-			committed = append(committed, editor.runes[:editor.composition.Start]...)
+			committed := make([]rune, 0, editor.runes.Len()-editor.composition.End+editor.composition.Start+len(editor.compositionOriginal))
+			committed = append(committed, editor.runes.Slice(0, editor.composition.Start)...)
 			committed = append(committed, editor.compositionOriginal...)
-			committed = append(committed, editor.runes[editor.composition.End:]...)
+			committed = append(committed, editor.runes.Slice(editor.composition.End, editor.runes.Len())...)
 			editor.compositionBase = string(committed)
 			editor.compositionBaseValid = true
 		}
@@ -210,7 +210,7 @@ func (editor *Editor) SetOverwrite(overwrite bool) {
 
 // RuneCount returns the number of Unicode code points.
 func (editor *Editor) RuneCount() int {
-	return len(editor.runes)
+	return editor.runes.Len()
 }
 
 // Selection returns the normalized selection range.
@@ -229,8 +229,8 @@ func (editor *Editor) Caret() int {
 // Start, as Caret reports, and Selection still returns it in order.
 func (editor *Editor) SetSelection(selection Range) {
 	editor.sealTentativeHistory()
-	anchor := clamp(selection.Start, 0, len(editor.runes))
-	caret := clamp(selection.End, 0, len(editor.runes))
+	anchor := clamp(selection.Start, 0, editor.runes.Len())
+	caret := clamp(selection.End, 0, editor.runes.Len())
 	if editor.anchor != anchor || editor.caret != caret || editor.composing {
 		editor.BreakUndoGroup()
 	}
@@ -249,7 +249,7 @@ func (editor *Editor) SetSelection(selection Range) {
 func (editor *Editor) MoveTo(index int, extend bool) {
 	editor.sealTentativeHistory()
 	editor.BreakUndoGroup()
-	index = clamp(index, 0, len(editor.runes))
+	index = clamp(index, 0, editor.runes.Len())
 	if extend {
 		editor.caret = index
 	} else {
@@ -394,8 +394,8 @@ func (editor *Editor) CancelComposition() bool {
 	if labels != nil {
 		labels.ops.cancel(labels)
 	}
-	editor.anchor = clamp(editor.compositionAnchor, 0, len(editor.runes))
-	editor.caret = clamp(editor.compositionCaret, 0, len(editor.runes))
+	editor.anchor = clamp(editor.compositionAnchor, 0, editor.runes.Len())
+	editor.caret = clamp(editor.compositionCaret, 0, editor.runes.Len())
 	editor.composing = false
 	editor.legacyComposition = false
 	editor.composition = Range{}
@@ -437,7 +437,7 @@ func (editor *Editor) DeleteBackward() bool {
 	if caret == 0 {
 		return false
 	}
-	start := previousBoundary(editor.runes, caret)
+	start := editor.runes.Prev(caret)
 	before := editor.selectionState()
 	change := editor.replace(Range{Start: start, End: caret}, "", false)
 	editor.collapse(start)
@@ -458,10 +458,10 @@ func (editor *Editor) DeleteForward() bool {
 	editor.composing = false // see DeleteBackward
 	editor.releaseCompositionHistory()
 	caret := editor.caret
-	if caret == len(editor.runes) {
+	if caret == editor.runes.Len() {
 		return false
 	}
-	end := nextBoundary(editor.runes, caret)
+	end := editor.runes.Next(caret)
 	before := editor.selectionState()
 	change := editor.replace(Range{Start: caret, End: end}, "", false)
 	editor.record(change, before, editor.selectionState(), editDeleteForward)
@@ -523,9 +523,9 @@ func (editor *Editor) MoveRight(extend bool) bool {
 
 // RuneIndexToUTF16 converts a rune index to a native UTF-16 code-unit index.
 func (editor *Editor) RuneIndexToUTF16(index int) int {
-	index = clamp(index, 0, len(editor.runes))
+	index = clamp(index, 0, editor.runes.Len())
 	units := 0
-	for _, value := range editor.runes[:index] {
+	for _, value := range editor.runes.Slice(0, index) {
 		if value > 0xffff {
 			units += 2
 		} else {
@@ -542,7 +542,7 @@ func (editor *Editor) UTF16ToRuneIndex(units int) int {
 		return 0
 	}
 	consumed := 0
-	for index, value := range editor.runes {
+	for index, value := range editor.runes.View() {
 		width := 1
 		if value > 0xffff {
 			width = 2
@@ -555,7 +555,7 @@ func (editor *Editor) UTF16ToRuneIndex(units int) int {
 			return index + 1
 		}
 	}
-	return len(editor.runes)
+	return editor.runes.Len()
 }
 
 func (editor *Editor) deleteSelectionOrComposition() bool {
@@ -593,7 +593,7 @@ func (editor *Editor) replace(target Range, value string, overwrite bool) textCh
 // Explicit composition passes one borrowed scalar at a time; ordinary callers
 // still pass the same newly allocated rune slice through replace.
 func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite bool) textChange {
-	target = normalizeRange(target, len(editor.runes))
+	target = normalizeRange(target, editor.runes.Len())
 	if editor.accept != nil {
 		kept := replacement[:0]
 		for _, r := range replacement {
@@ -604,22 +604,22 @@ func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite b
 		replacement = kept
 	}
 	if overwrite && len(replacement) > 0 {
-		if editor.maxRunes > 0 && len(editor.runes) >= editor.maxRunes && target.Start >= len(editor.runes) {
-			target.Start = len(editor.runes) - 1 // a full field: the last rune is replaced
+		if editor.maxRunes > 0 && editor.runes.Len() >= editor.maxRunes && target.Start >= editor.runes.Len() {
+			target.Start = editor.runes.Len() - 1 // a full field: the last rune is replaced
 		}
-		target.End = min(target.Start+len(replacement), len(editor.runes))
+		target.End = min(target.Start+len(replacement), editor.runes.Len())
 	}
 	editor.lastReplaceStart = target.Start
 	removed := target.End - target.Start
 	if editor.maxRunes > 0 {
-		room := max(editor.maxRunes-(len(editor.runes)-removed), 0)
+		room := max(editor.maxRunes-(editor.runes.Len()-removed), 0)
 		if len(replacement) > room {
 			replacement = replacement[:room]
 		}
 	}
 	change := textChange{
 		start:    target.Start,
-		removed:  append([]rune(nil), editor.runes[target.Start:target.End]...),
+		removed:  append([]rune(nil), editor.runes.Slice(target.Start, target.End)...),
 		inserted: replacement,
 	}
 	edit := editor.prepareEdit(target.Start, target.End, replacement)
@@ -636,15 +636,7 @@ func (editor *Editor) replaceRunes(target Range, replacement []rune, overwrite b
 	}
 	editor.spliceText(target.Start, target.End, replacement)
 	editor.offsets.trim(target.Start)
-	delta := len(replacement) - removed
-	if delta > 0 {
-		editor.runes = append(editor.runes, make([]rune, delta)...)
-		copy(editor.runes[target.End+delta:], editor.runes[target.End:len(editor.runes)-delta])
-	} else if delta < 0 {
-		copy(editor.runes[target.Start+len(replacement):], editor.runes[target.End:])
-		editor.runes = editor.runes[:len(editor.runes)+delta]
-	}
-	copy(editor.runes[target.Start:], replacement)
+	editor.runes.Replace(target.Start, target.End, replacement)
 	editor.recordEdit(edit)
 	if lines != nil {
 		editor.recordLineContext(edit, context)
@@ -797,8 +789,8 @@ func (editor *Editor) selectionState() editorSelection {
 }
 
 func (editor *Editor) restoreSelection(selection editorSelection) {
-	editor.anchor = clamp(selection.anchor, 0, len(editor.runes))
-	editor.caret = clamp(selection.caret, 0, len(editor.runes))
+	editor.anchor = clamp(selection.anchor, 0, editor.runes.Len())
+	editor.caret = clamp(selection.caret, 0, editor.runes.Len())
 	editor.clearSecondary()
 	editor.composing = false
 	editor.releaseCompositionHistory()
@@ -1002,8 +994,8 @@ func (editor *Editor) trimHistory() {
 }
 
 func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
-	start = clamp(start, 0, len(editor.runes))
-	end := clamp(start+removed, start, len(editor.runes))
+	start = clamp(start, 0, editor.runes.Len())
+	end := clamp(start+removed, start, editor.runes.Len())
 	edit := editor.prepareEdit(start, end, replacement)
 	var lines *lineJournal
 	var context lineContext
@@ -1014,18 +1006,10 @@ func (editor *Editor) replaceExact(start, removed int, replacement []rune) {
 		}
 	}
 	if lines != nil && lines.labels != nil {
-		lines.labels.ops.replace(lines.labels, context.line, editor.runes[start:end], replacement)
+		lines.labels.ops.replace(lines.labels, context.line, editor.runes.Slice(start, end), replacement)
 	}
 	editor.spliceText(start, end, replacement)
-	delta := len(replacement) - (end - start)
-	if delta > 0 {
-		editor.runes = append(editor.runes, make([]rune, delta)...)
-		copy(editor.runes[end+delta:], editor.runes[end:len(editor.runes)-delta])
-	} else if delta < 0 {
-		copy(editor.runes[start+len(replacement):], editor.runes[end:])
-		editor.runes = editor.runes[:len(editor.runes)+delta]
-	}
-	copy(editor.runes[start:], replacement)
+	editor.runes.Replace(start, end, replacement)
 	editor.lastReplaceStart = start
 	editor.offsets.trim(start)
 	editor.recordEdit(edit)

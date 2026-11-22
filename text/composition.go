@@ -365,7 +365,7 @@ func (editor *Editor) planCompositionEvent(state *compositionState, event Compos
 	case CompositionEmptyCommit:
 		needBase = !state.active
 	}
-	base := editor.runes
+	base := editor.runes.View()
 	if needBase {
 		var baseOK bool
 		base, baseOK = editor.compositionPlanBase(state)
@@ -536,7 +536,7 @@ func (editor *Editor) compositionPlanScalars(plan *compositionPlan, base []rune,
 // current text directly.
 func (editor *Editor) compositionPlanBase(state *compositionState) ([]rune, bool) {
 	if !state.active {
-		return editor.runes, true
+		return editor.runes.View(), true
 	}
 	return editor.compositionRollbackRunes(state)
 }
@@ -548,12 +548,12 @@ func (editor *Editor) compositionPlanBase(state *compositionState) ([]rune, bool
 // document once per unit. The returned slice is owned by the caller.
 func (editor *Editor) compositionRollbackRunes(state *compositionState) ([]rune, bool) {
 	if state == nil || !state.active {
-		return editor.runes, true
+		return editor.runes.View(), true
 	}
 	if state.unitStart < 0 || state.unitStart > len(editor.history) {
 		return nil, false
 	}
-	final := editor.runes
+	final := editor.runes.View()
 	capacity := len(final)
 	for index := state.unitStart; index < len(editor.history); index++ {
 		edit := &editor.history[index]
@@ -627,7 +627,7 @@ func (editor *Editor) compositionRollbackSteps(state *compositionState) int {
 }
 
 func (editor *Editor) compositionReplacementRange(event CompositionEvent) Range {
-	return editor.compositionReplacementRangeFor(editor.runes, event)
+	return editor.compositionReplacementRangeFor(editor.runes.View(), event)
 }
 
 func (editor *Editor) compositionReplacementRangeFor(base []rune, event CompositionEvent) Range {
@@ -637,7 +637,7 @@ func (editor *Editor) compositionReplacementRangeFor(base []rune, event Composit
 	if event.HasReplacement {
 		return normalizeRange(event.Replacement, len(base))
 	}
-	if len(base) == len(editor.runes) {
+	if len(base) == editor.runes.Len() {
 		return editor.Selection()
 	}
 	return Range{Start: editor.caret, End: editor.caret}
@@ -693,7 +693,7 @@ func (editor *Editor) applyCompositionResult(state *compositionState, event Comp
 		explicit = editor.compositionUTF16Range(event.ReplacementUTF16)
 		hasExplicit = true
 	case event.HasReplacement:
-		explicit = normalizeRange(event.Replacement, len(editor.runes))
+		explicit = normalizeRange(event.Replacement, editor.runes.Len())
 		hasExplicit = true
 	}
 	if !wasActive && len(text) == 0 && (!hasExplicit || explicit.Start == explicit.End) {
@@ -812,7 +812,7 @@ func (editor *Editor) rollbackComposition(state *compositionState, pending *hist
 	state.completed = false
 	state.completedStart = -1
 	state.eventStart = -1
-	editor.collapse(clamp(state.start, 0, len(editor.runes)))
+	editor.collapse(clamp(state.start, 0, editor.runes.Len()))
 	editor.BreakUndoGroup()
 	if pending != nil {
 		pending.retainedTo = pending.current
@@ -840,7 +840,7 @@ func (editor *Editor) truncateCompositionUnits(from int) {
 }
 
 func (editor *Editor) compositionDeleteOrdinary(target Range) bool {
-	target = normalizeRange(target, len(editor.runes))
+	target = normalizeRange(target, editor.runes.Len())
 	if target.Start == target.End {
 		return false
 	}
@@ -890,7 +890,7 @@ func (editor *Editor) compositionInsertScalarsWithBreak(start int, text []rune, 
 	if breakBefore {
 		editor.BreakUndoGroup()
 	}
-	start = clamp(start, 0, len(editor.runes))
+	start = clamp(start, 0, editor.runes.Len())
 	editor.collapse(start)
 	for index := range text {
 		before := editor.selectionState()
@@ -912,7 +912,7 @@ func (editor *Editor) compositionInsertEventScalars(start int, text []rune, brea
 	if !editor.overwrite {
 		return editor.compositionInsertScalarsWithBreak(start, text, breakFirst)
 	}
-	start = clamp(start, 0, len(editor.runes))
+	start = clamp(start, 0, editor.runes.Len())
 	editor.collapse(start)
 	for _, value := range text {
 		start = editor.compositionOverwriteScalar(start, value)
@@ -925,9 +925,9 @@ func (editor *Editor) compositionInsertEventScalars(start int, text []rune, brea
 // a line terminator, then insert the scalar. It uses one ordinary change/unit,
 // so it neither deletes a grapheme cluster nor the whole replacement width.
 func (editor *Editor) compositionOverwriteScalar(start int, value rune) int {
-	start = clamp(start, 0, len(editor.runes))
+	start = clamp(start, 0, editor.runes.Len())
 	target := Range{Start: start, End: start}
-	if start < len(editor.runes) && !compositionLineEnd(editor.runes[start]) {
+	if start < editor.runes.Len() && !compositionLineEnd(editor.runes.At(start)) {
 		target.End = start + 1
 	}
 	before := editor.selectionState()
@@ -944,7 +944,7 @@ func (editor *Editor) compositionOverwriteScalar(start int, value rune) int {
 // selection deletion shares one ordinary unit with the first scalar, while the
 // producer still receives the exact ordered delete and per-scalar inserts.
 func (editor *Editor) compositionReplaceAndInsert(target Range, text []rune) {
-	target = normalizeRange(target, len(editor.runes))
+	target = normalizeRange(target, editor.runes.Len())
 	if target.Start == target.End || len(text) == 0 {
 		editor.compositionInsertEventScalars(target.Start, text, false)
 		return
@@ -967,7 +967,7 @@ func (editor *Editor) compositionReplaceAndInsert(target Range, text []rune) {
 // the pinned source start-from-zero/relative-length conversion; out-of-range or
 // split-surrogate boundaries fall to the document end as the E1 contract binds.
 func (editor *Editor) compositionUTF16Range(raw UTF16Range) Range {
-	return editor.compositionUTF16RangeFor(editor.runes, raw)
+	return editor.compositionUTF16RangeFor(editor.runes.View(), raw)
 }
 
 func (editor *Editor) compositionUTF16RangeFor(text []rune, raw UTF16Range) Range {
@@ -992,7 +992,7 @@ func (editor *Editor) compositionUTF16RangeFor(text []rune, raw UTF16Range) Rang
 // an already resolved rune start. It never adds the raw start and length, so a
 // huge positive length simply falls to the document end instead of overflowing.
 func (editor *Editor) compositionUTF16Relative(start, units int) (int, bool) {
-	return editor.compositionUTF16RelativeIn(editor.runes, start, units)
+	return editor.compositionUTF16RelativeIn(editor.runes.View(), start, units)
 }
 
 func (editor *Editor) compositionUTF16RelativeIn(text []rune, start, units int) (int, bool) {
@@ -1020,7 +1020,7 @@ func (editor *Editor) compositionUTF16RelativeIn(text []rune, start, units int) 
 }
 
 func (editor *Editor) compositionUTF16Start(units, total int) (int, bool) {
-	return editor.compositionUTF16StartIn(editor.runes, units, total)
+	return editor.compositionUTF16StartIn(editor.runes.View(), units, total)
 }
 
 func (editor *Editor) compositionUTF16StartIn(text []rune, units, total int) (int, bool) {
