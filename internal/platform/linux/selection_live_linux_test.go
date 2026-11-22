@@ -323,3 +323,25 @@ func TestAClosingWindowLeavesItsClipboardWithAManagerThatFollowsTheProtocol(t *t
 		t.Fatalf("after the window closed the clipboard holds %q", got)
 	}
 }
+
+// Reads of the clipboard share one X connection and its window, made by the
+// first read and kept, so a paste costs no connection of its own.
+func TestClipboardReadsShareOneConnection(t *testing.T) {
+	if os.Getenv("VIVA_LINUX_XCB_SMOKE") != "1" || os.Getenv("DISPLAY") == "" {
+		t.Skip("set VIVA_LINUX_XCB_SMOKE=1 with an X11 display")
+	}
+	if _, err := readClipboardX11(); err != nil {
+		t.Fatal(err)
+	}
+	selections.mu.Lock()
+	first, window := selections.connection, selections.requestor
+	selections.mu.Unlock()
+	if _, err := readClipboardX11(); err != nil {
+		t.Fatal(err)
+	}
+	selections.mu.Lock()
+	defer selections.mu.Unlock()
+	if first == 0 || selections.connection != first || selections.requestor != window {
+		t.Fatalf("the second read used connection %#x window %d, the first %#x window %d", selections.connection, selections.requestor, first, window)
+	}
+}

@@ -290,6 +290,10 @@ type pollFD struct {
 type xcbAPI struct {
 	library uintptr
 	libc    uintptr
+	// atoms, when set, keeps the atoms atom resolved: an atom names the same
+	// thing for as long as the X server runs, so a connection that resolves the
+	// same names again and again (the selection client) asks once.
+	atoms map[string]uint32
 
 	connect                   func(*byte, *int32) uintptr
 	disconnect                func(uintptr)
@@ -444,6 +448,9 @@ func openXCB() (*xcbAPI, error) {
 }
 
 func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
+	if atom, ok := api.atoms[name]; ok {
+		return atom, nil
+	}
 	value := append([]byte(name), 0)
 	cookie := api.internAtom(connection, 0, uint16(len(value)-1), &value[0])
 	var nativeError unsafe.Pointer
@@ -459,5 +466,8 @@ func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
 		return 0, fmt.Errorf("linux: resolve X atom %q", name)
 	}
 	defer api.free(unsafe.Pointer(reply))
+	if api.atoms != nil {
+		api.atoms[name] = reply.Atom
+	}
 	return reply.Atom, nil
 }
