@@ -27,19 +27,19 @@ func vulkanDeviceIsSoftware() bool {
 			softwareProbe.software = true
 			return
 		}
-		renderer := &vulkanRenderer{api: api}
-		if err := renderer.createInstance(nil); err != nil {
+		probe := vulkanDevice{api: api}
+		if err := probe.createInstance(nil); err != nil {
 			softwareProbe.software = true
 			return
 		}
-		defer api.destroyInstance(renderer.instance, nil)
+		defer api.destroyInstance(probe.instance, nil)
 		var count uint32
-		if api.enumeratePhysicalDevices(renderer.instance, &count, nil) != vkSuccess || count == 0 || count > 32 {
+		if api.enumeratePhysicalDevices(probe.instance, &count, nil) != vkSuccess || count == 0 || count > 32 {
 			softwareProbe.software = true
 			return
 		}
 		devices := make([]uintptr, count)
-		if api.enumeratePhysicalDevices(renderer.instance, &count, &devices[0]) != vkSuccess {
+		if api.enumeratePhysicalDevices(probe.instance, &count, &devices[0]) != vkSuccess {
 			softwareProbe.software = true
 			return
 		}

@@ -101,15 +101,11 @@ func (offscreen *Offscreen) Close() {
 }
 
 func (renderer *vulkanRenderer) initializeOffscreen() error {
-	if err := renderer.createInstance(nil); err != nil {
+	device := vulkanDevice{api: renderer.api}
+	if err := device.open(); err != nil {
 		return err
 	}
-	if err := renderer.selectDevice(); err != nil {
-		return err
-	}
-	if err := renderer.createDevice(nil); err != nil {
-		return err
-	}
+	renderer.adopt(&device)
 	if err := renderer.scene.upload(renderer, nil, render.Update{Rebuild: true}); err != nil {
 		return err
 	}

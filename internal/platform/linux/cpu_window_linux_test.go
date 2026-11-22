@@ -246,7 +246,7 @@ func BenchmarkCPUWindowPresent(b *testing.B) {
 	})
 }
 
-// fakeVulkanAPI answers just enough for selectDevice: the given physical
+// fakeVulkanAPI answers just enough for selectPhysical: the given physical
 // devices in order and one graphics family that presents everywhere.
 func fakeVulkanAPI(devices []uintptr, kinds map[uintptr]uint32) *vulkanAPI {
 	return &vulkanAPI{
@@ -289,12 +289,12 @@ func TestSelectDevicePrefersHardwareAndReportsSoftware(t *testing.T) {
 		{"hardware first", []uintptr{22, 11}, map[uintptr]uint32{22: hardware, 11: vkPhysicalDeviceTypeCPU}, 22, false},
 		{"only software", []uintptr{11}, map[uintptr]uint32{11: vkPhysicalDeviceTypeCPU}, 11, true},
 	} {
-		renderer := &vulkanRenderer{api: fakeVulkanAPI(test.devices, test.kinds), instance: 1, surface: 2}
-		if err := renderer.selectDevice(); err != nil {
+		device := &vulkanDevice{api: fakeVulkanAPI(test.devices, test.kinds), instance: 1}
+		if err := device.selectPhysical(2); err != nil {
 			t.Fatalf("%s: %v", test.name, err)
 		}
-		if renderer.physical != test.physical || renderer.software != test.software {
-			t.Errorf("%s: device %d software=%v, want %d software=%v", test.name, renderer.physical, renderer.software, test.physical, test.software)
+		if device.physical != test.physical || device.software != test.software {
+			t.Errorf("%s: device %d software=%v, want %d software=%v", test.name, device.physical, device.software, test.physical, test.software)
 		}
 	}
 }

@@ -611,13 +611,13 @@ func writeVulkanManifest(t *testing.T, dir string) {
 // rendering failure: the application must be able to tell them apart and the text
 // must say what to install. Any other enumeration result stays a real failure.
 func TestUnusableVulkanDriverIsNamedAndSaysWhatToInstall(t *testing.T) {
-	renderer := func(status int32) *vulkanRenderer {
-		return &vulkanRenderer{api: &vulkanAPI{
+	device := func(status int32) *vulkanDevice {
+		return &vulkanDevice{api: &vulkanAPI{
 			enumeratePhysicalDevices: func(uintptr, *uint32, *uintptr) int32 { return status },
 		}}
 	}
 	for _, status := range []int32{vkErrorInitializationFailed, vkErrorIncompatibleDriver} {
-		err := renderer(status).selectDevice()
+		err := device(status).selectPhysical(0)
 		if !errors.Is(err, platform.ErrNoGraphics) {
 			t.Errorf("result %d: %v does not wrap platform.ErrNoGraphics", status, err)
 		}
@@ -628,18 +628,19 @@ func TestUnusableVulkanDriverIsNamedAndSaysWhatToInstall(t *testing.T) {
 			t.Errorf("result %d: %q does not report the Vulkan result", status, err)
 		}
 	}
-	if err := renderer(-1).selectDevice(); errors.Is(err, platform.ErrNoGraphics) {
+	if err := device(-1).selectPhysical(0); errors.Is(err, platform.ErrNoGraphics) {
 		t.Errorf("a real failure is reported as no graphics: %v", err)
 	}
 }
 
 func newSuboptimalTestRenderer(acquireStatus, presentStatus int32, recreations *int) *vulkanRenderer {
 	return &vulkanRenderer{
-		device:    10,
-		queue:     20,
-		swapchain: 30,
-		commands:  []uintptr{40},
-		fence:     50,
+		device:       10,
+		queue:        20,
+		swapchain:    30,
+		commands:     []uintptr{40},
+		framebuffers: []uintptr{45},
+		fence:        50,
 		api: &vulkanAPI{
 			waitForFences: func(uintptr, uint32, *uintptr, uint32, uint64) int32 { return vkSuccess },
 			resetFences:   func(uintptr, uint32, *uintptr) int32 { return vkSuccess },
