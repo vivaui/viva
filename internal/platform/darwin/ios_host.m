@@ -13,10 +13,13 @@
 /* The callbacks into Go. */
 extern void vivaIOSLaunched(void);
 extern void vivaViewResized(uintptr_t callbackHandle, void *view, double width, double height);
-extern void vivaRedrawRequested(uintptr_t callbackHandle, void *view);
 extern void vivaWindowClosed(uintptr_t callbackHandle);
 extern void vivaTouchEvent(uintptr_t callbackHandle, void *view, int kind, int identifier,
                            double x, double y, double screenX, double screenY);
+extern void vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int modifiers, int repeat,
+                            const unsigned char *utf8, size_t utf8Length);
+extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
+extern void vivaRedrawRequested(uintptr_t callbackHandle, void *view);
 
 /* The pointer kinds, as platform.PointerEventKind numbers them. */
 enum {
@@ -156,7 +159,8 @@ static int viva_application_status = 0;
 }
 
 - (void)renderWaitingForSchedule:(BOOL)wait {
-    if (_closed) {
+    // The system kills an application that submits GPU work from the background.
+    if (_closed || UIApplication.sharedApplication.applicationState == UIApplicationStateBackground) {
         return;
     }
     @autoreleasepool {
@@ -251,12 +255,93 @@ static int viva_application_status = 0;
     [self emitTouches:touches kind:VIVA_IOS_POINTER_CANCEL];
 }
 
+#pragma mark Hardware keyboard
+
+- (BOOL)canBecomeFirstResponder {
+    return YES;
+}
+
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    if (self.window != nil) {
+        [self becomeFirstResponder];
+    }
+}
+
+// pressesBegan reports the keys of a connected keyboard. The keys that are not
+// text arrive as key events and the chords with Control or Command as shortcut
+// offers; what is typed is the text input's (see UITextInput).
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    BOOL handled = NO;
+    for (UIPress *press in presses) {
+        UIKey *key = press.key;
+        if (key == nil || _closed) {
+            continue;
+        }
+        const char *chars = key.charactersIgnoringModifiers.UTF8String;
+        size_t length = chars != NULL ? strlen(chars) : 0;
+        vivaIOSKeyEvent(_callbackHandle, self, (int)key.keyCode, (int)key.modifierFlags, 0, (const unsigned char *)chars, length);
+        handled = YES;
+    }
+    if (!handled) {
+        [super pressesBegan:presses withEvent:event];
+    }
+}
+
 @end
 
-@interface VivaIOSViewController : UIViewController
+@interface VivaIOSViewController : UIViewController {
+    VivaIOSView *_surface;
+}
+- (void)setSurface:(VivaIOSView *)surface;
 @end
 
 @implementation VivaIOSViewController
+
+- (void)loadView {
+    UIView *root = [[UIView alloc] init];
+    root.backgroundColor = UIColor.systemBackgroundColor;
+    self.view = root;
+    [root release];
+}
+
+- (void)setSurface:(VivaIOSView *)surface {
+    _surface = surface;
+    [self.view addSubview:surface];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(keyboardWillChange:)
+                                                 name:UIKeyboardWillChangeFrameNotification
+                                               object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [super dealloc];
+}
+
+// keyboardWillChange moves the surface with the keyboard, in the keyboard's own
+// animation.
+- (void)keyboardWillChange:(NSNotification *)notification {
+    NSTimeInterval duration = [notification.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+    UIViewAnimationOptions curve = [notification.userInfo[UIKeyboardAnimationCurveUserInfoKey] unsignedIntegerValue] << 16;
+    [self.view setNeedsLayout];
+    [UIView animateWithDuration:duration delay:0 options:curve animations:^{
+        [self.view layoutIfNeeded];
+    } completion:nil];
+}
+
+// viewDidLayoutSubviews puts the surface inside what the system covers: the status
+// bar and the sensor housing, the home indicator, and the keyboard. A program that
+// wants the whole screen asks for it (ADR 0095).
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGRect bounds = UIEdgeInsetsInsetRect(self.view.bounds, self.view.safeAreaInsets);
+    CGFloat keyboardTop = CGRectGetMinY(self.view.keyboardLayoutGuide.layoutFrame);
+    if (keyboardTop < CGRectGetMaxY(bounds)) {
+        bounds.size.height = MAX(keyboardTop - bounds.origin.y, 0);
+    }
+    _surface.frame = bounds;
+}
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
     return UIInterfaceOrientationMaskAll;
@@ -267,6 +352,10 @@ static int viva_application_status = 0;
 @interface VivaIOSAppDelegate : UIResponder <UIApplicationDelegate>
 @end
 
+/* The one window an iPhone application shows (see viva_application_open_window). */
+static UIWindow *viva_ios_window;
+static VivaIOSView *viva_ios_view;
+
 @implementation VivaIOSAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -274,11 +363,21 @@ static int viva_application_status = 0;
     return YES;
 }
 
-@end
+// The application goes behind another and comes back: it is told, and on the way
+// back asks for a frame, since what the layer shows may not be what it should.
+- (void)applicationDidEnterBackground:(UIApplication *)application {
+    if (viva_ios_view != nil && !viva_ios_view.closed) {
+        vivaIOSVisibility(viva_ios_view.callbackHandle, viva_ios_view, 0);
+    }
+}
 
-/* The one window an iPhone application shows (see viva_application_open_window). */
-static UIWindow *viva_ios_window;
-static VivaIOSView *viva_ios_view;
+- (void)applicationWillEnterForeground:(UIApplication *)application {
+    if (viva_ios_view != nil && !viva_ios_view.closed) {
+        vivaIOSVisibility(viva_ios_view.callbackHandle, viva_ios_view, 1);
+    }
+}
+
+@end
 
 int viva_ios_main(void) {
     @autoreleasepool {
@@ -343,7 +442,8 @@ void *viva_application_open_window(viva_window_config config) {
             return NULL;
         }
         VivaIOSViewController *controller = [[VivaIOSViewController alloc] init];
-        controller.view = view;
+        [controller loadViewIfNeeded];
+        [controller setSurface:view];
         UIWindow *window = [[UIWindow alloc] initWithFrame:screen];
         window.rootViewController = controller;
         [window makeKeyAndVisible];
