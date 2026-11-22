@@ -20,6 +20,15 @@ import (
 // selection and the cursor. GTK has to be called from the thread that runs its loop, so a call from
 // another goroutine is posted to it and waited for.
 
+func OnClipboardChange(notify func()) error {
+	if notify == nil {
+		return nil
+	}
+	return unsupported("clipboard change events are not available on the GTK backend")
+}
+
+func stopClipboardWatch() {}
+
 // gtkClipboards are the entry points of the clipboard, bound with the first use.
 type gtkClipboards struct {
 	atomIntern func(name *byte, onlyIfExists int32) uintptr

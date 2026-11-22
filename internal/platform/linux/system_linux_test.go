@@ -449,7 +449,8 @@ func TestDarkAppearanceAnswersOnThisMachine(t *testing.T) {
 
 // X11 and the GTK shell cannot report clipboard changes yet. The caller is told so, with the error a
 // caller checks for, instead of being promised news that never comes; stopping needs nothing.
-func TestOnClipboardChangeSaysThisTargetCannotWatch(t *testing.T) {
+func TestOnClipboardChangeWithoutDisplayReportsUnsupported(t *testing.T) {
+	t.Setenv("DISPLAY", "")
 	if err := OnClipboardChange(func() {}); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("OnClipboardChange = %v, want ErrUnsupported", err)
 	}
