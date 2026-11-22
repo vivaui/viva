@@ -212,6 +212,9 @@ func (renderer *vulkanRenderer) readImage() (*image.RGBA, error) {
 	if err := vkCheck(renderer.api.waitForFences(renderer.device, 1, &renderer.fence, 1, math.MaxUint64), "wait before readback"); err != nil {
 		return nil, err
 	}
+	if err := renderer.ensureRecorded(0); err != nil {
+		return nil, err
+	}
 	begin := vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo, Flags: vkCommandOneTimeSubmit}
 	if err := vkCheck(renderer.api.beginCommandBuffer(target.readbackCommand, &begin), "begin readback command"); err != nil {
 		return nil, err

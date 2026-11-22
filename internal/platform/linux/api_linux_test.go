@@ -959,22 +959,25 @@ func TestResizeRecordsStagedCommandsAtAnAlreadyMatchingExtent(t *testing.T) {
 		recordings++
 		return vkSuccess
 	}
-	// Recovery may already have rebuilt the surface to the requested extent,
-	// but retrying a staged upload still resets its drawing commands.
+	// A staged scene makes the commands stale; a resize to the extent the
+	// surface already has rebuilds nothing, and the stale commands are recorded
+	// once, when their image is submitted.
 	if changed, err := renderer.stage(platform.Frame{TextLabels: []platform.TextLabel{}}); !changed || err != nil {
 		t.Fatalf("stage: changed=%v err=%v", changed, err)
 	}
 	if err := renderer.resize(100, 100); err != nil {
 		t.Fatal(err)
 	}
-	if recordings != 1 || recreations != 0 {
+	if recordings != 0 || recreations != 0 {
 		t.Fatalf("matching extent recorded %d times and rebuilt %d times", recordings, recreations)
 	}
-	if err := renderer.resize(100, 100); err != nil {
-		t.Fatal(err)
+	for range 2 {
+		if err := renderer.ensureRecorded(0); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if recordings != 1 {
-		t.Fatalf("unchanged resize recorded commands again: %d", recordings)
+		t.Fatalf("submitting the stale image recorded it %d times, want once", recordings)
 	}
 }
 

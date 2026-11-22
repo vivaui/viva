@@ -38,6 +38,7 @@ const (
 	vkSamplerMipmapLinear                    = 1
 	vkSamplerAddressClampEdge                = 2
 	vkCommandOneTimeSubmit                   = 1
+	vkCommandPoolResetCommandBuffer          = 2
 	vkMaximumTextLabels                      = 2048
 )
 
@@ -194,6 +195,9 @@ type vulkanText struct {
 	used        []bool
 	candidates  map[vulkanTextureKey]int
 	reordered   []vulkanLabelTexture
+	// generation counts the uploads that replaced label textures: commands that
+	// bind the old ones are stale once it moves.
+	generation uint64
 }
 
 type vulkanTextureKey struct {
@@ -685,6 +689,7 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32, vie
 	if !dirty {
 		return nil
 	}
+	textState.generation++
 	begin := vkCommandBufferBeginInfo{SType: vkStructureCommandBeginInfo, Flags: vkCommandOneTimeSubmit}
 	if err := vkCheck(renderer.api.beginCommandBuffer(renderer.uploadCommand, &begin), "begin text upload"); err != nil {
 		return err
