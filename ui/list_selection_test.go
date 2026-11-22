@@ -88,8 +88,8 @@ func TestListClickChoosesAndReports(t *testing.T) {
 	if m.list.Selected() != 1 || !m.list.Chosen(1) || m.changed != 1 {
 		t.Fatalf("click: selected %d, changed %d", m.list.Selected(), m.changed)
 	}
-	if d.focused() != "beta" {
-		t.Fatalf("the click focused %q", d.focused())
+	if d.Focused() != "beta" {
+		t.Fatalf("the click focused %q", d.Focused())
 	}
 	if hit := d.hit("gamma"); hit.Role != gfx.RoleOption || hit.PosInSet != 3 || hit.SetSize != 3 {
 		t.Fatalf("gamma is role %v at %d of %d", hit.Role, hit.PosInSet, hit.SetSize)
@@ -138,16 +138,16 @@ func TestEmbeddedListReadsTheClicksModifiers(t *testing.T) {
 		host.Embed(&view, gfx.Point{}, mount)
 		host.EndFrame()
 	}
-	click := func(label string, info gfx.ClickInfo) {
+	click := func(Label string, info gfx.ClickInfo) {
 		t.Helper()
 		var id gfx.ID
 		for _, hit := range host.Hits() {
-			if hit.Label == label && !hit.IsLabel && !hit.ID.IsZero() {
+			if hit.Label == Label && !hit.IsLabel && !hit.ID.IsZero() {
 				id = hit.ID
 			}
 		}
 		if id.IsZero() {
-			t.Fatalf("no row is labeled %q", label)
+			t.Fatalf("no row is labeled %q", Label)
 		}
 		host.BeginEventPass(id, info)
 		paint()
@@ -173,16 +173,16 @@ func TestListKeysMoveAndChoose(t *testing.T) {
 	d := openPage(t, m.page)
 	d.click("alpha")
 	d.key(gfx.KeyDown)
-	if d.focused() != "beta" || m.list.Selected() != 1 {
-		t.Fatalf("Down: focused %q, selected %d", d.focused(), m.list.Selected())
+	if d.Focused() != "beta" || m.list.Selected() != 1 {
+		t.Fatalf("Down: focused %q, selected %d", d.Focused(), m.list.Selected())
 	}
 	d.key(gfx.KeyEnd)
-	if d.focused() != "epsilon" || m.list.Selected() != 4 {
-		t.Fatalf("End: focused %q, selected %d", d.focused(), m.list.Selected())
+	if d.Focused() != "epsilon" || m.list.Selected() != 4 {
+		t.Fatalf("End: focused %q, selected %d", d.Focused(), m.list.Selected())
 	}
 	d.key(gfx.KeyHome)
-	if d.focused() != "alpha" || m.list.Selected() != 0 {
-		t.Fatalf("Home: focused %q, selected %d", d.focused(), m.list.Selected())
+	if d.Focused() != "alpha" || m.list.Selected() != 0 {
+		t.Fatalf("Home: focused %q, selected %d", d.Focused(), m.list.Selected())
 	}
 
 	// A plain move chooses one row; Shift extends from it.
@@ -230,13 +230,13 @@ func TestListTypeahead(t *testing.T) {
 	m := newSelecting("alpha", "beta", "gamma", "grape", "delta")
 	d := openPage(t, m.page)
 	d.click("alpha")
-	typed := func(letter rune, want string) {
+	typed := func(letter rune, Want string) {
 		t.Helper()
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != want || m.list.Selected() != indexOfName(m.names, want) {
-			t.Fatalf("%q went to %q, selected %d", letter, d.focused(), m.list.Selected())
+		if d.Focused() != Want || m.list.Selected() != indexOfName(m.names, Want) {
+			t.Fatalf("%q went to %q, selected %d", letter, d.Focused(), m.list.Selected())
 		}
 	}
 	typed('g', "gamma")
@@ -247,9 +247,9 @@ func TestListTypeahead(t *testing.T) {
 	typed('d', "delta")
 }
 
-func indexOfName(names []string, name string) int {
+func indexOfName(names []string, Name string) int {
 	for i, candidate := range names {
-		if candidate == name {
+		if candidate == Name {
 			return i
 		}
 	}
@@ -356,11 +356,11 @@ func TestListIsOneTabStop(t *testing.T) {
 	d.click("beta")
 	d.click("before")
 	d.key(gfx.KeyTab)
-	if d.focused() != "beta" {
-		t.Fatalf("Tab into the list reached %q, not the row the keys are on", d.focused())
+	if d.Focused() != "beta" {
+		t.Fatalf("Tab into the list reached %q, not the row the keys are on", d.Focused())
 	}
 	d.key(gfx.KeyTab)
-	if d.focused() != "after" {
-		t.Fatalf("Tab out of the list reached %q: the other rows are stops too", d.focused())
+	if d.Focused() != "after" {
+		t.Fatalf("Tab out of the list reached %q: the other rows are stops too", d.Focused())
 	}
 }

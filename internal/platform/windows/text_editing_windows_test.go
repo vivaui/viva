@@ -189,13 +189,14 @@ func TestNativeTextScrollClipsAndMasksSecureFields(t *testing.T) {
 func TestNativeTextOverlayRasterizesOnlyTheVisibleColumns(t *testing.T) {
 	label := labelTexture{label: platform.TextLabel{
 		Value: "value", X: -1490, Y: 0, Width: 1700, Height: 24, FontSize: 16,
+		Color:   platform.Color{Alpha: 1},
 		Clipped: true, Clip: gfx.Rect{X: 10, Y: 0, Width: 200, Height: 24},
 	}}
-	if skip, width, ok := label.window(2); !ok || skip != 3000 || width != 400 {
+	if skip, width, ok := label.window(2, 0); !ok || skip != 3000 || width != 400 {
 		t.Fatalf("window = %d, %d, %v; want 3000, 400, true", skip, width, ok)
 	}
 	label.label.X, label.label.Width = 10, 200
-	if skip, width, ok := label.window(2); !ok || skip != 0 || width != 400 {
+	if skip, width, ok := label.window(2, 0); !ok || skip != 0 || width != 400 {
 		t.Fatalf("unscrolled window = %d, %d, %v; want 0, 400, true", skip, width, ok)
 	}
 }

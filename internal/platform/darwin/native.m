@@ -67,6 +67,7 @@ enum {
     VIVA_WINDOW_CUSTOM_TITLEBAR = 2,
     VIVA_WINDOW_PANEL = 3,
     VIVA_WINDOW_PREVIEW = 4,
+    VIVA_WINDOW_NOTIFICATION = 5,
 };
 
 /* How far from the status item a panel opens, the margin it keeps from the edge
@@ -523,6 +524,7 @@ extern void vivaRawKeyEvent(
 // terminal's own table in Go.
 extern int vivaTerminalCells(uint32_t character);
 extern void vivaWindowActivated(uintptr_t callbackHandle);
+extern void vivaWindowDeactivated(uintptr_t callbackHandle, void *view);
 extern void vivaFocusLost(
     uintptr_t callbackHandle,
     void *view
@@ -2594,6 +2596,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
     uint32_t _bitmapStride;
     uint64_t _bitmapID;
     uint32_t _bitmapVersion;
+    float _imageRadius;
     id<MTLTexture> _texture;
     NSMutableArray<id<MTLTexture>> *_additionalTextures;
     // A text label wider than a texture holds is rasterized in part: its textures hold the
@@ -2619,6 +2622,7 @@ static uint64_t viva_label_content_hash(viva_text_label config) {
 - (void)updateQuadFromConfig:(viva_text_label)config;
 - (const float *)quad;
 - (const float *)tint;
+- (float)imageRadius;
 - (NSRect)frame;
 - (BOOL)clipped;
 - (NSRect)clip;
@@ -2916,6 +2920,7 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
         _tint[index] = config.tint[index];
     }
     _hasQuad = hasQuad;
+    _imageRadius = hasQuad ? 0 : config.image_radius;
     if (hasQuad) {
         return;
     }
@@ -2932,6 +2937,14 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
     for (int index = 0; index < 16; index++) {
         _tint[index] = 1;
     }
+    if (config.image_fade > 0) {
+        // Fade is draw-time: it scales the premultiplied tint, so the picture's
+        // texture is untouched.
+        float alpha = 1 - config.image_fade;
+        for (int index = 0; index < 16; index++) {
+            _tint[index] *= alpha;
+        }
+    }
 }
 
 - (const float *)quad {
@@ -2940,6 +2953,10 @@ static void viva_label_window(size_t full, size_t limit, BOOL visible, size_t le
 
 - (const float *)tint {
     return _tint;
+}
+
+- (float)imageRadius {
+    return _imageRadius;
 }
 
 - (BOOL)clipped {
@@ -3519,6 +3536,15 @@ static size_t viva_label_tile_mesh(
     return viva_label_tile_vertices(quad, tint, left, right, textureLeft, textureRight, vertices);
 }
 
+// viva_text_label_uniform mirrors TextLabelUniform in scene.metal: where a
+// label's box starts, its size, and the radius its picture's corners are cut by.
+typedef struct {
+    float originX, originY;
+    float sizeX, sizeY;
+    float radius;
+    float padding;
+} viva_text_label_uniform;
+
 // viva_encode_input draws the native editor's texture.
 static void viva_encode_input(
     id<MTLRenderCommandEncoder> encoder,
@@ -3538,6 +3564,8 @@ static void viva_encode_input(
     viva_label_vertices(quad, tint, vertices);
     [encoder setRenderPipelineState:textPipeline];
     [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:2];
+    viva_text_label_uniform labelUniform = {0, 0, 0, 0, 0, 0};
+    [encoder setVertexBytes:&labelUniform length:sizeof(labelUniform) atIndex:3];
     [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
     [encoder setFragmentTexture:inputTexture atIndex:0];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
@@ -3628,6 +3656,13 @@ static void viva_encode_scene(
         }
         [encoder setRenderPipelineState:textPipeline];
         [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
+        NSRect layerFrame = [layer frame];
+        viva_text_label_uniform labelUniform = {
+            (float)layerFrame.origin.x, (float)layerFrame.origin.y,
+            (float)layerFrame.size.width, (float)layerFrame.size.height,
+            [layer imageRadius], 0,
+        };
+        [encoder setVertexBytes:&labelUniform length:sizeof(labelUniform) atIndex:3];
         for (NSUInteger tile = 0; tile < [layer textureCount]; tile++) {
             viva_label_vertex vertices[18];
             size_t count = viva_label_tile_mesh([layer quad], [layer tint], [layer frame],
@@ -3730,6 +3765,7 @@ static void viva_encode_scene(
             case 21: self.accessibilityRole = NSAccessibilityStaticTextRole; break;
             case 22: self.accessibilityRole = NSAccessibilityStaticTextRole; break;
             case 23: self.accessibilityRole = NSAccessibilitySplitterRole; break;
+            case 24: self.accessibilityRole = NSAccessibilityProgressIndicatorRole; break;
             default: self.accessibilityRole = NSAccessibilityGroupRole; break;
         }
         if (config.secure) {
@@ -3917,7 +3953,7 @@ static void viva_encode_scene(
     BOOL _dynamicTextInput;
     BOOL _caretVisible;
     NSTimer *_caretTimer;
-    NSUInteger _textSelectionAnchor;
+    NSRange _textSelectionAnchor;
     BOOL _textSelectionDragging;
     BOOL _pointerEventsEnabled;
     BOOL _resizeEventsEnabled;
@@ -4181,14 +4217,14 @@ static int viva_navigation_command(SEL selector) {
 
         self.wantsLayer = YES;
         self.layer = _metalLayer;
-        if (windowMode == VIVA_WINDOW_PANEL) {
+        if (windowMode == VIVA_WINDOW_PANEL || windowMode == VIVA_WINDOW_NOTIFICATION) {
             _metalLayer.cornerRadius = VIVA_PANEL_CORNER_RADIUS;
             _metalLayer.masksToBounds = YES;
         }
         [self updateDrawableSize];
         /* A panel opens while the application is not the active one, and its
          * rows still react to the pointer. */
-        NSTrackingAreaOptions activeness = windowMode == VIVA_WINDOW_PANEL ? NSTrackingActiveAlways : NSTrackingActiveInActiveApp;
+        NSTrackingAreaOptions activeness = (windowMode == VIVA_WINDOW_PANEL || windowMode == VIVA_WINDOW_NOTIFICATION) ? NSTrackingActiveAlways : NSTrackingActiveInActiveApp;
         NSTrackingArea *tracking = [[NSTrackingArea alloc]
             initWithRect:self.bounds
                  options:NSTrackingMouseMoved |
@@ -4327,7 +4363,7 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (BOOL)isOpaque {
-    return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW;
+    return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW && _windowMode != VIVA_WINDOW_NOTIFICATION;
 }
 
 - (BOOL)acceptsFirstResponder {
@@ -4452,7 +4488,16 @@ static int viva_navigation_command(SEL selector) {
             return;
         }
         NSUInteger index = [self textIndexForEvent:event];
-        _textSelectionAnchor = index;
+        _textSelectionAnchor = NSMakeRange(index, 0);
+        if (event.clickCount >= 2 && _text.length > 0) {
+            if (event.clickCount >= 3 || _textSecure) {
+                _textSelectionAnchor = NSMakeRange(0, _text.length);
+            } else {
+                NSAttributedString *value = [[NSAttributedString alloc] initWithString:_text];
+                _textSelectionAnchor = [value doubleClickAtIndex:MIN(index, _text.length - 1)];
+                [value release];
+            }
+        }
         _textSelectionDragging = YES;
         [self selectTextToIndex:index];
     } else {
@@ -5068,9 +5113,20 @@ static void viva_set_secure_event_input(BOOL on) {
         notification.object == self.window && _callbackHandle != 0 && _keyEventsEnabled) {
         vivaFocusLost(_callbackHandle, self);
     }
+    if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
+        notification.object == self.window && _callbackHandle != 0) {
+        vivaWindowDeactivated(_callbackHandle, self);
+    }
     if (_textInputGeneration == generation && [notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
         notification.object == self.window && _textInputEnabled && _tentativeComposition) {
         [self endOwnedNativeComposition];
+    }
+    if (notification.object == self.window && _textInputEnabled) {
+        BOOL visible = _caretVisible;
+        [self restartCaretBlink];
+        if (_caretVisible != visible && [self rebuildTextTexture]) {
+            [self render];
+        }
     }
 }
 
@@ -5094,8 +5150,16 @@ static void viva_set_secure_event_input(BOOL on) {
     return YES;
 }
 
+// caretHasKeyboard reports whether the caret belongs on screen at all: as a native
+// text view's insertion point, only while its window is key. A view not yet in a
+// window has nothing to lose it to.
+- (BOOL)caretHasKeyboard {
+    NSWindow *window = self.window;
+    return window == nil || window.isKeyWindow;
+}
+
 - (void)caretBlinkTimerFired:(NSTimer *)timer {
-    if (timer != _caretTimer || !viva_text_input_caret_should_blink(
+    if (timer != _caretTimer || ![self caretHasKeyboard] || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         [self stopCaretBlink];
         return;
@@ -5117,8 +5181,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)restartCaretBlink {
     [self stopCaretBlink];
-    _caretVisible = YES;
-    if (!viva_text_input_caret_should_blink(
+    // A window in the background shows no caret and keeps no timer, so it wakes
+    // for nothing; becoming key restarts the blink from the visible phase.
+    _caretVisible = [self caretHasKeyboard];
+    if (!_caretVisible || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         return;
     }
@@ -5386,11 +5452,29 @@ static void viva_set_secure_event_input(BOOL on) {
         viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
         viva_gpu_full_rebuild_count++;
     } else {
+        BOOL shrank = totalCount < _rectangleCount;
+        if (shrank) {
+            if (first + count != totalCount) {
+                return 2;
+            }
+            _rectangleCount = totalCount;
+        }
         if (count == 0) {
+            if (shrank && ![self replaceCompositePlanForRectangles:
+                    _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:_rectangleCount
+                                       textLayers:_textLabelLayers
+                                 textShapesBefore:_textLabelShapesBefore
+                                        textCount:_textLabelCount]) {
+                return 3;
+            }
+            if (render) {
+                [self render];
+            }
             return 0;
         }
         if (_rectangleBuffer == nil || _rectangleClips == NULL || clips == NULL ||
-            totalCount < _rectangleCount ||
             first > totalCount || count > totalCount - first) {
             return 2;
         }
@@ -6011,8 +6095,9 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (void)selectTextToIndex:(NSUInteger)index {
-    NSUInteger start = MIN(_textSelectionAnchor, index);
-    NSUInteger end = MAX(_textSelectionAnchor, index);
+    // Keep the word under a double press selected through the release and drag.
+    NSUInteger start = MIN(_textSelectionAnchor.location, index);
+    NSUInteger end = MAX(NSMaxRange(_textSelectionAnchor), index);
     [self selectTextRange:NSMakeRange(start, end - start)];
 }
 
@@ -6042,7 +6127,6 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)selectAll:(id)sender {
     (void)sender;
-    _textSelectionAnchor = 0;
     _textSelectionDragging = NO;
     [self selectTextRange:NSMakeRange(0, _text.length)];
 }
@@ -6489,14 +6573,14 @@ static void viva_set_secure_event_input(BOOL on) {
                               NSWindowStyleMaskResizable;
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
         style = NSWindowStyleMaskBorderless;
-    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW) {
+    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         style = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel;
     } else if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         style |= NSWindowStyleMaskFullSizeContentView;
     }
 
     Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
-    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+    if (_windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         windowClass = [VivaPreview class];
     }
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
@@ -6511,7 +6595,7 @@ static void viva_set_secure_event_input(BOOL on) {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenParametersChanged:)
                                                  name:NSApplicationDidChangeScreenParametersNotification object:nil];
     _window.releasedWhenClosed = NO;
-    if (_windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW) {
+    if (_windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW && _windowMode != VIVA_WINDOW_NOTIFICATION) {
         _window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
     }
     if (_windowMode == VIVA_WINDOW_PREVIEW) {
@@ -6529,7 +6613,7 @@ static void viva_set_secure_event_input(BOOL on) {
                                      NSWindowCollectionBehaviorTransient |
                                      NSWindowCollectionBehaviorIgnoresCycle;
         ((NSPanel *)_window).hidesOnDeactivate = NO;
-    } else if (_windowMode == VIVA_WINDOW_PANEL) {
+    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         _window.minSize = NSMakeSize(1, 1);
         _window.backgroundColor = [NSColor clearColor];
         _window.opaque = NO;
@@ -6598,7 +6682,7 @@ static void viva_set_secure_event_input(BOOL on) {
         [self keepTrafficLightsCentered];
     }
 
-    if (_windowMode == VIVA_WINDOW_PANEL) {
+    if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         [self placePanel];
     } else if (_hasOrigin) {
         [self placeAtOrigin];
@@ -6615,7 +6699,7 @@ static void viva_set_secure_event_input(BOOL on) {
             [_window setFrame:[_window constrainFrameRect:fitted toScreen:screen] display:NO];
         }
     }
-    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+    if (_windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         /* It appears without taking the key or bringing the application forward. */
         [_window orderFrontRegardless];
     } else {
@@ -7040,7 +7124,7 @@ static void viva_set_secure_event_input(BOOL on) {
 /* Whether this window is one the application's ordinary window handling
  * leaves alone: no Dock reopen, no full screen. */
 - (BOOL)isPanel {
-    return _windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW;
+    return _windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION;
 }
 
 - (BOOL)isHidden {
@@ -7057,6 +7141,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)showWindow {
     if (_window == nil || !_running) {
+        return;
+    }
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+        [_window orderFrontRegardless];
         return;
     }
     if (_window.isMiniaturized) {
@@ -7163,6 +7251,21 @@ static void viva_set_secure_event_input(BOOL on) {
  * the menu bar at the top of the screen, and kept inside the visible part of the
  * screen the anchor is on. Without an anchor it is centered on the screen. */
 - (void)placePanel {
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+        NSPoint point = NSEvent.mouseLocation;
+        NSScreen *screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+        for (NSScreen *candidate in NSScreen.screens) {
+            if (NSPointInRect(point, candidate.frame)) {
+                screen = candidate;
+                break;
+            }
+        }
+        NSRect area = screen.visibleFrame;
+        NSSize size = _window.frame.size;
+        [_window setFrameOrigin:NSMakePoint(MAX(NSMinX(area), NSMaxX(area) - size.width - 12),
+                                            MIN(NSMaxY(area) - size.height, NSMinY(area) + 12))];
+        return;
+    }
     if (!_hasAnchor) {
         [_window center];
         return;
@@ -7357,7 +7460,7 @@ void *viva_application_open_window(viva_window_config config) {
         if (config.shader_library != NULL && config.shader_library_length > 0) {
             viva_remember_shader_library(config.shader_library, config.shader_library_length);
             _Static_assert(sizeof(viva_rectangle) == 80, "rectangle ABI must be 80 bytes");
-            _Static_assert(sizeof(viva_text_label) == 264, "text label ABI must be 264 bytes");
+            _Static_assert(sizeof(viva_text_label) == 272, "text label ABI must be 272 bytes");
             _Static_assert(sizeof(viva_text_run) == 36, "text run ABI must be 36 bytes");
             _Static_assert(sizeof(viva_composite_command) == 36, "composite command ABI must be 36 bytes");
             dispatch_data_t libraryData = dispatch_data_create(

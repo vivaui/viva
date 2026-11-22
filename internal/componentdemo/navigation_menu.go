@@ -1,9 +1,9 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/navigationmenu"
 )
 
 var navigationMenuComponent = Component{
@@ -23,7 +23,51 @@ content.AddLink(components.NavigationMenuLink{
     ID: tree.ID(page, "guide"), Label: "Getting started",
     Description: "Build a native window and retained scene.", Value: "/guide",
 })
-if canvas.Clicked(tree.ID(page, "products")) { open = !open }`, Height: 310},
+if canvas.Clicked(tree.ID(page, "products")) { open = !open }`,
+			PageSnippet: `// m.navigation.Selected holds the link chosen during the last paint.
+products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+nav := m.navigation
+switch nav.Selected {
+case docs:
+    m.page = "docs"
+case guide:
+    m.page = "guide"
+case api:
+    m.page = "components"
+}
+nav.Selected = gfx.ID{}
+nav.Reset()
+nav.Trigger(products, "Products").Hint("Open product navigation")
+nav.Link(docs, "Docs").Value("/docs").Active(m.page == "docs")
+nav.ContentLink(guide, "Getting started").
+    Description("Build a native window and retained scene.").
+    Value("/guide").Active(m.page == "guide")
+nav.ContentLink(api, "Component API").
+    Description("Read the source-owned recipes.").
+    Value("/components").Active(m.page == "components")
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
+			PageSnippetZh: `// m.navigation.Selected 保存上一次绘制中选中的链接。
+products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+nav := m.navigation
+switch nav.Selected {
+case docs:
+    m.page = "docs"
+case guide:
+    m.page = "guide"
+case api:
+    m.page = "components"
+}
+nav.Selected = gfx.ID{}
+nav.Reset()
+nav.Trigger(products, "Products").Hint("Open product navigation")
+nav.Link(docs, "Docs").Value("/docs").Active(m.page == "docs")
+nav.ContentLink(guide, "Getting started").
+    Description("Build a native window and retained scene.").
+    Value("/guide").Active(m.page == "guide")
+nav.ContentLink(api, "Component API").
+    Description("Read the source-owned recipes.").
+    Value("/components").Active(m.page == "components")
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
 		{ID: "direct-content", Title: "直接内容", Description: "以直接内容模式展示无触发器指示的菜单面板。", Snippet: `trigger := tree.ID(page, "products")
 options := components.NavigationMenuOptions{
     Open: true, DirectContent: true, Content: panel, Layer: 2,
@@ -37,7 +81,53 @@ content := menu.BeginContent()
 content.AddLink(components.NavigationMenuLink{
     ID: tree.ID(page, "guide"), Label: "Getting started",
     Description: "Build a native window and retained scene.", Value: "/guide",
-})`, Height: 310},
+})`,
+			PageSnippet: `products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+nav := m.navigation
+switch nav.Selected {
+case docs:
+    m.page = "docs"
+case guide:
+    m.page = "guide"
+case api:
+    m.page = "components"
+}
+nav.Selected = gfx.ID{}
+nav.Reset()
+nav.DirectContent = true
+nav.Open = products
+nav.Trigger(products, "Products").Hint("Open product navigation")
+nav.Link(docs, "Docs").Value("/docs").Active(m.page == "docs")
+nav.ContentLink(guide, "Getting started").
+    Description("Build a native window and retained scene.").
+    Value("/guide").Active(m.page == "guide")
+nav.ContentLink(api, "Component API").
+    Description("Read the source-owned recipes.").
+    Value("/components").Active(m.page == "components")
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`,
+			PageSnippetZh: `products, docs, guide, api := ui.ID(c), ui.ID(c), ui.ID(c), ui.ID(c)
+nav := m.navigation
+switch nav.Selected {
+case docs:
+    m.page = "docs"
+case guide:
+    m.page = "guide"
+case api:
+    m.page = "components"
+}
+nav.Selected = gfx.ID{}
+nav.Reset()
+nav.DirectContent = true
+nav.Open = products
+nav.Trigger(products, "Products").Hint("Open product navigation")
+nav.Link(docs, "Docs").Value("/docs").Active(m.page == "docs")
+nav.ContentLink(guide, "Getting started").
+    Description("Build a native window and retained scene.").
+    Value("/guide").Active(m.page == "guide")
+nav.ContentLink(api, "Component API").
+    Description("Read the source-owned recipes.").
+    Value("/components").Active(m.page == "components")
+navigationmenu.View(c, "Navigation menu", nav).FillWidth().Height(36)`},
 	},
 }
 
@@ -49,66 +139,67 @@ var (
 	navigationMenuAPI     = tree.ID(navigationMenuUI, "api")
 	navigationMenuDismiss = tree.ID(navigationMenuUI, "dismiss")
 	navigationMenuScope   = tree.ID(navigationMenuUI, "content")
+
+	// navigationMenuDemo is the preview's page control. The preview has one
+	// navigation menu.
+	navigationMenuDemo      navigationmenu.State
+	navigationMenuDemoState *State
 )
 
 func (state *State) paintNavigationMenu(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	open := state.flags&1 != 0 || state.exampleID == "direct-content"
+	nav := &navigationMenuDemo
+	if navigationMenuDemoState != state {
+		navigationMenuDemoState = state
+		nav.Open, nav.Selected = gfx.ID{}, gfx.ID{}
+		nav.DirectContent = false
+	}
+	direct := state.exampleID == "direct-content"
+	nav.DirectContent = direct
+	if direct {
+		nav.Open = navigationMenuTrigger
+	}
+	open := direct || !nav.Open.IsZero()
 	status := state.Text("Products 已关闭", "Products closed")
 	if open {
 		status = state.Text("Products 已打开；Escape 使用稳定 dismiss ID", "Products open; Escape dismisses through a stable ID")
 	}
-	var brand, bar ui.Box
+
+	nav.Scope = navigationMenuScope
+	nav.DismissID = navigationMenuDismiss
+	nav.Layer = 2
+	nav.Content = gfx.Rect{Width: min(float32(420), size.Width-32)}
+	nav.Reset()
+	nav.Trigger(navigationMenuTrigger, "Products").Hint(state.Text("打开产品导航", "Open product navigation"))
+	nav.Link(navigationMenuDocs, "Docs").Value("/docs").Active(state.values[0] == 1)
+	nav.ContentLink(navigationMenuGuide, "Getting started").
+		Description("Build a native window and retained scene.").
+		Value("/guide").Active(state.values[0] == 2)
+	nav.ContentLink(navigationMenuAPI, "Component API").
+		Description("Read the source-owned recipes.").
+		Value("/components").Active(state.values[0] == 3)
+
 	state.drawPage(canvas, theme, size, 620, "Navigation Menu", func(c ui.C) {
 		caption(c, status)
 		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-			brand = ui.Text(c, "Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
-			bar = ui.Slot(c).Grow(1).Height(theme.Metrics.ControlHeight)
+			ui.Text(c, "Viva").FontSize(theme.Metrics.FontSizeM + 2).Weight(gfx.WeightSemibold)
+			navigationmenu.View(c, "Navigation menu", nav).Grow(1).Height(36)
 		})
 	})
 
-	// The panel drops from the bar, over the blank part of the page below it.
-	bounds := bar.Rect()
-	// The panel hangs from the menu when it fits there, and from the page's edge
-	// when the stage is too narrow for that.
-	contentX, contentWidth := bounds.X, float32(420)
-	if right := bounds.X + bounds.Width; contentX+contentWidth > right {
-		contentX = brand.Rect().X
-		contentWidth = min(right-contentX, contentWidth)
+	// Mirror the control's caller-owned state into the demo's flags and
+	// values, which the tests and the caption read.
+	state.flags &^= 1
+	if !nav.Open.IsZero() {
+		state.flags |= 1
 	}
-	options := components.NavigationMenuOptions{
-		Open: open, DirectContent: state.exampleID == "direct-content",
-		// Two description rows (56 + 4 gap each) inside the content's 8px padding.
-		Content: gfx.Rect{X: contentX, Y: bounds.Y + bounds.Height + 8, Width: contentWidth, Height: 8 + 2*(56+4) + 8},
-		Layer:   2, Scope: navigationMenuScope, DismissID: navigationMenuDismiss,
+	state.values[0] = 0
+	switch nav.Selected {
+	case navigationMenuDocs:
+		state.values[0] = 1
+	case navigationMenuGuide:
+		state.values[0] = 2
+	case navigationMenuAPI:
+		state.values[0] = 3
 	}
-	menu := components.BeginNavigationMenu(canvas, theme, bounds, options)
-	menu.AddTrigger(components.NavigationMenuTrigger{
-		ID: navigationMenuTrigger, Label: "Products", Hint: "Open product navigation", Open: open,
-	})
-	menu.AddLink(components.NavigationMenuLink{
-		ID: navigationMenuDocs, Label: "Docs", Value: "/docs", Active: state.values[0] == 1,
-	})
-
-	content := menu.BeginContent()
-	content.AddLink(components.NavigationMenuLink{
-		ID: navigationMenuGuide, Label: "Getting started", Description: "Build a native window and retained scene.", Value: "/guide",
-		Active: state.values[0] == 2,
-	})
-	content.AddLink(components.NavigationMenuLink{
-		ID: navigationMenuAPI, Label: "Component API", Description: "Read the source-owned recipes.", Value: "/components",
-		Active: state.values[0] == 3,
-	})
-
-	switch {
-	case canvas.Clicked(navigationMenuTrigger):
-		state.flags ^= 1
-	case canvas.Clicked(navigationMenuDocs):
-		state.values[0], state.flags = 1, state.flags&^1
-	case canvas.Clicked(navigationMenuGuide):
-		state.values[0], state.flags = 2, state.flags&^1
-	case canvas.Clicked(navigationMenuAPI):
-		state.values[0], state.flags = 3, state.flags&^1
-	case canvas.Clicked(navigationMenuDismiss):
-		state.flags &^= 1
-	}
+	nav.Selected = gfx.ID{}
 }

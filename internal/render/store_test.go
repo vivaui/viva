@@ -58,7 +58,7 @@ func TestStoreUpdatesOneInstanceWithoutRebuild(t *testing.T) {
 	}
 }
 
-func TestStoreDeleteRebuildsWithoutChangingOrder(t *testing.T) {
+func TestStoreDeleteCompactsWithoutChangingOrder(t *testing.T) {
 	graph := scene.New()
 	first, _ := graph.AddRectangle(graph.Root(), scene.Rect{X: 1}, scene.Color{})
 	second, _ := graph.AddRectangle(graph.Root(), scene.Rect{X: 2}, scene.Color{})
@@ -71,7 +71,7 @@ func TestStoreDeleteRebuildsWithoutChangingOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !update.Rebuild || update.Count != 2 {
+	if update.Rebuild || !update.Shrink || update.First != 1 || update.Count != 1 {
 		t.Fatalf("delete update = %+v", update)
 	}
 	if store.Rectangles()[0].ID != first || store.Rectangles()[1].ID != third {
@@ -92,7 +92,7 @@ func TestStoreDeletesSubtreeChildrenBeforeParent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !update.Rebuild || update.Count != 0 || len(store.Rectangles()) != 0 {
+	if update.Rebuild || !update.Shrink || update.First != 0 || update.Count != 0 || len(store.Rectangles()) != 0 {
 		t.Fatalf("subtree delete update = %+v, rectangles = %+v", update, store.Rectangles())
 	}
 }
@@ -402,5 +402,31 @@ func TestStoreDeletesOneShapeAndInsertsAnotherBeforeIt(t *testing.T) {
 	}
 	if got := store.Rectangles()[1]; got.ID != inserted || got.Bounds.X != 9 {
 		t.Fatalf("updated rectangle = %+v", got)
+	}
+}
+
+func TestStoreDeletesNonContiguousInstancesInOrder(t *testing.T) {
+	graph := scene.New()
+	root := graph.Root()
+	first, _ := graph.AddRectangle(root, scene.Rect{X: 1}, scene.Color{})
+	second, _ := graph.AddRectangle(root, scene.Rect{X: 2}, scene.Color{})
+	third, _ := graph.AddRectangle(root, scene.Rect{X: 3}, scene.Color{})
+	fourth, _ := graph.AddRectangle(root, scene.Rect{X: 4}, scene.Color{})
+	var store Store
+	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
+		t.Fatal(err)
+	}
+	graph.Remove(first)
+	graph.Remove(third)
+	update, err := store.Apply(graph.DrainChanges(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if update.Rebuild || !update.Shrink || update.First != 0 || update.Count != 2 {
+		t.Fatalf("delete update = %+v", update)
+	}
+	got := store.Rectangles()
+	if len(got) != 2 || got[0].ID != second || got[1].ID != fourth {
+		t.Fatalf("remaining = %+v", got)
 	}
 }

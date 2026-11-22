@@ -19,7 +19,7 @@ func (renderer *vulkanRenderer) refreshText() error {
 			label.closeImage(renderer)
 		}
 	}
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return fmt.Errorf("linux: refresh text: %w", err)
 	}
 	return renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height})

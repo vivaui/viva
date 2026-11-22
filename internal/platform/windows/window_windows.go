@@ -79,6 +79,7 @@ const (
 type windowState struct {
 	// pendingTitle is the title SetTitle asked for, applied on the window thread.
 	pendingTitle        titleRequest
+	pendingIcon         iconRequest
 	fullscreen          atomic.Bool
 	fullscreenChanging  bool
 	fullscreenStyle     uint32
@@ -89,6 +90,7 @@ type windowState struct {
 	renderer                                     renderer
 	window                                       uintptr
 	ready, tracking, sizing, sizingMove          bool
+	timerPeriodSet                               bool
 	redrawRequested, paintPending, resizePending bool
 	resizeTimerInterval                          uintptr
 	resizeMonitor, resizeMonitorInterval         uintptr // the monitor resizeMonitorInterval was queried for
@@ -147,6 +149,7 @@ type windowState struct {
 	pendingKey                   pendingKey
 	deadKey                      bool
 	icons                        [2]uintptr
+	taskbarIconSet               bool
 	drop                         *dropTarget
 	wheel                        wheelSettings
 	devices                      platform.DeviceRecovery
@@ -193,10 +196,12 @@ type windowsApplication struct {
 	taskbar      uintptr
 	taskbarTried bool
 	// posts are the functions other goroutines handed to Post; they are drained
-	// on the event-loop thread. postWake coalesces the messages that wake it.
-	postMu   sync.Mutex
-	posts    []func()
-	postWake atomic.Bool
+	// on the event-loop thread. postWake coalesces the messages that wake it,
+	// and wakeWindow is the message-only window that carries the wake.
+	postMu     sync.Mutex
+	posts      []func()
+	postWake   atomic.Bool
+	wakeWindow atomic.Uintptr
 }
 
 type nativeWindow struct {
@@ -265,6 +270,12 @@ func RunApplication(start platform.ApplicationStart) error {
 	application := &windowsApplication{className: name, instance: instance}
 	thread, _, _ := getCurrentThread.Call()
 	application.thread = uint32(thread)
+	// The wake window exists before start, so work posted from the start
+	// callback has somewhere to wake the loop even while a modal loop runs.
+	if err := application.openWakeWindow(); err != nil {
+		return err
+	}
+	defer application.closeWakeWindow()
 	defer application.closeStatus()
 	defer application.closeOLE()
 	if err := start(application); err != nil {
@@ -320,10 +331,17 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	switch config.WindowMode {
 	case platform.WindowFrameless:
 		style = wsPopup
+	case platform.WindowNotification:
+		style = wsPopup
+		extendedStyle = wsExToolWindow | wsExTopmost | wsExNoActivate
 	case platform.WindowPanel:
 		// A popup that has no taskbar button and stays above other windows.
 		style = wsPopup
 		extendedStyle = wsExToolWindow | wsExTopmost
+	case platform.WindowPreview:
+		// A preview floats above other windows but never takes focus or input.
+		style = wsPopup
+		extendedStyle = wsExToolWindow | wsExTopmost | wsExNoActivate | wsExTransparent
 	}
 	// DirectComposition owns the client pixels; an opaque redirection bitmap
 	// underneath it would hide the native material.
@@ -380,7 +398,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		}
 		setWindowPosition.Call(state.window, 0, 0, 0, uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x16)
 	}
-	if config.WindowMode != platform.WindowPanel {
+	if config.WindowMode != platform.WindowPanel && config.WindowMode != platform.WindowNotification {
 		if config.HasOrigin {
 			state.placeAtOrigin(config.Origin)
 		} else {
@@ -391,6 +409,10 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	if err := state.renderer.initialize(state.window, config.ClearColor); err != nil {
 		destroyWindow.Call(state.window)
 		return nil, err
+	}
+	if config.WindowMode == platform.WindowPreview && !state.renderer.usesComposition() {
+		destroyWindow.Call(state.window)
+		return nil, errTransparentPreviewUnavailable
 	}
 	if err := state.renderer.apply(platform.Frame{Update: initialUpdate(len(state.textRectangles)), Rectangles: state.textRectangles, TextLabels: state.textLabels}); err != nil {
 		destroyWindow.Call(state.window)
@@ -413,10 +435,20 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 	if state.activeBackdrop() {
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
-	if config.WindowMode == platform.WindowPanel {
+	if config.WindowMode == platform.WindowNotification {
+		state.placePanel()
+		showWindow.Call(state.window, swShowNoActivate)
+	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
 		showWindow.Call(state.window, swShow)
 		setForegroundWindow.Call(state.window)
+	} else if config.WindowMode == platform.WindowPreview {
+		// A window with no redirection bitmap may be shown with an empty update
+		// region. Its retained scene is ready, so make the first paint submit it
+		// instead of treating the empty region as "nothing to draw".
+		state.paintPending = true
+		showWindow.Call(state.window, swShowNoActivate)
+		invalidateRect.Call(state.window, 0, 0)
 	} else {
 		showWindow.Call(state.window, 1)
 	}
@@ -486,6 +518,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmSetTitle:
 		state.applyTitle()
 		return 0
+	case wmUpdateIcon:
+		state.applyIcon()
+		return 0
 	case wmSysCommand:
 		if state.fullscreen.Load() {
 			switch first & 0xfff0 {
@@ -523,13 +558,24 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmApplyAppearance:
 		state.settingsChanged()
 		return 0
+	case wmDragEnded:
+		state.cancelPress()
+		return 0
 	case wmClipboardUpdate:
 		notifyClipboardChange()
 		return 0
 	case wmHideWindow:
 		showWindow.Call(window, swHide)
 		return 0
+	case 0x0021: // WM_MOUSEACTIVATE
+		if state.config.WindowMode == platform.WindowNotification {
+			return 3 // MA_NOACTIVATE: deliver the click, keep the previous keyboard focus.
+		}
 	case wmShowWindow:
+		if state.config.WindowMode == platform.WindowNotification {
+			showWindow.Call(window, swShowNoActivate)
+			return 0
+		}
 		showOrRaise(window)
 		return 0
 	case wmClose:
@@ -554,6 +600,21 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmRedraw:
 		// Keep posted redraws coalesced until WM_PAINT lets hardware input run first.
 		state.redrawRequested = true
+		// A hidden or minimized window never receives WM_PAINT, so a wake that
+		// only invalidated the window would never run OnWake. Run the redraw
+		// here: the visibility gate runs OnWake and skips the paint, remembering
+		// the frame the first wake after Show must draw.
+		if state.hiddenByShow || state.iconic() {
+			state.redrawRequested = false
+			state.redraws.begin()
+			if state.config.OnRedraw != nil {
+				frame, redrawErr := state.config.OnRedraw()
+				if err := state.frameWithText(frame, redrawErr, false); err != nil || state.window == 0 {
+					return 0
+				}
+			}
+			return 0
+		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
 	case wmGetObject:
@@ -599,6 +660,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 	case wmActivate:
 		if uint16(first) == waInactive {
 			state.panelDeactivated()
+			if state.config.OnDeactivate != nil {
+				frame, err := state.config.OnDeactivate()
+				state.frame(frame, err)
+			}
 		} else if state.config.OnActivate != nil {
 			state.config.OnActivate()
 		}
@@ -759,17 +824,31 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		if state.sizingMove || state.sizing {
 			state.resizePending = true
+			// Raise the timer resolution on the first sizing message of the drag,
+			// not when it starts: moving a window sends WM_ENTERSIZEMOVE too, and
+			// a move has no frames to pace.
+			if state.sizingMove && !state.timerPeriodSet {
+				timeBeginPeriod.Call(1)
+				state.timerPeriodSet = true
+			}
 			return 0
 		}
 		state.presentClientSize(int(uint16(second)), int(uint16(second>>16)))
 		return 0
 	case wmEnterSizeMove:
 		state.sizingMove = true
+		state.renderer.resizeHeadroom = true
 		state.refreshResizeTimer()
 		return 0
 	case wmExitSizeMove:
+		if state.timerPeriodSet {
+			timeEndPeriod.Call(1)
+			state.timerPeriodSet = false
+		}
 		killTimer.Call(window, resizeTimerID)
 		state.sizingMove = false
+		// The drag is over: the next present sizes the chain to the client exactly.
+		state.renderer.resizeHeadroom = false
 		state.resizeTimerInterval = 0
 		state.serviceResize()
 		return 0
@@ -818,7 +897,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			}
 		}
 		if kind == wmLeftDown || kind == wmRightDown || kind == wmMiddleDown || kind == wmXButtonDown {
-			setFocus.Call(window)
+			if state.config.WindowMode != platform.WindowNotification {
+				setFocus.Call(window)
+			}
 			setCapture.Call(window)
 		}
 		if !state.tracking {
@@ -965,6 +1046,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.handleCaretTimer(first)
 		return 0
 	case wmNCHitTest:
+		if state.config.WindowMode == platform.WindowPreview {
+			return htTransparent
+		}
 		if state.fullscreen.Load() {
 			return htClient
 		}
@@ -1002,6 +1086,10 @@ func (state *windowState) refreshResizeTimer() {
 func (state *windowState) paceResize(interval uintptr, arm func(uintptr) error) {
 	if err := state.rearmResizeTimer(interval, arm); err == nil {
 		return
+	}
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
 	}
 	killTimer.Call(state.window, resizeTimerID)
 	state.sizingMove = false
@@ -1243,6 +1331,10 @@ func (state *windowState) destroyed(window uintptr) {
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
 	killTimer.Call(window, resizeTimerID)
+	if state.timerPeriodSet {
+		timeEndPeriod.Call(1)
+		state.timerPeriodSet = false
+	}
 	state.sizingMove = false
 	state.resizeTimerInterval = 0
 	state.closeText()
@@ -1275,6 +1367,7 @@ func (state *windowState) destroyed(window uintptr) {
 		state.config.Waker.Unbind()
 	}
 	state.destroyIcons()
+	state.clearTaskbarIcon()
 	removeNotificationIcon(window)
 	release()
 	if state.application.firstErr == nil && state.err != nil {

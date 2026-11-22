@@ -11,8 +11,8 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
-// fakeIMEContext stands in for an IBus input context: it records the calls and
-// lets a test answer the keys it was given.
+// fakeIMEContext stands in for a daemon's input context: it records the calls
+// and lets a test answer the keys it was given.
 type fakeIMEContext struct {
 	calls   []string
 	keys    []fakeIMEKey
@@ -26,6 +26,7 @@ type fakeIMEContext struct {
 
 type fakeIMEKey struct {
 	keysym, keycode, state uint32
+	release                bool
 	done                   func(bool)
 }
 
@@ -37,11 +38,11 @@ func (f *fakeIMEContext) record(name string) error {
 	return f.err
 }
 
-func (f *fakeIMEContext) ProcessKey(keysym, keycode, state uint32, done func(bool)) error {
+func (f *fakeIMEContext) ProcessKey(key inputMethodKey, done func(bool)) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.keys = append(f.keys, fakeIMEKey{keysym, keycode, state, done})
+	f.keys = append(f.keys, fakeIMEKey{key.keysym, key.keycode, key.state, key.release, done})
 	return nil
 }
 func (f *fakeIMEContext) FocusIn() error  { return f.record("FocusIn") }
@@ -106,12 +107,12 @@ func newIMEHarness(t testing.TB) *imeHarness {
 		_, _, err := harness.input.prepare(frame)
 		return err
 	}
-	// ibusTried keeps a present() that defers sync from dialing the host's
+	// inputMethodTried keeps a present() that defers sync from dialing the host's
 	// daemon: these tests are about the state machine, and a machine with a
 	// reachable IBus address would otherwise get a fresh native context in the
 	// middle of an assertion.
 	harness.ime = &linuxIME{
-		app: &linuxApplication{ibusTried: true}, text: harness.input, router: router, context: harness.context,
+		app: &linuxApplication{inputMethodTried: true}, text: harness.input, router: router, context: harness.context,
 		origin: func() (int32, int32) { return harness.origin[0], harness.origin[1] },
 	}
 	router.ime = harness.ime
@@ -181,8 +182,8 @@ func TestIMEKeyTheEngineTakesNeverReachesTheField(t *testing.T) {
 		t.Fatal("the key was not given to the engine")
 	}
 	key := h.context.keys[0]
-	if key.keysym != 'N' || key.keycode != 57-8 || key.state != 0x1 {
-		t.Fatalf("key = %+v; IBus counts keycodes from the X keycode less 8, and wants the shifted symbol", key)
+	if key.keysym != 'N' || key.keycode != 57 || key.state != 0x1 || key.release {
+		t.Fatalf("key = %+v; the engine wants the X keycode and the shifted symbol", key)
 	}
 	key.done(true)
 	if len(h.delivered) != 0 || h.editor.String() != "" {
@@ -205,7 +206,7 @@ func TestIMEKeyTheEngineDeclinesIsTypedIntoTheField(t *testing.T) {
 }
 
 func TestIMENoDaemonKeepsWindowConstructionAllocationFree(t *testing.T) {
-	app := &linuxApplication{ibusTried: true}
+	app := &linuxApplication{inputMethodTried: true}
 	win := &window{}
 	field := &linuxTextInput{}
 	allocations := testing.AllocsPerRun(100, func() {
@@ -303,7 +304,7 @@ func TestIMEKeysAreDeliveredInTypedOrderWhateverTheAnswerOrder(t *testing.T) {
 func TestIMEPreeditIsMarkedTextAndCommitReplacesIt(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("nǐhǎo", 3, true, nil)
+	h.ime.preedit("nǐhǎo", 3, true, text.Range{Start: 3, End: 3})
 	composition, composing := h.editor.Composition()
 	if !composing || composition != (text.Range{Start: 0, End: 5}) || h.editor.String() != "nǐhǎo" {
 		t.Fatalf("composition = %+v, %v, text %q", composition, composing, h.editor.String())
@@ -311,7 +312,7 @@ func TestIMEPreeditIsMarkedTextAndCommitReplacesIt(t *testing.T) {
 	if caret := h.editor.Selection(); caret != (text.Range{Start: 3, End: 3}) {
 		t.Fatalf("the engine put its cursor at 3 characters, the field has %+v", caret)
 	}
-	h.ime.preedit("你好", 2, true, nil)
+	h.ime.preedit("你好", 2, true, text.Range{Start: 2, End: 2})
 	if h.editor.String() != "你好" {
 		t.Fatalf("a new preedit must replace the last, got %q", h.editor.String())
 	}
@@ -328,14 +329,14 @@ func TestIMEHidingThePreeditRemovesTheMarkedText(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
 	h.editor.Insert("keep ")
-	h.ime.preedit("nihao", 5, true, nil)
-	h.ime.preedit("nihao", 5, false, nil)
+	h.ime.preedit("nihao", 5, true, text.Range{Start: 5, End: 5})
+	h.ime.preedit("nihao", 5, false, text.Range{Start: 5, End: 5})
 	if _, composing := h.editor.Composition(); composing || h.editor.String() != "keep " {
 		t.Fatalf("text %q composing %v; cancelling must leave only what was typed before", h.editor.String(), composing)
 	}
 	// An empty preedit with nothing composing changes nothing, and in particular
 	// does not leave an empty composition behind.
-	h.ime.preedit("", 0, true, nil)
+	h.ime.preedit("", 0, true, text.Range{Start: 0, End: 0})
 	if _, composing := h.editor.Composition(); composing {
 		t.Fatal("an empty preedit started a composition")
 	}
@@ -344,11 +345,11 @@ func TestIMEHidingThePreeditRemovesTheMarkedText(t *testing.T) {
 func TestIMEPreeditCursorIsClampedToTheText(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("ab", 99, true, nil)
+	h.ime.preedit("ab", 99, true, text.Range{Start: 99, End: 99})
 	if caret := h.editor.Selection(); caret.End != 2 {
 		t.Fatalf("caret = %+v for a cursor beyond the end", caret)
 	}
-	h.ime.preedit("ab", -4, true, nil)
+	h.ime.preedit("ab", -4, true, text.Range{Start: -4, End: -4})
 	if caret := h.editor.Selection(); caret.Start != 0 {
 		t.Fatalf("caret = %+v for a negative cursor", caret)
 	}
@@ -357,7 +358,7 @@ func TestIMEPreeditCursorIsClampedToTheText(t *testing.T) {
 func TestIMEResetsTheEngineWhenTheFieldStopsComposingWithoutIt(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("nihao", 5, true, nil)
+	h.ime.preedit("nihao", 5, true, text.Range{Start: 5, End: 5})
 	// A click puts the caret elsewhere, which ends the field's composition.
 	h.editor.SetSelection(text.Range{Start: 0, End: 0})
 	h.input.state.Composing = false
@@ -373,7 +374,7 @@ func TestIMEResetsTheEngineWhenTheFieldStopsComposingWithoutIt(t *testing.T) {
 func TestIMELeavingTheFieldAbandonsAnOpenComposition(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("nihao", 5, true, nil)
+	h.ime.preedit("nihao", 5, true, text.Range{Start: 5, End: 5})
 	h.input.enabled = false
 	h.ime.sync()
 	calls := h.context.calls
@@ -385,24 +386,24 @@ func TestIMELeavingTheFieldAbandonsAnOpenComposition(t *testing.T) {
 func TestIMEForwardedKeyBypassesTheEngine(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.forward(0xff0d, 28, 0) // Return
+	h.ime.forward(0xff0d, false, 0) // Return
 	if len(h.delivered) != 1 || h.delivered[0].Key != input.KeyEnter {
 		t.Fatalf("delivered = %+v", h.delivered)
 	}
 	if len(h.context.keys) != 0 {
 		t.Fatal("a forwarded key went back to the engine, which would loop")
 	}
-	h.ime.forward(0xff0d, 28, ibus.ReleaseMask)
+	h.ime.forward(0xff0d, true, 0)
 	if len(h.delivered) != 1 {
 		t.Fatal("a forwarded release was delivered as a key press")
 	}
-	h.ime.forward('a', 38, 0)
+	h.ime.forward('a', false, 0)
 	if h.editor.String() != "a" {
 		t.Fatalf("a forwarded character was not typed: %q", h.editor.String())
 	}
 }
 
-func TestIMEReleaseGoesToTheEngineWithTheReleaseMask(t *testing.T) {
+func TestIMEReleaseGoesToTheEngineAsARelease(t *testing.T) {
 	h := newIMEHarness(t)
 	keymap, event := letterKey(0)
 	h.ime.release(keymap, event)
@@ -411,7 +412,7 @@ func TestIMEReleaseGoesToTheEngineWithTheReleaseMask(t *testing.T) {
 	}
 	h.focus(t)
 	h.ime.release(keymap, event)
-	if got := h.context.keys[0]; got.state != ibus.ReleaseMask || got.keysym != 'n' {
+	if got := h.context.keys[0]; !got.release || got.state != 0 || got.keysym != 'n' {
 		t.Fatalf("release = %+v", got)
 	}
 	if done := h.context.keys[0].done; done != nil {
@@ -440,7 +441,7 @@ func TestIMEKeysAreNotGivenToTheEngineWithoutAnActiveField(t *testing.T) {
 func TestIMELostDaemonKeepsTheTextAndReturnsKeysToTheField(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("nihao", 5, true, nil)
+	h.ime.preedit("nihao", 5, true, text.Range{Start: 5, End: 5})
 	callsBefore := len(h.context.calls)
 	h.ime.lost()
 	composition, composing := h.editor.Composition()
@@ -523,7 +524,7 @@ func TestIMETellsTheEngineTheTextAroundTheCaretAndOnlyWhenItChanges(t *testing.T
 	if len(h.context.surrounds) != before {
 		t.Fatal("unchanged text was told to the engine again")
 	}
-	h.ime.preedit("ni", 2, true, nil)
+	h.ime.preedit("ni", 2, true, text.Range{Start: 2, End: 2})
 	if got := h.context.surrounds[len(h.context.surrounds)-1]; got != (fakeSurround{"你好", 2, 2}) {
 		t.Fatalf("the engine was told its own preedit: %+v", got)
 	}
@@ -559,11 +560,11 @@ func TestIMEDeleteSurroundingRemovesTheTextTheEngineAsksFor(t *testing.T) {
 func TestIMEPreeditShowsTheClauseBeingConvertedAsSelected(t *testing.T) {
 	h := newIMEHarness(t)
 	h.focus(t)
-	h.ime.preedit("きょうは", 4, true, []ibus.Attribute{{Kind: ibus.AttrUnderline, Value: 1, Start: 0, End: 4}, {Kind: ibus.AttrBackground, Start: 0, End: 3}})
+	h.ime.nativePreedit(ibus.PreeditEvent{Text: "きょうは", Cursor: 4, Visible: true, Attributes: []ibus.Attribute{{Kind: ibus.AttrUnderline, Value: 1, Start: 0, End: 4}, {Kind: ibus.AttrBackground, Start: 0, End: 3}}})
 	if selection := h.editor.Selection(); selection != (text.Range{Start: 0, End: 3}) {
 		t.Fatalf("selection = %+v, want the converted clause", selection)
 	}
-	h.ime.preedit("きょうは", 4, true, []ibus.Attribute{{Kind: ibus.AttrUnderline, Value: 1, Start: 0, End: 4}})
+	h.ime.nativePreedit(ibus.PreeditEvent{Text: "きょうは", Cursor: 4, Visible: true, Attributes: []ibus.Attribute{{Kind: ibus.AttrUnderline, Value: 1, Start: 0, End: 4}}})
 	if selection := h.editor.Selection(); selection != (text.Range{Start: 4, End: 4}) {
 		t.Fatalf("selection = %+v, want the caret", selection)
 	}
@@ -582,7 +583,7 @@ func TestIMEModifierPressReachesTheEngineAndDeliversNothing(t *testing.T) {
 	if len(h.context.keys) != 1 {
 		t.Fatalf("keys sent to the engine = %d, want the Shift press", len(h.context.keys))
 	}
-	if got := h.context.keys[0]; got.keysym != 0xffe1 || got.keycode != 50-8 || got.state&ibus.ReleaseMask != 0 {
+	if got := h.context.keys[0]; got.keysym != 0xffe1 || got.keycode != 50 || got.release {
 		t.Fatalf("press = %+v", got)
 	}
 	if done := h.context.keys[0].done; done != nil {

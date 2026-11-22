@@ -37,7 +37,7 @@ func TestAvatarEditorDriverInteraction(t *testing.T) {
 		},
 	}}
 	page := ui.NewPage(ui.PageConfig{View: model.page, Theme: themePointer(gfx.LightTheme())})
-	driver, err := app.NewDriver(page.Config(app.Config{
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{
 		Width: 900, Height: 680,
 		OnPointer: func(event gfx.PointerEvent) gfx.EventResult {
 			state, result := model.layout.Pointer(event, model.options.State)

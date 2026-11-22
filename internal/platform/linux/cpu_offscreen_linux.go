@@ -100,7 +100,7 @@ func (offscreen *CPUOffscreen) Close() {
 // device pixel (platform.DevicePosition), a clip takes every device pixel it touches. ok is false
 // when the label draws nothing.
 func prepareLabel(services *textServices, l platform.TextLabel, scale float32, canvasWidth, canvasHeight int, allowLCD bool) (label raster.Label, ok bool, err error) {
-	image, ok, err := rasterizeLabel(services, l, scale, allowLCD)
+	image, ok, err := rasterizeLabel(services, l, scale, canvasWidth, labelImage{}, allowLCD)
 	if err != nil || !ok {
 		return raster.Label{}, false, err
 	}
@@ -114,16 +114,41 @@ func prepareLabel(services *textServices, l platform.TextLabel, scale float32, c
 type labelImage struct {
 	pixels        []byte
 	width, height int
-	lcd           bool
-	spans         []raster.Span
+	// skip is the device column of a text label the picture starts at: a line wider than a
+	// texture holds, wide, is drawn from the window of it the canvas shows (textWindow). It
+	// is 0 for every other label.
+	skip  int
+	wide  bool
+	lcd   bool
+	spans []raster.Span
+}
+
+// textWindow is the part of a text label drawn into its picture at scale on a canvas
+// canvasWidth device pixels wide: the device columns from skip to skip+width of the label,
+// height high. A label one texture holds is drawn whole. A wider one, wide, is drawn from
+// the columns of it the canvas and its clip show, keeping have, the picture it has, while
+// that still holds them (platform.WideTextLabelWindow); the Vulkan backend draws the same
+// window. ok is false when nothing is drawn: none of a wide line can be seen, or no
+// texture holds the label.
+func textWindow(l platform.TextLabel, scale float32, canvasWidth int, have labelImage) (skip, width, height int, wide, ok bool) {
+	full := int(math.Ceil(float64(l.Width * scale)))
+	height = int(math.Ceil(float64(l.Height * scale)))
+	haveSkip, haveWidth := 0, 0
+	if have.wide {
+		haveSkip, haveWidth = have.skip, have.width
+	}
+	skip, width, wide, ok = platform.WideTextLabelWindow(l, scale, full, height, canvasWidth, haveSkip, haveWidth)
+	return skip, width, height, wide, ok && platform.LabelTextureFits(width, height)
 }
 
 // rasterizeLabel draws a label's text, or resamples its image to the device pixels it covers. ok is
 // false when it draws nothing. The picture does not depend on where the label is, except that an
-// image smaller than its bitmap does, through the fraction of a pixel it starts at. With allowLCD,
-// and the desktop asking for subpixel antialiasing, text comes back as per-channel coverage for the
+// image smaller than its bitmap does, through the fraction of a pixel it starts at, and a line
+// wider than a texture holds is drawn from the window of it a canvas canvasWidth device pixels
+// wide shows, kept from have, the picture the label has (textWindow). With allowLCD, and the
+// desktop asking for subpixel antialiasing, text comes back as per-channel coverage for the
 // rasterizer to tint, the same way the Vulkan LCD shader reads it.
-func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32, allowLCD bool) (image labelImage, ok bool, err error) {
+func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32, canvasWidth int, have labelImage, allowLCD bool) (image labelImage, ok bool, err error) {
 	if l.Width <= 0 || l.Height <= 0 || (l.Value == "" && len(l.Bitmap) == 0) {
 		return labelImage{}, false, nil
 	}
@@ -138,13 +163,15 @@ func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32,
 		}
 		return labelImage{pixels: tightBitmap(l.Bitmap, width, height, l.BitmapStride), width: width, height: height}, true, nil
 	}
-	width := int(math.Ceil(float64(l.Width * scale)))
-	height := int(math.Ceil(float64(l.Height * scale)))
-	pixels, lcd, err := services.rasterize(l, scale, width, height, allowLCD)
+	skip, width, height, wide, shown := textWindow(l, scale, canvasWidth, have)
+	if !shown {
+		return labelImage{}, false, nil
+	}
+	pixels, lcd, err := services.rasterizeWindow(l, scale, skip, width, height, allowLCD)
 	if err != nil {
 		return labelImage{}, false, err
 	}
-	image = labelImage{pixels: pixels, width: width, height: height, lcd: lcd}
+	image = labelImage{pixels: pixels, width: width, height: height, skip: skip, wide: wide, lcd: lcd}
 	if lcd && len(services.spans) > 0 {
 		image.spans = make([]raster.Span, len(services.spans))
 		for index, span := range services.spans {
@@ -161,13 +188,20 @@ func rasterizeLabel(services *textServices, l platform.TextLabel, scale float32,
 // clip, if a canvas clip cuts it, on the device pixels the clip touches. ok is false when the clip
 // leaves nothing.
 func placeLabel(l platform.TextLabel, scale float32, image labelImage, canvasWidth, canvasHeight int) (label raster.Label, ok bool) {
-	x, y := platform.DevicePosition(l.X, l.OriginX, scale), platform.DevicePosition(l.Y, l.OriginY, scale)
+	x, y := platform.DevicePosition(l.X, l.OriginX, scale)+image.skip, platform.DevicePosition(l.Y, l.OriginY, scale)
 	if len(l.Bitmap) > 0 {
 		x, y = platform.DevicePosition(l.X, 0, scale), platform.DevicePosition(l.Y, 0, scale)
 	}
 	label = raster.Label{Pix: image.pixels, Stride: image.width * 4, Width: image.width, Height: image.height, X: x, Y: y, Layer: l.Layer,
+		Image: len(l.Bitmap) > 0, Radius: l.ImageRadius, Fade: l.ImageFade,
 		ShapesBefore: l.ShapesBefore, LCD: image.lcd, Spans: image.spans,
 		Color: scene.Color{Red: float32(l.Color.Red), Green: float32(l.Color.Green), Blue: float32(l.Color.Blue), Alpha: float32(l.Color.Alpha)}}
+	if len(l.Bitmap) > 0 {
+		label.Width, label.Height = platform.DeviceExtent(l.X, l.Width, scale), platform.DeviceExtent(l.Y, l.Height, scale)
+		if label.Width != image.width || label.Height != image.height {
+			label.SourceWidth, label.SourceHeight = image.width, image.height
+		}
+	}
 	if l.Clipped {
 		left := max(int(math.Floor(float64(l.Clip.X*scale))), 0)
 		top := max(int(math.Floor(float64(l.Clip.Y*scale))), 0)

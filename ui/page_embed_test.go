@@ -13,7 +13,7 @@ import (
 type paneModel struct {
 	tree     gfx.Tree
 	sidebar  gfx.Scope
-	view     ui.View
+	View     ui.View
 	page     *ui.Page
 	pageView func(ui.C)
 
@@ -21,9 +21,9 @@ type paneModel struct {
 	clicks     int
 	on         bool
 	tab        string
-	name       ui.Field
+	Name       ui.Field
 	menu       bool
-	size       string
+	Size       string
 	rows       []string
 }
 
@@ -41,13 +41,13 @@ func (m *paneModel) pane(c ui.C) {
 			m.clicks++
 		}
 		ui.Switch(c, &m.on, "Toggle")
-		ui.TextField(c, &m.name, "Name", "")
+		ui.TextField(c, &m.Name, "Name", "")
 		more := ui.Button(c, "More")
 		if more.Clicked() {
 			m.menu = !m.menu
 		}
 		ui.Popover(c, more, &m.menu, func() { ui.Text(c, "Menu item") })
-		ui.Select(c, &m.size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
+		ui.Select(c, &m.Size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
 		ui.Tabs(c, &m.tab, []string{"General", "Keys"}, nil)
 		for _, row := range m.rows {
 			ui.Row(c.Key(row)).Gap(8).Children(func() {
@@ -72,14 +72,14 @@ func (m *paneModel) remove(row string) {
 // pageSlot paints page into the slot the Frame laid out for it, as a pane of a
 // Frame-laid-out window is written as a page. The page is drawn on the host
 // canvas so its controls keep the host's identities.
-func pageSlot(f *ui.Frame, page *ui.Page, view func(ui.C)) ui.Box {
+func pageSlot(f *ui.Frame, page *ui.Page, View func(ui.C)) ui.Box {
 	return f.Slot().Draw(func(d *ui.DrawContext) {
-		page.Draw(d.Canvas, d.Rect, view)
+		page.Draw(d.Canvas, d.Rect, View)
 	})
 }
 
-func (m *paneModel) paint(canvas *gfx.Canvas, size gfx.Size) {
-	m.view.Draw(canvas, pageTheme, gfx.Rect{Width: size.Width, Height: size.Height}, func(f *ui.Frame) {
+func (m *paneModel) paint(Surface *gfx.Canvas, Size gfx.Size) {
+	m.View.Draw(Surface, pageTheme, gfx.Rect{Width: Size.Width, Height: Size.Height}, func(f *ui.Frame) {
 		f.Row().Fill().Children(func() {
 			// The sidebar is as tall as the window, under where an unplaced page would go.
 			f.Column().Width(200).FillHeight().Children(func() {
@@ -127,8 +127,8 @@ func TestFramePageIsAPaneThatTakesInput(t *testing.T) {
 	}
 	d.click("Name")
 	d.typeText("go")
-	if m.name.Text() != "go" {
-		t.Fatalf("typing reached %q", m.name.Text())
+	if m.Name.Text() != "go" {
+		t.Fatalf("typing reached %q", m.Name.Text())
 	}
 	d.click("More")
 	if !m.menu || !m.page.Overlay() {
@@ -173,14 +173,14 @@ func BenchmarkFramePage(b *testing.B) {
 	}
 }
 
-func embeddedHitID(t *testing.T, canvas *gfx.Canvas, label string) gfx.ID {
+func embeddedHitID(t *testing.T, Surface *gfx.Canvas, Label string) gfx.ID {
 	t.Helper()
-	for _, hit := range canvas.Hits() {
-		if hit.Label == label && !hit.IsLabel && !hit.Backdrop {
+	for _, hit := range Surface.Hits() {
+		if hit.Label == Label && !hit.IsLabel && !hit.Backdrop {
 			return hit.ID
 		}
 	}
-	t.Fatalf("no control labeled %q", label)
+	t.Fatalf("no control labeled %q", Label)
 	return gfx.ID{}
 }
 
@@ -204,13 +204,13 @@ func TestEmbeddedPageRoutesInput(t *testing.T) {
 
 type embeddedControlModel struct {
 	handlers                ui.Handlers
-	keys, pointers, scrolls int
+	keys, pointers, Scrolls int
 }
 
 func (m *embeddedControlModel) page(c ui.C) {
 	m.handlers.Key = func(gfx.KeyEvent) gfx.EventResult { m.keys++; return gfx.EventResult{Handled: true} }
 	m.handlers.Pointer = func(gfx.PointerEvent) gfx.EventResult { m.pointers++; return gfx.EventResult{Handled: true} }
-	m.handlers.Scroll = func(gfx.ScrollEvent) gfx.EventResult { m.scrolls++; return gfx.EventResult{Handled: true} }
+	m.handlers.Scroll = func(gfx.ScrollEvent) gfx.EventResult { m.Scrolls++; return gfx.EventResult{Handled: true} }
 	ui.Control(c, "Canvas", &m.handlers).Fill()
 }
 
@@ -226,7 +226,7 @@ func TestEmbeddedPageRoutesControls(t *testing.T) {
 	if result := page.Pointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, Target: target}); !result.Handled || m.pointers != 1 {
 		t.Fatalf("pointer result = %+v, pointers = %d", result, m.pointers)
 	}
-	if result := page.Wheel(gfx.ScrollEvent{DeltaY: 1, Target: target}); !result.Handled || m.scrolls != 1 {
-		t.Fatalf("wheel result = %+v, scrolls = %d", result, m.scrolls)
+	if result := page.Wheel(gfx.ScrollEvent{DeltaY: 1, Target: target}); !result.Handled || m.Scrolls != 1 {
+		t.Fatalf("wheel result = %+v, scrolls = %d", result, m.Scrolls)
 	}
 }

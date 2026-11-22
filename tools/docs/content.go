@@ -5,15 +5,11 @@ import "github.com/vivaui/viva/internal/componentdemo"
 func documentation() map[string]Page {
 	pages := make(map[string]Page, len(componentdemo.Catalog()))
 	for _, component := range componentdemo.Catalog() {
-		pages[component.ID] = Page{Sections: []Section{
-			{ID: "usage", Title: "Source-owned usage", Text: "This preview calls the production Go component directly. Stable IDs, values and open state remain owned by the application; the component only paints and declares interaction semantics.", Items: []string{"Read the linked component source for every option and visual decision.", "Use the native command to verify system text, focus, accessibility and platform integration.", "The browser preview validates shared layout and scene behavior, not native performance."}},
-			{ID: "verification", Title: "Verification boundary", Text: "The examples cover representative states supported by the current API. They do not imply that every desktop backend has completed hardware validation."},
-		}}
+		pages[component.ID] = Page{}
 	}
 	overrides := map[string]Page{
 		"list": {Sections: []Section{
 			{ID: "usage", Title: "Page-layer list", Text: "The examples call ui.List, the page layer's virtualized list: the application declares each row as an element, and the list owns virtualization, selection, the keyboard, typeahead, pinned section headings, drag-to-reorder and sideways scrolling. The model keeps the ListState, the selection and the rows' data. This control is not a component of the components package; its source is ui/list.go.", Items: []string{"Names, sizes and dates lie side by side; rows wider than the list scroll sideways with the horizontal wheel or the wheel with Shift.", "ListState.Header pins the heading of the section at the top until the next heading pushes it away.", "ListState.Selection adds Primary-click and Shift ranges to the choice, and ListState.Reorder reports rows dropped in a new place for the application to move."}},
-			{ID: "verification", Title: "Verification boundary", Text: "The preview runs the same page in the browser's WebAssembly build. Native lists, text metrics and platform input must be checked with the native preview."},
 		}},
 		"button": {Sections: []Section{
 			{ID: "usage", Title: "Usage", Text: "ui.Button(c, label) declares a labeled hit region and paints a source-owned button. Clicked reports activation in the same declaration; key the row when it moves.", Items: []string{"Default, Secondary, Outline, Ghost, Destructive and Link share the same interaction model.", "Buttons measure their label by default; set Width to reserve a fixed size.", "XSmall, Small, Large and icon sizes are explicit options. Icon-only controls still need an accessible name."}},
@@ -60,7 +56,7 @@ func documentation() map[string]Page {
 			{Platform: "macOS", Status: "Native preview", Detail: "AppKit + Metal. Run locally to check system fonts, focus and accessibility."},
 			{Platform: "Windows", Status: "Experimental", Detail: "Native runner cross-builds; this documentation is not a Windows hardware-validation report."},
 			{Platform: "Linux", Status: "Not available", Detail: "The current Linux backend cannot run these Canvas component examples."},
-			{Platform: "Web", Status: "Canvas2D preview", Detail: "The same Go example compiled to WASM, not HTML/CSS imitation. Native performance and system integration are not measured here."},
+			{Platform: "Web", Status: "WebGL2 preview", Detail: "The same Go example compiled to WASM, drawn with WebGL2 and falling back to Canvas2D; not HTML/CSS imitation. Native performance and system integration are not measured here."},
 		}
 		if id == "input" {
 			page.Capabilities[3] = Capability{Platform: "Web", Status: "Interactive text input", Detail: "Browser typing, selection and IME connect to the same caller-owned Go editor used by the native preview."}

@@ -8,9 +8,7 @@ import (
 
 // caption declares the muted explanatory line under a specimen; it wraps instead of
 // clipping, so it stays readable at the narrowest stage.
-func caption(c ui.C, value string) {
-	ui.Wrap(c, value).FontSize(c.Theme().Metrics.FontSizeS).Muted()
-}
+func caption(ui.C, string) {}
 
 // drawStage lays content over the whole stage, with no page title: for a demo
 // whose body is the stage itself, such as the calendar or the sidebar. It shares

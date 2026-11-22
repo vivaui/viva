@@ -164,6 +164,15 @@ type vulkanLabelTexture struct {
 	scale                    float32
 	// width and height are the texture's size in device pixels.
 	width, height int
+	// skip is the device column of the label the texture starts at: a line wider than a
+	// texture holds, wide, has a texture of the window of it that can be seen
+	// (platform.WideTextLabelWindow). It is 0 for every other label.
+	skip int
+	wide bool
+	// dropped is set when the label has no texture at scale because none holds it or,
+	// wide, none of it can be seen: it draws nothing, and is not rasterized every frame
+	// for that.
+	dropped bool
 	// lcd is set when the texture holds the coverage of each channel of LCD text, to be
 	// blended with the label's color by the LCD pipeline.
 	lcd bool
@@ -320,8 +329,9 @@ func (textState *vulkanText) createPipeline(renderer *vulkanRenderer) (err error
 	blend := vkPipelineColorBlendStateCreateInfo{SType: vkStructurePipelineColorBlendStateCreateInfo, AttachmentCount: 1, Attachments: &blendAttachment}
 	dynamics := [2]uint32{vkDynamicViewport, vkDynamicScissor}
 	dynamic := vkPipelineDynamicStateCreateInfo{SType: vkStructurePipelineDynamicStateCreateInfo, DynamicCount: 2, Dynamics: &dynamics[0]}
-	// The vertex shader takes the label's frame; the LCD fragment shader its color.
-	push := [2]vkPushConstantRange{{StageFlags: vkShaderStageVertex, Size: 32}, {StageFlags: vkShaderStageFragment, Offset: 32, Size: 16}}
+	// The vertex shader takes the label's frame; the fragment shaders the LCD
+	// color and the image mask (size, radius, fade).
+	push := [2]vkPushConstantRange{{StageFlags: vkShaderStageVertex, Size: 32}, {StageFlags: vkShaderStageFragment, Offset: 32, Size: 32}}
 	layoutInfo := vkPipelineLayoutCreateInfo{
 		SType: vkStructurePipelineLayoutCreateInfo, SetLayoutCount: 1,
 		SetLayouts: uintptr(unsafe.Pointer(&textState.descriptorLayout)), PushConstantCount: 2, PushConstants: &push[0],
@@ -599,14 +609,75 @@ func validateTextLabel(index int, label platform.TextLabel) error {
 	return nil
 }
 
-func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) error {
+// needsUpload reports whether the label is rasterized again at scale for a scene viewport
+// device pixels wide: it has no texture there, its image's texture no longer suits the size
+// it is drawn at, or it is a wide line whose texture no longer holds the part of it that can
+// be seen.
+func (label *vulkanLabelTexture) needsUpload(scale float32, viewport int) bool {
+	l := label.label
+	if l.Value == "" && len(l.Bitmap) == 0 || l.Width <= 0 || l.Height <= 0 {
+		return false
+	}
+	if label.scale != scale || label.view == 0 && !label.dropped {
+		return true
+	}
+	if len(l.Bitmap) > 0 {
+		if label.view == 0 {
+			return platform.LabelTextureFits(platform.BitmapTextureExtent(l, scale))
+		}
+		return bitmapTextureStale(label, scale)
+	}
+	if !label.wide {
+		return false
+	}
+	skip, width, _, _, ok := label.window(scale, viewport)
+	return ok != (label.view != 0) || ok && (skip != label.skip || width != label.width)
+}
+
+// window is the part of a text label's texture that is rasterized at scale for a scene
+// viewport device pixels wide: the device columns from skip to skip+width of the label,
+// height high. A label one texture holds is rasterized whole, at the width
+// labelRasterWidth reserves; a wider one from the window of it that can be seen, which
+// keeps the texture it has while that still holds them; wide is set for such a line. ok
+// is false when it is not drawn: none of a wide line can be seen, or no texture holds
+// the label.
+func (label *vulkanLabelTexture) window(scale float32, viewport int) (skip, width, height int, wide, ok bool) {
+	height = int(math.Ceil(float64(label.label.Height * scale)))
+	full := labelRasterWidth(label.label, scale, height)
+	haveSkip, haveWidth := 0, 0
+	if label.view != 0 && label.scale == scale {
+		haveSkip, haveWidth = label.skip, label.width
+	}
+	skip, width, wide, ok = platform.WideTextLabelWindow(label.label, scale, full, height, viewport, haveSkip, haveWidth)
+	return skip, width, height, wide, ok && platform.LabelTextureFits(width, height)
+}
+
+// drop leaves the label without a texture at scale, for one it cannot have: a label no
+// texture holds is not drawn, and does not stop the window drawing the others.
+func (label *vulkanLabelTexture) drop(renderer *vulkanRenderer, scale float32, wide bool) {
+	label.closeImage(renderer)
+	label.scale, label.wide, label.dropped = scale, wide, true
+}
+
+// textViewport is the device width of the scene in a target width by height: the width a
+// line wider than a texture holds is windowed to.
+func (renderer *vulkanRenderer) textViewport(width, height uint32) int {
+	if renderer.frame.active() {
+		_, _, content := renderer.frame.content(width, height)
+		return int(content.Width)
+	}
+	return int(width)
+}
+
+// upload rasterizes and uploads every label that needsUpload at scale, for a scene
+// viewport device pixels wide.
+func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32, viewport int) error {
 	if textState.services == nil || renderer.uploadCommand == 0 {
 		return nil
 	}
 	dirty := false
 	for index := range textState.labels {
-		label := &textState.labels[index]
-		if (label.label.Value != "" || len(label.label.Bitmap) > 0) && label.label.Width > 0 && label.label.Height > 0 && (label.view == 0 || label.scale != scale || bitmapTextureStale(label, scale)) {
+		if textState.labels[index].needsUpload(scale, viewport) {
 			dirty = true
 			break
 		}
@@ -627,17 +698,21 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) err
 	defer closeStaging()
 	for index := range textState.labels {
 		label := &textState.labels[index]
-		if label.label.Value == "" && len(label.label.Bitmap) == 0 || label.label.Width <= 0 || label.label.Height <= 0 || label.view != 0 && label.scale == scale && !bitmapTextureStale(label, scale) {
+		if !label.needsUpload(scale, viewport) {
 			continue
 		}
-		height := int(math.Ceil(float64(label.label.Height * scale)))
-		width := labelRasterWidth(label.label, scale, height)
 		var pixels []byte
-		lcd := false
+		lcd, wide := false, false
 		var spans []colorSpan
+		skip, width, height := 0, 0, 0
 		if len(label.label.Bitmap) > 0 {
 			width, height = label.label.BitmapWidth, label.label.BitmapHeight
-			if shown, high := platform.BitmapTextureExtent(label.label, scale); shown < width || high < height {
+			shown, high := platform.BitmapTextureExtent(label.label, scale)
+			if !platform.LabelTextureFits(shown, high) {
+				label.drop(renderer, scale, false)
+				continue
+			}
+			if shown < width || high < height {
 				// A bitmap drawn smaller than it is stored is averaged down to the device
 				// pixels it covers; sampling a few of its texels would alias.
 				pixels = platform.ResampleBGRA(label.label.Bitmap, label.label.BitmapStride, width, height, shown, high)
@@ -647,10 +722,16 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) err
 				pixels = tightBitmap(label.label.Bitmap, width, height, label.label.BitmapStride)
 			}
 		} else {
+			var ok bool
+			skip, width, height, wide, ok = label.window(scale, viewport)
+			if !ok {
+				label.drop(renderer, scale, wide)
+				continue
+			}
 			var err error
 			// ClearType-style blending needs an opaque target: a window or an offscreen
 			// image cleared opaque.
-			pixels, lcd, err = textState.services.rasterize(label.label, scale, width, height, renderer.dualSource && textState.lcdPipeline != 0 && renderer.color.Alpha >= 1)
+			pixels, lcd, err = textState.services.rasterizeWindow(label.label, scale, skip, width, height, renderer.dualSource && textState.lcdPipeline != 0 && renderer.color.Alpha >= 1)
 			if err != nil {
 				return fmt.Errorf("linux: rasterize label %d: %w", index, err)
 			}
@@ -662,7 +743,7 @@ func (textState *vulkanText) upload(renderer *vulkanRenderer, scale float32) err
 		}
 		staging = append(staging, stage)
 		label.scale, label.lcd = scale, lcd
-		label.width, label.height = width, height
+		label.width, label.height, label.skip, label.wide = width, height, skip, wide
 		label.spans = append(label.spans[:0], spans...) // after createImage, which clears the label
 	}
 	if err := vkCheck(renderer.api.endCommandBuffer(renderer.uploadCommand), "end text upload"); err != nil {
@@ -693,7 +774,7 @@ func labelRasterWidth(label platform.TextLabel, scale float32, height int) int {
 	if len(label.Runs) > 0 && label.CellWidth > 0 && height > 0 && width > 0 && ok {
 		step := float64(label.CellWidth) * 16
 		reserved := min(math.Ceil(float64(label.Width)/step)*step, float64(needed))
-		limit := min(16384, 16*1024*1024/height)
+		limit := platform.LabelTextureWidth(height)
 		if width <= limit {
 			width = max(width, int(min(math.Ceil(reserved*float64(scale)), float64(limit))))
 		}
@@ -850,6 +931,8 @@ func (textState *vulkanText) record(renderer *vulkanRenderer, command uintptr, e
 	quad := label.quad(scale)
 	scratch.textFrame = [8]float32{float32(extent.Width) / scale, float32(extent.Height) / scale, quad[0], quad[1], quad[2], quad[3]}
 	renderer.api.cmdPushConstants(command, textState.pipelineLayout, vkShaderStageVertex, 0, uint32(unsafe.Sizeof(scratch.textFrame)), unsafe.Pointer(&scratch.textFrame[0]))
+	scratch.mask = [4]float32{float32(label.label.Width), float32(label.label.Height), label.label.ImageRadius, label.label.ImageFade}
+	renderer.api.cmdPushConstants(command, textState.pipelineLayout, vkShaderStageFragment, 48, uint32(unsafe.Sizeof(scratch.mask)), unsafe.Pointer(&scratch.mask[0]))
 	renderer.api.cmdBindDescriptorSets(command, vkPipelineBindPointGraphics, textState.pipelineLayout, 0, 1, &label.set, 0, nil)
 	if !label.lcd || textState.lcdPipeline == 0 {
 		renderer.api.cmdDraw(command, 6, 1, 0, 0)
@@ -864,6 +947,7 @@ func (textState *vulkanText) record(renderer *vulkanRenderer, command uintptr, e
 	// A grid line has a color per run: its coverage is drawn once for each, cut to the
 	// columns of the run.
 	origin, _ := label.pixelOrigin(scale)
+	origin += label.skip // the spans are the texture's columns
 	for spanIndex := range label.spans {
 		span := &label.spans[spanIndex]
 		scratch.cut = scratch.scissor
@@ -881,11 +965,12 @@ func (textState *vulkanText) record(renderer *vulkanRenderer, command uintptr, e
 
 // quad is where the label's texture is drawn, in logical pixels: its top left and its size are
 // whole device pixels, so every texel lands on one pixel and the sampler blends none with its
-// neighbour. Text takes the texture's own size; an image takes the device pixels
-// its logical bounds cover.
+// neighbour. Text takes the texture's own size, at the columns of the label it holds; an
+// image takes the device pixels its logical bounds cover.
 func (label *vulkanLabelTexture) quad(scale float32) [4]float32 {
 	l := label.label
 	x, y := label.pixelOrigin(scale)
+	x += label.skip
 	width, height := label.width, label.height
 	if len(l.Bitmap) > 0 {
 		width, height = platform.DeviceExtent(l.X, l.Width, scale), platform.DeviceExtent(l.Y, l.Height, scale)
@@ -934,6 +1019,7 @@ func labelScissor(label platform.TextLabel, scale float32, extent vkExtent2D) (s
 }
 
 func (label *vulkanLabelTexture) closeImage(renderer *vulkanRenderer) {
+	label.skip, label.wide, label.dropped = 0, false, false
 	if renderer == nil || renderer.api == nil || renderer.device == 0 {
 		label.image, label.memory, label.view, label.scale, label.lcd = 0, 0, 0, 0, false
 		label.width, label.height, label.spans = 0, 0, label.spans[:0]

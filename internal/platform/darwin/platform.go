@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"runtime/cgo"
 	"sync/atomic"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
@@ -162,6 +163,7 @@ type runState struct {
 	onActivate        func()
 	keyHandler        KeyHandler
 	focusLostHandler  platform.FocusLostHandler
+	deactivateHandler platform.DeactivateHandler
 	accessibility     platform.AccessibilityHandler
 	// nodes is the accessibility tree last presented, for turning the UTF-16
 	// ranges AppKit sends back into code points. It is the application's slice,
@@ -397,6 +399,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	state.resizeHandler = config.OnResize
 	state.keyHandler = config.OnKey
 	state.focusLostHandler = config.OnFocusLost
+	state.deactivateHandler = config.OnDeactivate
 	state.accessibility, state.nodes = config.OnAccessibility, config.Accessibility
 	state.shortcutHandler = config.OnShortcut
 	state.scrollHandler = config.OnScroll
@@ -544,7 +547,8 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 	for index, node := range nodes {
 		label := C.CString(node.Label)
 		value := C.CString(node.Value)
-		hint := C.CString(node.Hint)
+		hintText := darwinAccessibilityHint(node)
+		hint := C.CString(hintText)
 		description := C.CString(node.Description)
 		strings = append(strings, unsafe.Pointer(label), unsafe.Pointer(value), unsafe.Pointer(hint), unsafe.Pointer(description))
 		selectionStart, selectionEnd, textLength := nativeSelection(node)
@@ -559,7 +563,7 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 			value:        value,
 			value_length: C.size_t(len(node.Value)),
 			hint:         hint,
-			hint_length:  C.size_t(len(node.Hint)),
+			hint_length:  C.size_t(len(hintText)),
 			focused:      C.int(boolInt(node.Focused)),
 			disabled:     C.int(boolInt(node.Disabled)),
 			checked:      C.int(boolInt(node.Checked)),
@@ -593,6 +597,19 @@ func makeNativeAccessibility(nodes []AccessibilityNode) (unsafe.Pointer, []unsaf
 	// The native side copies labels into NSString during the update call, so
 	// callers free these strings once that call has returned.
 	return memory, strings
+}
+
+// darwinAccessibilityHint is the help text AppKit announces for a node. AppKit
+// has no invalid-form accessibility property, so an invalid control says so in
+// its hint rather than dropping the state.
+func darwinAccessibilityHint(node AccessibilityNode) string {
+	if !node.Invalid {
+		return node.Hint
+	}
+	if node.Hint == "" {
+		return "Invalid entry"
+	}
+	return node.Hint + ". Invalid entry"
 }
 
 // nativeSelection is a node's selection in the UTF-16 units AppKit counts text
@@ -662,7 +679,8 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 		if label.Width <= 0 || label.Height <= 0 || !bitmap && label.FontSize <= 0 {
 			continue
 		}
-		value := textBytes(label.Value)
+		content, runBytes := nativeLabelText(label.Value, label.Runs)
+		value := textBytes(content)
 		if value != nil {
 			strings = append(strings, value)
 		}
@@ -678,9 +696,13 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			strings = append(strings, runMemory)
 			packed := unsafe.Slice((*C.viva_text_run)(runMemory), len(label.Runs))
 			for at, run := range label.Runs {
+				bytes := run.Bytes
+				if runBytes != nil {
+					bytes = runBytes[at]
+				}
 				packed[at] = C.viva_text_run{
 					column: C.uint32_t(max(run.Column, 0)),
-					bytes:  C.uint32_t(max(run.Bytes, 0)),
+					bytes:  C.uint32_t(max(bytes, 0)),
 					cells:  C.uint32_t(max(run.Cells, 0)),
 					flags:  C.uint32_t(textRunFlags(run)),
 					weight: C.float(run.Weight),
@@ -722,7 +744,7 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 		}
 		native[validCount] = C.viva_text_label{
 			utf8:            (*C.uchar)(value),
-			utf8_length:     C.size_t(len(label.Value)),
+			utf8_length:     C.size_t(len(content)),
 			x:               C.float(label.X),
 			y:               C.float(label.Y),
 			width:           C.float(label.Width),
@@ -747,6 +769,8 @@ func makeNativeTextLabels(labels []TextLabel) (unsafe.Pointer, []unsafe.Pointer,
 			bitmap_stride:   C.uint32_t(max(label.BitmapStride, 0)),
 			bitmap_id:       C.uint64_t(label.BitmapID),
 			bitmap_version:  C.uint32_t(label.BitmapVersion),
+			image_radius:    C.float(label.ImageRadius),
+			image_fade:      C.float(label.ImageFade),
 			bitmap_upload:   C.uint32_t(boolInt(label.BitmapUpload)),
 			clip_x:          C.float(label.Clip.X),
 			clip_y:          C.float(label.Clip.Y),
@@ -899,6 +923,55 @@ func textBytes(value string) unsafe.Pointer {
 		return nil
 	}
 	return C.CBytes([]byte(value))
+}
+
+// nativeLabelText returns the text a label gives the native layer, which decodes
+// it as UTF-8 and fails the whole label update on a byte it cannot decode. A
+// file name stored in another encoding on a remote host is such text. Each
+// invalid byte becomes U+FFFD, as the platform text system substitutes it, so
+// the label still draws and the rest of the window keeps updating.
+//
+// runBytes is the byte count of each run in the returned text, because a
+// replacement changes the length of the bytes it stands for. It is nil when
+// the text was already valid, and then the runs keep their own counts.
+func nativeLabelText(value string, runs []gfx.TextRun) (string, []int32) {
+	if utf8.ValidString(value) {
+		return value, nil
+	}
+	// bounds holds the end of each run in value, clamped to its length, so the
+	// runs cover value in order and never past it.
+	bounds := make([]int, len(runs))
+	end := 0
+	for index, run := range runs {
+		end = min(end+int(max(run.Bytes, 0)), len(value))
+		bounds[index] = end
+	}
+	ends := make([]int, len(runs))
+	out := make([]byte, 0, len(value)+len(runs))
+	next := 0
+	for position := 0; position < len(value); {
+		for next < len(runs) && bounds[next] <= position {
+			ends[next] = len(out)
+			next++
+		}
+		decoded, size := utf8.DecodeRuneInString(value[position:])
+		if decoded == utf8.RuneError && size == 1 {
+			out = utf8.AppendRune(out, utf8.RuneError)
+		} else {
+			out = append(out, value[position:position+size]...)
+		}
+		position += size
+	}
+	for ; next < len(runs); next++ {
+		ends[next] = len(out)
+	}
+	counts := make([]int32, len(runs))
+	previous := 0
+	for index, at := range ends {
+		counts[index] = int32(at - previous)
+		previous = at
+	}
+	return string(out), counts
 }
 
 func boolInt(value bool) int {

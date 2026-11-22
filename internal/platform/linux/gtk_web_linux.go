@@ -8,11 +8,15 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -34,6 +38,12 @@ type webKit struct {
 	reload            func(view uintptr)
 	goBack, goForward func(view uintptr)
 	getURI            func(view uintptr) uintptr
+	// The page's own state: its document's title, and whether its history and its loading are
+	// where they are.
+	getTitle          func(view uintptr) uintptr
+	canGoBack         func(view uintptr) int32
+	canGoForward      func(view uintptr) int32
+	isLoading         func(view uintptr) int32
 	getContext        func(view uintptr) uintptr
 	setZoom           func(view uintptr, level float64)
 	registerScheme    func(context uintptr, scheme *byte, callback, data, destroy uintptr)
@@ -62,6 +72,12 @@ type webKit struct {
 	contextDataManager func(context uintptr) uintptr
 	managerSetProxy    func(manager uintptr, mode int32, settings uintptr)
 	contextSetProxy    func(context uintptr, mode int32, settings uintptr)
+	// For a store of a page's own: a context over a website data manager of the partition's, the
+	// manager itself, and the directories it took (WebKitGTK 2.10); nil without.
+	contextWithDataManager func(manager uintptr) uintptr
+	dataManagerNew         func(name1, value1, name2, value2, terminator uintptr) uintptr
+	dataManagerBaseData    func(manager uintptr) uintptr
+	dataManagerBaseCache   func(manager uintptr) uintptr
 	// The 2.36 answer, which carries a status and headers; nil on an engine that has only the stream
 	// and type form, where a scheme's status and headers are dropped.
 	schemeResponse    bool
@@ -93,12 +109,19 @@ type webKit struct {
 	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI,
 	// decided from the library's own major and minor version at load time.
 	downloadDestinationPath bool
+	// processTerminated tells whether the engine has the web-process-terminated signal, which names
+	// a page whose web process is gone: WebKitGTK has it from 2.20, and an engine without it is not
+	// handed a signal to connect.
+	processTerminated bool
 }
 
 var (
 	webOnce sync.Once
 	webAPI  *webKit
 	webErr  error
+	// webProcessTerminatedUnsupported says once, rather than at every page, that this engine cannot
+	// report a page whose process is gone.
+	webProcessTerminatedUnsupported sync.Once
 )
 
 func loadWebKit(g *gtkLibrary) (*webKit, error) {
@@ -142,7 +165,10 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			{&k.managerAddScript, "webkit_user_content_manager_add_script"}, {&k.scriptNew, "webkit_user_script_new"},
 			{&k.viewNew, "webkit_web_view_new_with_user_content_manager"}, {&k.loadURI, "webkit_web_view_load_uri"},
 			{&k.loadHTML, "webkit_web_view_load_html"}, {&k.reload, "webkit_web_view_reload"}, {&k.goBack, "webkit_web_view_go_back"},
-			{&k.goForward, "webkit_web_view_go_forward"}, {&k.getURI, "webkit_web_view_get_uri"}, {&k.getContext, "webkit_web_view_get_context"}, {&k.setZoom, "webkit_web_view_set_zoom_level"},
+			{&k.goForward, "webkit_web_view_go_forward"}, {&k.getURI, "webkit_web_view_get_uri"},
+			{&k.getTitle, "webkit_web_view_get_title"}, {&k.canGoBack, "webkit_web_view_can_go_back"},
+			{&k.canGoForward, "webkit_web_view_can_go_forward"}, {&k.isLoading, "webkit_web_view_is_loading"},
+			{&k.getContext, "webkit_web_view_get_context"}, {&k.setZoom, "webkit_web_view_set_zoom_level"},
 			{&k.registerScheme, "webkit_web_context_register_uri_scheme"}, {&k.schemeURI, "webkit_uri_scheme_request_get_uri"},
 			{&k.schemeFinish, "webkit_uri_scheme_request_finish"}, {&k.schemeFinishError, "webkit_uri_scheme_request_finish_error"},
 			{&k.jscString, "jsc_value_to_string"},
@@ -189,6 +215,12 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			!g.lookup(&k.proxySettingsFree, "webkit_network_proxy_settings_free") {
 			k.contextEphemeral = nil
 		}
+		if !g.lookup(&k.contextWithDataManager, "webkit_web_context_new_with_website_data_manager") ||
+			!g.lookup(&k.dataManagerNew, "webkit_website_data_manager_new") ||
+			!g.lookup(&k.dataManagerBaseData, "webkit_website_data_manager_get_base_data_directory") ||
+			!g.lookup(&k.dataManagerBaseCache, "webkit_website_data_manager_get_base_cache_directory") {
+			k.contextWithDataManager = nil
+		}
 		if !g.lookup(&k.contextDataManager, "webkit_web_context_get_website_data_manager") ||
 			!g.lookup(&k.managerSetProxy, "webkit_website_data_manager_set_network_proxy_settings") {
 			k.managerSetProxy = nil
@@ -206,9 +238,33 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			k.schemeResponse = true
 		}
 		g.lookup(&k.schemeWebView, "webkit_uri_scheme_request_get_web_view")
+		k.processTerminated = webProcessTerminatedSignal(g)
 		webAPI = k
 	})
 	return webAPI, webErr
+}
+
+// webProcessTerminatedSignal reports whether the engine has WebKitWebView's web-process-terminated
+// signal, which says the page's web process is gone: WebKitGTK added it in 2.20, and an older engine
+// would only warn about a signal it does not have.
+func webProcessTerminatedSignal(g *gtkLibrary) bool {
+	var viewType func() uintptr
+	var signalLookup func(name *byte, itype uintptr) uint32
+	var classRef func(itype uintptr) uintptr
+	var classUnref func(class uintptr)
+	if !g.lookup(&viewType, "webkit_web_view_get_type") || !g.lookup(&signalLookup, "g_signal_lookup") ||
+		!g.lookup(&classRef, "g_type_class_ref") || !g.lookup(&classUnref, "g_type_class_unref") {
+		return false
+	}
+	// Signals are installed in the type's class_init, so a type that no instance has
+	// initialized yet has none to look up: take the class first, then give it back.
+	class := classRef(viewType())
+	if class == 0 {
+		return false
+	}
+	defer classUnref(class)
+	name := cString("web-process-terminated")
+	return signalLookup(&name[0], viewType()) != 0
 }
 
 // webQuirks keeps a virtual machine or a container from breaking the engine: without a GPU render
@@ -252,6 +308,16 @@ type gtkWebView struct {
 	// at is where the widget is, in widget units; zoom is the page's zoom.
 	at   viewPlace
 	zoom float64
+	// failed is a navigation the load-failed signal already reported: the load-changed that follows
+	// it ends the same load, and must not be reported twice. refused is the address of a navigation
+	// the application's Navigate cancelled, whose interruption the application already answered. It
+	// is an address rather than a flag because the engine reports navigation actions for subframes
+	// too: only the interruption of that same request is the answer the application gave.
+	failed  bool
+	refused string
+	// failure is why the page's web process is gone, WebProcessNoFailure while it is there: the
+	// engine reports the termination and why, and a navigation that starts again clears it.
+	failure platform.WebProcessFailure
 }
 
 // viewPlace is a rectangle in the overlay's units.
@@ -263,6 +329,7 @@ var (
 	webSchemes    = map[string]*platform.WebScheme{}
 	webSchemeDone = map[webSchemeKey]bool{}
 	webProxies    = map[string]*webContext{}
+	webPartitions = map[string]*webContext{}
 )
 
 // webSchemeKey is a scheme registered with one context: the default, or a context of a page's own.
@@ -271,13 +338,17 @@ type webSchemeKey struct {
 	name    string
 }
 
-// webContext is an ephemeral WebKit context a page runs in. The pages held to one proxy share one;
-// a page that asked to keep nothing, or both to keep nothing and to use a proxy, has one of its
-// own. Nothing it keeps outlives it, and it goes with its last page.
+// webContext is a WebKit context a page runs in besides the default one. The pages held to one proxy
+// share one; a page that asked to keep nothing, or both to keep nothing and to use a proxy, has one
+// of its own. The pages of a named storage partition share one too, which keeps what they save
+// together and apart from every other partition's. What an ephemeral one keeps does not outlive it,
+// and it goes with its last page.
 type webContext struct {
-	proxy  string
-	object uintptr
-	pages  int
+	proxy     string
+	partition string
+	ephemeral bool
+	object    uintptr
+	pages     int
 }
 
 // WebKitNetworkProxyMode.
@@ -345,17 +416,149 @@ func newEphemeralContext(k *webKit) (*webContext, error) {
 	return &webContext{object: object, pages: 1}, nil
 }
 
+// partitionContext is the context of a named storage partition, shared by the pages that name it and
+// made the first time one opens. A name is one store: a page that asks for it keeping nothing when
+// the open one persists, or the other way round, is refused rather than given a store of its own
+// under the same name.
+func partitionContext(g *gtkLibrary, k *webKit, class, name string, ephemeral bool) (*webContext, error) {
+	if context := webPartitions[name]; context != nil {
+		if context.ephemeral != ephemeral {
+			return nil, fmt.Errorf("linux: partition %q is open as a %s store, and a page cannot ask for the other kind under the same name", name, partitionKind(context.ephemeral))
+		}
+		context.pages++
+		return context, nil
+	}
+	var context *webContext
+	var err error
+	if ephemeral {
+		context, err = newEphemeralContext(k)
+	} else {
+		context, err = newPartitionContext(g, k, class, name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	context.partition, context.ephemeral = name, ephemeral
+	webPartitions[name] = context
+	return context, nil
+}
+
+// partitionKind names a partition's store in an error.
+func partitionKind(ephemeral bool) string {
+	if ephemeral {
+		return "memory-only"
+	}
+	return "persistent"
+}
+
+// newPartitionContext makes a context over a website data manager of the partition's own: the manager
+// keeps the partition's cookies, storage and caches in a directory of its name, so the pages of
+// another partition, and the pages of none, do not see them.
+func newPartitionContext(g *gtkLibrary, k *webKit, class, name string) (*webContext, error) {
+	if k.contextWithDataManager == nil || k.dataManagerNew == nil || k.dataManagerBaseData == nil || k.dataManagerBaseCache == nil {
+		return nil, fmt.Errorf("%w: WebKitGTK cannot give a page a store of its own (2.10 or newer is required)", platform.ErrWebViewUnsupported)
+	}
+	data, cache, err := partitionDirectories(class, name)
+	if err != nil {
+		return nil, err
+	}
+	manager := makeDataManager(k, data, cache)
+	if manager == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no store for partition %q", platform.ErrWebViewUnsupported, name)
+	}
+	// A manager given no directories keeps the engine's defaults, which are the default store under
+	// another name: a partition whose directory the engine did not take is refused rather than opened
+	// over the pages it must not share with.
+	if got := goString(k.dataManagerBaseData(manager)); got != data {
+		g.objectUnref(manager)
+		return nil, fmt.Errorf("%w: WebKitGTK kept %q as the data directory of partition %q, not %q", platform.ErrWebViewUnsupported, got, name, data)
+	}
+	if got := goString(k.dataManagerBaseCache(manager)); got != cache {
+		g.objectUnref(manager)
+		return nil, fmt.Errorf("%w: WebKitGTK kept %q as the cache directory of partition %q, not %q", platform.ErrWebViewUnsupported, got, name, cache)
+	}
+	object := k.contextWithDataManager(manager)
+	g.objectUnref(manager) // the context holds the reference it was given
+	if object == 0 {
+		return nil, fmt.Errorf("%w: WebKitGTK made no context for partition %q", platform.ErrWebViewUnsupported, name)
+	}
+	return &webContext{object: object, pages: 1}, nil
+}
+
+// makeDataManager makes a website data manager that keeps its data in data and its caches in cache.
+// webkit_website_data_manager_new has no non-variadic form and the two properties that carry the
+// directories are construct-only, so the names and values go as its varargs, NUL-terminated:
+// pointers only, which is what the C ABI's variadic call takes on every architecture Viva builds for.
+// What the manager took is read back before a page is put in it.
+func makeDataManager(k *webKit, data, cache string) uintptr {
+	dataName, cacheName := cString("base-data-directory"), cString("base-cache-directory")
+	dataValue, cacheValue := cString(data), cString(cache)
+	manager := k.dataManagerNew(
+		uintptr(unsafe.Pointer(&dataName[0])), uintptr(unsafe.Pointer(&dataValue[0])),
+		uintptr(unsafe.Pointer(&cacheName[0])), uintptr(unsafe.Pointer(&cacheValue[0])), 0)
+	runtime.KeepAlive(dataName)
+	runtime.KeepAlive(dataValue)
+	runtime.KeepAlive(cacheName)
+	runtime.KeepAlive(cacheValue)
+	return manager
+}
+
+// partitionDirectories is where a named partition keeps its data and its caches: in the user's data
+// and cache directories, under a folder of the application's own name and then of the partition's, so
+// that two applications that name a partition alike do not share one store.
+func partitionDirectories(class, name string) (data, cache string, err error) {
+	if class == "" {
+		if executable, executableErr := os.Executable(); executableErr == nil {
+			class = strings.TrimSuffix(filepath.Base(executable), filepath.Ext(executable))
+		}
+	}
+	if class == "" {
+		class = "viva"
+	}
+	data, err = userDirectory("XDG_DATA_HOME", ".local/share", class, name)
+	if err != nil {
+		return "", "", err
+	}
+	cache, err = userDirectory("XDG_CACHE_HOME", ".cache", class, name)
+	if err != nil {
+		return "", "", err
+	}
+	return data, cache, nil
+}
+
+// userDirectory is environment's directory when it names one, else the fallback under the user's home
+// directory, with webkit and parts added; it is made, since the engine writes into it before the page
+// loads.
+func userDirectory(environment, fallback, class, name string) (string, error) {
+	base := os.Getenv(environment)
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("%w: a storage partition has nowhere to keep its data: %v", platform.ErrWebViewUnsupported, err)
+		}
+		base = filepath.Join(home, filepath.FromSlash(fallback))
+	}
+	directory := filepath.Join(base, class, "webkit", name)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return "", fmt.Errorf("%w: a storage partition has nowhere to keep its data: %v", platform.ErrWebViewUnsupported, err)
+	}
+	return directory, nil
+}
+
 // leave lets go of the context for one page; the last page ends it.
 func (context *webContext) leave(g *gtkLibrary) {
 	context.pages--
 	if context.pages > 0 {
 		return
 	}
-	// Only a shared context is in webProxies. A page that asked for a proxy and to keep nothing has
-	// a context of its own with the proxy's settings, and must not drop the shared one behind the
-	// same proxy.
+	// Only a shared context is in webProxies or webPartitions. A page that asked for a proxy and to
+	// keep nothing has a context of its own with the proxy's settings, and must not drop the shared
+	// one behind the same proxy.
 	if context.proxy != "" && webProxies[context.proxy] == context {
 		delete(webProxies, context.proxy)
+	}
+	if context.partition != "" && webPartitions[context.partition] == context {
+		delete(webPartitions, context.partition)
 	}
 	for key := range webSchemeDone {
 		if key.context == context.object {
@@ -384,8 +587,18 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	if err != nil {
 		return nil, err
 	}
+	if c.Partition != "" && c.Proxy != "" {
+		// The proxy is the store's own setting here, and one store cannot carry two: two pages of one
+		// partition could not disagree about it, so the page is refused rather than opened with a
+		// route another page of its partition chose.
+		return nil, fmt.Errorf("%w: WebKitGTK cannot combine a named storage partition with a proxy: the proxy belongs to the store the partition names", platform.ErrWebViewUnsupported)
+	}
 	var private *webContext
 	switch {
+	case c.Partition != "":
+		if private, err = partitionContext(g, k, w.config.Class, c.Partition, c.Ephemeral); err != nil {
+			return nil, err
+		}
 	case c.Proxy != "" && c.Ephemeral:
 		// A page that asks for both needs its own ephemeral context with the proxy's settings. The
 		// shared context behind the same proxy would do the proxy but would also share its cookies
@@ -427,6 +640,19 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	g.widgetSetVAlign(v.widget, 1)
 	g.overlayAdd(w.overlay, v.widget)
 	g.connect(v.widget, "load-changed", cb.webLoad, v.handle)
+	g.connect(v.widget, "load-failed", cb.webFailed, v.handle)
+	if k.processTerminated {
+		g.connect(v.widget, "web-process-terminated", cb.webProcessTerminated, v.handle)
+	} else if c.OnProcessFailed != nil {
+		// The page is opened: only the report of a process it loses is missing, and that is said
+		// once rather than left as a callback that never runs.
+		webProcessTerminatedUnsupported.Do(func() {
+			if diag.Enabled(diag.Warn) {
+				diag.Report(diag.Warn, "web", "process-failed",
+					"this WebKitGTK predates 2.20 and cannot report a page whose process is gone; OnProcessFailed is never called")
+			}
+		})
+	}
 	g.connect(v.widget, "focus-in-event", cb.event, w.id)
 	g.connect(v.widget, "focus-out-event", cb.event, w.id)
 	g.connect(v.widget, "decide-policy", cb.webDecide, v.handle)
@@ -522,6 +748,32 @@ func (v *gtkWebView) Forward() {
 		v.k.goForward(v.widget)
 	}
 }
+
+// Title is the title of the page's current document, which the engine keeps for the widget: empty
+// before it has one, and once the page has closed.
+func (v *gtkWebView) Title() string {
+	if v.closed {
+		return ""
+	}
+	return goString(v.k.getTitle(v.widget))
+}
+
+// CanGoBack and CanGoForward ask the engine about the page's history.
+func (v *gtkWebView) CanGoBack() bool {
+	return !v.closed && v.k.canGoBack(v.widget) != 0
+}
+
+func (v *gtkWebView) CanGoForward() bool {
+	return !v.closed && v.k.canGoForward(v.widget) != 0
+}
+
+// IsLoading is the engine's own answer for the load it is in the middle of.
+func (v *gtkWebView) IsLoading() bool {
+	return !v.closed && v.k.isLoading(v.widget) != 0
+}
+
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there.
+func (v *gtkWebView) ProcessFailure() platform.WebProcessFailure { return v.failure }
 
 func (v *gtkWebView) Eval(script string) {
 	if v.closed {
@@ -630,19 +882,82 @@ func (v *gtkWebView) message(result uintptr) {
 	v.config.OnMessage(goString(text))
 }
 
+// report tells the application one step of a navigation, with the title the page has at that step
+// and, when the step ends a load that failed, why it failed.
+func (v *gtkWebView) report(phase platform.WebLoadPhase, address string, code platform.WebLoadError, description string) {
+	if v.closed || v.config.OnLoad == nil {
+		return
+	}
+	v.config.OnLoad(platform.WebLoad{
+		Phase: phase, URL: address, Title: v.Title(), Code: code, Description: description,
+	})
+}
+
 // loadChanged follows the page's navigation.
 func (v *gtkWebView) loadChanged(event int32) {
-	if v.closed || v.config.OnLoad == nil {
+	if v.closed {
 		return
 	}
 	address := goString(v.k.getURI(v.widget))
 	switch event {
 	case webLoadStarted:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadStarted, URL: address})
+		v.failed, v.refused = false, ""
+		// A page that loads again has a web process again, so the one it lost is no longer what
+		// it is.
+		v.failure = platform.WebProcessNoFailure
+		v.report(platform.WebLoadStarted, address, platform.WebLoadNoError, "")
 	case webLoadCommitted:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadCommitted, URL: address})
+		v.report(platform.WebLoadCommitted, address, platform.WebLoadNoError, "")
 	case webLoadFinished:
-		v.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadFinished, URL: address})
+		// A load-failed already reported this load's end, and the interruption of a navigation the
+		// application refused is the answer the application gave.
+		failed, refused := v.failed, v.refused
+		v.failed, v.refused = false, ""
+		if failed || (refused != "" && refused == address) {
+			return
+		}
+		v.report(platform.WebLoadFinished, address, platform.WebLoadNoError, "")
+	}
+}
+
+// gerror is the part of a GError this package reads: the code names the failure and the message is
+// the engine's own words for it.
+type gerror struct {
+	domain  uint32
+	code    int32
+	message uintptr
+}
+
+// loadFailed reports a navigation the engine could not load, with the reason it gave. The load ends
+// here: the load-changed that follows it ends the same load, and is not reported again.
+func (v *gtkWebView) loadFailed(uri, failure uintptr) {
+	if v.closed {
+		return
+	}
+	failedAddress := goString(uri)
+	if v.refused != "" && v.refused == failedAddress {
+		v.refused = ""
+		return
+	}
+	v.failed = true
+	code, description := platform.WebLoadUnknownError, ""
+	if failure != 0 {
+		err := (*gerror)(unsafePointer(failure))
+		code, description = platform.WebLoadErrorFromWebKitError(err.code), goString(err.message)
+	}
+	v.report(platform.WebLoadFinished, goString(uri), code, description)
+}
+
+// processTerminated reports the page's web process gone, with the engine's reason for it: the page
+// cannot draw again until it is loaded again, and the reason decides what an application says, so it
+// is reported in the terms every engine can be held to rather than the engine's own.
+func (v *gtkWebView) processTerminated(reason int32) {
+	if v.closed {
+		return
+	}
+	v.failure = platform.WebProcessFailureFromWebKitTerminationReason(reason)
+	if v.config.OnProcessFailed != nil {
+		v.config.OnProcessFailed(v.failure)
 	}
 }
 
@@ -682,6 +997,9 @@ func (v *gtkWebView) decidePolicy(decision uintptr, kind int32) uintptr {
 	if v.navigationAllowed(address, true, gesture) {
 		k.decisionUse(decision)
 	} else {
+		// A refused navigation that was already loading is interrupted by the engine, which reports
+		// the interruption as a failed load: the application answered it, so it is not reported.
+		v.refused = address
 		k.decisionIgnore(decision)
 	}
 	return 1

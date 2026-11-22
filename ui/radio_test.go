@@ -21,8 +21,8 @@ func TestRadioGroupChoosesByClickAndArrows(t *testing.T) {
 		t.Fatalf("a click chose %q", choice)
 	}
 	d.key(gfx.KeyDown)
-	if choice != "c" || d.focused() != "c" {
-		t.Fatalf("Down chose %q with the focus on %q", choice, d.focused())
+	if choice != "c" || d.Focused() != "c" {
+		t.Fatalf("Down chose %q with the focus on %q", choice, d.Focused())
 	}
 	d.key(gfx.KeyDown)
 	if choice != "a" {
@@ -35,8 +35,8 @@ func TestRadioIDKeepsTheApplicationsIdentity(t *testing.T) {
 	ungroup := false
 	d := openPage(t, func(c ui.C) {
 		ui.RadioGroup(c).Children(func() {
-			ui.RadioID(c.Key("keep"), gfx.Item(40), &ungroup, false, "Keep")
-			ui.RadioID(c.Key("ungroup"), id, &ungroup, true, "Ungroup")
+			ui.RadioID(c, gfx.Item(40), &ungroup, false, "Keep")
+			ui.RadioID(c, id, &ungroup, true, "Ungroup")
 		})
 	})
 	d.click("Ungroup")
@@ -44,7 +44,7 @@ func TestRadioIDKeepsTheApplicationsIdentity(t *testing.T) {
 		t.Fatal("a click on the identified option did not choose it")
 	}
 	d.key(gfx.KeyUp)
-	if ungroup || d.focused() != "Keep" {
-		t.Fatalf("Up chose ungroup=%v with the focus on %q", ungroup, d.focused())
+	if ungroup || d.Focused() != "Keep" {
+		t.Fatalf("Up chose ungroup=%v with the focus on %q", ungroup, d.Focused())
 	}
 }

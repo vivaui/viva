@@ -23,6 +23,7 @@ type accessibilityDescription struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
+	Invalid   bool
 	Secure    bool
 	Hidden    bool
 	// Expandable says the control opens and closes, whichever state it is in.
@@ -78,6 +79,7 @@ func describeAccessibility(destination []accessibilityDescription, hits []gfx.Hi
 			Expanded:  hit.Expanded,
 			Multiline: hit.Multiline,
 			ReadOnly:  hit.ReadOnly,
+			Invalid:   hit.Invalid,
 			Secure:    hit.Secure,
 			Hidden:    !activeScope.IsZero() && hit.Scope != activeScope,
 
@@ -185,6 +187,8 @@ func accessibilityRole(role gfx.Role) string {
 		return "status"
 	case gfx.RoleSeparator:
 		return "separator"
+	case gfx.RoleProgressBar:
+		return "progressbar"
 	default:
 		return "button"
 	}

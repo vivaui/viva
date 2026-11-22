@@ -10,9 +10,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/internal/platform/web"
 	"github.com/vivaui/viva/text"
 )
 
@@ -38,21 +38,33 @@ type fixture struct {
 	level    float32
 	menuOpen bool
 	editor   *text.Editor
+	image    gfx.Bitmap
+}
+
+func solidBitmap(width, height int, b, g, r, a byte) gfx.Bitmap {
+	pixels := make([]byte, width*height*4)
+	for index := 0; index < len(pixels); index += 4 {
+		pixels[index], pixels[index+1], pixels[index+2], pixels[index+3] = b, g, r, a
+	}
+	return gfx.Bitmap{Pix: pixels, Width: width, Height: height, Stride: width * 4, ID: 1, Version: 1}
 }
 
 func main() {
-	page := &fixture{level: 20, editor: text.NewEditor("")}
-	_ = web.Run(web.Config{
-		Title:     "Viva web check",
-		Width:     640,
-		Height:    480,
-		Paint:     page.paint,
-		OnPointer: page.pointer,
-		OnKey:     page.key,
-		TextInput: web.EditorInputs(func(id gfx.ID) (*text.Editor, bool) {
-			return page.editor, id == editorID
-		}),
-	})
+	page := &fixture{level: 20, editor: text.NewEditor(""), image: solidBitmap(40, 40, 255, 0, 255, 255)}
+	var input app.TextInput
+	_ = app.RunCanvas(app.Config{
+		Title:  "Viva web check",
+		Width:  640,
+		Height: 480,
+		Paint:  page.paint, OnPointer: page.pointer, OnKey: page.key,
+		TextInput: func(context app.TextInputContext) *app.TextInput {
+			if context.ID != editorID {
+				return nil
+			}
+			input = app.TextInput{Editor: page.editor}
+			return &input
+		},
+	}, nil)
 }
 
 func (f *fixture) paint(canvas *gfx.Canvas, size gfx.Size) {
@@ -105,6 +117,18 @@ func (f *fixture) paint(canvas *gfx.Canvas, size gfx.Size) {
 		Role: gfx.RoleStatus, SkipFocus: true, Live: gfx.LivePolite,
 		Value: "Text: " + value,
 	})
+	// A solid bitmap checks both renderers' image path from a screenshot.
+	canvas.DrawBitmap(f.image, gfx.Rect{X: 400, Y: 300, Width: 40, Height: 40})
+	canvas.LabelQuad("Warped", gfx.Rect{X: 400, Y: 360, Width: 100, Height: 24}, gfx.Quad{
+		Points: [4]gfx.Point{
+			{X: 400, Y: 360}, {X: 500, Y: 350},
+			{X: 400, Y: 384}, {X: 500, Y: 394},
+		},
+		Tint: [4]gfx.Color{
+			{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1},
+			{Red: 1, Green: 1, Blue: 1, Alpha: 1}, {Red: 1, Green: 1, Blue: 1, Alpha: 1},
+		},
+	}, gfx.TextStyle{Size: 14, Color: gfx.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}})
 
 	if f.menuOpen {
 		if canvas.Clicked(backdropID) {

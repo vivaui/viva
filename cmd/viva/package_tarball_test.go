@@ -165,7 +165,7 @@ func TestPackageLinuxMakesADeb(t *testing.T) {
 	text := string(control["./control"])
 	for _, want := range []string{
 		"Package: fixture-notes\n", "Version: 2.0.1\n", "Architecture: amd64\n", "Maintainer: Ann Lee <ann@example.com>\n",
-		"Depends: libvulkan1, libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
+		"Depends: libxcb1, libcairo2, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libfoo1 (>= 1.2)\n", "Recommends: libxcb-cursor0, libvulkan1\n", "Homepage: https://example.com/notes\n", "Description: Takes notes\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("control lacks %q:\n%s", want, text)
@@ -278,7 +278,9 @@ func TestPackageLinuxMakesAnRPM(t *testing.T) {
 }
 
 // dlopen dependencies do not appear in the program's ELF headers. RPM must request
-// their shared-library capabilities so a clean installation has the text and XCB libraries.
+// their shared-library capabilities so a clean installation has the text and XCB
+// libraries; the cursor theme library and the GPU loader are recommended, because
+// the X cursor font and the CPU renderer cover a machine without them.
 func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 	for _, arch := range []struct{ goarch, rpm string }{{"amd64", "x86_64"}, {"arm64", "aarch64"}} {
 		t.Run(arch.goarch, func(t *testing.T) {
@@ -292,12 +294,21 @@ func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 			}
 			requires := rpmRequiredCapabilities(t, data)
 			for _, library := range []string{
-				"libvulkan.so.1", "libxcb.so.1", "libcairo.so.2", "libfontconfig.so.1",
+				"libxcb.so.1", "libcairo.so.2", "libfontconfig.so.1",
 				"libpango-1.0.so.0", "libpangocairo-1.0.so.0", "libgobject-2.0.so.0",
 			} {
 				capability := library + "()(64bit)"
 				if !slices.Contains(requires, capability) {
 					t.Errorf("RPM lacks runtime requirement %s, has %v", capability, requires)
+				}
+			}
+			if slices.Contains(requires, "libvulkan.so.1()(64bit)") {
+				t.Error("RPM hard-requires the GPU loader, which the CPU renderer does not need")
+			}
+			recommends := rpmRecommendedCapabilities(t, data)
+			for _, capability := range []string{"libxcb-cursor.so.0()(64bit)", "libvulkan.so.1()(64bit)"} {
+				if !slices.Contains(recommends, capability) {
+					t.Errorf("RPM does not recommend %s, has %v", capability, recommends)
 				}
 			}
 			for _, library := range []string{
@@ -316,17 +327,34 @@ func TestPackageLinuxRPMDeclaresRuntimeLibraries(t *testing.T) {
 	}
 }
 
+// rpmTagRequireName and rpmTagRecommendName are RPMTAG_REQUIRENAME and
+// RPMTAG_RECOMMENDNAME.
+const (
+	rpmTagRequireName   = 1049
+	rpmTagRecommendName = 5046
+)
+
 // rpmRequiredCapabilities reads RPMTAG_REQUIRENAME from an RPM's main header.
 // Grepping the whole file for the capability strings would also match the
 // payload or a description, so the test could pass after the requires moved or
 // were encoded differently.
 func rpmRequiredCapabilities(t *testing.T, data []byte) []string {
 	t.Helper()
+	return rpmTagStrings(t, data, rpmTagRequireName, "REQUIRENAME")
+}
+
+// rpmRecommendedCapabilities reads RPMTAG_RECOMMENDNAME from the main header.
+func rpmRecommendedCapabilities(t *testing.T, data []byte) []string {
+	t.Helper()
+	return rpmTagStrings(t, data, rpmTagRecommendName, "RECOMMENDNAME")
+}
+
+func rpmTagStrings(t *testing.T, data []byte, wanted uint32, name string) []string {
+	t.Helper()
 	const (
 		leadSize      = 96
 		headerMagic   = 0x8eade801
 		stringArrayTp = 8
-		requireName   = 1049
 	)
 	if len(data) < leadSize {
 		t.Fatal("the rpm is shorter than its lead")
@@ -353,11 +381,11 @@ func rpmRequiredCapabilities(t *testing.T, data []byte) []string {
 	for entry := 0; entry < entries; entry++ {
 		at := indexStart + entry*16
 		tag := binary.BigEndian.Uint32(data[at:])
-		if tag != requireName {
+		if tag != wanted {
 			continue
 		}
 		if kind := binary.BigEndian.Uint32(data[at+4:]); kind != stringArrayTp {
-			t.Fatalf("REQUIRENAME has type %d, want a string array", kind)
+			t.Fatalf("%s has type %d, want a string array", name, kind)
 		}
 		count := int(binary.BigEndian.Uint32(data[at+12:]))
 		position := storeStart + int(binary.BigEndian.Uint32(data[at+8:]))
@@ -365,14 +393,14 @@ func rpmRequiredCapabilities(t *testing.T, data []byte) []string {
 		for range count {
 			end := bytes.IndexByte(data[position:storeStart+storeSize], 0)
 			if end < 0 {
-				t.Fatal("REQUIRENAME holds an unterminated string")
+				t.Fatalf("%s holds an unterminated string", name)
 			}
 			names = append(names, string(data[position:position+end]))
 			position += end + 1
 		}
 		return names
 	}
-	t.Fatal("the rpm declares no REQUIRENAME tag")
+	t.Fatalf("the rpm declares no %s tag", name)
 	return nil
 }
 
@@ -445,8 +473,29 @@ func TestPackageLinuxRefusesAFileAsOutput(t *testing.T) {
 
 func TestDebDepends(t *testing.T) {
 	got := strings.Join(debDepends([]string{"libcairo2 (>= 1.16)", "foo"}), ", ")
-	if got != "libvulkan1, libxcb1, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libcairo2 (>= 1.16), foo" {
+	if got != "libxcb1, libfontconfig1, libpango-1.0-0, libpangocairo-1.0-0, libglib2.0-0, libcairo2 (>= 1.16), foo" {
 		t.Errorf("depends = %q", got)
+	}
+}
+
+func TestDebRecommends(t *testing.T) {
+	if got := strings.Join(debRecommends(nil), ", "); got != "libxcb-cursor0, libvulkan1" {
+		t.Errorf("recommends = %q", got)
+	}
+	// A manifest that requires a package itself keeps it out of Recommends.
+	if got := strings.Join(debRecommends([]string{"libxcb-cursor0", "libvulkan1 (>= 1.3)"}), ", "); got != "" {
+		t.Errorf("recommends = %q, want none", got)
+	}
+}
+
+func TestArchOptDepends(t *testing.T) {
+	optional := archOptDepends(nil)
+	if len(optional) != 2 || !strings.HasPrefix(optional[0], "libxcb-cursor: ") || !strings.HasPrefix(optional[1], "vulkan-icd-loader: ") {
+		t.Errorf("optdepends = %v", optional)
+	}
+	// A manifest that depends on a package itself keeps it out of optdepends.
+	if got := archOptDepends([]string{"libxcb-cursor", "vulkan-icd-loader"}); len(got) != 0 {
+		t.Errorf("optdepends = %v, want none", got)
 	}
 }
 
@@ -511,7 +560,8 @@ func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
 		"pkgname='fixture-notes-bin'",
 		"pkgver='2.0.1'",
 		"arch=('x86_64')",
-		"depends=('vulkan-icd-loader' 'fontconfig' 'pango' 'glib2' 'libxcb>=1.16' 'cairo' 'extra-lib')",
+		"depends=('fontconfig' 'pango' 'glib2' 'libxcb>=1.16' 'cairo' 'extra-lib')",
+		"optdepends=('libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph' 'vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU')",
 		"source=('fixture-notes-2.0.1-linux-amd64.tar.gz')",
 		"sha256sums=('" + hex.EncodeToString(digest[:]) + "')",
 		"_icon_size=256",
@@ -527,7 +577,12 @@ func TestPackageLinuxMakesAPKGBUILD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib", "pkgname = fixture-notes-bin"} {
+	for _, want := range []string{
+		"pkgbase = fixture-notes-bin", "\tarch = x86_64", "\tdepends = extra-lib",
+		"\toptdepends = libxcb-cursor: pointers that follow the desktop cursor theme and size; without it the pointer uses a fixed small glyph",
+		"\toptdepends = vulkan-icd-loader: GPU acceleration; without it the application draws on the CPU",
+		"pkgname = fixture-notes-bin",
+	} {
 		if !strings.Contains(string(srcinfo), want) {
 			t.Errorf("the .SRCINFO lacks %q:\n%s", want, srcinfo)
 		}

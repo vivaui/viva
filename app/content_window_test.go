@@ -134,7 +134,7 @@ func TestContentWindowPostQueueIsBoundedAndReusable(t *testing.T) {
 			return err
 		}
 		delivered := 0
-		for range contentWindowPostLimit {
+		for range postLimit {
 			if !content.Post(func() { delivered++ }) {
 				t.Fatal("rejected update before queue reached its limit")
 			}
@@ -143,14 +143,14 @@ func TestContentWindowPostQueueIsBoundedAndReusable(t *testing.T) {
 			t.Fatal("accepted update beyond queue limit")
 		}
 		host.windows[0].config.OnWake()
-		if delivered != contentWindowPostLimit {
+		if delivered != postLimit {
 			t.Fatalf("delivered %d queued updates", delivered)
 		}
 		if !content.Post(func() { delivered++ }) {
 			t.Fatal("drained queue did not accept another update")
 		}
 		host.windows[0].config.OnWake()
-		if delivered != contentWindowPostLimit+1 {
+		if delivered != postLimit+1 {
 			t.Fatal("reused queue did not deliver its update")
 		}
 		content.Close()

@@ -249,18 +249,42 @@ func (label *labelTexture) pixelOrigin(scale float32) (x, y int) {
 	return platform.DevicePosition(l.X, l.OriginX, scale), platform.DevicePosition(l.Y, l.OriginY, scale)
 }
 
-// window is the part of the label's full texture that its clip can show, in device
-// pixels. A clipped line rasterizes only inside its clip, so a long scrolled
-// single-line field costs the visible width, not the whole line. The text does not
-// move: the skip is a whole number of device columns, so every glyph texel keeps the
-// phase it has when the whole texture is drawn. Labels that are not clipped, and
-// images and grid lines, keep their whole texture.
-func (label *labelTexture) window(scale float32) (skip, width int, ok bool) {
+// window is the part of the label's full texture that is rasterized, in device pixels:
+// the columns from skip to skip+width. viewport is the width of the target in device
+// pixels, or 0 when the caller has none. A clipped line rasterizes only inside its
+// clip, so a long scrolled single-line field costs the visible width, not the whole
+// line. A line of any kind wider than a texture holds, such as a log line of thousands
+// of characters, rasterizes around the part of it the viewport and its clip show, and
+// keeps its texture while a scroll stays inside it (platform.WideTextLabelWindow). The
+// text does not move: the skip is a whole number of device columns, so every glyph
+// texel keeps the phase it has when the whole texture is drawn. Other labels that are
+// not clipped, and grid lines, keep their whole texture, and images always do. ok is
+// false when nothing is drawn: none of the label can be seen, or it is too tall for
+// any texture.
+func (label *labelTexture) window(scale float32, viewport int) (skip, width int, ok bool) {
+	// DirectWrite color glyphs carry their own ink. A hidden plain label must
+	// skip them as well; bitmaps and grid runs have independent colors.
+	if label.label.Color.Alpha <= 0 && len(label.label.Bitmap) == 0 && len(label.label.Runs) == 0 {
+		return 0, 0, false
+	}
 	full := int(math.Ceil(float64(label.label.Width * scale)))
 	if label.label.Mono && len(label.label.Runs) > 0 {
 		full = min(full, gridInkWidth(label.label.Runs, label.label.CellWidth, scale))
 	}
-	if !label.label.Clipped || label.label.Mono || len(label.label.Runs) > 0 || len(label.label.Bitmap) > 0 {
+	if len(label.label.Bitmap) > 0 {
+		return 0, full, full > 0
+	}
+	// Every frame asks this of every label, so one a texture holds pays only this test.
+	if height := int(math.Ceil(float64(label.label.Height * scale))); !platform.LabelTextureFits(full, height) {
+		haveSkip, haveWidth := 0, 0
+		if label.view != 0 && label.scale == scale {
+			haveSkip, haveWidth = label.skip, label.width
+		}
+		if skip, width, wide, ok := platform.WideTextLabelWindow(label.label, scale, full, height, viewport, haveSkip, haveWidth); wide {
+			return skip, width, ok
+		}
+	}
+	if !label.label.Clipped || label.label.Mono || len(label.label.Runs) > 0 {
 		return 0, full, full > 0
 	}
 	x, _ := label.pixelOrigin(scale)
@@ -303,7 +327,7 @@ func (label *labelTexture) update(next platform.TextLabel) {
 
 func labelContentChanged(previous, next platform.TextLabel) bool {
 	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
-	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration ||
+	return previous.Value != next.Value || (!isBitmap && previous.Height != next.Height) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration ||
 		previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth || !sameRuns(previous.Runs, next.Runs) ||
 		previous.Baseline != next.Baseline ||
 		previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion || previous.BitmapWidth != next.BitmapWidth ||
@@ -328,22 +352,41 @@ func sameRuns(left, right []gfx.TextRun) bool {
 	}
 	return true
 }
-func (renderer *renderer) rasterize(label *labelTexture, scale float32) error {
-	if renderer.reuseLabelPicture(label, scale) {
-		return nil
+
+// needsRaster reports whether the label's texture must be drawn again before it is
+// composited from the window skip to skip+width: it has none, what it shows or its
+// scale changed, its window moved, the picture it shares no longer matches, or an
+// image's texture no longer suits the size it is drawn at.
+func (renderer *renderer) needsRaster(label *labelTexture, scale float32, skip, width int) bool {
+	if label.view == 0 || label.stale || label.scale != scale {
+		return true
 	}
-	skip, width, ok := label.window(scale)
-	if !ok {
-		label.dropTexture()
-		label.scale, label.width, label.height, label.skip = scale, 0, 0, 0
-		return nil
-	}
-	height := int(math.Ceil(float64(label.label.Height * scale)))
 	if len(label.label.Bitmap) > 0 {
+		return platform.BitmapTextureStale(label.label, scale, label.width, label.height)
+	}
+	if label.picture != nil && label.picture.complete && skip == 0 && width >= label.picture.x+label.picture.width {
+		return renderer.pictureChanged(label, scale, skip, width)
+	}
+	return label.skip != skip || label.width != width || renderer.pictureChanged(label, scale, skip, width)
+}
+
+// rasterize draws the label's texture for a target viewport device pixels wide (0 when
+// unknown; see window). A label no texture can hold, an image larger than the device
+// allows or a line too tall, is left without one and not drawn: one label the device
+// cannot hold must not stop the window drawing the others.
+func (renderer *renderer) rasterize(label *labelTexture, scale float32, viewport int) error {
+	if renderer.reuseLabelPicture(label, scale, viewport) {
+		return nil
+	}
+	skip, width, ok := label.window(scale, viewport)
+	height := int(math.Ceil(float64(label.label.Height * scale)))
+	if ok && len(label.label.Bitmap) > 0 {
 		width, height = platform.BitmapTextureExtent(label.label, scale)
 	}
-	if width <= 0 || height <= 0 || width > 16384 || height > 16384 || width*height > 16*1024*1024 {
-		return fmt.Errorf("windows: label texture exceeds bounded size")
+	if !ok || !platform.LabelTextureFits(width, height) {
+		label.dropTexture()
+		label.scale = scale
+		return nil
 	}
 	var pixels []byte
 	var err error

@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"os"
 	"os/exec"
@@ -15,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/vivaui/viva/internal/webbuild"
 	"github.com/vivaui/viva/tools/manifest"
 )
 
@@ -366,93 +363,29 @@ func formatSize(size int64) string {
 	return fmt.Sprintf("%s B (%.2f MiB)", strings.Join(grouped, ","), float64(size)/mebibyte)
 }
 
-// webPage renders the page that starts a WebAssembly program. The title is HTML
-// text and the program's file name is a JavaScript string, so each is escaped
-// for where it lands.
-func webPage(title, wasm string) ([]byte, error) {
-	quoted, err := json.Marshal(wasm)
-	if err != nil {
-		return nil, err
-	}
-	var page bytes.Buffer
-	fmt.Fprintf(&page, `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>%s</title>
-  <style>
-    html, body { margin: 0; height: 100%%; background: #0e1117; overscroll-behavior: none; }
-    body { color-scheme: dark; }
-    canvas { display: block; touch-action: none; -webkit-tap-highlight-color: transparent; }
-  </style>
-</head>
-<body>
-  <script src="wasm_exec.js"></script>
-  <script>
-    const go = new Go();
-    async function start() {
-      let result;
-      try {
-        result = await WebAssembly.instantiateStreaming(fetch(%s), go.importObject);
-      } catch (streamingError) {
-        // Static hosts often serve .wasm as application/octet-stream. Fall back
-        // to bytes instead of failing the whole page on a MIME mismatch.
-        const response = await fetch(%s);
-        if (!response.ok) throw new Error("HTTP " + response.status + " for " + %s);
-        result = await WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
-      }
-      await go.run(result.instance);
-    }
-    start().catch((e) => {
-      document.body.textContent = "Failed to load the application: " + e;
-    });
-  </script>
-</body>
-</html>
-`, html.EscapeString(title), quoted, quoted, quoted)
-	return page.Bytes(), nil
-}
-
 // buildWeb writes the browser build: the wasm program, the Go runtime's loader
 // script and a page that starts it.
 func buildWeb(plan buildPlan, output, errorOutput io.Writer) error {
-	wasm := filepath.Join(plan.out, plan.executable+".wasm")
-	if err := plan.run(wasm, errorOutput); err != nil {
-		return err
-	}
-	root, err := exec.Command("go", "env", "GOROOT").Output()
-	if err != nil {
-		return fmt.Errorf("go env GOROOT: %w", err)
-	}
-	loader, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(root)), "lib", "wasm", "wasm_exec.js"))
-	if err != nil {
-		return fmt.Errorf("reading wasm_exec.js from the Go installation: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(plan.out, "wasm_exec.js"), loader, 0o644); err != nil {
-		return err
-	}
 	title := plan.manifest.App.Name
 	if title == "" {
 		title = plan.executable
 	}
-	page, err := webPage(title, plan.executable+".wasm")
+	result, err := webbuild.Build(webbuild.Options{
+		Dir:         plan.manifest.Dir,
+		OutputDir:   plan.out,
+		Executable:  plan.executable,
+		Package:     plan.pkg,
+		Flags:       []string{"-trimpath", "-ldflags", plan.ldflags()},
+		Tags:        plan.tags,
+		Environment: os.Environ(),
+		Title:       title,
+		Page:        true,
+		Stdout:      errorOutput,
+		Stderr:      errorOutput,
+	})
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(plan.out, "index.html"), page, 0o644); err != nil {
-		return err
-	}
-
-	program, err := os.ReadFile(wasm)
-	if err != nil {
-		return err
-	}
-	var compressed bytes.Buffer
-	writer, _ := gzip.NewWriterLevel(&compressed, gzip.BestCompression)
-	writer.Write(program)
-	writer.Close()
-
 	fmt.Fprintf(output, "built %s/\n", displayPath(plan.out))
 	fmt.Fprintf(output, "  files    %s.wasm, wasm_exec.js, index.html\n", plan.executable)
 	if len(plan.tags) > 0 {
@@ -462,7 +395,7 @@ func buildWeb(plan buildPlan, output, errorOutput io.Writer) error {
 	if plan.debug {
 		note = ", with symbols (not the release size)"
 	}
-	fmt.Fprintf(output, "  size     %s%s\n", formatSize(int64(len(program))), note)
-	fmt.Fprintf(output, "  gzip     %s\n", formatSize(int64(compressed.Len())))
+	fmt.Fprintf(output, "  size     %s%s\n", formatSize(result.WasmSize), note)
+	fmt.Fprintf(output, "  gzip     %s\n", formatSize(result.GzipSize))
 	return nil
 }

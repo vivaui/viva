@@ -25,6 +25,10 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if normalized.TextInput != nil && !nativeTextInputSupported {
 		return fmt.Errorf("%w: native text input", ErrUnsupported)
 	}
+	normalized.attachPosts()
+	// RunCanvas returns when the window has closed or could not open: either way
+	// it takes no more posts.
+	defer normalized.Invalidator.closePosts()
 	if runner != nil {
 		return runner(normalized, canvas)
 	}
@@ -175,8 +179,8 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		},
 		Web:              normalized.Web.bind(),
 		NativeViews:      slices.Clone(painter.lastViews),
-		Rectangles:       painter.renderer.Rectangles(),
-		TextLabels:       painter.labels,
+		Rectangles:       painter.frame.Rectangles(),
+		TextLabels:       painter.frame.Labels(),
 		Accessibility:    painter.accessibility,
 		OnResize:         resizeHandler,
 		OnFrameChange:    frameChangeHandler(normalized.OnFrameChange),
@@ -193,6 +197,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnAccessibility:  painter.accessibilityHandler(normalized),
 		OnFocusLost:      painter.focusLostHandler(),
 		OnActivate:       normalized.OnActivate,
+		OnDeactivate:     painter.deactivateHandler(),
 		OnScroll:         scrollHandler,
 		OnFileDrop:       dropHandler,
 		OnRedraw:         redrawHandler,

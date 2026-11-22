@@ -296,6 +296,11 @@ func (sceneState *vulkanScene) upload(renderer *vulkanRenderer, rectangles []ren
 			sceneState.instances = sceneState.instances[:len(rectangles)]
 		}
 		first, count = 0, len(rectangles)
+	} else if len(sceneState.instances) > len(rectangles) {
+		if !update.Shrink || update.First > len(rectangles) || update.First+update.Count != len(rectangles) {
+			return fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+		}
+		sceneState.instances = sceneState.instances[:len(rectangles)]
 	} else if len(sceneState.instances) < len(rectangles) {
 		// A pure append grows the instance store; the new range was validated
 		// by the caller. Existing instances stay in their slots.

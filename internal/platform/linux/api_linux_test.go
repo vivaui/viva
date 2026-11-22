@@ -347,6 +347,29 @@ func TestVulkanSceneUploadWritesOnlyChangedRange(t *testing.T) {
 	}
 }
 
+func TestVulkanSceneUploadShrinksRetainedInstances(t *testing.T) {
+	storage := make([]byte, 3*vkInstanceBytes)
+	sceneState := vulkanScene{capacity: 3, mapped: unsafe.Pointer(&storage[0])}
+	rectangles := []render.Rectangle{
+		{Bounds: scene.Rect{X: 1, Width: 10}, Color: scene.Color{Alpha: 1}},
+		{Bounds: scene.Rect{X: 2, Width: 20}, Color: scene.Color{Alpha: 1}},
+		{Bounds: scene.Rect{X: 3, Width: 30}, Color: scene.Color{Alpha: 1}},
+	}
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles, render.Update{Count: len(rectangles), Rebuild: true}); err != nil {
+		t.Fatal(err)
+	}
+	rectangles[1].Bounds.Width = 99
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles[:2], render.Update{First: 1, Count: 1, Shrink: true}); err != nil {
+		t.Fatal(err)
+	}
+	if len(sceneState.instances) != 2 || sceneState.instances[1].Bounds[2] != 99 {
+		t.Fatalf("shrunk instances = %d, second width %g", len(sceneState.instances), sceneState.instances[1].Bounds[2])
+	}
+	if err := sceneState.upload(&vulkanRenderer{}, rectangles[:1], render.Update{First: 1, Count: 0}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
+	}
+}
+
 func TestSwapchainStatusClassification(t *testing.T) {
 	if swapchainNeedsRebuild(vkSuccess) || swapchainNeedsRebuild(vkSuboptimal) || !swapchainNeedsRebuild(vkErrorOutOfDate) {
 		t.Fatal("unexpected swapchain status classification")

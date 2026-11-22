@@ -8,6 +8,11 @@ type ButtonGroupOption struct {
 	Label    string
 	Variant  ButtonVariant
 	Disabled bool
+	// Icon is the leading glyph. IconOnly keeps Label as the accessible name
+	// and tooltip without painting it. Selected exposes the caller's choice.
+	Icon     gfx.Icon
+	IconOnly bool
+	Selected bool
 }
 
 // ButtonGroupOrientation selects a row or column of connected actions.
@@ -114,10 +119,15 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 			style.foreground.Alpha *= 0.50
 		}
 		paintJoinedSurface(group.canvas, surface, radius, fill, index, count, vertical)
-		paintButtonLabel(group.canvas, option.Label, bounds, metrics.FontSizeM, style)
+		hint := PaintButtonContent(group.canvas, bounds, ButtonContent{
+			Label: option.Label, Icon: option.Icon, IconOnly: option.IconOnly,
+			FontSize: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: style.foreground,
+			Gap: buttonIconGap, Height: bounds.Height, Underlined: style.underlined,
+		})
 		if !option.ID.IsZero() {
 			group.canvas.HitWithOptions(option.ID, bounds, option.Label, gfx.HitOptions{
 				Role: gfx.RoleButton, Disabled: group.disabled || option.Disabled,
+				Selected: option.Selected, Hint: hint,
 			})
 		}
 		if index > 0 {

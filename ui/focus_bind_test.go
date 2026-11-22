@@ -18,7 +18,7 @@ type focusModel struct {
 	seen  int
 }
 
-func (m *focusModel) view(c ui.C) {
+func (m *focusModel) View(c ui.C) {
 	ui.Column(c).Fill().Children(func() {
 		ui.FocusBind(ui.Button(c, "A"), &m.focus, focusA)
 		if m.showB {
@@ -28,21 +28,21 @@ func (m *focusModel) view(c ui.C) {
 	})
 }
 
-func focusSettled(d *pageDriver, want string) bool {
+func focusSettled(d *pageDriver, Want string) bool {
 	for range 4 {
-		if d.focused() == want {
+		if d.Focused() == Want {
 			return true
 		}
 		d.repaint()
 	}
-	return d.focused() == want
+	return d.Focused() == Want
 }
 
 func TestFocusBindRequestsAndWritesBack(t *testing.T) {
 	m := &focusModel{focus: focusB, showB: true}
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	if !focusSettled(d, "B") {
-		t.Fatalf("focus = %q, want B", d.focused())
+		t.Fatalf("focus = %q, want B", d.Focused())
 	}
 	d.repaint() // the paint after the one that requested the focus
 	if m.seen != focusB {
@@ -50,8 +50,8 @@ func TestFocusBindRequestsAndWritesBack(t *testing.T) {
 	}
 	d.click("A")
 	d.repaint()
-	if d.focused() != "A" {
-		t.Fatalf("focus after clicking A = %q", d.focused())
+	if d.Focused() != "A" {
+		t.Fatalf("focus after clicking A = %q", d.Focused())
 	}
 	if m.focus != focusA {
 		t.Fatalf("the field = %d after the user focused A, want %d", m.focus, focusA)
@@ -61,34 +61,34 @@ func TestFocusBindRequestsAndWritesBack(t *testing.T) {
 	}
 	m.focus = focusB
 	if !focusSettled(d, "B") {
-		t.Fatalf("focus after setting the field to B = %q", d.focused())
+		t.Fatalf("focus after setting the field to B = %q", d.Focused())
 	}
 }
 
 func TestFocusBindWaitsForAHiddenElement(t *testing.T) {
 	m := &focusModel{focus: focusB, showB: false}
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	d.repaint()
-	if d.focused() == "B" {
+	if d.Focused() == "B" {
 		t.Fatal("B is focused while hidden")
 	}
 	m.showB = true
 	if !focusSettled(d, "B") {
-		t.Fatalf("focus after B appeared = %q", d.focused())
+		t.Fatalf("focus after B appeared = %q", d.Focused())
 	}
 }
 
 func TestFocusBindAsksAgainWhenTheElementComesBack(t *testing.T) {
 	m := &focusModel{focus: focusB, showB: true}
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	if !focusSettled(d, "B") {
-		t.Fatalf("focus = %q, want B", d.focused())
+		t.Fatalf("focus = %q, want B", d.Focused())
 	}
 	m.showB = false
 	d.repaint()
 	m.showB = true
 	if !focusSettled(d, "B") {
-		t.Fatalf("focus after B came back = %q", d.focused())
+		t.Fatalf("focus after B came back = %q", d.Focused())
 	}
 }
 
@@ -122,12 +122,12 @@ func TestFocusBindInAMemoPanics(t *testing.T) {
 
 func TestFocusBindSteadyPaintAllocatesNothing(t *testing.T) {
 	m := &focusModel{focus: focusB, showB: true}
-	page := ui.NewPage(ui.PageConfig{View: m.view})
+	page := ui.NewPage(ui.PageConfig{View: m.View})
 	canvas := benchCanvas()
 	for range 3 {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
-	if allocs := testing.AllocsPerRun(30, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	if allocs := testing.AllocsPerRun(30, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a steady focus-bound page allocates %v times", allocs)
 	}
 }

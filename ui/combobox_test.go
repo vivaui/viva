@@ -8,11 +8,11 @@ import (
 )
 
 type zone struct {
-	id   int
-	name string
+	ID   int
+	Name string
 }
 
-func (z zone) String() string { return z.name }
+func (z zone) String() string { return z.Name }
 
 var zones = []zone{{1, "Asia/Shanghai"}, {2, "Asia/Tokyo"}, {3, "Europe/Berlin"}, {4, "Europe/London"}, {5, "America/New_York"}}
 
@@ -182,5 +182,121 @@ func TestComboboxEmpty(t *testing.T) {
 	d.typeText("mars")
 	if len(options(d)) != 0 || !tooltipShown(d, "No zone matches") {
 		t.Fatalf("rows %v, the empty text shown %v", options(d), tooltipShown(d, "No zone matches"))
+	}
+}
+
+// A clearable Combobox paints without allocating once it is warm: the clear
+// action's name is kept rather than joined in each paint.
+func TestComboboxPaintsWithoutAllocating(t *testing.T) {
+	choice := "beta"
+	d := openPage(t, func(c ui.C) {
+		ui.Combobox(c, &choice, []string{"alpha", "beta", "gamma"}, nil, "Choice").Clearable()
+	})
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("a warm combobox paints with %v allocations, want 0", allocs)
+	}
+}
+
+type hostChoice struct {
+	ID                int
+	Name, addr, group string
+	blocked           bool
+}
+
+var hostChoices = []hostChoice{
+	{1, "Production", "10.0.0.5", "Team/Prod", false},
+	{2, "Staging", "10.0.1.9", "Team/Stage", false},
+	{3, "Legacy", "10.0.2.1", "Old", true},
+}
+
+func hostModelPage(chosen *hostChoice) func(ui.C) {
+	return func(c ui.C) {
+		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+			ui.Combobox(c, chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					h := hostChoices[i]
+					return ui.ComboboxOption{Detail: h.addr, Search: h.group, Disabled: h.blocked}
+				})
+		})
+	}
+}
+
+// A choice is found by its detail and by text it does not show, and a disabled choice stays in the
+// list but cannot be chosen.
+func TestComboboxDescribeSearchesDetailAndSearchTextAndKeepsDisabledVisible(t *testing.T) {
+	var chosen hostChoice
+	d := openPage(t, hostModelPage(&chosen))
+	d.click("Host")
+	d.typeText("10.0.1")
+	if got := options(d); len(got) != 1 || got[0] != "Staging" {
+		t.Fatalf("a search by address lists %v", got)
+	}
+	for range 6 {
+		d.key(gfx.KeyBackspace)
+	}
+	d.typeText("old")
+	if got := options(d); len(got) != 1 || got[0] != "Legacy" {
+		t.Fatalf("a search by hidden group text lists %v", got)
+	}
+	d.click("Legacy")
+	if chosen.Name != "" {
+		t.Fatalf("a disabled choice was chosen: %v", chosen)
+	}
+	d.key(gfx.KeyDown)
+	d.key(gfx.KeyEnter)
+	if chosen.Name != "" {
+		t.Fatalf("Enter chose a disabled choice: %v", chosen)
+	}
+	for range 3 {
+		d.key(gfx.KeyBackspace)
+	}
+	d.typeText("team/prod")
+	d.click("Production")
+	if chosen.ID != 1 {
+		t.Fatalf("chose %v", chosen)
+	}
+}
+
+func TestComboboxDescribeShowsTheChosenDetail(t *testing.T) {
+	chosen := hostChoices[0]
+	d := openPage(t, hostModelPage(&chosen))
+	found := false
+	for _, text := range d.driver.Snapshot().Texts {
+		found = found || text.Value == "10.0.0.5"
+	}
+	if !found {
+		t.Fatal("the field does not show the chosen option's detail")
+	}
+}
+
+// An option can reserve room at either end of its row and paint it, and paint its own text.
+func TestComboboxOptionPaintsLeadingTrailingAndContent(t *testing.T) {
+	var chosen hostChoice
+	leading, trailing, content := 0, 0, 0
+	dot := ui.ComboboxPaint{Width: 10, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { leading++ }}
+	tag := ui.ComboboxPaint{Width: 30, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { trailing++ }}
+	own := ui.ComboboxPaint{Width: 80, Paint: func(*gfx.Canvas, gfx.Rect, ui.Theme) { content++ }}
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Pad(16).Items(ui.Start).Children(func() {
+			ui.Combobox(c, &chosen, hostChoices, func(h hostChoice) string { return h.Name }, "Host").Width(320).
+				Describe(func(i int) ui.ComboboxOption {
+					o := ui.ComboboxOption{Detail: hostChoices[i].addr, Leading: dot, Trailing: tag}
+					if i == 1 {
+						o.Content = own
+					}
+					return o
+				})
+		})
+	})
+	d.click("Host")
+	// Three rows have a dot and a tag; only the second paints its own text. The list is
+	// painted in more than one pass, so compare the counts with each other.
+	if content == 0 || leading != 3*content || trailing != 3*content {
+		t.Fatalf("painted leading %d, trailing %d, content %d; want 3, 3, 1 times the passes", leading, trailing, content)
+	}
+	d.click("Production")
+	if chosen.ID != 1 {
+		t.Fatalf("a press on an option with slots chose %v", chosen)
 	}
 }

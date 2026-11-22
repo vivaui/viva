@@ -419,6 +419,10 @@ func (w *gtkWindow) setKeyboard(focused bool) {
 		frame, err := w.config.OnFocusLost()
 		w.present(frame, err)
 	}
+	if w.config.OnDeactivate != nil {
+		frame, err := w.config.OnDeactivate()
+		w.present(frame, err)
+	}
 }
 
 // stateChanged follows the window being minimized and maximized.

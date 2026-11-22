@@ -45,6 +45,10 @@ type Package struct {
 	// distribution names them, including shared-library capabilities such as
 	// libpango-1.0.so.0()(64bit).
 	Requires []string
+	// Recommends are capabilities that improve the package without being
+	// required, such as a GPU driver where the program falls back to a CPU
+	// renderer.
+	Recommends []string
 }
 
 var (
@@ -102,9 +106,11 @@ func (pkg Package) check() error {
 	if pkg.App.Maintainer == "" || strings.ContainsAny(pkg.App.Maintainer, "\r\n") {
 		return errors.New("rpmpkg: the maintainer must be one line")
 	}
-	for _, requirement := range pkg.Requires {
-		if requirement == "" || strings.ContainsAny(requirement, " ,\r\n\t") {
-			return fmt.Errorf("rpmpkg: %q is not one capability name", requirement)
+	for _, capabilities := range [][]string{pkg.Requires, pkg.Recommends} {
+		for _, requirement := range capabilities {
+			if requirement == "" || strings.ContainsAny(requirement, " ,\r\n\t") {
+				return fmt.Errorf("rpmpkg: %q is not one capability name", requirement)
+			}
 		}
 	}
 	return nil
@@ -288,6 +294,13 @@ func (pkg Package) headerEntries(name, nevr, arch string, files []installedFile,
 			stringArrayTag(tagRequireName, pkg.Requires),
 			int32Tag(tagRequireFlags, make([]uint32, len(pkg.Requires))),
 			stringArrayTag(tagRequireVersion, make([]string, len(pkg.Requires))),
+		)
+	}
+	if len(pkg.Recommends) > 0 {
+		entries = append(entries,
+			stringArrayTag(tagRecommendName, pkg.Recommends),
+			int32Tag(tagRecommendFlags, make([]uint32, len(pkg.Recommends))),
+			stringArrayTag(tagRecommendVersion, make([]string, len(pkg.Recommends))),
 		)
 	}
 	return entries
@@ -495,6 +508,9 @@ const (
 	tagRequireFlags      = 1048
 	tagRequireName       = 1049
 	tagRequireVersion    = 1050
+	tagRecommendName     = 5046
+	tagRecommendVersion  = 5047
+	tagRecommendFlags    = 5048
 	tagFileDevices       = 1095
 	tagFileInodes        = 1096
 	tagFileLangs         = 1097

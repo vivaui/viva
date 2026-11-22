@@ -106,7 +106,12 @@ type Config struct {
 	// the runtime can release the keys that were down: their releases will go
 	// to the other window.
 	OnFocusLost FocusLostHandler
-	OnScroll    ScrollHandler
+	// OnDeactivate, when set, runs on the window thread when the top-level
+	// window stops being the active window, after OnFocusLost released the
+	// keys that were down. Focus moving between views inside the window does
+	// not call it.
+	OnDeactivate DeactivateHandler
+	OnScroll     ScrollHandler
 	// OnFileDrop, when set, makes the window a target for files dragged from the
 	// system. The adapter reports hover and leave where the system does and
 	// always the drop.
@@ -193,6 +198,12 @@ type Window interface {
 	Frame() (gfx.Rect, bool)
 }
 
+// WindowIconSetter updates a running window's desktop icon. The caller owns
+// validation and transfers an immutable copy of the pixels to the adapter.
+type WindowIconSetter interface {
+	SetIcon(WindowIcon) error
+}
+
 // WindowMover is implemented by the windows of an adapter that can put a window
 // somewhere without the user dragging it. MoveTo puts the top-left of the
 // content area at origin, in the screen coordinates of Window.Frame. It is
@@ -264,6 +275,10 @@ var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupport
 // ErrWindowSizeUnsupported means this window kind cannot be resized by the
 // application.
 var ErrWindowSizeUnsupported = errors.New("platform: programmatic window size is unsupported")
+
+// ErrDragPreviewUnsupported means this adapter cannot show the click-through
+// preview window a drag uses; the application keeps its in-window ghost.
+var ErrDragPreviewUnsupported = errors.New("platform: a transparent drag preview is unsupported")
 
 // ErrStatusAreaUnavailable is returned by AddStatusItem when the desktop has no
 // status area to put an icon in, as a Linux session without a StatusNotifier
@@ -412,6 +427,10 @@ type TextLabel struct {
 	BitmapStride  int
 	BitmapID      uint64
 	BitmapVersion uint32
+	// ImageRadius rounds an image label's corners and ImageFade is how much of
+	// it is transparent (1-opacity); zero is the plain square, opaque image.
+	ImageRadius float32
+	ImageFade   float32
 	// BitmapUpload is true only when Bitmap content must cross a native
 	// boundary. A false bitmap label references the matching retained texture.
 	BitmapUpload bool
@@ -530,7 +549,9 @@ type AccessibilityNode struct {
 	Expanded  bool
 	Multiline bool
 	ReadOnly  bool
-	Secure    bool
+	// Invalid marks a control whose value failed validation.
+	Invalid bool
+	Secure  bool
 	// Focusable marks a node the keyboard can reach.
 	Focusable bool
 	// Expandable marks a node that opens and closes: Expanded says which.
@@ -611,6 +632,10 @@ type KeyHandler func(KeyEvent) (Frame, error)
 // FocusLostHandler reports that the window lost the keyboard and returns an
 // optional repaint.
 type FocusLostHandler func() (Frame, error)
+
+// DeactivateHandler reports that the window stopped being the active window,
+// after the keys that were down were released, and returns the frame to paint.
+type DeactivateHandler func() (Frame, error)
 
 // ShortcutHandler offers one printable chord with any modifiers, or
 // Control or Meta with Enter, before native text handling and reports whether the
@@ -824,6 +849,8 @@ const (
 	// whatever is under it still gets every event. Adapters that cannot make
 	// one refuse it. WindowMover moves it.
 	WindowPreview
+	// WindowNotification is an interactive, non-activating desktop popup.
+	WindowNotification
 )
 
 // DefaultTitlebarHeight is the custom titlebar strip, in logical pixels, of a

@@ -9,7 +9,7 @@ group: start
 
 - **Go 1.26 or newer.** If you use the `viva` command and have none, it downloads one for you; see [Build and package](/en/docs/build-and-package/).
 - **macOS:** the Xcode command-line tools. Viva reaches Cocoa and Metal through cgo.
-- **Linux:** X11 with the system XCB and Vulkan loaders. Viva loads them at run time and bundles none of them.
+- **Linux:** X11 with the system XCB, Pango and Cairo libraries, or native Wayland with the opt-in GTK 3 shell (`-tags vivagtk`, with GTK 3 installed). A Vulkan loader and driver are recommended for GPU acceleration; without them Viva draws on the CPU.
 - **Windows:** Win32 with the system Direct3D 11 and DirectWrite libraries.
 
 ## Add Viva to a project
@@ -22,7 +22,7 @@ go mod init example.com/hello
 go get github.com/vivaui/viva
 ```
 
-`go get` without a version resolves to the latest tagged release, which is `v0.6.5`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.6.5`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
+`go get` without a version resolves to the latest tagged release, which is `v0.6.7`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.6.7`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
 
 If you are working on Viva itself rather than using it, `replace` it with your checkout instead:
 

@@ -13,9 +13,15 @@ func nativeHasClipboardImage() bool { return windowsplatform.HasClipboardImage()
 
 func nativeClipboardImagePNG() ([]byte, error) { return windowsplatform.ClipboardImagePNG() }
 
+func nativeSetClipboardImage(png []byte) error { return windowsplatform.SetClipboardImage(png) }
+
 func nativeClipboardFiles() ([]string, error) { return windowsplatform.ClipboardFiles() }
 
 func nativeSetClipboardFiles(paths []string) error { return windowsplatform.SetClipboardFiles(paths) }
+
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	return windowsplatform.StartFileDrag(paths, allowed)
+}
 
 func nativeReduceMotion() bool { return windowsplatform.ReduceMotion() }
 

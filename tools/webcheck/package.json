@@ -4,6 +4,7 @@
   "description": "Cross-browser gate for the Viva WebAssembly backend",
   "type": "module",
   "dependencies": {
-    "playwright": "1.65.0"
+    "playwright": "1.65.0",
+    "pngjs": "^7.0.0"
   }
 }

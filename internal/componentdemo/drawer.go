@@ -1,7 +1,6 @@
 package componentdemo
 
 import (
-	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -18,7 +17,37 @@ layout := drawer.Begin("Workspace settings", "Applies immediately.")
 canvas.Label("Native settings.", layout.Body, labelStyle)
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save"})
 drawer.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
+if !open {
+    if ui.Button(c, "Open drawer").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248, Swipe: true,
+    Description: "Applies immediately.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`, PageSnippetZh: `open := true
+if !open {
+    if ui.Button(c, "打开抽屉").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "工作区设置", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248, Swipe: true,
+    Description: "立即生效。",
+}, func() {
+    ui.Text(c, "原生设置。")
+}, func() {
+    if ui.Button(c, "保存更改").Clicked() {
+        open = false
+    }
+})`},
 		{ID: "sides", Title: "侧边抽屉", Description: "右侧抽屉使用相同的模态与焦点契约。", Snippet: `drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{
     Layer: 2, Scope: scope, CloseID: closeID,
     Side: components.DrawerRight, ContentExtent: min(300, size.Width*0.78),
@@ -27,53 +56,125 @@ layout := drawer.Begin("Workspace settings", "Same modal contract on the right e
 canvas.Label("Native settings.", layout.Body, labelStyle)
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
 drawer.End()
-if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`},
+if canvas.Clicked(saveID) || canvas.Clicked(closeID) { open = false }`, PageSnippet: `open := true
+if !open {
+    if ui.Button(c, "Open drawer").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerRight, Size: 300,
+    Description: "Same modal contract on the right edge.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    if ui.Button(c, "Save changes").Clicked() {
+        open = false
+    }
+})`, PageSnippetZh: `open := true
+if !open {
+    if ui.Button(c, "打开抽屉").Clicked() {
+        open = true
+    }
+}
+ui.Drawer(c, &open, "工作区设置", ui.DrawerSpec{
+    Side: ui.DrawerRight, Size: 300,
+    Description: "右侧边缘使用相同的模态契约。",
+}, func() {
+    ui.Text(c, "原生设置。")
+}, func() {
+    if ui.Button(c, "保存更改").Clicked() {
+        open = false
+    }
+})`},
 		{ID: "disabled", Title: "禁用抽屉", Description: "保留可见结构但关闭交互。", Snippet: `drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{
     Layer: 2, Scope: scope, CloseID: closeID, Side: components.DrawerBottom,
 }).WithHandle().Disabled()
 layout := drawer.Begin("Workspace settings", "Structure remains visible; interaction is off.")
 drawer.Actions(layout, components.ButtonAction{ID: saveID, Label: "Save changes"})
-drawer.End()`},
+drawer.End()`, PageSnippet: `open := true
+if !open {
+    ui.Button(c, "Open drawer").Disabled(true)
+}
+ui.Drawer(c, &open, "Workspace settings", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248, Disabled: true,
+    Description: "Structure remains visible; interaction is off.",
+}, func() {
+    ui.Text(c, "Native settings.")
+}, func() {
+    ui.Button(c, "Save changes").Disabled(true)
+})`, PageSnippetZh: `open := true
+if !open {
+    ui.Button(c, "打开抽屉").Disabled(true)
+}
+ui.Drawer(c, &open, "工作区设置", ui.DrawerSpec{
+    Side: ui.DrawerBottom, Size: 248, Disabled: true,
+    Description: "结构保持可见，交互已关闭。",
+}, func() {
+    ui.Text(c, "原生设置。")
+}, func() {
+    ui.Button(c, "保存更改").Disabled(true)
+})`},
 	},
 }
 
 var (
-	drawerUI    = tree.Feature("drawer")
-	drawerOpen  = tree.ID(drawerUI, "open")
-	drawerClose = tree.ID(drawerUI, "close")
-	drawerFocus = tree.ID(drawerUI, "focus")
-	drawerSave  = tree.ID(drawerUI, "save")
+	drawerUI   = tree.Feature("drawer")
+	drawerOpen = tree.ID(drawerUI, "open")
+	drawerSave = tree.ID(drawerUI, "save")
 )
 
 func (state *State) initializeDrawer() { state.flags |= 1 }
 
 func (state *State) paintDrawer(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	open := state.flags&1 != 0
 	state.drawPage(canvas, theme, size, 480, state.Text("Drawer · 边缘模态", "Drawer · Edge modal"), func(c ui.C) {
-		// The page behind an open drawer is just its title.
-		if !open && ui.Button(c, "Open drawer").Self(ui.Start).Hit(drawerOpen, "Open drawer").Clicked() {
+		// The drawer's open state lives on the page; the demo's flag mirrors it so
+		// the surrounding state stays inspectable.
+		open := ui.State[bool](c, "open")
+		seeded := ui.State[bool](c, "seeded")
+		if !*seeded {
+			*open = state.flags&1 != 0
+			*seeded = true
+		}
+		if !*open {
+			label := state.Text("打开抽屉", "Open drawer")
+			if state.exampleID == "disabled" {
+				ui.Button(c, label).Self(ui.Start).Hit(drawerOpen, label).Disabled(true)
+			} else if ui.Button(c, label).Self(ui.Start).Hit(drawerOpen, label).Clicked() {
+				*open = true
+			}
+		}
+		spec := ui.DrawerSpec{
+			Side: ui.DrawerBottom, Size: 248,
+			Description: state.Text("立即生效。", "Applies immediately."),
+		}
+		title, body := state.Text("工作区设置", "Workspace settings"), state.Text("原生设置。", "Native settings.")
+		switch state.exampleID {
+		case "default":
+			spec.Swipe = true
+		case "sides":
+			spec.Side, spec.Size = ui.DrawerRight, 300
+			spec.Description = state.Text("右侧边缘使用相同的模态契约。", "Same modal contract on the right edge.")
+		case "disabled":
+			spec.Disabled = true
+			spec.Description = state.Text("结构保持可见，交互已关闭。", "Structure remains visible; interaction is off.")
+		}
+		ui.Drawer(c, open, title, spec, func() {
+			ui.Text(c, body)
+		}, func() {
+			save := state.Text("保存更改", "Save changes")
+			if state.exampleID == "disabled" {
+				ui.Button(c, save).Hit(drawerSave, save).Disabled(true)
+				return
+			}
+			if ui.Button(c, save).Hit(drawerSave, save).Clicked() {
+				*open = false
+			}
+		})
+		if *open {
 			state.flags |= 1
+		} else {
+			state.flags &^= 1
 		}
 	})
-	if !open {
-		return
-	}
-	side := components.DrawerBottom
-	extent := min(float32(248), size.Height*0.72)
-	if state.exampleID == "sides" {
-		side = components.DrawerRight
-		extent = min(float32(300), size.Width*0.78)
-	}
-	viewport := gfx.Rect{Width: size.Width, Height: size.Height}
-	drawer := components.BeginDrawer(canvas, theme, viewport, components.DrawerOptions{Layer: 2, Scope: drawerFocus, CloseID: drawerClose, Side: side, ContentExtent: extent}).WithHandle()
-	if state.exampleID == "disabled" {
-		drawer = drawer.Disabled()
-	}
-	layout := drawer.Begin("Workspace settings", "Applies immediately.")
-	canvas.Label("Native settings.", layout.Body, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: theme.Foreground})
-	drawer.Actions(layout, components.ButtonAction{ID: drawerSave, Label: "Save changes"})
-	drawer.End()
-	if canvas.Clicked(drawerSave) || canvas.Clicked(drawerClose) {
-		state.flags &^= 1
-	}
 }

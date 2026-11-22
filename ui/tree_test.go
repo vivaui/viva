@@ -7,22 +7,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
 // folder is a tree of the application's: folders with files in them.
 type folder struct {
-	name  string
+	Name  string
 	open  bool
 	files []string
 }
 
 type treeModel struct {
 	folders []folder
-	visible []treeEntry // the rows that show, flattened
+	Visible []treeEntry // the rows that show, flattened
 	state   ui.TreeState
-	label   func(int) string // m.name, made once
+	Label   func(int) string // m.name, made once
 	opened  string
 }
 
@@ -55,50 +56,50 @@ func TestTreeRowsCanHaveTheirOwnHeights(t *testing.T) {
 
 func newTreeModel(folders []folder) *treeModel {
 	m := &treeModel{folders: folders}
-	m.state.Node, m.label = m.node, m.name
-	m.state.Key = func(i int) int { e := m.visible[i]; return e.folder<<16 | (e.file + 1) }
+	m.state.Node, m.Label = m.Node, m.Name
+	m.state.Key = func(i int) int { e := m.Visible[i]; return e.folder<<16 | (e.file + 1) }
 	m.flatten()
 	return m
 }
 
 func (m *treeModel) flatten() {
-	m.visible = m.visible[:0]
+	m.Visible = m.Visible[:0]
 	for i, f := range m.folders {
-		m.visible = append(m.visible, treeEntry{i, -1})
+		m.Visible = append(m.Visible, treeEntry{i, -1})
 		if f.open {
 			for j := range f.files {
-				m.visible = append(m.visible, treeEntry{i, j})
+				m.Visible = append(m.Visible, treeEntry{i, j})
 			}
 		}
 	}
 }
 
-func (m *treeModel) node(i int) ui.TreeNode {
-	e := m.visible[i]
+func (m *treeModel) Node(i int) ui.TreeNode {
+	e := m.Visible[i]
 	if e.file < 0 {
 		return ui.TreeNode{Branch: true, Expanded: m.folders[e.folder].open}
 	}
 	return ui.TreeNode{Depth: 1}
 }
 
-func (m *treeModel) name(i int) string {
-	e := m.visible[i]
+func (m *treeModel) Name(i int) string {
+	e := m.Visible[i]
 	if e.file < 0 {
-		return m.folders[e.folder].name
+		return m.folders[e.folder].Name
 	}
 	return m.folders[e.folder].files[e.file]
 }
 
 func (m *treeModel) page(c ui.C) {
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.Tree(c, &m.state, len(m.visible), m.label, nil).Grow(1)
+		ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1)
 		if i, ok := m.state.Toggled(); ok {
-			f := &m.folders[m.visible[i].folder]
+			f := &m.folders[m.Visible[i].folder]
 			f.open = !f.open
 			c.After(m.flatten)
 		}
 		if i, ok := m.state.Chosen(); ok {
-			m.opened = m.name(i)
+			m.opened = m.Name(i)
 		}
 	})
 }
@@ -106,7 +107,7 @@ func (m *treeModel) page(c ui.C) {
 // A Tree names its rows by ListState.Key as a List does, so a key past 2^31-1
 // panics there too rather than give the rows one identity.
 func TestTreeKeyPastTheItemNumbersPanics(t *testing.T) {
-	m := newTreeModel([]folder{{name: "etc", open: true, files: []string{"hosts", "passwd"}}})
+	m := newTreeModel([]folder{{Name: "etc", open: true, files: []string{"hosts", "passwd"}}})
 	m.state.Key = func(i int) int { return math.MaxInt32 + 1 + i }
 	defer func() {
 		recovered := recover()
@@ -123,7 +124,7 @@ func TestTreeKeyPastTheItemNumbersPanics(t *testing.T) {
 // The chevron opens and closes a branch; the arrows move, open and close; Enter
 // chooses.
 func TestTreeOpensMovesAndChooses(t *testing.T) {
-	m := newTreeModel([]folder{{name: "etc", files: []string{"hosts", "passwd"}}, {name: "var", files: []string{"log"}}})
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var", files: []string{"log"}}})
 	d := openPage(t, m.page)
 	if d.has("hosts") {
 		t.Fatal("a closed folder shows its files")
@@ -137,8 +138,8 @@ func TestTreeOpensMovesAndChooses(t *testing.T) {
 		t.Fatal("Right did not open the branch")
 	}
 	d.key(gfx.KeyRight) // to its first child
-	if d.focused() != "hosts" {
-		t.Fatalf("Right on an open branch went to %q", d.focused())
+	if d.Focused() != "hosts" {
+		t.Fatalf("Right on an open branch went to %q", d.Focused())
 	}
 	d.key(gfx.KeyDown)
 	d.key(gfx.KeyEnter)
@@ -146,8 +147,8 @@ func TestTreeOpensMovesAndChooses(t *testing.T) {
 		t.Fatalf("Down and Enter chose %q", m.opened)
 	}
 	d.key(gfx.KeyLeft) // to the parent
-	if d.focused() != "etc" {
-		t.Fatalf("Left on a leaf went to %q", d.focused())
+	if d.Focused() != "etc" {
+		t.Fatalf("Left on a leaf went to %q", d.Focused())
 	}
 	d.key(gfx.KeyLeft) // closes it
 	if m.folders[0].open || d.has("hosts") {
@@ -169,7 +170,7 @@ func TestTreeOpensMovesAndChooses(t *testing.T) {
 func TestTreeLarge(t *testing.T) {
 	folders := make([]folder, 2000)
 	for i := range folders {
-		folders[i] = folder{name: fmt.Sprintf("f%04d", i), files: []string{"a"}}
+		folders[i] = folder{Name: fmt.Sprintf("f%04d", i), files: []string{"a"}}
 	}
 	m := newTreeModel(folders)
 	d := openPage(t, m.page)
@@ -184,15 +185,15 @@ func TestTreeLarge(t *testing.T) {
 	}
 	d.click("f0000")
 	d.key(gfx.KeyEnd)
-	if d.focused() != "f1999" {
-		t.Fatalf("End went to %q", d.focused())
+	if d.Focused() != "f1999" {
+		t.Fatalf("End went to %q", d.Focused())
 	}
 }
 
 func BenchmarkTree(b *testing.B) {
 	folders := make([]folder, 500)
 	for i := range folders {
-		folders[i] = folder{name: fmt.Sprintf("f%04d", i), open: i%2 == 0, files: []string{"a", "b"}}
+		folders[i] = folder{Name: fmt.Sprintf("f%04d", i), open: i%2 == 0, files: []string{"a", "b"}}
 	}
 	m := newTreeModel(folders)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
@@ -212,12 +213,12 @@ type dndModel struct {
 
 func newDndModel() *dndModel {
 	m := &dndModel{treeModel: newTreeModel([]folder{
-		{name: "src", open: true, files: []string{"main.go", "page.go"}},
-		{name: "docs", files: []string{"guide.md"}},
-		{name: "test", files: []string{"a_test.go"}},
+		{Name: "src", open: true, files: []string{"main.go", "page.go"}},
+		{Name: "docs", files: []string{"guide.md"}},
+		{Name: "test", files: []string{"a_test.go"}},
 	})}
 	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool {
-		f, t := m.visible[from], m.visible[to]
+		f, t := m.Visible[from], m.Visible[to]
 		if f.file >= 0 { // a file: into another folder
 			return t.file < 0 && where == ui.TreeDropInside && t.folder != f.folder
 		}
@@ -230,7 +231,7 @@ func (m *dndModel) page(c ui.C) {
 	m.treeModel.page(c)
 	if move, ok := m.state.Dropped(); ok {
 		m.moves = append(m.moves, move)
-		f, t := m.visible[move.From], m.visible[move.To]
+		f, t := m.Visible[move.From], m.Visible[move.To]
 		c.After(func() { // the rows change after the paint that declared them
 			if f.file >= 0 {
 				from := &m.folders[f.folder]
@@ -335,13 +336,13 @@ func TestTreeTypeahead(t *testing.T) {
 	m := newDndModel()
 	d := openPage(t, m.page)
 	d.click("src")
-	typed := func(letter rune, want string) {
+	typed := func(letter rune, Want string) {
 		t.Helper()
 		if _, err := d.driver.ShortcutChord(0, letter); err != nil {
 			t.Fatal(err)
 		}
-		if d.focused() != want {
-			t.Fatalf("%q went to %q, not %q", letter, d.focused(), want)
+		if d.Focused() != Want {
+			t.Fatalf("%q went to %q, not %q", letter, d.Focused(), Want)
 		}
 	}
 	typed('t', "test")
@@ -361,7 +362,7 @@ func TestTreeTypeahead(t *testing.T) {
 func TestTreeDragScrollsAtTheEdge(t *testing.T) {
 	var folders []folder
 	for i := range 40 {
-		folders = append(folders, folder{name: fmt.Sprintf("group %02d", i)})
+		folders = append(folders, folder{Name: fmt.Sprintf("group %02d", i)})
 	}
 	m := newTreeModel(folders)
 	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool { return where != ui.TreeDropInside }
@@ -413,7 +414,7 @@ func TestTreeDragRepaintAllocates(t *testing.T) {
 // middle into it.
 func TestTreeDragBackAndZones(t *testing.T) {
 	m := newDndModel()
-	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool { return m.visible[to].file < 0 && where != ui.TreeDropAfter }
+	m.state.CanDrop = func(from, to int, where ui.TreeDrop) bool { return m.Visible[to].file < 0 && where != ui.TreeDropAfter }
 	d := openPage(t, m.page)
 	main := d.hit("main.go").Bounds
 	d.drag("main.go", d.hit("docs").Bounds, 0.5)
@@ -437,7 +438,7 @@ func TestTreeDragBackAndZones(t *testing.T) {
 // A row's and a chevron's identity are the ones the paint names, so the
 // application can focus a row or find its hit without scanning the canvas.
 func TestTreeRowAndDisclosureIDs(t *testing.T) {
-	m := newTreeModel([]folder{{name: "etc", files: []string{"hosts"}}, {name: "var"}})
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts"}}, {Name: "var"}})
 	if !m.state.RowID(0).IsZero() {
 		t.Fatal("RowID names a row before the tree is declared")
 	}
@@ -464,18 +465,18 @@ func TestTreeRowAndDisclosureIDs(t *testing.T) {
 type labelTreeModel struct {
 	*treeModel
 	c       ui.C
-	content func(int) // m.row, made once
+	Content func(int) // m.row, made once
 	renamed string
 }
 
 func newLabelTreeModel(folders []folder) *labelTreeModel {
 	m := &labelTreeModel{treeModel: newTreeModel(folders)}
-	m.content = m.row
+	m.Content = m.row
 	return m
 }
 
 func (m *labelTreeModel) row(i int) {
-	name := m.name(i)
+	name := m.Name(i)
 	label := ui.Text(m.c, name).LabelFor(m.state.RowID(i))
 	ui.ContextMenu(m.c, label, func(menu *ui.MenuItems) {
 		if menu.Item("Rename").Clicked() {
@@ -487,9 +488,9 @@ func (m *labelTreeModel) row(i int) {
 func (m *labelTreeModel) page(c ui.C) {
 	m.c = c
 	ui.Column(c).Fill().Pad(8).Children(func() {
-		ui.Tree(c, &m.state, len(m.visible), m.label, m.content).Grow(1)
+		ui.Tree(c, &m.state, len(m.Visible), m.Label, m.Content).Grow(1)
 		if i, ok := m.state.Chosen(); ok {
-			m.opened = m.name(i)
+			m.opened = m.Name(i)
 		}
 	})
 }
@@ -498,7 +499,7 @@ func (m *labelTreeModel) page(c ui.C) {
 // chooses and focuses the row, it hovers the row, and the context menu declared on
 // it opens on the name and on the rest of the row. It is no tab stop of its own.
 func TestTreeRowNameLabelsTheRow(t *testing.T) {
-	m := newLabelTreeModel([]folder{{name: "etc", files: []string{"hosts"}}, {name: "var"}})
+	m := newLabelTreeModel([]folder{{Name: "etc", files: []string{"hosts"}}, {Name: "var"}})
 	d := openPage(t, m.page)
 	row := d.hit("etc")
 	var name gfx.Hit
@@ -524,7 +525,7 @@ func TestTreeRowNameLabelsTheRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m.opened != "etc" || d.driver.Snapshot().Focused != row.ID {
-		t.Fatalf("a click on the name chose %q, focused %q", m.opened, d.focused())
+		t.Fatalf("a click on the name chose %q, focused %q", m.opened, d.Focused())
 	}
 	past := row.Bounds.X + row.Bounds.Width - 4
 	for _, at := range [2]float32{x, past} {
@@ -539,6 +540,65 @@ func TestTreeRowNameLabelsTheRow(t *testing.T) {
 			t.Fatalf("the menu at x %v renamed %q", at, m.renamed)
 		}
 		m.renamed = ""
+	}
+}
+
+// TreeKeys(false) leaves the navigation keys to the application: the page neither
+// moves the focus nor keeps the key from the host's OnKey.
+func TestTreeKeysLeavesNavigationToTheApplication(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	}}, app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+		keys = append(keys, event.Key)
+		return gfx.EventResult{Handled: true}
+	}})
+	d.click("etc")
+	before := d.Focused()
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != before {
+		t.Fatalf("TreeKeys(false) moved the focus to %q", d.Focused())
+	}
+	if len(keys) != 2 || keys[0] != gfx.KeyRight || keys[1] != gfx.KeyDown {
+		t.Fatalf("the application received %v, want Right then Down", keys)
+	}
+}
+
+// The default keeps the navigation in the page: Right opens a branch and Down
+// moves to its child, and the host's OnKey is not offered the keys.
+func TestTreeKeysDefaultMovesTheFocus(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}, {Name: "var"}})
+	var keys []gfx.Key
+	d := openPageWith(t, ui.PageConfig{Theme: &pageTheme, View: m.page},
+		app.Config{OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+			keys = append(keys, event.Key)
+			return gfx.EventResult{Handled: true}
+		}})
+	d.click("etc")
+	d.key(gfx.KeyRight)
+	d.key(gfx.KeyDown)
+	if d.Focused() != "hosts" {
+		t.Fatalf("Right and Down focused %q, want hosts", d.Focused())
+	}
+	if len(keys) != 0 {
+		t.Fatalf("the page left %v to the application", keys)
+	}
+}
+
+// TreeKeys(false) costs nothing to repaint.
+func TestTreeKeysRepaintAllocates(t *testing.T) {
+	m := newTreeModel([]folder{{Name: "etc", files: []string{"hosts", "passwd"}}})
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Pad(8).Children(func() {
+			ui.Tree(c, &m.state, len(m.Visible), m.Label, nil).Grow(1).TreeKeys(false)
+		})
+	})
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
 
@@ -557,5 +617,35 @@ func TestListRowID(t *testing.T) {
 	}
 	if !found || state.RowID(1) == state.RowID(2) {
 		t.Fatal("RowID(1) is not the identity of the second row's hit")
+	}
+}
+
+// DisplayDepth changes only the indent: a tree that compresses deep rows still
+// has its hierarchy, so Right on a branch moves the focus to its child.
+func TestTreeCompressedIndentKeepsTheHierarchyForKeys(t *testing.T) {
+	labels := []string{"branch", "child", "one", "two"}
+	depths := []int{3, 4, 0, 1}
+	var state ui.TreeState
+	state.Node = func(i int) ui.TreeNode {
+		return ui.TreeNode{Depth: depths[i], Branch: i == 0, Expanded: i == 0}
+	}
+	state.Label = func(i int) string { return labels[i] }
+	state.DisplayDepth = func(int) int { return 0 }
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			ui.Tree(c, &state, len(labels), state.Label, nil).Grow(1)
+		})
+	})
+	if x, y := d.hit("one").Bounds.X, d.hit("two").Bounds.X; x != y {
+		t.Fatalf("the compressed leaf rows start at %v and %v, want the same indent", x, y)
+	}
+	d.click("branch")
+	d.key(gfx.KeyRight)
+	if got := d.Focused(); got != "child" {
+		t.Fatalf("Right focused %q, want the branch's child", got)
+	}
+	d.key(gfx.KeyLeft)
+	if got := d.Focused(); got != "branch" {
+		t.Fatalf("Left focused %q, want the parent", got)
 	}
 }

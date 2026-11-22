@@ -109,7 +109,7 @@ page.Draw(canvas, bounds, func(c ui.C) {
 
 Keep the `Page` in application state, not in a per-paint local: it owns the
 page's identities, focus and retained state. For a whole window, use
-`ui.Run(config, declaration)` or `page.Config(config)` to wire the window.
+`ui.Run(config, declaration)` or `ui.Configure(page, config)` to wire the window.
 `PageConfig.View` is a declaration function, not the removed `View` type.
 
 An embedded host forwards input through `Page.Key`, `Page.Pointer`,
@@ -123,6 +123,14 @@ compatibility API available to applications.
 See the [v0.6.0 migration notes](releases/0.6.0.md#迁移--migration) for custom
 controls, layout and host routing. When jumping from an older version, also
 apply the v0.4.0 and v0.3.0 changes below.
+
+A host that drives `package base` directly, through `base.NewPage` and a
+`base.View`/`base.Frame` (the `ui.View` and `ui.Frame` aliases are the same
+type), must call `ui.InstallPainters()` once. The `ui.*` constructors install
+each control kind as a page declares it, which is what lets an application link
+only the controls it uses; a control declared from `package base` without that
+installation now stops the page with a diagnostic naming the control, instead
+of laying it out or painting it as nothing.
 
 #### Custom renderers: block elements become cell glyphs
 

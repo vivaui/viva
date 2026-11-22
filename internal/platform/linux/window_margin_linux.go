@@ -103,43 +103,6 @@ func (win *window) compositing(screenIndex int32) bool {
 	return reply.Owner != 0
 }
 
-// supportsSyncedFrame reports whether the window manager advertises
-// _NET_WM_SYNC_REQUEST in _NET_SUPPORTED. Without synchronized resize, an inset
-// transparent margin inside the X11 window cannot resize in lockstep with
-// ConfigureWindow and lags or flashes at the dragged edge. _GTK_FRAME_EXTENTS is
-// a private property that supporting window managers need not advertise here.
-func (win *window) supportsSyncedFrame() bool {
-	supportedAtom, err := win.api.atom(win.connection, "_NET_SUPPORTED")
-	if err != nil || supportedAtom == 0 {
-		return false
-	}
-	syncAtom, err := win.api.atom(win.connection, "_NET_WM_SYNC_REQUEST")
-	if err != nil || syncAtom == 0 {
-		return false
-	}
-	cookie := win.api.getProperty(win.connection, 0, win.screen.Root, supportedAtom, xcbAtomAtom, 0, 1024)
-	var nativeError unsafe.Pointer
-	reply := win.api.getPropertyReply(win.connection, cookie, &nativeError)
-	if nativeError != nil {
-		win.api.free(nativeError)
-	}
-	if reply == nil {
-		return false
-	}
-	defer win.api.free(unsafe.Pointer(reply))
-	length := win.api.getPropertyLength(reply)
-	if reply.Format != 32 || length <= 0 {
-		return false
-	}
-	atoms := unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), int(length)/4)
-	for _, atom := range atoms {
-		if atom == syncAtom {
-			return true
-		}
-	}
-	return false
-}
-
 // wantsFrame says whether a window of this kind gets a drawn frame here, and
 // the visual to make it with. A desktop that does not composite shows the
 // transparent margin as black, so there the window keeps the plain frame.
@@ -159,9 +122,11 @@ func (win *window) wantsFrame(screenIndex int32) (visual uint32, ok bool) {
 		if mode != "on" && vulkanRenderingRequested() && vulkanDeviceIsSoftware() {
 			return 0, false
 		}
-		if mode != "on" && !win.supportsSyncedFrame() {
-			return 0, false
-		}
+		// Synchronized resize (_NET_WM_SYNC_REQUEST) would keep the inset margin
+		// flush during a drag, but Mutter does not advertise it; requiring it
+		// left every GNOME window square. The margin may lag at the dragged edge
+		// while an interactive resize runs there, and the desktop is otherwise
+		// as good a place for the drawn frame as KWin's.
 	}
 	return win.argbVisual()
 }
@@ -204,6 +169,11 @@ func (win *window) setFrameExtents(margin uint32) {
 // around it, so a press in the rest of the margin goes to the window behind.
 // The extension is optional; without it the whole window takes input.
 func (win *window) updateInputRegion() {
+	// A drag preview stays input-transparent across ConfigureNotify events.
+	// Restoring the regular zero-margin region would intercept its own drop.
+	if win.preview {
+		return
+	}
 	if win.margin == 0 {
 		if win.shapeRectangles != nil {
 			rectangle := [4]uint16{0, 0, uint16(win.width), uint16(win.height)}

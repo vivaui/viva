@@ -23,12 +23,14 @@ export function languagePath(locale: Locale, currentID: string): string {
 
 const english = {
   skip: 'Skip to content', home: 'Viva documentation home',
-  components: 'Components', componentsSummary: 'All components, grouped by category.',
+  components: 'Components', componentsSummary: 'Every component in the library, indexed by name.',
   language: 'Documentation language', darkTheme: 'Dark theme', light: 'Light', dark: 'Dark',
   browse: 'Browse components', search: 'Search components', searchPlaceholder: 'Search…',
   noMatches: 'No matching components. Try another name or category.', matches: 'matching components',
   preview: 'Preview', copySource: 'Copy source',
   exampleUsage: 'Usage', copyUsage: 'Copy usage',
+  pageApi: 'Page API', componentSource: 'Component source', pageApiSource: 'Page API source', exampleSource: 'Example source',
+  canvasRecipe: 'Canvas recipe: use it inside ui.Control/Draw, or use the ui.* page control where one exists.',
   copyInstall: 'Copy install command', copyCode: 'Copy code', copying: 'Copying…', copied: 'Copied',
   copiedNotice: 'Copied to clipboard.', copyFailed: 'Copy failed. Select the text and press Ctrl+C or ⌘C.',
   reset: 'Reset', resetExample: 'Reset this example', openPreview: 'Open preview', retry: 'Retry preview',
@@ -45,12 +47,14 @@ const english = {
 
 const chinese: typeof english = {
   skip: '跳转到正文', home: 'Viva 文档首页',
-  components: '组件', componentsSummary: '全部组件，按分类浏览。',
+  components: '组件', componentsSummary: '组件库的全部组件，按名称索引。',
   language: '文档语言', darkTheme: '深色主题', light: '浅色', dark: '深色',
   browse: '浏览组件', search: '搜索组件', searchPlaceholder: '搜索组件…',
   noMatches: '没有匹配的组件，试试名称或分类。', matches: '个匹配组件',
   preview: '预览', copySource: '复制源码',
   exampleUsage: '用法', copyUsage: '复制用法',
+  pageApi: '页面 API', componentSource: '组件源码', pageApiSource: '页面 API 源码', exampleSource: '示例源码',
+  canvasRecipe: '画布 recipe：在 ui.Control/Draw 内使用；有页面控件时优先用 ui.*。',
   copyInstall: '复制安装命令', copyCode: '复制代码', copying: '复制中…', copied: '已复制',
   copiedNotice: '已复制到剪贴板。', copyFailed: '复制失败，请选中文本后按 Ctrl+C 或 ⌘C。',
   reset: '重置', resetExample: '重置此示例', openPreview: '单独打开', retry: '重试预览',
@@ -146,7 +150,22 @@ const chineseComponentNames: Record<string, string> = {
   'dropdown-menu': '下拉菜单',
   'hover-card': '悬停卡片',
   'code-diff': '代码差异',
+  'code-editor': '代码编辑器',
   'code-merge': '三方合并',
+  'color-picker': '颜色选择器',
+  'color-swatch': '颜色色块',
+  'multi-select': '多选',
+  'single-select': '单选',
+  'avatar-editor': '头像编辑器',
+  'image-view': '图片视图',
+  graph: '关系图谱',
+  'column-resize': '列宽调整',
+  'reorder-grid': '排序网格',
+  'reorder-list': '排序列表',
+  'icon-hover': '图标悬停',
+  'chart-area': '面积图',
+  'chart-bar': '柱状图',
+  'chart-downsample': '图表降采样',
   'split-button': '分离按钮',
   list: '列表',
 };
@@ -261,19 +280,6 @@ const ownership: Omit<Section, 'ID'> = {
   Items: ['每个示例的重置仅创建新的预览实例，不修改生产组件。', '源码指纹标识 Go 构建输入，不是发布版本或跨平台一致性承诺。', 'Astro 开发服务在 Go 源码变更后重新编译并刷新页面。失败时保留上次成功预览；部署后的静态网站必须重新构建发布。'],
 };
 
-const genericChineseSections: Record<string, Omit<Section, 'ID'>> = {
-  usage: {
-    Title: '源码组件用法',
-    Text: '此预览直接调用生产 Go 组件。稳定 ID、值与打开状态仍由应用持有；组件只负责绘制并声明交互语义。',
-    Items: ['标题旁的源码链接列出了全部选项与视觉决策。', '请使用原生命令验证系统文本、焦点、无障碍与平台集成。', '浏览器预览验证共享布局和场景行为，不代表原生性能。'],
-  },
-  verification: {
-    Title: '验证边界',
-    Text: '示例覆盖当前 API 的代表性状态，但不表示每个桌面后端都已完成真机验证。',
-    Items: [],
-  },
-};
-
 function englishLabel(value: string): string {
   return value.split('-').map(word => word ? word[0].toUpperCase() + word.slice(1) : word).join(' ');
 }
@@ -288,7 +294,7 @@ export function localizePage(page: Page, locale: Locale): Page {
   return { ...page, Summary: locale === 'en' ? translation?.summary ?? `${page.Title} source-owned component states rendered by the production Go API.` : page.Summary, Examples: examples,
     Sections: page.Sections.map(section => {
       if (locale === 'en') return section;
-      const translated = section.ID === 'source-ownership' ? ownership : chineseSections[page.ID]?.[section.ID] ?? genericChineseSections[section.ID];
+      const translated = section.ID === 'source-ownership' ? ownership : chineseSections[page.ID]?.[section.ID];
       if (!translated) throw new Error(`Missing section translation: ${page.ID}/${section.ID}`);
       return { ID: section.ID, ...translated };
     }),
@@ -297,7 +303,7 @@ export function localizePage(page: Page, locale: Locale): Page {
         macOS: ['原生预览', 'AppKit + Metal。请在本机验证系统字体、焦点与可访问性。'],
         Windows: ['实验性', '原生运行器通过交叉编译；本文档不是 Windows 真机验证报告。'],
         Linux: ['暂不可用', '当前 Linux 后端尚不能运行这些 Canvas 组件示例。'],
-		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['Canvas2D 预览', '同一份 Go 示例编译为 WASM，不是 HTML/CSS 仿制，不能据此推断原生性能。'],
+		Web: page.ID === 'input' ? ['交互式文本输入', '浏览器输入、选区与 IME 连接到原生预览使用的同一个应用持有 Go Editor。'] : ['WebGL2 预览（Canvas2D 回退）', '同一份 Go 示例编译为 WASM，优先用 WebGL2 绘制，不可用时回退 Canvas2D；不是 HTML/CSS 仿制，不能据此推断原生性能。'],
       };
       if (!translated[capability.Platform]) throw new Error(`Missing platform translation: ${capability.Platform}`);
       return { Platform: capability.Platform, Status: translated[capability.Platform][0], Detail: translated[capability.Platform][1] };

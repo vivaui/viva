@@ -19,9 +19,7 @@
   const scrollKey = $derived(`viva-docs-sidebar-scroll:${locale}`);
   const current = $derived(items.find(item => item.ID === currentID));
   const filtered = $derived(filterNavigation(items.map(item => ({ ...item, Title: componentLabel(locale, item.ID, item.Title), Category: categoryLabel(locale, item.Category) })), query));
-  const groups = $derived([...new Set(filtered.map(item => item.Category))].map(category => ({
-    category, items: filtered.filter(item => item.Category === category),
-  })));
+
 
   onMount(() => {
     mounted = true;
@@ -104,16 +102,11 @@
       </div>
       <div class="nav-heading"><span>{text.components}</span></div>
       <nav id="component-navigation" aria-label={text.components} bind:this={navigation}>
-        {#each groups as group (group.category)}
-          <div class="component-group">
-            <p class="component-group-title">{group.category}</p>
-            <ul class="component-list">
-              {#each group.items as item (item.ID)}
-                <li><a href={componentPath(locale, item.ID)} class="nav-link" onclick={rememberScroll} onkeydown={(event) => { escape(event); navigationKey(event); }} aria-current={currentID === item.ID ? 'page' : undefined}><span>{item.Title}</span>{#if currentID === item.ID}<span class="nav-active-mark" aria-hidden="true"></span>{/if}</a></li>
-              {/each}
-            </ul>
-          </div>
-        {/each}
+        <ul class="component-list">
+          {#each filtered as item (item.ID)}
+            <li><a href={componentPath(locale, item.ID)} class="nav-link" onclick={rememberScroll} onkeydown={(event) => { escape(event); navigationKey(event); }} aria-current={currentID === item.ID ? 'page' : undefined}><span>{item.Title}</span>{#if currentID === item.ID}<span class="nav-active-mark" aria-hidden="true"></span>{/if}</a></li>
+          {/each}
+        </ul>
       </nav>
       {#if !filtered.length}<p class="search-empty">{text.noMatches}</p>{/if}
       <p class="sr-only" role="status" aria-live="polite">{query ? `${filtered.length} ${text.matches}` : ''}</p>

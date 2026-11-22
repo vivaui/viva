@@ -16,9 +16,15 @@ func nativeHasClipboardImage() bool { return darwinplatform.HasClipboardImage() 
 
 func nativeClipboardImagePNG() ([]byte, error) { return darwinplatform.ClipboardImagePNG() }
 
+func nativeSetClipboardImage(png []byte) error { return darwinplatform.SetClipboardImage(png) }
+
 func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardFiles() }
 
 func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }
+
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+	return darwinplatform.StartFileDrag(paths, allowed)
+}
 
 func nativeReduceMotion() bool { return darwinplatform.ReduceMotion() }
 

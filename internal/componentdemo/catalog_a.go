@@ -20,4 +20,5 @@ var groupAComponents = []Component{
 	chartDownsampleComponent,
 	collapsibleComponent,
 	comboboxComponent,
+	graphComponent,
 }

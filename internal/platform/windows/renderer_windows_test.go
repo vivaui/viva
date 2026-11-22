@@ -417,12 +417,33 @@ func TestGridInkWidthStopsNearTheLastRun(t *testing.T) {
 		t.Fatal("one more typed character changed the texture width, so every key would make a new texture")
 	}
 	label := labelTexture{label: platform.TextLabel{Value: "x", Mono: true, Runs: runs, CellWidth: cell, Width: 100 * cell, Height: 20, FontSize: 12}}
-	skip, width, ok := label.window(scale)
+	skip, width, ok := label.window(scale, 0)
 	if !ok || skip != 0 || width != ink {
 		t.Fatalf("window = %d, %d, %v, want 0, %d, true", skip, width, ok, ink)
 	}
 	label.label.Width = 4
-	if _, width, _ = label.window(scale); width > 4*scale {
+	if _, width, _ = label.window(scale, 0); width > 4*scale {
 		t.Fatalf("a narrow label got a texture %d wide, wider than itself", width)
+	}
+}
+
+func TestShrinkUpdateTruncatesRetainedInstances(t *testing.T) {
+	renderer := renderer{}
+	rectangles := layered(0, 0, 0)
+	if _, _, err := renderer.storeRectangles(platform.Frame{Update: render.Update{Rebuild: true}, Rectangles: rectangles}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := renderer.storeRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1, Shrink: true}, Rectangles: rectangles[:2],
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(renderer.instances) != 2 || len(renderer.rectangleClips) != 2 {
+		t.Fatalf("shrunk store = %d instances, %d clips", len(renderer.instances), len(renderer.rectangleClips))
+	}
+	if _, _, err := renderer.storeRectangles(platform.Frame{
+		Update: render.Update{First: 1, Count: 1}, Rectangles: rectangles[:1],
+	}); err == nil {
+		t.Fatal("shrink without Shrink accepted")
 	}
 }

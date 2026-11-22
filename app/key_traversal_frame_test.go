@@ -47,12 +47,12 @@ func TestContinueTraversalKeyPublishesOneConsistentFrame(t *testing.T) {
 	}
 
 	painter := newTestPainter(t, &canvas, config)
-	base := len(painter.renderer.Rectangles())
+	base := len(painter.frame.Rectangles())
 	frame, err := painter.key(platform.KeyEvent{Key: input.KeyTab})
 	if err != nil {
 		t.Fatal(err)
 	}
-	count := len(painter.renderer.Rectangles())
+	count := len(painter.frame.Rectangles())
 	if count >= base {
 		t.Fatalf("the popup did not close: %d -> %d", base, count)
 	}
@@ -115,12 +115,12 @@ func TestContinueTraversalKeyPublishesOneFrameWhenThePageGrows(t *testing.T) {
 	}
 
 	painter := newTestPainter(t, &canvas, config)
-	base := len(painter.renderer.Rectangles())
+	base := len(painter.frame.Rectangles())
 	frame, err := painter.key(platform.KeyEvent{Key: input.KeyTab})
 	if err != nil {
 		t.Fatal(err)
 	}
-	count := len(painter.renderer.Rectangles())
+	count := len(painter.frame.Rectangles())
 	if count <= base {
 		t.Fatalf("the page did not grow: %d -> %d", base, count)
 	}

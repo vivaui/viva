@@ -21,7 +21,7 @@ func TestUIOpenWindowOpensPagesAndHandsThemTheirApplication(t *testing.T) {
 	err := app.RunApplication(func(application *app.Application) error {
 		_, err := ui.OpenWindow(application, app.Config{Title: "main", Width: 300, Height: 200}, ui.PageConfig{
 			View: func(c ui.C) {
-				seen = c.Application()
+				seen = ui.Application(c)
 				ui.Text(c, "hello")
 			},
 		})

@@ -3,7 +3,7 @@ package gfx
 import "testing"
 
 func TestRoleNamesRoundTrip(t *testing.T) {
-	for role := RoleButton; role <= RoleSeparator; role++ {
+	for role := RoleButton; role <= RoleProgressBar; role++ {
 		name := role.String()
 		if name == "" || name == "region" {
 			t.Fatalf("role %d has no name", role)

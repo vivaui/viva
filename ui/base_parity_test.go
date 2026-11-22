@@ -35,9 +35,9 @@ func semanticsOf(h gfx.Hit) semantics {
 
 // declared is the semantics of what a page declares, in paint order: the controls
 // themselves, not the labels painted beside them nor the backdrops under overlays.
-func declared(t *testing.T, view func(ui.C)) []semantics {
+func declared(t *testing.T, View func(ui.C)) []semantics {
 	t.Helper()
-	d := openPage(t, view)
+	d := openPage(t, View)
 	var out []semantics
 	for _, h := range d.driver.Snapshot().Hits {
 		if h.IsLabel || h.Backdrop || h.Block || h.ID.IsZero() {
@@ -59,7 +59,7 @@ func page(body func(c ui.C)) func(ui.C) {
 func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 	choices := []string{"Small", "Large"}
 	for _, state := range []struct {
-		name     string
+		Name     string
 		on       bool
 		disabled bool
 	}{{"off", false, false}, {"on", true, false}, {"disabled off", false, true}, {"disabled on", true, true}} {
@@ -67,8 +67,8 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 		// The label Checkbox and Switch put beside the box is the name the box
 		// gets; CheckboxBase and SwitchBase are given the same name.
 		pairs := []struct {
-			name         string
-			styled, base func(ui.C)
+			Name         string
+			styled, Base func(ui.C)
 		}{
 			{"button",
 				func(c ui.C) { ui.Button(c, "Go").Disabled(disabled) },
@@ -81,8 +81,8 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 				func(c ui.C) { ui.SwitchBase(c, &on, "Go").Disabled(disabled) }},
 		}
 		for _, p := range pairs {
-			t.Run(p.name+"/"+state.name, func(t *testing.T) {
-				styled, base := declared(t, page(p.styled)), declared(t, page(p.base))
+			t.Run(p.Name+"/"+state.Name, func(t *testing.T) {
+				styled, base := declared(t, page(p.styled)), declared(t, page(p.Base))
 				if fmt.Sprint(styled) != fmt.Sprint(base) {
 					t.Fatalf("the control and its Base declare different semantics\n  styled: %+v\n  base:   %+v", styled, base)
 				}
@@ -109,6 +109,26 @@ func TestStyledControlsDeclareWhatTheirBasesDeclare(t *testing.T) {
 			t.Fatalf("the control and its Base declare different semantics\n  styled: %+v\n  base:   %+v", styled, base)
 		}
 	})
+
+	for _, state := range []struct {
+		Name     string
+		open     bool
+		disabled bool
+	}{{"closed", false, false}, {"open", true, false}, {"disabled", false, true}} {
+		styled := ui.CollapsibleState{Open: state.open, Disabled: state.disabled}
+		base := ui.CollapsibleState{Open: state.open, Disabled: state.disabled}
+		t.Run("collapsible/"+state.Name, func(t *testing.T) {
+			styledHits := declared(t, page(func(c ui.C) {
+				ui.Collapsible(c, &styled, "Details", func() {})
+			}))
+			baseHits := declared(t, page(func(c ui.C) {
+				ui.DisclosureBase(c, &base.Open, "Details").Disabled(base.Disabled).Size(120, 30)
+			}))
+			if fmt.Sprint(styledHits) != fmt.Sprint(baseHits) {
+				t.Fatalf("the collapsible and its Base declare different semantics\n  styled: %+v\n  base:   %+v", styledHits, baseHits)
+			}
+		})
+	}
 
 	t.Run("text field", func(t *testing.T) {
 		var a, b string

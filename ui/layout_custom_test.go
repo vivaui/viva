@@ -11,16 +11,16 @@ import (
 // across columns, then stacks each column by the heights the page measured.
 type masonry struct {
 	columns int
-	gap     float32
+	Gap     float32
 
 	columnHeight []float32
 	columnOf     []int
 	placedHeight []float32
 }
 
-func newMasonry(columns int, gap float32, cards int) *masonry {
+func newMasonry(columns int, Gap float32, cards int) *masonry {
 	return &masonry{
-		columns: columns, gap: gap,
+		columns: columns, Gap: Gap,
 		columnHeight: make([]float32, columns),
 		columnOf:     make([]int, cards),
 		placedHeight: make([]float32, columns),
@@ -30,7 +30,7 @@ func newMasonry(columns int, gap float32, cards int) *masonry {
 func (m *masonry) MeasureWidth(*ui.LayoutContext) float32 { return 0 } // FillWidth decides
 
 func (m *masonry) PlaceWidth(ctx *ui.LayoutContext, bounds ui.Rect) {
-	width := (bounds.Width - m.gap*float32(m.columns-1)) / float32(m.columns)
+	width := (bounds.Width - m.Gap*float32(m.columns-1)) / float32(m.columns)
 	for i := 0; i < ctx.Count(); i++ {
 		ctx.SetWidth(i, width)
 		ctx.SetX(i, bounds.X) // provisional; the column is chosen after heights are known
@@ -52,27 +52,27 @@ func (m *masonry) MeasureHeight(ctx *ui.LayoutContext) float32 {
 			}
 		}
 		m.columnOf[i] = column
-		m.columnHeight[column] += ctx.Height(i) + m.gap
+		m.columnHeight[column] += ctx.Height(i) + m.Gap
 	}
 	var tallest float32
 	for _, height := range m.columnHeight {
-		tallest = max(tallest, height-m.gap)
+		tallest = max(tallest, height-m.Gap)
 	}
 	return tallest
 }
 
 func (m *masonry) PlaceHeight(ctx *ui.LayoutContext, bounds ui.Rect) {
-	width := (bounds.Width - m.gap*float32(m.columns-1)) / float32(m.columns)
+	width := (bounds.Width - m.Gap*float32(m.columns-1)) / float32(m.columns)
 	for i := range m.placedHeight {
 		m.placedHeight[i] = 0
 	}
 	for i := 0; i < ctx.Count(); i++ {
 		column := m.columnOf[i]
 		height := ctx.Height(i)
-		ctx.SetX(i, bounds.X+float32(column)*(width+m.gap))
+		ctx.SetX(i, bounds.X+float32(column)*(width+m.Gap))
 		ctx.SetHeight(i, height)
 		ctx.SetY(i, bounds.Y+m.placedHeight[column])
-		m.placedHeight[column] += height + m.gap
+		m.placedHeight[column] += height + m.Gap
 	}
 }
 
@@ -84,7 +84,7 @@ type masonryModel struct {
 	menu      bool
 	open      bool
 	container ui.Box
-	view      func(ui.C)
+	View      func(ui.C)
 }
 
 func newMasonryModel(columns int, heights ...float32) *masonryModel {
@@ -93,7 +93,7 @@ func newMasonryModel(columns int, heights ...float32) *masonryModel {
 	for i := range heights {
 		m.labels[i] = fmt.Sprintf("card %d", i)
 	}
-	m.view = m.page
+	m.View = m.page
 	return m
 }
 
@@ -123,9 +123,9 @@ func (m *masonryModel) page(c ui.C) {
 // them without the page's flow; identities, hits and dimensions survive.
 func TestCustomLayoutMasonry(t *testing.T) {
 	m := newMasonryModel(2, 40, 60, 30, 50, 20)
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	container := m.container.Rect()
-	gap := m.layout.gap
+	gap := m.layout.Gap
 	columnWidth := (container.Width - gap) / 2
 	if columnWidth <= 0 {
 		t.Fatalf("container width %v leaves no card width", container.Width)
@@ -186,8 +186,8 @@ func TestCustomLayoutMasonry(t *testing.T) {
 func TestCustomLayoutAllocatesNothing(t *testing.T) {
 	m := newMasonryModel(3, 40, 60, 30, 50, 20, 70)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
-	if allocs := testing.AllocsPerRun(100, func() { drawPage(page, canvas, m.view) }); allocs != 0 {
+	drawPage(page, canvas, m.View)
+	if allocs := testing.AllocsPerRun(100, func() { drawPage(page, canvas, m.View) }); allocs != 0 {
 		t.Fatalf("a warm custom layout allocates %v times a frame, want 0", allocs)
 	}
 }
@@ -195,10 +195,10 @@ func TestCustomLayoutAllocatesNothing(t *testing.T) {
 func BenchmarkCustomLayoutMasonry(b *testing.B) {
 	m := newMasonryModel(3, 40, 60, 30, 50, 20, 70)
 	page, canvas := ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas()
-	drawPage(page, canvas, m.view)
+	drawPage(page, canvas, m.View)
 	b.ReportAllocs()
 	for b.Loop() {
-		drawPage(page, canvas, m.view)
+		drawPage(page, canvas, m.View)
 	}
 }
 
@@ -208,7 +208,7 @@ func BenchmarkCustomLayoutMasonry(b *testing.B) {
 func TestCustomLayoutLeavesAbsoluteChildrenToThePage(t *testing.T) {
 	m := newMasonryModel(2, 40, 60, 30)
 	m.overlay = true
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	container := m.container.Rect()
 	overlay := d.hit("overlay").Bounds
 	if overlay != container {
@@ -289,9 +289,9 @@ func (wrongPhase) PlaceHeight(*ui.LayoutContext, ui.Rect)  {}
 func TestCustomLayoutMovesOverlaysWithReorderedChildren(t *testing.T) {
 	m := newMasonryModel(2, 40, 60, 30, 50, 20)
 	m.menu, m.open = true, true
-	d := openPage(t, m.view)
+	d := openPage(t, m.View)
 	container := m.container.Rect()
-	columnWidth := (container.Width - m.layout.gap) / 2
+	columnWidth := (container.Width - m.layout.Gap) / 2
 	item := d.hit("Rename").Bounds
 	if item.X <= container.X+columnWidth/2 {
 		t.Fatalf("the menu at %v did not follow its card into the right column (container %v)", item, container)

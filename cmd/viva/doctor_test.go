@@ -125,8 +125,15 @@ func TestDoctorChecksLinuxLibraries(t *testing.T) {
 	if got["libxcb.so.1"].level != checkOK {
 		t.Errorf("%+v", got["libxcb.so.1"])
 	}
-	if vulkan := got["libvulkan.so.1"]; vulkan.level != checkWarn || !strings.Contains(vulkan.fix, "apt install") {
+	if vulkan := got["libvulkan.so.1"]; vulkan.level != checkNote || !strings.Contains(vulkan.detail, "CPU") || !strings.Contains(vulkan.fix, "apt install") {
 		t.Errorf("%+v", vulkan)
+	}
+	var out bytes.Buffer
+	if err := doctor(host, t.TempDir(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "optional") {
+		t.Errorf("the optional GPU note is not actionable:\n%s", out.String())
 	}
 }
 

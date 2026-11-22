@@ -56,7 +56,7 @@ func (clock *frameClock) lap(phase *float64) {
 	clock.last = now
 }
 
-func (clock *frameClock) end(painter *painter, pathsBuilt, pathsReused int) {
+func (clock *frameClock) end(rectangles, triangles, texts, hits, pathsBuilt, pathsReused int) {
 	if !clock.on {
 		return
 	}
@@ -67,10 +67,10 @@ func (clock *frameClock) end(painter *painter, pathsBuilt, pathsReused int) {
 	for index, key := range [...]string{"frames", "totalMs", "a11yMs", "rectanglesMs", "trianglesMs", "textsMs"} {
 		clock.stats.Set(key, clock.sum[index])
 	}
-	clock.stats.Set("rectangles", len(painter.rectangles))
-	clock.stats.Set("triangles", len(painter.triangles))
-	clock.stats.Set("texts", len(painter.texts))
-	clock.stats.Set("hits", len(painter.accessibility))
+	clock.stats.Set("rectangles", rectangles)
+	clock.stats.Set("triangles", triangles)
+	clock.stats.Set("texts", texts)
+	clock.stats.Set("hits", hits)
 	clock.stats.Set("pathsBuilt", pathsBuilt)
 	clock.stats.Set("pathsReused", pathsReused)
 }

@@ -94,10 +94,13 @@ func readSelectionTextX11(name string) (string, error) {
 
 // HasClipboardImage reports whether the X11 CLIPBOARD owner offers image/png.
 // It asks the owner for its TARGETS, so it waits for another application for up
-// to clipboardWait; a clipboard this process owns holds text only.
+// to clipboardWait; a clipboard this process owns answers without asking.
 func HasClipboardImage() bool {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.hasClipboardImage()
+	}
+	if _, owned := ownedClipboardImage(); owned {
+		return true
 	}
 	has, _ := clipboardOffersImage()
 	return has
@@ -148,6 +151,11 @@ func clipboardOffersImage() (bool, error) {
 func ClipboardImagePNG() ([]byte, error) {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.clipboardImagePNG()
+	}
+	// A clipboard this window owns answers from what it holds; asking the X
+	// server would need the event loop that is calling here.
+	if png, owned := ownedClipboardImage(); owned {
+		return png, nil
 	}
 	if ownsClipboardText() {
 		return nil, platform.ErrNoClipboardImage
@@ -268,7 +276,7 @@ func ClipboardFiles() ([]string, error) {
 }
 
 // ownsClipboardText reports whether this process's window is the CLIPBOARD
-// owner. The clipboard holds the window's text, files, or both.
+// owner. The clipboard holds the window's text, files, picture, or several.
 func ownsClipboardText() bool {
 	win := activeWindow.Load()
 	if win == nil {
@@ -277,6 +285,21 @@ func ownsClipboardText() bool {
 	win.mu.Lock()
 	defer win.mu.Unlock()
 	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+}
+
+// ownedClipboardImage is the picture this window's clipboard holds, and whether
+// it holds one at all: it is the CLIPBOARD owner, with an image on it.
+func ownedClipboardImage() ([]byte, bool) {
+	win := activeWindow.Load()
+	if win == nil {
+		return nil, false
+	}
+	win.mu.Lock()
+	defer win.mu.Unlock()
+	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard || len(win.clipboardImage) == 0 {
+		return nil, false
+	}
+	return append([]byte(nil), win.clipboardImage...), true
 }
 
 // ownedClipboardFiles is the file list this window owns, and whether it owns
@@ -477,6 +500,7 @@ func SetClipboardText(value string) error {
 	win.clipboard = value
 	win.clipboardHTML = ""
 	win.clipboardFiles = nil
+	win.clipboardImage = nil
 	win.ownsClipboard = true
 	return nil
 }
@@ -485,7 +509,9 @@ func SetCursorShape(shape uint8) error {
 	if hooks := shellHooks.Load(); hooks != nil {
 		return hooks.setCursorShape(shape)
 	}
-	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88}
+	// Keep the font fallback aligned with all visible gfx cursor shapes,
+	// including Grabbing (10), used while panning images and dragging cards.
+	glyphs := [...]uint16{68, 152, 60, 34, 150, 108, 116, 134, 136, 88, 58}
 	if int(shape) >= len(glyphs) && shape != cursorHidden {
 		return fmt.Errorf("linux: invalid cursor %d", shape)
 	}
@@ -999,11 +1025,8 @@ func selectionOwner(api *xcbAPI, connection uintptr, selection uint32) (uint32, 
 
 func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, property uint32) (string, error) {
 	value, accepted, err := readSelection(api, connection, requestor, selection, xcbAtomString, property)
-	if err != nil {
+	if err != nil || !accepted {
 		return "", err
-	}
-	if !accepted {
-		return "", unsupported("clipboard owner provides neither UTF8_STRING nor STRING")
 	}
 	return decodeLatin1(value), nil
 }

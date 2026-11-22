@@ -1,38 +1,39 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
+)
+
+type ButtonLook = style.ButtonLook
 
 // ButtonVariant selects one of the shadcn Vega button treatments. Destructive is
 // Vega's quiet one: a danger-tinted surface with a danger label, not a solid red
 // block.
-type ButtonVariant uint8
+type ButtonVariant = style.Variant
 
 const (
-	ButtonDefault ButtonVariant = iota
-	ButtonDestructive
-	ButtonOutline
-	ButtonSecondary
-	ButtonGhost
-	ButtonLink
-	// ButtonDestructiveOutline is the bordered form of a dangerous action: a danger
-	// colored label on an outline button, tinted with the danger color only under
-	// the pointer. Viva's own variant (shadcn has none), for an action that sits
-	// among ordinary controls such as a settings row.
-	ButtonDestructiveOutline
+	ButtonDefault            = style.VariantDefault
+	ButtonDestructive        = style.VariantDestructive
+	ButtonOutline            = style.VariantOutline
+	ButtonSecondary          = style.VariantSecondary
+	ButtonGhost              = style.VariantGhost
+	ButtonLink               = style.VariantLink
+	ButtonDestructiveOutline = style.VariantDestructiveOutline
 )
 
 // ButtonSize selects one of the official shadcn button sizes.
-type ButtonSize uint8
+type ButtonSize = style.Size
 
 const (
-	ButtonSizeDefault ButtonSize = iota
-	ButtonSizeXSmall
-	ButtonSizeSmall
-	ButtonSizeLarge
-	ButtonSizeIcon
-	ButtonSizeIconXSmall
-	ButtonSizeIconSmall
-	ButtonSizeIconLarge
+	ButtonSizeDefault    = style.SizeDefault
+	ButtonSizeXSmall     = style.SizeXSmall
+	ButtonSizeSmall      = style.SizeSmall
+	ButtonSizeLarge      = style.SizeLarge
+	ButtonSizeIcon       = style.SizeIcon
+	ButtonSizeIconXSmall = style.SizeIconXSmall
+	ButtonSizeIconSmall  = style.SizeIconSmall
+	ButtonSizeIconLarge  = style.SizeIconLarge
 )
 
 // ButtonState carries transient pointer, focus, and validation state for
@@ -129,10 +130,9 @@ func (button Button) Height(height float32) Button {
 }
 
 // FontSize paints the label size points instead of the size the button's size
-// gives, for a button that sits among text of its own size. The height, the
-// padding and the corner radius stay those of the size; a label grows the
-// button's width through SizeToFit and Paint as usual. A size of zero or less
-// is the size's own.
+// gives, for a button that sits among text of its own size. The padding and
+// corner radius stay the size's; its natural height grows if the label needs it.
+// An explicit Height stays fixed. A size of zero or less is the size's own.
 func (button Button) FontSize(size float32) Button {
 	button.fontSize = max(size, 0)
 	return button
@@ -173,17 +173,15 @@ func (button Button) Disabled() Button {
 }
 
 // The leading icon keeps one square, one gap and one vertical inset in every
-// size, so SizeToFit and paint agree and a narrow control shrinks the icon
-// instead of drawing it past its own edge.
+// size (package style), so SizeToFit and paint agree and a narrow control shrinks
+// the icon instead of drawing it past its own edge.
 const (
-	buttonIconSize  = 16
-	buttonIconGap   = 8
-	buttonIconInset = 8
+	buttonIconSize  = style.ButtonIconSize
+	buttonIconGap   = style.ButtonIconGap
+	buttonIconInset = style.ButtonIconInset
 )
 
-func buttonIconExtent(height float32) float32 {
-	return max(0, min(float32(buttonIconSize), height-buttonIconInset))
-}
+func buttonIconExtent(height float32) float32 { return style.ButtonIconExtent(height) }
 
 // SizeToFit widens the button to its label plus the selected size padding.
 func (button Button) SizeToFit(label string) Button {
@@ -399,69 +397,45 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	} else if style.filled {
 		button.canvas.Rounded(button.bounds, radius, style.background)
 	}
-	hint := ""
-	if button.hasIcon() {
-		size := min(buttonIconExtent(height), button.bounds.Width)
-		width := size
-		if !iconOnly && label != "" {
-			width = min(button.bounds.Width, width+buttonIconGap+button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium))
+	area := button.bounds
+	_, padding, _, _ := button.geometry()
+	if !iconOnly && padding > 0 {
+		content := gfx.Rect{X: area.X + padding, Y: area.Y, Width: max(area.Width-2*padding, 0), Height: area.Height}
+		need := button.canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium)
+		if button.hasIcon() {
+			need += buttonIconExtent(height)
+			if label != "" {
+				need += buttonIconGap
+			}
 		}
-		x := button.bounds.X + (button.bounds.Width-width)/2
-		if size > 0 {
-			button.canvas.DrawIconTransformed(
-				button.icon,
-				gfx.Rect{X: x, Y: button.bounds.Y + (height-size)/2, Width: size, Height: size},
-				style.foreground,
-				button.iconTransform,
-			)
+		if content.Width > 0 && need > content.Width {
+			button.canvas.Clip(content)
+			defer button.canvas.Unclip()
 		}
-		if iconOnly {
-			hint = label
-		} else if label != "" {
-			text := gfx.Rect{X: x + size + buttonIconGap, Y: button.bounds.Y, Width: max(0, width-size-buttonIconGap), Height: height}
-			paintButtonLabel(button.canvas, label, text, fontSize, style)
-		}
-	} else {
-		paintButtonLabel(button.canvas, label, button.bounds, fontSize, style)
 	}
+	hint := PaintButtonContent(button.canvas, area, ButtonContent{
+		Label: label, Icon: button.icon, IconTransform: button.iconTransform,
+		FontSize: fontSize, Weight: gfx.WeightMedium, Color: style.foreground,
+		Gap: buttonIconGap, Height: height, IconOnly: iconOnly, Underlined: style.underlined,
+	})
 	if !button.id.IsZero() {
 		button.canvas.HitWithOptions(button.id, button.bounds, label, gfx.HitOptions{
-			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint,
+			Role: gfx.RoleButton, Disabled: button.disabled, Hint: hint, Invalid: button.state.Invalid,
 		})
 	}
 	return result
 }
 
 func (button Button) geometry() (height, padding, fontSize float32, iconOnly bool) {
-	metrics := button.theme.Metrics
-	height = metrics.ControlHeight
-	padding = 10
-	fontSize = metrics.FontSizeM
-	switch button.size {
-	case ButtonSizeXSmall:
-		height, padding, fontSize = metrics.ControlHeight-8, 8, metrics.FontSizeS
-	case ButtonSizeSmall:
-		height = metrics.ControlHeight - 4
-	case ButtonSizeLarge:
-		height = metrics.ControlHeight + 4
-	case ButtonSizeIcon:
-		iconOnly = true
-	case ButtonSizeIconXSmall:
-		height, iconOnly = metrics.ControlHeight-8, true
-		fontSize = metrics.FontSizeS
-	case ButtonSizeIconSmall:
-		height, iconOnly = metrics.ControlHeight-4, true
-	case ButtonSizeIconLarge:
-		height, iconOnly = metrics.ControlHeight+4, true
-	}
-	if height < 20 {
-		height = 20
-	}
+	height, padding, fontSize, iconOnly = style.ButtonGeometry(button.theme.Metrics, button.size)
 	if button.height > 0 {
 		height = button.height
 	}
 	if button.fontSize > 0 {
 		fontSize = button.fontSize
+	}
+	if button.height <= 0 && !iconOnly {
+		height = max(height, fontSize+7)
 	}
 	return height, padding, fontSize, iconOnly
 }
@@ -638,15 +612,76 @@ func buttonStyleFor(theme *gfx.Theme, variant ButtonVariant, hovered, pressed bo
 	return style
 }
 
+// ButtonContent is what a button holds when it paints its own content: a leading icon, a
+// label, or an icon alone. The button's surface is not part of it; whoever painted the
+// surface paints this inside the area the button leaves for its content.
+type ButtonContent struct {
+	Label string
+	// Icon is the leading icon; an icon with no commands or layers is none. IconTransform
+	// moves it inside its square without moving the square.
+	Icon          gfx.Icon
+	IconTransform gfx.IconTransform
+	// FontSize, Weight and Color style the label, and the icon takes Color.
+	FontSize float32
+	Weight   float32
+	Color    gfx.Color
+	// Gap is the room between the icon and the label.
+	Gap float32
+	// Height is the height of the button the content is in, which the icon's square follows.
+	Height float32
+	// IconOnly says the button holds the icon alone: the label is then its accessible hint.
+	IconOnly bool
+	// Underlined underlines the label, as a hovered link is.
+	Underlined bool
+}
+
+// PaintButtonContent paints a button's icon and label centered in area and returns the
+// hint an icon-only button gives assistive technology, which is its label. It is the
+// content half of the paint the Button does: the same placement, the same shrinking of
+// the icon when the area is too narrow for it.
+func PaintButtonContent(canvas *gfx.Canvas, area gfx.Rect, content ButtonContent) (hint string) {
+	if canvas == nil || area.Width <= 0 {
+		return ""
+	}
+	look := buttonStyle{foreground: content.Color, underlined: content.Underlined}
+	label := content.Label
+	if len(content.Icon.Commands) == 0 && len(content.Icon.Layers) == 0 {
+		paintButtonLabel(canvas, label, area, content.FontSize, content.Weight, look)
+		return ""
+	}
+	size := min(buttonIconExtent(content.Height), area.Width)
+	width := size
+	if !content.IconOnly && label != "" {
+		width = min(area.Width, width+content.Gap+canvas.TextWidthWeight(label, content.FontSize, content.Weight))
+	}
+	x := area.X + (area.Width-width)/2
+	if size > 0 {
+		canvas.DrawIconTransformed(
+			content.Icon,
+			gfx.Rect{X: x, Y: area.Y + (area.Height-size)/2, Width: size, Height: size},
+			content.Color,
+			content.IconTransform,
+		)
+	}
+	if content.IconOnly {
+		return label
+	}
+	if label != "" {
+		text := gfx.Rect{X: x + size + content.Gap, Y: area.Y, Width: max(0, width-size-content.Gap), Height: area.Height}
+		paintButtonLabel(canvas, label, text, content.FontSize, content.Weight, look)
+	}
+	return ""
+}
+
 // paintButtonLabel centers a button's label and, for a hovered link, underlines it.
-func paintButtonLabel(canvas *gfx.Canvas, label string, bounds gfx.Rect, fontSize float32, style buttonStyle) {
+func paintButtonLabel(canvas *gfx.Canvas, label string, bounds gfx.Rect, fontSize, weight float32, style buttonStyle) {
 	canvas.LabelCenter(label, bounds, gfx.TextStyle{
-		Size: fontSize, Weight: gfx.WeightMedium, Color: style.foreground,
+		Size: fontSize, Weight: weight, Color: style.foreground,
 	})
 	if !style.underlined {
 		return
 	}
-	width := min(canvas.TextWidthWeight(label, fontSize, gfx.WeightMedium), bounds.Width)
+	width := min(canvas.TextWidthWeight(label, fontSize, weight), bounds.Width)
 	canvas.Fill(gfx.Rect{
 		X: bounds.X + (bounds.Width-width)/2, Y: bounds.Y + bounds.Height/2 + fontSize*0.6,
 		Width: width, Height: 1,
@@ -682,23 +717,6 @@ func tinted(color gfx.Color, alpha float32, base gfx.Color) gfx.Color {
 }
 
 // ButtonLook is the look of a button of one variant in one state.
-type ButtonLook struct {
-	// Background, Foreground and Border are the colors of the surface, the label and the
-	// icon, and the line. Filled says the background is painted, Bordered the 1px line,
-	// and Underlined the label (a hovered link).
-	Background, Foreground, Border gfx.Color
-	Filled, Bordered, Underlined   bool
-	// Radius is the corner radius of the surface.
-	Radius float32
-	// Shadow is the elevation under the surface; only the outline variant has one.
-	Shadow gfx.ShadowLevel
-	// Ring is the halo of a focused or invalid button, transparent with a zero RingWidth
-	// when there is none. RingOutline says it is drawn as a line over a translucent theme
-	// rather than a disc under the surface.
-	Ring                  gfx.Color
-	RingWidth, RingRadius float32
-	RingOutline           bool
-}
 
 // ButtonRecipe resolves the look of a button. Hovered and Pressed of state are read only
 // when the button is not Disabled; FocusVisible and Invalid add the halo and take the

@@ -8,6 +8,18 @@ import (
 
 // AppKit counts text in UTF-16 units and Viva in code points; a selection that
 // crosses a character outside the basic plane must come out in AppKit's.
+func TestAccessibilityHintCarriesInvalid(t *testing.T) {
+	if got := darwinAccessibilityHint(platform.AccessibilityNode{Hint: "Required"}); got != "Required" {
+		t.Fatalf("valid hint = %q", got)
+	}
+	if got := darwinAccessibilityHint(platform.AccessibilityNode{Invalid: true}); got != "Invalid entry" {
+		t.Fatalf("invalid hint = %q", got)
+	}
+	if got := darwinAccessibilityHint(platform.AccessibilityNode{Hint: "Required", Invalid: true}); got != "Required. Invalid entry" {
+		t.Fatalf("invalid hint over an existing hint = %q", got)
+	}
+}
+
 func TestNativeSelectionCountsInUTF16(t *testing.T) {
 	node := platform.AccessibilityNode{
 		Value:     "a\U0001F468b",

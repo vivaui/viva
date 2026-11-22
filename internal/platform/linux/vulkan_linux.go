@@ -465,11 +465,14 @@ type vulkanScratch struct {
 	sceneFrame  [6]float32
 	textFrame   [8]float32
 	tint        [4]float32
-	submit      vkSubmitInfo
-	present     vkPresentInfo
-	waitStage   uint32
-	image       uint32
-	command     uintptr
+	// mask is (label width, label height, corner radius, fade) for an image
+	// label's rounded corners and opacity, pushed with the text constants.
+	mask      [4]float32
+	submit    vkSubmitInfo
+	present   vkPresentInfo
+	waitStage uint32
+	image     uint32
+	command   uintptr
 	// contentX and contentY are where the scene's rectangle starts in the target:
 	// zero, unless a window frame leaves a margin.
 	contentX, contentY int32
@@ -964,7 +967,7 @@ func (renderer *vulkanRenderer) createScenePipelines(extent vkExtent2D) error {
 			return err
 		}
 	}
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(extent.Width, extent.Height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(extent)
@@ -1277,7 +1280,10 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 			renderer.rebuilds++
 		} else {
 			if len(frame.Rectangles) < len(renderer.rectangles) {
-				return false, fmt.Errorf("linux: rectangle count shrank without rebuild")
+				if !frame.Update.Shrink || frame.Update.First > len(frame.Rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {
+					return false, fmt.Errorf("linux: rectangle count shrank outside a suffix update")
+				}
+				renderer.rectangles = renderer.rectangles[:len(frame.Rectangles)]
 			}
 			if len(frame.Rectangles) > len(renderer.rectangles) {
 				if frame.Update.First > len(renderer.rectangles) || frame.Update.First+frame.Update.Count != len(frame.Rectangles) {
@@ -1299,7 +1305,7 @@ func (renderer *vulkanRenderer) stageFrame(frame platform.Frame) (bool, error) {
 		}
 	}
 	renderer.compositingBatches = groupCompositingLayers(renderer.rectangleBatches, renderer.text.labels, renderer.text.order, renderer.compositingBatches)
-	if err := renderer.text.upload(renderer, renderer.pixelScale()); err != nil {
+	if err := renderer.text.upload(renderer, renderer.pixelScale(), renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -1357,7 +1363,7 @@ func (renderer *vulkanRenderer) setScaleOnce(scale float32) error {
 	if err := vkCheck(renderer.api.deviceWaitIdle(renderer.device), "wait before scale change"); err != nil {
 		return err
 	}
-	if err := renderer.text.upload(renderer, scale); err != nil {
+	if err := renderer.text.upload(renderer, scale, renderer.textViewport(renderer.width, renderer.height)); err != nil {
 		return err
 	}
 	return renderer.recordCommands(vkExtent2D{Width: renderer.width, Height: renderer.height})

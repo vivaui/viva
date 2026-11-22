@@ -19,20 +19,21 @@ options := []components.SegmentOption{
 control := components.BeginSegmentedControl(canvas, theme, bounds, options, selected)
 if id, ok := control.Paint().Clicked(); ok {
     selected = id
-}`},
-		{ID: "states", Title: "局部禁用", Description: "展示一个不可用选项与完整控件禁用状态。", Snippet: `view := tree.Sub(page, tree.Name("view"))
-control := components.BeginSegmentedControl(canvas, theme, bounds, []components.SegmentOption{
-    {ID: view.At(0), Label: "List"}, {ID: view.At(1), Label: "Board"},
-    {ID: view.At(2), Label: "Timeline", Disabled: true},
-}, selected)
-if id, ok := control.Paint().Clicked(); ok {
-    selected = id
-}
-locked := tree.Sub(page, tree.Name("locked"))
-components.BeginSegmentedControl(canvas, theme, lockedBounds, []components.SegmentOption{
-    {ID: locked.At(0), Label: "List"}, {ID: locked.At(1), Label: "Board"},
-    {ID: locked.At(2), Label: "Timeline"},
-}, locked.At(1)).Disabled().Paint()`},
+}`, PageSnippet: `// m.view starts as "List".
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)`, PageSnippetZh: `// m.view 初始为 "List"。
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil)`},
+		{ID: "states", Title: "局部禁用", Description: "展示一个不可用选项与完整控件禁用状态。", Snippet: `// m.view starts as "List"; Timeline is unavailable here.
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &view, views, nil).DisabledOptions([]bool{false, false, true})
+ui.Choice(c, &lockedView, views, nil).Disabled(true)`, PageSnippet: `// m.view starts as "List"; Timeline is unavailable here.
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil).DisabledOptions([]bool{false, false, true})
+ui.Choice(c, &m.lockedView, views, nil).Disabled(true)`, PageSnippetZh: `// m.view 初始为 "List"；这里的 Timeline 不可用。
+views := []string{"List", "Board", "Timeline"}
+ui.Choice(c, &m.view, views, nil).DisabledOptions([]bool{false, false, true})
+ui.Choice(c, &m.lockedView, views, nil).Disabled(true)`},
 	},
 }
 
@@ -40,9 +41,6 @@ var (
 	segmentedControlUI = tree.Feature("segmented-control")
 	// segmentedControlView's item i is the i-th view option.
 	segmentedControlView = tree.Sub(segmentedControlUI, tree.Name("view"))
-	// segmentedControlLocked's item i is the i-th option of the disabled specimen,
-	// which declares its own (inert) hits beside the live control's.
-	segmentedControlLocked = tree.Sub(segmentedControlUI, tree.Name("locked"))
 )
 
 var segmentedControlOptions = [...]components.SegmentOption{
@@ -51,11 +49,9 @@ var segmentedControlOptions = [...]components.SegmentOption{
 	{ID: segmentedControlView.At(2), Label: "Timeline"},
 }
 
-var segmentedControlLockedOptions = [...]components.SegmentOption{
-	{ID: segmentedControlLocked.At(0), Label: "List"},
-	{ID: segmentedControlLocked.At(1), Label: "Board"},
-	{ID: segmentedControlLocked.At(2), Label: "Timeline"},
-}
+// segmentedControlDisabled marks Timeline unavailable in the states example; the
+// page declaration and the typed key helper read the same entries.
+var segmentedControlDisabled = [...]bool{false, false, true}
 
 var segmentedControlStateOptions = [...]components.SegmentOption{
 	{ID: segmentedControlView.At(0), Label: "List"},
@@ -81,25 +77,48 @@ func (state *State) keySegmentedControl(event gfx.KeyEvent) gfx.EventResult {
 	return gfx.EventResult{Focus: next, FocusVisible: true, Handled: true, Repaint: changed}
 }
 
+// segmentedPageState is the page Choice's model: the chosen view of the live
+// control, the view of the locked one, and whether the demo has seeded them from
+// State.values.
+type segmentedPageState struct {
+	view       string
+	lockedView string
+	init       bool
+}
+
 func (state *State) paintSegmentedControl(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
-	options := segmentedControlOptions[:]
 	if state.exampleID == "states" {
-		options = segmentedControlStateOptions[:]
+		state.paintSegmentedControlStates(canvas, theme, size)
+		return
 	}
-	var live, disabled ui.Box
+	views := [...]string{"List", "Board", "Timeline"}
 	state.drawPage(canvas, theme, size, 520, "View", func(c ui.C) {
-		live = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
-		if state.exampleID == "states" {
-			// The component paints a whole-control disabled specimen in a slot:
-			// it declares its own (inert) hits beside the live control's.
-			disabled = ui.Slot(c).FillWidth().MaxWidth(420).Height(theme.Metrics.ControlHeight)
+		page := ui.State[segmentedPageState](c, "view")
+		if !page.init {
+			page.view, page.init = views[state.values[0]], true
+		}
+		ui.Choice(c, &page.view, views[:], nil)
+		if index := radioPlanIndex(views[:], page.view); index >= 0 {
+			state.values[0] = int32(index)
 		}
 		caption(c, state.Text("方向键通过 typed helper 更新焦点与选择。", "Arrow keys update focus and selection through the typed helper."))
 	})
-	if id, ok := components.BeginSegmentedControl(canvas, theme, live.Rect(), options, segmentedControlView.At(int(state.values[0]))).Paint().Clicked(); ok {
-		state.values[0] = int32(listIndex(id, segmentedControlView))
-	}
-	if state.exampleID == "states" {
-		components.BeginSegmentedControl(canvas, theme, disabled.Rect(), segmentedControlLockedOptions[:], segmentedControlLocked.At(1)).Disabled().Paint()
-	}
+}
+
+// paintSegmentedControlStates declares both controls from the page API: the live
+// one disables Timeline per option, and the second is disabled as a whole.
+func (state *State) paintSegmentedControlStates(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	views := [...]string{"List", "Board", "Timeline"}
+	state.drawPage(canvas, theme, size, 520, "View", func(c ui.C) {
+		page := ui.State[segmentedPageState](c, "view")
+		if !page.init {
+			page.view, page.lockedView, page.init = views[state.values[0]], views[1], true
+		}
+		ui.Choice(c, &page.view, views[:], nil).DisabledOptions(segmentedControlDisabled[:])
+		if index := radioPlanIndex(views[:], page.view); index >= 0 {
+			state.values[0] = int32(index)
+		}
+		ui.Choice(c, &page.lockedView, views[:], nil).Disabled(true)
+		caption(c, state.Text("方向键会跳过不可用选项，禁用控件完全惰性。", "Arrow keys skip unavailable options; a disabled control is inert."))
+	})
 }

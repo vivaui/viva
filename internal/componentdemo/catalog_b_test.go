@@ -113,23 +113,40 @@ func TestGroupBClicksChangeState(t *testing.T) {
 	for _, test := range []struct {
 		component, example string
 		id                 gfx.ID
+		label              string
 		changed            func(*State) bool
 	}{
-		{"command", "default", commandItem.At(2), func(s *State) bool { return s.values[0] == 2 }},
-		{"dropdown-menu", "default", dropdownMenuToggle, func(s *State) bool { return s.flags&1 != 0 }},
-		{"item", "default", itemRow.At(0), func(s *State) bool { return s.flags&1 != 0 }},
-		{"native-select", "default", nativeSelectTrigger.At(0), func(s *State) bool { return s.flags&1 != 0 }},
-		{"message-scroller", "default", messageScrollerEnd, func(s *State) bool { return s.values[0] == 72 }},
-		{"menubar", "default", menubarFile, func(s *State) bool { return s.flags&1 != 0 }},
-		{"input-otp", "default", inputOTPField, func(s *State) bool { return s.values[0] == 4 }},
-		{"input-group", "default", inputGroupClear, func(s *State) bool { return s.flags&1 == 0 }},
-		{"drawer", "default", drawerClose, func(s *State) bool { return s.flags&1 == 0 }},
+		{"command", "default", commandItem.At(2), "", func(s *State) bool { return s.values[0] == 2 }},
+		{"dropdown-menu", "default", gfx.ID{}, "Compact mode", func(s *State) bool { return s.flags&1 != 0 }},
+		{"item", "default", itemRow.At(0), "", func(s *State) bool { return s.flags&1 != 0 }},
+		{"message-scroller", "default", messageScrollerEnd, "", func(s *State) bool { return s.values[0] == 72 }},
+		{"menubar", "default", menubarFile, "", func(s *State) bool { return s.flags&1 != 0 }},
+		{"input-otp", "default", inputOTPField, "", func(s *State) bool { return s.values[0] == 4 }},
+		{"input-group", "default", inputGroupClear, "", func(s *State) bool { return s.flags&1 == 0 }},
+		{"drawer", "default", gfx.ID{}, "Close drawer", func(s *State) bool { return s.flags&1 == 0 }},
 	} {
 		state := newTestState(t, test.component, test.example)
 		paintFrame(&canvas, state, testSize, time.Second, true)
-		click(&canvas, state, test.id)
+		target := test.id
+		if test.label != "" {
+			target = findHitByLabel(t, &canvas, test.label)
+		}
+		click(&canvas, state, target)
 		if !test.changed(state) {
 			t.Errorf("%s: clicking its control did not change the state", test.component)
 		}
 	}
+	// The page-first Select starts closed: open the trigger, then choose.
+	t.Run("native-select/default", func(t *testing.T) {
+		state := newTestState(t, "native-select", "default")
+		paintFrame(&canvas, state, testSize, time.Second, true)
+		trigger := findHitByLabel(t, &canvas, "Environment")
+		click(&canvas, state, trigger)
+		paintFrame(&canvas, state, testSize, time.Second, true)
+		option := findHitByLabel(t, &canvas, "Staging")
+		click(&canvas, state, option)
+		if state.values[0] != 2 {
+			t.Fatalf("choosing Staging left values[0]=%d", state.values[0])
+		}
+	})
 }

@@ -245,7 +245,10 @@ func (probe *gtkFcitxProbe) settle() {
 	if probe.ending == "commit" {
 		probe.want = "a\u4f60\u597dc"
 	} else if probe.ending == "escape" {
-		probe.want = "ac"
+		probe.want = "abc"
+		if p.tentative {
+			probe.want = "ac"
+		}
 	}
 	if probe.engine == "hangul" {
 		probe.want = "a\uac00\ub098c"
@@ -304,6 +307,18 @@ func (probe *gtkFcitxProbe) finish(failure string) {
 		if p.tentative && (results != wantResults || cancels != wantCancels) {
 			failures = append(failures, fmt.Sprintf("results/cancels=%d/%d, want=%d/%d", results, cancels, wantResults, wantCancels))
 		}
+		if !p.tentative && probe.engine == "pinyin" {
+			kind := platform.TextInsert
+			if probe.ending == "escape" {
+				kind = platform.TextCancelComposition
+				if p.editor.CanUndo() || p.editor.CanRedo() || p.editor.Selection() != (text.Range{Start: 1, End: 2}) {
+					failures = append(failures, "Escape did not preserve selection and history")
+				}
+			}
+			if len(p.events) == 0 || p.events[len(p.events)-1].Kind != kind {
+				failures = append(failures, fmt.Sprintf("expected terminal event %d", kind))
+			}
+		}
 		if p.editor.String() != probe.want || p.w.text.state != platform.EditorState(p.editor).WithoutRedraw() || p.w.text.state.Composing {
 			failures = append(failures, "settled editor/mirror differ or native tail mutated the result")
 		}
@@ -312,6 +327,12 @@ func (probe *gtkFcitxProbe) finish(failure string) {
 		}
 	}
 	probe.record(failures...)
+	if failure == "" && !p.tentative && probe.engine == "pinyin" && probe.ending != "escape" {
+		if !p.editor.Undo() || p.editor.String() != "abc" || p.editor.CanUndo() || !p.editor.Redo() || p.editor.String() != probe.want {
+			last := &p.trials[len(p.trials)-1]
+			last.failures = append(last.failures, "commit did not round-trip in a single undo unit")
+		}
+	}
 	if failure == "" && p.tentative {
 		undos := []string{"ac", "abc"}
 		if probe.engine == "hangul" {

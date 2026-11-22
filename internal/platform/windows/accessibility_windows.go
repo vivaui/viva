@@ -50,6 +50,7 @@ const (
 	uiaSizeOfSetProperty           = 30153
 	uiaLiveSettingProperty         = 30135
 	uiaFullDescriptionProperty     = 30159
+	uiaIsDataValidForFormProperty  = 30186
 	uiaHeadingLevelProperty        = 30173
 
 	// UIA_HeadingLevel1Id is 80051; "none" is one below it.
@@ -60,25 +61,26 @@ const (
 	uiaTextChangedEvent          = 20015
 	uiaLiveRegionChangedEvent    = 20024
 
-	uiaButtonControlType    = 50000
-	uiaCheckBoxControlType  = 50002
-	uiaComboBoxControlType  = 50003
-	uiaEditControlType      = 50004
-	uiaHyperlinkControlType = 50005
-	uiaImageControlType     = 50006
-	uiaListItemControlType  = 50007
-	uiaListControlType      = 50008
-	uiaMenuControlType      = 50009
-	uiaMenuBarControlType   = 50010
-	uiaMenuItemControlType  = 50011
-	uiaRadioControlType     = 50013
-	uiaSliderControlType    = 50015
-	uiaTabItemControlType   = 50019
-	uiaTextControlType      = 50020
-	uiaGroupControlType     = 50026
-	uiaDataItemControlType  = 50029
-	uiaWindowControlType    = 50032
-	uiaSeparatorControlType = 50038
+	uiaButtonControlType      = 50000
+	uiaCheckBoxControlType    = 50002
+	uiaComboBoxControlType    = 50003
+	uiaEditControlType        = 50004
+	uiaHyperlinkControlType   = 50005
+	uiaImageControlType       = 50006
+	uiaListItemControlType    = 50007
+	uiaListControlType        = 50008
+	uiaMenuControlType        = 50009
+	uiaMenuBarControlType     = 50010
+	uiaMenuItemControlType    = 50011
+	uiaProgressBarControlType = 50012
+	uiaRadioControlType       = 50013
+	uiaSliderControlType      = 50015
+	uiaTabItemControlType     = 50019
+	uiaTextControlType        = 50020
+	uiaGroupControlType       = 50026
+	uiaDataItemControlType    = 50029
+	uiaWindowControlType      = 50032
+	uiaSeparatorControlType   = 50038
 
 	variantEmpty = 0
 	variantI4    = 3
@@ -517,6 +519,7 @@ var propertyOrder = [...]struct {
 	{uiaSelectionStateProperty, platform.ChangedSelected},
 	{uiaToggleStateProperty, platform.ChangedToggle},
 	{uiaFullDescriptionProperty, platform.ChangedDescription},
+	{uiaIsDataValidForFormProperty, platform.ChangedInvalid},
 	{uiaRangeValueValueProperty, platform.ChangedRange},
 	{uiaHeadingLevelProperty, platform.ChangedLevel},
 	{uiaPositionInSetProperty, platform.ChangedPosition},
@@ -1128,6 +1131,8 @@ func controlType(role uint8) int32 {
 		return uiaCheckBoxControlType
 	case platform.A11yRoleSlider:
 		return uiaSliderControlType
+	case platform.A11yRoleProgress:
+		return uiaProgressBarControlType
 	case platform.A11yRoleImage:
 		return uiaImageControlType
 	case platform.A11yRoleLink:
@@ -1207,6 +1212,10 @@ func propertyVariant(property int32, node platform.AccessibilityNode) (variant, 
 		return stringVariant(node.Hint)
 	case uiaFullDescriptionProperty:
 		return stringVariant(node.Description)
+	// UIA names "this control's value is acceptable" rather than "invalid", so
+	// the Viva Invalid flag is inverted for IsDataValidForForm.
+	case uiaIsDataValidForFormProperty:
+		return booleanVariant(!node.Invalid), true
 	case uiaAutomationIDProperty:
 		if node.ID.IsZero() {
 			return variant{}, false

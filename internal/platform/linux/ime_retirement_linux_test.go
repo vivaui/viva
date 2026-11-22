@@ -95,7 +95,7 @@ func TestNativeIBusUnsupportedModeRetirement(t *testing.T) {
 			}
 			defer bus.Close()
 			h := newTentativeIMEHarness(t)
-			app := &linuxApplication{ibus: bus, ibusTried: true}
+			app := &linuxApplication{inputMethod: ibusDaemon{bus}, inputMethodTried: true}
 			router := h.ime.router
 			router.ime = nil
 			ime := app.newIME(&window{}, h.input, router)

@@ -1,30 +1,15 @@
 package components
 
-import "github.com/vivaui/viva/gfx"
-
-const (
-	scrollAreaBarSize      float32 = 10
-	scrollAreaHoverBarSize float32 = 6
-	scrollAreaBarInset     float32 = 1
-	scrollAreaMinThumb     float32 = 18
+import (
+	"github.com/vivaui/viva/base"
+	"github.com/vivaui/viva/gfx"
 )
 
-// ScrollAreaGeometry is the complete deterministic layout of one externally
-// controlled scroll area. Content is already translated by the clamped offset.
-type ScrollAreaGeometry struct {
-	Bounds          gfx.Rect
-	Viewport        gfx.Rect
-	Content         gfx.Rect
-	VerticalTrack   gfx.Rect
-	VerticalThumb   gfx.Rect
-	HorizontalTrack gfx.Rect
-	HorizontalThumb gfx.Rect
-	Corner          gfx.Rect
-	OffsetX         float32
-	OffsetY         float32
-	MaxOffsetX      float32
-	MaxOffsetY      float32
-}
+const (
+	scrollAreaBarSize              = base.ScrollAreaBarSize
+	scrollAreaHoverBarSize float32 = 6
+	scrollAreaBarInset     float32 = 1
+)
 
 // ScrollArea paints the visible scrollbars around a caller-painted clipped
 // viewport. The caller owns offsets and content extents. Scoped wheel routing,
@@ -165,142 +150,10 @@ func (area ScrollArea) barSize() float32 {
 // horizontal track, thumb and corner move to the scrolling window past the
 // pinned band, spanning exactly what scrolls.
 func (area ScrollArea) Geometry() ScrollAreaGeometry {
-	bounds := scrollAreaNormalizeRect(area.bounds)
-	barSize := area.barSize()
-	contentWidth := scrollAreaFiniteNonNegative(area.contentSize.Width)
-	contentHeight := scrollAreaFiniteNonNegative(area.contentSize.Height)
-	viewport := bounds
-	if area.reserveBars {
-		viewport = scrollAreaReservedViewport(bounds, contentWidth, contentHeight, barSize)
-	}
-	if contentWidth < viewport.Width {
-		contentWidth = viewport.Width
-	}
-	if contentHeight < viewport.Height {
-		contentHeight = viewport.Height
-	}
-
-	// A pinned band needs a window left to scroll in — something to either
-	// side of it, and a width inside the viewport — and changes nothing about
-	// the translation: Content keeps the unfrozen origin, because the caller
-	// clips the pinned columns out of it and paints them itself at the
-	// viewport's edge. Only the horizontal bar belongs to the scrolling window
-	// past the band.
-	frozen := area.frozen
-	if frozen <= 0 || frozen >= viewport.Width || contentWidth <= viewport.Width {
-		frozen = 0
-	}
-	maximumX := scrollAreaMax(contentWidth-viewport.Width, 0)
-	maximumY := scrollAreaMax(contentHeight-viewport.Height, 0)
-	offsetX := scrollAreaClamp(area.offsetX, 0, maximumX)
-	offsetY := scrollAreaClamp(area.offsetY, 0, maximumY)
-	hasHorizontal := maximumX > 0 && viewport.Height > 0
-	hasVertical := maximumY > 0 && viewport.Width > 0
-
-	contentX := viewport.X - offsetX
-	geometry := ScrollAreaGeometry{
-		Bounds: bounds, Viewport: viewport,
-		Content: gfx.Rect{
-			X: contentX, Y: viewport.Y - offsetY,
-			Width: contentWidth, Height: contentHeight,
-		},
-		OffsetX: offsetX, OffsetY: offsetY,
-		MaxOffsetX: maximumX, MaxOffsetY: maximumY,
-	}
-
-	// The bars lie along the outer bounds. Where the viewport already excludes them
-	// (ReserveScrollbars) their extents are the viewport's; otherwise the corner is
-	// taken out of whichever track shares it. With a pinned band the horizontal bar
-	// starts at the band's far edge: its thumb spans the scrolling window, and the
-	// track covers the content its offset can reach.
-	verticalExtent := bounds.Height
-	horizontalExtent := bounds.Width
-	if hasHorizontal && hasVertical {
-		verticalExtent = scrollAreaMax(verticalExtent-barSize, 0)
-		horizontalExtent = scrollAreaMax(horizontalExtent-barSize, 0)
-		geometry.Corner = gfx.Rect{
-			X:     bounds.X + bounds.Width - barSize,
-			Y:     bounds.Y + bounds.Height - barSize,
-			Width: barSize, Height: barSize,
-		}
-	}
-	if hasVertical {
-		geometry.VerticalTrack = gfx.Rect{
-			X: bounds.X + bounds.Width - barSize, Y: bounds.Y,
-			Width: barSize, Height: verticalExtent,
-		}
-		geometry.VerticalThumb = scrollAreaThumb(geometry.VerticalTrack, true, viewport.Height, contentHeight, offsetY, maximumY)
-	}
-	if hasHorizontal {
-		trackX := bounds.X
-		horizontalViewport := viewport.Width
-		if frozen > 0 {
-			trackX = bounds.X + frozen
-			horizontalViewport = viewport.Width - frozen
-		}
-		geometry.HorizontalTrack = gfx.Rect{
-			X: trackX, Y: bounds.Y + bounds.Height - barSize,
-			Width: scrollAreaMax(horizontalExtent-(trackX-bounds.X), 0), Height: barSize,
-		}
-		geometry.HorizontalThumb = scrollAreaThumb(geometry.HorizontalTrack, false, horizontalViewport, contentWidth-frozen, offsetX, maximumX)
-	}
-	return geometry
-}
-
-// scrollAreaReservedViewport is bounds less the strips of the scrollbars the content needs
-// in it. Adding one bar can shrink the other axis enough to need its bar too, so the two
-// are resolved together. The content extents are the caller's, not yet widened to the
-// viewport.
-func scrollAreaReservedViewport(bounds gfx.Rect, contentWidth, contentHeight, barSize float32) gfx.Rect {
-	hasHorizontal, hasVertical := contentWidth > bounds.Width, contentHeight > bounds.Height
-	for range 3 {
-		width, height := bounds.Width, bounds.Height
-		if hasVertical {
-			width = scrollAreaMax(width-barSize, 0)
-		}
-		if hasHorizontal {
-			height = scrollAreaMax(height-barSize, 0)
-		}
-		nextHorizontal, nextVertical := contentWidth > width, contentHeight > height
-		if nextHorizontal == hasHorizontal && nextVertical == hasVertical {
-			break
-		}
-		hasHorizontal, hasVertical = nextHorizontal, nextVertical
-	}
-	viewport := bounds
-	if hasVertical {
-		viewport.Width = scrollAreaMax(viewport.Width-barSize, 0)
-	}
-	if hasHorizontal {
-		viewport.Height = scrollAreaMax(viewport.Height-barSize, 0)
-	}
-	return viewport
-}
-
-// VerticalOffsetForThumb returns the content offset that places the top edge
-// of the vertical thumb at thumbTop: the inverse of the thumb placement, clamped
-// to [0, MaxOffsetY]. A caller turns a pointer drag on the scrollbar into its
-// owned offset with it, without repeating the track insets. It is zero when
-// the area does not scroll vertically.
-func (geometry ScrollAreaGeometry) VerticalOffsetForThumb(thumbTop float32) float32 {
-	travel := scrollAreaMax(geometry.VerticalTrack.Height-scrollAreaBarInset*2, 0) - geometry.VerticalThumb.Height
-	if travel <= 0 || geometry.MaxOffsetY <= 0 {
-		return 0
-	}
-	ratio := (thumbTop - (geometry.VerticalTrack.Y + scrollAreaBarInset)) / travel
-	return scrollAreaClamp(ratio*geometry.MaxOffsetY, 0, geometry.MaxOffsetY)
-}
-
-// HorizontalOffsetForThumb returns the content offset that places the left edge
-// of the horizontal thumb at thumbLeft. It is zero when the area does not scroll
-// horizontally.
-func (geometry ScrollAreaGeometry) HorizontalOffsetForThumb(thumbLeft float32) float32 {
-	travel := scrollAreaMax(geometry.HorizontalTrack.Width-scrollAreaBarInset*2, 0) - geometry.HorizontalThumb.Width
-	if travel <= 0 || geometry.MaxOffsetX <= 0 {
-		return 0
-	}
-	ratio := (thumbLeft - (geometry.HorizontalTrack.X + scrollAreaBarInset)) / travel
-	return scrollAreaClamp(ratio*geometry.MaxOffsetX, 0, geometry.MaxOffsetX)
+	return base.LayoutScrollArea(area.bounds, area.contentSize, base.ScrollAreaLayout{
+		OffsetX: area.offsetX, OffsetY: area.offsetY,
+		BarSize: area.barSize(), ReserveBars: area.reserveBars, Frozen: area.frozen,
+	})
 }
 
 // BeginContent pushes the viewport clip and returns translated content geometry.
@@ -397,39 +250,6 @@ func (area ScrollArea) ScrollForKey(x, y float32, key gfx.Key, step float32) (fl
 	return scrollAreaClamp(x, 0, geometry.MaxOffsetX), scrollAreaClamp(y, 0, geometry.MaxOffsetY), true
 }
 
-func scrollAreaThumb(track gfx.Rect, vertical bool, viewportExtent, contentExtent, offset, maximum float32) gfx.Rect {
-	inner := gfx.Rect{
-		X: track.X + scrollAreaBarInset, Y: track.Y + scrollAreaBarInset,
-		Width:  scrollAreaMax(track.Width-scrollAreaBarInset*2, 0),
-		Height: scrollAreaMax(track.Height-scrollAreaBarInset*2, 0),
-	}
-	trackExtent := inner.Width
-	if vertical {
-		trackExtent = inner.Height
-	}
-	if trackExtent <= 0 || contentExtent <= 0 {
-		return gfx.Rect{}
-	}
-	thumbExtent := trackExtent * viewportExtent / contentExtent
-	thumbExtent = scrollAreaClamp(thumbExtent, scrollAreaMin(scrollAreaMinThumb, trackExtent), trackExtent)
-	position := float32(0)
-	if maximum > 0 {
-		position = (trackExtent - thumbExtent) * offset / maximum
-	}
-	if vertical {
-		return gfx.Rect{X: inner.X, Y: inner.Y + position, Width: inner.Width, Height: thumbExtent}
-	}
-	return gfx.Rect{X: inner.X + position, Y: inner.Y, Width: thumbExtent, Height: inner.Height}
-}
-
-func scrollAreaNormalizeRect(bounds gfx.Rect) gfx.Rect {
-	bounds.X = scrollAreaFinite(bounds.X)
-	bounds.Y = scrollAreaFinite(bounds.Y)
-	bounds.Width = scrollAreaFiniteNonNegative(bounds.Width)
-	bounds.Height = scrollAreaFiniteNonNegative(bounds.Height)
-	return bounds
-}
-
 func scrollAreaFinite(value float32) float32 {
 	if value != value || value > 3.4028235e+38 || value < -3.4028235e+38 {
 		return 0
@@ -476,3 +296,6 @@ func scrollAreaExpand(bounds gfx.Rect, amount float32) gfx.Rect {
 		Width: bounds.Width + amount*2, Height: bounds.Height + amount*2,
 	}
 }
+
+// Aliases into the style vocabulary, kept for callers of this component.
+type ScrollAreaGeometry = base.ScrollAreaGeometry

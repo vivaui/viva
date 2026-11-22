@@ -195,3 +195,24 @@ func BenchmarkCellGlyphs(b *testing.B) {
 		scratch = canvas.CellGlyphGeometry(scratch, line)
 	}
 }
+
+// A line of braille charts draw: more distinct characters than a table or a spinner, the
+// working set a cache of cell glyphs must hold without rebuilding them every line.
+func BenchmarkCellGlyphsBraille(b *testing.B) {
+	var canvas Canvas
+	canvas.SetPixelScale(2)
+	var value strings.Builder
+	for r := rune(0x2800); r < 0x2880; r++ {
+		value.WriteRune(r)
+	}
+	line := blockLine(&canvas, strings.Repeat(value.String(), 2), 9.6, Color{Red: 1, Alpha: 1})
+	scratch := CellGlyphShapes{
+		Rectangles: make([]Rectangle, 0, 4096),
+		Triangles:  make([]Triangle, 0, 512),
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		scratch.Rectangles, scratch.Triangles = scratch.Rectangles[:0], scratch.Triangles[:0]
+		scratch = canvas.CellGlyphGeometry(scratch, line)
+	}
+}
