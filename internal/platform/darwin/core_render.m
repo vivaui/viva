@@ -1,6 +1,186 @@
 #import "core.h"
 #include "label_geometry.h"
 
+/* The compiled shader library the application passes as it opens its windows,
+ * kept after the first one compiled its pipelines: a window that makes its
+ * Metal resources again builds a library from these bytes on the device it is
+ * given, which need not be the device the first library was compiled for. */
+void *viva_shader_library_bytes = NULL;
+size_t viva_shader_library_length = 0;
+
+int viva_remember_shader_library(const unsigned char *bytes, size_t length) {
+    if (bytes == NULL || length == 0) {
+        return 0;
+    }
+    if (viva_shader_library_bytes != NULL && viva_shader_library_length == length &&
+        memcmp(viva_shader_library_bytes, bytes, length) == 0) {
+        return 1;
+    }
+    void *copy = malloc(length);
+    if (copy == NULL) {
+        return 0;
+    }
+    memcpy(copy, bytes, length);
+    free(viva_shader_library_bytes);
+    viva_shader_library_bytes = copy;
+    viva_shader_library_length = length;
+    return 1;
+}
+
+uint16_t viva_rectangle_layer(viva_rectangle rectangle) {
+    if (rectangle.reserved0 <= 0) {
+        return 0;
+    }
+    if (rectangle.reserved0 >= UINT16_MAX) {
+        return UINT16_MAX;
+    }
+    return (uint16_t)rectangle.reserved0;
+}
+
+static int viva_compare_composite_commands(const void *left, const void *right) {
+    const viva_composite_command *a = left;
+    const viva_composite_command *b = right;
+    if (a->layer != b->layer) {
+        return a->layer < b->layer ? -1 : 1;
+    }
+    if (a->sequence != b->sequence) {
+        return a->sequence < b->sequence ? -1 : 1;
+    }
+    if (a->kind != b->kind) {
+        return a->kind < b->kind ? -1 : 1;
+    }
+    if (a->first != b->first) {
+        return a->first < b->first ? -1 : 1;
+    }
+    return 0;
+}
+
+// viva_same_batch reports whether two instances can share one draw: the same
+// layer and the same clip. An instance no clip cuts ignores its stale clip fields.
+static int viva_same_batch(
+    const viva_rectangle *rectangles,
+    const viva_clip *clips,
+    size_t left,
+    size_t right
+) {
+    if (viva_rectangle_layer(rectangles[left]) != viva_rectangle_layer(rectangles[right])) {
+        return 0;
+    }
+    int left_clipped = clips != NULL && clips[left].clipped != 0;
+    int right_clipped = clips != NULL && clips[right].clipped != 0;
+    if (left_clipped != right_clipped) {
+        return 0;
+    }
+    if (!left_clipped) {
+        return 1;
+    }
+    return clips[left].x == clips[right].x && clips[left].y == clips[right].y &&
+           clips[left].width == clips[right].width &&
+           clips[left].height == clips[right].height;
+}
+
+/* viva_rectangle_capacity answers the instance slots the renderer's rectangle
+ * buffers need to hold count instances, given the slots they already hold. A
+ * buffer that has room keeps it, so an append landing in the headroom of an
+ * earlier growth costs nothing; a buffer that must grow doubles, so a scene
+ * that appends one instance at a time allocates a logarithmic number of times
+ * and the buffers stay within twice the instances that exist. */
+size_t viva_rectangle_capacity(size_t capacity, size_t count) {
+    if (capacity >= count) {
+        return capacity;
+    }
+    size_t next = capacity > 0 ? capacity : 64;
+    while (next < count) {
+        if (next > SIZE_MAX / 2) {
+            return count;
+        }
+        next *= 2;
+    }
+    return next;
+}
+
+int viva_plan_composite(
+    const viva_rectangle *rectangles,
+    const viva_clip *clips,
+    size_t rectangle_count,
+    const uint16_t *text_layers,
+    const uint32_t *text_shapes_before,
+    size_t text_count,
+    viva_composite_command *commands,
+    size_t command_capacity,
+    size_t *command_count
+) {
+    if (command_count == NULL ||
+        (rectangle_count > 0 && (rectangles == NULL || clips == NULL)) ||
+        (text_count > 0 && (text_layers == NULL || text_shapes_before == NULL)) ||
+        rectangle_count > UINT32_MAX || text_count > UINT32_MAX) {
+        return 1;
+    }
+
+    // At most one command per shape and one per label: a shape batch can be cut
+    // at every label boundary.
+    if (rectangle_count > SIZE_MAX - text_count) {
+        return 2;
+    }
+    size_t required = rectangle_count + text_count;
+    if (required > command_capacity || (required > 0 && commands == NULL)) {
+        return 2;
+    }
+
+    // Shapes and labels arrive in paint order. A label that says k shapes were
+    // painted before it belongs after instance k-1 and before instance k, so
+    // the plan walks both lists by that boundary, cutting a shape batch when a
+    // label falls inside it.
+    size_t command_index = 0;
+    size_t rectangle_index = 0;
+    size_t text_index = 0;
+    while (rectangle_index < rectangle_count || text_index < text_count) {
+        if (text_index < text_count &&
+            (text_shapes_before[text_index] <= rectangle_index || rectangle_index >= rectangle_count)) {
+            uint32_t sequence = (uint32_t)command_index;
+            commands[command_index++] = (viva_composite_command){
+                .layer = text_layers[text_index],
+                .kind = VIVA_COMPOSITE_TEXT,
+                .first = (uint32_t)text_index,
+                .count = 1,
+                .sequence = sequence,
+            };
+            text_index++;
+            continue;
+        }
+        size_t first = rectangle_index;
+        size_t end = first + 1;
+        while (end < rectangle_count &&
+               viva_same_batch(rectangles, clips, first, end) &&
+               (text_index >= text_count || end < text_shapes_before[text_index])) {
+            end++;
+        }
+        uint16_t layer = viva_rectangle_layer(rectangles[first]);
+        uint32_t sequence = (uint32_t)command_index;
+        viva_composite_command command = {
+            .layer = layer,
+            .kind = VIVA_COMPOSITE_RECTANGLES,
+            .first = (uint32_t)first,
+            .count = (uint32_t)(end - first),
+            .sequence = sequence,
+        };
+        if (clips[first].clipped != 0) {
+            command.clipped = 1;
+            command.clip_x = clips[first].x;
+            command.clip_y = clips[first].y;
+            command.clip_width = clips[first].width;
+            command.clip_height = clips[first].height;
+        }
+        commands[command_index++] = command;
+        rectangle_index = end;
+    }
+    qsort(commands, command_index, sizeof(viva_composite_command),
+          viva_compare_composite_commands);
+    *command_count = command_index;
+    return 0;
+}
+
+
 uint64_t viva_gpu_submission_count;
 uint64_t viva_gpu_draw_call_count;
 uint64_t viva_rectangle_instance_count;
@@ -215,7 +395,7 @@ NSData *viva_downsample_bitmap(NSData *source, uint32_t sourceWidth, uint32_t so
 // viva_bitmap_texture_extent is the size of the texture an image label is drawn from: the
 // stored image, averaged down to the device pixels the label covers when it is drawn smaller
 // than it is stored. internal/platform.BitmapTextureExtent computes the same size.
-void viva_bitmap_texture_extent(NSRect frame, CGFloat scale, size_t sourceWidth, size_t sourceHeight, size_t *width, size_t *height) {
+void viva_bitmap_texture_extent(CGRect frame, CGFloat scale, size_t sourceWidth, size_t sourceHeight, size_t *width, size_t *height) {
     CGFloat pixelScale = MAX(scale, 1.0);
     size_t shownWidth = (size_t)MAX(1.0, floor((frame.origin.x + frame.size.width) * pixelScale + 0.5) - floor(frame.origin.x * pixelScale + 0.5));
     size_t shownHeight = (size_t)MAX(1.0, floor((frame.origin.y + frame.size.height) * pixelScale + 0.5) - floor(frame.origin.y * pixelScale + 0.5));
@@ -243,17 +423,17 @@ BOOL viva_bitmap_extent_stale(size_t have, size_t need) {
 // viva_label_visible_span clips the destination triangles to the clip and viewport,
 // then maps their visible UV range to source pixels, at most full.
 // NO when none of the label can be seen.
-BOOL viva_label_visible_span(const float *quad, const float *tint, BOOL clipped, NSRect clip, NSSize viewport,
+BOOL viva_label_visible_span(const float *quad, const float *tint, BOOL clipped, CGRect clip, CGSize viewport,
                                     size_t full, size_t *left, size_t *right) {
-    NSRect visible = NSMakeRect(0, 0, viewport.width, viewport.height);
+    CGRect visible = CGRectMake(0, 0, viewport.width, viewport.height);
     if (clipped) {
-        visible = NSIntersectionRect(visible, clip);
+        visible = CGRectIntersection(visible, clip);
     }
-    if (NSIsEmptyRect(visible)) {
+    if (CGRectIsEmpty(visible)) {
         return NO;
     }
     float sourceLeft, sourceRight;
-    if (!viva_label_source_span(quad, tint, NSMinX(visible), NSMinY(visible), NSMaxX(visible), NSMaxY(visible), &sourceLeft, &sourceRight)) {
+    if (!viva_label_source_span(quad, tint, CGRectGetMinX(visible), CGRectGetMinY(visible), CGRectGetMaxX(visible), CGRectGetMaxY(visible), &sourceLeft, &sourceRight)) {
         return NO;
     }
     CGFloat from = floor((double)sourceLeft * full);
@@ -313,7 +493,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
             [self release];
             return nil;
         }
-        _frame = NSMakeRect(config.x, config.y, config.width, config.height);
+        _frame = CGRectMake(config.x, config.y, config.width, config.height);
         [self updateClipFromConfig:config];
         [self updateQuadFromConfig:config];
         _fontSize = config.font_size;
@@ -436,7 +616,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
 
 - (void)updateClipFromConfig:(viva_text_label)config {
     _clipped = (config.flags & VIVA_LABEL_CLIPPED) != 0;
-    _clip = _clipped ? NSMakeRect(config.clip_x, config.clip_y, config.clip_width, config.clip_height) : NSZeroRect;
+    _clip = _clipped ? CGRectMake(config.clip_x, config.clip_y, config.clip_width, config.clip_height) : CGRectZero;
 }
 
 - (void)updateQuadFromConfig:(viva_text_label)config {
@@ -494,15 +674,15 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     return _clipped;
 }
 
-- (NSRect)clip {
+- (CGRect)clip {
     return _clip;
 }
 
-- (void)updateFrame:(NSRect)frame {
+- (void)updateFrame:(CGRect)frame {
     _frame = frame;
 }
 
-- (BOOL)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
+- (BOOL)forceTextureRebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(CGSize)viewport {
     _lastScale = 0;
     return [self rebuildWithDevice:device scale:scale viewport:viewport];
 }
@@ -514,7 +694,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
 // refreshWindowWithDevice rasterizes a label held in part again when the part of it that
 // can be seen in viewport is no longer all in its texture: it moved, or its clip or the
 // viewport did. Any other label is left as it is.
-- (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
+- (BOOL)refreshWindowWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(CGSize)viewport {
     CGFloat widthScale = [self rasterWidthScale:scale];
     if (_texture == nil || _lastScale != scale ||
         viva_bitmap_extent_stale((size_t)ceil(_frame.size.width * _windowPixelScale), (size_t)ceil(_frame.size.width * widthScale))) {
@@ -550,7 +730,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     return MIN(pixelScale, MAX(1, ceil(MAX(top, bottom) * pixelScale)) / _frame.size.width);
 }
 
-- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(NSSize)viewport {
+- (BOOL)rebuildWithDevice:(id<MTLDevice>)device scale:(CGFloat)scale viewport:(CGSize)viewport {
     size_t wantWidth = 0, wantHeight = 0;
     if (_bitmap != nil) {
         viva_bitmap_texture_extent(_frame, scale, _bitmapWidth, _bitmapHeight, &wantWidth, &wantHeight);
@@ -725,7 +905,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     baseline -= ceil(_originY * pixelScale - 1e-4) / pixelScale;
     if (_mono) {
         // A fixed-pitch label is not proportional text: it keeps its own advances.
-        // The line carries the face's font (the NSFont itself: looking it up again by
+        // The line carries the face's font (the VivaFont itself: looking it up again by
         // name fails for the monospaced system font at a weight, whose name is private
         // to that instance, and CoreText answers with Times New Roman) and, for the
         // clusters no family of it draws, the installed fallback.
@@ -750,7 +930,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
 // from fallback fonts cannot push later text off its column. All runs share
 // one baseline taken from the base font.
 - (void)drawRunsInContext:(CGContextRef)context pixelScale:(CGFloat)pixelScale {
-    NSFont *baseFont = viva_mono_font(_fontSize, _fontWeight, _monoFace);
+    VivaFont *baseFont = viva_mono_font(_fontSize, _fontWeight, _monoFace);
     CGFloat baseline = _baseline > 0
         ? viva_fixed_baseline(_frame.size.height, _baseline, pixelScale)
         : viva_baseline(_frame.size.height, _fontSize, pixelScale);
@@ -783,7 +963,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
             }
         }
         if (font == NULL) {
-            NSFont *native = viva_mono_font(_fontSize, run->weight, _monoFace);
+            VivaFont *native = viva_mono_font(_fontSize, run->weight, _monoFace);
             font = (CTFontRef)CFRetain(native);
             if (italic) {
                 CGAffineTransform slant = CGAffineTransformMake(1, 0, 0.2126, 1, 0, 0);
@@ -815,7 +995,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
                                                        length:count
                                                      encoding:NSUTF8StringEncoding];
             if (shown != nil) {
-                CTLineRef line = viva_mono_fallback_line(shown, (NSFont *)font, _monoFace, foreground);
+                CTLineRef line = viva_mono_fallback_line(shown, (VivaFont *)font, _monoFace, foreground);
                 if (line != NULL) {
                     CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
                     if (width > 0 && span > 0) {
@@ -861,7 +1041,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
                 CFRelease(foreground);
                 continue;
             }
-            CTLineRef line = viva_mono_fallback_line(shown, (NSFont *)font, _monoFace, foreground);
+            CTLineRef line = viva_mono_fallback_line(shown, (VivaFont *)font, _monoFace, foreground);
             if (line == NULL) {
                 [shown release];
                 CFRelease(foreground);
@@ -914,11 +1094,11 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     return 1 + _additionalTextures.count;
 }
 
-- (NSRect)frame {
+- (CGRect)frame {
     return _frame;
 }
 
-- (NSRect)quadAtIndex:(NSUInteger)index {
+- (CGRect)quadAtIndex:(NSUInteger)index {
     if (_bitmap != nil) {
         return _frame;
     }
@@ -927,10 +1107,10 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     size_t tileRight = tileLeft + MIN(_windowRight - tileLeft, VIVA_LABEL_TILE_WIDTH);
     CGFloat left = (CGFloat)tileLeft / _windowPixelScale;
     CGFloat right = tileRight >= full ? _frame.size.width : (CGFloat)tileRight / _windowPixelScale;
-    return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
+    return CGRectMake(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
 }
 
-- (NSRect)textureFrameAtIndex:(NSUInteger)index {
+- (CGRect)textureFrameAtIndex:(NSUInteger)index {
     if (_bitmap != nil) return _frame;
     size_t full = (size_t)MAX(1.0, ceil(_frame.size.width * _windowPixelScale));
     size_t tileLeft = _windowLeft + index * VIVA_LABEL_TILE_WIDTH;
@@ -939,7 +1119,7 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
     size_t textureRight = MIN(tileRight + 1, full);
     CGFloat left = (CGFloat)textureLeft / _windowPixelScale;
     CGFloat right = textureRight >= full ? _frame.size.width : (CGFloat)textureRight / _windowPixelScale;
-    return NSMakeRect(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
+    return CGRectMake(_frame.origin.x + left, _frame.origin.y, right - left, _frame.size.height);
 }
 
 @end
@@ -952,7 +1132,7 @@ int viva_update_label_layers(
     NSUInteger count,
     id<MTLDevice> device,
     CGFloat scale,
-    NSSize viewport,
+    CGSize viewport,
     NSMutableArray<VivaTextLayer *> **updated
 ) {
     NSMutableArray<VivaTextLayer *> *replacement =
@@ -988,7 +1168,7 @@ int viva_update_label_layers(
             existing = previous[(NSUInteger)source[index]];
         }
         if (existing != nil) {
-            [existing updateFrame:NSMakeRect(
+            [existing updateFrame:CGRectMake(
                 labels[index].x, labels[index].y,
                 labels[index].width, labels[index].height)];
             [existing updateClipFromConfig:labels[index]];
@@ -1052,9 +1232,9 @@ void viva_label_plain_tint(float *tint) {
 size_t viva_label_tile_mesh(
     const float *quad,
     const float *tint,
-    NSRect frame,
-    NSRect tile,
-    NSRect texture,
+    CGRect frame,
+    CGRect tile,
+    CGRect texture,
     viva_label_vertex *vertices
 ) {
     CGFloat width = frame.size.width > 0 ? frame.size.width : 1;
@@ -1081,8 +1261,8 @@ void viva_encode_input(
     id<MTLRenderCommandEncoder> encoder,
     id<MTLRenderPipelineState> textPipeline,
     id<MTLTexture> inputTexture,
-    NSRect inputFrame,
-    NSSize viewport
+    CGRect inputFrame,
+    CGSize viewport
 ) {
     float viewportSize[2] = {(float)viewport.width, (float)viewport.height};
     float quad[8];
@@ -1116,9 +1296,9 @@ void viva_encode_scene(
     NSUInteger commandCount,
     NSArray<VivaTextLayer *> *labels,
     id<MTLTexture> inputTexture,
-    NSRect inputFrame,
+    CGRect inputFrame,
     uint16_t inputLayer,
-    NSSize viewport,
+    CGSize viewport,
     NSUInteger targetWidth,
     NSUInteger targetHeight
 ) {
@@ -1173,7 +1353,7 @@ void viva_encode_scene(
         VivaTextLayer *layer = [labels objectAtIndex:command.first];
         BOOL scissored = NO;
         if ([layer clipped]) {
-            NSRect clip = [layer clip];
+            CGRect clip = [layer clip];
             NSInteger left = MAX((NSInteger)floor(clip.origin.x * targetScale), 0);
             NSInteger top = MAX((NSInteger)floor(clip.origin.y * targetScale), 0);
             NSInteger right = MIN((NSInteger)ceil((clip.origin.x + clip.size.width) * targetScale), (NSInteger)targetWidth);
@@ -1187,7 +1367,7 @@ void viva_encode_scene(
         }
         [encoder setRenderPipelineState:textPipeline];
         [encoder setVertexBytes:&viewportSize length:sizeof(viewportSize) atIndex:1];
-        NSRect layerFrame = [layer frame];
+        CGRect layerFrame = [layer frame];
         viva_text_label_uniform labelUniform = {
             (float)layerFrame.origin.x, (float)layerFrame.origin.y,
             (float)layerFrame.size.width, (float)layerFrame.size.height,
@@ -1213,3 +1393,453 @@ void viva_encode_scene(
     }
 }
 
+
+@interface VivaRenderer (Plan)
+- (BOOL)replaceCompositePlanForRectangles:(const viva_rectangle *)rectangles
+                                    clips:(const viva_clip *)clips
+                            rectangleCount:(NSUInteger)rectangleCount
+                                 textLayers:(const uint16_t *)textLayers
+                           textShapesBefore:(const uint32_t *)textShapesBefore
+                                  textCount:(NSUInteger)textCount;
+@end
+
+@implementation VivaRenderer
+
+@synthesize layer = _layer;
+@synthesize textLabels = _textLabels;
+@synthesize rectangleCount = _rectangleCount;
+@synthesize clearColor = _clearColor;
+@synthesize textPipeline = _textPipeline;
+
+- (instancetype)initWithLayer:(CAMetalLayer *)layer
+                 commandQueue:(id<MTLCommandQueue>)commandQueue
+            rectanglePipeline:(id<MTLRenderPipelineState>)rectanglePipeline
+              rectangleBuffer:(id<MTLBuffer>)rectangleBuffer
+               rectangleCount:(NSUInteger)rectangleCount
+               rectangleClips:(const viva_clip *)rectangleClips
+                 textPipeline:(id<MTLRenderPipelineState>)textPipeline
+                   textLabels:(const viva_text_label *)textLabels
+               textLabelCount:(NSUInteger)textLabelCount
+                   clearColor:(MTLClearColor)clearColor
+                     viewport:(CGSize)viewport {
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+    _layer = [layer retain];
+    _commandQueue = [commandQueue retain];
+    _rectanglePipeline = [rectanglePipeline retain];
+    _rectangleBuffer = [rectangleBuffer retain];
+    _rectangleCount = rectangleCount;
+    _rectangleCapacity = rectangleCount;
+    if (rectangleCount > 0) {
+        _rectangleClips = malloc(rectangleCount * sizeof(viva_clip));
+        if (_rectangleClips == NULL) {
+            [self release];
+            return nil;
+        }
+        memcpy(_rectangleClips, rectangleClips, rectangleCount * sizeof(viva_clip));
+    }
+    _textPipeline = [textPipeline retain];
+    _clearColor = clearColor;
+    if (textLabelCount > 0) {
+        _textLabelLayers = malloc(textLabelCount * sizeof(uint16_t));
+        _textLabelShapesBefore = malloc(textLabelCount * sizeof(uint32_t));
+        if (_textLabelLayers == NULL || _textLabelShapesBefore == NULL) {
+            [self release];
+            return nil;
+        }
+        for (NSUInteger index = 0; index < textLabelCount; index++) {
+            _textLabelLayers[index] = textLabels[index].layer;
+            _textLabelShapesBefore[index] = textLabels[index].shapes_before;
+        }
+    }
+    _textLabelCount = textLabelCount;
+    _textLabels = [[NSMutableArray alloc] initWithCapacity:textLabelCount];
+    for (NSUInteger index = 0; index < textLabelCount; index++) {
+        VivaTextLayer *textLayer = [[VivaTextLayer alloc] initWithConfig:textLabels[index]];
+        if (textLayer == nil) {
+            [self release];
+            return nil;
+        }
+        [_textLabels addObject:textLayer];
+        [textLayer release];
+    }
+    if (![self rebuildTextLabelsWithViewport:viewport]) {
+        [self release];
+        return nil;
+    }
+    if (![self replaceCompositePlanForRectangles:
+            rectangleBuffer == nil ? NULL : rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:rectangleCount
+                                       textLayers:_textLabelLayers
+                                 textShapesBefore:_textLabelShapesBefore
+                                        textCount:_textLabelCount]) {
+        [self release];
+        return nil;
+    }
+    viva_label_initial_count = textLabelCount;
+    return self;
+}
+
+- (void)dealloc {
+    free(_compositeCommands);
+    free(_rectangleClips);
+    free(_textLabelLayers);
+    free(_textLabelShapesBefore);
+    [_rectangleBuffer release];
+    [_rectanglePipeline release];
+    [_textLabels release];
+    [_textPipeline release];
+    [_commandQueue release];
+    [_layer release];
+    [super dealloc];
+}
+
+- (BOOL)replaceCompositePlanForRectangles:(const viva_rectangle *)rectangles
+                                    clips:(const viva_clip *)clips
+                            rectangleCount:(NSUInteger)rectangleCount
+                                 textLayers:(const uint16_t *)textLayers
+                           textShapesBefore:(const uint32_t *)textShapesBefore
+                                  textCount:(NSUInteger)textCount {
+    if (rectangleCount > SIZE_MAX - textCount) {
+        return NO;
+    }
+    NSUInteger capacity = rectangleCount + textCount;
+    viva_composite_command *replacement = NULL;
+    if (capacity > 0) {
+        if (capacity > SIZE_MAX / sizeof(viva_composite_command)) {
+            return NO;
+        }
+        replacement = malloc(capacity * sizeof(viva_composite_command));
+        if (replacement == NULL) {
+            return NO;
+        }
+    }
+    size_t count = 0;
+    int status = viva_plan_composite(
+        rectangles,
+        clips,
+        rectangleCount,
+        textLayers,
+        textShapesBefore,
+        textCount,
+        replacement,
+        capacity,
+        &count
+    );
+    if (status != 0) {
+        free(replacement);
+        return NO;
+    }
+    free(_compositeCommands);
+    _compositeCommands = replacement;
+    _compositeCommandCount = count;
+    return YES;
+}
+
+- (BOOL)rebuildTextLabelsWithViewport:(CGSize)viewport {
+    CGFloat scale = MAX(_layer.contentsScale, 1.0);
+    for (VivaTextLayer *textLayer in _textLabels) {
+        if (![textLayer rebuildWithDevice:_layer.device scale:scale viewport:viewport]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+- (void)forceRebuildTextLabelsWithViewport:(CGSize)viewport {
+    CGFloat scale = MAX(_layer.contentsScale, 1.0);
+    for (VivaTextLayer *textLayer in _textLabels) {
+        [textLayer forceTextureRebuildWithDevice:_layer.device scale:scale viewport:viewport];
+    }
+    viva_label_texture_rebuild_count += _textLabels.count;
+}
+
+- (id<MTLCommandBuffer>)renderToDrawable:(id<CAMetalDrawable>)drawable
+                                viewport:(CGSize)viewport
+                            inputTexture:(id<MTLTexture>)inputTexture
+                              inputFrame:(CGRect)inputFrame
+                              inputLayer:(uint16_t)inputLayer {
+    MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = drawable.texture;
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+    pass.colorAttachments[0].clearColor = _clearColor;
+
+    id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
+    id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+    viva_encode_scene(encoder, _rectanglePipeline, _textPipeline, _rectangleBuffer,
+                     _compositeCommands, _compositeCommandCount, _textLabels,
+                     inputTexture, inputFrame, inputLayer, viewport,
+                     drawable.texture.width, drawable.texture.height);
+    [encoder endEncoding];
+    [commandBuffer presentDrawable:drawable];
+    [commandBuffer commit];
+    viva_gpu_submission_count++;
+    return commandBuffer;
+}
+
+- (BOOL)recoverWithViewport:(CGSize)viewport {
+    if (viva_shader_library_bytes == NULL) {
+        return NO;
+    }
+    @autoreleasepool {
+        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+        if (device == nil) {
+            return NO;
+        }
+        id<MTLCommandQueue> queue = [device newCommandQueue];
+        if (queue == nil) {
+            [device release];
+            return NO;
+        }
+        dispatch_data_t libraryData = dispatch_data_create(
+            viva_shader_library_bytes,
+            viva_shader_library_length,
+            dispatch_get_main_queue(),
+            DISPATCH_DATA_DESTRUCTOR_DEFAULT
+        );
+        NSError *libraryError = nil;
+        id<MTLLibrary> library = [device newLibraryWithData:libraryData error:&libraryError];
+        dispatch_release(libraryData);
+        if (library == nil) {
+            [queue release];
+            [device release];
+            return NO;
+        }
+        // Both pipelines, whatever the window had: the frame that failed asked
+        // for rectangles, and a label texture of the old device cannot be drawn
+        // by the new one.
+        id<MTLRenderPipelineState> rectanglePipeline = viva_create_pipeline(
+            device, library, @"viva_rectangle_vertex", @"viva_rectangle_fragment", NULL);
+        id<MTLRenderPipelineState> textPipeline = viva_create_pipeline(
+            device, library, @"viva_text_vertex", @"viva_text_fragment", NULL);
+        [library release];
+        if (rectanglePipeline == nil || textPipeline == nil) {
+            [rectanglePipeline release];
+            [textPipeline release];
+            [queue release];
+            [device release];
+            return NO;
+        }
+        _layer.device = device;
+        [_commandQueue release];
+        _commandQueue = queue;
+        [_rectanglePipeline release];
+        _rectanglePipeline = rectanglePipeline;
+        [_textPipeline release];
+        _textPipeline = textPipeline;
+        // The instance buffers belonged to the old device; the application
+        // sends every instance again, as a rebuild.
+        [_rectangleBuffer release];
+        _rectangleBuffer = nil;
+        free(_rectangleClips);
+        _rectangleClips = NULL;
+        _rectangleCount = 0;
+        _rectangleCapacity = 0;
+        free(_compositeCommands);
+        _compositeCommands = NULL;
+        _compositeCommandCount = 0;
+        CGFloat scale = MAX(_layer.contentsScale, 1.0);
+        for (VivaTextLayer *textLayer in _textLabels) {
+            if (![textLayer forceTextureRebuildWithDevice:device scale:scale viewport:viewport]) {
+                [device release];
+                return NO;
+            }
+        }
+        viva_label_texture_rebuild_count += _textLabels.count;
+        [device release];
+        return YES;
+    }
+}
+
+- (int)updateRectangles:(const viva_rectangle *)rectangles
+                  clips:(const viva_clip *)clips
+             totalCount:(NSUInteger)totalCount
+                  first:(NSUInteger)first
+                  count:(NSUInteger)count
+                rebuild:(BOOL)rebuild {
+    if (rebuild) {
+        id<MTLBuffer> replacement = nil;
+        viva_clip *replacementClips = NULL;
+        if (totalCount > 0) {
+            if (_rectanglePipeline == nil || clips == NULL) {
+                return 3;
+            }
+            replacementClips = malloc(totalCount * sizeof(viva_clip));
+            if (replacementClips == NULL) {
+                return 3;
+            }
+            memcpy(replacementClips, clips, totalCount * sizeof(viva_clip));
+            replacement = [_layer.device
+                newBufferWithBytes:rectangles
+                            length:totalCount * sizeof(viva_rectangle)
+                           options:MTLResourceStorageModeShared];
+            if (replacement == nil) {
+                free(replacementClips);
+                return 3;
+            }
+            // The staged instances carry their layer in reserved0, so the
+            // bytes newBufferWithBytes copies are already complete.
+        }
+        if (![self replaceCompositePlanForRectangles:
+                replacement == nil ? NULL : replacement.contents
+                                               clips:replacementClips
+                                      rectangleCount:totalCount
+                                           textLayers:_textLabelLayers
+                                     textShapesBefore:_textLabelShapesBefore
+                                            textCount:_textLabelCount]) {
+            [replacement release];
+            free(replacementClips);
+            return 3;
+        }
+        [_rectangleBuffer release];
+        free(_rectangleClips);
+        _rectangleClips = replacementClips;
+        _rectangleBuffer = replacement;
+        _rectangleCount = totalCount;
+        _rectangleCapacity = totalCount;
+        viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
+        viva_gpu_full_rebuild_count++;
+        return 0;
+    }
+    BOOL shrank = totalCount < _rectangleCount;
+    if (shrank) {
+        if (first + count != totalCount) {
+            return 2;
+        }
+        _rectangleCount = totalCount;
+    }
+    if (count == 0) {
+        if (shrank && ![self replaceCompositePlanForRectangles:
+                _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
+                                       clips:_rectangleClips
+                              rectangleCount:_rectangleCount
+                                   textLayers:_textLabelLayers
+                             textShapesBefore:_textLabelShapesBefore
+                                    textCount:_textLabelCount]) {
+            return 3;
+        }
+        return 0;
+    }
+    if (_rectangleBuffer == nil || _rectangleClips == NULL || clips == NULL ||
+        first > totalCount || count > totalCount - first) {
+        return 2;
+    }
+    BOOL grew = totalCount > _rectangleCount;
+    BOOL reallocated = NO;
+    if (grew) {
+        // The scene appended instances. A stream that appends every frame
+        // must not allocate, copy and re-flush the whole buffer each time,
+        // so the buffers carry headroom; a rebuild re-tightens them to the
+        // exact count. The headroom is only made when the new count no
+        // longer fits: growing on every append multiplied the capacity by
+        // a quarter per frame while the scene appended one instance, and
+        // the request passed what the device hands out within a few dozen
+        // appends.
+        if (first > _rectangleCount || first + count != totalCount) {
+            return 2;
+        }
+        NSUInteger capacity = viva_rectangle_capacity(_rectangleCapacity, totalCount);
+        if (capacity != _rectangleCapacity) {
+            id<MTLBuffer> replacement = [_layer.device
+                newBufferWithLength:capacity * sizeof(viva_rectangle)
+                            options:MTLResourceStorageModeShared];
+            if (replacement == nil) {
+                return 3;
+            }
+            viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
+            if (replacementClips == NULL) {
+                [replacement release];
+                return 3;
+            }
+            memcpy(replacementClips, _rectangleClips, _rectangleCount * sizeof(viva_clip));
+            memcpy(replacement.contents, _rectangleBuffer.contents, _rectangleCount * sizeof(viva_rectangle));
+            [_rectangleBuffer release];
+            free(_rectangleClips);
+            _rectangleBuffer = replacement;
+            _rectangleClips = replacementClips;
+            _rectangleCapacity = capacity;
+            reallocated = YES;
+        }
+        _rectangleCount = totalCount;
+    }
+    memcpy(_rectangleClips + first, clips, count * sizeof(viva_clip));
+    memcpy(
+        (uint8_t *)_rectangleBuffer.contents + first * sizeof(viva_rectangle),
+        rectangles,
+        count * sizeof(viva_rectangle)
+    );
+    // The staged instances carry their layer in reserved0, so the memcpy
+    // above has already written every field this buffer holds.
+#if TARGET_OS_OSX
+    [_rectangleBuffer didModifyRange:NSMakeRange(
+        reallocated ? 0 : first * sizeof(viva_rectangle),
+        reallocated ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)
+    )];
+#endif
+    if (![self replaceCompositePlanForRectangles:_rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:_rectangleCount
+                                       textLayers:_textLabelLayers
+                                 textShapesBefore:_textLabelShapesBefore
+                                        textCount:_textLabelCount]) {
+        return 3;
+    }
+    viva_gpu_uploaded_bytes += count * sizeof(viva_rectangle);
+    viva_gpu_partial_update_count++;
+    return 0;
+}
+
+- (int)updateLabels:(const viva_text_label *)labels
+              count:(NSUInteger)count
+           viewport:(CGSize)viewport {
+    CGFloat scale = MAX(_layer.contentsScale, 1.0);
+    uint16_t *replacementLayers = NULL;
+    uint32_t *replacementShapesBefore = NULL;
+    if (count > 0) {
+        replacementLayers = malloc(count * sizeof(uint16_t));
+        replacementShapesBefore = malloc(count * sizeof(uint32_t));
+        if (replacementLayers == NULL || replacementShapesBefore == NULL) {
+            free(replacementLayers);
+            free(replacementShapesBefore);
+            return 3;
+        }
+        for (NSUInteger index = 0; index < count; index++) {
+            replacementLayers[index] = labels[index].layer;
+            replacementShapesBefore[index] = labels[index].shapes_before;
+        }
+    }
+    NSMutableArray<VivaTextLayer *> *replacement = nil;
+    int status = viva_update_label_layers(_textLabels, labels, count, _layer.device, scale, viewport, &replacement);
+    if (status != 0) {
+        free(replacementLayers);
+        free(replacementShapesBefore);
+        return status;
+    }
+    if (![self replaceCompositePlanForRectangles:
+            _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
+                                           clips:_rectangleClips
+                                  rectangleCount:_rectangleCount
+                                       textLayers:replacementLayers
+                                 textShapesBefore:replacementShapesBefore
+                                        textCount:count]) {
+        [replacement release];
+        free(replacementLayers);
+        free(replacementShapesBefore);
+        return 3;
+    }
+    [_textLabels release];
+    _textLabels = replacement;
+    free(_textLabelLayers);
+    free(_textLabelShapesBefore);
+    _textLabelLayers = replacementLayers;
+    _textLabelShapesBefore = replacementShapesBefore;
+    _textLabelCount = count;
+    viva_label_update_count++;
+    return 0;
+}
+
+@end

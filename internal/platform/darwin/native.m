@@ -13,31 +13,6 @@ static uint64_t viva_close_request_count;
 static uint64_t viva_scroll_event_count;
 static double viva_scroll_last_pixel_y;
 
-/* The compiled shader library the application passes as it opens its windows,
- * kept after the first one compiled its pipelines: a window that makes its
- * Metal resources again builds a library from these bytes on the device it is
- * given, which need not be the device the first library was compiled for. */
-static void *viva_shader_library_bytes = NULL;
-static size_t viva_shader_library_length = 0;
-
-static int viva_remember_shader_library(const unsigned char *bytes, size_t length) {
-    if (bytes == NULL || length == 0) {
-        return 0;
-    }
-    if (viva_shader_library_bytes != NULL && viva_shader_library_length == length &&
-        memcmp(viva_shader_library_bytes, bytes, length) == 0) {
-        return 1;
-    }
-    void *copy = malloc(length);
-    if (copy == NULL) {
-        return 0;
-    }
-    memcpy(copy, bytes, length);
-    free(viva_shader_library_bytes);
-    viva_shader_library_bytes = copy;
-    viva_shader_library_length = length;
-    return 1;
-}
 
 /* Window chrome modes. */
 enum {
@@ -185,158 +160,6 @@ enum {
 	VIVA_STATUS_REMOVE_EVENT = 0x4754,
 };
 
-static uint16_t viva_rectangle_layer(viva_rectangle rectangle) {
-    if (rectangle.reserved0 <= 0) {
-        return 0;
-    }
-    if (rectangle.reserved0 >= UINT16_MAX) {
-        return UINT16_MAX;
-    }
-    return (uint16_t)rectangle.reserved0;
-}
-
-static int viva_compare_composite_commands(const void *left, const void *right) {
-    const viva_composite_command *a = left;
-    const viva_composite_command *b = right;
-    if (a->layer != b->layer) {
-        return a->layer < b->layer ? -1 : 1;
-    }
-    if (a->sequence != b->sequence) {
-        return a->sequence < b->sequence ? -1 : 1;
-    }
-    if (a->kind != b->kind) {
-        return a->kind < b->kind ? -1 : 1;
-    }
-    if (a->first != b->first) {
-        return a->first < b->first ? -1 : 1;
-    }
-    return 0;
-}
-
-// viva_same_batch reports whether two instances can share one draw: the same
-// layer and the same clip. An instance no clip cuts ignores its stale clip fields.
-static int viva_same_batch(
-    const viva_rectangle *rectangles,
-    const viva_clip *clips,
-    size_t left,
-    size_t right
-) {
-    if (viva_rectangle_layer(rectangles[left]) != viva_rectangle_layer(rectangles[right])) {
-        return 0;
-    }
-    int left_clipped = clips != NULL && clips[left].clipped != 0;
-    int right_clipped = clips != NULL && clips[right].clipped != 0;
-    if (left_clipped != right_clipped) {
-        return 0;
-    }
-    if (!left_clipped) {
-        return 1;
-    }
-    return clips[left].x == clips[right].x && clips[left].y == clips[right].y &&
-           clips[left].width == clips[right].width &&
-           clips[left].height == clips[right].height;
-}
-
-/* viva_rectangle_capacity answers the instance slots the renderer's rectangle
- * buffers need to hold count instances, given the slots they already hold. A
- * buffer that has room keeps it, so an append landing in the headroom of an
- * earlier growth costs nothing; a buffer that must grow doubles, so a scene
- * that appends one instance at a time allocates a logarithmic number of times
- * and the buffers stay within twice the instances that exist. */
-size_t viva_rectangle_capacity(size_t capacity, size_t count) {
-    if (capacity >= count) {
-        return capacity;
-    }
-    size_t next = capacity > 0 ? capacity : 64;
-    while (next < count) {
-        if (next > SIZE_MAX / 2) {
-            return count;
-        }
-        next *= 2;
-    }
-    return next;
-}
-
-int viva_plan_composite(
-    const viva_rectangle *rectangles,
-    const viva_clip *clips,
-    size_t rectangle_count,
-    const uint16_t *text_layers,
-    const uint32_t *text_shapes_before,
-    size_t text_count,
-    viva_composite_command *commands,
-    size_t command_capacity,
-    size_t *command_count
-) {
-    if (command_count == NULL ||
-        (rectangle_count > 0 && (rectangles == NULL || clips == NULL)) ||
-        (text_count > 0 && (text_layers == NULL || text_shapes_before == NULL)) ||
-        rectangle_count > UINT32_MAX || text_count > UINT32_MAX) {
-        return 1;
-    }
-
-    // At most one command per shape and one per label: a shape batch can be cut
-    // at every label boundary.
-    if (rectangle_count > SIZE_MAX - text_count) {
-        return 2;
-    }
-    size_t required = rectangle_count + text_count;
-    if (required > command_capacity || (required > 0 && commands == NULL)) {
-        return 2;
-    }
-
-    // Shapes and labels arrive in paint order. A label that says k shapes were
-    // painted before it belongs after instance k-1 and before instance k, so
-    // the plan walks both lists by that boundary, cutting a shape batch when a
-    // label falls inside it.
-    size_t command_index = 0;
-    size_t rectangle_index = 0;
-    size_t text_index = 0;
-    while (rectangle_index < rectangle_count || text_index < text_count) {
-        if (text_index < text_count &&
-            (text_shapes_before[text_index] <= rectangle_index || rectangle_index >= rectangle_count)) {
-            uint32_t sequence = (uint32_t)command_index;
-            commands[command_index++] = (viva_composite_command){
-                .layer = text_layers[text_index],
-                .kind = VIVA_COMPOSITE_TEXT,
-                .first = (uint32_t)text_index,
-                .count = 1,
-                .sequence = sequence,
-            };
-            text_index++;
-            continue;
-        }
-        size_t first = rectangle_index;
-        size_t end = first + 1;
-        while (end < rectangle_count &&
-               viva_same_batch(rectangles, clips, first, end) &&
-               (text_index >= text_count || end < text_shapes_before[text_index])) {
-            end++;
-        }
-        uint16_t layer = viva_rectangle_layer(rectangles[first]);
-        uint32_t sequence = (uint32_t)command_index;
-        viva_composite_command command = {
-            .layer = layer,
-            .kind = VIVA_COMPOSITE_RECTANGLES,
-            .first = (uint32_t)first,
-            .count = (uint32_t)(end - first),
-            .sequence = sequence,
-        };
-        if (clips[first].clipped != 0) {
-            command.clipped = 1;
-            command.clip_x = clips[first].x;
-            command.clip_y = clips[first].y;
-            command.clip_width = clips[first].width;
-            command.clip_height = clips[first].height;
-        }
-        commands[command_index++] = command;
-        rectangle_index = end;
-    }
-    qsort(commands, command_index, sizeof(viva_composite_command),
-          viva_compare_composite_commands);
-    *command_count = command_index;
-    return 0;
-}
 
 /* Key identities mirror input.Key values. */
 enum {
@@ -1307,22 +1130,9 @@ static NSString *viva_single_line_paste(NSString *value) {
 
 @interface VivaMetalView : NSView <NSTextInputClient> {
     CAMetalLayer *_metalLayer;
-    id<MTLCommandQueue> _commandQueue;
-    id<MTLRenderPipelineState> _rectanglePipeline;
-    id<MTLBuffer> _rectangleBuffer;
-    NSUInteger _rectangleCount;
-    // Capacity is the slots the buffers hold; count is the instances the scene
-    // owns. An append past the capacity grows it by doubling; rebuilds
-    // re-tighten it to the exact count.
-    NSUInteger _rectangleCapacity;
-    viva_clip *_rectangleClips;
-    id<MTLRenderPipelineState> _textPipeline;
-    NSMutableArray<VivaTextLayer *> *_textLabels;
-    uint16_t *_textLabelLayers;
-    uint32_t *_textLabelShapesBefore;
-    NSUInteger _textLabelCount;
-    viva_composite_command *_compositeCommands;
-    NSUInteger _compositeCommandCount;
+    // What the surface draws: the rectangles, the label layers, the pipelines and
+    // the queue they go through (VivaRenderer, shared with the other surfaces).
+    VivaRenderer *_renderer;
     id<MTLTexture> _textTexture;
     NSString *_text;
     NSRect _textFrame;
@@ -1381,8 +1191,7 @@ static NSString *viva_single_line_paste(NSString *value) {
     BOOL _titlebarDragPending;
     NSPoint _titlebarDragOrigin;
     uintptr_t _callbackHandle;
-    MTLClearColor _clearColor;
-    NSMutableArray<VivaAccessibleElement *> *_accessibilityElements;
+        NSMutableArray<VivaAccessibleElement *> *_accessibilityElements;
     NSSize _lastReportedSize;
     BOOL _liveResizeRelaxed;
     BOOL _reportedSize;
@@ -1427,12 +1236,6 @@ static NSString *viva_single_line_paste(NSString *value) {
                   render:(BOOL)render;
 - (int)updateLabels:(const viva_text_label *)labels
               count:(NSUInteger)count;
-- (BOOL)replaceCompositePlanForRectangles:(const viva_rectangle *)rectangles
-                                    clips:(const viva_clip *)clips
-                            rectangleCount:(NSUInteger)rectangleCount
-                                 textLayers:(const uint16_t *)textLayers
-                           textShapesBefore:(const uint32_t *)textShapesBefore
-                                  textCount:(NSUInteger)textCount;
 - (int)updateAccessibility:(const viva_accessibility_node *)nodes
                      count:(NSUInteger)count;
 - (int)updateText:(const unsigned char *)utf8
@@ -1545,20 +1348,6 @@ static int viva_navigation_command(SEL selector) {
                        clearColor:(MTLClearColor)clearColor {
     self = [super initWithFrame:frame];
     if (self != nil) {
-        _commandQueue = [commandQueue retain];
-        _rectanglePipeline = [rectanglePipeline retain];
-        _rectangleBuffer = [rectangleBuffer retain];
-        _rectangleCount = rectangleCount;
-        _rectangleCapacity = rectangleCount;
-        if (rectangleCount > 0) {
-            _rectangleClips = malloc(rectangleCount * sizeof(viva_clip));
-            if (_rectangleClips == NULL) {
-                [self release];
-                return nil;
-            }
-            memcpy(_rectangleClips, rectangleClips, rectangleCount * sizeof(viva_clip));
-        }
-        _textPipeline = [textPipeline retain];
         _textInputEnabled = textInput.enabled != 0;
         _textInputMultiline = textInput.multiline != 0;
         _textPlaced = textInput.placed != 0;
@@ -1613,7 +1402,6 @@ static int viva_navigation_command(SEL selector) {
             _text = [@"" retain];
         }
         _callbackHandle = callbackHandle;
-        _clearColor = clearColor;
         _lastReportedSize = frame.size;
         _reportedSize = YES;
         _profileEnabled = viva_profile_enabled();
@@ -1648,44 +1436,21 @@ static int viva_navigation_command(SEL selector) {
                 userInfo:nil];
         [self addTrackingArea:tracking];
         [tracking release];
-        if (textLabelCount > 0) {
-            _textLabelLayers = malloc(textLabelCount * sizeof(uint16_t));
-            _textLabelShapesBefore = malloc(textLabelCount * sizeof(uint32_t));
-            if (_textLabelLayers == NULL || _textLabelShapesBefore == NULL) {
-                [self release];
-                return nil;
-            }
-            for (NSUInteger index = 0; index < textLabelCount; index++) {
-                _textLabelLayers[index] = textLabels[index].layer;
-                _textLabelShapesBefore[index] = textLabels[index].shapes_before;
-            }
-        }
-        _textLabelCount = textLabelCount;
-        _textLabels = [[NSMutableArray alloc] initWithCapacity:textLabelCount];
-        for (NSUInteger index = 0; index < textLabelCount; index++) {
-            VivaTextLayer *layer = [[VivaTextLayer alloc] initWithConfig:textLabels[index]];
-            if (layer == nil) {
-                [self release];
-                return nil;
-            }
-            [_textLabels addObject:layer];
-            [layer release];
-        }
-        if (![self rebuildTextLabels]) {
+        _renderer = [[VivaRenderer alloc] initWithLayer:_metalLayer
+                                           commandQueue:commandQueue
+                                      rectanglePipeline:rectanglePipeline
+                                        rectangleBuffer:rectangleBuffer
+                                         rectangleCount:rectangleCount
+                                         rectangleClips:rectangleClips
+                                           textPipeline:textPipeline
+                                             textLabels:textLabels
+                                         textLabelCount:textLabelCount
+                                             clearColor:clearColor
+                                               viewport:self.bounds.size];
+        if (_renderer == nil) {
             [self release];
             return nil;
         }
-        if (![self replaceCompositePlanForRectangles:
-                rectangleBuffer == nil ? NULL : rectangleBuffer.contents
-                                               clips:_rectangleClips
-                                      rectangleCount:rectangleCount
-                                           textLayers:_textLabelLayers
-                                     textShapesBefore:_textLabelShapesBefore
-                                            textCount:_textLabelCount]) {
-            [self release];
-            return nil;
-        }
-        viva_label_initial_count = textLabelCount;
         _accessibilityElements = [[NSMutableArray alloc] init];
         for (NSUInteger index = 0; index < accessibilityCount; index++) {
             VivaAccessibleElement *element =
@@ -1715,65 +1480,16 @@ static int viva_navigation_command(SEL selector) {
     _textInputEnabled = NO;
     [self syncSecureEventInput];
     [self stopCaretBlink];
-    free(_compositeCommands);
-    free(_rectangleClips);
-    free(_textLabelLayers);
-    free(_textLabelShapesBefore);
     [_cursor release];
-    [_rectangleBuffer release];
-    [_rectanglePipeline release];
     [_textTexture release];
-    [_textLabels release];
     [_accessibilityElements release];
-    [_textPipeline release];
     [_text release];
     [_textColor release];
-    [_commandQueue release];
+    [_renderer release];
     [_metalLayer release];
     [super dealloc];
 }
 
-- (BOOL)replaceCompositePlanForRectangles:(const viva_rectangle *)rectangles
-                                    clips:(const viva_clip *)clips
-                            rectangleCount:(NSUInteger)rectangleCount
-                                 textLayers:(const uint16_t *)textLayers
-                           textShapesBefore:(const uint32_t *)textShapesBefore
-                                  textCount:(NSUInteger)textCount {
-    if (rectangleCount > SIZE_MAX - textCount) {
-        return NO;
-    }
-    NSUInteger capacity = rectangleCount + textCount;
-    viva_composite_command *replacement = NULL;
-    if (capacity > 0) {
-        if (capacity > SIZE_MAX / sizeof(viva_composite_command)) {
-            return NO;
-        }
-        replacement = malloc(capacity * sizeof(viva_composite_command));
-        if (replacement == NULL) {
-            return NO;
-        }
-    }
-    size_t count = 0;
-    int status = viva_plan_composite(
-        rectangles,
-        clips,
-        rectangleCount,
-        textLayers,
-        textShapesBefore,
-        textCount,
-        replacement,
-        capacity,
-        &count
-    );
-    if (status != 0) {
-        free(replacement);
-        return NO;
-    }
-    free(_compositeCommands);
-    _compositeCommands = replacement;
-    _compositeCommandCount = count;
-    return YES;
-}
 
 - (BOOL)isOpaque {
     return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW && _windowMode != VIVA_WINDOW_NOTIFICATION;
@@ -2438,11 +2154,7 @@ static int viva_navigation_command(SEL selector) {
         return;
     }
     _liveResizeRelaxed = NO;
-    CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
-    for (VivaTextLayer *layer in _textLabels) {
-        [layer forceTextureRebuildWithDevice:_metalLayer.device scale:scale viewport:self.bounds.size];
-    }
-    viva_label_texture_rebuild_count += _textLabels.count;
+    [_renderer forceRebuildTextLabelsWithViewport:self.bounds.size];
     // setNeedsDisplay is not honored without drawRect; render explicitly so
     // the refreshed textures actually reach the screen.
     [self render];
@@ -2464,13 +2176,7 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (BOOL)rebuildTextLabels {
-    CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
-    for (VivaTextLayer *layer in _textLabels) {
-        if (![layer rebuildWithDevice:_metalLayer.device scale:scale viewport:self.bounds.size]) {
-            return NO;
-        }
-    }
-    return YES;
+    return [_renderer rebuildTextLabelsWithViewport:self.bounds.size];
 }
 
 - (void)updateDrawableSize {
@@ -2548,7 +2254,7 @@ static void viva_set_secure_event_input(BOOL on) {
 }
 
 - (BOOL)rebuildTextTexture {
-    if (!_textInputEnabled || _textPipeline == nil) {
+    if (!_textInputEnabled || _renderer.textPipeline == nil) {
         return !_textInputEnabled;
     }
     id<MTLTexture> texture = viva_text_input_texture(
@@ -2688,23 +2394,11 @@ static void viva_set_secure_event_input(BOOL on) {
             }];
         }
 
-        MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
-        pass.colorAttachments[0].texture = drawable.texture;
-        pass.colorAttachments[0].loadAction = MTLLoadActionClear;
-        pass.colorAttachments[0].storeAction = MTLStoreActionStore;
-        pass.colorAttachments[0].clearColor = _clearColor;
-
-        id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
-        id<MTLRenderCommandEncoder> encoder =
-            [commandBuffer renderCommandEncoderWithDescriptor:pass];
-        viva_encode_scene(encoder, _rectanglePipeline, _textPipeline, _rectangleBuffer,
-                         _compositeCommands, _compositeCommandCount, _textLabels,
-                         _textTexture, _textFrame, _textLayer, self.bounds.size,
-                         drawable.texture.width, drawable.texture.height);
-        [encoder endEncoding];
-        [commandBuffer presentDrawable:drawable];
-        [commandBuffer commit];
-        viva_gpu_submission_count++;
+        id<MTLCommandBuffer> commandBuffer = [_renderer renderToDrawable:drawable
+                                                                viewport:self.bounds.size
+                                                            inputTexture:_textTexture
+                                                              inputFrame:_textFrame
+                                                              inputLayer:_textLayer];
         if (probe) {
             viva_probe_committed();
         }
@@ -2738,76 +2432,11 @@ static void viva_set_secure_event_input(BOOL on) {
  * Returns NO when the device, its queue or the pipelines cannot be made, which
  * is when the window cannot go on. */
 - (BOOL)recoverResources {
-    if (viva_shader_library_bytes == NULL) {
-        return NO;
-    }
     @autoreleasepool {
-        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-        if (device == nil) {
-            return NO;
-        }
-        id<MTLCommandQueue> queue = [device newCommandQueue];
-        if (queue == nil) {
-            [device release];
-            return NO;
-        }
-        dispatch_data_t libraryData = dispatch_data_create(
-            viva_shader_library_bytes,
-            viva_shader_library_length,
-            dispatch_get_main_queue(),
-            DISPATCH_DATA_DESTRUCTOR_DEFAULT
-        );
-        NSError *libraryError = nil;
-        id<MTLLibrary> library = [device newLibraryWithData:libraryData error:&libraryError];
-        dispatch_release(libraryData);
-        if (library == nil) {
-            [queue release];
-            [device release];
-            return NO;
-        }
-        // Both pipelines, whatever the window had: the frame that failed asked
-        // for rectangles, and a label texture of the old device cannot be drawn
-        // by the new one.
-        id<MTLRenderPipelineState> rectanglePipeline = viva_create_pipeline(
-            device, library, @"viva_rectangle_vertex", @"viva_rectangle_fragment", NULL);
-        id<MTLRenderPipelineState> textPipeline = viva_create_pipeline(
-            device, library, @"viva_text_vertex", @"viva_text_fragment", NULL);
-        [library release];
-        if (rectanglePipeline == nil || textPipeline == nil) {
-            [rectanglePipeline release];
-            [textPipeline release];
-            [queue release];
-            [device release];
-            return NO;
-        }
-        _metalLayer.device = device;
         [self updateDrawableSize];
-        [_commandQueue release];
-        _commandQueue = queue;
-        [_rectanglePipeline release];
-        _rectanglePipeline = rectanglePipeline;
-        [_textPipeline release];
-        _textPipeline = textPipeline;
-        // The instance buffers belonged to the old device; the application
-        // sends every instance again, as a rebuild.
-        [_rectangleBuffer release];
-        _rectangleBuffer = nil;
-        free(_rectangleClips);
-        _rectangleClips = NULL;
-        _rectangleCount = 0;
-        _rectangleCapacity = 0;
-        free(_compositeCommands);
-        _compositeCommands = NULL;
-        _compositeCommandCount = 0;
-        CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
-        for (VivaTextLayer *layer in _textLabels) {
-            if (![layer forceTextureRebuildWithDevice:device scale:scale viewport:self.bounds.size]) {
-                [device release];
-                return NO;
-            }
+        if (![_renderer recoverWithViewport:self.bounds.size]) {
+            return NO;
         }
-        viva_label_texture_rebuild_count += _textLabels.count;
-        [device release];
         if (_textInputEnabled && ![self rebuildTextTexture]) {
             return NO;
         }
@@ -2822,189 +2451,21 @@ static void viva_set_secure_event_input(BOOL on) {
                    count:(NSUInteger)count
                  rebuild:(BOOL)rebuild
                   render:(BOOL)render {
-    if (rebuild) {
-        id<MTLBuffer> replacement = nil;
-        viva_clip *replacementClips = NULL;
-        if (totalCount > 0) {
-            if (_rectanglePipeline == nil || clips == NULL) {
-                return 3;
-            }
-            replacementClips = malloc(totalCount * sizeof(viva_clip));
-            if (replacementClips == NULL) {
-                return 3;
-            }
-            memcpy(replacementClips, clips, totalCount * sizeof(viva_clip));
-            replacement = [_metalLayer.device
-                newBufferWithBytes:rectangles
-                            length:totalCount * sizeof(viva_rectangle)
-                           options:MTLResourceStorageModeShared];
-            if (replacement == nil) {
-                free(replacementClips);
-                return 3;
-            }
-            // The staged instances carry their layer in reserved0, so the
-            // bytes newBufferWithBytes copies are already complete.
-        }
-        if (![self replaceCompositePlanForRectangles:
-                replacement == nil ? NULL : replacement.contents
-                                               clips:replacementClips
-                                      rectangleCount:totalCount
-                                           textLayers:_textLabelLayers
-                                     textShapesBefore:_textLabelShapesBefore
-                                            textCount:_textLabelCount]) {
-            [replacement release];
-            free(replacementClips);
-            return 3;
-        }
-        [_rectangleBuffer release];
-        free(_rectangleClips);
-        _rectangleClips = replacementClips;
-        _rectangleBuffer = replacement;
-        _rectangleCount = totalCount;
-        _rectangleCapacity = totalCount;
-        viva_gpu_uploaded_bytes += totalCount * sizeof(viva_rectangle);
-        viva_gpu_full_rebuild_count++;
-    } else {
-        BOOL shrank = totalCount < _rectangleCount;
-        if (shrank) {
-            if (first + count != totalCount) {
-                return 2;
-            }
-            _rectangleCount = totalCount;
-        }
-        if (count == 0) {
-            if (shrank && ![self replaceCompositePlanForRectangles:
-                    _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
-                                           clips:_rectangleClips
-                                  rectangleCount:_rectangleCount
-                                       textLayers:_textLabelLayers
-                                 textShapesBefore:_textLabelShapesBefore
-                                        textCount:_textLabelCount]) {
-                return 3;
-            }
-            if (render) {
-                [self render];
-            }
-            return 0;
-        }
-        if (_rectangleBuffer == nil || _rectangleClips == NULL || clips == NULL ||
-            first > totalCount || count > totalCount - first) {
-            return 2;
-        }
-        BOOL grew = totalCount > _rectangleCount;
-        BOOL reallocated = NO;
-        if (grew) {
-            // The scene appended instances. A stream that appends every frame
-            // must not allocate, copy and re-flush the whole buffer each time,
-            // so the buffers carry headroom; a rebuild re-tightens them to the
-            // exact count. The headroom is only made when the new count no
-            // longer fits: growing on every append multiplied the capacity by
-            // a quarter per frame while the scene appended one instance, and
-            // the request passed what the device hands out within a few dozen
-            // appends.
-            if (first > _rectangleCount || first + count != totalCount) {
-                return 2;
-            }
-            NSUInteger capacity = viva_rectangle_capacity(_rectangleCapacity, totalCount);
-            if (capacity != _rectangleCapacity) {
-                id<MTLBuffer> replacement = [_metalLayer.device
-                    newBufferWithLength:capacity * sizeof(viva_rectangle)
-                                options:MTLResourceStorageModeShared];
-                if (replacement == nil) {
-                    return 3;
-                }
-                viva_clip *replacementClips = malloc(capacity * sizeof(viva_clip));
-                if (replacementClips == NULL) {
-                    [replacement release];
-                    return 3;
-                }
-                memcpy(replacementClips, _rectangleClips, _rectangleCount * sizeof(viva_clip));
-                memcpy(replacement.contents, _rectangleBuffer.contents, _rectangleCount * sizeof(viva_rectangle));
-                [_rectangleBuffer release];
-                free(_rectangleClips);
-                _rectangleBuffer = replacement;
-                _rectangleClips = replacementClips;
-                _rectangleCapacity = capacity;
-                reallocated = YES;
-            }
-            _rectangleCount = totalCount;
-        }
-        memcpy(_rectangleClips + first, clips, count * sizeof(viva_clip));
-        memcpy(
-            (uint8_t *)_rectangleBuffer.contents + first * sizeof(viva_rectangle),
-            rectangles,
-            count * sizeof(viva_rectangle)
-        );
-        // The staged instances carry their layer in reserved0, so the memcpy
-        // above has already written every field this buffer holds.
-        [_rectangleBuffer didModifyRange:NSMakeRange(
-            reallocated ? 0 : first * sizeof(viva_rectangle),
-            reallocated ? totalCount * sizeof(viva_rectangle) : count * sizeof(viva_rectangle)
-        )];
-        if (![self replaceCompositePlanForRectangles:_rectangleBuffer.contents
-                                               clips:_rectangleClips
-                                      rectangleCount:_rectangleCount
-                                           textLayers:_textLabelLayers
-                                     textShapesBefore:_textLabelShapesBefore
-                                            textCount:_textLabelCount]) {
-            return 3;
-        }
-        viva_gpu_uploaded_bytes += count * sizeof(viva_rectangle);
-        viva_gpu_partial_update_count++;
-    }
-
-    if (render) {
+    int status = [_renderer updateRectangles:rectangles
+                                       clips:clips
+                                  totalCount:totalCount
+                                       first:first
+                                       count:count
+                                     rebuild:rebuild];
+    if (status == 0 && render) {
         [self render];
     }
-    return 0;
+    return status;
 }
 
 - (int)updateLabels:(const viva_text_label *)labels
               count:(NSUInteger)count {
-    CGFloat scale = MAX(_metalLayer.contentsScale, 1.0);
-    uint16_t *replacementLayers = NULL;
-    uint32_t *replacementShapesBefore = NULL;
-    if (count > 0) {
-        replacementLayers = malloc(count * sizeof(uint16_t));
-        replacementShapesBefore = malloc(count * sizeof(uint32_t));
-        if (replacementLayers == NULL || replacementShapesBefore == NULL) {
-            free(replacementLayers);
-            free(replacementShapesBefore);
-            return 3;
-        }
-        for (NSUInteger index = 0; index < count; index++) {
-            replacementLayers[index] = labels[index].layer;
-            replacementShapesBefore[index] = labels[index].shapes_before;
-        }
-    }
-    NSMutableArray<VivaTextLayer *> *replacement = nil;
-    int status = viva_update_label_layers(_textLabels, labels, count, _metalLayer.device, scale, self.bounds.size, &replacement);
-    if (status != 0) {
-        free(replacementLayers);
-        free(replacementShapesBefore);
-        return status;
-    }
-    if (![self replaceCompositePlanForRectangles:
-            _rectangleBuffer == nil ? NULL : _rectangleBuffer.contents
-                                           clips:_rectangleClips
-                                  rectangleCount:_rectangleCount
-                                       textLayers:replacementLayers
-                                 textShapesBefore:replacementShapesBefore
-                                        textCount:count]) {
-        [replacement release];
-        free(replacementLayers);
-        free(replacementShapesBefore);
-        return 3;
-    }
-    [_textLabels release];
-    _textLabels = replacement;
-    free(_textLabelLayers);
-    free(_textLabelShapesBefore);
-    _textLabelLayers = replacementLayers;
-    _textLabelShapesBefore = replacementShapesBefore;
-    _textLabelCount = count;
-    viva_label_update_count++;
-    return 0;
+    return [_renderer updateLabels:labels count:count viewport:self.bounds.size];
 }
 
 - (int)updateAccessibility:(const viva_accessibility_node *)nodes

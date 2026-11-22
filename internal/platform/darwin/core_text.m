@@ -10,6 +10,69 @@ NSRange viva_clamp_range(NSRange range, NSUInteger length) {
     return NSMakeRange(start, MIN(range.length, remaining));
 }
 
+// The few places the platforms' font and color classes differ. Everything else here
+// is CoreText and CoreGraphics, which are the same on macOS and iOS.
+#if TARGET_OS_OSX
+static NSArray<NSString *> *viva_font_family_names(void) {
+    return [[NSFontManager sharedFontManager] availableFontFamilies];
+}
+
+// viva_font_in_family is the face of an installed family nearest regular (or bold), or nil.
+static VivaFont *viva_font_in_family(NSString *family, CGFloat size, BOOL bold) {
+    return [[NSFontManager sharedFontManager] fontWithFamily:family
+                                                      traits:(bold ? NSBoldFontMask : 0)
+                                                      weight:5
+                                                        size:size];
+}
+
+static VivaFont *viva_font_user_fixed_pitch(CGFloat size) {
+    return [NSFont userFixedPitchFontOfSize:size];
+}
+
+BOOL viva_color_srgb(VivaColor *color, CGFloat rgba[4]) {
+    NSColor *converted = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    rgba[0] = converted.redComponent;
+    rgba[1] = converted.greenComponent;
+    rgba[2] = converted.blueComponent;
+    rgba[3] = converted.alphaComponent;
+    return converted != nil;
+}
+#else
+static NSArray<NSString *> *viva_font_family_names(void) {
+    return [UIFont familyNames];
+}
+
+static VivaFont *viva_font_in_family(NSString *family, CGFloat size, BOOL bold) {
+    // UIFont answers a family it does not have with the system font, so ask first.
+    if (![[UIFont familyNames] containsObject:family]) {
+        return nil;
+    }
+    UIFontDescriptor *descriptor = [UIFontDescriptor fontDescriptorWithFontAttributes:@{UIFontDescriptorFamilyAttribute: family}];
+    if (bold) {
+        UIFontDescriptor *heavier = [descriptor fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitBold];
+        if (heavier != nil) {
+            descriptor = heavier;
+        }
+    }
+    return [UIFont fontWithDescriptor:descriptor size:size];
+}
+
+static VivaFont *viva_font_user_fixed_pitch(CGFloat size) {
+    VivaFont *menlo = [UIFont fontWithName:@"Menlo-Regular" size:size];
+    return menlo != nil ? menlo : [UIFont monospacedSystemFontOfSize:size weight:UIFontWeightRegular];
+}
+
+BOOL viva_color_srgb(VivaColor *color, CGFloat rgba[4]) {
+    CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+    BOOL resolved = [color getRed:&red green:&green blue:&blue alpha:&alpha];
+    rgba[0] = red;
+    rgba[1] = green;
+    rgba[2] = blue;
+    rgba[3] = alpha;
+    return resolved;
+}
+#endif
+
 // A line of proportional text is shaped once by CoreText, in the system font with its font
 // fallback, and everything that needs a position asks that line: the width
 // layout uses, the glyphs a label draws, the caret, the selection and the character a click
@@ -24,7 +87,7 @@ extern viva_text_line *vivaShapedLineStyle(const unsigned char *utf8, size_t len
 static char viva_interface_family[256] = "";
 
 // viva_system_font is the proportional font that measurement, labels and the editor all
-// use (a retained CTFont). It is an NSFont, which is a CTFont already. With a family
+// use (a retained CTFont). It is an VivaFont, which is a CTFont already. With a family
 // named, its face of that family at the weight stands in for the system font; a family
 // the system does not have falls back to the system font, as AppKit does for a name.
 CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
@@ -35,17 +98,17 @@ CTFontRef viva_system_font(CGFloat size, CGFloat weight) {
             // family's regular, medium, semibold and bold faces are told apart as they are
             // in the system font; the nearest face the family has stands in for one it
             // lacks. NSFontManager's weight is a 0-15 table that cannot say medium.
-            NSFontDescriptor *descriptor = [NSFontDescriptor fontDescriptorWithFontAttributes:@{
-                NSFontFamilyAttribute: family,
-                NSFontTraitsAttribute: @{NSFontWeightTrait: @(weight)},
+            VivaFontDescriptor *descriptor = [VivaFontDescriptor fontDescriptorWithFontAttributes:@{
+                VivaFontFamilyAttribute: family,
+                VivaFontTraitsAttribute: @{VivaFontWeightTrait: @(weight)},
             }];
-            NSFont *named = [NSFont fontWithDescriptor:descriptor size:size];
+            VivaFont *named = [VivaFont fontWithDescriptor:descriptor size:size];
             if (named != nil) {
                 return (CTFontRef)CFRetain(named);
             }
         }
     }
-    NSFont *font = [NSFont systemFontOfSize:size weight:weight];
+    VivaFont *font = [VivaFont systemFontOfSize:size weight:weight];
     return font != nil ? (CTFontRef)CFRetain(font) : NULL;
 }
 
@@ -456,8 +519,8 @@ void viva_mono_face_traits(int face, NSString **family, BOOL *classic, NSArray<N
 // compared with a percent of the cell to spare, because a grid font still rounds a
 // glyph by a hair (Roboto Mono for Powerline gives '-' 7.207 where its cell is
 // 7.201) while a proportional font's differ by a fraction of the cell.
-BOOL viva_mono_font_on_a_grid(NSFont *font) {
-    if (font.isFixedPitch) {
+BOOL viva_mono_font_on_a_grid(VivaFont *font) {
+    if ((CTFontGetSymbolicTraits((CTFontRef)font) & kCTFontTraitMonoSpace) != 0) {
         return YES;
     }
     enum { first = 0x20, last = 0x7E, count = last - first + 1 };
@@ -486,9 +549,8 @@ BOOL viva_mono_font_on_a_grid(NSFont *font) {
 
 char *viva_list_font_families(void) {
     @autoreleasepool {
-        NSFontManager *manager = [NSFontManager sharedFontManager];
         NSMutableArray<NSString *> *names = [NSMutableArray array];
-        for (NSString *family in [manager availableFontFamilies]) {
+        for (NSString *family in viva_font_family_names()) {
             if ([family hasPrefix:@"."]) {
                 continue;
             }
@@ -501,13 +563,12 @@ char *viva_list_font_families(void) {
 
 char *viva_list_mono_families(void) {
     @autoreleasepool {
-        NSFontManager *manager = [NSFontManager sharedFontManager];
         NSMutableArray<NSString *> *names = [NSMutableArray array];
-        for (NSString *family in [manager availableFontFamilies]) {
+        for (NSString *family in viva_font_family_names()) {
             if ([family hasPrefix:@"."]) {
                 continue;
             }
-            NSFont *font = [manager fontWithFamily:family traits:0 weight:5 size:12];
+            VivaFont *font = viva_font_in_family(family, 12, NO);
             if (font != nil && viva_mono_font_on_a_grid(font)) {
                 [names addObject:family];
             }
@@ -518,28 +579,25 @@ char *viva_list_mono_families(void) {
 }
 
 // viva_mono_base_font is the primary font of a face, without its fallbacks.
-NSFont *viva_mono_base_font(CGFloat size, CGFloat weight, NSString *family, BOOL classic) {
+VivaFont *viva_mono_base_font(CGFloat size, CGFloat weight, NSString *family, BOOL classic) {
     if (family != nil) {
-        NSFont *named = [[NSFontManager sharedFontManager] fontWithFamily:family
-                                                                   traits:(weight >= 0.34 ? NSBoldFontMask : 0)
-                                                                   weight:5
-                                                                     size:size];
+        VivaFont *named = viva_font_in_family(family, size, weight >= 0.34);
         if (named != nil) {
             return named;
         }
     }
     if (classic) {
-        NSFont *classicFont = [NSFont userFixedPitchFontOfSize:size];
+        VivaFont *classicFont = viva_font_user_fixed_pitch(size);
         if (classicFont != nil) {
             return classicFont;
         }
     }
-    NSFont *font = [NSFont monospacedSystemFontOfSize:size weight:weight];
-    return font != nil ? font : [NSFont userFixedPitchFontOfSize:size];
+    VivaFont *font = [VivaFont monospacedSystemFontOfSize:size weight:weight];
+    return font != nil ? font : viva_font_user_fixed_pitch(size);
 }
 
 // viva_mono_font_primary is the primary font of a face alone, the one the cell is measured in.
-NSFont *viva_mono_font_primary(CGFloat size, CGFloat weight, int face) {
+VivaFont *viva_mono_font_primary(CGFloat size, CGFloat weight, int face) {
     NSString *family = nil;
     BOOL classic = NO;
     NSArray<NSString *> *fallbacks = nil;
@@ -552,21 +610,21 @@ NSFont *viva_mono_font_primary(CGFloat size, CGFloat weight, int face) {
 // tries them in order, before its own choice, for every character the primary has no
 // glyph for. A family that is not installed is skipped. The cell is the primary's: the
 // fallbacks never take part in the metrics, and every glyph is placed on the grid.
-NSFont *viva_mono_font(CGFloat size, CGFloat weight, int face) {
+VivaFont *viva_mono_font(CGFloat size, CGFloat weight, int face) {
     NSString *family = nil;
     BOOL classic = NO;
     NSArray<NSString *> *fallbacks = nil;
     viva_mono_face_traits(face, &family, &classic, &fallbacks);
-    NSFont *base = viva_mono_base_font(size, weight, family, classic);
+    VivaFont *base = viva_mono_base_font(size, weight, family, classic);
     if (base == nil || fallbacks.count == 0) {
         return base;
     }
-    NSMutableArray<NSFontDescriptor *> *cascade = [NSMutableArray arrayWithCapacity:fallbacks.count];
+    NSMutableArray<VivaFontDescriptor *> *cascade = [NSMutableArray arrayWithCapacity:fallbacks.count];
     for (NSString *name in fallbacks) {
-        [cascade addObject:[NSFontDescriptor fontDescriptorWithFontAttributes:@{NSFontFamilyAttribute: name}]];
+        [cascade addObject:[VivaFontDescriptor fontDescriptorWithFontAttributes:@{VivaFontFamilyAttribute: name}]];
     }
-    NSFontDescriptor *descriptor = [base.fontDescriptor fontDescriptorByAddingAttributes:@{NSFontCascadeListAttribute: cascade}];
-    NSFont *stacked = [NSFont fontWithDescriptor:descriptor size:size];
+    VivaFontDescriptor *descriptor = [base.fontDescriptor fontDescriptorByAddingAttributes:@{VivaFontCascadeListAttribute: cascade}];
+    VivaFont *stacked = [VivaFont fontWithDescriptor:descriptor size:size];
     return stacked != nil ? stacked : base;
 }
 
@@ -608,11 +666,8 @@ NSObject *viva_mono_fallback_lock(void) {
 }
 
 // viva_mono_family_font resolves an installed family at a size and weight, or nil.
-NSFont *viva_mono_family_font(NSString *family, CGFloat size, CGFloat weight) {
-    return [[NSFontManager sharedFontManager] fontWithFamily:family
-                                                      traits:(weight >= 0.34 ? NSBoldFontMask : 0)
-                                                      weight:5
-                                                        size:size];
+VivaFont *viva_mono_family_font(NSString *family, CGFloat size, CGFloat weight) {
+    return viva_font_in_family(family, size, weight >= 0.34);
 }
 
 // viva_mono_replacement_font is viva_mono_family_font for a replacement glyph, remembering
@@ -625,14 +680,14 @@ typedef struct {
     NSString *family;
     CGFloat size;
     BOOL bold;
-    NSFont *font;
+    VivaFont *font;
 } viva_mono_replacement;
 
 static viva_mono_replacement viva_mono_replacements[VIVA_MONO_REPLACEMENT_CACHE];
 static int viva_mono_replacement_count;
 static int viva_mono_replacement_next;
 
-NSFont *viva_mono_replacement_font(NSString *family, CGFloat size, BOOL bold) {
+VivaFont *viva_mono_replacement_font(NSString *family, CGFloat size, BOOL bold) {
     @synchronized(viva_mono_fallback_lock()) {
         for (int index = 0; index < viva_mono_replacement_count; index++) {
             viva_mono_replacement *entry = &viva_mono_replacements[index];
@@ -641,7 +696,7 @@ NSFont *viva_mono_replacement_font(NSString *family, CGFloat size, BOOL bold) {
             }
         }
     }
-    NSFont *font = viva_mono_family_font(family, size, bold ? 1 : 0);
+    VivaFont *font = viva_mono_family_font(family, size, bold ? 1 : 0);
     if (font == nil) {
         return nil;
     }
@@ -733,7 +788,7 @@ viva_mono_family_traits viva_mono_family_traits_of(NSString *family) {
             return traits;
         }
     }
-    NSFont *font = viva_mono_family_font(family, 12, 0);
+    VivaFont *font = viva_mono_family_font(family, 12, 0);
     if (font != nil) {
         traits.onGrid = viva_mono_font_on_a_grid(font);
         traits.includesHan = viva_mono_draws_han((CTFontRef)font);
@@ -805,7 +860,7 @@ NSString *viva_mono_find_family(NSString *cluster) {
             }
             continue;
         }
-        NSFont *font = viva_mono_family_font(family, 12, 0);
+        VivaFont *font = viva_mono_family_font(family, 12, 0);
         if (font == nil || !viva_mono_font_covers((CTFontRef)font, cluster)) {
             CFRelease(family);
             continue;
@@ -832,7 +887,7 @@ NSString *viva_mono_face_fallback(NSString *cluster, int face) {
     NSArray<NSString *> *fallbacks = nil;
     viva_mono_face_traits(face, &family, &classic, &fallbacks);
     for (NSString *candidate in fallbacks) {
-        NSFont *font = viva_mono_family_font(candidate, 12, 0);
+        VivaFont *font = viva_mono_family_font(candidate, 12, 0);
         if (font != nil && viva_mono_font_covers((CTFontRef)font, cluster)) {
             return candidate;
         }
@@ -897,12 +952,12 @@ BOOL viva_mono_font_is_last_resort(CTFontRef font) {
 // size and boldness. A line with nothing to replace is shaped once, as before; one with
 // a replacement is shaped again with the fallback fonts in place, so every glyph sits
 // where the grid says. The line is +1: the caller releases it.
-CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face, CGColorRef color) {
+CTLineRef viva_mono_fallback_line(NSString *value, VivaFont *base, int face, CGColorRef color) {
     if (base == nil || value.length == 0) {
         return NULL;
     }
     CGFloat size = base.pointSize;
-    BOOL bold = (base.fontDescriptor.symbolicTraits & NSFontBoldTrait) != 0;
+    BOOL bold = (base.fontDescriptor.symbolicTraits & VivaFontBoldTrait) != 0;
     CFIndex length = (CFIndex)value.length;
     CFMutableAttributedStringRef attributed = CFAttributedStringCreateMutable(kCFAllocatorDefault, 0);
     if (attributed == NULL) {
@@ -940,7 +995,7 @@ CTLineRef viva_mono_fallback_line(NSString *value, NSFont *base, int face, CGCol
             if (family == nil) {
                 family = viva_mono_fallback_family(text);
             }
-            NSFont *fallback = family != nil ? viva_mono_replacement_font(family, size, bold) : nil;
+            VivaFont *fallback = family != nil ? viva_mono_replacement_font(family, size, bold) : nil;
             if (fallback != nil) {
                 CFAttributedStringSetAttribute(attributed,
                                                CFRangeMake((CFIndex)cluster.location, (CFIndex)cluster.length),
@@ -1003,10 +1058,10 @@ void viva_prepare_text_context(CGContextRef context, CGFloat scale) {
 // look the same, and the text does not move when it is committed to the grid.
 void viva_draw_terminal_preedit(
     CGContextRef context, NSString *shown, CGFloat fontSize, int monoFace,
-    NSColor *color, CGFloat cellWidth, CGFloat baseline
+    VivaColor *color, CGFloat cellWidth, CGFloat baseline
 ) {
     // The face's font, with the installed fallback for what no family of it draws.
-    NSFont *font = viva_mono_font(fontSize, 0, monoFace);
+    VivaFont *font = viva_mono_font(fontSize, 0, monoFace);
     NSUInteger column = 0;
     for (NSUInteger at = 0; at < shown.length;) {
         int cells = 0;
@@ -1132,8 +1187,8 @@ id<MTLTexture> viva_text_input_texture(
     NSString *shown,
     CGFloat fontSize,
     CGFloat fontWeight,
-    NSColor *color,
-    NSSize frameSize,
+    VivaColor *color,
+    CGSize frameSize,
     NSRange selectedRange,
     BOOL hasMarked,
     NSRange markedRange,
@@ -1211,8 +1266,8 @@ id<MTLTexture> viva_text_input_texture(
     // Fully transparent text means an editor that exists only to receive input
     // (an OTP field paints its own slots): draw none of it, caret and selection
     // included. A translucent color still gets its caret and highlight.
-    NSColor *textColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-    BOOL invisible = textColor != nil && textColor.alphaComponent <= 0.0;
+    CGFloat textRGBA[4];
+    BOOL invisible = viva_color_srgb(color, textRGBA) && textRGBA[3] <= 0.0;
     double spans[2 * VIVA_SELECTION_PIECES];
     if (selected.length > 0 && !terminal && !hideNativeOverlays && !invisible) {
         size_t count = viva_text_spans(line, selected, terminal, spans, VIVA_SELECTION_PIECES);
@@ -1246,14 +1301,9 @@ id<MTLTexture> viva_text_input_texture(
         }
     } else if (selected.length == 0 && caretVisible && !terminal && !hideNativeOverlays) {
         CGFloat caret = viva_editor_visible_caret(inset + viva_text_offset(line, selected.location, terminal), frameSize.width, alignment, terminal);
-        NSColor *caretColor = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-        CGContextSetRGBFillColor(
-            context,
-            caretColor.redComponent,
-            caretColor.greenComponent,
-            caretColor.blueComponent,
-            MAX(caretColor.alphaComponent, 0.9)
-        );
+        CGFloat caretRGBA[4];
+        viva_color_srgb(color, caretRGBA); // a color with no sRGB form gives zeros, as nil did
+        CGContextSetRGBFillColor(context, caretRGBA[0], caretRGBA[1], caretRGBA[2], MAX(caretRGBA[3], 0.9));
         CGContextFillRect(context, CGRectMake(caret, baseline - descent, 2.0, ascent + descent));
     }
 
