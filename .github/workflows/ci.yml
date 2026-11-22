@@ -170,6 +170,7 @@ jobs:
             { sudo apt-get update && sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji; }
           go test ./internal/platform/linux -run '^(TestTextEngineRasterizesProportionalText$|TestFittedPango)' -count=1 -v
           go test ./components -run '^TestCodeEditorPango' -count=1 -v
+          go test ./app -run '^TestPainterPublishesBothImeAnchorsOfOneBidiOffset$' -count=1 -v
       - name: GTK optional capability contracts
         run: |
           go vet -tags vivagtk ./app ./internal/platform/linux
