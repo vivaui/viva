@@ -480,6 +480,18 @@ func TestMenuWidthRange(t *testing.T) {
 			t.Fatalf("the surface is %v wide, want at most the 160 it was given", got)
 		}
 	})
+	t.Run("greatest below default", func(t *testing.T) {
+		m := &menuOptionsModel{greatest: 112, Label: "A model name that is far too long for a narrow menu"}
+		d := openPage(t, m.page)
+		d.click("More")
+		if got := d.hit(m.Label).Bounds.Width; got > m.greatest {
+			t.Fatalf("item width = %v, exceeds the menu maximum of %v", got, m.greatest)
+		}
+		d.click(m.Label)
+		if m.picked != 1 || m.open {
+			t.Fatalf("picked=%d open=%v", m.picked, m.open)
+		}
+	})
 }
 
 // Beside opens the menu right of its anchor, its first row level with the anchor
@@ -607,12 +619,14 @@ func TestContextMenuAtNamedByAZeroSizeSlotTakesTheArrows(t *testing.T) {
 
 // A Content row takes room in the menu and is painted by the caller; the arrows pass over it.
 func TestMenuContentRow(t *testing.T) {
+	const maxWidth = 112
 	m := &menuModel{open: true}
 	painted := gfx.Rect{}
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			more := ui.Button(c, "More")
 			ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+				menu.WidthRange(0, maxWidth)
 				menu.Item("One")
 				menu.Content(40, func(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx.Theme) {
 					painted = bounds
@@ -625,6 +639,9 @@ func TestMenuContentRow(t *testing.T) {
 		})
 	})
 	one, two := d.hit("One").Bounds, d.hit("Two").Bounds
+	if painted.Width <= 0 || painted.Width > maxWidth {
+		t.Fatalf("content width = %v, want a positive width within the menu maximum of %v", painted.Width, maxWidth)
+	}
 	if painted.Height != 40 || two.Y-one.Y < 40 {
 		t.Fatalf("content %v, rows %v and %v: the row took no room", painted, one, two)
 	}
