@@ -115,6 +115,30 @@ func TestHdiutilReportsOtherFailuresAtOnce(t *testing.T) {
 // The image is converted only once the disk image service has let go of it:
 // released waits while hdiutil info still lists it, and says so if it never
 // does.
+func TestReleasedDetachesTheDiskAgainWhileTheImageStaysAttached(t *testing.T) {
+	const image = "/tmp/viva-release-test/writable.dmg"
+	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string><key>dev-entry</key><string>/dev/disk7</string></dict></array></plist>", nil}
+	free := reply{"<plist><array></array></plist>", nil}
+	replies := []reply{}
+	for i := 0; i < 7; i++ { // attempts 0 to 5 find it held, and the force detach of attempt 5 is one more run
+		replies = append(replies, held)
+	}
+	replies = append(replies, free)
+	runs, _ := stub(t, replies)
+	if err := released(image); err != nil {
+		t.Fatal(err)
+	}
+	forced := false
+	for _, arguments := range *runs {
+		if len(arguments) == 3 && arguments[0] == "detach" && arguments[1] == "-force" && arguments[2] == "/dev/disk7" {
+			forced = true
+		}
+	}
+	if !forced {
+		t.Fatalf("the disk was never detached again: %v", *runs)
+	}
+}
+
 func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
 	const image = "/tmp/viva-release-test/writable.dmg"
 	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string></dict></array></plist>", nil}

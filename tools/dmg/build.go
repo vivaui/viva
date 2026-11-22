@@ -270,9 +270,38 @@ func released(image string) error {
 			return nil
 		}
 		attached = out
+		if redetachAt[attempt] {
+			// The service can keep an image attached, and hold the file, after a detach
+			// that reported success: take its disk away again.
+			if device := diskOf(out, path, image); device != "" {
+				_ = hdiutil("detach", "-force", device)
+			}
+		}
 		pause(releaseWait)
 	}
 	return fmt.Errorf("the disk image service still holds %s after detaching it:\n%s", image, attached)
+}
+
+// redetachAt are the attempts of released at which an image still attached has its disk
+// detached again.
+var redetachAt = map[int]bool{5: true, 20: true, 50: true, 90: true}
+
+var diskNode = regexp.MustCompile(`<string>(/dev/disk\d+)</string>`)
+
+// diskOf is the disk of the attached image at one of the paths, from hdiutil info's
+// list: the first disk its entry names, since an entry lists its image's path before
+// its system entities.
+func diskOf(info string, paths ...string) string {
+	for _, path := range paths {
+		at := strings.Index(info, "<string>"+path+"</string>")
+		if at < 0 {
+			continue
+		}
+		if match := diskNode.FindStringSubmatch(info[at:]); match != nil {
+			return match[1]
+		}
+	}
+	return ""
 }
 
 func hdiutil(arguments ...string) error {
