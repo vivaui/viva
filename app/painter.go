@@ -57,23 +57,21 @@ type painter struct {
 	nativeText     platform.TextInput
 	// keys follows the keys of a terminal that asked for releases (see
 	// TextInput.KeyReleases).
-	keys            interaction.Keys
-	textEnabled     bool
-	canvas          *gfx.Canvas
-	size            gfx.Size
-	focus           interaction.Focus
-	pointer         interaction.Pointer
-	frame           *framebuild.Builder
-	semantics       *semantic.Tree
-	semanticIDs     []semantic.ID
-	accessibility   []platform.AccessibilityNode
-	lastAccess      []platform.AccessibilityNode
-	semanticChanges []semantic.Change
-	reusedHits      int                   // publishes that kept the previous regions and semantics
-	views           []platform.NativeView // the native views of this publish
-	lastViews       []platform.NativeView // the ones last sent
-	covers          []gfx.Rect            // backing of the views' Covers
-	hitScratch      []gfx.Hit
+	keys        interaction.Keys
+	textEnabled bool
+	canvas      *gfx.Canvas
+	size        gfx.Size
+	focus       interaction.Focus
+	pointer     interaction.Pointer
+	frame       *framebuild.Builder
+	// accessibility is the payload the platform last received: each sync
+	// rewrites only the entries that changed, and publishes it when one did.
+	accessibility []platform.AccessibilityNode
+	reusedHits    int                   // publishes that kept the previous regions and semantics
+	views         []platform.NativeView // the native views of this publish
+	lastViews     []platform.NativeView // the ones last sent
+	covers        []gfx.Rect            // backing of the views' Covers
+	hitScratch    []gfx.Hit
 	// publishedHits is the hit list the regions and the semantic tree were last
 	// built from. Comparing it byte for byte (the strings keep the previous
 	// allocations alive, so equal pointers mean equal bytes) lets a repaint that
@@ -92,7 +90,6 @@ type painter struct {
 	publishedComposing bool
 	publishedTextField bool
 	hitsPublished      bool
-	semanticsDirty     bool
 	labelNames         map[gfx.ID]string
 	labelNamePeak      int
 	// controls draws the window buttons of a custom titlebar, on platforms where
@@ -155,10 +152,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		canvas:        canvas,
 		size:          gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
 		frame:         framebuild.New(canvas),
-		semantics:     semantic.NewWithCapacity("Viva", len(canvas.Hits())+1),
-		semanticIDs:   make([]semantic.ID, 0, len(canvas.Hits())+1),
 		accessibility: make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
-		lastAccess:    make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
 	painter.clipboardText = func() string {
@@ -191,7 +185,6 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		}
 	}
 	painter.frame.MarkInitialBitmapUploads()
-	painter.lastAccess = append(painter.lastAccess[:0], painter.accessibility...)
 	return painter, nil
 }
 
@@ -1000,10 +993,9 @@ func (painter *painter) publish() (platform.Frame, error) {
 	// keeps the payload from the previous publish.
 	structuresUnchanged := painter.structuresUnchanged()
 	if !hitStructuresUnchanged || !structuresUnchanged {
-		painter.syncSemantics(!hitStructuresUnchanged && structuresUnchanged)
+		changed := painter.syncSemantics(!hitStructuresUnchanged && structuresUnchanged)
 		painter.recordHitStructures()
-		if !sameAccessibility(painter.accessibility, painter.lastAccess) {
-			painter.lastAccess = append(painter.lastAccess[:0], painter.accessibility...)
+		if changed {
 			frame.Accessibility = painter.accessibility
 		}
 	}
@@ -1077,18 +1069,9 @@ func sameNativeView(a, b platform.NativeView) bool {
 // the frame that was just returned remains valid; its old arrays are released
 // once the platform has consumed it.
 func (painter *painter) trim() {
-	// A scene and semantic tree keep their free slots for reuse. That is right
-	// for a page that stays large, but after a large page is replaced by a
-	// small one the slots are pure retention. Rebuild both from the small
-	// frame instead of carrying the peak for the rest of the session.
+	// The frame's scene keeps its free slots for reuse; after a large page is
+	// replaced by a small one it rebuilds from the small frame (Builder.Trim).
 	painter.frame.Trim()
-	const trimAt, trimRatio = 4096, 4
-	if slots := painter.semantics.Slots(); slots > trimAt && painter.semantics.Len()*trimRatio < slots {
-		painter.semantics = semantic.NewWithCapacity("Viva", len(painter.hitScratch)+1)
-		painter.semanticIDs = painter.semanticIDs[:0]
-		painter.semanticChanges = painter.semanticChanges[:0]
-		painter.semanticsDirty = true
-	}
 	painter.canvas.Trim()
 	painter.focus.Trim()
 	painter.hitScratch = framebuild.TrimCapacity(painter.hitScratch)
@@ -1096,9 +1079,6 @@ func (painter *painter) trim() {
 	painter.semanticDirty = framebuild.TrimCapacity(painter.semanticDirty)
 	painter.publishedReturns = framebuild.TrimCapacity(painter.publishedReturns)
 	painter.accessibility = framebuild.TrimCapacity(painter.accessibility)
-	painter.lastAccess = framebuild.TrimCapacity(painter.lastAccess)
-	painter.semanticChanges = framebuild.TrimCapacity(painter.semanticChanges)
-	painter.semanticIDs = framebuild.TrimCapacity(painter.semanticIDs)
 	if painter.labelNamePeak > 4096 && len(painter.labelNames)*4 < painter.labelNamePeak {
 		painter.labelNames = nil
 		painter.labelNamePeak = 0
@@ -1513,7 +1493,7 @@ func sameRegionHit(published, current *gfx.Hit) bool {
 // publish uses it for the second check, after syncTextInput has had its say;
 // the hits cannot change in between, so the expensive memcmp runs once.
 func (painter *painter) structuresUnchanged() bool {
-	if !painter.hitsPublished || painter.semanticsDirty || !painter.focus.PendingFocus().IsZero() {
+	if !painter.hitsPublished || !painter.focus.PendingFocus().IsZero() {
 		return false
 	}
 	if painter.focus.Focused() != painter.publishedFocus ||
@@ -1567,13 +1547,11 @@ func (painter *painter) recordHitStructures() {
 		painter.publishedComposing = painter.activeText.State.Composing
 	}
 	painter.hitsPublished = true
-	painter.semanticsDirty = false
 }
 
-// syncSemantics mirrors the canvas hit list into the retained semantic tree
-// and the flattened accessibility payload.
-func (painter *painter) syncSemantics(incremental bool) {
-	root := painter.semantics.Root()
+// syncSemantics mirrors the canvas hit list into the accessibility payload, entry
+// by entry, and reports whether any entry changed: the payload to publish.
+func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 	// Blocks are occluders, not targets: they have no accessible meaning. Labels
 	// are no nodes either; their words name the control they label.
 	hits := painter.hitScratch[:0]
@@ -1685,7 +1663,7 @@ func (painter *painter) syncSemantics(incremental bool) {
 	if fast && labelled && (needsLabelMap || pendingCount > 0) {
 		fast = false
 	}
-	if fast && len(hits) != len(painter.semanticIDs) {
+	if fast && len(hits) != len(painter.accessibility) {
 		fast = false
 	}
 	if fast {
@@ -1707,21 +1685,16 @@ func (painter *painter) syncSemantics(incremental bool) {
 				continue
 			}
 			painter.accessibility[index] = node
-			painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], focused))
+			changed = true
 		}
-		painter.semanticChanges = painter.semantics.DrainChanges(painter.semanticChanges[:0])
-		return
-	}
-	common := len(painter.semanticIDs)
-	if len(hits) < common {
-		common = len(hits)
+		return changed
 	}
 	// The accessible payload is compared entry by entry: a repaint that changes
-	// one label must not rewrite the semantic tree or a thousand identical
-	// accessibility nodes. The retained payload is also the previous entry's
-	// copy, so an equal node means neither structure has anything to update.
+	// one label rewrites one node, not a thousand identical ones, and one that
+	// changes none publishes nothing.
 	focused := painter.focus.Focused()
 	previous := painter.accessibility
+	changed = len(hits) != len(previous)
 	if len(hits) < len(previous) {
 		clear(previous[len(hits):])
 	}
@@ -1731,29 +1704,15 @@ func (painter *painter) syncSemantics(incremental bool) {
 		painter.accessibility = make([]platform.AccessibilityNode, len(hits))
 		copy(painter.accessibility, previous)
 	}
-	for index := 0; index < common; index++ {
+	for index := range hits {
 		node := painter.accessibilityNode(&hits[index], focused)
 		if index < len(previous) && previous[index] == node {
 			continue
 		}
 		painter.accessibility[index] = node
-		painter.semantics.Set(painter.semanticIDs[index], semanticNode(hits[index], focused))
+		changed = true
 	}
-	for index := common; index < len(hits); index++ {
-		node := painter.accessibilityNode(&hits[index], focused)
-		painter.accessibility[index] = node
-		id, _ := painter.semantics.Add(root, semanticNode(hits[index], focused))
-		painter.semanticIDs = append(painter.semanticIDs, id)
-	}
-	if len(hits) < len(painter.semanticIDs) {
-		for _, id := range painter.semanticIDs[len(hits):] {
-			painter.semantics.Remove(id)
-		}
-		painter.semanticIDs = painter.semanticIDs[:len(hits)]
-	}
-	// The tree is only mirrored natively below; reusing the scratch avoids
-	// allocating a discarded change list every time the hit set changes.
-	painter.semanticChanges = painter.semantics.DrainChanges(painter.semanticChanges[:0])
+	return changed
 }
 
 // accessibilityNode is the payload entry for one hit.
@@ -1833,27 +1792,6 @@ func (painter *painter) nameFromLabels(controls []gfx.Hit) {
 	}
 }
 
-func semanticNode(hit gfx.Hit, focused gfx.ID) semantic.Node {
-	return semantic.Node{
-		Role:      semanticRole(hit.Role),
-		Label:     hit.Label,
-		Value:     hit.Value,
-		Hint:      hit.Hint,
-		Bounds:    semantic.Rect{X: hit.Bounds.X, Y: hit.Bounds.Y, Width: hit.Bounds.Width, Height: hit.Bounds.Height},
-		Focusable: hit.Focusable,
-		Focused:   !hit.ID.IsZero() && hit.ID == focused,
-		Disabled:  hit.Disabled,
-		Checked:   hit.Checked,
-		Mixed:     hit.Mixed,
-		Selected:  hit.Selected,
-		Expanded:  hit.Expanded,
-		Multiline: hit.Multiline,
-		ReadOnly:  hit.ReadOnly,
-		Invalid:   hit.Invalid,
-		Secure:    hit.Secure,
-	}
-}
-
 func semanticRole(role gfx.Role) semantic.Role {
 	switch role {
 	case gfx.RoleLink:
@@ -1901,18 +1839,6 @@ func semanticRole(role gfx.Role) semantic.Role {
 	default:
 		return semantic.RoleButton
 	}
-}
-
-func sameAccessibility(left, right []platform.AccessibilityNode) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
 
 // windowActions makes the set of operations the window buttons need, for the

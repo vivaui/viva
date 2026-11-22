@@ -57,10 +57,6 @@ func TestAccessibilityNodesCarryInvalid(t *testing.T) {
 	if len(painter.accessibility) != 1 || !painter.accessibility[0].Invalid {
 		t.Fatalf("accessibility = %+v", painter.accessibility)
 	}
-	node, ok := painter.semantics.Get(painter.semanticIDs[0])
-	if !ok || !node.Invalid {
-		t.Fatalf("semantic node = %+v", node)
-	}
 }
 
 func TestAccessibilityPressClicksOnceAndIgnoresDisabledControls(t *testing.T) {
