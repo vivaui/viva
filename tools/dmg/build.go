@@ -111,7 +111,7 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	defer func() {
-		if detachErr := detach(mount, device); err == nil {
+		if detachErr := detach(device); err == nil {
 			err = detachErr
 		}
 	}()
@@ -195,44 +195,45 @@ func attachedDevice(output, mount string) (string, error) {
 	return "", fmt.Errorf("dmg: attached image has no device at %s", mount)
 }
 
-// detach unmounts the image, retrying while the system still holds it, and
-// forcing it as the last resort.
-func detach(mount, device string) error {
+// detach unmounts the image and detaches its disk, retrying while the system still
+// holds it, and forcing it as the last resort. The volume being unmounted already
+// (by the system, or by an earlier try) is not the end of it: the image stays
+// attached, and the disk image service keeps holding the file, until its disk is
+// detached. What ends it is the disk no longer being attached.
+func detach(device string) error {
 	// Detaching a partition's node unmounts that volume and leaves the image attached,
 	// which the disk image service then holds: the whole disk is what goes.
 	device = wholeDisk(device)
-	mounted, err := volumeMounted(mount)
-	if err != nil {
-		return err
-	}
-	if !mounted {
-		// The volume is already unmounted (by the system, say) but the image is still
-		// attached, and the disk image service holds the file until the disk goes:
-		// detach it anyway. Failing here is no news when it was already gone, and
-		// released reports an image that is still attached.
-		_ = hdiutil("detach", device)
-		return nil
-	}
+	var err error
 	for attempt := 0; attempt < 5; attempt++ {
 		if err = hdiutil("detach", device); err == nil {
 			return nil
 		}
-		if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
+		if gone, checkErr := diskGone(device); checkErr != nil {
+			return fmt.Errorf("%w; checking the disk: %v", err, checkErr)
+		} else if gone {
 			return nil
-		} else if checkErr != nil {
-			return fmt.Errorf("%w; checking mount: %v", err, checkErr)
 		}
-		time.Sleep(time.Duration(attempt+1) * 500 * time.Millisecond)
+		pause(time.Duration(attempt+1) * 500 * time.Millisecond)
 	}
 	if forced := hdiutil("detach", "-force", device); forced == nil {
 		return nil
 	}
-	if mounted, checkErr := volumeMounted(mount); checkErr == nil && !mounted {
+	if gone, checkErr := diskGone(device); checkErr == nil && gone {
 		return nil
 	} else if checkErr != nil {
-		return fmt.Errorf("%w; checking mount: %v", err, checkErr)
+		return fmt.Errorf("%w; checking the disk: %v", err, checkErr)
 	}
 	return err
+}
+
+// diskGone says no attached image has this disk, as hdiutil info lists them.
+func diskGone(device string) (bool, error) {
+	out, err := hdiutilOutput("info", "-plist")
+	if err != nil {
+		return false, err
+	}
+	return !strings.Contains(out, "<string>"+device+"</string>"), nil
 }
 
 var partitionNode = regexp.MustCompile(`^(/dev/disk\d+)s\d+$`)
