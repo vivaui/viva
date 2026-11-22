@@ -133,6 +133,7 @@ func TestInlineCharacterReferences(t *testing.T) {
 	}{
 		{"documentation indent", "&nbsp;&nbsp;&nbsp;&nbsp;(...)  Matches the expression.", "P0 {\u00a0\u00a0\u00a0\u00a0(...)  Matches the expression.}\n"},
 		{"number and name", "A&#160;B &#x1F680; &NotEqualTilde; &semi;", "P0 {A\u00a0B 🚀 ≂̸ ;}\n"},
+		{"expanding names", "&nLt;&nGt;", "P0 {\u226a\u20d2\u226b\u20d2}\n"},
 		{"malformed references", "&notit; &noti; &copy &#160 &#12345678; &;", "P0 {&notit; &noti; &copy &#160 &#12345678; &;}\n"},
 		{"invalid code points", "&#0; &#xD800; &#x110000;", "P0 {� � �}\n"},
 		{"decoded once as text", "&amp;nbsp; &#42;word&#42;", "P0 {&nbsp; *word*}\n"},

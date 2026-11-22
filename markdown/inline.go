@@ -162,8 +162,15 @@ func characterReference(s string) (string, int) {
 		}
 	}
 	ref := s[:end+1]
-	if ref == "&nbsp;" {
+	switch ref {
+	case "&nbsp;":
 		return "\u00a0", end + 1
+	// Go's decoder omits these two names because their UTF-8 expansions
+	// are longer than the input and cannot be decoded in place.
+	case "&nLt;":
+		return "\u226a\u20d2", end + 1
+	case "&nGt;":
+		return "\u226b\u20d2", end + 1
 	}
 	value := html.UnescapeString(ref)
 	// A complete named reference decodes to at most two runes. HTML also
