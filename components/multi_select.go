@@ -131,19 +131,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 	}
 	height := float32(max(1, min(len(choices), rows))*32 + 8)
 	layout.Popup = gfx.Rect{X: bounds.X, Y: bounds.Y + bounds.Height + 6, Width: bounds.Width, Height: height}
-	if o.Viewport.Height > 0 {
-		top, bottom := o.Viewport.Y+1, o.Viewport.Y+o.Viewport.Height-1
-		if layout.Popup.Y+layout.Popup.Height > bottom {
-			// Prefer room above for at least one usable row. Otherwise scroll
-			// inside the space left below, even when that is less than a row.
-			if above := bounds.Y - 6 - top; above >= min(height, 40) {
-				layout.Popup.Height = min(height, above)
-				layout.Popup.Y = bounds.Y - layout.Popup.Height - 6
-			}
-		}
-		layout.Popup.Y = max(top, min(layout.Popup.Y, bottom-1))
-		layout.Popup.Height = max(1, min(layout.Popup.Height, bottom-layout.Popup.Y))
-	}
+	placeList(&layout.Popup, bounds, height, o.Viewport)
 	if floating {
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()

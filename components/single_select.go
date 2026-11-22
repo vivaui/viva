@@ -172,7 +172,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 			layout.Popup.X = max(o.Viewport.X+1, min(layout.Popup.X, o.Viewport.X+o.Viewport.Width-1-layout.Popup.Width))
 		}
 	}
-	placePopupBelow(&layout.Popup, bounds, height, o.Viewport)
+	placeList(&layout.Popup, bounds, height, o.Viewport)
 	if floating {
 		canvas.PushOverlayClip(o.Viewport)
 		defer canvas.PopOverlayClip()
