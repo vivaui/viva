@@ -15,14 +15,22 @@ type codeShaping struct {
 	style      gfx.TextStyle
 	cell       float32
 	generation uint32
-	rows       map[int32][]gfx.FittedMonoCaret
+	cols       int
+	tabWidth   int
+	wrap       bool
+	rows       map[int32]codeShapedRow
 	hit        gfx.TextHit
 	hitRow     int32
 	hitValid   bool
 }
 
+type codeShapedRow struct {
+	value  string
+	carets []gfx.FittedMonoCaret
+}
+
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
-	if !snapshot.ShapedBidi || snapshot.Wrap || len(snapshot.Representations) != 0 || snapshot.ShowWhitespace ||
+	if !snapshot.ShapedBidi || len(snapshot.Representations) != 0 || snapshot.ShowWhitespace ||
 		snapshot.ShowIndentGuides || snapshot.ShowEOL || snapshot.Decorations != nil || snapshot.Highlight != nil || snapshot.HighlightLine != nil {
 		editor.shaping = nil
 		return
@@ -30,8 +38,10 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 	style := gfx.TextStyle{Size: size, Mono: true, MonoFace: snapshot.MonoFace}
 	generation := canvas.FontGeneration()
 	s := editor.shaping
-	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.cell != cell || s.generation != generation {
-		s = &codeShaping{canvas: canvas, value: editor.text, style: style, cell: cell, generation: generation, rows: make(map[int32][]gfx.FittedMonoCaret)}
+	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.cell != cell || s.generation != generation ||
+		s.cols != editor.cols || s.tabWidth != editor.tabWidth || s.wrap != editor.wrap {
+		s = &codeShaping{canvas: canvas, value: editor.text, style: style, cell: cell, generation: generation,
+			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow)}
 		editor.shaping = s
 	}
 	if s.hitValid && s.hit.Offset != snapshot.Caret {
@@ -42,25 +52,81 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 	s := editor.shaping
 	// Bound both the cost of shaping a single line and the number of cached rows.
-	if s == nil || row.shown >= 0 || row.end <= row.start || row.end-row.start > 4096 {
+	if s == nil || row.end <= row.start || row.end-row.start > 4096 {
 		return nil
 	}
-	if carets, ok := s.rows[row.start]; ok {
-		return carets
+	if shaped, ok := s.rows[row.start]; ok {
+		return shaped.carets
 	}
-	value := s.value[row.start:row.end]
-	if strings.IndexByte(value, '\t') >= 0 {
-		return nil
-	}
-	carets, ok := s.canvas.FittedBidiMonoCarets(nil, value, s.style, float32(row.cells)*s.cell)
-	if !ok || len(carets) < 2 || carets[0].Offset != 0 || carets[len(carets)-1].Offset != len(value) {
-		carets = nil
-	}
+	shaped := editor.measureShapedRow(row)
 	if len(s.rows) >= 64 {
 		clear(s.rows)
 	}
-	s.rows[row.start] = carets
-	return carets
+	s.rows[row.start] = shaped
+	return shaped.carets
+}
+
+func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
+	s := editor.shaping
+	value := editor.rowText(row)
+	var prefix string
+	if editor.wrap {
+		// Give each plain continuation the base direction of its logical line.
+		// Explicit embedding and isolate state cannot be reconstructed by a mark.
+		line := editor.text[row.lineStart:]
+		if len(line) > 4097 {
+			line = line[:4097]
+		}
+		if end := strings.IndexByte(line, '\n'); end >= 0 {
+			line = line[:end]
+		}
+		if len(line) > 4096 || strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069") {
+			return codeShapedRow{}
+		}
+		dir := gfx.TextDirectionOf(line)
+		if dir != gfx.TextDirectionOf(value) {
+			prefix = "\u200e"
+			if dir == gfx.DirectionRTL {
+				prefix = "\u200f"
+			}
+		}
+	}
+	label := prefix + value
+	carets, ok := s.canvas.FittedBidiMonoCarets(nil, label, s.style, float32(row.cells)*s.cell)
+	if !ok || len(carets) < 2 || carets[0].Offset != 0 || carets[len(carets)-1].Offset != len(label) {
+		return codeShapedRow{}
+	}
+	if row.shown >= 0 || prefix != "" {
+		// Retain only source grapheme boundaries. Every byte of an expanded tab
+		// lies between the same two source offsets; the direction mark has none.
+		source := editor.text[row.start:row.end]
+		mapped := carets[:0]
+		column, rendered, at := 0, len(prefix), 0
+		for offset := 0; ; {
+			for at < len(carets) && carets[at].Offset < rendered {
+				at++
+			}
+			if at == len(carets) || carets[at].Offset != rendered {
+				return codeShapedRow{}
+			}
+			caret := carets[at]
+			caret.Offset = offset
+			mapped = append(mapped, caret)
+			if offset == len(source) {
+				break
+			}
+			next, cells := editor.gridCluster(source, offset, column)
+			if source[offset] == '\t' {
+				rendered += cells
+			} else {
+				rendered += next - offset
+			}
+			column += cells
+			offset = next
+		}
+		carets = mapped
+	}
+	return codeShapedRow{value: label, carets: carets}
 }
 
 func (editor *CodeEditor) shapedCaretX(row codeRow, offset int) (float32, bool) {
@@ -196,7 +262,7 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 			return
 		}
 		fill(from, to, paint.selectionBackground)
-		if to > end && end < len(paint.value) {
+		if to > end && end < len(paint.value) && !paint.editor.softWrapped(index) {
 			extra := paint.cellWidth / 2
 			x := left + carets[len(carets)-1].Trailing
 			if carets[0].Leading > carets[len(carets)-1].Trailing {
@@ -216,17 +282,20 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 			selection(span.Start, span.End)
 		}
 	}
-	value := paint.value[start:end]
+	value := paint.editor.shaping.rows[row.start].value
 	bounds := gfx.Rect{X: left, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: float32(row.cells) * paint.cellWidth, Height: paint.cellHeight}
 	run := gfx.TextRun{Bytes: int32(len(value)), Cells: row.cells, Ligatures: true, Color: paint.foreground}
 	style := gfx.TextStyle{Size: paint.size, Color: paint.foreground, Mono: true, MonoFace: paint.face}
 	paint.canvas.LabelRuns(value, bounds, style, paint.cellWidth, []gfx.TextRun{run})
 	run.Color = paint.selectionForeground
-	paint.shapedSelectionText(carets, start, value, bounds, run)
+	paint.shapedSelectionText(carets, start, end, value, bounds, run)
+	if paint.showWrapSymbol && paint.editor.softWrapped(index) {
+		paint.wrapSymbol(y)
+	}
 	paint.overlays(index, y)
 }
 
-func (paint *codePaint) shapedSelectionText(carets []gfx.FittedMonoCaret, start int, value string, bounds gfx.Rect, run gfx.TextRun) {
+func (paint *codePaint) shapedSelectionText(carets []gfx.FittedMonoCaret, start, end int, value string, bounds gfx.Rect, run gfx.TextRun) {
 	style := gfx.TextStyle{Size: paint.size, Mono: true, MonoFace: paint.face, Color: run.Color}
 	paintSelection := func(from, to int) {
 		paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, from-start, to-start)
@@ -239,14 +308,14 @@ func (paint *codePaint) shapedSelectionText(carets []gfx.FittedMonoCaret, start 
 	}
 	if len(paint.selectionRanges) != 0 {
 		for _, selection := range paint.selectionRanges {
-			if selection.Start >= start+len(value) {
+			if selection.Start >= end {
 				break
 			}
 			if selection.End > start {
 				paintSelection(selection.Start, selection.End)
 			}
 		}
-	} else if paint.selectionEnd > start && paint.selectionStart < start+len(value) {
+	} else if paint.selectionEnd > start && paint.selectionStart < end {
 		paintSelection(paint.selectionStart, paint.selectionEnd)
 	}
 }
