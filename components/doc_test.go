@@ -30,6 +30,7 @@ var docPrimaryEntries = map[string][]string{
 	"code_merge.go":         {"CodeMerge"},
 	"direction.go":          {"Direction"},
 	"empty.go":              {"Empty"},
+	"graph_sim.go":          {"GraphSim"},
 	"icon_hover.go":         {"IconHover"},
 	"kbd.go":                {"Kbd"},
 	"markdown.go":           {"MarkdownView"},
@@ -42,6 +43,8 @@ var docPrimaryEntries = map[string][]string{
 	"text_selection.go":     {"TextSelection"},
 	"tree_navigation.go":    {"NavigateTree"},
 	"typography.go":         {"Typography"},
+
+	"code_editor_decorations.go": {"CodeEditor"},
 }
 
 // TestDocCatalogCoversEveryComponent keeps the package catalog in doc.go in

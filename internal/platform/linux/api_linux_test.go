@@ -515,9 +515,9 @@ func TestVulkanWithoutDriverManifestDoesNotLoadDriver(t *testing.T) {
 	if vulkanDriverConfigured() {
 		t.Fatal("a missing ICD manifest counts as a Vulkan driver")
 	}
-	_, err := loadVulkan()
+	_, err := openVulkan()
 	if !errors.Is(err, platform.ErrNoGraphics) {
-		t.Fatalf("loadVulkan error = %v, want platform.ErrNoGraphics", err)
+		t.Fatalf("openVulkan error = %v, want platform.ErrNoGraphics", err)
 	}
 }
 

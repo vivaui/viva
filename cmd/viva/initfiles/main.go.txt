@@ -38,7 +38,7 @@ func config() app.Config {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(config(), m.page); err != nil {
+	if err := ui.Run(config(), ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

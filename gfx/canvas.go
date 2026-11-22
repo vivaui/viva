@@ -689,6 +689,7 @@ type Canvas struct {
 	triangles   []Triangle
 	shadows     []Shadow
 	images      []Image
+	tails       canvasTails // see releaseTail
 	nativeViews []NativeView
 	texts       []Text
 	runs        []TextRun
@@ -749,7 +750,7 @@ type Canvas struct {
 	cell      cellGlyph // scratch of CellGlyphGeometry
 	// cellCache holds the cell glyphs the last paints built, keyed by character
 	// and metrics; it survives Reset and is bounded by cellCacheLimit.
-	cellCache []cellGlyphCacheEntry
+	cellCache cellGlyphCache
 	// fits remembers the lines FitLine cut; a different measurement empties it.
 	fits    []fitEntry
 	hovered ID
@@ -793,6 +794,7 @@ type Canvas struct {
 	// non-modal popover does. The runtime honors a given request once, so
 	// painting it every frame never pulls focus back after the user leaves.
 	focusRequest ID
+	focusOnce    ID
 	// focusRelease takes the focus away from one hit if it still has it, and
 	// focusReturns are the non-modal scopes that give the focus back on closing.
 	focusRelease ID
@@ -1037,6 +1039,7 @@ func (canvas *Canvas) Reset() {
 	canvas.escapeTarget = ID{}
 	canvas.initialFocus = ID{}
 	canvas.focusRequest = ID{}
+	canvas.focusOnce = ID{}
 	canvas.focusRelease = ID{}
 	canvas.focusReturns = canvas.focusReturns[:0]
 	canvas.trapDepth, canvas.escapeDepth, canvas.initialDepth = -1, -1, -1
@@ -1058,6 +1061,14 @@ func (canvas *Canvas) Trim() {
 	if canvas.previous.keep {
 		canvas.trimPrevious()
 	}
+	// A list cut short by Reset keeps what it held in its array: a picture no
+	// longer drawn, the labels of hits that are gone. Clear what this paint did
+	// not reach of what an earlier one did.
+	releaseTail(canvas.images, &canvas.tails.images)
+	releaseTail(canvas.texts, &canvas.tails.texts)
+	releaseTail(canvas.hits, &canvas.tails.hits)
+	releaseTail(canvas.hitTexts, &canvas.tails.hitTexts)
+	releaseTail(canvas.nativeViews, &canvas.tails.nativeViews)
 	canvas.rectangles = trimCapacity(canvas.rectangles)
 	canvas.triangles = trimCapacity(canvas.triangles)
 	canvas.shadows = trimCapacity(canvas.shadows)
@@ -1883,6 +1894,22 @@ func (canvas *Canvas) RequestFocus(id ID) {
 
 // FocusRequest returns the non-modal focus request, or zero.
 func (canvas *Canvas) FocusRequest() ID { return canvas.focusRequest }
+
+// RequestFocusOnce requests an explicit focus change, even if id has already
+// been claimed by a persistent RequestFocus or AutoFocus declaration. Call it
+// only in response to an action, or from state consumed by the next paint.
+// The request is carried across an event pass and applied at most once.
+func (canvas *Canvas) RequestFocusOnce(id ID) { canvas.focusOnce = id }
+
+// FocusOnce returns the explicit focus request, or zero.
+func (canvas *Canvas) FocusOnce() ID { return canvas.focusOnce }
+
+// TakeFocusOnce consumes the explicit focus request.
+func (canvas *Canvas) TakeFocusOnce() ID {
+	id := canvas.focusOnce
+	canvas.focusOnce = ID{}
+	return id
+}
 
 // ReleaseFocus asks the runtime to take the keyboard focus away from id if id
 // still has it when this paint ends, and does nothing otherwise. A control that

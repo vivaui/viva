@@ -67,6 +67,7 @@ enum {
     VIVA_WINDOW_CUSTOM_TITLEBAR = 2,
     VIVA_WINDOW_PANEL = 3,
     VIVA_WINDOW_PREVIEW = 4,
+    VIVA_WINDOW_NOTIFICATION = 5,
 };
 
 /* How far from the status item a panel opens, the margin it keeps from the edge
@@ -523,6 +524,7 @@ extern void vivaRawKeyEvent(
 // terminal's own table in Go.
 extern int vivaTerminalCells(uint32_t character);
 extern void vivaWindowActivated(uintptr_t callbackHandle);
+extern void vivaWindowDeactivated(uintptr_t callbackHandle, void *view);
 extern void vivaFocusLost(
     uintptr_t callbackHandle,
     void *view
@@ -4215,14 +4217,14 @@ static int viva_navigation_command(SEL selector) {
 
         self.wantsLayer = YES;
         self.layer = _metalLayer;
-        if (windowMode == VIVA_WINDOW_PANEL) {
+        if (windowMode == VIVA_WINDOW_PANEL || windowMode == VIVA_WINDOW_NOTIFICATION) {
             _metalLayer.cornerRadius = VIVA_PANEL_CORNER_RADIUS;
             _metalLayer.masksToBounds = YES;
         }
         [self updateDrawableSize];
         /* A panel opens while the application is not the active one, and its
          * rows still react to the pointer. */
-        NSTrackingAreaOptions activeness = windowMode == VIVA_WINDOW_PANEL ? NSTrackingActiveAlways : NSTrackingActiveInActiveApp;
+        NSTrackingAreaOptions activeness = (windowMode == VIVA_WINDOW_PANEL || windowMode == VIVA_WINDOW_NOTIFICATION) ? NSTrackingActiveAlways : NSTrackingActiveInActiveApp;
         NSTrackingArea *tracking = [[NSTrackingArea alloc]
             initWithRect:self.bounds
                  options:NSTrackingMouseMoved |
@@ -4361,7 +4363,7 @@ static int viva_navigation_command(SEL selector) {
 }
 
 - (BOOL)isOpaque {
-    return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW;
+    return _windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW && _windowMode != VIVA_WINDOW_NOTIFICATION;
 }
 
 - (BOOL)acceptsFirstResponder {
@@ -5111,9 +5113,20 @@ static void viva_set_secure_event_input(BOOL on) {
         notification.object == self.window && _callbackHandle != 0 && _keyEventsEnabled) {
         vivaFocusLost(_callbackHandle, self);
     }
+    if ([notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
+        notification.object == self.window && _callbackHandle != 0) {
+        vivaWindowDeactivated(_callbackHandle, self);
+    }
     if (_textInputGeneration == generation && [notification.name isEqualToString:NSWindowDidResignKeyNotification] &&
         notification.object == self.window && _textInputEnabled && _tentativeComposition) {
         [self endOwnedNativeComposition];
+    }
+    if (notification.object == self.window && _textInputEnabled) {
+        BOOL visible = _caretVisible;
+        [self restartCaretBlink];
+        if (_caretVisible != visible && [self rebuildTextTexture]) {
+            [self render];
+        }
     }
 }
 
@@ -5137,8 +5150,16 @@ static void viva_set_secure_event_input(BOOL on) {
     return YES;
 }
 
+// caretHasKeyboard reports whether the caret belongs on screen at all: as a native
+// text view's insertion point, only while its window is key. A view not yet in a
+// window has nothing to lose it to.
+- (BOOL)caretHasKeyboard {
+    NSWindow *window = self.window;
+    return window == nil || window.isKeyWindow;
+}
+
 - (void)caretBlinkTimerFired:(NSTimer *)timer {
-    if (timer != _caretTimer || !viva_text_input_caret_should_blink(
+    if (timer != _caretTimer || ![self caretHasKeyboard] || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         [self stopCaretBlink];
         return;
@@ -5160,8 +5181,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)restartCaretBlink {
     [self stopCaretBlink];
-    _caretVisible = YES;
-    if (!viva_text_input_caret_should_blink(
+    // A window in the background shows no caret and keeps no timer, so it wakes
+    // for nothing; becoming key restarts the blink from the visible phase.
+    _caretVisible = [self caretHasKeyboard];
+    if (!_caretVisible || !viva_text_input_caret_should_blink(
             _textInputEnabled, _selectedRange.length, _hasMarkedText, _textTerminal, _textHideNativeOverlays)) {
         return;
     }
@@ -6550,14 +6573,14 @@ static void viva_set_secure_event_input(BOOL on) {
                               NSWindowStyleMaskResizable;
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
         style = NSWindowStyleMaskBorderless;
-    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW) {
+    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         style = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel;
     } else if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR) {
         style |= NSWindowStyleMaskFullSizeContentView;
     }
 
     Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
-    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+    if (_windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         windowClass = [VivaPreview class];
     }
     if (_windowMode == VIVA_WINDOW_FRAMELESS) {
@@ -6572,7 +6595,7 @@ static void viva_set_secure_event_input(BOOL on) {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenParametersChanged:)
                                                  name:NSApplicationDidChangeScreenParametersNotification object:nil];
     _window.releasedWhenClosed = NO;
-    if (_windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW) {
+    if (_windowMode != VIVA_WINDOW_PANEL && _windowMode != VIVA_WINDOW_PREVIEW && _windowMode != VIVA_WINDOW_NOTIFICATION) {
         _window.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
     }
     if (_windowMode == VIVA_WINDOW_PREVIEW) {
@@ -6590,7 +6613,7 @@ static void viva_set_secure_event_input(BOOL on) {
                                      NSWindowCollectionBehaviorTransient |
                                      NSWindowCollectionBehaviorIgnoresCycle;
         ((NSPanel *)_window).hidesOnDeactivate = NO;
-    } else if (_windowMode == VIVA_WINDOW_PANEL) {
+    } else if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         _window.minSize = NSMakeSize(1, 1);
         _window.backgroundColor = [NSColor clearColor];
         _window.opaque = NO;
@@ -6659,7 +6682,7 @@ static void viva_set_secure_event_input(BOOL on) {
         [self keepTrafficLightsCentered];
     }
 
-    if (_windowMode == VIVA_WINDOW_PANEL) {
+    if (_windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         [self placePanel];
     } else if (_hasOrigin) {
         [self placeAtOrigin];
@@ -6676,7 +6699,7 @@ static void viva_set_secure_event_input(BOOL on) {
             [_window setFrame:[_window constrainFrameRect:fitted toScreen:screen] display:NO];
         }
     }
-    if (_windowMode == VIVA_WINDOW_PREVIEW) {
+    if (_windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         /* It appears without taking the key or bringing the application forward. */
         [_window orderFrontRegardless];
     } else {
@@ -7101,7 +7124,7 @@ static void viva_set_secure_event_input(BOOL on) {
 /* Whether this window is one the application's ordinary window handling
  * leaves alone: no Dock reopen, no full screen. */
 - (BOOL)isPanel {
-    return _windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW;
+    return _windowMode == VIVA_WINDOW_PANEL || _windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION;
 }
 
 - (BOOL)isHidden {
@@ -7118,6 +7141,10 @@ static void viva_set_secure_event_input(BOOL on) {
 
 - (void)showWindow {
     if (_window == nil || !_running) {
+        return;
+    }
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+        [_window orderFrontRegardless];
         return;
     }
     if (_window.isMiniaturized) {
@@ -7224,6 +7251,21 @@ static void viva_set_secure_event_input(BOOL on) {
  * the menu bar at the top of the screen, and kept inside the visible part of the
  * screen the anchor is on. Without an anchor it is centered on the screen. */
 - (void)placePanel {
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+        NSPoint point = NSEvent.mouseLocation;
+        NSScreen *screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+        for (NSScreen *candidate in NSScreen.screens) {
+            if (NSPointInRect(point, candidate.frame)) {
+                screen = candidate;
+                break;
+            }
+        }
+        NSRect area = screen.visibleFrame;
+        NSSize size = _window.frame.size;
+        [_window setFrameOrigin:NSMakePoint(MAX(NSMinX(area), NSMaxX(area) - size.width - 12),
+                                            MIN(NSMaxY(area) - size.height, NSMinY(area) + 12))];
+        return;
+    }
     if (!_hasAnchor) {
         [_window center];
         return;

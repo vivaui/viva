@@ -46,7 +46,7 @@ func TestGroupACatalogOrder(t *testing.T) {
 	want := []string{
 		"accordion", "alert", "alert-dialog", "aspect-ratio", "attachment",
 		"avatar", "avatar-editor", "breadcrumb", "bubble", "button-group", "calendar", "card",
-		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox",
+		"carousel", "chart", "chart-area", "chart-bar", "chart-downsample", "collapsible", "combobox", "graph",
 	}
 	if len(groupAComponents) != len(want) {
 		t.Fatalf("group A has %d components, want %d", len(groupAComponents), len(want))
@@ -151,8 +151,8 @@ func TestGroupAClicksChangeCallerState(t *testing.T) {
 	}{
 		{"accordion", "default", gfx.ID{}, "状态由谁持有？", func(s *State) bool { return s.flags == 3 }},
 		{"accordion", "disabled", gfx.ID{}, "状态由谁持有？", func(s *State) bool { return s.flags == 1 }},
-		{"alert-dialog", "default", alertDialogAction, "", func(s *State) bool { return s.flags&alertDialogOpenFlag == 0 }},
-		{"alert-dialog", "media", alertDialogCancel, "", func(s *State) bool { return s.flags&alertDialogOpenFlag == 0 }},
+		{"alert-dialog", "default", alertDialogAction, "", func(s *State) bool { return !s.alertOpen }},
+		{"alert-dialog", "media", alertDialogCancel, "", func(s *State) bool { return !s.alertOpen }},
 		{"attachment", "default", attachmentItem.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
 		{"breadcrumb", "default", breadcrumbLink.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
 		{"bubble", "conversation", bubbleReaction, "", func(s *State) bool { return s.flags == 1 }},

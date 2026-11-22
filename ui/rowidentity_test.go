@@ -177,9 +177,9 @@ func TestTableRowIDLastDeclarationAndZeroState(t *testing.T) {
 	second := false
 	var state ui.TableState
 	d := openPage(t, func(c ui.C) {
-		ui.Table(c, &state, ui.TableSpec{Rows: rows, Source: &m.rows, RowHeight: 20})
+		ui.Table(c, &state, ui.TableSpec{Rows: rows, Columns: []ui.TableColumn{{}}, Source: &m.rows, RowHeight: 20})
 		if second {
-			ui.Table(c, &state, ui.TableSpec{Rows: other, Source: &m.rows, RowHeight: 20})
+			ui.Table(c, &state, ui.TableSpec{Rows: other, Columns: []ui.TableColumn{{}}, Source: &m.rows, RowHeight: 20})
 		}
 	})
 	firstID, ok := state.RowID(0)

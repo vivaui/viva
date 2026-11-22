@@ -38,6 +38,19 @@ type DialogDecl struct {
 	layer                uint16
 }
 
+// resolveDialogFocus gives each dialog that names no InitialFocusID the first
+// control of its body, else of its footer, else its close button, as a modal
+// dialog takes the keyboard as it opens. Its body and footer are declared after
+// it, so this waits for the whole declaration.
+func (f *Frame) resolveDialogFocus() {
+	decls := WidgetsOf(f).dialogs
+	for i := range decls {
+		if decls[i].spec.InitialFocusID.IsZero() {
+			f.focusFirstControlOf(&decls[i])
+		}
+	}
+}
+
 // Dialog declares a dialog on a page whose targets and layer the application
 // names itself: DialogSpec.Scope, DismissID, CloseID and Layer keep the
 // identities the application dispatches, as they do for frame.Dialog. Most

@@ -51,7 +51,7 @@ func (m *model) bars(d *ui.DrawContext) {
 
 func main() {
 	m := &model{samples: []float32{0.3, 0.6, 0.45}}
-	if err := ui.Run(app.Config{Title: "Samples", Width: 480, Height: 300}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Samples", Width: 480, Height: 300}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

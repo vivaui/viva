@@ -104,7 +104,7 @@ func TabBase[T comparable](c C, Value *T, tab T, Label string) Box {
 
 // choose writes option into *value when b is clicked, and records whether it changed.
 func choose[T comparable](c C, b Box, Value *T, option T) {
-	changed := c.f.Surface != nil && b.N().Flags&flagVeto == 0 && c.f.Surface.Clicked(b.N().ID) && *Value != option
+	changed := c.f.Surface != nil && b.N().Flags&(flagVeto|flagDisabled) == 0 && c.f.Surface.Clicked(b.N().ID) && *Value != option
 	if changed {
 		*Value = option
 	}

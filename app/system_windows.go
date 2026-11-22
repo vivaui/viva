@@ -13,6 +13,8 @@ func nativeHasClipboardImage() bool { return windowsplatform.HasClipboardImage()
 
 func nativeClipboardImagePNG() ([]byte, error) { return windowsplatform.ClipboardImagePNG() }
 
+func nativeSetClipboardImage(png []byte) error { return windowsplatform.SetClipboardImage(png) }
+
 func nativeClipboardFiles() ([]string, error) { return windowsplatform.ClipboardFiles() }
 
 func nativeSetClipboardFiles(paths []string) error { return windowsplatform.SetClipboardFiles(paths) }

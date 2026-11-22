@@ -49,6 +49,7 @@ const (
 	swHide             = 0
 	swShow             = 5
 	swShowNoActivate   = 4
+	swShowMaximized    = 3
 	swRestore          = 9
 	smSmallIconWidth   = 49
 	monitorNearest     = 2
@@ -480,7 +481,7 @@ func (state *windowState) placePanel() {
 	getWindowRect.Call(state.window, uintptr(unsafe.Pointer(&bounds)))
 	width, height := float32(bounds.Right-bounds.Left), float32(bounds.Bottom-bounds.Top)
 	config := state.config
-	if !config.HasAnchor {
+	if !config.HasAnchor || config.WindowMode == platform.WindowNotification {
 		// Centered on the monitor the cursor is on.
 		var info monitorInfo
 		info.Size = uint32(unsafe.Sizeof(info))
@@ -488,7 +489,11 @@ func (state *windowState) placePanel() {
 		getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info)))
 		x := float32(info.Work.Left) + (float32(info.Work.Right-info.Work.Left)-width)/2
 		y := float32(info.Work.Top) + (float32(info.Work.Bottom-info.Work.Top)-height)/2
-		setWindowPosition.Call(state.window, hwndTopmost, uintptr(int32(x)), uintptr(int32(y)), 0, 0, 0x1)
+		if config.WindowMode == platform.WindowNotification {
+			area := platform.ScreenRect{X: float32(info.Work.Left), Y: float32(info.Work.Top), Width: float32(info.Work.Right - info.Work.Left), Height: float32(info.Work.Bottom - info.Work.Top)}
+			x, y = platform.PlaceNotification(width, height, 12*state.scale, area)
+		}
+		setWindowPosition.Call(state.window, hwndTopmost, uintptr(int32(x)), uintptr(int32(y)), 0, 0, 0x11) // NOSIZE | NOACTIVATE
 		return
 	}
 	anchor := config.Anchor

@@ -10,7 +10,7 @@ import (
 // the way every text format here resolves one.
 func familyExists(services *textServices, name string) (bool, error) {
 	var collection uintptr
-	if err := hresult(comCall(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)); err != nil || collection == 0 {
+	if err := hresult(comCall2(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)); err != nil || collection == 0 {
 		return false, err
 	}
 	defer release(&collection)
@@ -19,7 +19,7 @@ func familyExists(services *textServices, name string) (bool, error) {
 		return false, err
 	}
 	var index, exists uint32
-	if err := hresult(comCall(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(wide)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil {
+	if err := hresult(comCall3(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(wide)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil {
 		return false, err
 	}
 	return exists != 0, nil

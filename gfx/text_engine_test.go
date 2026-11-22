@@ -1,6 +1,9 @@
 package gfx
 
-import "testing"
+import (
+	"testing"
+	"unicode/utf8"
+)
 
 // halfEngine measures every character as half the size and counts its calls.
 type halfEngine struct{ widths, carets, selections, hits int }
@@ -220,5 +223,24 @@ func TestAnEngineSelectionDoesNotMakeTheCallersBufferEscape(t *testing.T) {
 		canvas.TextSelection(spans[:0], "abcd", 10, WeightRegular, 1, 3)
 	}); allocations != 0 {
 		t.Errorf("TextSelection allocated %v times per call", allocations)
+	}
+}
+
+// A measurer that only knows widths still puts the caret on a character boundary: a
+// click that lands between a letter and its combining mark goes to one side of the
+// cluster, never inside it.
+func TestTextOffsetAtWithAMeasurerKeepsClustersWhole(t *testing.T) {
+	var canvas Canvas
+	canvas.SetMeasurer(func(value string, size, weight float32) float32 {
+		return float32(utf8.RuneCountInString(value)) * 10
+	})
+	value := "éx" // é as e and a combining acute, then x
+	for _, x := range []float32{8, 10, 12, 18} {
+		if got := canvas.TextOffsetAt(value, 10, 0, x); got != 0 && got != 3 {
+			t.Fatalf("a click at %v put the caret at %d, inside é", x, got)
+		}
+	}
+	if got := canvas.TextOffsetAt(value, 10, 0, 22); got != 3 {
+		t.Fatalf("a click just past é put the caret at %d, want after it", got)
 	}
 }

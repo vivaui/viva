@@ -64,7 +64,7 @@ func (renderer *renderer) createCompositionDevice(software bool) error {
 	defer release(&factory)
 	desc := compositionSwapDesc{Width: 1, Height: 1, Format: 87, Samples: 1, Usage: 0x20, Buffers: 2, SwapEffect: 3, AlphaMode: 1}
 	// IDXGIFactory2::CreateSwapChainForComposition.
-	if err := hresult(comCall(factory, 24, renderer.device, uintptr(unsafe.Pointer(&desc)), 0, uintptr(unsafe.Pointer(&renderer.swap)))); err != nil {
+	if err := hresult(comCall4(factory, 24, renderer.device, uintptr(unsafe.Pointer(&desc)), 0, uintptr(unsafe.Pointer(&renderer.swap)))); err != nil {
 		return err
 	}
 	// A null rendering device is valid when visuals contain swap chains only.
@@ -73,18 +73,18 @@ func (renderer *renderer) createCompositionDevice(software bool) error {
 		return err
 	}
 	// IDCompositionDevice::CreateTargetForHwnd, CreateVisual.
-	if err := hresult(comCall(renderer.compositionDevice, 6, renderer.window, 1, uintptr(unsafe.Pointer(&renderer.compositionTarget)))); err != nil {
+	if err := hresult(comCall3(renderer.compositionDevice, 6, renderer.window, 1, uintptr(unsafe.Pointer(&renderer.compositionTarget)))); err != nil {
 		return err
 	}
-	if err := hresult(comCall(renderer.compositionDevice, 7, uintptr(unsafe.Pointer(&renderer.compositionVisual)))); err != nil {
+	if err := hresult(comCall1(renderer.compositionDevice, 7, uintptr(unsafe.Pointer(&renderer.compositionVisual)))); err != nil {
 		return err
 	}
 	// IDCompositionVisual::SetContent; IDCompositionTarget::SetRoot.
-	if err := hresult(comCall(renderer.compositionVisual, 15, renderer.swap)); err != nil {
+	if err := hresult(comCall1(renderer.compositionVisual, 15, renderer.swap)); err != nil {
 		return err
 	}
-	if err := hresult(comCall(renderer.compositionTarget, 3, renderer.compositionVisual)); err != nil {
+	if err := hresult(comCall1(renderer.compositionTarget, 3, renderer.compositionVisual)); err != nil {
 		return err
 	}
-	return hresult(comCall(renderer.compositionDevice, 3)) // Commit
+	return hresult(comCall0(renderer.compositionDevice, 3)) // Commit
 }

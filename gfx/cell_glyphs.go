@@ -295,18 +295,69 @@ func (canvas *Canvas) cellLine(text Text) cellLine {
 	}
 }
 
-// cellGlyphCacheEntry is one built cell glyph, kept while the same character keeps being
-// drawn at the same metrics.
-type cellGlyphCacheEntry struct {
+// cellGlyphKey names one built cell glyph: the character and the metrics of its cell.
+type cellGlyphKey struct {
 	r       rune
 	metrics cellMetrics
-	shapes  CellGlyphShapes
 }
 
-// cellCacheLimit bounds the built cell glyphs a canvas keeps: box drawing, blocks,
-// braille and powerline together are a few hundred characters, and a screen shows
-// a few dozen of them at one or two metrics.
-const cellCacheLimit = 64
+// cellGlyphCache holds built cell glyphs in two generations: a lookup that
+// finds an entry in the previous one moves it to the current one, and a full
+// current generation becomes the previous one, so what the screens of the last
+// while showed stays and what they no longer show ages out. In front of them a
+// direct-mapped table answers the glyphs a line repeats without hashing.
+type cellGlyphCache struct {
+	front             *[cellFrontSize]cellGlyphSlot
+	current, previous map[cellGlyphKey]CellGlyphShapes
+}
+
+type cellGlyphSlot struct {
+	key    cellGlyphKey
+	shapes CellGlyphShapes
+	set    bool
+}
+
+// cellCacheLimit bounds one generation of built cell glyphs: box drawing, blocks,
+// braille and powerline together are several hundred characters, and a chart of
+// braille dots alone can show most of its 256 on one screen, at one or two metrics.
+const cellCacheLimit = 512
+
+// cellFrontSize is the direct-mapped table's size: one block of 256 characters,
+// such as braille, at each of the two cell widths a fractional cell rounds to in
+// whole device pixels, without collisions.
+const cellFrontSize = 512
+
+func (key cellGlyphKey) frontIndex() int {
+	r := uint32(key.r)
+	return int((r^r>>7)&0xff | uint32(key.metrics.width&1)<<8)
+}
+
+// lookup finds a built glyph the direct-mapped table did not hold, in the maps.
+func (cache *cellGlyphCache) lookup(key cellGlyphKey) (CellGlyphShapes, bool) {
+	shapes, ok := cache.current[key]
+	if !ok {
+		if shapes, ok = cache.previous[key]; !ok {
+			return shapes, false
+		}
+		delete(cache.previous, key)
+	}
+	cache.put(key, shapes)
+	return shapes, true
+}
+
+func (cache *cellGlyphCache) put(key cellGlyphKey, shapes CellGlyphShapes) {
+	if len(cache.current) >= cellCacheLimit {
+		cache.previous, cache.current = cache.current, nil
+	}
+	if cache.current == nil {
+		cache.current = make(map[cellGlyphKey]CellGlyphShapes, 64)
+	}
+	cache.current[key] = shapes
+	if cache.front == nil {
+		cache.front = new([cellFrontSize]cellGlyphSlot)
+	}
+	cache.front[key.frontIndex()] = cellGlyphSlot{key: key, shapes: shapes, set: true}
+}
 
 // glyphShapes is what r draws in a cell of these metrics, in device pixels from the cell's corner:
 // the same for every cell of that size, whatever its place or colour. It draws into the canvas's
@@ -315,10 +366,16 @@ const cellCacheLimit = 64
 // whole screen of the same table glyph rebuilds one of them — and the cache's entries are only
 // read: place appends copies.
 func (canvas *Canvas) glyphShapes(metrics cellMetrics, r rune) CellGlyphShapes {
-	for i := range canvas.cellCache {
-		if entry := &canvas.cellCache[i]; entry.r == r && entry.metrics == metrics {
-			return entry.shapes
+	key := cellGlyphKey{r: r, metrics: metrics}
+	// The direct-mapped table is read here, inline: a line of repeated glyphs
+	// costs an index and a comparison per cell.
+	if front := canvas.cellCache.front; front != nil {
+		if slot := &front[key.frontIndex()]; slot.set && slot.key == key {
+			return slot.shapes
 		}
+	}
+	if shapes, ok := canvas.cellCache.lookup(key); ok {
+		return shapes
 	}
 	cell := &canvas.cell
 	cell.canvas, cell.cellMetrics = canvas, metrics
@@ -326,18 +383,11 @@ func (canvas *Canvas) glyphShapes(metrics cellMetrics, r rune) CellGlyphShapes {
 	if draw := cellGlyphDrawer(r); draw != nil {
 		draw(cell, r)
 	}
-	var entry cellGlyphCacheEntry
-	entry.r, entry.metrics = r, metrics
-	entry.shapes.Rectangles = append(entry.shapes.Rectangles, cell.shapes.Rectangles...)
-	entry.shapes.Triangles = append(entry.shapes.Triangles, cell.shapes.Triangles...)
-	if len(canvas.cellCache) >= cellCacheLimit {
-		// The working set of a screen is a few dozen characters at one or two
-		// metrics; past the limit the whole cache starts over rather than
-		// growing with every character a document ever showed.
-		canvas.cellCache = canvas.cellCache[:0]
-	}
-	canvas.cellCache = append(canvas.cellCache, entry)
-	return canvas.cellCache[len(canvas.cellCache)-1].shapes
+	var shapes CellGlyphShapes
+	shapes.Rectangles = append(shapes.Rectangles, cell.shapes.Rectangles...)
+	shapes.Triangles = append(shapes.Triangles, cell.shapes.Triangles...)
+	canvas.cellCache.put(key, shapes)
+	return shapes
 }
 
 // CellGlyphGeometry appends to dst the geometry that draws the cell glyphs of a text made by

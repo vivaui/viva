@@ -28,6 +28,8 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if err != nil {
 		return err
 	}
+	normalized.attachPosts()
+	defer normalized.Invalidator.closePosts()
 	if canvas == nil {
 		canvas = &gfx.Canvas{}
 	}

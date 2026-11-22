@@ -53,18 +53,18 @@ func NewOffscreen(width, height int, scale float64, clear platform.Color) (*Offs
 	renderer := &offscreen.renderer
 	description := textureDesc{Width: uint32(pixelWidth), Height: uint32(pixelHeight), Mips: 1, Array: 1, Format: 87, Samples: 1, Usage: 0, Bind: 0x20}
 	var target uintptr
-	if err := hresult(comCall(renderer.device, 5, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&target)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 5, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&target)))); err != nil {
 		offscreen.Close()
 		return nil, fmt.Errorf("create offscreen target: %w", err)
 	}
-	status = comCall(renderer.device, 9, target, 0, uintptr(unsafe.Pointer(&renderer.target)))
+	status = comCall3(renderer.device, 9, target, 0, uintptr(unsafe.Pointer(&renderer.target)))
 	release(&target)
 	if err := hresult(status); err != nil {
 		offscreen.Close()
 		return nil, fmt.Errorf("create offscreen target view: %w", err)
 	}
 	description.Usage, description.Bind, description.CPU = 3, 0, 0x20000
-	if err := hresult(comCall(renderer.device, 5, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&offscreen.staging)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 5, uintptr(unsafe.Pointer(&description)), 0, uintptr(unsafe.Pointer(&offscreen.staging)))); err != nil {
 		offscreen.Close()
 		return nil, fmt.Errorf("create offscreen read-back texture: %w", err)
 	}
@@ -100,14 +100,14 @@ func (offscreen *Offscreen) Image() (*image.RGBA, error) {
 		return nil, err
 	}
 	var target uintptr
-	comCall(renderer.target, 7, uintptr(unsafe.Pointer(&target))) // ID3D11View::GetResource
-	comCall(renderer.context, 47, offscreen.staging, target)      // CopyResource
+	comCall1(renderer.target, 7, uintptr(unsafe.Pointer(&target))) // ID3D11View::GetResource
+	comCall2(renderer.context, 47, offscreen.staging, target)      // CopyResource
 	release(&target)
 	var mapped resourceData
-	if err := hresult(comCall(renderer.context, 14, offscreen.staging, 0, 1, 0, uintptr(unsafe.Pointer(&mapped)))); err != nil {
+	if err := hresult(comCall5(renderer.context, 14, offscreen.staging, 0, 1, 0, uintptr(unsafe.Pointer(&mapped)))); err != nil {
 		return nil, fmt.Errorf("map offscreen read-back texture: %w", err)
 	}
-	defer comCall(renderer.context, 15, offscreen.staging, 0)
+	defer comCall2(renderer.context, 15, offscreen.staging, 0)
 	result := image.NewRGBA(image.Rect(0, 0, width, height))
 	source := unsafe.Slice((*byte)(mapped.Data), int(mapped.Pitch)*(height-1)+width*4)
 	for y := 0; y < height; y++ {

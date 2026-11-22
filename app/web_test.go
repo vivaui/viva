@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"math"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -232,5 +234,231 @@ func TestEphemeralReachesThePlatformAndIsOffByDefault(t *testing.T) {
 	}
 	if len(opened) != 2 || opened[0].Ephemeral || !opened[1].Ephemeral {
 		t.Fatalf("the platform got %+v, want the flag as the application set it", opened)
+	}
+}
+
+// testWebView is a page as the platform hands one over: the state the test sets is what the
+// application reads back, and nothing reaches a window.
+type testWebView struct {
+	title        string
+	canGoBack    bool
+	canGoForward bool
+	loading      bool
+	failure      platform.WebProcessFailure
+	loaded       []string
+}
+
+func (view *testWebView) Load(url string) {
+	view.loaded = append(view.loaded, url)
+}
+
+func (view *testWebView) LoadHTML(html, baseURL string) {
+	view.loaded = append(view.loaded, baseURL)
+}
+
+func (view *testWebView) Reload()                 {}
+func (view *testWebView) Back()                   {}
+func (view *testWebView) Forward()                {}
+func (view *testWebView) Eval(script string)      {}
+func (view *testWebView) PostMessage(text string) {}
+func (view *testWebView) Focus()                  {}
+func (view *testWebView) Title() string           { return view.title }
+func (view *testWebView) CanGoBack() bool         { return view.canGoBack }
+func (view *testWebView) CanGoForward() bool      { return view.canGoForward }
+func (view *testWebView) IsLoading() bool         { return view.loading }
+func (view *testWebView) ProcessFailure() platform.WebProcessFailure {
+	return view.failure
+}
+func (view *testWebView) Close() {}
+
+func TestAPageReportsItsOwnState(t *testing.T) {
+	page := &testWebView{title: "Settings", canGoBack: true, loading: true}
+	host := &WebHost{native: &platform.WebHost{Open: func(platform.WebViewConfig) (platform.WebView, error) {
+		return page, nil
+	}}}
+	view, err := host.Open(WebViewConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Title() != "Settings" || !view.CanGoBack() || view.CanGoForward() || !view.IsLoading() {
+		t.Fatalf("title=%q back=%v forward=%v loading=%v, want the page's own state",
+			view.Title(), view.CanGoBack(), view.CanGoForward(), view.IsLoading())
+	}
+	// The state is read from the page each time, so what the page reports later is what the
+	// application sees.
+	page.title, page.canGoBack, page.canGoForward, page.loading = "", false, true, false
+	if view.Title() != "" || view.CanGoBack() || !view.CanGoForward() || view.IsLoading() {
+		t.Fatalf("title=%q back=%v forward=%v loading=%v, want the page's new state",
+			view.Title(), view.CanGoBack(), view.CanGoForward(), view.IsLoading())
+	}
+	view.Load("https://example.com/next")
+	if len(page.loaded) != 1 || page.loaded[0] != "https://example.com/next" {
+		t.Fatalf("the page got %q", page.loaded)
+	}
+}
+
+func TestALoadReportCarriesTheTitleAndTheFailure(t *testing.T) {
+	var report func(platform.WebLoad)
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		report = config.OnLoad
+		return &testWebView{}, nil
+	}}}
+	var loads []WebLoad
+	if _, err := host.Open(WebViewConfig{OnLoad: func(load WebLoad) { loads = append(loads, load) }}); err != nil {
+		t.Fatal(err)
+	}
+	if report == nil {
+		t.Fatal("the platform got no load callback")
+	}
+	report(platform.WebLoad{Phase: platform.WebLoadFinished, URL: "https://example.com/", Title: "Example Domain"})
+	if len(loads) != 1 {
+		t.Fatalf("a load that finished reported %d times", len(loads))
+	}
+	if got := loads[0]; got.Phase != WebLoadFinished || got.URL != "https://example.com/" ||
+		got.Title != "Example Domain" || got.Code != WebLoadNoError || got.Description != "" {
+		t.Fatalf("a load that finished = %+v", got)
+	}
+	report(platform.WebLoad{
+		Phase: platform.WebLoadFinished, URL: "https://example.com/missing", Title: "Error",
+		Code: platform.WebLoadHostNotFound, Description: "A server with the specified hostname could not be found.",
+	})
+	if len(loads) != 2 {
+		t.Fatalf("a load that failed reported after %d loads", len(loads))
+	}
+	if got := loads[1]; got.Title != "Error" || got.Code != WebLoadHostNotFound ||
+		got.Description != "A server with the specified hostname could not be found." {
+		t.Fatalf("a load that failed = %+v, want the title and the engine's reason", got)
+	}
+}
+
+func TestAPartitionReachesThePlatformFoldedToLowerCase(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{Partition: "Workspace-1"}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	// Windows maps a WebView2 profile name to a folder that ignores case, so a name is folded before
+	// any platform sees it: two names that differ only in case are one store everywhere.
+	if opened.Partition != "workspace-1" {
+		t.Fatalf("the platform got partition %q, want it folded", opened.Partition)
+	}
+}
+
+// A page that names no partition asks the platform for nothing it did not ask for before, down to
+// every field of the configuration: a field added later that such a page leaves at its zero value
+// must stay there, or the store of every page in the application changes with it.
+func TestAPageWithoutAPartitionAsksForNoStore(t *testing.T) {
+	var opened platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = config
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{URL: "https://example.com/"}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v", err)
+	}
+	want := platform.WebViewConfig{ID: 1, URL: "https://example.com/"}
+	if !reflect.DeepEqual(opened, want) {
+		t.Fatalf("the platform got %+v, want %+v", opened, want)
+	}
+}
+
+func TestAPartitionNameIsOneEveryEngineAccepts(t *testing.T) {
+	accepted := []string{
+		"a",
+		"workspace-1",
+		"Acct@Home",
+		"12#ab$cd(ef)+gh_ij~kl.mn",
+		"with a space",
+		strings.Repeat("n", 64),
+	}
+	refused := []string{
+		strings.Repeat("n", 65),
+		"trailing.",
+		"trailing ",
+		"slash/name",
+		"back\\slash",
+		"colon:name",
+		"star*name",
+		"quote\"name",
+		"ümlaut",
+	}
+	for _, name := range accepted {
+		if _, err := partitionName(name); err != nil {
+			t.Fatalf("partition %q was refused: %v", name, err)
+		}
+	}
+	for _, name := range refused {
+		if _, err := partitionName(name); err == nil {
+			t.Fatalf("partition %q was accepted", name)
+		}
+	}
+	if name, err := partitionName(""); err != nil || name != "" {
+		t.Fatalf("no partition = %q, %v", name, err)
+	}
+}
+
+// A name WebView2 would refuse is refused before the platform is asked, on every platform, rather than
+// failing late on one engine and meaning something else on another.
+func TestARefusedPartitionNameNeverReachesThePlatform(t *testing.T) {
+	asked := false
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		asked = true
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	if _, err := host.Open(WebViewConfig{URL: "https://example.com/", Partition: strings.Repeat("n", 65)}); err == nil || errors.Is(err, ErrUnsupported) {
+		t.Fatalf("err = %v, want the name refused by the application", err)
+	}
+	if asked {
+		t.Fatal("the platform was asked to open a page whose partition name was refused")
+	}
+}
+
+func TestAPageWhoseProcessIsGoneReachesTheApplication(t *testing.T) {
+	var report func(platform.WebProcessFailure)
+	page := &testWebView{}
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		report = config.OnProcessFailed
+		return page, nil
+	}}}
+	var failures []WebProcessFailure
+	view, err := host.Open(WebViewConfig{OnProcessFailed: func(failure WebProcessFailure) {
+		failures = append(failures, failure)
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report == nil {
+		t.Fatal("the platform got no process failure callback")
+	}
+	report(platform.WebProcessKilled)
+	if len(failures) != 1 || failures[0] != WebProcessKilled {
+		t.Fatalf("a page the system stopped reported %v, want it named", failures)
+	}
+	// The page answers the same question afterwards, read from the page each time.
+	page.failure = platform.WebProcessKilled
+	if !view.IsCrashed() || view.ProcessFailure() != WebProcessKilled {
+		t.Fatalf("crashed=%v failure=%v, want the page's own state", view.IsCrashed(), view.ProcessFailure())
+	}
+	// The process a page has again is not the one it lost.
+	page.failure = platform.WebProcessNoFailure
+	if view.IsCrashed() || view.ProcessFailure() != WebProcessNoFailure {
+		t.Fatalf("crashed=%v failure=%v, want a page with its process", view.IsCrashed(), view.ProcessFailure())
+	}
+}
+
+func TestAPageNobodyWatchesForFailureGivesThePlatformNone(t *testing.T) {
+	var got platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		got = config
+		return &testWebView{}, nil
+	}}}
+	if _, err := host.Open(WebViewConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	if got.OnProcessFailed != nil {
+		t.Fatal("an application that set no OnProcessFailed got one")
 	}
 }

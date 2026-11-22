@@ -35,8 +35,8 @@ func TestRadioIDKeepsTheApplicationsIdentity(t *testing.T) {
 	ungroup := false
 	d := openPage(t, func(c ui.C) {
 		ui.RadioGroup(c).Children(func() {
-			ui.RadioID(c.Key("keep"), gfx.Item(40), &ungroup, false, "Keep")
-			ui.RadioID(c.Key("ungroup"), id, &ungroup, true, "Ungroup")
+			ui.RadioID(c, gfx.Item(40), &ungroup, false, "Keep")
+			ui.RadioID(c, id, &ungroup, true, "Ungroup")
 		})
 	})
 	d.click("Ungroup")

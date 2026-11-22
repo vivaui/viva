@@ -261,8 +261,8 @@ func (engine *textEngine) initialize() error {
 	// The system's font fallback, named: a line is measured with the fonts that draw it.
 	// IDWriteFactory2 is Windows 8.1; before it, the layouts' default fallback applies.
 	var factory2 uintptr
-	if comCall(engine.services.write, 0, uintptr(unsafe.Pointer(&writeFactory2IID)), uintptr(unsafe.Pointer(&factory2))) == 0 && factory2 != 0 {
-		if hresult(comCall(factory2, writeFactoryGetSystemFontFallback, uintptr(unsafe.Pointer(&engine.fallback)))) != nil {
+	if comCall2(engine.services.write, 0, uintptr(unsafe.Pointer(&writeFactory2IID)), uintptr(unsafe.Pointer(&factory2))) == 0 && factory2 != 0 {
+		if hresult(comCall1(factory2, writeFactoryGetSystemFontFallback, uintptr(unsafe.Pointer(&engine.fallback)))) != nil {
 			engine.fallback = 0
 		}
 		release(&factory2)
@@ -278,8 +278,8 @@ func setFontFallback(format, fallback uintptr) {
 		return
 	}
 	var format1 uintptr
-	if comCall(format, 0, uintptr(unsafe.Pointer(&writeTextFormat1IID)), uintptr(unsafe.Pointer(&format1))) == 0 && format1 != 0 {
-		comCall(format1, writeFormatSetFontFallback, fallback)
+	if comCall2(format, 0, uintptr(unsafe.Pointer(&writeTextFormat1IID)), uintptr(unsafe.Pointer(&format1))) == 0 && format1 != 0 {
+		comCall1(format1, writeFormatSetFontFallback, fallback)
 		release(&format1)
 	}
 }
@@ -350,12 +350,12 @@ func (engine *textEngine) shapeStyle(value string, size, weight float32, italic 
 		// The paragraph reads right to left, so that the punctuation around a right-to-left
 		// line falls on the side it belongs; trailing alignment keeps its glyphs
 		// at the left of the layout, where the label's box starts.
-		comCall(layout, writeSetTextAlignment, 1)
-		comCall(layout, writeSetReadingDirection, 1)
+		comCall1(layout, writeSetTextAlignment, 1)
+		comCall1(layout, writeSetReadingDirection, 1)
 	}
 	line := &shapedLine{layout: layout, length: len(value)}
 	var metrics textMetrics
-	if err := hresult(comCall(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
+	if err := hresult(comCall1(layout, writeGetMetrics, uintptr(unsafe.Pointer(&metrics)))); err != nil {
 		line.close()
 		return nil, err
 	}
@@ -365,7 +365,7 @@ func (engine *textEngine) shapeStyle(value string, size, weight float32, italic 
 	}
 	rows := make([]lineMetrics, max(1, int(metrics.Lines)))
 	var count uint32
-	if err := hresult(comCall(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&rows[0])), uintptr(len(rows)), uintptr(unsafe.Pointer(&count)))); err != nil {
+	if err := hresult(comCall3(layout, writeGetLineMetrics, uintptr(unsafe.Pointer(&rows[0])), uintptr(len(rows)), uintptr(unsafe.Pointer(&count)))); err != nil {
 		line.close()
 		return nil, err
 	}
@@ -413,7 +413,7 @@ func (engine *textEngine) ensureTables(line *shapedLine, value string) error {
 		position := uint32(unitAt[start])
 		var x, y float32
 		engine.hit = hitMetrics{}
-		if err := hresult(comCall(line.layout, writeHitTestTextPosition, uintptr(position), 0, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(&engine.hit)))); err != nil {
+		if err := hresult(comCall5(line.layout, writeHitTestTextPosition, uintptr(position), 0, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(&engine.hit)))); err != nil {
 			return fmt.Errorf("windows: hit test: %w", err)
 		}
 		// The cluster DirectWrite reports, as bytes; a report that does not start here is
@@ -436,7 +436,7 @@ func (engine *textEngine) ensureTables(line *shapedLine, value string) error {
 		// The end of the line is the trailing edge of its last cluster.
 		last := int(tables.cluster[n-1])
 		var x, y float32
-		if err := hresult(comCall(line.layout, writeHitTestTextPosition, uintptr(unitAt[last]), 1, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(&engine.hit)))); err != nil {
+		if err := hresult(comCall5(line.layout, writeHitTestTextPosition, uintptr(unitAt[last]), 1, uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(&engine.hit)))); err != nil {
 			return fmt.Errorf("windows: hit test: %w", err)
 		}
 		tables.caret[n] = x - line.left
@@ -450,7 +450,7 @@ func (engine *textEngine) ensureTables(line *shapedLine, value string) error {
 		}
 		// A right-to-left cluster's box is not between its carets in logical order.
 		var count uint32
-		if err := hresult(comCall(line.layout, writeHitTestTextRange, uintptr(unitAt[start]), uintptr(unitAt[next]-unitAt[start]), 0, 0,
+		if err := hresult(comCall7(line.layout, writeHitTestTextRange, uintptr(unitAt[start]), uintptr(unitAt[next]-unitAt[start]), 0, 0,
 			uintptr(unsafe.Pointer(&engine.ranges[0])), uintptr(len(engine.ranges)), uintptr(unsafe.Pointer(&count)))); err != nil && count == 0 {
 			return fmt.Errorf("windows: hit test range: %w", err)
 		}

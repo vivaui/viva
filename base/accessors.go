@@ -927,9 +927,7 @@ func (x *Page) GetWheelRoute() func(*Page, gfx.ScrollEvent) (gfx.EventResult, bo
 }
 
 // GetWheelXRoute reads the wheelXRoute of Page for the styled painting layer.
-func (x *Page) GetWheelXRoute() func(*Page, gfx.ScrollEvent, int32) (moved, only bool) {
-	return x.wheelXRoute
-}
+func (x *Page) GetWheelXRoute() func(*Page, gfx.ScrollEvent) (moved, only bool) { return x.wheelXRoute }
 
 // GetWindow reads the window of Page for the styled painting layer.
 func (x *Page) GetWindow() bool { return x.window }
@@ -1898,7 +1896,7 @@ func (x *shortcutEntry) GetRows() gfx.Scope { return x.rows }
 func (x *shortcutEntry) GetScope() gfx.Scope { return x.scope }
 
 // GetFree reads the free of slotPool for the styled painting layer.
-func (x *slotPool) GetFree() []freeSlot { return x.free }
+func (x *slotPool) GetFree() []freeSlot { return x.free[x.head:] }
 
 // GetAnimated reads the animated of stateLooks for the styled painting layer.
 func (x *stateLooks) GetAnimated() bool { return x.animated }

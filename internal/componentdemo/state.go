@@ -98,6 +98,9 @@ func componentLess(left, right Component) bool {
 func Catalog() []Component { return catalog }
 
 type State struct {
+	// alertOpen is whether the alert dialog example is open: the bool a page
+	// gives ui.AlertDialog lives in the model, as an application's does.
+	alertOpen   bool
 	componentID string
 	exampleID   string
 	descriptor  *Component
@@ -133,6 +136,9 @@ type State struct {
 	picker       *colorPickerDemoState
 	// chart keeps the hover and label caches of the chart examples.
 	chart *chartDemoState
+	// graph keeps the simulation, viewport and pointer bookkeeping of the
+	// graph examples.
+	graph *graphDemoState
 	// list is the page-layer List example: its rows, choice and page.
 	list *listDemo
 	// page keeps the memory and identities of the demo's Page (see drawPage).

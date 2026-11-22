@@ -64,9 +64,9 @@ func (application *windowsApplication) SetProgress(fraction float32) {
 	windowStates.Range(func(key, value any) bool {
 		window := value.(*windowState)
 		if window.application == application && window.window != 0 {
-			comCall(list, taskbarSetProgressState, window.window, state)
+			comCall2(list, taskbarSetProgressState, window.window, state)
 			if known {
-				comCall(list, taskbarSetProgressValue, window.window, done, progressScale)
+				comCall3(list, taskbarSetProgressValue, window.window, done, progressScale)
 			}
 		}
 		return true
@@ -95,7 +95,7 @@ func (application *windowsApplication) taskbarList() uintptr {
 	if hresult(status) != nil || list == 0 {
 		return 0
 	}
-	if status := comCall(list, taskbarInit); hresult(status) != nil {
+	if status := comCall0(list, taskbarInit); hresult(status) != nil {
 		release(&list)
 		return 0
 	}

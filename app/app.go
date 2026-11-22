@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 const (
@@ -40,6 +41,12 @@ const (
 	// closes itself when it loses focus; OnClosed reports that, and OnCloseRequest
 	// is not asked.
 	WindowPanel
+	// WindowNotification opens a desktop popup that accepts pointer input and
+	// stays open when focus changes. On Windows, macOS and X11 it requests the
+	// bottom-right of the pointer monitor's work area without taking keyboard
+	// focus. On native Wayland, the compositor decides placement, stacking and
+	// keyboard focus. Use SendNotification for a system-managed notification.
+	WindowNotification WindowMode = WindowMode(platform.WindowNotification)
 )
 
 // Config describes the initial native window.
@@ -72,7 +79,12 @@ type Config struct {
 	// (kept on a screen); an X11 window manager places the window's frame there,
 	// so the content area sits below the title bar. Window.Frame reports where it
 	// really is.
-	Origin     *gfx.Point
+	Origin *gfx.Point
+	// Maximized asks the window manager to open the window maximized on Windows
+	// and Linux, while keeping Width, Height and Origin as its restored floating
+	// bounds. Opening maximized reports it through OnMaximize, like maximizing
+	// later does. Ignored on macOS, web, and WindowPanel.
+	Maximized  bool
 	WindowMode WindowMode
 	// TitlebarHeight is the height in logical pixels of the strip the
 	// application paints under a custom titlebar's traffic lights, where the
@@ -207,11 +219,19 @@ type Config struct {
 	// call it. It lets an application refresh data that may have gone stale
 	// while the window was in the background, without polling.
 	OnActivate func()
+	// OnDeactivate runs on the window thread when the top-level window stops
+	// being the active window, after the keys that were down are released. It
+	// is how an application saves or hides what only makes sense while it has
+	// the user's attention. Its Repaint asks for a new frame. Moving focus
+	// between editors inside the window does not call it, and the Web target
+	// does not report it.
+	OnDeactivate func() gfx.EventResult
 	// OnMaximize runs on the window thread when the window is maximized or
 	// restored on Windows and Linux, including by the system (the window
 	// manager, the taskbar, or a keyboard shortcut), not only by Viva's own
-	// window controls. On macOS, windows zoom or enter full screen instead,
-	// and this callback is not invoked.
+	// window controls, and once when a window opens maximized. On macOS,
+	// windows zoom or enter full screen instead, and this callback is not
+	// invoked.
 	OnMaximize func(maximized bool)
 
 	// OnFullscreen runs on the window thread after the host observes a
@@ -229,13 +249,15 @@ type Config struct {
 	// OnClosed runs exactly once on the window thread after native resources
 	// stop receiving events. Release window-owned application resources here.
 	OnClosed func()
-	// Invalidator, when set, lets other goroutines request a repaint with
-	// Invalidate. Pair it with OnWake to apply what they produced. Unset, no
-	// wake-up machinery exists. A development reload worker ignores it.
+	// Invalidator, when set, lets other goroutines hand results to the window
+	// with Post, or request a repaint with Invalidate. Unset, no wake-up
+	// machinery exists. A development reload worker ignores it.
 	Invalidator *Invalidator
 	// OnWake runs on the window thread right before each repaint that
-	// Invalidate or a running transition requested. Move the results of
-	// background work into application state here, so Paint only reads state.
+	// Invalidate, Post or a running transition requested, after the updates
+	// Post queued. It runs on every such wake, a transition's frames included,
+	// so it is for state the window thread advances itself; a result of
+	// background work is handed over with Invalidator.Post, which applies it once.
 	// It runs for a window nobody can see too (hidden, minimized, or covered, where
 	// the platform says so), which is not painted: the frame it missed is painted
 	// once the window shows again, so a status icon can be refreshed from here.

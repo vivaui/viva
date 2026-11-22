@@ -1,6 +1,8 @@
 package base
 
 import (
+	"cmp"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -14,19 +16,39 @@ import (
 const slotQuarantine = 2
 
 // slotPool hands out numbers, and takes them back to give again after the quarantine.
+// The free list is a queue: free[head:] waits in release order, and take pops
+// its front without moving the rest, so a paint that releases and claims
+// thousands of rows stays linear.
 type slotPool struct {
 	Next uint32
 	free []freeSlot
+	head int
+	// unsorted marks a release of this paint that came after a higher number of
+	// the same paint: a sweep releases in map order, and the numbers a paint
+	// hands out should not depend on it.
+	unsorted bool
 }
 
 type freeSlot struct{ slot, at uint32 }
 
 func (pool *slotPool) take(epoch uint32) uint32 {
-	if len(pool.free) > 0 && epoch-pool.free[0].at >= slotQuarantine {
-		slot := pool.free[0].slot
-		copy(pool.free, pool.free[1:])
-		pool.free = pool.free[:len(pool.free)-1]
-		return slot
+	if pool.head < len(pool.free) {
+		if pool.unsorted {
+			slices.SortFunc(pool.free[pool.head:], func(a, b freeSlot) int {
+				if c := cmp.Compare(a.at, b.at); c != 0 {
+					return c
+				}
+				return cmp.Compare(a.slot, b.slot)
+			})
+			pool.unsorted = false
+		}
+		if front := pool.free[pool.head]; epoch-front.at >= slotQuarantine {
+			pool.head++
+			if pool.head == len(pool.free) {
+				pool.free, pool.head = pool.free[:0], 0
+			}
+			return front.slot
+		}
 	}
 	slot := pool.Next
 	pool.Next++
@@ -34,6 +56,17 @@ func (pool *slotPool) take(epoch uint32) uint32 {
 }
 
 func (pool *slotPool) give(slot, epoch uint32) {
+	if pool.head > 0 && pool.head >= len(pool.free)-pool.head {
+		// More taken than waiting: move the waiting ones down so the queue
+		// reuses its array, at a cost the takes already paid for.
+		n := copy(pool.free, pool.free[pool.head:])
+		pool.free, pool.head = pool.free[:n], 0
+	}
+	if last := len(pool.free) - 1; last >= pool.head {
+		if prev := pool.free[last]; prev.at == epoch && prev.slot > slot {
+			pool.unsorted = true
+		}
+	}
 	pool.free = append(pool.free, freeSlot{slot: slot, at: epoch})
 }
 
@@ -60,6 +93,11 @@ type armedButton struct {
 	ID    gfx.ID
 	Label string
 	moved bool // the number moved to another button: nothing it holds is delivered
+	// relabel is the label the button's place showed this paint when it differed
+	// from Label: a new label, or the place now naming another button. Which one
+	// is known only once the paint has declared the whole scope (settleHeld).
+	relabel    string
+	relabeling bool
 }
 
 func (key keyKey) describe() string {
@@ -108,6 +146,6 @@ func movedFrom(prev []string, Label string, number int) bool {
 type fieldEntry struct {
 	ID    gfx.ID
 	field *Field
-	box   int32                              // the field's element, for the wheel over a panel
+	box   int32                              // the field's element, for routing inside a wheel panel
 	key   func(gfx.KeyEvent) gfx.EventResult // Box.OnKey, while this field has the keyboard
 }

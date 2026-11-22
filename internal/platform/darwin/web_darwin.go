@@ -49,6 +49,13 @@ type darwinWeb struct {
 	native unsafe.Pointer
 	config platform.WebViewConfig
 	closed bool
+	// refused is a navigation the application's Navigate cancelled. The engine may report the
+	// cancellation as the navigation's end, which the application already answered.
+	refused bool
+	// failure is why the page's content process is gone, WebProcessNoFailure while it is there:
+	// the delegate reports the termination without a reason, and a navigation that starts again
+	// clears it.
+	failure platform.WebProcessFailure
 	// placed is where the page was last put, to leave AppKit alone when nothing changed.
 	placed  platform.NativeView
 	cutsSet []gfx.Rect
@@ -67,6 +74,17 @@ func newWebState(run *runState, host *platform.WebHost, initial []platform.Nativ
 
 // open is WebHost.Open.
 func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error) {
+	if config.Partition != "" && config.Ephemeral {
+		// A non-persistent store cannot be named: WKWebsiteDataStore has one, shared by every page
+		// that asks for it, so a page of a named partition that must keep nothing is refused rather
+		// than opened in the named store, which persists.
+		return nil, fmt.Errorf("%w: macOS cannot name a store that keeps nothing: a named storage partition persists on WKWebView", platform.ErrWebViewUnsupported)
+	}
+	if config.Partition != "" && config.Proxy != "" {
+		// The proxy is a setting of the store, and one store cannot carry two: two pages of one
+		// partition could not disagree about it.
+		return nil, fmt.Errorf("%w: macOS cannot combine a named storage partition with a proxy: the proxy belongs to the store the partition names", platform.ErrWebViewUnsupported)
+	}
 	direct := C.int(0)
 	if config.Proxy != "" {
 		if config.Proxy != platform.WebProxyDirect {
@@ -111,8 +129,16 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 	if config.Ephemeral {
 		ephemeral = 1
 	}
+	var partition *C.char
+	if config.Partition != "" {
+		if C.viva_web_partition_supported() == 0 {
+			return nil, fmt.Errorf("darwin: a named storage partition needs macOS 14 or newer: %w", platform.ErrWebViewUnsupported)
+		}
+		partition = C.CString(platform.PartitionIdentifier(config.Partition))
+		defer C.free(unsafe.Pointer(partition))
+	}
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, partition, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {
@@ -164,6 +190,37 @@ func (page *darwinWeb) Forward() {
 		C.viva_web_forward(page.native)
 	}
 }
+
+// Title is the title of the page's current document, which the engine keeps for the view: empty
+// before it has one, and once the page has closed.
+func (page *darwinWeb) Title() string {
+	if !page.usable() {
+		return ""
+	}
+	text := C.viva_web_title(page.native)
+	if text == nil {
+		return ""
+	}
+	defer C.free(unsafe.Pointer(text))
+	return C.GoString(text)
+}
+
+// CanGoBack and CanGoForward ask the engine about the page's history.
+func (page *darwinWeb) CanGoBack() bool {
+	return page.usable() && C.viva_web_can_go_back(page.native) != 0
+}
+
+func (page *darwinWeb) CanGoForward() bool {
+	return page.usable() && C.viva_web_can_go_forward(page.native) != 0
+}
+
+// IsLoading is the engine's own answer for the load it is in the middle of.
+func (page *darwinWeb) IsLoading() bool {
+	return page.usable() && C.viva_web_is_loading(page.native) != 0
+}
+
+// ProcessFailure is why the page's process is gone, WebProcessNoFailure while it is there.
+func (page *darwinWeb) ProcessFailure() platform.WebProcessFailure { return page.failure }
 
 func (page *darwinWeb) Eval(script string) {
 	if page.usable() {
@@ -283,13 +340,55 @@ func vivaWebMessage(handle C.uintptr_t, id C.uint32_t, utf8 *C.char) {
 	}
 }
 
+// vivaWebLoad reports one step of a navigation: its address, and for a navigation the engine could
+// not load, the domain, code and words of its error. domain is NULL for a navigation that loaded.
+//
 //export vivaWebLoad
-func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url *C.char) {
+func vivaWebLoad(handle C.uintptr_t, id C.uint32_t, phase C.int, url, domain *C.char, code C.int, description *C.char) {
 	page := pageOf(handle, id)
-	if page == nil || page.config.OnLoad == nil {
+	if page == nil {
 		return
 	}
-	page.config.OnLoad(platform.WebLoad{Phase: platform.WebLoadPhase(phase), URL: C.GoString(url)})
+	loadPhase := platform.WebLoadPhase(phase)
+	// A navigation the application refused is not reported: what the engine says about it is the
+	// answer the application gave.
+	if loadPhase == platform.WebLoadFinished && page.refused {
+		page.refused = false
+		return
+	}
+	if loadPhase == platform.WebLoadStarted {
+		page.refused = false
+		// A page that loads again has a content process again, so the one it lost is no longer
+		// what it is.
+		page.failure = platform.WebProcessNoFailure
+	}
+	if page.config.OnLoad == nil {
+		return
+	}
+	failure := platform.WebLoadNoError
+	if domain != nil {
+		failure = platform.WebLoadErrorFromDarwinError(C.GoString(domain), int(code))
+	}
+	page.config.OnLoad(platform.WebLoad{
+		Phase: loadPhase, URL: C.GoString(url), Title: page.Title(),
+		Code: failure, Description: C.GoString(description),
+	})
+}
+
+// vivaWebProcessTerminated reports a page whose content process is gone: the delegate's
+// webViewWebContentProcessDidTerminate: names no reason at all, so the page is WebProcessUnknown in
+// the terms of internal/platform, and it draws nothing until it is loaded again.
+//
+//export vivaWebProcessTerminated
+func vivaWebProcessTerminated(handle C.uintptr_t, id C.uint32_t) {
+	page := pageOf(handle, id)
+	if page == nil || !page.usable() {
+		return
+	}
+	page.failure = platform.WebProcessFailureDarwinTermination
+	if page.config.OnProcessFailed != nil {
+		page.config.OnProcessFailed(page.failure)
+	}
 }
 
 // vivaWebNavigate asks the application about a navigation before WebKit makes it. It answers 1 to
@@ -306,10 +405,20 @@ func vivaWebNavigate(handle C.uintptr_t, id C.uint32_t, url *C.char, mainFrame, 
 		MainFrame:   mainFrame != 0,
 		UserGesture: userGesture != 0,
 	}
-	if !page.config.Navigate(navigation) {
-		return 0
+	if page.config.Navigate(navigation) {
+		if mainFrame != 0 {
+			page.refused = false
+		}
+		return 1
 	}
-	return 1
+	// A refused navigation that was already loading is interrupted by the engine, which reports
+	// the interruption as a failed load: the application answered it, so it is not reported.
+	// Only a main-frame refusal can end the reported load; a refused subframe leaves the main
+	// frame's load to finish and be reported as usual.
+	if mainFrame != 0 {
+		page.refused = true
+	}
+	return 0
 }
 
 // vivaWebNewWindow asks the application about a window.open or target=_blank. It answers 1 when the

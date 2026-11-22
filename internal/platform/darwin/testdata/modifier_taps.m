@@ -24,6 +24,7 @@ void vivaRawKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int f
     raw_code = code;
 }
 void vivaWindowActivated(uintptr_t handle) {}
+void vivaWindowDeactivated(uintptr_t handle, void *view) {}
 void vivaFocusLost(uintptr_t handle, void *view) {}
 int vivaTerminalCells(uint32_t character) { return 1; }
 int vivaAccessibilityAction(uintptr_t handle, void *view, uint64_t node, int action, double number, const unsigned char *utf8, size_t utf8Length, int start, int end) { return 0; }

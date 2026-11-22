@@ -66,6 +66,7 @@ type MenuRow = base.MenuRow
 type MenuRowKind = base.MenuRowKind
 type ModalSpec = base.ModalSpec
 type Node = base.Node
+type OverflowWrap = base.OverflowWrap
 type OverlaySpec = base.OverlaySpec
 type Page = base.Page
 type PageConfig = base.PageConfig

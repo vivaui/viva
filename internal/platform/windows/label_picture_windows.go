@@ -25,6 +25,7 @@ type labelPicture struct {
 	texture, view       uintptr
 	x, y, width, height int
 	lcd                 bool
+	complete            bool
 	refs                int
 	bytes               int
 	previous, next      *labelPicture
@@ -127,8 +128,30 @@ func (renderer *renderer) pictureChanged(label *labelTexture, scale float32, ski
 		return false
 	}
 	height := int(math.Ceil(float64(label.label.Height * scale)))
+	if label.picture.complete && skip == 0 && width >= label.picture.x+label.picture.width {
+		key, eligible := renderer.pictureKey(label, scale, 0, label.picture.key.width, height)
+		return !eligible || label.picture.key != key
+	}
 	key, eligible := renderer.pictureKey(label, scale, skip, width, height)
 	return !eligible || label.picture.key != key
+}
+
+func (renderer *renderer) pictureHasCompleteInk(label *labelTexture, scale float32, skip, width int) bool {
+	if skip != 0 || renderer.direct == nil || renderer.direct.engine == nil {
+		return false
+	}
+	complete := false
+	value := label.label
+	err := renderer.direct.engine.drawStyle(value.Value, value.FontSize*scale, value.Weight, value.Italic, func(line *shapedLine) error {
+		var overhang [4]float32
+		if err := hresult(comCall1(line.layout, writeGetOverhangMetrics, uintptr(unsafe.Pointer(&overhang[0])))); err != nil {
+			return err
+		}
+		right := float64(1<<20) + float64(overhang[2]) - float64(line.left)
+		complete = right >= 0 && right+2 <= float64(width)
+		return nil
+	})
+	return err == nil && complete
 }
 
 func (renderer *renderer) invalidateText() {
@@ -201,13 +224,13 @@ func (renderer *renderer) uploadLabelPicture(label *labelTexture, key labelPictu
 		return nil
 	}
 	left, top, right, bottom := picturePixelBounds(pixels, width, height)
-	picture := &labelPicture{key: key, x: left, y: top, width: right - left, height: bottom - top, lcd: label.lcd}
+	picture := &labelPicture{key: key, x: left, y: top, width: right - left, height: bottom - top, lcd: label.lcd, complete: renderer.pictureHasCompleteInk(label, key.scale, key.skip, width)}
 	description := textureDesc{Width: uint32(picture.width), Height: uint32(picture.height), Mips: 1, Array: 1, Format: 87, Samples: 1, Usage: 1, Bind: 8}
 	data := resourceData{Data: unsafe.Pointer(&pixels[(top*width+left)*4]), Pitch: uint32(width * 4)}
-	if err := hresult(comCall(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&picture.texture)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&picture.texture)))); err != nil {
 		return err
 	}
-	if err := hresult(comCall(renderer.device, 7, picture.texture, 0, uintptr(unsafe.Pointer(&picture.view)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 7, picture.texture, 0, uintptr(unsafe.Pointer(&picture.view)))); err != nil {
 		release(&picture.texture)
 		return err
 	}

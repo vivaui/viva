@@ -18,6 +18,7 @@ type desktopHooks struct {
 	setClipboardHTML  func(html, alt string) error
 	hasClipboardImage func() bool
 	clipboardImagePNG func() ([]byte, error)
+	setClipboardImage func([]byte) error
 	clipboardFiles    func() ([]string, error)
 	setClipboardFiles func([]string) error
 	primaryText       func() (string, error)

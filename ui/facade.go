@@ -17,84 +17,86 @@ type EffectState[T any, K comparable] = base.EffectState[T, K]
 // The words of a page that base declares as constants.
 
 const (
-	Alt                = base.Alt
-	Baseline           = base.Baseline
-	Between            = base.Between
-	Ctrl               = base.Ctrl
-	DimFill            = base.DimFill
-	DimPercent         = base.DimPercent
-	DirectionColumn    = base.DirectionColumn
-	DirectionCustom    = base.DirectionCustom
-	DirectionFlow      = base.DirectionFlow
-	DirectionGrid      = base.DirectionGrid
-	DirectionRow       = base.DirectionRow
-	DirectionStack     = base.DirectionStack
-	DrawerRight        = base.DrawerRight
-	FlagAlertDialog    = base.FlagAlertDialog
-	FlagBasis          = base.FlagBasis
-	FlagChildren       = base.FlagChildren
-	FlagClip           = base.FlagClip
-	FlagDrawer         = base.FlagDrawer
-	FlagGrowSet        = base.FlagGrowSet
-	FlagHasHit         = base.FlagHasHit
-	FlagHasRadius      = base.FlagHasRadius
-	FlagLabelFor       = base.FlagLabelFor
-	FlagOpen           = base.FlagOpen
-	FlagOutline        = base.FlagOutline
-	FlagScroll         = base.FlagScroll
-	FlagSelected       = base.FlagSelected
-	FlagSetBackground  = base.FlagSetBackground
-	FlagSetBorder      = base.FlagSetBorder
-	FlagSetPad         = base.FlagSetPad
-	FlagSetShadow      = base.FlagSetShadow
-	FlagShrinkSet      = base.FlagShrinkSet
-	FlagTextCenter     = base.FlagTextCenter
-	FlagVeto           = base.FlagVeto
-	FlagWrap           = base.FlagWrap
-	FocusBoth          = base.FocusBoth
-	FocusHorizontal    = base.FocusHorizontal
-	FocusVertical      = base.FocusVertical
-	KindContainer      = base.KindContainer
-	KindToggle         = base.KindToggle
-	KindIcon           = base.KindIcon
-	KindImage          = base.KindImage
-	KindSlot           = base.KindSlot
-	KindSpacer         = base.KindSpacer
-	KindText           = base.KindText
-	ListCenter         = base.ListCenter
-	ListEnd            = base.ListEnd
-	ListStart          = base.ListStart
-	PaginationEllipsis = base.PaginationEllipsis
-	PaginationNext     = base.PaginationNext
-	PaginationPage     = base.PaginationPage
-	PaginationPrevious = base.PaginationPrevious
-	Primary            = base.Primary
-	Shift              = base.Shift
-	Start              = base.Start
-	Stretch            = base.Stretch
-	ScrollAreaBarSize  = base.ScrollAreaBarSize
-	ToBottom           = base.ToBottom
-	ToBottomLeft       = base.ToBottomLeft
-	ToBottomRight      = base.ToBottomRight
-	ToLeft             = base.ToLeft
-	ToRight            = base.ToRight
-	ToTop              = base.ToTop
-	ToTopLeft          = base.ToTopLeft
-	ToTopRight         = base.ToTopRight
-	ToastBottomCenter  = base.ToastBottomCenter
-	ToastBottomLeft    = base.ToastBottomLeft
-	ToastBottomRight   = base.ToastBottomRight
-	ToastDefault       = base.ToastDefault
-	ToastTopCenter     = base.ToastTopCenter
-	ToastTopLeft       = base.ToastTopLeft
-	ToastTopRight      = base.ToastTopRight
-	TooltipBottom      = base.TooltipBottom
-	TooltipLeft        = base.TooltipLeft
-	TooltipRight       = base.TooltipRight
-	TooltipTop         = base.TooltipTop
-	TreeDropAfter      = base.TreeDropAfter
-	TreeDropBefore     = base.TreeDropBefore
-	TreeDropInside     = base.TreeDropInside
+	Alt                   = base.Alt
+	Baseline              = base.Baseline
+	Between               = base.Between
+	Ctrl                  = base.Ctrl
+	DimFill               = base.DimFill
+	DimPercent            = base.DimPercent
+	DirectionColumn       = base.DirectionColumn
+	DirectionCustom       = base.DirectionCustom
+	DirectionFlow         = base.DirectionFlow
+	DirectionGrid         = base.DirectionGrid
+	DirectionRow          = base.DirectionRow
+	DirectionStack        = base.DirectionStack
+	DrawerRight           = base.DrawerRight
+	FlagAlertDialog       = base.FlagAlertDialog
+	FlagBasis             = base.FlagBasis
+	FlagChildren          = base.FlagChildren
+	FlagClip              = base.FlagClip
+	FlagDrawer            = base.FlagDrawer
+	FlagGrowSet           = base.FlagGrowSet
+	FlagHasHit            = base.FlagHasHit
+	FlagHasRadius         = base.FlagHasRadius
+	FlagLabelFor          = base.FlagLabelFor
+	FlagOpen              = base.FlagOpen
+	FlagOutline           = base.FlagOutline
+	FlagScroll            = base.FlagScroll
+	FlagSelected          = base.FlagSelected
+	FlagSetBackground     = base.FlagSetBackground
+	FlagSetBorder         = base.FlagSetBorder
+	FlagSetPad            = base.FlagSetPad
+	FlagSetShadow         = base.FlagSetShadow
+	FlagShrinkSet         = base.FlagShrinkSet
+	FlagTextCenter        = base.FlagTextCenter
+	FlagVeto              = base.FlagVeto
+	FlagWrap              = base.FlagWrap
+	FocusBoth             = base.FocusBoth
+	FocusHorizontal       = base.FocusHorizontal
+	FocusVertical         = base.FocusVertical
+	KindContainer         = base.KindContainer
+	KindToggle            = base.KindToggle
+	KindIcon              = base.KindIcon
+	KindImage             = base.KindImage
+	KindSlot              = base.KindSlot
+	KindSpacer            = base.KindSpacer
+	KindText              = base.KindText
+	ListCenter            = base.ListCenter
+	ListEnd               = base.ListEnd
+	ListStart             = base.ListStart
+	OverflowWrapAnywhere  = base.OverflowWrapAnywhere
+	OverflowWrapBreakWord = base.OverflowWrapBreakWord
+	PaginationEllipsis    = base.PaginationEllipsis
+	PaginationNext        = base.PaginationNext
+	PaginationPage        = base.PaginationPage
+	PaginationPrevious    = base.PaginationPrevious
+	Primary               = base.Primary
+	Shift                 = base.Shift
+	Start                 = base.Start
+	Stretch               = base.Stretch
+	ScrollAreaBarSize     = base.ScrollAreaBarSize
+	ToBottom              = base.ToBottom
+	ToBottomLeft          = base.ToBottomLeft
+	ToBottomRight         = base.ToBottomRight
+	ToLeft                = base.ToLeft
+	ToRight               = base.ToRight
+	ToTop                 = base.ToTop
+	ToTopLeft             = base.ToTopLeft
+	ToTopRight            = base.ToTopRight
+	ToastBottomCenter     = base.ToastBottomCenter
+	ToastBottomLeft       = base.ToastBottomLeft
+	ToastBottomRight      = base.ToastBottomRight
+	ToastDefault          = base.ToastDefault
+	ToastTopCenter        = base.ToastTopCenter
+	ToastTopLeft          = base.ToastTopLeft
+	ToastTopRight         = base.ToastTopRight
+	TooltipBottom         = base.TooltipBottom
+	TooltipLeft           = base.TooltipLeft
+	TooltipRight          = base.TooltipRight
+	TooltipTop            = base.TooltipTop
+	TreeDropAfter         = base.TreeDropAfter
+	TreeDropBefore        = base.TreeDropBefore
+	TreeDropInside        = base.TreeDropInside
 )
 
 // Leaves and layout.
@@ -292,9 +294,9 @@ func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
 	return base.TextField(c, Value, Label, placeholder)
 }
 
-func TextFieldID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
+func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string) Box {
 	useField()
-	return base.TextFieldID(c, ID, field, Label, placeholder)
+	return base.TextFieldID(c, ID, Value, Label, placeholder)
 }
 
 func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
@@ -331,7 +333,10 @@ func BindIconHover(state *base.IconHoverState, ID gfx.ID) IconHover {
 
 func Dialog(c C, spec DialogSpec) Box { useDialog(); return base.Dialog(c, spec) }
 
-func AlertDialog(c C, spec AlertDialogSpec) Box { useAlert(); return base.AlertDialog(c, spec) }
+func AlertDialog(c C, open *bool, spec AlertDialogSpec) bool {
+	useAlert()
+	return base.AlertDialog(c, open, spec)
+}
 
 func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func()) bool {
 	useDrawer()
@@ -353,14 +358,19 @@ func Popover(c C, Anchor Box, open *bool, body func()) bool {
 	return base.Popover(c, Anchor, open, body)
 }
 
-func PopoverWith(c C, Anchor Box, spec PopoverSpec, open *bool, body func()) bool {
+func PopoverWith(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
 	usePopover()
-	return base.PopoverWith(c, Anchor, spec, open, body)
+	return base.PopoverWith(c, Anchor, open, spec, body)
 }
 
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	useMenu()
 	base.Menu(c, Anchor, open, body)
+}
+
+func MenuAt(c C, open *bool, anchor Rect, body func(*MenuItems)) {
+	useMenu()
+	base.MenuAt(c, open, anchor, body)
 }
 
 func ContextMenu(c C, target Box, body func(*MenuItems)) {

@@ -16,7 +16,7 @@ var saveDialogCustomizeInterface = guid{
 
 func addSaveDialogCheckbox(dialog uintptr, label string, checked bool) (uintptr, error) {
 	var custom uintptr
-	if err := hresult(comCall(dialog, 0, uintptr(unsafe.Pointer(&saveDialogCustomizeInterface)), uintptr(unsafe.Pointer(&custom)))); err != nil {
+	if err := hresult(comCall2(dialog, 0, uintptr(unsafe.Pointer(&saveDialogCustomizeInterface)), uintptr(unsafe.Pointer(&custom)))); err != nil {
 		return 0, fmt.Errorf("windows: customize save file dialog: %w", err)
 	}
 	name, err := syscall.UTF16PtrFromString(strings.ReplaceAll(label, "&", "&&")) // a lone & would become a mnemonic
@@ -28,7 +28,7 @@ func addSaveDialogCheckbox(dialog uintptr, label string, checked bool) (uintptr,
 	if checked {
 		initial = 1
 	}
-	if err := hresult(comCall(custom, 8, saveCheckboxControlID, uintptr(unsafe.Pointer(name)), initial)); err != nil {
+	if err := hresult(comCall3(custom, 8, saveCheckboxControlID, uintptr(unsafe.Pointer(name)), initial)); err != nil {
 		release(&custom)
 		return 0, fmt.Errorf("windows: add save checkbox: %w", err)
 	}
@@ -37,7 +37,7 @@ func addSaveDialogCheckbox(dialog uintptr, label string, checked bool) (uintptr,
 
 func saveDialogCheckboxState(custom uintptr) (bool, error) {
 	var checked uint32
-	if err := hresult(comCall(custom, 17, saveCheckboxControlID, uintptr(unsafe.Pointer(&checked)))); err != nil {
+	if err := hresult(comCall2(custom, 17, saveCheckboxControlID, uintptr(unsafe.Pointer(&checked)))); err != nil {
 		return false, fmt.Errorf("windows: read save checkbox: %w", err)
 	}
 	return checked != 0, nil

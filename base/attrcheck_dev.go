@@ -4,6 +4,7 @@ package base
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
@@ -31,6 +32,11 @@ func (n *Node) markAttr(a uint8) { n.attrs |= a }
 // checkAttributesOf reports the generic attributes n cannot use.
 func (f *Frame) checkAttributesOf(n *Node) {
 	name := kindAttributeName(n)
+	if n.Kind == kindTable && int(n.Aux) < len(WidgetsOf(f).tables) {
+		if spec := &WidgetsOf(f).tables[n.Aux].spec; len(spec.Columns) == 0 && len(spec.Headers) == 0 {
+			f.badAttribute(n, name, "rows without Columns or Headers", "a Table lays its cells out in its columns; give it Headers (the columns share its width) or Columns")
+		}
+	}
 	if n.Flags&FlagChildren != 0 && !f.attributeChildContainer(n) {
 		f.badAttribute(n, name, "Children", "only containers and the controls with a content slot take Children; use Label, Caption or the control's own content")
 	}
@@ -504,4 +510,24 @@ func kindAttributeName(n *Node) string {
 		return "SplitButton"
 	}
 	return controlName(n.Kind)
+}
+
+// unusedName reports a Key or Part given to an element that takes no name (a
+// Text, an Icon, a Spacer): it names nothing, and it would have passed to the
+// next element and taken that element's identity.
+func (f *Frame) unusedName(at int32, next protoName) {
+	given := "Part " + strconv.Quote(next.part)
+	if next.kindOf == 1 {
+		given = "Key " + next.key.describe()
+	}
+	name := "element"
+	if int(at) < len(f.Nodes) {
+		name = kindAttributeName(&f.Nodes[at])
+	}
+	message := "ui: " + given + " was given to a " + name + ", which has no identity: give it to the container or control it names"
+	if attrCheckWarn {
+		println("VIVA_ATTR_CHECK: " + message)
+		return
+	}
+	panic(message)
 }

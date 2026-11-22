@@ -148,6 +148,17 @@ func (win *window) sendToRoot(atom uint32, data [5]uint32) {
 	win.api.flush(win.connection)
 }
 
+// requestInitialMaximized asks for the maximized state before the window is mapped, and
+// records the request the way toggleMaximize does: a window manager that answers with a
+// ConfigureNotify before it rewrites _NET_WM_STATE would otherwise leave the frame
+// thinking it is floating, and report the maximized rectangle through OnFrameChange.
+func (win *window) requestInitialMaximized() {
+	win.frame.maximizePending = true
+	win.frame.maximizeTarget = true
+	states := [2]uint32{win.frame.maximizedVertical, win.frame.maximizedHorizontal}
+	win.api.changeProperty(win.connection, xcbPropertyReplace, win.id, win.frame.stateAtom, xcbAtomAtom, 32, uint32(len(states)), unsafe.Pointer(&states[0]))
+}
+
 func (win *window) minimize() {
 	win.sendToRoot(win.frame.changeStateAtom, [5]uint32{iconicState})
 }

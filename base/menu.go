@@ -54,6 +54,38 @@ func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
 	p.DeclareMenu(c, menu, scope, open, Anchor.i, nil, body)
 }
 
+// AnchorRect is the rectangle the menu opens against: its anchor element's, or the
+// one MenuAt was given, as of the last layout.
+func (m *MenuItems) AnchorRect() Rect {
+	if m.Anchor >= 0 && m.f != nil && int(m.Anchor) < len(m.f.Nodes) {
+		return m.f.Nodes[m.Anchor].Rect
+	}
+	return m.at
+}
+
+// MenuAt is Menu against a rectangle instead of an element: a part of the
+// application's own surface (a canvas cell, a region of a Control, a toolbar the
+// page did not lay out), in the page's coordinates. It opens below it, or Above or
+// Beside it as Menu does, flipped and kept inside the window by the same rules.
+// The keyboard goes back to where it was when it closes.
+//
+//	ui.MenuAt(c, &m.tabMenu, m.tabRect, func(menu *ui.MenuItems) {
+//		if menu.Item("Close tab").Clicked() { m.closeTab() }
+//	})
+//
+// Not inside a Memo.
+func MenuAt(c C, open *bool, anchor Rect, body func(*MenuItems)) {
+	p := c.page
+	p.ForbidInMemo("Menu")
+	if !*open {
+		return
+	}
+	scope := p.BoundScope(pkMenu, unsafe.Pointer(open))
+	menu := stateIn[MenuItems](p, scope, "menu")
+	menu.context = false
+	p.DeclareMenu(c, menu, scope, open, -1, &menuOrigin{open: open, at: anchor, anchored: true}, body)
+}
+
 // ContextMenu shows the items body declares at the pointer when target is pressed
 // with the secondary button, or at the target when it has the focus and Shift+F10
 // is pressed, as shadcn's ContextMenu. It behaves as a Menu then, but Tab does not
@@ -138,7 +170,11 @@ func contextMenu(c C, target Box, Bound gfx.Scope, opened *menuOrigin, body func
 // The application owns when it opens; MenuItems owns the rows and dismissal.
 type menuOrigin struct {
 	open *bool
-	at   Rect
+	// anchored makes at the rectangle the menu opens against, flipped and kept in
+	// the frame as an element anchor is, rather than the point a context menu
+	// opens at.
+	anchored bool
+	at       Rect
 }
 
 // contextTarget is a ContextMenu declared in the last paint, which Shift+F10 on its
@@ -685,6 +721,15 @@ func (p *Page) DeclareMenu(c C, menu *MenuItems, scope gfx.Scope, open *bool, An
 			popup.BesideBox(anchorBox, 4, Start)
 		default:
 			popup.BelowBox(anchorBox, 4, Start)
+		}
+	} else if opened != nil && opened.anchored {
+		switch menu.side {
+		case menuAbove:
+			popup.Above(menu.at, 4, Start)
+		case MenuBeside:
+			popup.Beside(menu.at, 4, Start)
+		default:
+			popup.Below(menu.at, 4, Start)
 		}
 	} else {
 		height = min(height, max(f.bounds.Height-2*DropdownMenuPadding, 0))

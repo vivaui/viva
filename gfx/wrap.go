@@ -115,7 +115,7 @@ func (canvas *Canvas) wrapLines(dst []string, value string, font lineFont, width
 		for {
 			line = trimSpaceRight(line)
 			last := len(dst)-first == maxLines-1
-			fits := canvas.widthIn(line, font) <= width
+			fit, fits := canvas.fitPrefix(line, font, width)
 			if fits && !(last && more) {
 				dst = append(dst, line)
 				break
@@ -123,7 +123,7 @@ func (canvas *Canvas) wrapLines(dst []string, value string, font lineFont, width
 			if last {
 				return append(dst, canvas.ellipsizeCached(line, font, width, cache))
 			}
-			cut := canvas.breakPoint(line, font, width)
+			cut := breakPoint(line, fit)
 			dst = append(dst, trimSpaceRight(line[:cut]))
 			if line = trimSpaceLeft(line[cut:]); line == "" {
 				break
@@ -267,15 +267,29 @@ func splitLine(value string) (line, rest string) {
 	return line, rest
 }
 
-// breakPoint is where to cut line (wider than width) so the first part fits: at the
-// last UAX #14 break opportunity that fits; else, between Hangul syllables or, for a word
-// wider than the line, after the last path or hyphen separator that fits, whichever
-// fits more; else after the last whole grapheme cluster that fits, but never before the
-// first one.
-func (canvas *Canvas) breakPoint(line string, font lineFont, width float32) int {
-	// The longest prefix that fits, found by bisection on rune boundaries: widths
-	// grow with the text, so the answer is the largest boundary whose prefix fits.
-	lo, hi := 0, len(line) // line[:lo] fits (the empty prefix does), line[:hi] does not
+// wrapProbe is the first prefix, in bytes, fitPrefix measures: a few words, so a
+// short line is measured once and a long one in a few doublings.
+const wrapProbe = 64
+
+// fitPrefix finds the longest prefix of line that fits width: fit is the largest
+// rune boundary whose prefix, its trailing spaces dropped, is no wider, and all
+// reports that this is the whole line. Widths grow with the text, so the answer
+// is found by galloping from the start, each probe twice as far as the last, and
+// then bisecting the last doubling: measuring a prefix costs its length, so a
+// line costs a few times its own length (times its logarithm), not the length
+// of the paragraph behind it.
+func (canvas *Canvas) fitPrefix(line string, font lineFont, width float32) (fit int, all bool) {
+	lo, hi := 0, len(line) // line[:lo] fits (the empty prefix does); line[:hi] does not once a probe failed
+	for step := wrapProbe; ; step *= 2 {
+		probe := runeFloor(line, lo+step)
+		if canvas.widthIn(trimSpaceRight(line[:probe]), font) > width {
+			hi = probe
+			break
+		}
+		if lo = probe; lo == len(line) {
+			return lo, true
+		}
+	}
 	for hi-lo > 1 {
 		mid := runeFloor(line, (lo+hi)/2)
 		if mid <= lo {
@@ -290,6 +304,16 @@ func (canvas *Canvas) breakPoint(line string, font lineFont, width float32) int 
 			hi = mid
 		}
 	}
+	return lo, false
+}
+
+// breakPoint is where to cut line, whose longest prefix that fits ends at fit
+// (see fitPrefix), so the first part fits: at the last UAX #14 break opportunity
+// that fits; else, between Hangul syllables or, for a word wider than the line,
+// after the last path or hyphen separator that fits, whichever fits more; else
+// after the last whole grapheme cluster that fits, but never before the first one.
+func breakPoint(line string, fit int) int {
+	lo := fit
 	limit := clusterFloor(line, lo)
 	var strong, weak int
 	var scanner linebreak.Scanner

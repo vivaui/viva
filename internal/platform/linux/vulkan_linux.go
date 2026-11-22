@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -558,7 +559,20 @@ func vulkanDriverManifestsExist(paths []string) bool {
 	return false
 }
 
+// loadVulkan is the process's libvulkan function table, loaded once and kept
+// for the life of the process; a machine without a driver is found once.
 func loadVulkan() (*vulkanAPI, error) {
+	vulkanOnce.Do(func() { vulkanShared, vulkanErr = openVulkan() })
+	return vulkanShared, vulkanErr
+}
+
+var (
+	vulkanOnce   sync.Once
+	vulkanShared *vulkanAPI
+	vulkanErr    error
+)
+
+func openVulkan() (*vulkanAPI, error) {
 	if !vulkanDriverConfigured() {
 		return nil, noVulkan("Vulkan has no driver (no ICD manifest)", nil)
 	}
@@ -1503,8 +1517,7 @@ func (renderer *vulkanRenderer) close() {
 	if renderer.instance != 0 {
 		renderer.api.destroyInstance(renderer.instance, nil)
 	}
-	purego.Dlclose(renderer.api.library)
-	renderer.api = nil
+	renderer.api = nil // the function table is the process's: see loadVulkan
 }
 
 // noVulkan is the error for a machine that cannot draw: it wraps

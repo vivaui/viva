@@ -21,6 +21,7 @@ group: guides
 | `WindowFrameless` | 没有任何外框，包括红绿灯按钮。 |
 | `WindowCustomTitlebar` | 内容延伸到透明标题栏之后，占满整个高度，窗口从你用 `MovesWindow`（或 `Canvas.MoveRegion`）声明的区域移动，别处不能。 |
 | `WindowPanel` | 无外框的临时弹出窗口，位于其他窗口之上，用来在状态栏图标旁边打开。 |
+| `WindowNotification` | 接受鼠标操作但不抢键盘焦点的桌面浮窗，用于后台任务的结果提示；Wayland 下位置、层级与焦点由合成器决定。 |
 
 使用自定义标题栏时，窗口按钮在 macOS 上由系统绘制，在 Windows 和 Linux 上由 Viva 绘制。无论哪种，它们都会盖住条带的一部分，所以用 `app.TitlebarInsets` 询问盖住多少，让自己的内容避开。`Config.TitlebarHeight` 设置条带高度（Viva 放置自绘按钮和 macOS 红绿灯的位置）；窗口从你标记了 `MovesWindow` 的那一行移动，行内的控件仍然接收自己的点击，行上方打开的菜单或对话框会被那里的点击关闭，指针拖动后窗口才移动。`Config.WindowControls` 给 Viva 绘制的按钮定样式，使它们跟随你的主题。
 

@@ -333,17 +333,39 @@ func crossSize(child *Node, axis int, avail float32, align Align, hi float32) fl
 }
 
 // maxOn is the largest size an element may have along axis in a container with avail
-// room for it: its MaxWidth or MaxHeight, or the share of avail MaxWidthPercent or
-// MaxHeightPercent gives, whichever is smaller. Zero is no limit.
+// room for it: its MaxWidth or MaxHeight, the share of avail MaxWidthPercent or
+// MaxHeightPercent gives, or, for a wrapped Text that may break inside a word, the
+// room itself, whichever is smaller. Zero is no limit.
 func (f *Frame) maxOn(n *Node, axis int, avail float32) float32 {
 	hi := n.MaxS[axis]
-	if pct := f.Exts[n.Ext].maxPct[axis]; pct > 0 {
+	extra := &f.Exts[n.Ext]
+	if pct := extra.maxPct[axis]; pct > 0 {
 		share := max(avail, 0) * pct / 100
 		if hi == 0 || share < hi {
 			hi = max(share, 0.001) // zero would mean no limit
 		}
 	}
+	if axis == AxisX && shrinksToRoom(n, extra) && (hi == 0 || avail < hi) {
+		// A text that may break inside a word is one character wide at its narrowest,
+		// so the width it asks for is the room it has, not its widest line, as CSS
+		// overflow-wrap: anywhere says.
+		hi = max(avail, 0.001) // zero would mean no limit
+	}
 	return hi
+}
+
+// breaksAnywhere reports whether n, whose Extra is extra, asks to break inside a word
+// too wide for its line: a wrapped Text given OverflowWrapAnywhere (see Box.OverflowWrap).
+func breaksAnywhere(n *Node, extra *Extra) bool {
+	return n.Kind == kindText && n.Flags&flagWrap != 0 && extra.overflowWrap == OverflowWrapAnywhere
+}
+
+// shrinksToRoom reports whether the width n asks for is the room it is given rather
+// than its widest line. CSS overflow-wrap: anywhere lowers the min-content contribution
+// only: a specified width, a percentage or a flex basis is still the size the caller
+// asked for, so the room caps only a width the content itself derives.
+func shrinksToRoom(n *Node, extra *Extra) bool {
+	return breaksAnywhere(n, extra) && n.Size[AxisX].Kind == dimAuto && n.Flags&flagBasis == 0
 }
 
 func offset(align Align, free float32) float32 {

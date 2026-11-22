@@ -497,7 +497,7 @@ func OpenFiles(options OpenFileOptions) ([]string, bool, error) {
 		if err := configureFileDialog(dialog, options.Title, options.Filters, flags); err != nil {
 			return err
 		}
-		status := uint32(comCall(dialog, 3, dialogOwner()))
+		status := uint32(comCall1(dialog, 3, dialogOwner()))
 		if status == dialogCanceled {
 			canceled = true
 			return nil
@@ -509,7 +509,7 @@ func OpenFiles(options OpenFileOptions) ([]string, bool, error) {
 			paths, err = dialogResults(dialog)
 		} else {
 			var item uintptr
-			if err := hresult(comCall(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
+			if err := hresult(comCall1(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
 				return fmt.Errorf("windows: get open file result: %w", err)
 			}
 			defer release(&item)
@@ -537,7 +537,7 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 		if err := configureFileDialog(dialog, options.Title, nil, flags); err != nil {
 			return err
 		}
-		status := uint32(comCall(dialog, 3, dialogOwner()))
+		status := uint32(comCall1(dialog, 3, dialogOwner()))
 		if status == dialogCanceled {
 			canceled = true
 			return nil
@@ -546,7 +546,7 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 			return fmt.Errorf("windows: show open directory dialog: %w", err)
 		}
 		var item uintptr
-		if err := hresult(comCall(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
+		if err := hresult(comCall1(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
 			return fmt.Errorf("windows: get open directory result: %w", err)
 		}
 		defer release(&item)
@@ -592,7 +592,7 @@ func saveFile(options SaveFileOptions, checkboxLabel string, initial bool) (stri
 			if err != nil {
 				return err
 			}
-			if err := hresult(comCall(dialog, 15, uintptr(unsafe.Pointer(name)))); err != nil {
+			if err := hresult(comCall1(dialog, 15, uintptr(unsafe.Pointer(name)))); err != nil {
 				return fmt.Errorf("windows: set save file name: %w", err)
 			}
 		}
@@ -601,11 +601,11 @@ func saveFile(options SaveFileOptions, checkboxLabel string, initial bool) (stri
 			if err != nil {
 				return err
 			}
-			if err := hresult(comCall(dialog, 22, uintptr(unsafe.Pointer(extension)))); err != nil {
+			if err := hresult(comCall1(dialog, 22, uintptr(unsafe.Pointer(extension)))); err != nil {
 				return fmt.Errorf("windows: set save extension: %w", err)
 			}
 		}
-		status := uint32(comCall(dialog, 3, dialogOwner()))
+		status := uint32(comCall1(dialog, 3, dialogOwner()))
 		if status == dialogCanceled {
 			canceled = true
 			return nil
@@ -614,7 +614,7 @@ func saveFile(options SaveFileOptions, checkboxLabel string, initial bool) (stri
 			return fmt.Errorf("windows: show save file dialog: %w", err)
 		}
 		var item uintptr
-		if err := hresult(comCall(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
+		if err := hresult(comCall1(dialog, 20, uintptr(unsafe.Pointer(&item)))); err != nil {
 			return fmt.Errorf("windows: get save file result: %w", err)
 		}
 		defer release(&item)
@@ -812,10 +812,10 @@ func createFileDialog(classID, interfaceID *guid) (uintptr, error) {
 
 func configureFileDialog(dialog uintptr, title string, filters []FileFilter, flags uint32) error {
 	var current uint32
-	if err := hresult(comCall(dialog, 10, uintptr(unsafe.Pointer(&current)))); err != nil {
+	if err := hresult(comCall1(dialog, 10, uintptr(unsafe.Pointer(&current)))); err != nil {
 		return fmt.Errorf("windows: get file dialog options: %w", err)
 	}
-	if err := hresult(comCall(dialog, 9, uintptr(current|flags))); err != nil {
+	if err := hresult(comCall1(dialog, 9, uintptr(current|flags))); err != nil {
 		return fmt.Errorf("windows: set file dialog options: %w", err)
 	}
 	if title != "" {
@@ -823,7 +823,7 @@ func configureFileDialog(dialog uintptr, title string, filters []FileFilter, fla
 		if err != nil {
 			return err
 		}
-		if err := hresult(comCall(dialog, 17, uintptr(unsafe.Pointer(value)))); err != nil {
+		if err := hresult(comCall1(dialog, 17, uintptr(unsafe.Pointer(value)))); err != nil {
 			return fmt.Errorf("windows: set file dialog title: %w", err)
 		}
 	}
@@ -844,7 +844,7 @@ func configureFileDialog(dialog uintptr, title string, filters []FileFilter, fla
 		strings[index*2], strings[index*2+1] = name, pattern
 		specs[index] = dialogFilter{Name: &name[0], Pattern: &pattern[0]}
 	}
-	status := comCall(dialog, 4, uintptr(len(specs)), uintptr(unsafe.Pointer(&specs[0])))
+	status := comCall2(dialog, 4, uintptr(len(specs)), uintptr(unsafe.Pointer(&specs[0])))
 	runtime.KeepAlive(strings)
 	if err := hresult(status); err != nil {
 		return fmt.Errorf("windows: set file dialog filters: %w", err)
@@ -854,12 +854,12 @@ func configureFileDialog(dialog uintptr, title string, filters []FileFilter, fla
 
 func dialogResults(dialog uintptr) ([]string, error) {
 	var array uintptr
-	if err := hresult(comCall(dialog, 27, uintptr(unsafe.Pointer(&array)))); err != nil {
+	if err := hresult(comCall1(dialog, 27, uintptr(unsafe.Pointer(&array)))); err != nil {
 		return nil, fmt.Errorf("windows: get open file results: %w", err)
 	}
 	defer release(&array)
 	var count uint32
-	if err := hresult(comCall(array, 7, uintptr(unsafe.Pointer(&count)))); err != nil {
+	if err := hresult(comCall1(array, 7, uintptr(unsafe.Pointer(&count)))); err != nil {
 		return nil, fmt.Errorf("windows: count open file results: %w", err)
 	}
 	if count > 1024 {
@@ -868,7 +868,7 @@ func dialogResults(dialog uintptr) ([]string, error) {
 	paths := make([]string, 0, count)
 	for index := uint32(0); index < count; index++ {
 		var item uintptr
-		if err := hresult(comCall(array, 8, uintptr(index), uintptr(unsafe.Pointer(&item)))); err != nil {
+		if err := hresult(comCall2(array, 8, uintptr(index), uintptr(unsafe.Pointer(&item)))); err != nil {
 			return nil, fmt.Errorf("windows: get open file result %d: %w", index, err)
 		}
 		path, err := shellItemPath(item)
@@ -883,7 +883,7 @@ func dialogResults(dialog uintptr) ([]string, error) {
 
 func shellItemPath(item uintptr) (string, error) {
 	var value uintptr
-	if err := hresult(comCall(item, 5, fileSystemPath, uintptr(unsafe.Pointer(&value)))); err != nil {
+	if err := hresult(comCall2(item, 5, fileSystemPath, uintptr(unsafe.Pointer(&value)))); err != nil {
 		return "", fmt.Errorf("windows: get file system path: %w", err)
 	}
 	defer taskMemoryFree.Call(value)

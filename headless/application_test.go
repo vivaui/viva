@@ -45,6 +45,36 @@ func TestApplicationSessionRoutesStateFocusAndClosePerWindow(t *testing.T) {
 	}
 }
 
+func TestNotificationKeepsCurrentWindow(t *testing.T) {
+	session := newApplicationSession(Options{Scale: 1})
+	t.Cleanup(session.closeAll)
+	_, err := session.OpenWindow(app.Config{Width: 200, Height: 100}, nil, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := session.activeID()
+	popup, err := session.OpenWindow(app.Config{Width: 160, Height: 80, WindowMode: app.WindowNotification}, nil, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.activeID() != owner {
+		t.Fatal("opening the notification moved the headless command target")
+	}
+	notification := popup.(*headlessWindow)
+	notification.Hide()
+	notification.Show()
+	if err := session.blurWindow(notification.id); err != nil {
+		t.Fatal(err)
+	}
+	if _, windows := session.describe(); len(windows) != 2 || session.activeID() != owner {
+		t.Fatal("show or blur changed the current window or dismissed the notification")
+	}
+	notification.Close()
+	if _, windows := session.describe(); len(windows) != 1 || session.activeID() != owner {
+		t.Fatal("closing the notification disturbed the previous window")
+	}
+}
+
 func editingWindow(title string, hit uint32, editor *text.Editor) app.Config {
 	return app.Config{
 		Title: title, Width: 240, Height: 100,

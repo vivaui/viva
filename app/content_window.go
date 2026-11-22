@@ -2,12 +2,9 @@ package app
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/vivaui/viva/gfx"
 )
-
-const contentWindowPostLimit = 256
 
 // ContentWindow is an independent native window for application-owned content.
 // It uses normal system chrome on Windows, macOS and Linux. Config supplies the
@@ -16,15 +13,13 @@ const contentWindowPostLimit = 256
 type ContentWindow struct {
 	window       *Window
 	invalidator  Invalidator
-	mu           sync.Mutex
-	pending      []func()
-	closed       bool
 	closeRequest func(func())
 }
 
 // OpenContentWindow opens a resizable system window. Call it on the application
-// thread, like OpenWindow. The helper owns Invalidator and drains Post updates
-// before the supplied OnWake. Background workers never touch UI state directly.
+// thread, like OpenWindow. The helper owns the window's Invalidator, whose Post
+// updates run before the supplied OnWake. Background workers never touch UI
+// state directly.
 func (application *Application) OpenContentWindow(config Config, canvas *gfx.Canvas) (*ContentWindow, error) {
 	content := &ContentWindow{closeRequest: config.OnCloseRequest}
 	if config.Width <= 0 {
@@ -33,72 +28,23 @@ func (application *Application) OpenContentWindow(config Config, canvas *gfx.Can
 	if config.Height <= 0 {
 		config.Height = 720
 	}
-	onWake, onClosed := config.OnWake, config.OnClosed
 	config.Invalidator = &content.invalidator
-	config.OnWake = func() {
-		content.mu.Lock()
-		pending := content.pending
-		content.pending = nil
-		closed := content.closed
-		content.mu.Unlock()
-		if closed {
-			return
-		}
-		for _, update := range pending {
-			content.mu.Lock()
-			closed = content.closed
-			content.mu.Unlock()
-			if closed {
-				return
-			}
-			update()
-		}
-		content.mu.Lock()
-		closed = content.closed
-		content.mu.Unlock()
-		if closed {
-			return
-		}
-		if onWake != nil {
-			onWake()
-		}
-	}
-	config.OnClosed = func() {
-		content.mu.Lock()
-		content.closed = true
-		content.pending = nil
-		content.mu.Unlock()
-		if onClosed != nil {
-			onClosed()
-		}
-	}
 	window, err := application.OpenWindow(config, canvas)
 	if err != nil {
-		content.mu.Lock()
-		content.closed = true
-		content.mu.Unlock()
 		return nil, err
 	}
 	content.window = window
 	return content, nil
 }
 
-// Post queues an update for the window thread. It rejects updates after native
-// teardown or while the bounded queue is full, so a slow window cannot retain
-// unbounded background results or resurrect closed content.
+// Post queues an update for the window thread, as Invalidator.Post does: it is
+// refused after the window closes or while the bounded queue is full, so a slow
+// window cannot retain unbounded background results or resurrect closed content.
 func (content *ContentWindow) Post(update func()) bool {
-	if content == nil || update == nil {
+	if content == nil {
 		return false
 	}
-	content.mu.Lock()
-	if content.closed || len(content.pending) >= contentWindowPostLimit {
-		content.mu.Unlock()
-		return false
-	}
-	content.pending = append(content.pending, update)
-	content.mu.Unlock()
-	content.invalidator.Invalidate()
-	return true
+	return content.invalidator.Post(update)
 }
 
 func (content *ContentWindow) Invalidate() {

@@ -96,9 +96,9 @@ func TestPagePopoverAnimatesLikeTheComponentsPopover(t *testing.T) {
 	newClock := newParityClock()
 	view := func(c ui.C) {
 		slot := ui.Slot(c).Absolute().Left(anchor.X).Top(anchor.Y).Size(anchor.Width, anchor.Height)
-		ui.PopoverWith(c, slot, ui.PopoverSpec{
+		ui.PopoverWith(c, slot, &open, ui.PopoverSpec{
 			Scope: gfx.Item(7), Side: components.PopoverBottom, Align: ui.Start, Offset: 2, Width: width,
-		}, &open, func() {
+		}, func() {
 			ui.Slot(c).FillWidth().Height(bodyHeight)
 		})
 	}
@@ -156,9 +156,9 @@ func TestPagePopoverWithInstantAppearsAtOnce(t *testing.T) {
 	clock := newParityClock()
 	view := func(c ui.C) {
 		slot := ui.Slot(c).Absolute().Left(100).Top(100).Size(40, 20)
-		ui.PopoverWith(c, slot, ui.PopoverSpec{
+		ui.PopoverWith(c, slot, &open, ui.PopoverSpec{
 			Scope: gfx.Item(7), Side: components.PopoverBottom, Align: ui.Start, Offset: 2, Width: 200, Instant: true,
-		}, &open, func() {
+		}, func() {
 			ui.Slot(c).FillWidth().Height(120)
 		})
 	}

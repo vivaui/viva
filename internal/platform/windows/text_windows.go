@@ -262,6 +262,11 @@ func (label *labelTexture) pixelOrigin(scale float32) (x, y int) {
 // false when nothing is drawn: none of the label can be seen, or it is too tall for
 // any texture.
 func (label *labelTexture) window(scale float32, viewport int) (skip, width int, ok bool) {
+	// DirectWrite color glyphs carry their own ink. A hidden plain label must
+	// skip them as well; bitmaps and grid runs have independent colors.
+	if label.label.Color.Alpha <= 0 && len(label.label.Bitmap) == 0 && len(label.label.Runs) == 0 {
+		return 0, 0, false
+	}
 	full := int(math.Ceil(float64(label.label.Width * scale)))
 	if label.label.Mono && len(label.label.Runs) > 0 {
 		full = min(full, gridInkWidth(label.label.Runs, label.label.CellWidth, scale))
@@ -322,7 +327,7 @@ func (label *labelTexture) update(next platform.TextLabel) {
 
 func labelContentChanged(previous, next platform.TextLabel) bool {
 	isBitmap := len(previous.Bitmap) > 0 || len(next.Bitmap) > 0
-	return previous.Value != next.Value || (!isBitmap && (previous.Width != next.Width || previous.Height != next.Height)) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration ||
+	return previous.Value != next.Value || (!isBitmap && previous.Height != next.Height) || previous.FontSize != next.FontSize || previous.Weight != next.Weight || previous.Italic != next.Italic || previous.Color != next.Color || previous.FontGeneration != next.FontGeneration ||
 		previous.Mono != next.Mono || previous.MonoFace != next.MonoFace || previous.CellWidth != next.CellWidth || !sameRuns(previous.Runs, next.Runs) ||
 		previous.Baseline != next.Baseline ||
 		previous.BitmapID != next.BitmapID || previous.BitmapVersion != next.BitmapVersion || previous.BitmapWidth != next.BitmapWidth ||
@@ -358,6 +363,9 @@ func (renderer *renderer) needsRaster(label *labelTexture, scale float32, skip, 
 	}
 	if len(label.label.Bitmap) > 0 {
 		return platform.BitmapTextureStale(label.label, scale, label.width, label.height)
+	}
+	if label.picture != nil && label.picture.complete && skip == 0 && width >= label.picture.x+label.picture.width {
+		return renderer.pictureChanged(label, scale, skip, width)
 	}
 	return label.skip != skip || label.width != width || renderer.pictureChanged(label, scale, skip, width)
 }
@@ -417,7 +425,7 @@ func (renderer *renderer) uploadLabel(label *labelTexture, pixels []byte, scale 
 	}
 	if label.texture != 0 && label.view != 0 && label.width == width && label.height == height {
 		// The same size as the texture it replaces: write the new pixels into it.
-		comCall(renderer.context, 48, label.texture, 0, 0, uintptr(unsafe.Pointer(&pixels[0])), uintptr(width*4), 0)
+		comCall6(renderer.context, 48, label.texture, 0, 0, uintptr(unsafe.Pointer(&pixels[0])), uintptr(width*4), 0)
 		label.scale, label.skip, label.stale = scale, skip, false
 		renderer.labelRebuilds++
 		return nil
@@ -426,10 +434,10 @@ func (renderer *renderer) uploadLabel(label *labelTexture, pixels []byte, scale 
 	data := resourceData{Data: unsafe.Pointer(&pixels[0]), Pitch: uint32(width * 4)}
 	release(&label.view)
 	release(&label.texture)
-	if err := hresult(comCall(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&label.texture)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 5, uintptr(unsafe.Pointer(&description)), uintptr(unsafe.Pointer(&data)), uintptr(unsafe.Pointer(&label.texture)))); err != nil {
 		return err
 	}
-	if err := hresult(comCall(renderer.device, 7, label.texture, 0, uintptr(unsafe.Pointer(&label.view)))); err != nil {
+	if err := hresult(comCall3(renderer.device, 7, label.texture, 0, uintptr(unsafe.Pointer(&label.view)))); err != nil {
 		return err
 	}
 	label.scale = scale
@@ -559,7 +567,7 @@ func (services *textServices) measureWeightIn(typeface, value string, size float
 	}
 	defer release(&layout)
 	var metrics textMetrics
-	if err := hresult(comCall(layout, 60, uintptr(unsafe.Pointer(&metrics)))); err != nil {
+	if err := hresult(comCall1(layout, 60, uintptr(unsafe.Pointer(&metrics)))); err != nil {
 		return text.Metrics{}, err
 	}
 	if metrics.Lines > 1024 {
@@ -567,7 +575,7 @@ func (services *textServices) measureWeightIn(typeface, value string, size float
 	}
 	lines := make([]lineMetrics, max(1, int(metrics.Lines)))
 	var count uint32
-	if err := hresult(comCall(layout, 59, uintptr(unsafe.Pointer(&lines[0])), uintptr(len(lines)), uintptr(unsafe.Pointer(&count)))); err != nil {
+	if err := hresult(comCall3(layout, 59, uintptr(unsafe.Pointer(&lines[0])), uintptr(len(lines)), uintptr(unsafe.Pointer(&count)))); err != nil {
 		return text.Metrics{}, err
 	}
 	line := lines[0]
@@ -629,7 +637,7 @@ func (services *textServices) boxStrokes(typeface string, size, weight float32) 
 	collection, owned := customFonts.collection, false
 	if collection == 0 {
 		customFonts.RUnlock()
-		status := comCall(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)
+		status := comCall2(services.write, writeFactoryGetSystemFontCollection, uintptr(unsafe.Pointer(&collection)), 0)
 		if err = hresult(status); err != nil || collection == 0 {
 			return 0, 0
 		}
@@ -641,11 +649,11 @@ func (services *textServices) boxStrokes(typeface string, size, weight float32) 
 		defer release(&collection)
 	}
 	var index, exists uint32
-	if err := hresult(comCall(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(familyName)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
+	if err := hresult(comCall3(collection, writeCollectionFindFamilyName, uintptr(unsafe.Pointer(familyName)), uintptr(unsafe.Pointer(&index)), uintptr(unsafe.Pointer(&exists)))); err != nil || exists == 0 {
 		return 0, 0
 	}
 	var family, font uintptr
-	if err := hresult(comCall(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil {
+	if err := hresult(comCall2(collection, writeCollectionGetFontFamily, uintptr(index), uintptr(unsafe.Pointer(&family)))); err != nil {
 		return 0, 0
 	}
 	defer release(&family)
@@ -653,26 +661,26 @@ func (services *textServices) boxStrokes(typeface string, size, weight float32) 
 		stretchNormal = 5
 		styleNormal   = 0
 	)
-	if err := hresult(comCall(family, writeFontFamilyGetFirstMatchingFont, uintptr(services.monoWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
+	if err := hresult(comCall4(family, writeFontFamilyGetFirstMatchingFont, uintptr(services.monoWeight(weight)), stretchNormal, styleNormal, uintptr(unsafe.Pointer(&font)))); err != nil {
 		return 0, 0
 	}
 	defer release(&font)
 	var fontMetrics writeFontMetrics
-	if err := hresult(comCall(font, writeFontGetMetrics, uintptr(unsafe.Pointer(&fontMetrics)))); err != nil || fontMetrics.DesignUnitsPerEm == 0 {
+	if err := hresult(comCall1(font, writeFontGetMetrics, uintptr(unsafe.Pointer(&fontMetrics)))); err != nil || fontMetrics.DesignUnitsPerEm == 0 {
 		return 0, 0
 	}
 	var face uintptr
-	if err := hresult(comCall(font, writeFontCreateFontFace, uintptr(unsafe.Pointer(&face)))); err != nil || face == 0 {
+	if err := hresult(comCall1(font, writeFontCreateFontFace, uintptr(unsafe.Pointer(&face)))); err != nil || face == 0 {
 		return 0, 0
 	}
 	defer release(&face)
 	codepoints := [2]uint32{0x2502, 0x2503} // │ ┃
 	var glyphs [2]uint16
-	if err := hresult(comCall(face, writeFontFaceGetGlyphIndices, uintptr(unsafe.Pointer(&codepoints[0])), uintptr(len(codepoints)), uintptr(unsafe.Pointer(&glyphs[0])))); err != nil {
+	if err := hresult(comCall3(face, writeFontFaceGetGlyphIndices, uintptr(unsafe.Pointer(&codepoints[0])), uintptr(len(codepoints)), uintptr(unsafe.Pointer(&glyphs[0])))); err != nil {
 		return 0, 0
 	}
 	var glyphMetrics [2]writeGlyphMetrics
-	if err := hresult(comCall(face, writeFontFaceGetDesignGlyphMetrics, uintptr(unsafe.Pointer(&glyphs[0])), uintptr(len(glyphs)), uintptr(unsafe.Pointer(&glyphMetrics[0])), 0)); err != nil {
+	if err := hresult(comCall4(face, writeFontFaceGetDesignGlyphMetrics, uintptr(unsafe.Pointer(&glyphs[0])), uintptr(len(glyphs)), uintptr(unsafe.Pointer(&glyphMetrics[0])), 0)); err != nil {
 		return 0, 0
 	}
 	em := float32(fontMetrics.DesignUnitsPerEm)

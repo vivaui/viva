@@ -11,7 +11,8 @@
 
 // What the page does reaches Go through these (web_darwin.go).
 extern void vivaWebMessage(uintptr_t handle, uint32_t id, char *utf8);
-extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url);
+extern void vivaWebLoad(uintptr_t handle, uint32_t id, int phase, char *url, char *domain, int code, char *description);
+extern void vivaWebProcessTerminated(uintptr_t handle, uint32_t id);
 extern int vivaWebNavigate(uintptr_t handle, uint32_t id, char *url, int mainFrame, int userGesture);
 extern int vivaWebNewWindow(uintptr_t handle, uint32_t id, char *url);
 extern int vivaWebDownload(uintptr_t handle, uint32_t id, char *url);
@@ -80,7 +81,18 @@ static uint64_t viva_web_next_request;
 
 - (void)notify:(WKWebView *)web phase:(int)phase {
     NSString *address = web.URL.absoluteString;
-    vivaWebLoad(_handle, _id, phase, (char *)(address != nil ? address.UTF8String : ""));
+    vivaWebLoad(_handle, _id, phase, (char *)(address != nil ? address.UTF8String : ""), NULL, 0, NULL);
+}
+
+// reportFailure reports a navigation the engine could not load, with the reason it gave: the domain
+// and code of its error, and the engine's own words for it.
+- (void)reportFailure:(WKWebView *)web error:(NSError *)error {
+    NSString *address = web.URL.absoluteString;
+    vivaWebLoad(_handle, _id, 2,
+                (char *)(address != nil ? address.UTF8String : ""),
+                (char *)(error.domain != nil ? error.domain.UTF8String : ""),
+                (int)error.code,
+                (char *)(error.localizedDescription != nil ? error.localizedDescription.UTF8String : ""));
 }
 
 // The application answers before the request leaves the engine: a refused navigation fetches
@@ -211,14 +223,21 @@ static uint64_t viva_web_next_request;
 
 - (void)webView:(WKWebView *)web didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     (void)navigation;
-    (void)error;
-    [self notify:web phase:2];
+    [self reportFailure:web error:error];
 }
 
 - (void)webView:(WKWebView *)web didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     (void)navigation;
-    (void)error;
-    [self notify:web phase:2];
+    [self reportFailure:web error:error];
+}
+
+// The page's content process is gone: it crashed, or the system reclaimed it. That is not a
+// navigation that failed (WebKit reports those through the two methods above), and the delegate
+// names no reason: Go reports the page as WebProcessUnknown and the page draws nothing until it is
+// loaded again.
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)web {
+    (void)web;
+    vivaWebProcessTerminated(_handle, _id);
 }
 
 // finishTask answers task and lets it go. headers is the header block Go resolved: one "Name: value"
@@ -528,9 +547,52 @@ int viva_web_direct_supported(void) {
     return 0;
 }
 
+// viva_web_partition_supported answers whether this system can name a persistent
+// storage store, which is what a partition needs.
+int viva_web_partition_supported(void) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+    if (@available(macOS 14.0, *)) {
+        return 1;
+    }
+#endif
+    return 0;
+}
+
+// viva_web_named_store gives the configuration the persistent store of the identifier, and says
+// whether it did: a system too old to name a store, or an identifier that is not one, is reported
+// through error, and no page is opened in a store the application did not ask for.
+static int viva_web_named_store(WKWebViewConfiguration *configuration, const char *identifier, char **error) {
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+    if (@available(macOS 14.0, *)) {
+        NSString *text = [NSString stringWithUTF8String:identifier];
+        NSUUID *uuid = text == nil ? nil : [[NSUUID alloc] initWithUUIDString:text];
+        if (uuid == nil) {
+            if (error != NULL) {
+                *error = strdup("the storage partition is not an identifier");
+            }
+            return 0;
+        }
+        WKWebsiteDataStore *store = [WKWebsiteDataStore dataStoreForIdentifier:uuid];
+        [uuid release];
+        if (store == nil) {
+            if (error != NULL) {
+                *error = strdup("the system made no store for the storage partition");
+            }
+            return 0;
+        }
+        configuration.websiteDataStore = store;
+        return 1;
+    }
+#endif
+    if (error != NULL) {
+        *error = strdup("a named storage partition needs macOS 14 or newer");
+    }
+    return 0;
+}
+
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
                     const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral, int direct,
-                    char **error) {
+                    const char *partition, char **error) {
     __block VivaWebView *web = nil;
     viva_web_main(^{
         NSView *host = (NSView *)view;
@@ -541,7 +603,15 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
         bridge->_handle = handle;
         bridge->_id = id;
         WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
-        if (ephemeral || direct) {
+        if (partition != NULL && partition[0] != 0) {
+            // A named partition is a store of its own, which WebKit keeps under an identifier: pages
+            // of one identifier share their cookies and storage, pages of another do not.
+            if (!viva_web_named_store(configuration, partition, error)) {
+                [configuration release];
+                [bridge release];
+                return;
+            }
+        } else if (ephemeral || direct) {
             // Ephemeral pages keep nothing on disk. Direct pages also need a private store so
             // their proxy policy cannot change another page's in-flight requests or data store.
             configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
@@ -653,6 +723,34 @@ void viva_web_focus(void *web) {
             [view.window makeFirstResponder:view];
         }
     });
+}
+
+char *viva_web_title(void *web) {
+    __block char *title = NULL;
+    viva_web_main(^{
+        NSString *text = [(VivaWebView *)web title];
+        const char *utf8 = text != nil ? text.UTF8String : "";
+        title = strdup(utf8 != NULL ? utf8 : "");
+    });
+    return title;
+}
+
+int viva_web_can_go_back(void *web) {
+    __block int can = 0;
+    viva_web_main(^{ can = [(VivaWebView *)web canGoBack] ? 1 : 0; });
+    return can;
+}
+
+int viva_web_can_go_forward(void *web) {
+    __block int can = 0;
+    viva_web_main(^{ can = [(VivaWebView *)web canGoForward] ? 1 : 0; });
+    return can;
+}
+
+int viva_web_is_loading(void *web) {
+    __block int loading = 0;
+    viva_web_main(^{ loading = [(VivaWebView *)web isLoading] ? 1 : 0; });
+    return loading;
 }
 
 void viva_web_close(void *web) {

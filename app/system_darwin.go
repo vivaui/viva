@@ -16,6 +16,8 @@ func nativeHasClipboardImage() bool { return darwinplatform.HasClipboardImage() 
 
 func nativeClipboardImagePNG() ([]byte, error) { return darwinplatform.ClipboardImagePNG() }
 
+func nativeSetClipboardImage(png []byte) error { return darwinplatform.SetClipboardImage(png) }
+
 func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardFiles() }
 
 func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }

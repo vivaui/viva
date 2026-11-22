@@ -84,3 +84,29 @@ func TestDriverReportsWindowFrameAndMinimizeState(t *testing.T) {
 		t.Fatalf("maximize changes = %v", maximizes)
 	}
 }
+
+func TestDriverStartsMaximizedFromConfig(t *testing.T) {
+	var maximizes []bool
+	driver, err := NewDriver(Config{
+		Width: 640, Height: 480,
+		Maximized:  true,
+		OnMaximize: func(maximized bool) { maximizes = append(maximizes, maximized) },
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+
+	if !driver.Maximized() {
+		t.Fatal("Driver did not start maximized from Config.Maximized")
+	}
+	if err := driver.SetMaximized(false); err != nil {
+		t.Fatal(err)
+	}
+	if driver.Maximized() {
+		t.Fatal("Maximized did not clear after restore")
+	}
+	if len(maximizes) != 2 || !maximizes[0] || maximizes[1] {
+		t.Fatalf("maximize changes = %v, want [true false]", maximizes)
+	}
+}

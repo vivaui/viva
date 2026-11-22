@@ -39,6 +39,9 @@ type FormFieldState struct {
 
 	Label   string
 	Palette *Theme
+	// control is what the title labels when For is not set: the first control
+	// the field's children declare, found as each paint lays the field out.
+	control gfx.ID
 	layout  field.Layout
 	paint   func(*DrawContext)
 }
@@ -55,9 +58,11 @@ type FormFieldState struct {
 // The field's children are its control: declare one (a Row, a Select, a
 // Combobox, a control of the application's own); the field measures the title,
 // places the control at the control slot of components.BeginField and paints
-// the title around it. It does not bind a value, does not label the control
-// (there is no For), and does not clip: a Select's or Combobox's popup may
-// leave the field's bounds.
+// the title around it. The title labels the first control its children declare,
+// as an HTML label labels the first labelable control inside it: pressing the
+// title focuses and clicks it, and assistive technology reads the title as its
+// name. For names another control instead. The field does not bind a value and
+// does not clip: a Select's or Combobox's popup may leave the field's bounds.
 //
 // A field with no explicit height is as tall as components.BeginField in the
 // same bounds, including the room BeginField reserves for a description and an
@@ -89,8 +94,35 @@ func (state *FormFieldState) spec() field.Spec {
 	return field.Spec{
 		Title: state.Label, Description: state.Description, Error: state.Error,
 		Orientation: state.Orientation, Required: state.Required,
-		Invalid: state.Invalid, Control: state.For,
+		Invalid: state.Invalid, Control: state.labeled(),
 	}
+}
+
+// labeled is the control the title labels: For, else the first control of the
+// field's children.
+func (state *FormFieldState) labeled() gfx.ID {
+	if !state.For.IsZero() {
+		return state.For
+	}
+	return state.control
+}
+
+// firstLabelable is the first control under node i, in declaration order and
+// depth first, that a title can label: one with an identity the keyboard takes.
+func (f *Frame) firstLabelable(i int32) gfx.ID {
+	n := &f.Nodes[i]
+	if !n.ID.IsZero() {
+		switch n.Kind {
+		case kindButton, kindToggle, kindSplitButton, kindCheckbox, kindSwitch, kindInput, kindTextarea, kindSlider, kindSelect:
+			return n.ID
+		}
+	}
+	for c := n.First; c >= 0; c = f.Nodes[c].Next {
+		if id := f.firstLabelable(c); !id.IsZero() {
+			return id
+		}
+	}
+	return gfx.ID{}
 }
 
 // MeasureWidth reports no preferred width: a form field takes the width its
@@ -119,6 +151,10 @@ func (state *FormFieldState) MeasureHeight(ctx *LayoutContext) float32 {
 func (state *FormFieldState) PlaceHeight(ctx *LayoutContext, bounds Rect) {
 	if ctx.Count() > 1 {
 		panic("ui: FormField takes one control child; wrap them in a Row or Column")
+	}
+	state.control = gfx.ID{}
+	if ctx.Count() == 1 && state.For.IsZero() {
+		state.control = ctx.Frame.firstLabelable(ctx.children[0])
 	}
 	state.layout = field.Measure(*state.Palette, bounds, state.spec())
 	if ctx.Count() == 1 {

@@ -22,7 +22,7 @@ go mod init example.com/hello
 go get github.com/vivaui/viva
 ```
 
-`go get` without a version resolves to the latest tagged release, which is `v0.6.6`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.6.6`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
+`go get` without a version resolves to the latest tagged release, which is `v0.6.7`. Pin it by naming the version: `go get github.com/vivaui/viva@v0.6.7`. Viva is not yet at 1.0, so the API in `go.mod` can still change between minor releases; read the release notes before upgrading.
 
 If you are working on Viva itself rather than using it, `replace` it with your checkout instead:
 
@@ -60,7 +60,7 @@ func (m *model) page(c ui.C) {
 
 func main() {
 	m := &model{}
-	if err := ui.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, m.page); err != nil {
+	if err := ui.Run(app.Config{Title: "Hello", Width: 480, Height: 240}, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }

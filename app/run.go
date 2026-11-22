@@ -28,6 +28,7 @@ func Run(config Config) error {
 		Height:            normalized.Height,
 		MinWidth:          normalized.MinWidth,
 		MinHeight:         normalized.MinHeight,
+		Maximized:         normalized.Maximized,
 		WindowMode:        platform.WindowMode(normalized.WindowMode),
 		WindowMaterials:   normalized.windowMaterials(),
 		TitlebarHeight:    normalized.TitlebarHeight,
