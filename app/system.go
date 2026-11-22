@@ -126,11 +126,12 @@ func ClipboardText() (string, error) {
 // clipboard belongs in the work it schedules.
 //
 // Nothing runs until the first call: no timer, no thread. It may be made before
-// the first window opens. The XCB backend listens as soon as it registers with
-// XFixes; window-based backends start when the first window opens. One
+// the first window opens, except with the GTK backend: GTK requires an
+// initialized display, so register after opening the first window. XCB listens
+// as soon as it registers with XFixes. One
 // registration serves the process and the last wins; OnClipboardChange(nil)
 // stops watching. An error wrapping ErrUnsupported means this target cannot
-// watch the clipboard (for example, GTK and web): the clipboard keeps
+// watch the clipboard (for example, GTK on Wayland and web): the clipboard keeps
 // working, only the news is missing, and a caller may fall back to reading it
 // when the user acts. macOS has no change notification, so while a
 // registration is held it polls the pasteboard's change count on a 250 ms
