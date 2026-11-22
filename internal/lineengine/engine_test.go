@@ -1,4 +1,4 @@
-package web
+package lineengine
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ type fakeBrowser struct {
 	invalidate        func()
 }
 
-func (browser *fakeBrowser) setInvalidate(invalidate func()) { browser.invalidate = invalidate }
+func (browser *fakeBrowser) SetInvalidate(invalidate func()) { browser.invalidate = invalidate }
 
 func advance(r rune, size float32) float32 {
 	switch {
@@ -31,7 +31,7 @@ func advance(r rune, size float32) float32 {
 	return size * 0.5
 }
 
-func (browser *fakeBrowser) width(value string, size, weight float32, rtl bool) float32 {
+func (browser *fakeBrowser) Width(value string, size, weight float32, rtl bool) float32 {
 	browser.widths++
 	var total float32
 	for _, r := range value {
@@ -74,7 +74,7 @@ func (browser *fakeBrowser) layout(value string, size float32) (starts []int32, 
 	return starts, left, right
 }
 
-func (browser *fakeBrowser) rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
+func (browser *fakeBrowser) Rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
 	browser.rectCalls++
 	starts, left, right := browser.layout(value, size)
 	for i := range lefts {
@@ -89,16 +89,16 @@ func (browser *fakeBrowser) rects(value string, size, weight float32, rtl bool, 
 
 type italicBrowser struct{ fakeBrowser }
 
-func (browser *italicBrowser) widthStyle(value string, size, weight float32, italic, rtl bool) float32 {
-	width := browser.fakeBrowser.width(value, size, weight, rtl)
+func (browser *italicBrowser) WidthStyle(value string, size, weight float32, italic, rtl bool) float32 {
+	width := browser.fakeBrowser.Width(value, size, weight, rtl)
 	if italic {
 		return width * 2
 	}
 	return width
 }
 
-func (browser *italicBrowser) rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32) {
-	browser.fakeBrowser.rects(value, size, weight, rtl, bounds, lefts, rights)
+func (browser *italicBrowser) RectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32) {
+	browser.fakeBrowser.Rects(value, size, weight, rtl, bounds, lefts, rights)
 	if italic {
 		for index := range lefts {
 			lefts[index] *= 2
@@ -109,7 +109,7 @@ func (browser *italicBrowser) rectsStyle(value string, size, weight float32, ita
 
 func TestItalicBrowserMetricsAndCacheStaySeparate(t *testing.T) {
 	browser := &italicBrowser{}
-	engine := newLineEngine(browser)
+	engine := New(browser)
 	if regular, italic := engine.Width("abcd", 10, 0), engine.WidthStyle("abcd", 10, 0, true); regular != 20 || italic != 40 {
 		t.Fatalf("regular/italic width = %v/%v", regular, italic)
 	}
@@ -131,13 +131,13 @@ func TestItalicBrowserMetricsAndCacheStaySeparate(t *testing.T) {
 }
 
 func TestLineEnginePassesTheTextEngineContract(t *testing.T) {
-	textenginetest.Run(t, newLineEngine(&fakeBrowser{}))
+	textenginetest.Run(t, New(&fakeBrowser{}))
 }
 
 // "abc" then two Hebrew letters: the Hebrew pair is displayed reversed, so the
 // selection of the last Hebrew letter and the "c" before it are two pieces, not one.
 func TestASelectionAcrossAChangeOfDirectionIsSeveralSpans(t *testing.T) {
-	engine := newLineEngine(&fakeBrowser{})
+	engine := New(&fakeBrowser{})
 	const value = "abcאב" // widths at size 10: 5, 5, 5, 6, 6
 	whole := engine.Selection(nil, value, 10, 0, 0, len(value))
 	if len(whole) != 1 || whole[0].X != 0 || whole[0].Width != 27 {
@@ -159,7 +159,7 @@ func TestASelectionAcrossAChangeOfDirectionIsSeveralSpans(t *testing.T) {
 }
 
 func TestAClusterIsOneCaretStop(t *testing.T) {
-	engine := newLineEngine(&fakeBrowser{})
+	engine := New(&fakeBrowser{})
 	const value = "éx" // e with a combining acute, then x
 	if got, want := engine.Caret(value, 10, 0, 1), engine.Caret(value, 10, 0, 0); got != want {
 		t.Errorf("a caret inside a cluster is at %v, its start is %v", got, want)
@@ -171,7 +171,7 @@ func TestAClusterIsOneCaretStop(t *testing.T) {
 
 func TestAMeasuredLineIsNotMeasuredAgainAndAnInvalidationForgetsIt(t *testing.T) {
 	browser := &fakeBrowser{}
-	engine := newLineEngine(browser)
+	engine := New(browser)
 	const value = "192.168.1.1 主机"
 	dst := make([]gfx.TextSpan, 0, 4)
 	query := func() {
@@ -201,7 +201,7 @@ func TestAMeasuredLineIsNotMeasuredAgainAndAnInvalidationForgetsIt(t *testing.T)
 func TestUTF16OffsetsCountSurrogatePairs(t *testing.T) {
 	var got []int32
 	browser := &recordingBrowser{fakeBrowser: &fakeBrowser{}, record: func(bounds []int32) { got = bounds }}
-	engine := newLineEngine(browser)
+	engine := New(browser)
 	value := "a👍🏽b" // a, thumbs-up + skin tone modifier (one cluster, two surrogate pairs), b
 	engine.Caret(value, 10, 0, 1)
 	want := []int32{0, 1, 5, 6}
@@ -223,7 +223,7 @@ type recordingBrowser struct {
 	record func([]int32)
 }
 
-func (browser *recordingBrowser) rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
+func (browser *recordingBrowser) Rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32) {
 	browser.record(append([]int32(nil), bounds...))
-	browser.fakeBrowser.rects(value, size, weight, rtl, bounds, lefts, rights)
+	browser.fakeBrowser.Rects(value, size, weight, rtl, bounds, lefts, rights)
 }

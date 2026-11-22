@@ -1,4 +1,4 @@
-package web
+package lineengine
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 func TestDistinctLinesStayMeasuredUntilFontInvalidation(t *testing.T) {
 	browser := &fakeBrowser{}
-	engine := newLineEngine(browser)
+	engine := New(browser)
 	lines := make([]string, 2*lineCacheLimit)
 	for index := range lines {
 		lines[index] = fmt.Sprintf("host %04d", index)

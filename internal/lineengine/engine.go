@@ -1,4 +1,9 @@
-package web
+// Package lineengine is the text engine of a platform whose system lays a line out
+// for it: it asks the platform for the width of a line and the extent of each of its
+// grapheme clusters, and answers carets, selections and clicks from those, keeping
+// every line it has measured. The platform is a Measurer; the geometry here has no
+// system call in it, so it is tested on the host.
+package lineengine
 
 import (
 	"github.com/vivaui/viva/gfx"
@@ -17,31 +22,31 @@ import (
 // This file has no JavaScript in it, so the geometry is tested on the host; domMeasurer
 // (measure_js.go) is the browser.
 
-// lineMeasurer is the browser's text layout.
-type lineMeasurer interface {
-	// width is the advance of value drawn in the font of size and weight, with rtl its
+// Measurer is the browser's text layout.
+type Measurer interface {
+	// Width is the advance of value drawn in the font of size and weight, with rtl its
 	// paragraph direction.
-	width(value string, size, weight float32, rtl bool) float32
-	// rects fills lefts[i] and rights[i] with the horizontal extent, from the left end
+	Width(value string, size, weight float32, rtl bool) float32
+	// Rects fills lefts[i] and rights[i] with the horizontal extent, from the left end
 	// of the line, of the UTF-16 range [bounds[i], bounds[i+1]) of value.
-	rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32)
-	// setInvalidate gives the measurer the function to call when measurements made so
+	Rects(value string, size, weight float32, rtl bool, bounds []int32, lefts, rights []float32)
+	// SetInvalidate gives the measurer the function to call when measurements made so
 	// far may no longer hold (a font finished loading).
-	setInvalidate(invalidate func())
+	SetInvalidate(invalidate func())
 }
 
-type styledLineMeasurer interface {
-	widthStyle(value string, size, weight float32, italic, rtl bool) float32
-	rectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32)
+type StyledMeasurer interface {
+	WidthStyle(value string, size, weight float32, italic, rtl bool) float32
+	RectsStyle(value string, size, weight float32, italic, rtl bool, bounds []int32, lefts, rights []float32)
 }
 
-type lineRasterizer interface {
-	rasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error)
+type Rasterizer interface {
+	RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error)
 }
 
-// lineEngine implements gfx.TextEngine over a lineMeasurer.
-type lineEngine struct {
-	measurer    lineMeasurer
+// Engine implements gfx.TextEngine over a lineMeasurer.
+type Engine struct {
+	measurer    Measurer
 	lines       *textcache.Cache[*measuredLine]
 	italicLines *textcache.Cache[*measuredLine]
 	resolver    bidi.Resolver
@@ -49,30 +54,42 @@ type lineEngine struct {
 	generation  uint32
 }
 
-// interfaceFamily is the CSS family named for proportional text, or "" for the
-// browser's system stack. fontGeneration moves whenever the family changes or a
-// registered font arrives, so every engine still holding shaped lines knows to
-// forget them.
+// interfaceFamily is the family named for proportional text, or "" for the
+// platform's own interface font. fontGeneration moves whenever the family changes
+// or a registered font arrives, so every engine still holding shaped lines knows
+// to forget them. Both belong to the process, as the native engines' do.
 var interfaceFamily string
 var fontGeneration uint32
+
+// InterfaceFamily is the family named for proportional text, "" for the platform's
+// own interface font.
+func InterfaceFamily() string { return interfaceFamily }
+
+// FontsChanged says the platform's fonts changed (a registered font arrived): every
+// engine forgets the lines it has shaped.
+func FontsChanged() { fontGeneration++ }
 
 // lineCacheLimit is the line limit of each cache segment (twice as many are kept).
 const lineCacheLimit = 512
 
-func newLineEngine(measurer lineMeasurer) *lineEngine {
-	engine := &lineEngine{measurer: measurer, lines: textcache.New[*measuredLine](lineCacheLimit, nil), generation: fontGeneration}
-	measurer.setInvalidate(func() {
-		engine.lines.Clear()
-		if engine.italicLines != nil {
-			engine.italicLines.Clear()
-		}
-	})
+func New(measurer Measurer) *Engine {
+	engine := &Engine{measurer: measurer, lines: textcache.New[*measuredLine](lineCacheLimit, nil), generation: fontGeneration}
+	measurer.SetInvalidate(engine.Forget)
 	return engine
 }
 
+// Forget drops every line the engine has measured, as the platform does when its
+// measurements may no longer hold (a font finished loading).
+func (engine *Engine) Forget() {
+	engine.lines.Clear()
+	if engine.italicLines != nil {
+		engine.italicLines.Clear()
+	}
+}
+
 // SetFontFamily implements gfx.FontFamilyAware. The family applies to every
-// engine in the page, as the native engines apply theirs to the process.
-func (engine *lineEngine) SetFontFamily(family string) {
+// engine of the process, as the native engines apply theirs.
+func (engine *Engine) SetFontFamily(family string) {
 	if family == interfaceFamily {
 		return
 	}
@@ -81,11 +98,11 @@ func (engine *lineEngine) SetFontFamily(family string) {
 }
 
 // FontGeneration implements gfx.FontFamilyAware.
-func (engine *lineEngine) FontGeneration() uint32 { return fontGeneration }
+func (engine *Engine) FontGeneration() uint32 { return fontGeneration }
 
 // syncGeneration drops shaped lines when the page's font state moved since
 // this engine last measured.
-func (engine *lineEngine) syncGeneration() {
+func (engine *Engine) syncGeneration() {
 	if engine.generation == fontGeneration {
 		return
 	}
@@ -96,12 +113,12 @@ func (engine *lineEngine) syncGeneration() {
 	}
 }
 
-func (engine *lineEngine) RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
-	rasterizer, ok := engine.measurer.(lineRasterizer)
+func (engine *Engine) RasterizeText(value string, style gfx.TextStyle, scale float32, width, height int) (gfx.Bitmap, error) {
+	rasterizer, ok := engine.measurer.(Rasterizer)
 	if !ok {
 		return gfx.Bitmap{}, gfx.ErrTextRasterizerUnavailable
 	}
-	return rasterizer.rasterizeText(value, style, scale, width, height)
+	return rasterizer.RasterizeText(value, style, scale, width, height)
 }
 
 type measuredLine struct {
@@ -120,11 +137,11 @@ type clusterRects struct {
 	endsAtRTLEdge bool // the last cluster is right-to-left: the end of the line is its left edge
 }
 
-func (engine *lineEngine) line(value string, size, weight float32) *measuredLine {
+func (engine *Engine) line(value string, size, weight float32) *measuredLine {
 	return engine.lineStyle(value, size, weight, false)
 }
 
-func (engine *lineEngine) lineStyle(value string, size, weight float32, italic bool) *measuredLine {
+func (engine *Engine) lineStyle(value string, size, weight float32, italic bool) *measuredLine {
 	engine.syncGeneration()
 	lines := engine.lines
 	if italic {
@@ -139,21 +156,21 @@ func (engine *lineEngine) lineStyle(value string, size, weight float32, italic b
 	}
 	rtl := bidi.BaseDirection(value) == bidi.RTL
 	var width float32
-	if styled, ok := engine.measurer.(styledLineMeasurer); ok && italic {
-		width = styled.widthStyle(value, size, weight, italic, rtl)
+	if styled, ok := engine.measurer.(StyledMeasurer); ok && italic {
+		width = styled.WidthStyle(value, size, weight, italic, rtl)
 	} else {
-		width = engine.measurer.width(value, size, weight, rtl)
+		width = engine.measurer.Width(value, size, weight, rtl)
 	}
 	line := &measuredLine{width: width, rtl: rtl}
 	lines.Put(key, line)
 	return line
 }
 
-func (engine *lineEngine) geometry(value string, size, weight float32, line *measuredLine) *clusterRects {
+func (engine *Engine) geometry(value string, size, weight float32, line *measuredLine) *clusterRects {
 	return engine.geometryStyle(value, size, weight, false, line)
 }
 
-func (engine *lineEngine) geometryStyle(value string, size, weight float32, italic bool, line *measuredLine) *clusterRects {
+func (engine *Engine) geometryStyle(value string, size, weight float32, italic bool, line *measuredLine) *clusterRects {
 	engine.syncGeneration()
 	if line.clusters != nil {
 		return line.clusters
@@ -180,10 +197,10 @@ func (engine *lineEngine) geometryStyle(value string, size, weight float32, ital
 	}
 	bounds[count] = units
 	rects := &clusterRects{starts: starts, left: make([]float32, count), right: make([]float32, count), rtl: make([]bool, count)}
-	if styled, ok := engine.measurer.(styledLineMeasurer); ok && italic {
-		styled.rectsStyle(value, size, weight, italic, line.rtl, bounds, rects.left, rects.right)
+	if styled, ok := engine.measurer.(StyledMeasurer); ok && italic {
+		styled.RectsStyle(value, size, weight, italic, line.rtl, bounds, rects.left, rects.right)
 	} else {
-		engine.measurer.rects(value, size, weight, line.rtl, bounds, rects.left, rects.right)
+		engine.measurer.Rects(value, size, weight, line.rtl, bounds, rects.left, rects.right)
 	}
 
 	direction := bidi.LTR
@@ -241,11 +258,11 @@ func (rects *clusterRects) caret(cluster int) float32 {
 }
 
 // Width implements gfx.TextEngine.
-func (engine *lineEngine) Width(value string, size, weight float32) float32 {
+func (engine *Engine) Width(value string, size, weight float32) float32 {
 	return engine.WidthStyle(value, size, weight, false)
 }
 
-func (engine *lineEngine) WidthStyle(value string, size, weight float32, italic bool) float32 {
+func (engine *Engine) WidthStyle(value string, size, weight float32, italic bool) float32 {
 	if value == "" {
 		return 0
 	}
@@ -253,11 +270,11 @@ func (engine *lineEngine) WidthStyle(value string, size, weight float32, italic 
 }
 
 // Caret implements gfx.TextEngine.
-func (engine *lineEngine) Caret(value string, size, weight float32, offset int) float32 {
+func (engine *Engine) Caret(value string, size, weight float32, offset int) float32 {
 	return engine.CaretStyle(value, size, weight, false, offset)
 }
 
-func (engine *lineEngine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
+func (engine *Engine) CaretStyle(value string, size, weight float32, italic bool, offset int) float32 {
 	if value == "" {
 		return 0
 	}
@@ -272,11 +289,11 @@ func (engine *lineEngine) CaretStyle(value string, size, weight float32, italic 
 // Selection implements gfx.TextEngine. The clusters of [start, end) are joined where the
 // display puts them side by side, so a selection that crosses a change of direction is
 // several spans, left to right.
-func (engine *lineEngine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
+func (engine *Engine) Selection(dst []gfx.TextSpan, value string, size, weight float32, start, end int) []gfx.TextSpan {
 	return engine.SelectionStyle(dst, value, size, weight, false, start, end)
 }
 
-func (engine *lineEngine) SelectionStyle(dst []gfx.TextSpan, value string, size, weight float32, italic bool, start, end int) []gfx.TextSpan {
+func (engine *Engine) SelectionStyle(dst []gfx.TextSpan, value string, size, weight float32, italic bool, start, end int) []gfx.TextSpan {
 	if value == "" {
 		return dst
 	}
@@ -339,11 +356,11 @@ func abuts(a, b float32) bool {
 
 // OffsetAt implements gfx.TextEngine: the boundary whose caret is nearest x, the earlier
 // one when two are equally near.
-func (engine *lineEngine) OffsetAt(value string, size, weight, x float32) int {
+func (engine *Engine) OffsetAt(value string, size, weight, x float32) int {
 	return engine.OffsetAtStyle(value, size, weight, false, x)
 }
 
-func (engine *lineEngine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
+func (engine *Engine) OffsetAtStyle(value string, size, weight float32, italic bool, x float32) int {
 	if value == "" {
 		return 0
 	}
@@ -361,5 +378,5 @@ func (engine *lineEngine) OffsetAtStyle(value string, size, weight float32, ital
 	return int(rects.starts[best])
 }
 
-var _ gfx.TextEngine = (*lineEngine)(nil)
-var _ gfx.StyledTextEngine = (*lineEngine)(nil)
+var _ gfx.TextEngine = (*Engine)(nil)
+var _ gfx.StyledTextEngine = (*Engine)(nil)

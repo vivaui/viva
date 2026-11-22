@@ -16,6 +16,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
+	"github.com/vivaui/viva/internal/lineengine"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 )
@@ -213,7 +214,7 @@ func (runtime *runtime) mount() {
 		runtime.canvas = &gfx.Canvas{}
 	}
 	runtime.measurer = newDOMMeasurer(runtime.document)
-	runtime.canvas.SetTextEngine(newLineEngine(runtime.measurer))
+	runtime.canvas.SetTextEngine(lineengine.New(runtime.measurer))
 	started := time.Now()
 	runtime.canvas.SetClock(func() time.Duration { return time.Since(started) })
 	runtime.canvas.SetReduceMotion(runtime.window.Call("matchMedia", "(prefers-reduced-motion: reduce)").Get("matches").Bool())
@@ -221,7 +222,7 @@ func (runtime *runtime) mount() {
 	runtime.fullscreen = fullscreenActive(runtime.document)
 	// A font that loads late changes the baselines and widths as it does every line.
 	clearLines := runtime.measurer.invalidate
-	runtime.measurer.setInvalidate(func() {
+	runtime.measurer.SetInvalidate(func() {
 		clearLines()
 		runtime.metrics.clear()
 	})
