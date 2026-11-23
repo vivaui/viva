@@ -139,14 +139,14 @@ type CodeEditorSnapshot struct {
 	FontSize float32
 	// MonoFace is the fixed-pitch font the code is set in.
 	MonoFace gfx.MonoFace
-	// ShapedBidi opts plain grid rows into native bidi shaping where available.
+	// ShapedBidi opts grid rows into native bidi shaping where available.
 	// Representations and visual whitespace/indent markers still use the logical
-	// grid, as do editors with highlighting or decorations. A row over 4096
-	// bytes keeps the grid, and a platform whose text engine cannot shape a
-	// fitted monospaced run draws the grid unchanged. A wrapped continuation
-	// takes its paragraph's base direction, not the full bidi levels a strong
-	// context before the break could give it; an explicit embedding or isolate
-	// keeps the grid.
+	// grid, as do editors with custom decorations. A row over 4096 bytes keeps
+	// the grid, and a platform whose text engine cannot shape a fitted
+	// monospaced run draws the grid unchanged. A wrapped continuation takes its
+	// paragraph's base direction, not the full bidi levels a strong context
+	// before the break could give it; an explicit embedding or isolate keeps the
+	// grid.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// TabWidth is the width of a tab stop in cells; zero is four.
