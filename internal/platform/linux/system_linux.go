@@ -54,7 +54,7 @@ func ClipboardText() (string, error) {
 	}
 	if win := activeWindow.Load(); win != nil {
 		win.mu.Lock()
-		if activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard {
+		if activeWindow.Load() == win && win.clipboardOwnedLocked() {
 			value := win.clipboard
 			win.mu.Unlock()
 			return value, nil
@@ -81,18 +81,50 @@ func readSelectionTextX11(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	utf8, err := api.atom(connection, "UTF8_STRING")
+	utf8Atom, err := api.atom(connection, "UTF8_STRING")
 	if err != nil {
 		return "", err
 	}
-	value, accepted, err := readSelection(api, connection, requestor, selection, utf8, property)
+	// Some owners (including xclip) answer unadvertised text requests with
+	// their binary payload. Ask TARGETS first, just as the image reader does,
+	// so an image-only copy reaches TextPasteNoText rather than the editor.
+	targets, err := api.atom(connection, "TARGETS")
 	if err != nil {
 		return "", err
 	}
-	if accepted {
-		return value, nil
+	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, selection, targets, property, 1<<16)
+	if err != nil {
+		return "", err
 	}
-	return readLegacySelection(api, connection, requestor, selection, property)
+	wantUTF8, wantLatin1 := true, true
+	if accepted && kind == xcbAtomAtom && len(data)%4 == 0 {
+		wantUTF8, wantLatin1 = false, false
+		for offset := 0; offset < len(data); offset += 4 {
+			switch binary.NativeEndian.Uint32(data[offset:]) {
+			case utf8Atom:
+				wantUTF8 = true
+			case xcbAtomString:
+				wantLatin1 = true
+			}
+		}
+	}
+	// Old owners without TARGETS still get the legacy text requests.
+	if wantUTF8 {
+		value, accepted, err := readSelection(api, connection, requestor, selection, utf8Atom, property)
+		if err != nil {
+			return "", err
+		}
+		if accepted {
+			if !utf8.ValidString(value) {
+				return "", fmt.Errorf("linux: clipboard text is not valid UTF-8")
+			}
+			return value, nil
+		}
+	}
+	if wantLatin1 {
+		return readLegacySelection(api, connection, requestor, selection, property)
+	}
+	return "", nil
 }
 
 // HasClipboardImage reports whether the X11 CLIPBOARD owner offers image/png.
@@ -287,7 +319,27 @@ func ownsClipboardText() bool {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+	return activeWindow.Load() == win && win.clipboardOwnedLocked()
+}
+
+// SelectionClear can still be queued when a background owner finishes a copy.
+// Check ownership when reading the cache, never on a timer, so an immediate
+// paste cannot return stale text or incorrectly report that no image exists.
+// win.mu is held by the caller.
+func (win *window) clipboardOwnedLocked() bool {
+	if win.connection == 0 || !win.ownsClipboard {
+		return false
+	}
+	owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom)
+	if err != nil {
+		return false
+	}
+	if owner == win.id {
+		return true
+	}
+	win.clipboard, win.clipboardHTML, win.clipboardFiles, win.clipboardImage = "", "", nil, nil
+	win.ownsClipboard = false
+	return false
 }
 
 // ownedClipboardImage is the picture this window's clipboard holds, and whether
@@ -299,7 +351,7 @@ func ownedClipboardImage() ([]byte, bool) {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard || len(win.clipboardImage) == 0 {
+	if activeWindow.Load() != win || !win.clipboardOwnedLocked() || len(win.clipboardImage) == 0 {
 		return nil, false
 	}
 	return append([]byte(nil), win.clipboardImage...), true
@@ -314,7 +366,7 @@ func ownedClipboardFiles() ([]string, bool) {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard {
+	if activeWindow.Load() != win || !win.clipboardOwnedLocked() {
 		return nil, false
 	}
 	return append([]string(nil), win.clipboardFiles...), true
@@ -1065,12 +1117,21 @@ func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, 
 // readSelection asks the owner for target as text. A text bigger than one property comes in
 // pieces (INCR), as readSelectionBytes collects them.
 func readSelection(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32) (string, bool, error) {
-	data, _, accepted, err := readSelectionBytes(api, connection, requestor, selection, target, property, maxClipboardBytes)
+	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, selection, target, property, maxClipboardBytes)
 	if errors.Is(err, platform.ErrClipboardImageTooLarge) {
 		return "", false, fmt.Errorf("linux: clipboard text exceeds 64 MiB")
 	}
 	if err != nil || !accepted {
 		return "", false, err
+	}
+	if kind != target {
+		incr, atomErr := api.atom(connection, "INCR")
+		if atomErr != nil {
+			return "", false, atomErr
+		}
+		if kind != incr {
+			return "", false, nil
+		}
 	}
 	return string(data), true, nil
 }
