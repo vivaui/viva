@@ -25,9 +25,11 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 重功能或有状态的页面控件放在 `ui/<能力名>` 的独立包里。用到才 import；包本身就是按需付费的边界。
 
-- 编辑器与可视化：`ui/codeeditor`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
+- 编辑器与可视化：`ui/codeeditor`、`ui/textview`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
 - 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
 - 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`
+
+`ui/textview` 用来显示可选择、可复制的只读文本，例如日志和进程输出。在 model 中保留 `textview.View`，调用 `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`；`textview.Strings` 可以把字符串切片适配成数据源。调用方拥有文本、样式和动作，视图负责选择与绘制，不带编辑或撤销模型。
 
 包名是能力名，没有 `view` 后缀；状态类型按角色命名，不重复包名：`calendar.State`、`message.Row`、`attachment.Card`。局部变量避让包名（`cal`、`msg`、`pic`）；model 字段可以保留领域名词（`m.calendar`），因为选择器不会遮蔽包。
 
