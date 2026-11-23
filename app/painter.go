@@ -35,9 +35,10 @@ type painter struct {
 	onKey          func(gfx.KeyEvent) gfx.EventResult
 	// onDeactivate is the application's, called after a window loses the
 	// activation and the keys that were down are released.
-	onDeactivate func() gfx.EventResult
-	onShortcut   func(gfx.KeyEvent) gfx.EventResult
-	onScroll     func(gfx.ScrollEvent) gfx.EventResult
+	onDeactivate    func() gfx.EventResult
+	onShortcut      func(gfx.KeyEvent) gfx.EventResult
+	captureMenuKeys func() bool
+	onScroll        func(gfx.ScrollEvent) gfx.EventResult
 	// onModifierTap and tap recognize a modifier pressed and released on its own.
 	onModifierTap func(gfx.ModifierTapEvent) gfx.EventResult
 	tap           input.ModifierTap
@@ -155,20 +156,21 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		canvas.SetTree(config.Tree)
 	}
 	painter := &painter{
-		paint:         config.Paint,
-		onPointer:     config.OnPointer,
-		onKey:         config.OnKey,
-		onDeactivate:  config.OnDeactivate,
-		onShortcut:    config.OnShortcut,
-		onScroll:      config.OnScroll,
-		onModifierTap: config.OnModifierTap,
-		onFileDrop:    config.OnFileDrop,
-		onResize:      config.OnResize,
-		textInput:     config.TextInput,
-		canvas:        canvas,
-		size:          gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
-		frame:         framebuild.New(canvas),
-		accessibility: make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
+		paint:           config.Paint,
+		onPointer:       config.OnPointer,
+		onKey:           config.OnKey,
+		onDeactivate:    config.OnDeactivate,
+		onShortcut:      config.OnShortcut,
+		captureMenuKeys: config.CaptureMenuKeys,
+		onScroll:        config.OnScroll,
+		onModifierTap:   config.OnModifierTap,
+		onFileDrop:      config.OnFileDrop,
+		onResize:        config.OnResize,
+		textInput:       config.TextInput,
+		canvas:          canvas,
+		size:            gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
+		frame:           framebuild.New(canvas),
+		accessibility:   make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
 	painter.clipboardText = func() string {
@@ -1252,7 +1254,16 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 	return context, text.Placement, index
 }
 
+func (painter *painter) menuCapturesKeys() bool {
+	return painter.captureMenuKeys != nil && painter.captureMenuKeys()
+}
+
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
+	// A menu's focus trap can move UI focus to a row or to no control.
+	// Publishing that as a new text owner would cancel the IME composition.
+	if painter.menuCapturesKeys() {
+		return platform.TextInputUpdate{}
+	}
 	if painter.textInput == nil {
 		return painter.disableTextInput()
 	}

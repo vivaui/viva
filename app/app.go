@@ -162,6 +162,12 @@ type Config struct {
 	// first, so the application does not see them there.
 	// This callback runs on the window thread.
 	OnShortcut func(event gfx.KeyEvent) gfx.EventResult
+	// CaptureMenuKeys reports whether a transient menu owns the keyboard.
+	// Windows routes its keys to OnShortcut (printable) or OnKey (named)
+	// before IME processing, keeping the underlying text input and its
+	// composition installed until the menu closes. The callback runs on the
+	// window thread and must not change state. Also supported by Driver.
+	CaptureMenuKeys func() bool
 	// OnModifierTap receives a modifier key that was pressed and released on its
 	// own (see gfx.ModifierTapEvent), which OnKey never sees outside a terminal
 	// that asked for the whole keyboard. It is how an application builds
