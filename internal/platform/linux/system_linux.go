@@ -96,21 +96,37 @@ func readSelectionTextX11(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	textTarget := utf8Atom
 	wantUTF8, wantLatin1 := true, true
 	if accepted && kind == xcbAtomAtom && len(data)%4 == 0 {
+		mimeUTF8, mimeErr := api.atom(connection, "text/plain;charset=utf-8")
+		if mimeErr != nil {
+			return "", mimeErr
+		}
 		wantUTF8, wantLatin1 = false, false
 		for offset := 0; offset < len(data); offset += 4 {
 			switch binary.NativeEndian.Uint32(data[offset:]) {
 			case utf8Atom:
-				wantUTF8 = true
+				wantUTF8, textTarget = true, utf8Atom
 			case xcbAtomString:
 				wantLatin1 = true
+			case mimeUTF8:
+				// Owners that only offer the MIME spelling of UTF-8 text.
+				if !wantUTF8 {
+					wantUTF8, textTarget = true, mimeUTF8
+				}
 			}
 		}
 	}
 	// Old owners without TARGETS still get the legacy text requests.
 	if wantUTF8 {
-		value, accepted, err := readSelection(api, connection, requestor, selection, utf8Atom, property)
+		// A target the owner advertised may answer typed as UTF8_STRING; only the
+		// unadvertised legacy request needs the type check.
+		read := readSelection
+		if textTarget == utf8Atom {
+			read = readTypedSelection
+		}
+		value, accepted, err := read(api, connection, requestor, selection, textTarget, property)
 		if err != nil {
 			return "", err
 		}
@@ -1107,7 +1123,7 @@ func selectionOwner(api *xcbAPI, connection uintptr, selection uint32) (uint32, 
 }
 
 func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, property uint32) (string, error) {
-	value, accepted, err := readSelection(api, connection, requestor, selection, xcbAtomString, property)
+	value, accepted, err := readTypedSelection(api, connection, requestor, selection, xcbAtomString, property)
 	if err != nil || !accepted {
 		return "", err
 	}
@@ -1117,6 +1133,17 @@ func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, 
 // readSelection asks the owner for target as text. A text bigger than one property comes in
 // pieces (INCR), as readSelectionBytes collects them.
 func readSelection(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32) (string, bool, error) {
+	return readSelectionText(api, connection, requestor, selection, target, property, false)
+}
+
+// readTypedSelection is readSelection for the clipboard text readers: an owner that answers
+// with another type than the one asked for (a binary payload from an unadvertised request)
+// is treated as having no text.
+func readTypedSelection(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32) (string, bool, error) {
+	return readSelectionText(api, connection, requestor, selection, target, property, true)
+}
+
+func readSelectionText(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32, typed bool) (string, bool, error) {
 	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, selection, target, property, maxClipboardBytes)
 	if errors.Is(err, platform.ErrClipboardImageTooLarge) {
 		return "", false, fmt.Errorf("linux: clipboard text exceeds 64 MiB")
@@ -1124,7 +1151,7 @@ func readSelection(api *xcbAPI, connection uintptr, requestor, selection, target
 	if err != nil || !accepted {
 		return "", false, err
 	}
-	if kind != target {
+	if typed && kind != target {
 		incr, atomErr := api.atom(connection, "INCR")
 		if atomErr != nil {
 			return "", false, atomErr
