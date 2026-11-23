@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -21,6 +22,41 @@ func (shapedCodeTestEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value st
 		gfx.FittedMonoCaret{Offset: 5, Leading: span * 0.75, Trailing: span * 0.25},
 		gfx.FittedMonoCaret{Offset: 6, Leading: span, Trailing: span},
 	), true
+}
+
+type countingShapedEngine struct {
+	gfx.TextEngine
+	calls int
+}
+
+func (engine *countingShapedEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	engine.calls++
+	return append(dst,
+		gfx.FittedMonoCaret{Offset: 0, Leading: 0, Trailing: 0},
+		gfx.FittedMonoCaret{Offset: len(value), Leading: span, Trailing: span},
+	), true
+}
+
+// A viewport taller than the fixed 64-row cache bound keeps its rows: the cache
+// used to clear in the middle of a paint, so every row missed again every frame.
+func TestCodeEditorShapedCacheHoldsATallViewport(t *testing.T) {
+	const lines = 70
+	const row = "aא"
+	value := strings.Repeat(row+"\n", lines-1) + row
+	f := newCodeFixture(value)
+	engine := &countingShapedEngine{TextEngine: gfx.ReferenceTextEngine()}
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi = true
+	f.bounds.Height = 2000
+	f.paint()
+	if engine.calls < lines {
+		t.Fatalf("first paint shaped %d rows, want at least %d", engine.calls, lines)
+	}
+	engine.calls = 0
+	f.paint()
+	if engine.calls != 0 {
+		t.Fatalf("repainting an unchanged viewport shaped %d rows again, want 0", engine.calls)
+	}
 }
 
 func TestCodeEditorRetainsTheClickedShapedCaretEdge(t *testing.T) {

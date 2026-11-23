@@ -16,9 +16,14 @@ type codeShaping struct {
 	cell       float32
 	generation uint32
 	rows       map[int32][]gfx.FittedMonoCaret
-	hit        gfx.TextHit
-	hitRow     int32
-	hitValid   bool
+	// limit is the most rows the cache keeps: the visible rows of the last
+	// paint, and never fewer than the old fixed bound. A viewport taller than
+	// that bound used to clear the cache in the middle of the paint, so every
+	// row missed again on the next frame.
+	limit    int
+	hit      gfx.TextHit
+	hitRow   int32
+	hitValid bool
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
@@ -33,6 +38,14 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.cell != cell || s.generation != generation {
 		s = &codeShaping{canvas: canvas, value: editor.text, style: style, cell: cell, generation: generation, rows: make(map[int32][]gfx.FittedMonoCaret)}
 		editor.shaping = s
+	}
+	limit := 64
+	if visible := int(editor.content.Height/editor.lineHeight) + 2; visible > limit {
+		limit = visible
+	}
+	s.limit = limit
+	if len(s.rows) > limit {
+		clear(s.rows)
 	}
 	if s.hitValid && s.hit.Offset != snapshot.Caret {
 		s.hitValid = false
@@ -55,9 +68,6 @@ func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 	carets, ok := s.canvas.FittedBidiMonoCarets(nil, value, s.style, float32(row.cells)*s.cell)
 	if !ok || len(carets) < 2 || carets[0].Offset != 0 || carets[len(carets)-1].Offset != len(value) {
 		carets = nil
-	}
-	if len(s.rows) >= 64 {
-		clear(s.rows)
 	}
 	s.rows[row.start] = carets
 	return carets
