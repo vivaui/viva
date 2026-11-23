@@ -1,8 +1,12 @@
+//go:build !android
+
 package linux
 
 import (
 	"fmt"
 	"math"
+
+	"github.com/vivaui/viva/internal/platform/windowframe"
 
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/raster"
@@ -42,7 +46,7 @@ type cpuWindowRenderer struct {
 	// cornerBox and cornerShadow keep the shadow under the four corner squares,
 	// captured before the content covers it, so a damaged corner is composed
 	// again from the content and the shadow instead of from the previous result.
-	cornerBox    [4]pixelBox
+	cornerBox    [4]windowframe.Box
 	cornerShadow [4][]byte
 	// full says the next present composes the whole window again.
 	full bool
@@ -66,7 +70,7 @@ func newCPUWindowRenderer(win *window, scale float32, clear platform.Color, rect
 	if err != nil {
 		return nil, err
 	}
-	contentWidth, contentHeight := contentSize(win.width, win.margin), contentSize(win.height, win.margin)
+	contentWidth, contentHeight := windowframe.ContentSize(win.width, win.margin), windowframe.ContentSize(win.height, win.margin)
 	scene, err := newSoftScene(services, int(contentWidth), int(contentHeight), scale, clear, rectangles, labels)
 	if err != nil {
 		services.close()
@@ -194,25 +198,25 @@ func (renderer *cpuWindowRenderer) copyContent() {
 // shadowRectangle is the shadow the drawn frame casts: the content's rounded
 // rectangle, offset down and blurred, with the caster cut out by the rasterizer.
 func (renderer *cpuWindowRenderer) shadowRectangle() render.Rectangle {
-	box := frameContent(renderer.width, renderer.height, renderer.margin)
+	box := windowframe.Content(renderer.width, renderer.height, renderer.margin)
 	scale := renderer.scale
 	return render.Rectangle{
 		Kind:   scene.KindShadow,
-		Bounds: scene.Rect{X: float32(box.x) / scale, Y: float32(box.y) / scale, Width: float32(box.width) / scale, Height: float32(box.height) / scale},
-		Radius: frameRadiusLogical,
-		Color:  scene.Color{Alpha: frameShadowAlpha},
-		Shadow: scene.Shadow{OffsetY: frameShadowOffset, Blur: frameShadowBlur},
+		Bounds: scene.Rect{X: float32(box.X) / scale, Y: float32(box.Y) / scale, Width: float32(box.Width) / scale, Height: float32(box.Height) / scale},
+		Radius: windowframe.RadiusLogical,
+		Color:  scene.Color{Alpha: windowframe.ShadowAlpha},
+		Shadow: scene.Shadow{OffsetY: windowframe.ShadowOffset, Blur: windowframe.ShadowBlur},
 	}
 }
 
 // cacheCorners keeps the shadow under the four corner squares before the
 // content covers it, and the boxes those squares occupy.
 func (renderer *cpuWindowRenderer) cacheCorners() {
-	renderer.cornerBox = frameCorners(renderer.width, renderer.height, renderer.margin, frameRadiusLogical*renderer.scale)
+	renderer.cornerBox = windowframe.Corners(renderer.width, renderer.height, renderer.margin, windowframe.RadiusLogical*renderer.scale)
 	for index, box := range renderer.cornerBox {
 		box = clampBox(box, renderer.out)
 		renderer.cornerBox[index] = box
-		width, height := int(box.width), int(box.height)
+		width, height := int(box.Width), int(box.Height)
 		if width <= 0 || height <= 0 {
 			renderer.cornerShadow[index] = nil
 			continue
@@ -223,7 +227,7 @@ func (renderer *cpuWindowRenderer) cacheCorners() {
 		}
 		shadow := renderer.cornerShadow[index][:need]
 		for row := 0; row < height; row++ {
-			from := (int(box.y)+row)*renderer.out.Stride + int(box.x)*4
+			from := (int(box.Y)+row)*renderer.out.Stride + int(box.X)*4
 			copy(shadow[row*width*4:(row+1)*width*4], renderer.out.Pix[from:from+width*4])
 		}
 		renderer.cornerShadow[index] = shadow
@@ -237,7 +241,7 @@ func (renderer *cpuWindowRenderer) maskCorner(index int, area render.Scissor) {
 	if len(shadow) == 0 {
 		return
 	}
-	width := int(box.width)
+	width := int(box.Width)
 	if width <= 0 {
 		return
 	}
@@ -246,8 +250,8 @@ func (renderer *cpuWindowRenderer) maskCorner(index int, area render.Scissor) {
 	rect := scene.Rect{X: float32(offset) / renderer.scale, Y: float32(offset) / renderer.scale, Width: float32(src.Width) / renderer.scale, Height: float32(src.Height) / renderer.scale}
 	for y := area.Top; y < area.Bottom; y++ {
 		for x := area.Left; x < area.Right; x++ {
-			coverage := raster.Coverage(rect, frameRadiusLogical, renderer.scale, x, y)
-			shadowAt := ((y-int(box.y))*width + (x - int(box.x))) * 4
+			coverage := raster.Coverage(rect, windowframe.RadiusLogical, renderer.scale, x, y)
+			shadowAt := ((y-int(box.Y))*width + (x - int(box.X))) * 4
 			contentAt := (y-offset)*src.Stride + (x-offset)*4
 			pixel := y*out.Stride + x*4
 			for channel := 0; channel < 4; channel++ {
@@ -311,7 +315,7 @@ func (renderer *cpuWindowRenderer) resize(width, height uint32) error {
 		return nil
 	}
 	renderer.width, renderer.height = width, height
-	contentWidth, contentHeight := contentSize(width, renderer.margin), contentSize(height, renderer.margin)
+	contentWidth, contentHeight := windowframe.ContentSize(width, renderer.margin), windowframe.ContentSize(height, renderer.margin)
 	if int(contentWidth) != renderer.scene.canvas.Width || int(contentHeight) != renderer.scene.canvas.Height {
 		if err := renderer.scene.resize(int(contentWidth), int(contentHeight)); err != nil {
 			return err
@@ -344,7 +348,7 @@ func (renderer *cpuWindowRenderer) setFrameMargin(margin uint32) error {
 		return nil
 	}
 	renderer.margin = margin
-	contentWidth, contentHeight := contentSize(renderer.width, margin), contentSize(renderer.height, margin)
+	contentWidth, contentHeight := windowframe.ContentSize(renderer.width, margin), windowframe.ContentSize(renderer.height, margin)
 	if int(contentWidth) != renderer.scene.canvas.Width || int(contentHeight) != renderer.scene.canvas.Height {
 		if err := renderer.scene.resize(int(contentWidth), int(contentHeight)); err != nil {
 			return err
@@ -408,14 +412,14 @@ func (renderer *cpuWindowRenderer) close() {
 	renderer.cornerShadow = [4][]byte{}
 }
 
-func scissorOfBox(box pixelBox) render.Scissor {
-	return render.Scissor{Left: int(box.x), Top: int(box.y), Right: int(box.x + box.width), Bottom: int(box.y + box.height)}
+func scissorOfBox(box windowframe.Box) render.Scissor {
+	return render.Scissor{Left: int(box.X), Top: int(box.Y), Right: int(box.X + box.Width), Bottom: int(box.Y + box.Height)}
 }
 
-func clampBox(box pixelBox, canvas *raster.Canvas) pixelBox {
-	left, top := max(box.x, 0), max(box.y, 0)
-	right, bottom := min(box.x+box.width, int32(canvas.Width)), min(box.y+box.height, int32(canvas.Height))
-	return pixelBox{x: left, y: top, width: max(right-left, 0), height: max(bottom-top, 0)}
+func clampBox(box windowframe.Box, canvas *raster.Canvas) windowframe.Box {
+	left, top := max(box.X, 0), max(box.Y, 0)
+	right, bottom := min(box.X+box.Width, int32(canvas.Width)), min(box.Y+box.Height, int32(canvas.Height))
+	return windowframe.Box{X: left, Y: top, Width: max(right-left, 0), Height: max(bottom-top, 0)}
 }
 
 func intersectDamage(a, b render.Scissor) render.Scissor {

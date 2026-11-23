@@ -1,3 +1,5 @@
+//go:build !ios
+
 package app
 
 import darwinplatform "github.com/vivaui/viva/internal/platform/darwin"

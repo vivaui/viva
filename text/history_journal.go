@@ -189,10 +189,7 @@ func (editor *Editor) historyChangePrimitive(change textChange, kind editKind) (
 	if editor.historyState() == nil {
 		return Edit{}, false
 	}
-	position := editor.offsets.offset
-	if editor.offsets.index != change.start {
-		position = editor.ByteOffset(change.start)
-	}
+	position := editor.runes.ByteOffset(change.start)
 	removed, inserted := historyRuneBytes(change.removed), historyRuneBytes(change.inserted)
 	return Edit{Start: position, Removed: removed, Inserted: inserted}, removed != 0 || inserted != 0
 }

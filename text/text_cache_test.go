@@ -51,7 +51,7 @@ func TestStringStaysTheTextAcrossEdits(t *testing.T) {
 			if random.IntN(3) == 0 {
 				continue // edits between two Strings still keep the cache right
 			}
-			if got, want := editor.String(), string(editor.runes); got != want {
+			if got, want := editor.String(), editor.runes.String(); got != want {
 				t.Fatalf("round %d step %d: String() = %q, the runes spell %q", round, step, got, want)
 			}
 		}

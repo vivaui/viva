@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !android
 
 package linux
 
@@ -9,7 +9,6 @@ import (
 	"slices"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
@@ -19,7 +18,8 @@ import (
 
 // BenchmarkX11WindowLiveResize is opt-in because it briefly opens a real window.
 // It includes the WM's configure round-trip, text preparation, swapchain rebuild,
-// and present; the extra metrics separate driver waits from application work.
+// and present; BenchmarkLiveResize in the vulkan package separates driver waits from
+// application work.
 func BenchmarkX11WindowLiveResize(b *testing.B) {
 	if os.Getenv("VIVA_LINUX_RESIZE_BENCH") == "" || os.Getenv("DISPLAY") == "" {
 		b.Skip("set VIVA_LINUX_RESIZE_BENCH=1 with an X11 display and Vulkan driver")
@@ -69,61 +69,10 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 			defer application.atspiClose()
 			state := control.(*nativeWindow).state
 			win := state.win
-			renderer, ok := state.renderer.(*vulkanRenderer)
-			if !ok {
+			if _, ok := state.renderer.(*vulkanWindow); !ok {
 				b.Skip("this machine has no Vulkan renderer")
 			}
-			var idleTime, createTime, destroyTime, submitTime, presentTime, acquireTime, fenceTime, dispatchTime time.Duration
-			var creates int
-			idle := renderer.api.deviceWaitIdle
-			renderer.api.deviceWaitIdle = func(device uintptr) int32 {
-				start := time.Now()
-				result := idle(device)
-				idleTime += time.Since(start)
-				return result
-			}
-			create := renderer.api.createSwapchain
-			renderer.api.createSwapchain = func(device uintptr, info *vkSwapchainCreateInfo, allocator unsafe.Pointer, swapchain *uintptr) int32 {
-				start := time.Now()
-				result := create(device, info, allocator, swapchain)
-				createTime += time.Since(start)
-				creates++
-				return result
-			}
-			destroy := renderer.api.destroySwapchain
-			renderer.api.destroySwapchain = func(device, swapchain uintptr, allocator unsafe.Pointer) {
-				start := time.Now()
-				destroy(device, swapchain, allocator)
-				destroyTime += time.Since(start)
-			}
-			submit := renderer.api.queueSubmit
-			renderer.api.queueSubmit = func(queue uintptr, count uint32, info *vkSubmitInfo, fence uintptr) int32 {
-				start := time.Now()
-				result := submit(queue, count, info, fence)
-				submitTime += time.Since(start)
-				return result
-			}
-			present := renderer.api.queuePresent
-			renderer.api.queuePresent = func(queue uintptr, info *vkPresentInfo) int32 {
-				start := time.Now()
-				result := present(queue, info)
-				presentTime += time.Since(start)
-				return result
-			}
-			acquire := renderer.api.acquireNextImage
-			renderer.api.acquireNextImage = func(device, swapchain uintptr, timeout uint64, semaphore, fence uintptr, image *uint32) int32 {
-				start := time.Now()
-				result := acquire(device, swapchain, timeout, semaphore, fence, image)
-				acquireTime += time.Since(start)
-				return result
-			}
-			wait := renderer.api.waitForFences
-			renderer.api.waitForFences = func(device uintptr, count uint32, fences *uintptr, all uint32, timeout uint64) int32 {
-				start := time.Now()
-				result := wait(device, count, fences, all, timeout)
-				fenceTime += time.Since(start)
-				return result
-			}
+			var dispatchTime time.Duration
 			resize := func(width, height uint32) {
 				b.Helper()
 				size := [2]uint32{width, height}
@@ -149,8 +98,7 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 				}
 			}
 			resize(641, 481)
-			idleTime, createTime, presentTime, acquireTime, fenceTime, dispatchTime, creates = 0, 0, 0, 0, 0, 0, 0
-			destroyTime, submitTime = 0, 0
+			dispatchTime = 0
 			samples := make([]time.Duration, b.N)
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -163,10 +111,7 @@ func BenchmarkX11WindowLiveResize(b *testing.B) {
 			slices.Sort(samples)
 			b.ReportMetric(float64(samples[(len(samples)*95-1)/100].Nanoseconds()), "p95-ns/op")
 			b.ReportMetric(float64(samples[len(samples)-1].Nanoseconds()), "max-ns/op")
-			for name, duration := range map[string]time.Duration{"idle": idleTime, "create": createTime, "destroy": destroyTime, "submit": submitTime, "present": presentTime, "acquire": acquireTime, "fence": fenceTime, "dispatch": dispatchTime} {
-				b.ReportMetric(float64(duration.Nanoseconds())/float64(b.N), name+"-ns/op")
-			}
-			b.ReportMetric(float64(creates)/float64(b.N), "swapchains/op")
+			b.ReportMetric(float64(dispatchTime.Nanoseconds())/float64(b.N), "dispatch-ns/op")
 		})
 	}
 }

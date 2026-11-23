@@ -1,4 +1,4 @@
-//go:build linux && !vivagtk
+//go:build linux && !vivagtk && !android
 
 package app
 

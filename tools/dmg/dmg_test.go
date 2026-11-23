@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -125,12 +126,32 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	run := runHdiutil
+	t.Cleanup(func() { runHdiutil = run })
+	runHdiutil = func(arguments ...string) ([]byte, error) {
+		if source := slices.Index(arguments, "-srcfolder"); arguments[0] == "create" && source >= 0 {
+			entries, err := os.ReadDir(arguments[source+1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, entry := range entries {
+				name := entry.Name()
+				if strings.EqualFold(filepath.Ext(name), ".app") || strings.EqualFold(name, "Applications") {
+					t.Fatalf("hdiutil create would expose %q in the root of its temporary volume", name)
+				}
+			}
+		}
+		return run(arguments...)
+	}
 	image := filepath.Join(t.TempDir(), "sample.dmg")
 	if err := Build(Options{Bundle: bundle, Volume: "Sample", Image: image, Layout: layout}); err != nil {
 		t.Fatal(err)
 	}
 	mount := t.TempDir()
-	out, err := exec.Command("hdiutil", "attach", "-plist", "-nobrowse", "-readonly", "-mountpoint", mount, image).CombinedOutput()
+	// -noautoopen keeps the Finder from opening this read-only mount: -nobrowse
+	// hides it from the sidebar but does not stop the automatic open that offers
+	// to install the application.
+	out, err := exec.Command("hdiutil", "attach", "-plist", "-nobrowse", "-noautoopen", "-readonly", "-mountpoint", mount, image).CombinedOutput()
 	if err != nil {
 		t.Fatalf("attach: %v\n%s", err, out)
 	}
@@ -139,13 +160,19 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 		_ = hdiutil("detach", "-force", mount)
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = detach(mount, device) })
+	t.Cleanup(func() { _ = detach(device) })
 	if mounted, err := volumeMounted(mount); err != nil || !mounted {
 		t.Fatalf("attached image is not mounted: %v", err)
 	}
 
 	if target, err := os.Readlink(filepath.Join(mount, "Applications")); err != nil || target != "/Applications" {
 		t.Fatalf("Applications link = %q, %v", target, err)
+	}
+	if _, err := os.Stat(filepath.Join(mount, "Sample.app", "Contents", "Info.plist")); err != nil {
+		t.Fatalf("the bundle is not in the image root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mount, stagedBundle)); !os.IsNotExist(err) {
+		t.Fatalf("the final image still holds the staging bundle: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(mount, backgroundFile)); err != nil {
 		t.Fatalf("the background picture is not in the image: %v", err)
@@ -168,7 +195,7 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 			t.Errorf(".DS_Store has no position for %s", name)
 		}
 	}
-	if err := detach(mount, device); err != nil {
+	if err := detach(device); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -181,7 +208,7 @@ func TestDetachAcceptsAnAlreadyUnmountedImage(t *testing.T) {
 	if err := os.Mkdir(mount, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := detach(mount, "/dev/disk-not-attached"); err != nil {
+	if err := detach("/dev/disk-not-attached"); err != nil {
 		t.Fatal(err)
 	}
 }

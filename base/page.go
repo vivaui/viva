@@ -121,6 +121,11 @@ func (c *Ctx) Theme() *Theme { return &c.f.Palette }
 // Bounds is the rectangle the page is laid out in, as the window gave it.
 func (c *Ctx) Bounds() Rect { return c.f.Bounds() }
 
+// TitlebarInsets is how much of the titlebar strip the window buttons cover, at
+// its leading and trailing ends: zero for a system titlebar and in full screen.
+// A page that draws a WindowCustomTitlebar keeps its strip's content clear of it.
+func (c *Ctx) TitlebarInsets() (leading, trailing float32) { return c.f.Surface.TitlebarInsets() }
+
 // Canvas is the page's canvas, for measuring text or components before declaring
 // them and for reading pointer/focus state. Declare elements through C and paint
 // through Draw; do not paint from here.
@@ -303,10 +308,15 @@ type Page struct {
 	memoBoxes   []memoBox
 	memoChecks  []memoCheckOf
 	recording   []*memoEntry // the Memos being declared, outermost first
-	retry       bool         // a Memo's copy failed: the paint is done again
-	overlay     bool         // the last paint declared an open Popover, Modal, Menu or Select
-	lists       []listDecl
-	listRows    []int32 // the row containers of this paint's Lists
+	retry       bool         // a Memo's copy failed, or a container query was answered wrong: the paint is done again
+	// containers are this paint's Containers, answers the container queries
+	// asked of them, and containerWidths the Containers' widths at the last
+	// layout, which the queries read (responsive.go).
+	containers, containerWidths []containerWidth
+	answers                     []containerAnswer
+	overlay                     bool // the last paint declared an open Popover, Modal, Menu or Select
+	lists                       []listDecl
+	listRows                    []int32 // the row containers of this paint's Lists
 
 	baseText     window.TextInputProvider
 	baseScroll   func(gfx.ScrollEvent) gfx.EventResult
@@ -747,6 +757,20 @@ func (p *Page) Paint(Surface *gfx.Canvas, Size Size) {
 // out at the slot's rectangle; a page given no Tree names its controls in the
 // canvas's. A host that draws a page this way routes its input with Key,
 // Pointer, Wheel and TextInput; Config does that for a whole window.
+//
+// Clicks are the part of that routing a host completes itself when it paints and
+// presents the canvas on its own. Clicked(id) is true only in an event pass,
+// which the painter opens around one paint for it (see Canvas.BeginEventPass). A
+// page drawn inside another canvas's paint — Config's painter, or an embedded
+// canvas such as Slot.Draw's — already runs in that pass and needs nothing more.
+// A host that owns the paint loop delivers a click as the painter does: the
+// target taken from Canvas.Hits when the pointer went down, reported at the
+// release only while the pointer is still over it and the press was not
+// consumed. Paint once between Canvas.BeginEventPass and Canvas.EndEventPass,
+// call Canvas.RunAfterPaint, then ask for another paint: the event pass's own
+// output is discarded, as the painter discards it, so the frame the user sees is
+// the one after the change. Canvas.DeliverPointer runs that same sequence for a
+// pointer pass.
 func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	if tree := Surface.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
@@ -823,6 +847,9 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.Nodes = append(p.Nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	View(&p.ctx)
 	f.End()
+	if p.settleContainers() {
+		p.retry = true
+	}
 	if s := p.drag; s != nil && s.epoch != p.epoch {
 		s.Cancel()
 	}

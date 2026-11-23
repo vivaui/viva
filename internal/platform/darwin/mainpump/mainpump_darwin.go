@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && !ios
 
 // Package mainpump lets a test binary serve the main dispatch queue.
 //

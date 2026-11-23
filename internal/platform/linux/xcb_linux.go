@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -290,6 +292,10 @@ type pollFD struct {
 type xcbAPI struct {
 	library uintptr
 	libc    uintptr
+	// atoms, when set, keeps the atoms atom resolved: an atom names the same
+	// thing for as long as the X server runs, so a connection that resolves the
+	// same names again and again (the selection client) asks once.
+	atoms map[string]uint32
 
 	connect                   func(*byte, *int32) uintptr
 	disconnect                func(uintptr)
@@ -351,12 +357,18 @@ type xcbAPI struct {
 	free                      func(unsafe.Pointer)
 }
 
-// loadXCB is the process's libxcb and libc function table: loaded the first
-// time a window, the clipboard or a desktop setting needs it and kept for the
-// life of the process, as the Pango services are. A failure is kept too.
+// loadXCB gives a copy of the process's libxcb and libc function table: the
+// libraries are opened and bound the first time a window, the clipboard or a
+// desktop setting needs them and kept for the life of the process, as the Pango
+// services are; a failure is kept too. Each caller owns its copy, so one window's
+// table can be wrapped (as tests do) without reaching another's.
 func loadXCB() (*xcbAPI, error) {
 	xcbOnce.Do(func() { xcbShared, xcbErr = openXCB() })
-	return xcbShared, xcbErr
+	if xcbErr != nil {
+		return nil, xcbErr
+	}
+	api := *xcbShared
+	return &api, nil
 }
 
 var (
@@ -438,6 +450,9 @@ func openXCB() (*xcbAPI, error) {
 }
 
 func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
+	if atom, ok := api.atoms[name]; ok {
+		return atom, nil
+	}
 	value := append([]byte(name), 0)
 	cookie := api.internAtom(connection, 0, uint16(len(value)-1), &value[0])
 	var nativeError unsafe.Pointer
@@ -453,5 +468,8 @@ func (api *xcbAPI) atom(connection uintptr, name string) (uint32, error) {
 		return 0, fmt.Errorf("linux: resolve X atom %q", name)
 	}
 	defer api.free(unsafe.Pointer(reply))
+	if api.atoms != nil {
+		api.atoms[name] = reply.Atom
+	}
 	return reply.Atom, nil
 }

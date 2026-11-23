@@ -6,6 +6,7 @@ import (
 	"syscall/js"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/lineengine"
 )
 
 // NewTextEngine returns the browser's shaped-line engine over the page's
@@ -15,5 +16,5 @@ func NewTextEngine() gfx.TextEngine {
 	if document.Type() != js.TypeObject || document.IsNull() {
 		return nil
 	}
-	return newLineEngine(newDOMMeasurer(document))
+	return lineengine.New(newDOMMeasurer(document))
 }

@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -12,7 +14,6 @@ import (
 	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
-	"github.com/vivaui/viva/internal/scene"
 	"github.com/vivaui/viva/text"
 )
 
@@ -211,66 +212,6 @@ func TestEventRouterSkipsUnknownKeysAndPropagatesErrors(t *testing.T) {
 	}
 	if called {
 		t.Fatal("unknown key reached handler or presenter")
-	}
-}
-
-func TestRendererApplyReRecordsOnlyChangedFrames(t *testing.T) {
-	waits, resets, begins, ends := 0, 0, 0, 0
-	storage := make([]byte, 64*vkInstanceBytes)
-	renderer := vulkanRenderer{
-		api: &vulkanAPI{
-			waitForFences: func(uintptr, uint32, *uintptr, uint32, uint64) int32 {
-				waits++
-				return vkSuccess
-			},
-			resetCommandPool: func(uintptr, uintptr, uint32) int32 {
-				resets++
-				return vkSuccess
-			},
-			beginCommandBuffer: func(uintptr, *vkCommandBufferBeginInfo) int32 {
-				begins++
-				return vkSuccess
-			},
-			cmdBeginRenderPass:   func(uintptr, *vkRenderPassBeginInfo, uint32) {},
-			cmdClearAttachments:  func(uintptr, uint32, *vkClearAttachment, uint32, *vkClearRect) {},
-			cmdBindPipeline:      func(uintptr, uint32, uintptr) {},
-			cmdSetViewport:       func(uintptr, uint32, uint32, *vkViewport) {},
-			cmdSetScissor:        func(uintptr, uint32, uint32, *vkRect2D) {},
-			cmdPushConstants:     func(uintptr, uintptr, uint32, uint32, uint32, unsafe.Pointer) {},
-			cmdBindVertexBuffers: func(uintptr, uint32, uint32, *uintptr, *uint64) {},
-			cmdDraw:              func(uintptr, uint32, uint32, uint32, uint32) {},
-			cmdEndRenderPass:     func(uintptr) {},
-			endCommandBuffer: func(uintptr) int32 {
-				ends++
-				return vkSuccess
-			},
-		},
-		device:       1,
-		commandPool:  2,
-		fence:        3,
-		width:        100,
-		height:       80,
-		commands:     []uintptr{4, 5},
-		framebuffers: []uintptr{6, 7},
-		scene:        vulkanScene{capacity: 64, mapped: unsafe.Pointer(&storage[0])},
-	}
-	if changed, err := renderer.apply(platform.Frame{}); err != nil || changed {
-		t.Fatalf("empty apply changed=%v err=%v", changed, err)
-	}
-	if waits != 0 || resets != 0 {
-		t.Fatalf("empty apply waited=%d reset=%d", waits, resets)
-	}
-	rectangles := []render.Rectangle{{Bounds: scene.Rect{Width: 10, Height: 10}, Color: scene.Color{Alpha: 1}}}
-	changed, err := renderer.apply(platform.Frame{Update: render.Update{Rebuild: true, Count: 1}, Rectangles: rectangles})
-	if err != nil || !changed {
-		t.Fatalf("changed apply changed=%v err=%v", changed, err)
-	}
-	if waits != 1 || resets != 1 || begins != 2 || ends != 2 {
-		t.Fatalf("command lifecycle waits=%d resets=%d begins=%d ends=%d", waits, resets, begins, ends)
-	}
-	rectangles[0].Bounds.Width = 99
-	if renderer.rectangles[0].Bounds.Width != 10 {
-		t.Fatal("renderer retained caller-owned rectangle storage")
 	}
 }
 
@@ -703,6 +644,7 @@ func TestX11FocusInForgetsHeldKeys(t *testing.T) {
 	state := &linuxWindowState{
 		win:         &window{},
 		application: &linuxApplication{},
+		text:        &linuxTextInput{},
 		router:      eventRouter{modifierKeys: tracker},
 	}
 	previous := activeWindow.Load()
@@ -926,9 +868,11 @@ func TestX11FocusOutSynthesizesReleasesForTerminal(t *testing.T) {
 	tracker.press(10, keysymShiftL, input.KeyShiftLeft)
 
 	keymap := xcbKeymap{first: 9, last: 10, perKeycode: 2, keysyms: []uint32{'a', 'A', keysymShiftL, 0}}
+	terminalInput := &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}}
 	state := &linuxWindowState{
 		win:         &window{keymap: keymap},
 		application: &linuxApplication{},
+		text:        terminalInput,
 		router: eventRouter{
 			config: platform.Config{
 				OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
@@ -936,7 +880,7 @@ func TestX11FocusOutSynthesizesReleasesForTerminal(t *testing.T) {
 					return platform.Frame{}, nil
 				},
 			},
-			text:         &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}},
+			text:         terminalInput,
 			present:      func(platform.Frame) error { return nil },
 			modifierKeys: tracker,
 		},

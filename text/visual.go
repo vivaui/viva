@@ -15,7 +15,7 @@ func (editor *Editor) stepLeft(caret int) int {
 	if next, ok := editor.visualStep(caret, -1); ok {
 		return next
 	}
-	return previousBoundary(editor.runes, caret)
+	return editor.runes.Prev(caret)
 }
 
 // stepRight is stepLeft to the right.
@@ -23,7 +23,7 @@ func (editor *Editor) stepRight(caret int) int {
 	if next, ok := editor.visualStep(caret, 1); ok {
 		return next
 	}
-	return nextBoundary(editor.runes, caret)
+	return editor.runes.Next(caret)
 }
 
 // visualStep moves the caret to the nearest place to its left or right on the screen in a
@@ -34,18 +34,12 @@ func (editor *Editor) stepRight(caret int) int {
 // to the boundary with the next place along the screen; boundaries drawn at the same place
 // are one stop.
 func (editor *Editor) visualStep(caret, direction int) (int, bool) {
-	lineStart, lineEnd := caret, caret
-	for lineStart > 0 && editor.runes[lineStart-1] != '\n' {
-		lineStart--
-	}
-	for lineEnd < len(editor.runes) && editor.runes[lineEnd] != '\n' {
-		lineEnd++
-	}
-	lineRunes := editor.runes[lineStart:lineEnd]
-	if !bidi.NeedsBidiRunes(lineRunes) {
+	lineStart, lineEnd := editor.runes.LineStart(caret), editor.runes.LineEnd(caret)
+	lineOffset := editor.runes.ByteOffset(lineStart)
+	line := editor.String()[lineOffset:editor.runes.ByteOffset(lineEnd)]
+	if !bidi.NeedsBidi(line) {
 		return 0, false
 	}
-	line := string(lineRunes)
 	resolver := &editor.visualResolve
 	paragraph := resolver.Resolve(line, bidi.Auto)
 	runs := resolver.LineRuns(paragraph, 0, len(line), nil)
@@ -124,10 +118,7 @@ func (editor *Editor) visualStep(caret, direction int) (int, bool) {
 		}
 		return leading(k)
 	}
-	byteOffset := 0
-	for _, r := range editor.runes[lineStart:caret] {
-		byteOffset += utf8.RuneLen(r)
-	}
+	byteOffset := editor.runes.ByteOffset(caret) - lineOffset
 	current := index(byteOffset)
 	if current > n || starts[current] != byteOffset {
 		return 0, false

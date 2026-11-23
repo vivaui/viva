@@ -63,31 +63,11 @@ func (editor *Editor) EditsSince(cursor uint64, dst []Edit) ([]Edit, uint64, boo
 }
 
 func (editor *Editor) prepareEdit(start, end int, replacement []rune) Edit {
-	if editor.journal == nil || !editor.journal.tracking && editor.historyState() == nil {
+	if editor.journal == nil || !editor.journal.tracking {
 		return Edit{}
 	}
-	at, offset := editor.offsets.index, editor.offsets.offset
-	if start < at && start <= at-start {
-		at, offset = 0, 0
-	} else if start >= at && editor.textValid && len(editor.runes)-start < start-at {
-		at, offset = len(editor.runes), len(editor.text)
-	}
-	for at < start {
-		offset += runeBytes(editor.runes[at])
-		at++
-	}
-	for at > start {
-		at--
-		offset -= runeBytes(editor.runes[at])
-	}
-	editor.offsets = offsetMemo{index: start, offset: offset}
-	if !editor.journal.tracking {
-		return Edit{}
-	}
-	edit := Edit{Start: offset}
-	for _, character := range editor.runes[start:end] {
-		edit.Removed += runeBytes(character)
-	}
+	offset := editor.runes.ByteOffset(start)
+	edit := Edit{Start: offset, Removed: editor.runes.ByteOffset(end) - offset}
 	for _, character := range replacement {
 		edit.Inserted += runeBytes(character)
 	}
@@ -124,7 +104,7 @@ func (editor *Editor) recordBatchEdits(primitives []Edit, contexts []lineContext
 	start := journal.revision
 	lines := journal.lines
 	if lines != nil {
-		lines.position, lines.line, lines.delivery = 0, 0, nil
+		lines.delivery = nil
 	}
 	if inverse {
 		for index := len(primitives) - 1; index >= 0; index-- {

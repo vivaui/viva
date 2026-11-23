@@ -11,6 +11,20 @@ import (
 // package base's names, the behavior layer's vocabulary; ui re-exports them as
 // the permanent application facade.
 type Color = base.Color
+
+// Breakpoint is where a responsive change begins (Box.From, C.AtLeast): a window
+// size class, or Width(n) for the nearest Container.
+type Breakpoint = base.Breakpoint
+
+// The window size classes, by the page's width in logical pixels.
+const (
+	Compact    = base.Compact    // from 0: phones held upright
+	Medium     = base.Medium     // from 600: phones on their side, tablets held upright, narrow windows
+	Expanded   = base.Expanded   // from 840: tablets on their side, most desktop windows
+	Large      = base.Large      // from 1200: large desktop windows
+	ExtraLarge = base.ExtraLarge // from 1600: wide screens
+)
+
 type Rect = base.Rect
 type Size = base.Size
 type Point = base.Point

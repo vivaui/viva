@@ -6,6 +6,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // Display scale on X11.
@@ -49,7 +51,7 @@ const (
 
 const (
 	minScale  = 1.0
-	maxScale  = 8.0
+	maxScale  = platform.MaxDisplayScale
 	scaleStep = 0.25
 	baseDPI   = 96.0
 )

@@ -1,3 +1,5 @@
+//go:build !ios
+
 #include "file_icon_darwin.h"
 
 #import <AppKit/AppKit.h>

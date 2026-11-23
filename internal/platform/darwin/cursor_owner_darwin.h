@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_CURSOR_OWNER_DARWIN_H
 #define VIVA_CURSOR_OWNER_DARWIN_H
 

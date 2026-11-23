@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <Cocoa/Cocoa.h>
 
 #include "menu_bar_darwin.h"

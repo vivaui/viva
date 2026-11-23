@@ -107,6 +107,8 @@ func Column(c C) Box { return base.Column(c) }
 
 func Stack(c C) Box { return base.Stack(c) }
 
+func SafeArea(c C) Box { return base.SafeArea(c) }
+
 func Divider(c C) Box { return base.Divider(c) }
 
 func Spacer(c C) Box { return base.Spacer(c) }
@@ -116,6 +118,13 @@ func Slot(c C) Box { return base.Slot(c) }
 func Flow(c C) Box { return base.Flow(c) }
 
 func Grid(c C, minCell float32) Box { return base.Grid(c, minCell) }
+
+// Container is a Column that Width breakpoints inside it measure; its width
+// comes from where it is placed, never from what it holds.
+func Container(c C) Box { return base.Container(c) }
+
+// Width is the breakpoint at which the nearest Container is n logical pixels wide.
+func Width(n float32) Breakpoint { return base.Width(n) }
 
 func CustomLayout(c C, layout Layout) Box { return base.CustomLayout(c, layout) }
 

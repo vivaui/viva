@@ -198,6 +198,8 @@ type Extra struct {
 	edges         [4]float32       // an absolute element's distance from its container's top, right, bottom, left
 	within        Rect             // what a Popup is kept inside, when not the frame; empty for the frame
 	moves         bool             // the element's rectangle moves a custom-titlebar window (MovesWindow)
+	contained     bool             // a Container: its width does not come from its children (responsive.go)
+	hidden        bool             // Hide: the element and what it holds are taken out of the page (hidden.go)
 	scrollManual  bool             // ScrollAt: the application owns the offset and wheel input
 	nativeView    gfx.NativeViewID // the native view that fills the element (NativeView)
 	bind          int32            // 1 + the index of the element's binding in frame.binds, or 0 (see bind.go)
@@ -246,6 +248,7 @@ type Frame struct {
 	Images                          []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts                            []Extra            // exts[0] is never written: an element without extras points at it
 	Floats                          []int32            // the Popups, which belong to no container
+	hidden                          []int32            // the elements Hide was called on, taken out of the page at End
 	States                          []stateLooks       // what Hover, Pressed and Focus declared, by element
 	Draws                           []drawHooks        // what Draw and DrawOver declared, by element
 	memoDepth                       int                // how many Memos of a page are recording what is declared now
@@ -341,6 +344,7 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
+	f.hidden = f.hidden[:0]
 	f.States, f.Gradients, f.Stops = f.States[:0], f.Gradients[:0], f.Stops[:0]
 	clear(f.Draws) // a callback holds what it captured: not past the frame it was declared in
 	f.Draws = f.Draws[:0]
@@ -377,6 +381,7 @@ func (f *Frame) End() {
 	f.done = true
 	f.checkHits()
 	f.checkAttributes()
+	f.detachHidden()
 	f.applyRecipes()
 	f.resolveTables()
 	f.resolveDialogFocus()
@@ -458,6 +463,7 @@ func (f *Frame) trim() {
 	f.Draws = trimFlexCapacity(f.Draws)
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
+	f.hidden = trimFlexCapacity(f.hidden)
 	f.Lines = trimFlexCapacity(f.Lines)
 	f.Ellipses = trimFlexCapacity(f.Ellipses)
 	f.Wraps = trimFlexCapacity(f.Wraps)

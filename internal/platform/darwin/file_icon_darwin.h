@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_FILE_ICON_DARWIN_H
 #define VIVA_FILE_ICON_DARWIN_H
 

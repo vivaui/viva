@@ -1196,6 +1196,28 @@ func TestDriverShowsAHitsCursorImageAndRestoresTheArrow(t *testing.T) {
 	}
 }
 
+// A target with no pointer to shape, a phone, goes on when a control asks for a pointer
+// shape: holding a text field used to end the window there.
+func TestAnUnsupportedCursorDoesNotEndTheWindow(t *testing.T) {
+	config := Config{Title: "no pointer", Width: 100, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 100}, "field", gfx.HitOptions{Cursor: gfx.PointerCursorText})
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	asked := 0
+	driver.painter.setCursor = func(Cursor) error { asked++; return fmt.Errorf("no pointer: %w", ErrUnsupported) }
+	if err := driver.Move(10, 10); err != nil {
+		t.Fatalf("an unsupported pointer shape failed the move: %v", err)
+	}
+	if err := driver.Move(11, 10); err != nil || asked != 1 {
+		t.Fatalf("the shape was asked for %d times (%v), want once", asked, err)
+	}
+}
+
 // A target that cannot draw application pointers keeps the arrow instead of failing the pointer.
 func TestAnUnsupportedCursorImageFallsBackToTheArrow(t *testing.T) {
 	image, err := gfx.NewCursorImage(1, 1, 0, 0, 1, make([]byte, 4))

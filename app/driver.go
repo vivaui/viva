@@ -65,6 +65,8 @@ type Driver struct {
 	// modifierKeys is the modifier keys KeyDown holds, one bit per
 	// gfx.KeyShiftLeft..ui.KeyMetaRight.
 	modifierKeys uint8
+	// A menu press may close the menu. Its repeats and release still belong to it.
+	menuKeys map[uint32]bool
 
 	clipboard      string
 	notifications  []Notification
@@ -291,6 +293,25 @@ func (driver *Driver) Resize(width, height int) error {
 	return err
 }
 
+// Lifecycle tells the application the system did something to it, as a phone does when it
+// moves the application to the background or asks it for memory.
+func (driver *Driver) Lifecycle(event LifecycleEvent) {
+	if driver.config.OnLifecycle != nil {
+		driver.config.OnLifecycle(event)
+	}
+}
+
+// SetSafeArea says the system covers the window's edges by insets, as a phone's status bar,
+// sensor housing and home indicator do, and lets the page lay out again inside what is left.
+func (driver *Driver) SetSafeArea(insets gfx.Insets) error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	size := driver.painter.size
+	_, err := driver.painter.resize(platform.Size{Width: size.Width, Height: size.Height, Scale: driver.painter.scale, SafeArea: insets})
+	return err
+}
+
 func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, button gfx.PointerButton, clicks int) error {
 	if err := driver.Pump(); err != nil {
 		return err
@@ -418,6 +439,37 @@ func (driver *Driver) Leave() error {
 // the application's press ends here.
 func (driver *Driver) Cancel() error {
 	return driver.pointer(platform.PointerCancel, 0, 0, gfx.PointerButtonNone, 0)
+}
+
+// TouchDown puts finger id on the screen at a point, TouchMove moves it and
+// TouchUp lifts it: the touches a phone or a touch screen reports. The runtime
+// reads them as it reads a finger in a window: a press waits for its tap
+// timeout, a finger that moves pans and flings, and one held still is a
+// secondary press. Advance moves the time a finger is held.
+func (driver *Driver) TouchDown(id int32, x, y float32) error {
+	return driver.touch(platform.PointerDown, id, x, y)
+}
+
+// TouchMove moves finger id to a point.
+func (driver *Driver) TouchMove(id int32, x, y float32) error {
+	return driver.touch(platform.PointerMove, id, x, y)
+}
+
+// TouchUp lifts finger id at a point.
+func (driver *Driver) TouchUp(id int32, x, y float32) error {
+	return driver.touch(platform.PointerUp, id, x, y)
+}
+
+func (driver *Driver) touch(kind platform.PointerEventKind, id int32, x, y float32) error {
+	if err := driver.Pump(); err != nil {
+		return err
+	}
+	origin := driver.origin
+	_, err := driver.painter.pointerEvent(platform.PointerEvent{
+		Kind: kind, Button: gfx.PointerButtonPrimary, Modifiers: driver.heldModifiers(), X: x, Y: y,
+		ScreenX: origin.X + x, ScreenY: origin.Y + y, Device: gfx.PointerTouch, PointerID: id,
+	})
+	return err
 }
 
 // Press presses a pointer button at a point (moving there first) as a lone
@@ -552,6 +604,16 @@ func driverTyped(key gfx.Key, character string, modifiers gfx.Modifiers) string 
 	return character
 }
 
+func (driver *Driver) menuKey(key gfx.Key, character string, modifiers gfx.Modifiers) error {
+	event := platform.KeyEvent{Key: key, Modifiers: modifiers, Text: strings.ToLower(character)}
+	if key == gfx.KeyUnknown {
+		_, _, err := driver.painter.shortcut(event)
+		return err
+	}
+	_, err := driver.painter.key(event)
+	return err
+}
+
 // KeyDown presses a key and keeps it down until KeyUp, as a person holding it
 // would. Modifier keys (gfx.KeyShiftLeft and the like) stay held for every pointer,
 // scroll and key the driver delivers meanwhile, so Shift-click and Ctrl-click
@@ -567,6 +629,17 @@ func (driver *Driver) KeyDown(key gfx.Key, character string) error {
 		driver.modifierKeys |= 1 << (key - gfx.KeyShiftLeft)
 	}
 	modifiers := driver.heldModifiers()
+	code := driverKeyCode(key, character)
+	if driver.menuKeys[code] {
+		return nil
+	}
+	if driver.painter.menuCapturesKeys() && !key.IsModifier() {
+		if driver.menuKeys == nil {
+			driver.menuKeys = make(map[uint32]bool)
+		}
+		driver.menuKeys[code] = true
+		return driver.menuKey(key, character, modifiers)
+	}
 	if !driver.HoldsKeys() {
 		switch {
 		case key.IsModifier():
@@ -618,6 +691,11 @@ func (driver *Driver) KeyUp(key gfx.Key, character string) error {
 	if key.IsModifier() {
 		driver.modifierKeys &^= 1 << (key - gfx.KeyShiftLeft)
 	}
+	code := driverKeyCode(key, character)
+	if driver.menuKeys[code] {
+		delete(driver.menuKeys, code)
+		return nil
+	}
 	if !driver.HoldsKeys() && !(key.IsModifier() && driver.painter.onModifierTap != nil) {
 		return nil
 	}
@@ -649,6 +727,7 @@ func (driver *Driver) LoseFocus() error {
 		return err
 	}
 	driver.modifierKeys = 0
+	clear(driver.menuKeys)
 	_, err := driver.painter.focusLost()
 	return err
 }
@@ -667,6 +746,9 @@ func (driver *Driver) Key(key gfx.Key, modifiers gfx.Modifiers) error {
 		return err
 	}
 	modifiers |= driver.heldModifiers()
+	if driver.painter.menuCapturesKeys() {
+		return driver.menuKey(key, "", modifiers)
+	}
 	if key == gfx.KeySpace && driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: " "})
 		if err != nil || handled {
@@ -761,6 +843,9 @@ func (driver *Driver) terminalKey(key gfx.Key, modifiers gfx.Modifiers, text str
 func (driver *Driver) Chord(modifiers gfx.Modifiers, character string) error {
 	if err := driver.Pump(); err != nil {
 		return err
+	}
+	if driver.painter.menuCapturesKeys() {
+		return driver.menuKey(gfx.KeyUnknown, character, modifiers)
 	}
 	if driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: strings.ToLower(character)})
@@ -895,6 +980,9 @@ func (driver *Driver) ShortcutChord(modifiers gfx.Modifiers, character rune) (bo
 		return false, err
 	}
 	shortcut := shortcutText(character)
+	if driver.painter.menuCapturesKeys() {
+		return true, driver.menuKey(gfx.KeyUnknown, shortcut, modifiers)
+	}
 	if driver.editing() && !driver.terminal() {
 		event := platform.KeyEvent{Modifiers: input.Modifiers(modifiers), Text: shortcut}
 		if command, ok := platform.TextEditingCommand(event); ok {

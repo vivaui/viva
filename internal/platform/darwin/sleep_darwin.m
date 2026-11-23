@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <Foundation/Foundation.h>
 #import <IOKit/pwr_mgt/IOPMLib.h>
 

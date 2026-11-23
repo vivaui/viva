@@ -1,4 +1,4 @@
-//go:build !darwin && !windows && !linux && !(js && wasm)
+//go:build (!darwin || ios) && !windows && !linux && !(js && wasm)
 
 package proxy
 

@@ -550,6 +550,17 @@ void viva_text_line_release(viva_text_line *line);
 // caret there, and viva_text_line_index_at the cluster boundary nearest x.
 double viva_text_line_caret(const viva_text_line *line, size_t offset);
 size_t viva_text_line_index_at(const viva_text_line *line, double x);
+typedef struct {
+    size_t index;
+    double x;
+} viva_text_hit;
+viva_text_hit viva_text_line_hit_at(const viva_text_line *line, double x);
+typedef struct {
+    size_t index;
+    double leading, trailing;
+} viva_fitted_mono_caret;
+int viva_fitted_mono_carets(const unsigned char *bytes, size_t length, double size, double weight,
+                          int face, double span, viva_fitted_mono_caret *carets, size_t count);
 // viva_text_line_selection writes the extents of [start, end) as (x, width) pairs, left
 // to right, and returns how many it wrote (at most capacity): one, or several where the
 // selection crosses a change of direction.
