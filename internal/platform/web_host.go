@@ -45,6 +45,8 @@ type WebHost struct {
 
 // WebViewConfig describes a page to open.
 type WebViewConfig struct {
+	// UserAgentSuffix is appended to the system engine's user agent before navigation.
+	UserAgentSuffix string
 	// ID names the view in Frame.NativeViews; it is chosen by the opener and unique in the window.
 	ID uint32
 	// URL is loaded when the view opens, if HTML is empty.

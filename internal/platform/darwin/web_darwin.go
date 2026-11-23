@@ -116,11 +116,11 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 	if view == nil {
 		return nil, platform.ErrWebViewUnsupported
 	}
-	var url, html, base, scheme *C.char
+	var url, html, base, scheme, userAgentSuffix *C.char
 	for _, field := range []struct {
 		text string
 		out  **C.char
-	}{{config.URL, &url}, {config.HTML, &html}, {config.BaseURL, &base}} {
+	}{{config.URL, &url}, {config.HTML, &html}, {config.BaseURL, &base}, {config.UserAgentSuffix, &userAgentSuffix}} {
 		*field.out = C.CString(field.text)
 		defer C.free(unsafe.Pointer(*field.out))
 	}
@@ -149,7 +149,7 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 		defer C.free(unsafe.Pointer(partition))
 	}
 	var failure *C.char
-	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, partition, &failure)
+	native := C.viva_web_open(view, C.uint32_t(config.ID), C.uintptr_t(w.run.callbackHandle), url, html, base, script, mainFrameOnly, scheme, ephemeral, direct, userAgentSuffix, partition, &failure)
 	if native == nil {
 		message := "the page could not be created"
 		if failure != nil {

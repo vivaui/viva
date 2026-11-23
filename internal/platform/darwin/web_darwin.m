@@ -594,7 +594,7 @@ static int viva_web_named_store(WKWebViewConfiguration *configuration, const cha
 
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
                     const char *base, const char *script, int mainFrameOnly, const char *scheme, int ephemeral, int direct,
-                    const char *partition, char **error) {
+                    const char *user_agent_suffix, const char *partition, char **error) {
     __block VivaWebView *web = nil;
     viva_web_main(^{
         NSView *host = (NSView *)view;
@@ -605,6 +605,10 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
         bridge->_handle = handle;
         bridge->_id = id;
         WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
+        if (user_agent_suffix != NULL && user_agent_suffix[0] != 0) {
+            // Set the application product before creating the page or its first request.
+            configuration.applicationNameForUserAgent = [NSString stringWithUTF8String:user_agent_suffix];
+        }
         if (partition != NULL && partition[0] != 0) {
             // A named partition is a store of its own, which WebKit keeps under an identifier: pages
             // of one identifier share their cookies and storage, pages of another do not.
