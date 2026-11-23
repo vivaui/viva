@@ -10,6 +10,50 @@ import (
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
 
+func TestCodeEditorCoreTextVisibleSymbolsKeepRTLGeometry(t *testing.T) {
+	const line = "\u05d0 \t\u05d1"
+	f := newCodeFixture(line + "\n\n")
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionRTL
+	marker := gfx.RGB(33, 104, 171)
+	f.snapshot.InvisibleColor = marker
+	f.paint()
+	before, ok := f.editor.CaretBounds()
+	if !ok || before.X <= f.bounds.X+f.bounds.Width/2 {
+		t.Fatalf("expected a right-aligned RTL caret: %+v", before)
+	}
+	rowLabel := f.canvas.Texts()[0].Bounds
+	f.snapshot.ShowWhitespace, f.snapshot.ShowEOL = true, true
+	f.paint()
+	if caret, shown := f.editor.CaretBounds(); !shown || !near(caret.X, before.X) {
+		t.Fatalf("showing symbols moved the RTL caret from %+v to %+v", before, caret)
+	}
+	marks := f.fills(marker)
+	if len(marks) != 4 {
+		t.Fatalf("wanted one space dot and one tab arrow: %+v", marks)
+	}
+	for _, mark := range marks {
+		if mark.X <= rowLabel.X || mark.X+mark.Width >= rowLabel.X+rowLabel.Width {
+			t.Fatalf("whitespace mark painted outside the shaped run: %+v, row %+v", mark, rowLabel)
+		}
+	}
+	if marks[2].X >= marks[1].X+marks[1].Width/2 || marks[3].X != marks[2].X {
+		t.Fatalf("tab arrow does not point left: %+v", marks[1:])
+	}
+	var endings []gfx.Rect
+	for _, label := range f.canvas.Texts() {
+		if label.Value == "LF" {
+			endings = append(endings, label.Bounds)
+		}
+	}
+	if len(endings) != 2 || endings[0].X+endings[0].Width >= rowLabel.X || !near(endings[1].X+endings[1].Width, before.X-2) {
+		t.Fatalf("expected left-side LF markers for the text and empty rows: %+v", endings)
+	}
+	if caret, handled := f.editor.MoveHorizontal(f.snapshot.Value, 0, false); !handled || caret != 2 {
+		t.Fatalf("visible symbols changed visual Left: %d, %t", caret, handled)
+	}
+}
+
 func TestCodeEditorShapedHighlightSkipsClipsOutsideTheViewport(t *testing.T) {
 	const count = 120
 	const letter = "\u05d0"

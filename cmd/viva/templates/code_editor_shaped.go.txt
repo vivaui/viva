@@ -32,7 +32,7 @@ type codeShapedRow struct {
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
-	if !snapshot.ShapedBidi || snapshot.ShowWhitespace || snapshot.ShowEOL {
+	if !snapshot.ShapedBidi {
 		editor.shaping = nil
 		return
 	}
@@ -231,6 +231,45 @@ func (editor *CodeEditor) rememberShapedHit(row codeRow, hit gfx.TextHit) {
 	}
 }
 
+// CollapseHorizontal finds the requested visual edge of a selection contained
+// in one shaped row. False lets the caller use its usual multiline behavior.
+func (editor *CodeEditor) CollapseHorizontal(value string, start, end int, right bool) (int, bool) {
+	if editor.shaping == nil || !editor.painted || editor.text != value || len(editor.rows) == 0 || start < 0 || start >= end || end > len(value) {
+		return 0, false
+	}
+	index := editor.rowOf(start)
+	row := editor.rows[index]
+	if start < int(row.start) || end > int(row.end) {
+		return 0, false
+	}
+	carets := editor.shapedRow(row)
+	if len(carets) < 2 {
+		return 0, false
+	}
+	start, end = start-int(row.start), end-int(row.start)
+	var best gfx.TextHit
+	found := false
+	for i := 0; i+1 < len(carets) && carets[i].Offset < end; i++ {
+		from, to := carets[i], carets[i+1]
+		if to.Offset <= start || from.Leading == to.Trailing {
+			continue
+		}
+		x, offset := from.Leading, from.Offset
+		if right && to.Trailing > x || !right && to.Trailing < x {
+			x, offset = to.Trailing, to.Offset
+		}
+		if !found || right && x > best.X || !right && x < best.X {
+			best, found = gfx.TextHit{Offset: int(row.start) + offset, X: x}, true
+		}
+	}
+	if !found {
+		return 0, false
+	}
+	editor.arrive(best.Offset, best.Offset == int(row.end) && editor.softWrapped(index))
+	editor.rememberShapedHit(row, best)
+	return best.Offset, true
+}
+
 // MoveHorizontal returns the next visual byte offset on a shaped row, and
 // retains its edge for the next paint. Put the document caret at that offset;
 // the caller owns selection and edit history. False means the last paint has
@@ -404,6 +443,25 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 	value := paint.editor.shaping.rows[row.start].value
 	bounds := gfx.Rect{X: left, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: float32(row.cells) * paint.cellWidth, Height: paint.cellHeight}
 	paint.shapedText(row, value, bounds, carets)
+	if paint.showWhitespace {
+		for i, caret := range carets[:len(carets)-1] {
+			character := paint.value[start+caret.Offset]
+			if character == ' ' || character == '\t' {
+				paint.whitespaceMark(rune(character), y, left+caret.Leading, left+carets[i+1].Trailing)
+			}
+		}
+	}
+	if paint.showEOL && paint.endsWithLineBreak(index, end) {
+		direction := paint.editor.shaping.direction
+		if direction == gfx.DirectionAuto {
+			direction = gfx.TextDirectionOf(value)
+		}
+		edge := bounds.X + bounds.Width
+		if direction == gfx.DirectionRTL {
+			edge = bounds.X
+		}
+		paint.lineEnding(row, y, edge, direction == gfx.DirectionRTL)
+	}
 	if paint.showWrapSymbol && paint.editor.softWrapped(index) {
 		paint.wrapSymbol(y)
 	}

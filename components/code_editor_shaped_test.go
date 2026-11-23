@@ -142,6 +142,31 @@ func TestCodeEditorRetainsTheClickedShapedCaretEdge(t *testing.T) {
 	}
 }
 
+func TestCodeEditorCollapsesSelectionToTheVisualEdge(t *testing.T) {
+	const value = "a\u05d0\u05d1z"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionLTR
+	f.paint()
+	cell, _, _ := f.cell()
+	left := f.editor.content.X
+	for _, step := range []struct {
+		right  bool
+		offset int
+		column float32
+	}{{false, 3, 2}, {true, 1, 3}} {
+		at, ok := f.editor.CollapseHorizontal(value, 1, 3, step.right)
+		if !ok || at != step.offset {
+			t.Fatalf("right=%v collapsed to byte %d, %v; want %d", step.right, at, ok, step.offset)
+		}
+		f.snapshot.Caret = at
+		f.paint()
+		if caret, shown := f.editor.CaretBounds(); !shown || !near(caret.X, left+step.column*cell) {
+			t.Fatalf("right=%v collapsed caret = %+v; want column %g", step.right, caret, step.column)
+		}
+	}
+}
+
 func TestCodeEditorHorizontalMovementKeepsShapedAffinity(t *testing.T) {
 	const value = "a\u05d0\u05d1z"
 	f := newCodeFixture(value)
