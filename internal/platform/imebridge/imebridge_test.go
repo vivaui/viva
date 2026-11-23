@@ -208,3 +208,60 @@ func TestEnterAndTerminalKeysBelongToTheApplicationWhereTheyShould(t *testing.T)
 		t.Error("Up was taken: moving between rows is the application's")
 	}
 }
+
+func TestSelectRunesMovesOnlyTheEndAndTurnsRoundWhenCrossed(t *testing.T) {
+	session, editor := newSession("hello world")
+	must(t, session.SelectRunes(6, 11))
+	if got := session.SelectedText(); got != "world" {
+		t.Fatalf("selected %q, want world", got)
+	}
+	// The end handle dragged back past the start: the selection is the text between.
+	must(t, session.SelectRunes(6, 2))
+	if got := session.SelectedText(); got != "llo " {
+		t.Fatalf("after crossing: %q, want %q", got, "llo ")
+	}
+	if start, end := session.SelectionBounds(); start != 2 || end != 6 {
+		t.Fatalf("bounds %d, %d, want 2, 6", start, end)
+	}
+	must(t, session.SelectRunes(0, 99))
+	if got := editor.String()[:0] + session.SelectedText(); got != "hello world" {
+		t.Fatalf("a drag past the end selected %q, want all of it", got)
+	}
+}
+
+func TestCutTakesTheSelectionAndPasteReplacesIt(t *testing.T) {
+	session, editor := newSession("one two three")
+	must(t, session.SelectRunes(4, 8))
+	cut, err := session.Cut()
+	must(t, err)
+	if cut != "two " || editor.String() != "one three" {
+		t.Fatalf("cut %q left %q", cut, editor.String())
+	}
+	must(t, session.SelectRunes(0, 3))
+	must(t, session.Paste("1", false))
+	if editor.String() != "1 three" {
+		t.Fatalf("paste left %q", editor.String())
+	}
+}
+
+func TestPasteOnOneLineJoinsTheLines(t *testing.T) {
+	session, editor := newSession("")
+	must(t, session.Paste("a\nb\r\nc", false))
+	if editor.String() != "a b c" {
+		t.Fatalf("one-line paste: %q", editor.String())
+	}
+	session, editor = newSession("")
+	must(t, session.Paste("a\nb", true))
+	if editor.String() != "a\nb" {
+		t.Fatalf("multi-line paste: %q", editor.String())
+	}
+}
+
+func TestACaretCutsNothing(t *testing.T) {
+	session, editor := newSession("abc")
+	cut, err := session.Cut()
+	must(t, err)
+	if cut != "" || editor.String() != "abc" {
+		t.Fatalf("cut %q left %q from a caret", cut, editor.String())
+	}
+}

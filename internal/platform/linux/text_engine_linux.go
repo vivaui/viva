@@ -39,11 +39,18 @@ type shapedLine struct {
 	hasTables bool
 	// offsets are the byte offsets of the grapheme cluster boundaries, from 0 to len(value);
 	// carets the x of the caret at each (the strong cursor: where a character of the
-	// paragraph's direction is typed). extents holds, for the cluster that starts at
-	// offsets[i], its left and right edge on the screen at extents[2*i] and extents[2*i+1].
+	// paragraph's direction is typed). edges holds the logical start and end on
+	// screen for the cluster beginning at offsets[i].
 	offsets []int32
 	carets  []float32
-	extents []float32
+	edges   []clusterEdges
+	hasRTL  bool
+}
+
+type clusterEdges struct{ leading, trailing float32 }
+
+func (edge clusterEdges) bounds() (left, right float32) {
+	return min(edge.leading, edge.trailing), max(edge.leading, edge.trailing)
 }
 
 // textEngine is the gfx.TextEngine over Pango. It is safe for concurrent use: the Pango
@@ -284,7 +291,8 @@ func (engine *textEngine) tablesLocked(line *shapedLine, value string) {
 	}
 	clusters := len(line.offsets) - 1
 	line.carets = line.carets[:0]
-	line.extents = line.extents[:0]
+	line.edges = line.edges[:0]
+	line.hasRTL = false
 	for index, offset := range line.offsets {
 		engine.strong = pangoRectangle{}
 		engine.weak = pangoRectangle{}
@@ -295,11 +303,11 @@ func (engine *textEngine) tablesLocked(line *shapedLine, value string) {
 		}
 		engine.cell = pangoRectangle{}
 		services.layoutIndexToPos(line.layout, offset, &engine.cell)
-		left, right := engine.cell.X, engine.cell.X+engine.cell.Width
-		if right < left {
-			left, right = right, left
-		}
-		line.extents = append(line.extents, float32(left)/pangoScale, float32(right)/pangoScale)
+		line.hasRTL = line.hasRTL || engine.cell.Width < 0
+		line.edges = append(line.edges, clusterEdges{
+			leading:  float32(engine.cell.X) / pangoScale,
+			trailing: float32(engine.cell.X+engine.cell.Width) / pangoScale,
+		})
 	}
 	line.hasTables = true
 }
@@ -395,7 +403,7 @@ func (engine *textEngine) SelectionStyle(dst []gfx.TextSpan, value string, size,
 	}
 	base := len(dst)
 	for cluster := first; cluster < last; cluster++ {
-		left, right := line.extents[2*cluster], line.extents[2*cluster+1]
+		left, right := line.edges[cluster].bounds()
 		joined := false
 		for index := base; index < len(dst); index++ {
 			span := &dst[index]
@@ -450,6 +458,9 @@ func (engine *textEngine) OffsetAtStyle(value string, size, weight float32, ital
 	if line == nil {
 		return engine.reference.OffsetAt(value, size, weight, x)
 	}
+	if line.hasRTL {
+		return line.hitDirectionalCluster(x)
+	}
 	best, bestDistance := 0, float32(-1)
 	for index, caret := range line.carets {
 		distance := caret - x
@@ -458,6 +469,32 @@ func (engine *textEngine) OffsetAtStyle(value string, size, weight float32, ital
 		}
 		if bestDistance < 0 || distance < bestDistance {
 			best, bestDistance = index, distance
+		}
+	}
+	return int(line.offsets[best])
+}
+
+func (line *shapedLine) hitDirectionalCluster(x float32) int {
+	best, distance := 0, float32(-1)
+	for i, edge := range line.edges {
+		left, right := edge.bounds()
+		if left == right {
+			continue
+		}
+		// Two logical boundaries can share one position. The cluster under the
+		// pointer determines which one owns this side of that position.
+		gap := max(left-x, x-right, 0)
+		if distance >= 0 && gap >= distance {
+			continue
+		}
+		at := i
+		if x-left < right-x && edge.leading > edge.trailing ||
+			x-left > right-x && edge.leading < edge.trailing {
+			at++
+		}
+		best, distance = at, gap
+		if gap == 0 {
+			break
 		}
 	}
 	return int(line.offsets[best])

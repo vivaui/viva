@@ -101,6 +101,7 @@ type tableRoute struct {
 	bounds     Rect
 	Scrolls    bool
 	sideways   bool
+	root       int32 // the root of the tree the table is in: the page's or a panel's (frame.rootOf)
 	bar        gfx.ID
 	horizontal gfx.ID
 }
@@ -489,7 +490,7 @@ func (f *Frame) paintTable(n *Node) {
 	}
 	if f.page != nil {
 		f.page.tables = append(f.page.tables, tableRoute{
-			state: t.state, bounds: r, Scrolls: scrolls, sideways: sideways,
+			root: f.rootOf(n.Parent), state: t.state, bounds: r, Scrolls: scrolls, sideways: sideways,
 			bar: t.spec.Scrollbar, horizontal: t.spec.HorizontalScrollbar,
 		})
 	}

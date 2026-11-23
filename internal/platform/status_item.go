@@ -39,6 +39,12 @@ func PlaceNotification(width, height, margin float32, area ScreenRect) (float32,
 	return max(area.X, area.X+area.Width-width-margin), max(area.Y, area.Y+area.Height-height-margin)
 }
 
+// RestoreNotification fits a remembered top-left into the selected work area.
+func RestoreNotification(x, y, width, height float32, area ScreenRect) (float32, float32) {
+	return min(max(x, area.X), area.X+max(0, area.Width-width)),
+		min(max(y, area.Y), area.Y+max(0, area.Height-height))
+}
+
 // Scaled returns the icon at size x size pixels, each result pixel the average
 // of the source pixels it covers, weighted by their alpha so that a transparent
 // edge does not bleed its hidden color into the shape. Platforms that draw a

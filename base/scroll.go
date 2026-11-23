@@ -420,16 +420,33 @@ func (s *ScrollState) BarGeometry(bounds Rect, barSize float32) ScrollAreaGeomet
 // by side each scroll alone. A sideways wheel goes the same way, to the innermost
 // Sideways area that can move along it. A wheel over a ScrollAt area goes to the
 // application's own Config.OnScroll instead: ScrollAt declares the area, and the
-// event is handed back unhandled rather than bubbled to an outer ScrollArea. It is
-// the function to give as Config.OnScroll for a page whose areas are all
-// ScrollAreas; handle a Select's open list and a self-scrolling Table first, as
-// they own the wheel while they are open or under the pointer. It reports an event
-// that no area under the pointer can use as not handled.
+// event is handed back unhandled rather than bubbled to an outer ScrollArea. Over a
+// panel painted on the page that the pointer cannot reach through (an open Popover's
+// panel, a Dialog, an AlertDialog or a Drawer) only the areas inside the panel are
+// offered the wheel, wherever in the page the panel was declared, and an event none
+// of them can use stops at the panel, handled, rather than scrolling what is under it.
+// It is the function to give as Config.OnScroll for a page whose areas are all ScrollAreas;
+// handle a Select's open list and a self-scrolling Table first, as they own the
+// wheel while they are open or under the pointer. It reports an event that no area
+// under the pointer can use, beside every such panel, as not handled.
 func (View *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	f := View.Frame
 	if f == nil {
 		return gfx.EventResult{}
 	}
+	panel := f.wheelPanel(event.X, event.Y)
+	result, manual := f.wheelArea(panel, event)
+	if panel < 0 || manual || result.Handled || result.Repaint {
+		return result
+	}
+	return gfx.EventResult{Handled: true}
+}
+
+// wheelArea is Wheel's search for the area under the pointer, among the areas inside
+// panel when it is a panel's root (wheelPanel's) and among all of them when it is -1.
+// manual reports that the pointer is over a ScrollAt area, whose wheel is the
+// application's: the event comes back unhandled.
+func (f *Frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventResult, manual bool) {
 	// A focus trap covers the areas painted outside its scope: the pointer does not
 	// reach them, so neither does the wheel, however they lie under the pointer.
 	trap := gfx.ID{}
@@ -450,10 +467,13 @@ func (View *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 				}
 			}
 		}
-		return result
+		return result, false
 	}
 	finger := event.Phase != gfx.ScrollPhaseWheel
 	for i := len(f.Nodes) - 1; i >= 0; i-- {
+		if int32(i) < panel { // what a panel holds is declared after its root
+			break
+		}
 		n := &f.Nodes[i]
 		if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil {
 			continue
@@ -461,33 +481,79 @@ func (View *View) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		if !trap.IsZero() && f.Exts[n.Ext].scrollState.scope != trap {
 			continue
 		}
-		if !f.ContainsPoint(i, event.X, event.Y) {
+		if !f.ContainsPoint(i, event.X, event.Y) || !f.within(int32(i), panel) {
 			continue
 		}
 		if f.Exts[n.Ext].scrollManual {
-			return gfx.EventResult{}
+			return gfx.EventResult{}, true
 		}
 		s := f.Exts[n.Ext].scrollState
 		if !s.canScroll(s.wheelSteps(event)) && !(finger && s.pull != 0) {
 			continue
 		}
-		return s.Wheel(event)
+		return s.Wheel(event), false
 	}
 	if finger {
 		// Nothing under the finger can scroll further, so the innermost area that has
 		// anywhere to scroll gives at its end.
 		for i := len(f.Nodes) - 1; i >= 0; i-- {
+			if int32(i) < panel {
+				break
+			}
 			n := &f.Nodes[i]
-			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil || f.Exts[n.Ext].scrollManual {
+			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil || f.Exts[n.Ext].scrollManual || !f.within(int32(i), panel) {
 				continue
 			}
 			if s := f.Exts[n.Ext].scrollState; s.Max() > 0 && f.ContainsPoint(i, event.X, event.Y) &&
 				(trap.IsZero() || s.scope == trap) {
-				return s.Wheel(event)
+				return s.Wheel(event), false
 			}
 		}
 	}
-	return gfx.EventResult{}
+	return gfx.EventResult{}, false
+}
+
+// wheelPanel is the root of the panel under the pointer (x, y) that keeps the wheel
+// from the page painted beneath it, the last painted of them when several are: an
+// open Popover's panel, a Dialog, an AlertDialog or a Drawer. Dialogs and modal
+// drawers include their scrim; a non-modal drawer leaves the page beside its content
+// within reach. It is -1 when the pointer is over none. An application's Overlay
+// leaves the wheel to the application.
+func (f *Frame) wheelPanel(x, y float32) int32 {
+	for k := len(f.Floats) - 1; k >= 0; k-- {
+		i := f.Floats[k]
+		n := &f.Nodes[i]
+		if n.Flags&(flagPopover|flagDialog|flagAlertDialog|flagDrawer) == 0 {
+			continue
+		}
+		r := n.Rect
+		if n.Flags&flagDrawer != 0 {
+			d := &WidgetsOf(f).drawers[n.Aux]
+			r = d.viewport
+			if d.spec.NonModal {
+				r = d.content
+			}
+		}
+		if pointInRect(x, y, r) {
+			return i
+		}
+	}
+	return -1
+}
+
+// within says whether element i is declared inside panel, a root wheelPanel gave;
+// every element is when panel is -1.
+func (f *Frame) within(i, panel int32) bool {
+	return panel < 0 || f.rootOf(i) == panel
+}
+
+// rootOf is the root of the tree element i is in: the page's, or a Popup's for what is
+// declared inside one. It is -1 for -1.
+func (f *Frame) rootOf(i int32) int32 {
+	for i >= 0 && f.Nodes[i].Parent >= 0 {
+		i = f.Nodes[i].Parent
+	}
+	return i
 }
 
 // containsPoint says whether a point is inside element i and inside every clip around

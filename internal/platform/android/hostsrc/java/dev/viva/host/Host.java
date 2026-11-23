@@ -43,6 +43,19 @@ public final class Host {
         }
     }
 
+    /**
+     * Shows the handles and the menu over a selection, or takes them away: where its start and
+     * its end are (the bottom of the line at each), how tall the line is, and the rectangle the
+     * selection covers, in the surface's pixels.
+     */
+    public static void selection(final boolean show, final float startX, final float startY, final float endX,
+            final float endY, final float lineHeight, final float left, final float top, final float right, final float bottom) {
+        final VivaView current = view;
+        if (current != null) {
+            current.post(() -> current.selection(show, startX, startY, endX, endY, lineHeight, left, top, right, bottom));
+        }
+    }
+
     /** Shows the keyboard for a text input, or takes it away when editing is false. */
     public static void keyboard(final boolean editing, final boolean multiline, final boolean secure) {
         final VivaView current = view;

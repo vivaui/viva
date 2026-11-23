@@ -44,7 +44,7 @@ There are two authoring paths, and they are not duplicates:
 may keep Begin are pure measurement, whole-canvas drawing, pixel-fixed slots and
 copied source. See `private/docs/decisions/0085-begin-stays-in-components.md`.
 
-Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/chart`,
+Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/textview`, `ui/chart`,
 `ui/calendar`, `ui/carousel`, `ui/markdown`, `ui/columnresize`,
 `ui/avatareditor`, `ui/reordergrid`, `ui/avatar`, `ui/attachment`,
 `ui/message`, `ui/messagescroller`, `ui/command`, `ui/menubar`,
@@ -59,6 +59,11 @@ packages, plus the focused `text` editor for editor-like controls and the root
 imported by package `ui`; importing one is the explicit opt-in. Do not add a new
 directory at the repository root for a page widget.
 See `private/docs/decisions/0086-opt-in-page-views.md`.
+
+`ui/textview` is the read-only selectable output control: keep a `textview.View`
+in the model and call its `Declare(c, textview.Spec{Source: lines, ...})` method.
+The caller owns the lines, spans and actions; the package owns selection, layout
+and input, without a text editor or undo model.
 
 ### Naming and types
 

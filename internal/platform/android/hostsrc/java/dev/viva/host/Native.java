@@ -51,6 +51,12 @@ public final class Native {
      */
     public static native void insets(float left, float top, float right, float bottom);
 
+    /** A selection handle (0 the start's, 1 the end's) is held (phase 0), dragged to a point of the surface (1) or let go (2). */
+    public static native void selectionHandle(int which, int phase, float x, float y);
+
+    /** An item of the selection's menu: 1 Cut, 2 Copy, 3 Paste, 4 Select all. */
+    public static native void selectionAction(int action);
+
     /** The user asked to close the window (the back gesture at the root). */
     public static native void closeRequested();
 

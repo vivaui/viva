@@ -94,10 +94,9 @@ func (b Box) Hit(ID gfx.ID, Label string) Box {
 	return b
 }
 
-// MovesWindow makes the element's rectangle a place a custom-titlebar window is
-// moved from: pressing and dragging it moves the window, and a double click zooms
-// it (see gfx.Canvas.MoveRegion). Controls declared inside the element take their
-// own presses. Declare it on the row that is the window's top bar.
+// MovesWindow makes the element a drag region of a custom-titlebar or
+// notification window. Double-clicking zooms a custom-titlebar window.
+// Controls inside the element take their own presses (see gfx.Canvas.MoveRegion).
 func (b Box) MovesWindow() Box {
 	b.N()
 	b.f.Extra(b.i).moves = true
@@ -351,9 +350,9 @@ func (b Box) Shadow(level gfx.ShadowLevel) Box {
 // Clip keeps what is drawn inside the element to its rectangle.
 func (b Box) Clip() Box { b.N().Flags |= flagClip; return b }
 
-// Text: FontSize, Bold, Weight, Color, Muted and Mono style a Text; TextCenter
-// centers it in its rectangle. On a control, FontSize is the size of its text in
-// place of the theme's body size.
+// Text: FontSize, Bold, Weight, Italic, Strike, Color, Muted and Mono style a
+// Text; TextCenter centers it in its rectangle. On a control, FontSize is the
+// size of its text in place of the theme's body size.
 func (b Box) FontSize(v float32) Box {
 	n := b.N()
 	n.FontSize, n.FontSet = v, v > 0
@@ -383,6 +382,22 @@ func (b Box) Muted() Box {
 	return b.Color(b.f.Palette.MutedForeground)
 }
 func (b Box) Mono() Box { b.N().Flags |= flagMono; return b }
+
+// Italic draws a Text in the italic face of its font: the face
+// gfx.StyledTextEngine shapes for a gfx.TextStyle whose Italic is set, which the
+// width its lines are laid out by is measured in too (Canvas.TextWidthStyle). A
+// text is never slanted by a synthetic transform, so a font whose family has no
+// italic face and whose engine shapes none stays upright rather than sheared.
+func (b Box) Italic() Box { b.N().TextDecor |= textItalic; return b }
+
+// Strike draws a Text with a line through it: one pixel, in the text's color,
+// across the middle of each line's box, from the first glyph to the last. It is
+// the line components.MarkdownView has drawn for ~~struck~~ text since it learned
+// inline styles: a Text keeps its own width and wrapping, so nothing about the
+// layout moves when a text is struck. A strike covers the text, not the box the
+// text was laid out in, so a Text stretched by its container is struck across its
+// glyphs only.
+func (b Box) Strike() Box { b.N().TextDecor |= textStrike; return b }
 
 // IconTransform draws the icon scaled, turned and moved from the box it was laid
 // out in, without moving the layout or the hit region: a row keeps its size and

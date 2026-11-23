@@ -78,6 +78,16 @@ func Java_dev_viva_host_Native_redrawNeeded(env *C.JNIEnv, _ C.jclass) {
 	<-ack
 }
 
+//export Java_dev_viva_host_Native_selectionHandle
+func Java_dev_viva_host_Native_selectionHandle(env *C.JNIEnv, _ C.jclass, which, phase C.jint, x, y C.jfloat) {
+	send(event{kind: eventSelectionHandle, action: int32(which), pointer: int32(phase), x: float32(x), y: float32(y)})
+}
+
+//export Java_dev_viva_host_Native_selectionAction
+func Java_dev_viva_host_Native_selectionAction(env *C.JNIEnv, _ C.jclass, action C.jint) {
+	send(event{kind: eventSelectionAction, action: int32(action)})
+}
+
 //export Java_dev_viva_host_Native_touch
 func Java_dev_viva_host_Native_touch(env *C.JNIEnv, _ C.jclass, action, pointer C.jint, x, y C.jfloat, tool, buttons, modifiers C.jint, uptime C.jlong) {
 	ev := event{kind: eventTouch, action: int32(action), pointer: int32(pointer), x: float32(x), y: float32(y),

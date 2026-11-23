@@ -30,6 +30,23 @@ final class VivaView extends SurfaceView {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
+    private Selection selection;
+
+    /** The handles and the menu over the program's selection (see Host.selection). */
+    void selection(boolean show, float startX, float startY, float endX, float endY, float lineHeight,
+            float left, float top, float right, float bottom) {
+        if (!show) {
+            if (selection != null) {
+                selection.hide();
+            }
+            return;
+        }
+        if (selection == null) {
+            selection = new Selection(this);
+        }
+        selection.show(startX, startY, endX, endY, lineHeight, left, top, right, bottom);
+    }
+
     Accessibility accessibility() {
         return accessibility;
     }

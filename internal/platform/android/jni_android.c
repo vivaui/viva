@@ -7,7 +7,7 @@
 
 static JavaVM *vm;
 static jclass hostClass, textClass;
-static jmethodID hostFinish, hostSetTitle, hostEditor, hostKeyboard;
+static jmethodID hostFinish, hostSetTitle, hostEditor, hostKeyboard, hostSelection;
 static jmethodID hostTree, hostClipboardText, hostSetClipboardText, hostOpenURL, hostLanguages, hostDarkTheme, hostAnimationsOff;
 static jmethodID textWidth, textMetrics, textRects, textSetFamily, textBegin, textDraw, textEnd;
 
@@ -29,6 +29,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved) {
 	hostSetTitle = (*env)->GetStaticMethodID(env, hostClass, "setTitle", "(Ljava/lang/String;)V");
 	hostEditor = (*env)->GetStaticMethodID(env, hostClass, "editor", "(Ljava/lang/String;IIII)V");
 	hostKeyboard = (*env)->GetStaticMethodID(env, hostClass, "keyboard", "(ZZZ)V");
+	hostSelection = (*env)->GetStaticMethodID(env, hostClass, "selection", "(ZFFFFFFFFF)V");
 	hostTree = (*env)->GetStaticMethodID(env, hostClass, "tree", "([F[I[F[C[I)V");
 	hostClipboardText = (*env)->GetStaticMethodID(env, hostClass, "clipboardText", "()Ljava/lang/String;");
 	hostSetClipboardText = (*env)->GetStaticMethodID(env, hostClass, "setClipboardText", "(Ljava/lang/String;)Z");
@@ -238,6 +239,16 @@ void viva_host_keyboard(int editing, int multiline, int secure) {
 	}
 }
 
+
+void viva_host_selection(int show, float startX, float startY, float endX, float endY, float lineHeight,
+                         float left, float top, float right, float bottom) {
+	JNIEnv *e = env();
+	if (e != NULL) {
+		(*e)->CallStaticVoidMethod(e, hostClass, hostSelection, show != 0, startX, startY, endX, endY, lineHeight,
+		                           left, top, right, bottom);
+		failed(e);
+	}
+}
 
 static char *host_string(jmethodID method) {
 	JNIEnv *e = env();

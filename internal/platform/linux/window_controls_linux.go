@@ -298,7 +298,8 @@ func (win *window) beginWindowMove(config platform.Config, event *xcbInputEvent)
 	if win.fullscreen.Load() {
 		return false
 	}
-	if config.WindowMode != platform.WindowCustomTitlebar || event.Detail != xcbButtonLeft {
+	notification := config.WindowMode == platform.WindowNotification
+	if (config.WindowMode != platform.WindowCustomTitlebar && !notification) || event.Detail != xcbButtonLeft {
 		return false
 	}
 	// The application's coordinates are logical; the event's are device pixels.
@@ -309,7 +310,7 @@ func (win *window) beginWindowMove(config platform.Config, event *xcbInputEvent)
 		press = config.PressAt(x, y)
 	}
 	direction, ok := uint32(moveResizeMove), false
-	if !win.frame.maximized {
+	if !notification && !win.frame.maximized {
 		// The top edge yields to a control, so the buttons work up to the top.
 		edge := platform.EdgeAt(x, y, float32(windowframe.ContentSize(win.width, win.margin))/scale, float32(windowframe.ContentSize(win.height, win.margin))/scale, press == platform.PressControl)
 		if ok = edge != platform.EdgeNone; ok {
@@ -325,7 +326,7 @@ func (win *window) beginWindowMove(config platform.Config, event *xcbInputEvent)
 			win.frame.pendingRootX, win.frame.pendingRootY = event.RootX, event.RootY
 			return false
 		}
-		if win.doubleClick(event) {
+		if !notification && win.doubleClick(event) {
 			win.toggleMaximize()
 			return true
 		}

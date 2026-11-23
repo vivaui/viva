@@ -1,13 +1,33 @@
 package proxy
 
 import (
+	"context"
+	"errors"
 	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestSystemProxyContextReturnsCancellation(t *testing.T) {
+	target, err := url.Parse("https://example.com/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if proxy, err := SystemProxyContext(ctx, target); proxy != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled lookup = %v, %v", proxy, err)
+	}
+	ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	if proxy, err := SystemProxyContext(ctx, target); proxy != nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expired lookup = %v, %v", proxy, err)
+	}
+}
 
 func TestSystemProxyNeedsAnHTTPURL(t *testing.T) {
 	for _, raw := range []string{"ftp://example.com", "file:///tmp/x", "example.com"} {
