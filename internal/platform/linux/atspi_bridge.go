@@ -367,6 +367,9 @@ func (bridge *atspiBridge) update(window *atspiWindow, nodes []platform.Accessib
 				events++
 				bridge.emit(bridge.parentPath(window, index), atspiEventObject, "ChildrenChanged", "add", int32(window.indexInParent(index)), 0, bridge.ref(path))
 			}
+			if node.Focused {
+				bridge.emit(path, atspiEventObject, "StateChanged", "focused", 1, 0, nil)
+			}
 			continue
 		}
 		bridge.announceChanges(window, path, old[previous], node)

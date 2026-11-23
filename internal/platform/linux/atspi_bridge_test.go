@@ -326,6 +326,40 @@ func TestAtspiEventsNameWhatChanged(t *testing.T) {
 	}
 }
 
+func TestAtspiAnnouncesFocusWhenAddingAControl(t *testing.T) {
+	nodes := demoNodes()
+	nodes[4].Focused = true
+	test := newTestBridge(nodes)
+	test.signals = nil
+	changed := demoNodes()
+	changed = append(changed,
+		platform.AccessibilityNode{ID: gfx.Item(7), Role: platform.A11yRoleButton, Label: "Close", Focusable: true},
+		platform.AccessibilityNode{ID: gfx.Item(8), Role: platform.A11yRoleTextField, Label: "Find", Focusable: true, Focused: true},
+	)
+	test.update(test.window, changed)
+	var events []string
+	for _, signal := range test.signals {
+		switch {
+		case signal.member == "ChildrenChanged" && signal.detail == "add" && signal.detail1 == int32(test.window.indexInParent(7)):
+			events = append(events, "find added")
+		case signal.member == "StateChanged" && signal.detail == "focused" && signal.detail1 == 1:
+			if signal.path != test.path(7) {
+				t.Fatalf("unexpected focus recipient: %+v", signal)
+			}
+			events = append(events, "find focused")
+		}
+	}
+	if got := strings.Join(events, ", "); got != "find added, find focused" {
+		t.Fatalf("new control events = %q, want add then focus", got)
+	}
+
+	test.signals = nil
+	test.update(test.window, changed)
+	if len(test.signals) != 0 {
+		t.Fatalf("unchanged focused tree announced %v", test.signals)
+	}
+}
+
 func TestAtspiLiveRegionAnnounces(t *testing.T) {
 	test := newTestBridge([]platform.AccessibilityNode{{Role: platform.A11yRoleStatus, Label: "Saved", X: 0, Y: 0, Width: 10, Height: 10, Live: gfx.LivePolite}})
 	test.signals = nil
