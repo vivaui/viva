@@ -10,6 +10,10 @@ import (
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
 
+func TestCodeEditorCoreTextCarriesBidiOverrideAcrossSoftBreak(t *testing.T) {
+	testCodeEditorBidiOverrideAcrossSoftBreak(t, darwin.SharedTextEngine())
+}
+
 func TestCodeEditorCoreTextShapesShortRowsOfLongParagraph(t *testing.T) {
 	const prefix = "\u05d0\u05d1 "
 	f := newCodeFixture(prefix + strings.Repeat("abc ", 1200))
@@ -23,6 +27,27 @@ func TestCodeEditorCoreTextShapesShortRowsOfLongParagraph(t *testing.T) {
 	row := f.editor.rows[1]
 	if _, ok := f.editor.MoveHorizontal(f.snapshot.Value, int(row.start), true); !ok {
 		t.Fatal("a Latin continuation lost the paragraph's forced RTL layout")
+	}
+}
+
+func TestCodeEditorCoreTextKeepsLongUnwrappedBidiGeometry(t *testing.T) {
+	value := strings.Repeat("\u05d0\u05d1", 2048) + "abc"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionRTL
+	f.paint()
+	before, shown := f.editor.CaretBounds()
+	if !shown || f.editor.ScrollX() < f.editor.MaxScrollX()/2 {
+		t.Fatalf("RTL line start did not reveal the right end: caret %+v, scroll %g of %g", before, f.editor.ScrollX(), f.editor.MaxScrollX())
+	}
+	if at, ok := f.editor.MoveHorizontal(value, 0, false); !ok || at != 2 {
+		t.Fatalf("Left on the long RTL line = %d, %v; want byte 2", at, ok)
+	}
+	f.snapshot.Caret = 2
+	f.paint()
+	after, shown := f.editor.CaretBounds()
+	if !shown || after.X >= before.X {
+		t.Fatalf("Left moved from %+v to %+v", before, after)
 	}
 }
 

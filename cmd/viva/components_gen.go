@@ -126,7 +126,7 @@ var componentRequires = map[string][]string{
 	"code-diff-model":         {"code-diff-inline"},
 	"code-editor":             {"caret-blink", "code-editor-decorations", "code-editor-layout", "code-editor-shaped", "input", "scroll-area", "textarea", "tree"},
 	"code-editor-decorations": {"code-editor", "code-editor-layout", "code-editor-shaped"},
-	"code-editor-layout":      {"code-editor", "textarea"},
+	"code-editor-layout":      {"code-editor", "code-editor-shaped", "textarea"},
 	"code-editor-shaped":      {"code-editor", "code-editor-layout"},
 	"code-merge":              {"code-diff", "code-diff-model", "code-editor", "code-editor-layout", "scroll-area"},
 	"color-picker":            {"button", "input", "popover"},

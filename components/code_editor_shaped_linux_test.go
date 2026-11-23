@@ -9,6 +9,14 @@ import (
 	"github.com/vivaui/viva/internal/platform/linux"
 )
 
+func TestCodeEditorPangoCarriesBidiOverrideAcrossSoftBreak(t *testing.T) {
+	engine := linux.TextEngine()
+	if engine == nil {
+		t.Skip("Pango unavailable")
+	}
+	testCodeEditorBidiOverrideAcrossSoftBreak(t, engine)
+}
+
 func TestCodeEditorPangoRTLAlignsPaintAndPlacement(t *testing.T) {
 	engine := linux.TextEngine()
 	if engine == nil {

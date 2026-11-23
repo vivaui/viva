@@ -8,6 +8,44 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
+func testCodeEditorBidiOverrideAcrossSoftBreak(t *testing.T, engine gfx.TextEngine) {
+	t.Helper()
+	for _, test := range []struct{ name, value, character string }{
+		{"RTL override", "\u202eabcdefghijkl\u202c!", "e"},
+		{"first-strong isolate", "\u2068\u05d0\u05d1\u05d2\u05d3\u05d4\u05d5\u05d6\u05d7\u2069!", "\u05d4"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newCodeFixture(test.value)
+			f.canvas.SetTextEngine(engine)
+			f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionLTR
+			f.bounds.Width = f.widthFor(4)
+			start := strings.Index(test.value, test.character)
+			want := start + len(test.character)
+			f.snapshot.Caret = start
+			f.paint()
+			before, shown := f.editor.CaretBounds()
+			if !shown || before.Y < f.editor.content.Y+f.editor.lineHeight {
+				t.Fatalf("continuation caret is missing: %+v", before)
+			}
+			if got := f.editor.rows[0].end; got != int32(start) {
+				t.Fatalf("invisible control took a grid column: first row ends at %d, want %d", got, start)
+			}
+			if at, ok := f.editor.MoveHorizontal(test.value, start, false); !ok || at != want {
+				t.Fatalf("Left inside the RTL run = %d, %v; want byte %d", at, ok, want)
+			}
+			f.snapshot.Caret = want
+			f.paint()
+			after, shown := f.editor.CaretBounds()
+			if !shown || after.X >= before.X || after.Y != before.Y {
+				t.Fatalf("visual Left moved the caret from %+v to %+v", before, after)
+			}
+			if at, ok := f.editor.OffsetAt(gfx.Point{X: (before.X + after.X) / 2, Y: after.Y + after.Height/2}); !ok || (at != start && at != want) {
+				t.Fatalf("click between RTL edges = %d, %v; want %d or %d", at, ok, start, want)
+			}
+		})
+	}
+}
+
 func TestCodeEditorShapedResizeKeepsManualScroll(t *testing.T) {
 	for _, mode := range []struct {
 		name      string

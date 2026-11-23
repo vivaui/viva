@@ -194,6 +194,7 @@ type directRasterizer struct {
 	inkCache         map[inkKey]platform.GridInk
 	formats          map[gridFormatKey]uintptr
 	shaped           map[gridLayoutKey]*gridLayout
+	shapedBytes      int
 	gdi              *gdiGridRasterizer // the GDI face of fixed-pitch runs, made on first use
 	directOnly       bool               // draw fixed-pitch runs with DirectWrite alone; tests compare the two
 }

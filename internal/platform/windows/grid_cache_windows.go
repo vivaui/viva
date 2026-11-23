@@ -44,9 +44,13 @@ type gridLayoutKey struct {
 	strike    bool
 }
 
-// gridLayoutLimit bounds the shaped runs kept. A terminal draws its rows from a
-// small alphabet, so a screen of colored text fits many times over.
-const gridLayoutLimit = 4096
+// A terminal draws its rows from a small alphabet, so a screen of colored text
+// fits many times over. The byte budget also bounds the UTF-16 and glyph data
+// retained by a window that scrolls through distinct long CodeEditor rows.
+const (
+	gridLayoutLimit     = 4096
+	gridLayoutByteLimit = 1 << 20
+)
 
 // gridLayout is a shaped run and the metrics drawRun places it with.
 type gridLayout struct {
@@ -106,13 +110,15 @@ func (rasterizer *directRasterizer) gridShaped(format gridFormatKey, handle uint
 	if err != nil {
 		return nil, err
 	}
-	if rasterizer.shaped == nil || len(rasterizer.shaped) >= gridLayoutLimit {
+	if rasterizer.shaped == nil || len(rasterizer.shaped) >= gridLayoutLimit || rasterizer.shapedBytes+len(piece) > gridLayoutByteLimit {
 		for _, old := range rasterizer.shaped {
 			release(&old.layout)
 		}
 		rasterizer.shaped = make(map[gridLayoutKey]*gridLayout, gridLayoutLimit)
+		rasterizer.shapedBytes = 0
 	}
 	rasterizer.shaped[key] = shaped
+	rasterizer.shapedBytes += len(piece)
 	return shaped, nil
 }
 
@@ -191,4 +197,5 @@ func (rasterizer *directRasterizer) releaseGridCache() {
 		release(&shaped.layout)
 	}
 	rasterizer.formats, rasterizer.shaped = nil, nil
+	rasterizer.shapedBytes = 0
 }
