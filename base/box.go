@@ -94,10 +94,9 @@ func (b Box) Hit(ID gfx.ID, Label string) Box {
 	return b
 }
 
-// MovesWindow makes the element's rectangle a place a custom-titlebar window is
-// moved from: pressing and dragging it moves the window, and a double click zooms
-// it (see gfx.Canvas.MoveRegion). Controls declared inside the element take their
-// own presses. Declare it on the row that is the window's top bar.
+// MovesWindow makes the element a drag region of a custom-titlebar or
+// notification window. Double-clicking zooms a custom-titlebar window.
+// Controls inside the element take their own presses (see gfx.Canvas.MoveRegion).
 func (b Box) MovesWindow() Box {
 	b.N()
 	b.f.Extra(b.i).moves = true

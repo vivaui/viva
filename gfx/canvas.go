@@ -659,7 +659,7 @@ type Hit struct {
 	IsLabel bool
 	// Backdrop is HitOptions.Backdrop.
 	Backdrop bool
-	// MovesWindow marks a region of a custom-titlebar window that moves the
+	// MovesWindow marks a region of a custom-titlebar or notification window that moves the
 	// window when pressed (see Canvas.MoveRegion). It has no ID and no
 	// accessibility node.
 	MovesWindow bool
@@ -1808,8 +1808,8 @@ func (canvas *Canvas) BlockSurface(bounds Rect) {
 	})
 }
 
-// MoveRegion declares a place a custom-titlebar window is moved from: pressing
-// and dragging it moves the window, and a double click zooms it. It is inert as
+// MoveRegion makes a custom-titlebar or notification window draggable there.
+// Double-clicking zooms a custom-titlebar window. A move region is inert as
 // Block is, with no ID, hover, focus or accessibility node, and it lies where it
 // was declared in paint order: a control declared after it, such as a button of a
 // tab bar laid over it, takes its own presses, and so does the surface of a dialog

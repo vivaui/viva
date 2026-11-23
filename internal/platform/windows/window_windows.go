@@ -103,6 +103,7 @@ type windowState struct {
 	maximized                              bool
 	lastFrame                              gfx.Rect
 	scale                                  float32
+	placingNotification                    bool
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
 	pointerEvents, resizeEvents, keyEvents uint64
@@ -437,7 +438,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
 	if config.WindowMode == platform.WindowNotification {
-		state.placePanel()
+		state.placeNotification()
 		showWindow.Call(state.window, swShowNoActivate)
 	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
@@ -867,7 +868,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		resizes := state.resizeEvents
 		if state.fullscreen.Load() {
 			state.fitFullscreenMonitor()
-		} else {
+		} else if !state.placingNotification {
 			setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
 		}
 		if state.sizingMove || state.sizing {
@@ -1063,6 +1064,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return htTransparent
 		}
 		if state.fullscreen.Load() {
+			return htClient
+		}
+		if state.config.WindowMode == platform.WindowNotification {
+			point := point{X: int32(int16(second)), Y: int32(int16(second >> 16))}
+			screenToClient.Call(window, uintptr(unsafe.Pointer(&point)))
+			if state.pressAt(float32(point.X)/state.scale, float32(point.Y)/state.scale) == platform.PressMove {
+				return htCaption
+			}
 			return htClient
 		}
 		if state.customFrame() {
