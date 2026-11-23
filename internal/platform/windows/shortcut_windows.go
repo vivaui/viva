@@ -56,7 +56,11 @@ func chordKeyText(first, second uintptr, shift bool) string {
 // took it (or failed doing it), which ends the message. AltGr is no chord: it
 // types a character of the layout.
 func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifiers) bool {
-	if state.config.OnShortcut == nil || state.imeComposing || altGrHeld() ||
+	// A terminal that disabled the input method takes its keys on the remote
+	// side; a composition flag left over from the suppressed text input must
+	// not block its shortcuts.
+	imeBlocksShortcut := state.imeComposing && !(state.textInput.Terminal && state.textInput.DisableIME)
+	if state.config.OnShortcut == nil || imeBlocksShortcut || altGrHeld() ||
 		(normalizedKey(first) != input.KeyUnknown && normalizedKey(first) != input.KeySpace && normalizedKey(first) != input.KeyEnter) {
 		return false
 	}
@@ -89,7 +93,9 @@ func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifi
 // thread and with the same fault handling as windowProc. Unhandled messages
 // continue through TranslateMessage and the normal native editor/IME path.
 func offerQueuedShortcut(event *message) (handled bool) {
-	if event.Kind != wmKeyDown && event.Kind != wmSysKeyDown {
+	switch event.Kind {
+	case wmKeyDown, wmSysKeyDown, wmKeyUp, wmSysKeyUp:
+	default:
 		return false
 	}
 	value, ok := windowStates.Load(event.Window)
@@ -105,5 +111,18 @@ func offerQueuedShortcut(event *message) (handled bool) {
 		}
 	}()
 	active.Store(state)
+	// Posted keys bypass low-level keyboard hooks. Offer those keys at the same
+	// boundary, before TranslateMessage can enqueue a character.
+	flags := event.Second
+	release := event.Kind == wmKeyUp || event.Kind == wmSysKeyUp
+	if release {
+		flags |= 1 << 31
+	}
+	if (state.menuKeys.open || state.menuKeys.held > 0) && state.takeMenuKey(event.First, flags, modifiers(), false) {
+		return true
+	}
+	if release {
+		return false
+	}
 	return state.offerShortcut(event.First, event.Second, modifiers())
 }

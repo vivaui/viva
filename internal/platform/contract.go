@@ -105,6 +105,9 @@ type Config struct {
 	// every other key is delivered as it was.
 	ModifierTaps bool
 	OnShortcut   ShortcutHandler
+	// CaptureMenuKeys asks Windows to give a foreground menu its keys before
+	// text services, without ending the focused editor's composition.
+	CaptureMenuKeys func() bool
 	// OnActivate, when set, runs on the window thread when the top-level
 	// window becomes the active window. Focus moving between views inside the
 	// window does not call it.
