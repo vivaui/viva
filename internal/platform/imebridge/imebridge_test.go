@@ -265,3 +265,50 @@ func TestACaretCutsNothing(t *testing.T) {
 		t.Fatalf("cut %q left %q from a caret", cut, editor.String())
 	}
 }
+
+// A keyboard that marks what it has just typed as the word it may correct, and then sends
+// the next key, must not lose the first letter: a key types, it does not commit over the
+// composition. This is what the emulator's keyboard does for every character typed with adb.
+func TestAKeyAfterAComposingRegionTypesAfterIt(t *testing.T) {
+	session, editor := newSession("")
+	for _, character := range []string{"h", "e", "l", "l", "o"} {
+		must(t, KeyAction{Text: character}.Apply(session))
+		must(t, session.MarkRange(0, len([]rune(editor.String())))) // the keyboard reopens the word
+	}
+	if editor.String() != "hello" {
+		t.Fatalf("typed hello with the keyboard reopening the word after each letter: %q", editor.String())
+	}
+}
+
+func TestAKeyAfterAnExplicitCompositionKeepsItAndTypesAfterIt(t *testing.T) {
+	session, editor := newSession("")
+	must(t, session.SetComposing("ni", 1))
+	must(t, KeyAction{Text: "x"}.Apply(session))
+	if editor.String() != "nix" || session.State.Composing {
+		t.Fatalf("key after composing text: %q composing=%v, want nix and the composition ended", editor.String(), session.State.Composing)
+	}
+}
+
+// setComposingRegion changes what is composing and nothing else: the caret stays where it
+// was, so a region that ends before it is not marked. A keyboard typing fast reopens a word it has
+// already moved past, and a caret dragged back to it would put the next letters inside.
+func TestMarkingARegionLeavesTheCaretWhereItWas(t *testing.T) {
+	session, editor := newSession("hel")
+	must(t, session.MarkRange(0, 2))
+	if got := session.State.Selection; got != (text.Range{Start: 3, End: 3}) {
+		t.Fatalf("the caret moved to %v, want it at 3", got)
+	}
+	must(t, KeyAction{Text: "l"}.Apply(session))
+	if editor.String() != "hell" {
+		t.Fatalf("typed after marking an earlier region: %q, want hell", editor.String())
+	}
+}
+
+func TestMarkingARegionKeepsASelectionInsideIt(t *testing.T) {
+	session, _ := newSession("hello")
+	must(t, session.SelectRunes(1, 3))
+	must(t, session.MarkRange(0, 5))
+	if got := session.State.Selection; got != (text.Range{Start: 1, End: 3}) {
+		t.Fatalf("the selection became %v, want 1..3", got)
+	}
+}

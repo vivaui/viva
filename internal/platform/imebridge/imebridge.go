@@ -236,11 +236,20 @@ func (session *Session) MarkRange(start, end int) error {
 	if rng.Start == rng.End {
 		return nil
 	}
+	// The editor keeps its caret inside what is composing, and setComposingRegion must not
+	// move the caret: a region that does not hold the selection is not marked. A keyboard
+	// typing fast reopens a word it has already moved past, only to correct it; marking it
+	// would drag the caret back, and the letters after it would land inside.
+	selection := session.State.Selection
+	low, high := min(selection.Start, selection.End), max(selection.Start, selection.End)
+	if low < rng.Start || high > rng.End {
+		return nil
+	}
 	marked := string([]rune(value)[rng.Start:rng.End])
-	size := rng.End - rng.Start
 	return session.apply(platform.TextEvent{
-		Kind: platform.TextSetMarked, Text: marked, MarkedSelection: text.Range{Start: size, End: size},
-		Replacement: rng, HasReplacement: true,
+		Kind: platform.TextSetMarked, Text: marked,
+		MarkedSelection: text.Range{Start: selection.Start - rng.Start, End: selection.End - rng.Start},
+		Replacement:     rng, HasReplacement: true,
 	})
 }
 
@@ -308,6 +317,14 @@ type KeyAction struct {
 func (action KeyAction) Apply(session *Session) error {
 	if action.Command != 0 {
 		return session.Command(action.Command)
+	}
+	// A key types at the caret. Text that an input method left composing (a keyboard marks
+	// what it has just typed again as the word it may correct) stays, and what the key types
+	// follows it: only commitText replaces the composition, and a key is not one.
+	if session.State.Composing {
+		if err := session.Finish(); err != nil {
+			return err
+		}
 	}
 	return session.Commit(action.Text, 1)
 }
