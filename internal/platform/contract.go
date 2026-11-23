@@ -83,6 +83,11 @@ type Config struct {
 	// as far as the platform says so. An adapter that cannot tell never calls it,
 	// and the window counts as visible.
 	OnVisibility VisibilityHandler
+	// TextGeometry, when set, answers where the text of the focused text input is on the
+	// window, or nil while none is. A phone's adapter builds the text interaction on it: the
+	// caret a tap places, the handles of a selection and the magnifier. The answer is read
+	// at once and not kept.
+	TextGeometry func() TextGeometry
 	// OnLifecycle, when set, runs on the window thread when the system moves the
 	// application between the foreground and the background, or warns it of low memory.
 	// Only the phone adapters call it.
@@ -507,6 +512,19 @@ type PointerEvent struct {
 	// tells apart the fingers or pens touching at once.
 	Device    gfx.PointerDevice
 	PointerID int32
+}
+
+// TextGeometry is where the text of a text input is, in logical window pixels. Indexes
+// are runes of the input's value, as in TextState.
+type TextGeometry interface {
+	// IndexAt is the character boundary nearest a window point; false when the field has
+	// painted nothing to place a caret in.
+	IndexAt(x, y float32) (int, bool)
+	// CaretRect is where the caret is at a boundary, as tall as its line; false when the
+	// input does not know (a field that lays its rows out itself answers for its caret only).
+	CaretRect(index int) (gfx.Rect, bool)
+	// RangeRects appends the rectangles the runes [start, end) cover.
+	RangeRects(dst []gfx.Rect, start, end int) []gfx.Rect
 }
 
 // Lifecycle is a change the system makes to the state of a phone application.

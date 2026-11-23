@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 // textGeometry is where the text of the focused field is on the window: the character
@@ -56,6 +57,16 @@ func (painter *painter) focusedTextGeometry() (textGeometry, bool) {
 	return geometry, true
 }
 
+// textGeometryOf is the geometry of the focused field as the platform asks for it, nil
+// while no field has the focus.
+func (painter *painter) textGeometryOf() platform.TextGeometry {
+	geometry, ok := painter.focusedTextGeometry()
+	if !ok {
+		return nil
+	}
+	return geometry
+}
+
 // IndexAt is the character boundary nearest a window point.
 func (geometry textGeometry) IndexAt(x, y float32) (int, bool) {
 	if geometry.placement != nil {
@@ -73,7 +84,7 @@ func (geometry textGeometry) IndexAt(x, y float32) (int, bool) {
 // CaretRect is the caret at a boundary, as tall as the line.
 func (geometry textGeometry) CaretRect(index int) (gfx.Rect, bool) {
 	if geometry.placement != nil {
-		return geometry.placement.CaretBounds()
+		return gfx.Rect{}, false // it paints one caret, wherever the caret is
 	}
 	offset := byteOffsetOfRune(geometry.shown, index)
 	x := geometry.origin() + geometry.canvas.TextCaretStyle(geometry.shown, geometry.style, offset)

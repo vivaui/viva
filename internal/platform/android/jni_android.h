@@ -26,6 +26,11 @@ int viva_text_end(void *out, int64_t capacity);
 /* The host (dev.viva.host.Host). */
 void viva_host_editor(const uint16_t *text, int length, int selectionStart, int selectionEnd, int compositionStart, int compositionEnd);
 void viva_host_keyboard(int editing, int multiline, int secure);
+/* viva_host_selection shows the handles and the menu over a selection, or takes them away: where its
+ * start and its end are (the bottom of the line at each), how tall the line is, and the rectangle the
+ * selection covers, in the surface's pixels. */
+void viva_host_selection(int show, float startX, float startY, float endX, float endY, float lineHeight,
+                         float left, float top, float right, float bottom);
 void viva_host_finish(void);
 /* viva_host_tree gives the host the accessibility tree: per node four floats of bounds, five ints
  * (role, flags, level, position, size) and three of range (min, max, now), and four strings

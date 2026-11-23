@@ -7,7 +7,9 @@
 package imebridge
 
 import (
+	"strings"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/input"
@@ -172,6 +174,58 @@ func (session *Session) replace(replacement text.Range, value string) error {
 // Select selects [start, end) in UTF-16 units: setSelection and selectedTextRange.
 func (session *Session) Select(start, end int) error {
 	return session.apply(platform.TextEvent{Kind: platform.TextSetSelection, Selection: runeRange(session.State.Value, start, end)})
+}
+
+// SelectRunes selects the runes [start, end) of the value, as a selection handle does:
+// the end that moves is end, so a drag that crosses the other end turns the selection
+// round. Indexes are clamped to the value.
+func (session *Session) SelectRunes(start, end int) error {
+	count := utf8.RuneCountInString(session.State.Value)
+	clamp := func(index int) int { return max(0, min(index, count)) }
+	return session.apply(platform.TextEvent{Kind: platform.TextSetSelection, Selection: text.Range{Start: clamp(start), End: clamp(end)}})
+}
+
+// SelectedText is the text the selection covers, empty when it is a caret.
+func (session *Session) SelectedText() string {
+	runes := []rune(session.State.Value)
+	start, end := session.State.Selection.Start, session.State.Selection.End
+	if start > end {
+		start, end = end, start
+	}
+	if start < 0 || end > len(runes) || start == end {
+		return ""
+	}
+	return string(runes[start:end])
+}
+
+// SelectionBounds is the selection's two ends in order, in runes.
+func (session *Session) SelectionBounds() (start, end int) {
+	start, end = session.State.Selection.Start, session.State.Selection.End
+	if start > end {
+		start, end = end, start
+	}
+	return start, end
+}
+
+// Cut deletes the selection and returns what it covered, to be put on the clipboard.
+func (session *Session) Cut() (string, error) {
+	cut := session.SelectedText()
+	if cut == "" {
+		return "", nil
+	}
+	return cut, session.Command(platform.TextDeleteBackward)
+}
+
+// Paste puts clipboard text in place of the selection. A field of one line takes the
+// text on one line: its line breaks become spaces, as every one-line field's do.
+func (session *Session) Paste(value string, multiline bool) error {
+	if !multiline {
+		value = strings.Join(strings.FieldsFunc(value, func(r rune) bool { return r == '\n' || r == '\r' }), " ")
+	}
+	if value == "" {
+		return nil
+	}
+	return session.apply(platform.TextEvent{Kind: platform.TextPaste, Text: value})
 }
 
 // MarkRange makes text that is already there the composing text: setComposingRegion,
