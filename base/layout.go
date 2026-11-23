@@ -193,6 +193,11 @@ func (f *Frame) measureContainer(n *Node, axis int) {
 	}
 	is, ie := n.Inset(axis)
 	n.Pref[axis] = total + is + ie
+	if axis == AxisX && n.Ext != 0 && f.Exts[n.Ext].contained {
+		// A Container is as wide as it is placed, not as what it holds, so the
+		// queries inside it cannot change the width they read.
+		n.Pref[axis] = is + ie
+	}
 	if n.Flags&flagScroll == 0 {
 		return
 	}
@@ -512,7 +517,11 @@ func (f *Frame) solveFlow(n *Node, First, stop int32, axis int, start, avail flo
 		if state := f.Exts[n.Ext].scrollState; state != nil && state.pinned() {
 			n.Scroll = max(used-avail, 0) // at the end of what is there now, not of last frame's
 		}
-		pos -= snapScroll(n.Scroll)
+		over := float32(0)
+		if state := f.Exts[n.Ext].scrollState; state != nil {
+			over = state.overscroll()
+		}
+		pos -= snapScroll(n.Scroll + over)
 	}
 	for c := First; c != stop; c = f.Nodes[c].Next {
 		child := &f.Nodes[c]

@@ -1,3 +1,5 @@
+#include "../core_text.m"
+#include "../core_render.m"
 #include "../native.m"
 #include "../main_menu_darwin.m"
 #include "window_test_callbacks.h"

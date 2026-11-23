@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && !ios
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <pthread.h>

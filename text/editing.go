@@ -59,24 +59,24 @@ func wordClass(r rune) int {
 func (editor *Editor) wordBoundary(forward bool) int {
 	at := editor.caret
 	if forward {
-		if at < len(editor.runes) {
-			kind := wordClass(editor.runes[at])
-			for at < len(editor.runes) && wordClass(editor.runes[at]) == kind {
-				at = nextBoundary(editor.runes, at)
+		if at < editor.runes.Len() {
+			kind := wordClass(editor.runes.At(at))
+			for at < editor.runes.Len() && wordClass(editor.runes.At(at)) == kind {
+				at = editor.runes.Next(at)
 			}
 		}
-		for at < len(editor.runes) && wordClass(editor.runes[at]) == 0 {
-			at = nextBoundary(editor.runes, at)
+		for at < editor.runes.Len() && wordClass(editor.runes.At(at)) == 0 {
+			at = editor.runes.Next(at)
 		}
 	} else {
-		for at > 0 && wordClass(editor.runes[previousBoundary(editor.runes, at)]) == 0 {
-			at = previousBoundary(editor.runes, at)
+		for at > 0 && wordClass(editor.runes.At(editor.runes.Prev(at))) == 0 {
+			at = editor.runes.Prev(at)
 		}
 		if at > 0 {
-			kind := wordClass(editor.runes[previousBoundary(editor.runes, at)])
+			kind := wordClass(editor.runes.At(editor.runes.Prev(at)))
 			for at > 0 {
-				previous := previousBoundary(editor.runes, at)
-				if wordClass(editor.runes[previous]) != kind {
+				previous := editor.runes.Prev(at)
+				if wordClass(editor.runes.At(previous)) != kind {
 					break
 				}
 				at = previous
@@ -183,24 +183,18 @@ func (editor *Editor) DeleteWord(forward bool) {
 }
 
 func (editor *Editor) insideCRLF(at int) bool {
-	return at > 0 && at < len(editor.runes) && editor.runes[at-1] == '\r' && editor.runes[at] == '\n'
+	return at > 0 && at < editor.runes.Len() && editor.runes.At(at-1) == '\r' && editor.runes.At(at) == '\n'
 }
 
 // lineBoundary finds the logical line's start or the first rune of its LF or
 // CRLF ending, or the end of the text.
 func (editor *Editor) lineBoundary(end bool) int {
-	at := editor.caret
-	if end {
-		for at < len(editor.runes) && editor.runes[at] != '\n' {
-			at++
-		}
-		if at > 0 && at < len(editor.runes) && editor.runes[at-1] == '\r' {
-			at--
-		}
-	} else {
-		for at > 0 && editor.runes[at-1] != '\n' {
-			at--
-		}
+	if !end {
+		return editor.runes.LineStart(editor.caret)
+	}
+	at := editor.runes.LineEnd(editor.caret)
+	if at > 0 && at < editor.runes.Len() && editor.runes.At(at-1) == '\r' {
+		at--
 	}
 	return at
 }
@@ -234,7 +228,7 @@ func (editor *Editor) DeleteToLineBoundary(end bool) {
 		// A caret between CR and LF is at the start of that ending for line
 		// purposes. Normalizing it first keeps the boundary and the deletion on
 		// one position, so the pair is never split.
-		editor.collapse(previousBoundary(editor.runes, editor.caret))
+		editor.collapse(editor.runes.Prev(editor.caret))
 	}
 	boundary := editor.lineBoundary(end)
 	target := ordered(Range{Start: editor.caret, End: boundary})
@@ -242,11 +236,11 @@ func (editor *Editor) DeleteToLineBoundary(end bool) {
 	if target.Start == target.End {
 		// A caret already on the boundary removes the grapheme beyond it, which
 		// joins the line, as DeleteForward and DeleteBackward do.
-		if end && editor.caret < len(editor.runes) {
-			target = Range{Start: editor.caret, End: nextBoundary(editor.runes, editor.caret)}
+		if end && editor.caret < editor.runes.Len() {
+			target = Range{Start: editor.caret, End: editor.runes.Next(editor.caret)}
 			kind = editDeleteForward
 		} else if !end && editor.caret > 0 {
-			target = Range{Start: previousBoundary(editor.runes, editor.caret), End: editor.caret}
+			target = Range{Start: editor.runes.Prev(editor.caret), End: editor.caret}
 			kind = editDeleteBackward
 		}
 	}

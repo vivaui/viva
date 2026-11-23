@@ -52,6 +52,20 @@ func (b Box) Children(fn func()) Box {
 	return b
 }
 
+// Row and Column change the direction a Row or a Column lays its children out
+// in: what a responsive change (From) does to turn a narrow column into a wide
+// row. Other elements keep the direction they were made with.
+func (b Box) Row() Box    { b.setDirection(row); return b }
+func (b Box) Column() Box { b.setDirection(column); return b }
+
+func (b Box) setDirection(d direction) {
+	n := b.N()
+	if n.Kind != kindContainer || n.Dir != row && n.Dir != column {
+		panic("ui: Row and Column change the direction of a Row or a Column, not of another element")
+	}
+	n.Dir = d
+}
+
 // Rect is where the element ended up: valid once the page has been laid out
 // (inside a Draw, after End; or from a Begin/End pair).
 func (b Box) Rect() Rect { return b.N().Rect }

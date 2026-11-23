@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -28,7 +30,7 @@ func TestTheLabelsOnScreenAreDrawnAgainWhenTheDesktopSwitchesToLCDText(t *testin
 		t.Fatalf("the switch reported %v, want the fonts", change)
 	}
 	refreshTextEngine()
-	if err := offscreen.renderer.refreshText(); err != nil {
+	if err := offscreen.RefreshText(); err != nil {
 		t.Fatal(err)
 	}
 	image, err := offscreen.Image()

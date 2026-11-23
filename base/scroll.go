@@ -1,6 +1,7 @@
 package base
 
 import (
+	"math"
 	"time"
 
 	"github.com/vivaui/viva/gfx"
@@ -39,6 +40,15 @@ type ScrollState struct {
 	OffsetX       float32 // how far a Sideways area is scrolled left
 	ContentWidth  float32 // the width of everything inside, as of the last layout
 	ViewportWidth float32 // the width of the area itself, less its padding
+
+	// pull is how far a finger (or a fling that ran into an end) has carried the content
+	// past an end, in pixels a finger moved: negative past the start, positive past the
+	// end. The content is drawn overscroll(pull) away from its end, giving like rubber.
+	// touching says a finger holds the content, so pull stays; otherwise it springs back
+	// to zero, from pullAt on.
+	pull     float32
+	touching bool
+	pullAt   time.Duration
 
 	ID         gfx.ID         // the area's identity, which its scrollbars are named under
 	grab       float32        // where along the thumb being dragged the pointer holds it
@@ -227,6 +237,10 @@ func wheelStep(delta float32, precise bool) float32 {
 // It is the function to give as Config.OnScroll when one area owns the wheel; a page
 // with several areas gives view.Wheel instead, which finds the one under the pointer.
 func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
+	if event.Phase != gfx.ScrollPhaseWheel {
+		return s.touchScroll(event)
+	}
+	s.pull, s.touching = 0, false
 	dx, dy := s.wheelSteps(event)
 	before, beforeX := s.Offset, s.OffsetX
 	s.Offset = min(max(before+dy, 0), s.Max())
@@ -234,6 +248,109 @@ func (s *ScrollState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 	s.toEnd = false
 	s.settle()
 	return gfx.EventResult{Handled: true, Repaint: s.Offset != before || s.OffsetX != beforeX}
+}
+
+// overscrollGive is how much of a finger's motion past an end the content follows at
+// first; it follows less the further it is, up to a fraction of the area's own height:
+// the curve UIScrollView draws, so the edge feels like rubber on every platform.
+const overscrollGive = 0.55
+
+// overscroll is how far the content is drawn past its end: the pull, through the
+// rubber curve. It is zero for content at rest, at an end or inside it.
+func (s *ScrollState) overscroll() float32 {
+	if s.pull == 0 || s.Viewport <= 0 {
+		return 0
+	}
+	distance := s.pull
+	if distance < 0 {
+		distance = -distance
+	}
+	shown := s.Viewport * (1 - 1/(distance*overscrollGive/s.Viewport+1))
+	if s.pull < 0 {
+		return -shown
+	}
+	return shown
+}
+
+// touchScroll applies the scroll of a finger on a touch screen: it moves the content
+// as a wheel does and, where the content ends, carries it past the end by the pull.
+// A fling that reaches an end gives by what one step of it had left, and springs
+// back at once, not carrying its whole speed past the end.
+func (s *ScrollState) touchScroll(event gfx.ScrollEvent) gfx.EventResult {
+	switch event.Phase {
+	case gfx.ScrollPhaseEnd:
+		s.touching = false
+		return gfx.EventResult{Handled: true, Repaint: s.pull != 0}
+	case gfx.ScrollPhaseMomentum:
+		s.touching = false
+		if s.pull != 0 {
+			return gfx.EventResult{Handled: true} // already springing back
+		}
+	default:
+		s.touching = true
+	}
+	_, dy := s.wheelSteps(event)
+	before, beforePull := s.Offset, s.pull
+	s.toEnd = false
+	if s.pull != 0 {
+		// Past an end: the finger moves the pull first, and what is left once it is
+		// back at the end scrolls the content.
+		pulled := s.pull + dy
+		if (pulled > 0) != (s.pull > 0) || pulled == 0 {
+			s.pull, dy = 0, pulled
+		} else {
+			s.pull, dy = pulled, 0
+		}
+	}
+	if dy != 0 {
+		target := s.Offset + dy
+		s.Offset = min(max(target, 0), s.Max())
+		if left := target - s.Offset; left != 0 && s.Max() > 0 {
+			limit := s.Viewport * 3
+			if event.Phase == gfx.ScrollPhaseMomentum {
+				limit = s.Viewport / 4
+			}
+			s.pull = min(max(left, -limit), limit)
+			if event.Phase == gfx.ScrollPhaseMomentum {
+				s.pullAt = 0
+			}
+		}
+	}
+	s.settle()
+	return gfx.EventResult{Handled: true, Repaint: s.Offset != before || s.pull != beforePull}
+}
+
+// relax lets the content held past an end go: it springs back, a fraction of the way
+// each frame, and asks for the frames until it is home. With nobody to run the frames
+// (no clock) it is home at once.
+func (s *ScrollState) relax(canvas *gfx.Canvas) {
+	if s.pull == 0 {
+		return
+	}
+	if canvas == nil || !canvas.HasClock() {
+		if !s.touching {
+			s.pull = 0
+		}
+		return
+	}
+	now := canvas.Now()
+	if s.touching {
+		s.pullAt = now
+		return
+	}
+	step := 16 * time.Millisecond
+	if s.pullAt != 0 && now > s.pullAt {
+		step = min(now-s.pullAt, 50*time.Millisecond)
+	}
+	s.pullAt = now
+	// The time constant of 1/14 s settles a pull of a screen's height in under half
+	// a second, as the system's bounce does.
+	s.pull *= float32(math.Exp(-14 * step.Seconds()))
+	if s.pull > -0.5 && s.pull < 0.5 {
+		s.pull, s.pullAt = 0, 0
+		return
+	}
+	canvas.RequestFrame()
 }
 
 // Key applies the keyboard's scrolling to the area, from the content and viewport
@@ -337,6 +454,23 @@ func (f *Frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventR
 	if f.Surface != nil {
 		trap = f.Surface.TrappedFocusScope()
 	}
+	if event.Phase == gfx.ScrollPhaseEnd {
+		// The finger lifted wherever it is now: whatever it held lets go.
+		result := gfx.EventResult{}
+		for i := range f.Nodes {
+			n := &f.Nodes[i]
+			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil {
+				continue
+			}
+			if s := f.Exts[n.Ext].scrollState; s.touching || s.pull != 0 {
+				if r := s.Wheel(event); r.Repaint {
+					result = r
+				}
+			}
+		}
+		return result, false
+	}
+	finger := event.Phase != gfx.ScrollPhaseWheel
 	for i := len(f.Nodes) - 1; i >= 0; i-- {
 		if int32(i) < panel { // what a panel holds is declared after its root
 			break
@@ -355,10 +489,32 @@ func (f *Frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventR
 			return gfx.EventResult{}, true
 		}
 		s := f.Exts[n.Ext].scrollState
-		if !s.canScroll(s.wheelSteps(event)) {
+		if !s.canScroll(s.wheelSteps(event)) && !(finger && s.pull != 0) {
 			continue
 		}
 		return s.Wheel(event), false
+	}
+	if finger {
+		// Nothing under the finger can scroll further, so the innermost area that has
+		// anywhere to scroll gives at its end. A panel keeps the search inside it, as
+		// it does above: a finger over a Popover or a modal Dialog never carries the
+		// page beneath it.
+		for i := len(f.Nodes) - 1; i >= 0; i-- {
+			if int32(i) < panel {
+				break
+			}
+			n := &f.Nodes[i]
+			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil || f.Exts[n.Ext].scrollManual {
+				continue
+			}
+			if !f.within(int32(i), panel) {
+				continue
+			}
+			if s := f.Exts[n.Ext].scrollState; s.Max() > 0 && f.ContainsPoint(i, event.X, event.Y) &&
+				(trap.IsZero() || s.scope == trap) {
+				return s.Wheel(event), false
+			}
+		}
 	}
 	return gfx.EventResult{}, false
 }
@@ -612,6 +768,7 @@ func (f *Frame) reportScrolls() {
 		} else {
 			s.Offset = min(max(s.Offset, 0), s.Max())
 		}
+		s.relax(f.Surface)
 		xs, xe := n.Inset(AxisX)
 		s.ViewportWidth = max(n.Rect.Width-xs-xe, 0)
 		if !s.sideways {

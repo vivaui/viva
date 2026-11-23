@@ -30,7 +30,10 @@ func TestPackageMakesADiskImageHoldingTheBundleAndAnApplicationsLink(t *testing.
 	}
 
 	mount := t.TempDir()
-	if out, err := exec.Command("hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mount, image).CombinedOutput(); err != nil {
+	// -noautoopen keeps the Finder from opening this read-only mount: -nobrowse
+	// hides it from the sidebar but does not stop the automatic open that offers
+	// to install the application.
+	if out, err := exec.Command("hdiutil", "attach", "-nobrowse", "-noautoopen", "-readonly", "-mountpoint", mount, image).CombinedOutput(); err != nil {
 		t.Fatalf("hdiutil attach: %v\n%s", err, out)
 	}
 	t.Cleanup(func() { _ = exec.Command("hdiutil", "detach", "-force", mount).Run() })

@@ -62,11 +62,11 @@ jobs:
         # bash on every runner: the Windows default shell is PowerShell.
         shell: bash
         run: |
-          if git diff --quiet -- internal/platform/darwin/shaders internal/platform/linux/shaders internal/platform/windows/shaders; then
+          if git diff --quiet -- internal/platform/darwin/shaders internal/platform/vulkan/shaders internal/platform/windows/shaders; then
             echo "the shipped shaders are what the sources compile to"
             echo changed=false >> "$GITHUB_OUTPUT"
           else
-            git diff --stat -- internal/platform/darwin/shaders internal/platform/linux/shaders internal/platform/windows/shaders
+            git diff --stat -- internal/platform/darwin/shaders internal/platform/vulkan/shaders internal/platform/windows/shaders
             echo changed=true >> "$GITHUB_OUTPUT"
           fi
       - name: Native pixel coverage with the rebuilt shaders
@@ -82,6 +82,6 @@ jobs:
           name: vector-shaders-${{ runner.os }}
           path: |
             internal/platform/darwin/shaders/scene.metallib
-            internal/platform/linux/shaders/*.spv
+            internal/platform/vulkan/shaders/*.spv
             internal/platform/windows/shaders/*.dxbc
             internal/platform/windows/shaders/manifest.json

@@ -2,7 +2,10 @@ package input
 
 import "github.com/vivaui/viva/gfx"
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestHitTestUsesFrontToBackOrderAndSkipsDisabled(t *testing.T) {
 	var router Router
@@ -505,5 +508,80 @@ func TestPressAtWalksFromTheFrontAndFindsTheWindowMoveRegion(t *testing.T) {
 		if got := router.PressAt(test.x, test.y); got != test.want {
 			t.Errorf("%s: PressAt = %d, want %d", test.name, got, test.want)
 		}
+	}
+}
+
+// A target with two focusable regions keeps the focus on the region it is on
+// when the same regions are declared again, so Tab from the second region goes
+// on to the next target instead of back to the first region.
+func TestRepeatedRegionsKeepTheFocusedSlot(t *testing.T) {
+	var router Router
+	regions := func() []Region {
+		return []Region{
+			{Target: gfx.Item(1), Bounds: Rect{Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(2), Bounds: Rect{X: 20, Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(1), Bounds: Rect{X: 40, Width: 10, Height: 10}, Focusable: true},
+			{Target: gfx.Item(3), Bounds: Rect{X: 60, Width: 10, Height: 10}, Focusable: true},
+		}
+	}
+	router.SetRegions(regions())
+	var visited []gfx.ID
+	for range 4 {
+		router.KeyDown(KeyEvent{Key: KeyTab})
+		router.SetRegions(regions()) // the repaint that follows each key
+		focused, _ := router.Focused()
+		visited = append(visited, focused)
+	}
+	if !slices.Contains(visited, gfx.Item(3)) {
+		t.Fatalf("Tab visited %v and never reached the last target", visited)
+	}
+}
+
+func TestATouchNearASmallControlPressesIt(t *testing.T) {
+	var router Router
+	router.SetRegions([]Region{
+		{Target: gfx.Item(1), Bounds: Rect{Width: 300, Height: 300}},               // a panel
+		{Target: gfx.Item(2), Bounds: Rect{X: 100, Y: 100, Width: 20, Height: 20}}, // a small control
+	})
+	x, y := router.TouchPoint(100+20+8, 110, 44) // 8 px right of the control: within its reach
+	if region, ok, _ := router.PointerAt(x, y, false); !ok || region.Target != gfx.Item(2) {
+		t.Fatalf("a touch next to the control pressed %v, want the control", region.Target)
+	}
+	x, y = router.TouchPoint(100+20+30, 110, 44) // out of its reach
+	if region, _, _ := router.PointerAt(x, y, false); region.Target != gfx.Item(1) {
+		t.Fatalf("a touch far from the control pressed %v, want the panel", region.Target)
+	}
+}
+
+func TestATouchOnAControlStaysAndNeighboursDoNotStealIt(t *testing.T) {
+	var router Router
+	router.SetRegions([]Region{
+		{Target: gfx.Item(1), Bounds: Rect{X: 0, Y: 0, Width: 30, Height: 30}},
+		{Target: gfx.Item(2), Bounds: Rect{X: 34, Y: 0, Width: 30, Height: 30}},
+	})
+	if x, y := router.TouchPoint(40, 10, 44); x != 40 || y != 10 {
+		t.Fatalf("a touch on a control moved to %v, %v", x, y)
+	}
+}
+
+func TestATouchDoesNotReachThroughAnOpaqueSurface(t *testing.T) {
+	var router Router
+	router.SetRegions([]Region{
+		{Target: gfx.Item(1), Bounds: Rect{X: 100, Y: 100, Width: 20, Height: 20}},
+		{Blocks: true, Bounds: Rect{X: 90, Y: 0, Width: 200, Height: 300}},
+	})
+	if x, y := router.TouchPoint(125, 110, 44); x != 125 || y != 110 {
+		t.Fatalf("a touch on a modal surface reached the control behind it: %v, %v", x, y)
+	}
+}
+
+func TestTouchPointDoesNotAllocate(t *testing.T) {
+	var router Router
+	router.SetRegions([]Region{
+		{Target: gfx.Item(1), Bounds: Rect{Width: 300, Height: 300}},
+		{Target: gfx.Item(2), Bounds: Rect{X: 100, Y: 100, Width: 20, Height: 20}},
+	})
+	if allocs := testing.AllocsPerRun(100, func() { router.TouchPoint(128, 110, 44) }); allocs != 0 {
+		t.Fatalf("TouchPoint allocates %v times per call", allocs)
 	}
 }

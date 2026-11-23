@@ -8,6 +8,7 @@ import (
 	"syscall/js"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/lineengine"
 )
 
 func cssFont(fontSize, weight float32) string {
@@ -29,8 +30,8 @@ func cssFontStyle(fontSize, weight float32, italic bool) string {
 		slant = "italic "
 	}
 	family := "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-	if interfaceFamily != "" {
-		family = cssFamily(interfaceFamily) + ", " + family
+	if named := lineengine.InterfaceFamily(); named != "" {
+		family = cssFamily(named) + ", " + family
 	}
 	return fmt.Sprintf("%s%d %gpx %s", slant, cssWeight, fontSize, family)
 }

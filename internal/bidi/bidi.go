@@ -106,25 +106,6 @@ func NeedsBidi(text string) bool {
 	return false
 }
 
-// NeedsBidiRunes is NeedsBidi for text already decoded. Callers that hold runes
-// and would otherwise convert a line back to a string just to ask use it to
-// skip that allocation for every left-to-right line.
-func NeedsBidiRunes(text []rune) bool {
-	for _, r := range text {
-		switch {
-		case r < utf8.RuneSelf:
-		case r <= 0x057F:
-		case r >= 0x3000 && r <= 0xAFFF:
-		default:
-			switch uniprops.Bidi(r) {
-			case cR, cAL, cAN, cLRE, cLRO, cRLE, cRLO, cPDF, cLRI, cRLI, cFSI, cPDI:
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // Mirrored returns the character whose glyph is the mirror image of r (rule L4), or r
 // itself. Apply it to characters at odd levels.
 func Mirrored(r rune) rune { return uniprops.Mirror(r) }

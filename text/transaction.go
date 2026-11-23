@@ -56,7 +56,7 @@ func (editor *Editor) Transact(apply func(*Editor) error) error {
 	}
 	value := draft.String()
 	after := Range{Start: draft.anchor, End: draft.caret}
-	target := Range{End: len(editor.runes)}
+	target := Range{End: editor.runes.Len()}
 	if err := editor.ValidateReplaceRanges([]Replacement{{Range: target, Text: value}}, ReplaceRangesOptions{AfterSelection: &after}); err != nil {
 		return err
 	}

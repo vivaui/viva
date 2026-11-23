@@ -1,8 +1,6 @@
 package input
 
 import (
-	"slices"
-
 	"github.com/vivaui/viva/gfx"
 )
 
@@ -145,26 +143,36 @@ type Router struct {
 	returnFocus   Target
 }
 
-// SetRegions replaces paint-order hit regions while preserving a still-valid
-// focused target. Destination storage is reused across calls.
+// RegionBuffer is the router's region list emptied, to build the next list in
+// and hand back with SetRegions, so the regions are kept once and never copied.
+// The router routes nothing until it has them back.
+func (router *Router) RegionBuffer() []Region { return router.regions[:0] }
+
+// SetRegions replaces the paint-order hit regions, preserving a still-valid
+// focused target. The router keeps regions as given, without a copy: the caller
+// must not change the slice afterwards.
 func (router *Router) SetRegions(regions []Region) {
-	// A repaint that declares the same regions (the common steady state) needs
-	// no copy and no focus rescan: the retained list already routes input and
-	// the focused slot is still valid.
-	if len(router.regions) == len(regions) && slices.Equal(router.regions, regions) {
+	router.regions = regions
+	if router.focused.IsZero() {
+		router.focusedSlot = 0
 		return
 	}
-	router.regions = append(router.regions[:0], regions...)
-	router.focusedSlot = 0
-	if !router.focused.IsZero() {
-		for index, region := range router.regions {
-			if region.Target == router.focused && router.focusAvailableRegion(region) {
-				router.focusedSlot = uint32(index + 1)
-				break
-			}
+	// A target can have several regions; the focus stays on the one it was on
+	// while that one still holds it, so Tab goes on from there instead of
+	// starting over from the target's first region.
+	if slot := router.focusedSlot; slot > 0 && int(slot) <= len(regions) {
+		if region := regions[slot-1]; region.Target == router.focused && router.focusAvailableRegion(region) {
+			return
 		}
 	}
-	if !router.focused.IsZero() && router.focusedSlot == 0 {
+	router.focusedSlot = 0
+	for index, region := range router.regions {
+		if region.Target == router.focused && router.focusAvailableRegion(region) {
+			router.focusedSlot = uint32(index + 1)
+			break
+		}
+	}
+	if router.focusedSlot == 0 {
 		router.focused = gfx.ID{}
 	}
 }
@@ -220,6 +228,83 @@ func (router *Router) PointerAt(x float32, y float32, secondaryPress bool) (Regi
 		}
 	}
 	return Region{}, false, false
+}
+
+// TouchPoint is where a finger that touched at x, y presses. A fingertip is about 44
+// logical pixels across and a control may be smaller, so a touch that lands near a
+// small control, not on it, presses the control rather than what is behind it: the
+// control's region reaches out to minSize in each direction it falls short in. The
+// point moves only into a control painted in front of whatever the touch is on, and
+// only if that is no small control itself (it is the finger's choice), nor a surface that blocks; of several
+// controls in reach the nearest wins, the front-most on a tie. Anywhere else the
+// point is returned as it is.
+func (router *Router) TouchPoint(x, y, minSize float32) (float32, float32) {
+	floor := -1 // regions at this index and behind are not in reach
+	for index := len(router.regions) - 1; index >= 0; index-- {
+		region := router.regions[index]
+		if !contains(region.Bounds, x, y) {
+			continue
+		}
+		if region.Blocks {
+			if router.activeScope.IsZero() || region.Scope == router.activeScope {
+				floor = index
+				break
+			}
+			continue
+		}
+		if router.hitAvailable(region) {
+			if !region.Backdrop && needsReach(region.Bounds, minSize) {
+				return x, y // on a small control: that is what the finger chose
+			}
+			floor = index
+			break
+		}
+	}
+	best, bestDistance := -1, float32(0)
+	for index := len(router.regions) - 1; index > floor; index-- {
+		region := router.regions[index]
+		if region.Blocks || region.Backdrop || region.Label || region.MovesWindow || !router.hitAvailable(region) ||
+			!needsReach(region.Bounds, minSize) {
+			continue
+		}
+		reach := reached(region.Bounds, minSize)
+		if !contains(reach, x, y) {
+			continue
+		}
+		if distance := distanceTo(region.Bounds, x, y); best < 0 || distance < bestDistance {
+			best, bestDistance = index, distance
+		}
+	}
+	if best < 0 {
+		return x, y
+	}
+	bounds := router.regions[best].Bounds
+	return min(max(x, bounds.X), bounds.X+bounds.Width-0.01), min(max(y, bounds.Y), bounds.Y+bounds.Height-0.01)
+}
+
+// needsReach says a region is smaller than a fingertip in some direction.
+func needsReach(bounds Rect, minSize float32) bool {
+	return bounds.Width < minSize || bounds.Height < minSize
+}
+
+// reached is a region grown, around its centre, to at least minSize each way.
+func reached(bounds Rect, minSize float32) Rect {
+	if bounds.Width < minSize {
+		bounds.X -= (minSize - bounds.Width) / 2
+		bounds.Width = minSize
+	}
+	if bounds.Height < minSize {
+		bounds.Y -= (minSize - bounds.Height) / 2
+		bounds.Height = minSize
+	}
+	return bounds
+}
+
+// distanceTo is how far a point is from a rectangle, zero inside it.
+func distanceTo(bounds Rect, x, y float32) float32 {
+	dx := max(bounds.X-x, 0, x-(bounds.X+bounds.Width))
+	dy := max(bounds.Y-y, 0, y-(bounds.Y+bounds.Height))
+	return dx*dx + dy*dy
 }
 
 // PressKind is what a press at a point does in a custom-titlebar window.

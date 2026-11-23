@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_MAIN_MENU_DARWIN_H
 #define VIVA_MAIN_MENU_DARWIN_H
 

@@ -104,8 +104,8 @@ func (editor *Editor) AddSelection(selection Range) bool {
 	}
 	states := editor.selectionStates()
 	states = append(states, editorSelection{
-		anchor: clamp(selection.Start, 0, len(editor.runes)),
-		caret:  clamp(selection.End, 0, len(editor.runes)),
+		anchor: clamp(selection.Start, 0, editor.runes.Len()),
+		caret:  clamp(selection.End, 0, editor.runes.Len()),
 	})
 	merged, main := normalizeSelections(states, len(states)-1)
 	previous, _ := normalizeSelections(editor.selectionStates(), 0)
@@ -146,8 +146,8 @@ func (editor *Editor) SetSelections(selections []Range, main int) bool {
 	states := make([]editorSelection, len(selections))
 	for index, selection := range selections {
 		states[index] = editorSelection{
-			anchor: clamp(selection.Start, 0, len(editor.runes)),
-			caret:  clamp(selection.End, 0, len(editor.runes)),
+			anchor: clamp(selection.Start, 0, editor.runes.Len()),
+			caret:  clamp(selection.End, 0, editor.runes.Len()),
 		}
 	}
 	merged, mergedMain := normalizeSelections(states, main)
@@ -353,17 +353,17 @@ func (editor *Editor) multiDelete(forward bool) bool {
 		start, end := selection.from(), selection.to()
 		if start == end {
 			if forward {
-				limit := len(editor.runes)
+				limit := editor.runes.Len()
 				if index+1 < len(ordered) {
 					limit = ordered[index+1].from()
 				}
-				end = min(nextBoundary(editor.runes, end), limit)
+				end = min(editor.runes.Next(end), limit)
 			} else {
 				limit := 0
 				if index > 0 {
 					limit = ordered[index-1].to()
 				}
-				start = max(previousBoundary(editor.runes, start), limit)
+				start = max(editor.runes.Prev(start), limit)
 			}
 		}
 		edits[index] = multiEdit{start: start, end: end}

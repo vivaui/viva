@@ -1,3 +1,5 @@
+// Portable: macOS and iOS
+
 #import <dispatch/dispatch.h>
 
 #include "post_darwin.h"

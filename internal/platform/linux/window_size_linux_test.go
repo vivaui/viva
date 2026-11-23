@@ -1,9 +1,13 @@
+//go:build !android
+
 package linux
 
 import (
 	"encoding/binary"
 	"testing"
 	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform/windowframe"
 )
 
 func TestSetSizeCommandUsesLogicalContentSize(t *testing.T) {
@@ -12,7 +16,7 @@ func TestSetSizeCommandUsesLogicalContentSize(t *testing.T) {
 	flushed := false
 	win := &window{
 		id:     7,
-		margin: frameMargin(1.5),
+		margin: windowframe.Margin(1.5),
 		api: &xcbAPI{
 			configureWindow: func(_ uintptr, window uint32, mask uint16, values *uint32) xcbVoidCookie {
 				if window != 7 {
@@ -38,7 +42,7 @@ func TestSetSizeCommandUsesLogicalContentSize(t *testing.T) {
 	if err := state.command(commandSetSize, data); err != nil {
 		t.Fatal(err)
 	}
-	margin := 2 * frameMargin(1.5)
+	margin := 2 * windowframe.Margin(1.5)
 	if want := deviceLength(420, 1.5) + margin; gotWidth != want {
 		t.Fatalf("configured width = %d, want %d", gotWidth, want)
 	}

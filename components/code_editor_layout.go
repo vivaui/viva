@@ -1,6 +1,7 @@
 package components
 
 import (
+	"cmp"
 	"slices"
 	"sort"
 	"strconv"
@@ -13,9 +14,8 @@ import (
 
 // A CodeEditor lays its text out on a grid of character cells, as a terminal
 // does: every character is one cell wide, a wide one (CJK, emoji) two, a
-// combining mark none, and a tab runs to the next tab stop. Columns, caret
-// movement, selections and indentation all become cell arithmetic, which needs no
-// text measurement and so costs the same however long the text is.
+// combining mark none, and a tab runs to the next tab stop. Row breaks and
+// caret hits keep grapheme clusters together within that grid.
 
 // codeRow is one row of the grid: the bytes value[start:end] of one logical
 // line, which a soft wrap splits into several rows.
@@ -35,17 +35,10 @@ func codeCells(r rune, column, tabWidth int) int {
 	return text.CellWidth(r)
 }
 
-// indentationLevels is the leading cells of every line, in the displayed columns
-// the layout uses, so a representation that hides or widens a leading tab moves
-// the indent guides with the text; a blank line takes the smaller indentation of
-// its nearest text lines so guides run through it.
-//
-// The forward pass stores a blank line as -2-previous, where previous is the
-// indentation of the last text line above it (-1 when there is none), so the
-// backward pass can resolve it without a second slice.
-func indentationLevels(value string, tabWidth int, reps []CodeRepresentation) []int {
-	levels := make([]int, 0, strings.Count(value, "\n")+1)
-	previous := -1
+// appendRawIndents appends the leading cells of each line of value, or -1 for a
+// blank line, in the displayed columns the layout uses, so a representation that
+// hides or widens a leading tab moves the indent guides with the text.
+func appendRawIndents(dst []int, value string, tabWidth int, reps []CodeRepresentation) []int {
 	for line := range strings.SplitSeq(value, "\n") {
 		column, blank := 0, true
 	leading:
@@ -59,31 +52,50 @@ func indentationLevels(value string, tabWidth int, reps []CodeRepresentation) []
 			}
 		}
 		if blank {
-			levels = append(levels, -2-previous)
-			continue
+			column = -1
 		}
-		levels = append(levels, column)
-		previous = column
+		dst = append(dst, column)
 	}
-	next := -1
-	for index := len(levels) - 1; index >= 0; index-- {
-		if levels[index] >= 0 {
-			next = levels[index]
+	return dst
+}
+
+// resolveIndents writes levels[from:to] from the raw indentation of every line:
+// a text line keeps its own, and a blank line takes the smaller of the nearest
+// text lines above and below it, or the one there is, or 0. levels may be raw.
+func resolveIndents(levels, raw []int, from, to int) {
+	for index := from; index < to; {
+		if raw[index] >= 0 {
+			levels[index] = raw[index]
+			index++
 			continue
 		}
-		above := -2 - levels[index]
+		start, end := index, index
+		for start > 0 && raw[start-1] < 0 {
+			start--
+		}
+		for end < len(raw) && raw[end] < 0 {
+			end++
+		}
+		above, below := -1, -1
+		if start > 0 {
+			above = raw[start-1]
+		}
+		if end < len(raw) {
+			below = raw[end]
+		}
+		level := 0
 		switch {
-		case above >= 0 && next >= 0:
-			levels[index] = min(above, next)
+		case above >= 0 && below >= 0:
+			level = min(above, below)
 		case above >= 0:
-			levels[index] = above
-		case next >= 0:
-			levels[index] = next
-		default:
-			levels[index] = 0
+			level = above
+		case below >= 0:
+			level = below
+		}
+		for ; index < min(end, to); index++ {
+			levels[index] = level
 		}
 	}
-	return levels
 }
 
 func representationOf(reps []CodeRepresentation, character rune) (CodeRepresentation, bool) {
@@ -117,6 +129,35 @@ func decodeAt(value string, at int) (rune, int) {
 	return utf8.DecodeRuneInString(value[at:])
 }
 
+// gridCluster returns the byte end and cell width of the grapheme at a
+// boundary. The cells still use the same widths as the drawing runs.
+func (editor *CodeEditor) gridCluster(value string, at, column int) (end, cells int) {
+	r, size := decodeAt(value, at)
+	end = at + size
+	cells = displayCells(r, column, editor.tabWidth, editor.reps)
+	if end == len(value) || r < utf8.RuneSelf && value[end] < utf8.RuneSelf {
+		return end, cells
+	}
+	boundary := text.NextGraphemeBoundary(value, at)
+	for end < boundary {
+		r, size = decodeAt(value, end)
+		cells += displayCells(r, column+cells, editor.tabWidth, editor.reps)
+		end += size
+	}
+	return end, cells
+}
+
+func gridCaretStart(value string, offset int) int {
+	offset = min(max(offset, 0), len(value))
+	if offset == 0 || offset == len(value) {
+		return offset
+	}
+	if before, after := value[offset-1], value[offset]; before|after < utf8.RuneSelf && (before != '\r' || after != '\n') {
+		return offset
+	}
+	return gfx.GraphemeStart(value, offset)
+}
+
 // fit lays value out in rows of cols cells unless it already is.
 func (editor *CodeEditor) fit(value string, cols int, wrap bool, tabWidth int) {
 	editor.fitWithFolds(value, cols, wrap, tabWidth, nil)
@@ -127,16 +168,19 @@ func (editor *CodeEditor) fitWithFolds(value string, cols int, wrap bool, tabWid
 }
 
 func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bool, tabWidth int, folds []CodeEditorFoldRange, reps []CodeRepresentation) {
-	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && editor.text == value && slices.Equal(editor.foldInput, folds) && slices.Equal(editor.reps, reps) {
-		return
+	if editor.fitted && editor.cols == cols && editor.wrap == wrap && editor.tabWidth == tabWidth && slices.Equal(editor.foldInput, folds) && slices.Equal(editor.reps, reps) {
+		if editor.text == value || editor.refit(value) {
+			return
+		}
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)
 	editor.reps = append(editor.reps[:0], reps...)
 	editor.folds = editor.folds[:0]
 	editor.rows = editor.rows[:0]
-	editor.indents = nil
+	editor.indents, editor.rawIndents = nil, editor.rawIndents[:0]
 	editor.shown = editor.shown[:0]
+	editor.deadShown = 0
 	editor.widest = 0
 	if len(value) > 1<<30 {
 		// Rows are indexed with 32 bits; a text this long is not an editor's.
@@ -182,6 +226,123 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 	editor.runLine = -1
 }
 
+// refit lays out again only the logical lines an edit touched, when the text is
+// all that changed: the rows before them stand, and the rows after them move by
+// the bytes and lines the edit added. It reports false when the text needs a full
+// layout instead.
+func (editor *CodeEditor) refit(value string) bool {
+	old := editor.text
+	if len(editor.folds) > 0 || len(value) > 1<<30 || editor.deadShown > 64 && editor.deadShown > len(editor.shown)/2 {
+		return false
+	}
+	prefix := commonPrefix(old, value)
+	suffix := commonSuffix(old[prefix:], value[prefix:])
+	// The edit replaced old[prefix:len(old)-suffix]; the lines holding it are laid
+	// out again whole, from the start of the first to the line break after the last.
+	from := strings.LastIndexByte(old[:prefix], '\n') + 1
+	oldTo := len(old)
+	if newline := strings.IndexByte(old[len(old)-suffix:], '\n'); newline >= 0 {
+		oldTo = len(old) - suffix + newline
+	}
+	delta := len(value) - len(old)
+	newTo := oldTo + delta
+
+	first, _ := slices.BinarySearchFunc(editor.rows, int32(from), func(row codeRow, at int32) int { return cmp.Compare(row.lineStart, at) })
+	last, _ := slices.BinarySearchFunc(editor.rows, int32(oldTo), func(row codeRow, at int32) int { return cmp.Compare(row.lineStart, at+1) })
+	// Every logical line has a row, so the first row from the line's start is it.
+	line := int(editor.rows[first].line)
+	lostWidest := false
+	for _, row := range editor.rows[first:last] {
+		lostWidest = lostWidest || int(row.cells) == editor.widest
+		if row.shown >= 0 {
+			editor.deadShown++
+		}
+	}
+	lines := strings.Count(value[from:newTo], "\n") - strings.Count(old[from:oldTo], "\n")
+
+	// The new lines are laid out after the rows, then moved into place.
+	editor.text = value
+	tail := len(editor.rows)
+	for start := from; ; line++ {
+		end := newTo
+		if newline := strings.IndexByte(value[start:newTo], '\n'); newline >= 0 {
+			end = start + newline
+		}
+		rowEnd := end
+		if end < len(value) && end > start && value[end-1] == '\r' {
+			rowEnd--
+		}
+		editor.appendLine(value, start, rowEnd, line)
+		if end >= newTo {
+			break
+		}
+		start = end + 1
+	}
+	made := len(editor.rows) - tail
+	editor.rows = slices.Grow(editor.rows, made)
+	editor.scratchRows = append(editor.scratchRows[:0], editor.rows[tail:]...)
+	editor.rows = slices.Replace(editor.rows[:tail], first, last, editor.scratchRows...)
+	for index := first + made; index < len(editor.rows); index++ {
+		row := &editor.rows[index]
+		row.start += int32(delta)
+		row.end += int32(delta)
+		row.lineStart += int32(delta)
+		row.line += int32(lines)
+	}
+	if lostWidest {
+		editor.widest = 0
+		for _, row := range editor.rows {
+			editor.widest = max(editor.widest, int(row.cells))
+		}
+	}
+	editor.lineCount += lines
+	if editor.indents != nil {
+		// The indentation of the edited lines is measured again, and blank lines
+		// next to them, which take it from the nearest text lines, resolved again.
+		firstLine := int(editor.rows[first].line)
+		oldEnd := firstLine + strings.Count(old[from:oldTo], "\n") + 1
+		editor.scratchIndents = appendRawIndents(editor.scratchIndents[:0], value[from:newTo], editor.tabWidth, editor.reps)
+		editor.rawIndents = slices.Replace(editor.rawIndents, firstLine, oldEnd, editor.scratchIndents...)
+		editor.indents = slices.Replace(editor.indents, firstLine, oldEnd, editor.scratchIndents...)
+		before, after := firstLine, firstLine+len(editor.scratchIndents)
+		for before > 0 && editor.rawIndents[before-1] < 0 {
+			before--
+		}
+		for after < len(editor.rawIndents) && editor.rawIndents[after] < 0 {
+			after++
+		}
+		resolveIndents(editor.indents, editor.rawIndents, before, after)
+	}
+	editor.runLine = -1
+	return true
+}
+
+// commonPrefix is how many leading bytes a and b share, compared a block at a time.
+func commonPrefix(a, b string) int {
+	const block = 1024
+	n, at := min(len(a), len(b)), 0
+	for at+block <= n && a[at:at+block] == b[at:at+block] {
+		at += block
+	}
+	for at < n && a[at] == b[at] {
+		at++
+	}
+	return at
+}
+
+// commonSuffix is how many trailing bytes a and b share.
+func commonSuffix(a, b string) int {
+	const block = 1024
+	n, at := min(len(a), len(b)), 0
+	for at+block <= n && a[len(a)-at-block:len(a)-at] == b[len(b)-at-block:len(b)-at] {
+		at += block
+	}
+	for at < n && a[len(a)-at-1] == b[len(b)-at-1] {
+		at++
+	}
+	return at
+}
+
 // SoftWrapOffsets returns byte offsets where the last painted editor would
 // wrap its text at its current content width. It does not change the live
 // editor's rows, scroll position, or selection.
@@ -213,17 +374,20 @@ func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
 // before the word that does not fit, or inside it when it is longer than a row;
 // the spaces that end a row hang past its right edge instead of wrapping.
 func (editor *CodeEditor) appendLine(value string, start, end, line int) {
+	if !editor.wrap {
+		editor.addRow(value, start, end, start, line, editor.columnBetween(value, start, end))
+		return
+	}
 	rowStart, column := start, 0
 	wordStart, wordColumn := -1, 0
 	previousSpace := false
 	for at := start; at < end; {
-		r, size := decodeAt(value, at)
-		width := displayCells(r, column, editor.tabWidth, editor.reps)
-		space := r == ' ' || r == '\t'
+		next, width := editor.gridCluster(value[:end], at, column)
+		space := value[at] == ' ' || value[at] == '\t'
 		if !space && previousSpace {
 			wordStart, wordColumn = at, column
 		}
-		if editor.wrap && !space && column+width > editor.cols && column > 0 {
+		if !space && column+width > editor.cols && column > 0 {
 			cut, cutColumn := at, column
 			if wordStart > rowStart {
 				cut, cutColumn = wordStart, wordColumn
@@ -231,11 +395,16 @@ func (editor *CodeEditor) appendLine(value string, start, end, line int) {
 			editor.addRow(value, rowStart, cut, start, line, cutColumn)
 			rowStart, wordStart = cut, -1
 			column = editor.columnBetween(value, cut, at)
-			width = displayCells(r, column, editor.tabWidth, editor.reps)
+			// Only a tab's width depends on column. Tabs are separate clusters
+			// and do not wrap here. A wide cluster can still overflow the moved word.
+			if column > 0 && column+width > editor.cols {
+				editor.addRow(value, rowStart, at, start, line, column)
+				rowStart, column = at, 0
+			}
 		}
 		previousSpace = space
 		column += width
-		at += size
+		at = next
 	}
 	editor.addRow(value, rowStart, end, start, line, column)
 }
@@ -354,14 +523,19 @@ func (walker *columnWalker) column(offset int) int {
 // distance in cells from the start of the row.
 func (editor *CodeEditor) offsetAtColumn(row codeRow, x float32) int {
 	column := 0
-	for at := int(row.start); at < int(row.end); {
-		r, size := decodeAt(editor.text, at)
-		width := displayCells(r, column, editor.tabWidth, editor.reps)
+	value := editor.text[:row.end]
+	for at := int(row.start); at < len(value); {
+		next, width := at+1, 0
+		if r := value[at]; r < utf8.RuneSelf && (next == len(value) || value[next] < utf8.RuneSelf) {
+			width = displayCells(rune(r), column, editor.tabWidth, editor.reps)
+		} else {
+			next, width = editor.gridCluster(value, at, column)
+		}
 		if x < float32(column)+float32(width)/2 {
 			return at
 		}
 		column += width
-		at += size
+		at = next
 	}
 	return int(row.end)
 }
@@ -386,7 +560,17 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point gfx.Point) (offset, virtualC
 	}
 	index = max(0, min(index, len(editor.rows)-1))
 	row := editor.rows[index]
-	column := (point.X - editor.content.X + editor.scrollX) / editor.cellWidth
+	x := point.X - editor.content.X + editor.scrollX
+	if hit, shaped := editor.shapedHit(row, x); shaped {
+		editor.rememberShapedHit(row, hit)
+		editor.goalActive = false
+		editor.setUpstream(hit.Offset, hit.Offset == int(row.end) && editor.softWrapped(index))
+		return hit.Offset, 0, true
+	}
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
+	column := x / editor.cellWidth
 	offset = editor.offsetAtColumn(row, column)
 	editor.setUpstream(offset, offset == int(row.end) && editor.softWrapped(index))
 	if offset == int(row.end) && !editor.softWrapped(index) {
@@ -408,6 +592,9 @@ func (editor *CodeEditor) setUpstream(offset int, upstream bool) {
 
 // arrive notes where a movement ended and returns it.
 func (editor *CodeEditor) arrive(offset int, upstream bool) int {
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
 	editor.setUpstream(offset, upstream)
 	editor.goalActive = false
 	return offset
@@ -431,6 +618,7 @@ func (editor *CodeEditor) Move(text string, caret int, movement TextareaMovement
 	if !editor.painted || len(editor.rows) == 0 || editor.text != text {
 		return caret
 	}
+	caret = gridCaretStart(text, caret)
 	index := editor.rowOf(caret)
 	row := editor.rows[index]
 	switch movement {
@@ -462,21 +650,34 @@ func (editor *CodeEditor) Move(text string, caret int, movement TextareaMovement
 	}
 	if !editor.goalActive || editor.goalCaret != caret {
 		editor.goal = float32(editor.columnOf(row, caret))
+		if x, shaped := editor.shapedCaretX(row, caret); shaped && editor.cellWidth > 0 {
+			editor.goal = x / editor.cellWidth
+		}
 	}
 	target := index + step
 	var offset int
 	var upstream bool
+	var hit gfx.TextHit
+	var shaped bool
 	switch {
 	case target < 0:
 		offset = 0
 	case target >= len(editor.rows):
 		offset = len(text)
 	default:
-		offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		hit, shaped = editor.shapedHit(editor.rows[target], editor.goal*editor.cellWidth)
+		if shaped {
+			offset = hit.Offset
+		} else {
+			offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		}
 		upstream = offset == int(editor.rows[target].end) && editor.softWrapped(target)
 	}
 	goal := editor.goal
 	offset = editor.arrive(offset, upstream)
+	if shaped {
+		editor.rememberShapedHit(editor.rows[target], hit)
+	}
 	editor.goal, editor.goalCaret, editor.goalActive = goal, offset, true
 	return offset
 }
@@ -549,7 +750,7 @@ func clampScroll(scroll, most float32) float32 {
 // follow scrolls to keep the caret in view when the caret, or the row it is on,
 // is not where the last paint left it. A wheel or a drag of a scrollbar moves the
 // view and the next paint leaves it there until the caret moves.
-func (editor *CodeEditor) follow(caret, row, column int) {
+func (editor *CodeEditor) follow(caret, row, column int, x float32, shaped bool) {
 	if !editor.followedValid || editor.followed != caret || editor.followedRow != row {
 		top := float32(row) * editor.lineHeight
 		if top < editor.scrollY {
@@ -559,6 +760,9 @@ func (editor *CodeEditor) follow(caret, row, column int) {
 		}
 		if !editor.wrap {
 			left, right := float32(column)*editor.cellWidth, float32(column+1)*editor.cellWidth
+			if shaped {
+				left, right = x, x+editor.cellWidth
+			}
 			if left < editor.scrollX {
 				editor.scrollX = max(0, left-editor.cellWidth*2)
 			} else if right > editor.scrollX+editor.content.Width {

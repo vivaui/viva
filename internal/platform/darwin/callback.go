@@ -79,18 +79,10 @@ func vivaPointerEvent(
 	screenY C.double,
 ) {
 	state, ok := runStateFor(handle)
-	if !ok || state.closed || state.pointerHandler == nil {
+	if !ok {
 		return
 	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			platform.ReportFault("darwin: AppKit callback", recovered)
-			state.err = fmt.Errorf("darwin: pointer handler panicked: %v", recovered)
-			C.viva_view_close(view)
-		}
-	}()
-
-	frame, err := state.pointerHandler(PointerEvent{
+	deliverPointer(state, view, PointerEvent{
 		Kind:       PointerEventKind(kind),
 		Button:     gfx.PointerButton(button),
 		Modifiers:  input.Modifiers(modifiers),
@@ -100,6 +92,23 @@ func vivaPointerEvent(
 		ScreenY:    float32(screenY),
 		ClickCount: int(clickCount),
 	})
+}
+
+// deliverPointer gives the application a pointer event, and shows the frame it
+// answers with. A handler that panics or fails ends the window.
+func deliverPointer(state *runState, view unsafe.Pointer, event PointerEvent) {
+	if state.closed || state.pointerHandler == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: native callback", recovered)
+			state.err = fmt.Errorf("darwin: pointer handler panicked: %v", recovered)
+			C.viva_view_close(view)
+		}
+	}()
+
+	frame, err := state.pointerHandler(event)
 	if err == nil {
 		err = presentFrame(state, view, frame, false)
 	}
@@ -120,7 +129,7 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 		}
 	}()
 
-	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height)})
+	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height), SafeArea: state.safeArea})
 	if err == nil {
 		// The layer presents the frame in the same Core Animation transaction as
 		// the new bounds (see -[VivaMetalView beginLiveResizeRelaxation]), so the

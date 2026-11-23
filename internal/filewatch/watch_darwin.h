@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_FILEWATCH_DARWIN_H
 #define VIVA_FILEWATCH_DARWIN_H
 
