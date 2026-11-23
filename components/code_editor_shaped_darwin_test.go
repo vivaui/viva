@@ -10,6 +10,22 @@ import (
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
 
+func TestCodeEditorCoreTextShapesShortRowsOfLongParagraph(t *testing.T) {
+	const prefix = "\u05d0\u05d1 "
+	f := newCodeFixture(prefix + strings.Repeat("abc ", 1200))
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionRTL
+	f.bounds.Width = f.widthFor(24)
+	f.paint()
+	if at, ok := f.editor.MoveHorizontal(f.snapshot.Value, 0, false); !ok || at != 2 {
+		t.Fatalf("visual Left on the first short row = %d, %t; want the next Hebrew boundary at byte 2", at, ok)
+	}
+	row := f.editor.rows[1]
+	if _, ok := f.editor.MoveHorizontal(f.snapshot.Value, int(row.start), true); !ok {
+		t.Fatal("a Latin continuation lost the paragraph's forced RTL layout")
+	}
+}
+
 func TestCodeEditorCoreTextVisibleSymbolsKeepRTLGeometry(t *testing.T) {
 	const line = "\u05d0 \t\u05d1"
 	f := newCodeFixture(line + "\n\n")

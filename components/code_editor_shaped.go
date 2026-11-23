@@ -20,6 +20,7 @@ type codeShaping struct {
 	tabWidth   int
 	wrap       bool
 	rows       map[int32]codeShapedRow
+	paragraph  codeShapedParagraph
 	hit        gfx.TextHit
 	hitRow     int32
 	hitValid   bool
@@ -29,6 +30,12 @@ type codeShaping struct {
 type codeShapedRow struct {
 	value  string
 	carets []gfx.FittedMonoCaret
+}
+
+type codeShapedParagraph struct {
+	start, end int32
+	direction  gfx.TextDirection
+	controls   bool
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
@@ -45,7 +52,7 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.direction != snapshot.Direction || s.cell != cell || s.generation != generation ||
 		s.cols != editor.cols || s.tabWidth != editor.tabWidth || s.wrap != editor.wrap {
 		s = &codeShaping{canvas: canvas, value: editor.text, style: style, direction: snapshot.Direction, cell: cell, generation: generation,
-			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow)}
+			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow), paragraph: codeShapedParagraph{start: -1}}
 		editor.shaping = s
 	}
 	if s.hitValid && s.hit.Offset != snapshot.Caret {
@@ -85,21 +92,24 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	value := editor.rowText(row)
 	direction := s.direction
 	if editor.wrap {
-		// Give each plain continuation the base direction of its logical line.
-		// Explicit embedding and isolate state cannot be reconstructed by a mark.
-		line := editor.text[row.lineStart:]
-		if len(line) > 4097 {
-			line = line[:4097]
+		if s.paragraph.start != row.lineStart {
+			line, _, hardBreak := strings.Cut(editor.text[row.lineStart:], "\n")
+			if hardBreak {
+				line = strings.TrimSuffix(line, "\r")
+			}
+			paragraph := codeShapedParagraph{start: row.lineStart, end: row.lineStart + int32(len(line)), direction: s.direction,
+				controls: strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")}
+			if paragraph.direction == gfx.DirectionAuto {
+				paragraph.direction = gfx.TextDirectionOf(line)
+			}
+			s.paragraph = paragraph
 		}
-		if end := strings.IndexByte(line, '\n'); end >= 0 {
-			line = line[:end]
-		}
-		if len(line) > 4096 || strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069") {
+		// A row can shape a complete paragraph's controls. Across a soft
+		// break, a direction mark cannot carry embedding or isolate state.
+		if p := s.paragraph; p.controls && (row.start != p.start || row.end != p.end) {
 			return codeShapedRow{}
 		}
-		if direction == gfx.DirectionAuto {
-			direction = gfx.TextDirectionOf(line)
-		}
+		direction = s.paragraph.direction
 	}
 	var prefix string
 	switch direction {
