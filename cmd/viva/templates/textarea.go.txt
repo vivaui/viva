@@ -170,7 +170,7 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 		layout.Fit(canvas, snapshot.LayoutText(), fontSize, bounds.Width, !snapshot.NoWrap)
 		layout.Content, layout.LineHeight = bounds, lineHeight
 		if !placeholderShown {
-			layout.Follow(caret, layout.RowOf(caret))
+			layout.Show(caret)
 			rows.layout, rows.index = layout, int(layout.Scroll/lineHeight)
 			scroll = layout.Scroll
 		} else {
