@@ -1193,7 +1193,9 @@ func (painter *painter) applyCursor(next Cursor, image *gfx.CursorImage) error {
 			}
 		}
 	} else if painter.setCursor != nil {
-		if err := painter.setCursor(next); err != nil {
+		// A target with no pointer to shape, a phone's, answers ErrUnsupported: there is
+		// nothing to show, and the window goes on.
+		if err := painter.setCursor(next); err != nil && !errors.Is(err, ErrUnsupported) {
 			return err
 		}
 	}
