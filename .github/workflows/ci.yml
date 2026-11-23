@@ -199,7 +199,10 @@ jobs:
             { sudo apt-get update && sudo apt-get install -y xclip python3-gi gir1.2-gtk-3.0; }
           env -u WAYLAND_DISPLAY GDK_BACKEND=x11 VIVA_LINUX_XCB_SMOKE=1 \
             xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
-            go test ./internal/platform/linux -run '^TestClipboardImage(FromX11Owner|AfterExternalOwnerReplacesCachedText|StreamedWithINCR)$' -count=1 -timeout=60s -v
+            go test ./internal/platform/linux -run '^TestClipboardImage(FromX11Owner|AfterExternalOwnerReplacesCachedText|StreamedWithINCR)$|^TestX11ClipboardChangeLifecycle$' -count=1 -timeout=60s -v
+          env -u WAYLAND_DISPLAY GDK_BACKEND=x11 VIVA_TEST_GTK_CLIPBOARD_WATCH=x11 \
+            xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
+            go test -tags vivagtk ./internal/platform/linux -run '^TestGTKClipboardChangeNative$' -count=1 -timeout=60s -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
