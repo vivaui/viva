@@ -159,14 +159,21 @@ type Config struct {
 	// so Control+Enter still reaches the field as before. Other named keys
 	// remain OnKey events. On Windows an ordinary (non-terminal, non-Placed)
 	// text field that has focus takes the standard editing and clipboard chords
-	// first, so the application does not see them there.
+	// first, so the application does not see them there. While CaptureMenuKeys
+	// reports true, a captured key is not passed on to text or the input method
+	// when this callback returns unhandled, and unmodified keys are offered
+	// during a composition too.
 	// This callback runs on the window thread.
 	OnShortcut func(event gfx.KeyEvent) gfx.EventResult
 	// CaptureMenuKeys reports whether a transient menu owns the keyboard.
 	// Windows routes its keys to OnShortcut (printable) or OnKey (named)
 	// before IME processing, keeping the underlying text input and its
-	// composition installed until the menu closes. The callback runs on the
-	// window thread and must not change state. Also supported by Driver.
+	// composition installed until the menu closes. A captured key never
+	// reaches text or the input method: an unhandled key is dropped, a held
+	// key repeats with Repeat set, and a named key the runtime cannot express
+	// is swallowed. The callback runs on the window thread and must not change
+	// state. It does nothing outside Windows, and if the system refuses the
+	// keyboard hook the keys are delivered as usual. Also supported by Driver.
 	CaptureMenuKeys func() bool
 	// OnModifierTap receives a modifier key that was pressed and released on its
 	// own (see gfx.ModifierTapEvent), which OnKey never sees outside a terminal

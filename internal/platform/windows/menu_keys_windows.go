@@ -12,8 +12,34 @@ var imeVirtualKey = imm.NewProc("ImmGetVirtualKey")
 type menuKeyboard struct {
 	open       bool
 	generation uint16 // an already-posted key must not run in a later menu
-	taken      [256]bool
-	held       int
+	// taken holds the presses the menu owns until their releases come. A key is
+	// identified by its scan code, the physical key, because Windows reports the
+	// release with the layout current at release time: a layout change while a
+	// key is held would otherwise strand the press and keep the global hook
+	// installed. A key that carries no scan code is identified by its virtual
+	// key in takenNoScan instead.
+	taken       [256]bool
+	takenNoScan [256]bool
+	// shiftHeld is a Shift press the menu swallowed; a later key sees Shift in
+	// its modifiers even though the system never saw the press.
+	shiftHeld bool
+	shiftScan uint16
+	held      int
+}
+
+func (keys *menuKeyboard) owns(scan, vk uintptr) bool {
+	if scan != 0 {
+		return keys.taken[scan]
+	}
+	return keys.takenNoScan[vk]
+}
+
+func (keys *menuKeyboard) own(scan, vk uintptr, take bool) {
+	if scan != 0 {
+		keys.taken[scan] = take
+		return
+	}
+	keys.takenNoScan[vk] = take
 }
 
 // The foreground window uses Viva's existing low-level keyboard hook before
@@ -42,9 +68,10 @@ func (state *windowState) takePhysicalMenuKey(kind uintptr, event *kbdLLHook) bo
 	if vk >= 256 {
 		return false
 	}
+	scan := uintptr(event.ScanCode & 0xff)
 	down := kind == wmKeyDown || kind == wmSysKeyDown
 	alt := event.Flags&llkhfAltDown != 0
-	flags := shortcutKeyLParam(event, down, alt, state.menuKeys.taken[vk])
+	flags := shortcutKeyLParam(event, down, alt, state.menuKeys.owns(scan, vk))
 	// This callback runs before the asynchronous key state reflects *this*
 	// transition. Other modifiers already held are visible; a Shift press
 	// eaten by the menu is tracked in taken and added in takeMenuKey below.
@@ -61,7 +88,7 @@ func (state *windowState) takePhysicalMenuKey(kind uintptr, event *kbdLLHook) bo
 	if alt {
 		mods |= input.ModifierAlt
 	}
-	if down && !state.menuKeys.taken[vk] && asyncKeyDown(vk) {
+	if down && !state.menuKeys.owns(scan, vk) && asyncKeyDown(vk) {
 		flags |= 1 << 30 // was already down when the menu opened
 	}
 	return state.takeMenuKey(vk, flags, mods, true)
@@ -76,10 +103,11 @@ func (state *windowState) takeMenuKey(vk, flags uintptr, mods input.Modifiers, f
 	if !keys.open && keys.held == 0 || vk >= 256 {
 		return false
 	}
+	scan := (flags >> 16) & 0xff
 	if vk == vkProcessKey && !fromHook {
 		// Some input methods expose VK_PROCESSKEY rather than the letter.
 		// The scan code still names the original key on this thread's layout.
-		if scan := (flags >> 16) & 0xff; scan != 0 {
+		if scan != 0 {
 			if original, _, _ := mapVirtualKey.Call(scan, 1 /* MAPVK_VSC_TO_VK */); original > 0 && original < 256 {
 				vk = original
 			}
@@ -93,24 +121,40 @@ func (state *windowState) takeMenuKey(vk, flags uintptr, mods input.Modifiers, f
 		}
 	}
 	if flags&(1<<31) != 0 {
-		if !keys.taken[vk] {
+		if !keys.owns(scan, vk) {
 			return false
 		}
-		keys.taken[vk] = false
+		keys.own(scan, vk, false)
+		if keys.shiftHeld && (scan != 0 && keys.shiftScan == uint16(scan) || scan == 0 && isShiftKey(vk)) {
+			keys.shiftHeld, keys.shiftScan = false, 0
+		}
 		keys.held--
 		if keys.held == 0 && !keys.open {
-			state.syncShortcutHook()
+			// Unhooking a low-level hook from inside its own callback is not
+			// safe; let the dispatcher re-sync once this hook returns.
+			if fromHook {
+				postMessage.Call(state.window, wmCaptureShortcuts, 0, 0)
+			} else {
+				state.syncShortcutHook()
+			}
 		}
 		return true
 	}
 	repeat := flags&(1<<30) != 0
-	if keys.taken[vk] {
+	if keys.owns(scan, vk) {
+		// A later press of a key the menu already owns is its auto-repeat.
+		// Deliver it with Repeat set so a menu can move like a native one.
+		if repeat {
+			state.sendMenuKey(vk, flags, mods, fromHook)
+		}
 		return true
 	}
 	if !keys.open {
 		return false
 	}
 	if repeat {
+		// A repeat of a key that was down before the menu opened: its press
+		// never reached the menu, so there is nothing to repeat.
 		return true
 	}
 	// Leave system chords such as Alt+Tab and Win+L with Windows. Swallow a
@@ -122,21 +166,39 @@ func (state *windowState) takeMenuKey(vk, flags uintptr, mods input.Modifiers, f
 	if systemChord || mod != input.KeyUnknown && mod.Modifier() != input.ModifierShift {
 		return false
 	}
-	if keys.taken[0x10] || keys.taken[0xa0] || keys.taken[0xa1] {
+	// AltGr types a character of the layout; it is not a menu chord. Leave the
+	// key to text and the input method, as offerShortcut does.
+	if altGrHeld() {
+		return false
+	}
+	if keys.shiftHeld {
 		mods |= input.ModifierShift
 	}
-	keys.taken[vk] = true
+	keys.own(scan, vk, true)
 	keys.held++
 	if mod != input.KeyUnknown {
+		if mod.Modifier() == input.ModifierShift {
+			keys.shiftHeld, keys.shiftScan = true, uint16(scan)
+		}
 		return true
 	}
-	first := vk | uintptr(mods)<<8 | uintptr(keys.generation)<<16
+	state.sendMenuKey(vk, flags, mods, fromHook)
+	return true
+}
+
+// sendMenuKey hands an owned press to the dispatcher. The hook posts it; a key
+// message already on the dispatcher's thread delivers it in place.
+func (state *windowState) sendMenuKey(vk, flags uintptr, mods input.Modifiers, fromHook bool) {
+	first := vk | uintptr(mods)<<8 | uintptr(state.menuKeys.generation)<<16
 	if fromHook {
 		postMessage.Call(state.window, wmMenuKey, first, flags)
-	} else {
-		state.deliverMenuMessage(first, flags)
+		return
 	}
-	return true
+	state.deliverMenuMessage(first, flags)
+}
+
+func isShiftKey(vk uintptr) bool {
+	return vk == 0x10 || vk == 0xa0 || vk == 0xa1
 }
 
 func (state *windowState) deliverMenuMessage(first, flags uintptr) {
@@ -144,7 +206,7 @@ func (state *windowState) deliverMenuMessage(first, flags uintptr) {
 		return
 	}
 	vk, mods := first&0xff, input.Modifiers((first>>8)&0xff)
-	event := platform.KeyEvent{Key: normalizedKey(vk), Modifiers: mods}
+	event := platform.KeyEvent{Key: normalizedKey(vk), Modifiers: mods, Repeat: flags&(1<<30) != 0}
 	if event.Key != input.KeyUnknown {
 		if state.config.OnKey != nil {
 			state.sendKey(event)

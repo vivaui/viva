@@ -183,14 +183,15 @@ func TestTerminalMenuStopsCapturingWhenWindowLosesFocus(t *testing.T) {
 	state := &windowState{ready: true, focused: true}
 	state.config.CaptureMenuKeys = func() bool { return true }
 	state.menuKeys = menuKeyboard{open: true, held: 1}
-	state.menuKeys.taken['E'] = true
+	state.menuKeys.takenNoScan['E'] = true
 	// Invoke the native dispatcher's focus-loss path without taking keyboard
 	// focus away from the user during this test.
 	const handle = ^uintptr(0)
+	previous := active.Load()
 	windowStates.Store(handle, state)
 	t.Cleanup(func() {
 		windowStates.Delete(handle)
-		active.CompareAndSwap(state, nil)
+		active.Store(previous)
 	})
 	windowProc(handle, wmKillFocus, 0, 0)
 	if state.focused || state.shortcutsHeld || state.menuKeys.open || state.menuKeys.held != 0 ||

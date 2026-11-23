@@ -56,6 +56,9 @@ func chordKeyText(first, second uintptr, shift bool) string {
 // took it (or failed doing it), which ends the message. AltGr is no chord: it
 // types a character of the layout.
 func (state *windowState) offerShortcut(first, second uintptr, mods input.Modifiers) bool {
+	// A terminal that disabled the input method takes its keys on the remote
+	// side; a composition flag left over from the suppressed text input must
+	// not block its shortcuts.
 	imeBlocksShortcut := state.imeComposing && !(state.textInput.Terminal && state.textInput.DisableIME)
 	if state.config.OnShortcut == nil || imeBlocksShortcut || altGrHeld() ||
 		(normalizedKey(first) != input.KeyUnknown && normalizedKey(first) != input.KeySpace && normalizedKey(first) != input.KeyEnter) {
