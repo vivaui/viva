@@ -440,6 +440,15 @@ func (r *runner) scenarios(results *report) {
 				},
 			})
 			if addErr == nil {
+				if item.SetHoverPanel(func(app.StatusAnchor) *app.Window { return nil }) && !item.SetHoverPanel(nil) {
+					iconErr = errors.New("could not disable the hover panel")
+					return
+				}
+				if item.SetMenuOnHover(true) && !item.SetMenuOnHover(false) {
+					iconErr = errors.New("could not disable the hover menu")
+					return
+				}
+				item.RefreshMenu()
 				item.SetTooltip("changed")
 				iconErr = item.SetIcon(icon)
 			}
@@ -455,6 +464,14 @@ func (r *runner) scenarios(results *report) {
 		}
 		item.Remove() // from this goroutine, which is allowed
 		item.Remove()
+		var accepted bool
+		r.onLoop(func() {
+			accepted = item.SetMenuOnHover(true) || item.SetHoverPanel(func(app.StatusAnchor) *app.Window { return nil })
+			item.RefreshMenu()
+		})
+		if accepted {
+			return errors.New("removed status item accepted hover")
+		}
 		time.Sleep(quiet)
 		return nil
 	})

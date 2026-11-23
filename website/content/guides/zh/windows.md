@@ -171,6 +171,8 @@ func addTray(application *app.Application, window *app.Window, icon app.StatusIc
 
 之后可以用 `StatusItem.SetIcon`、`SetTooltip` 和 `Remove` 修改或移除图标。
 
+在 Windows 可见任务栏图标和 macOS 菜单栏上，应用可以用 `SetHoverPanel` 打开不抢焦点的窗口。Windows 的折叠托盘和缺少成对弹出事件的 Shell 走点击入口。悬停打开原生菜单由 macOS 支持。Linux 默认使用 StatusNotifier，桌面负责文字提示，应用可在 `OnClick` 中打开交互浮层。直接嵌入 X11 托盘需明确指定 `LinuxTrayBackend: app.LinuxTrayXEmbed`，要求使用 `vivaxembed` 构建标签、XCB 后端、托盘管理器及系统 GTK 3；后端不可用时返回 `app.ErrNoStatusArea`。麒麟 UKUI 等代理托盘由桌面持有指针，应用无法收到图标悬停事件。
+
 ## 各平台的差异
 
 同一个调用只能说出平台能说的东西。状态栏图标在 macOS 和 Windows 上报告它的矩形，在 Linux 上只报告点击点；面板分别因失去 key 状态、窗口停用或 `FocusOut` 而关闭。在已满的 macOS 菜单栏里，新图标可能被系统隐藏，尤其是刘海旁边；Windows 11 会把新图标放进溢出浮层，直到用户把它提升出来。仓库中的 `docs/conformance.md`列出了这些，以及每个平台必须手动检查的项目。

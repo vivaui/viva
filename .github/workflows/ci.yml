@@ -171,6 +171,7 @@ jobs:
           go test ./internal/platform/linux -run '^TestTextEngineRasterizesProportionalText$' -count=1 -v
       - name: GTK optional capability contracts
         run: |
+          go vet -tags vivaxembed ./app ./internal/platform/linux
           go vet -tags vivagtk ./app ./internal/platform/linux
           go test -tags vivagtk ./internal/platform/linux -run '^Test(GTK(WaylandAlwaysOnTopReportsUnsupported|ClipboardFileWriteReportsUnsupportedWithoutASetter|ClipboardImageWriteReportsUnsupportedWithoutSetWithData)|APartition(KeepsItsStoreInTheUsersDirectories|FollowsTheXdgDirectories|IsNamedAfterTheApplicationWithoutAClass))$' -count=1
       # The Linux package is not part of the sharded run (it drives X11), so the
@@ -393,7 +394,7 @@ jobs:
       - name: Non-activating desktop notification
         env:
           VIVA_TEST_NOTIFICATION_DESKTOP: '1'
-        run: go test ./internal/platform/windows -run '^TestNotificationNativeWindows$' -count=1 -v
+        run: go test ./internal/platform/windows -run '^(TestNotificationNativeWindows|TestStatusHoverNativePanel)$' -count=1 -v
       - name: Native Windows global shortcut
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'

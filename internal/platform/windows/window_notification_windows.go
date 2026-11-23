@@ -12,7 +12,10 @@ var monitorEffectiveDPI = syscall.NewLazyDLL("shcore.dll").NewProc("GetDpiForMon
 func (state *windowState) placeNotification() {
 	config := state.config
 	monitor := cursorMonitor()
-	if config.HasOrigin {
+	if config.HasAnchor {
+		x, y := int32(config.Anchor.X+config.Anchor.Width/2), int32(config.Anchor.Y+config.Anchor.Height/2)
+		monitor, _, _ = monitorFromPoint.Call(uintptr(uint32(x))|uintptr(uint32(y))<<32, monitorNearest)
+	} else if config.HasOrigin {
 		x, y := int32(config.Origin.X), int32(config.Origin.Y)
 		monitor, _, _ = monitorFromPoint.Call(uintptr(uint32(x))|uintptr(uint32(y))<<32, monitorNearest)
 	}
@@ -36,7 +39,9 @@ func (state *windowState) placeNotification() {
 	width := min(float32(int32(float32(config.Width)*scale)), area.Width)
 	height := min(float32(int32(float32(config.Height)*scale)), area.Height)
 	x, y := platform.PlaceNotification(width, height, 12*scale, area)
-	if config.HasOrigin {
+	if config.HasAnchor {
+		x, y = platform.PlacePanel(config.Anchor, width, height, area)
+	} else if config.HasOrigin {
 		x, y = platform.RestoreNotification(config.Origin.X, config.Origin.Y, width, height, area)
 	}
 	// The selected monitor's DPI is already included. A synchronous

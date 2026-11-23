@@ -75,6 +75,74 @@ func BenchmarkStatusPrimaryNotification(b *testing.B) {
 	}
 }
 
+func TestStatusHoverDeclinesOverflowAndLegacyShells(t *testing.T) {
+	for _, class := range []string{"NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland", ""} {
+		if taskbarSupportsHover(class) {
+			t.Fatalf("accepted %q", class)
+		}
+	}
+	if !taskbarSupportsHover("Shell_TrayWnd") || !taskbarSupportsHover("Shell_SecondaryTrayWnd") {
+		t.Fatal("visible taskbar does not support hover")
+	}
+	item := &statusItem{}
+	if item.SetMenuOnHover(true) || item.SetHoverPanel(func(platform.ScreenRect) platform.Window { return nil }) {
+		t.Fatal("legacy shell accepted hover")
+	}
+}
+
+func TestStatusLegacyActivationUsesWParamOnce(t *testing.T) {
+	clicks := 0
+	item := &statusItem{id: 7, onClick: func(platform.StatusClick) { clicks++ }}
+	status := &statusState{items: map[uint32]*statusItem{7: item}}
+	status.notified(0, 7, wmLeftDown)
+	status.notified(0, 7, wmLeftUp)
+	status.notified(0, 7, ninSelect)
+	status.notified(0, 1, wmLeftUp)
+	if clicks != 1 {
+		t.Fatalf("legacy activation fired %d times", clicks)
+	}
+}
+
+func TestStatusHoverWaitsForShellCloseBeforeReopening(t *testing.T) {
+	const id = 2
+	opens := 0
+	item := &statusItem{id: id, hoverPanel: func(platform.ScreenRect) platform.Window { opens++; return nil }}
+	status := &statusState{items: map[uint32]*statusItem{id: item}}
+	bounds := platform.ScreenRect{Width: 20, Height: 20}
+	status.notified(0, 0, id<<16|wmMouseMove)
+	if opens != 0 {
+		t.Fatal("motion opened a panel without a shell popup")
+	}
+	status.openHover(item, bounds)
+	status.notified(0, 0, 3<<16|ninPopupClose)
+	status.openHover(item, bounds)
+	if opens != 1 {
+		t.Fatal("reopened without leaving the item")
+	}
+	status.notified(0, 0, id<<16|ninPopupClose)
+	status.openHover(item, bounds)
+	if opens != 2 {
+		t.Fatal("failed to reopen after a new entry")
+	}
+}
+
+func TestStatusHoverGapIsOneShot(t *testing.T) {
+	status := &statusState{}
+	panel := &nativeWindow{state: &windowState{hoverStatus: status}}
+	status.hover.panel = panel
+	panel.closed.Store(true)
+	status.startHoverGap()
+	status.finishHoverGap()
+	if status.hover.panel != panel {
+		t.Fatal("a queued timer closed a new hover session before its grace period")
+	}
+	status.hover.gapUntil = monotonicNow() - 1
+	status.finishHoverGap()
+	if status.hover.panel != nil || status.hover.gapUntil != 0 || panel.state.hoverStatus != nil {
+		t.Fatal("a closed panel or its leave timer remained attached")
+	}
+}
+
 // A single click arrives as several messages; exactly one of them may count, or
 // a panel that a click opens is closed again by the same click.
 func TestStatusMessagesOfOneClickCountOnce(t *testing.T) {
@@ -251,5 +319,16 @@ func TestNotificationCarrierRecoversAfterAModifyAndAddFailure(t *testing.T) {
 	defer notificationMu.Unlock()
 	if !notificationAdded || notificationWindow != host {
 		t.Fatalf("the carrier did not recover: added=%v window=%#x", notificationAdded, notificationWindow)
+	}
+}
+
+func TestHoverPanelUsesShellPopupNotifications(t *testing.T) {
+	item := &statusItem{application: &windowsApplication{status: &statusState{}}}
+	if item.data().Flags&notifyShowTip == 0 {
+		t.Fatal("regular tooltip disabled")
+	}
+	item.hoverPanel = func(platform.ScreenRect) platform.Window { return nil }
+	if item.data().Flags&notifyShowTip != 0 {
+		t.Fatal("shell tooltip suppresses rich hover")
 	}
 }

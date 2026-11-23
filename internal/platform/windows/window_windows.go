@@ -104,6 +104,7 @@ type windowState struct {
 	lastFrame                              gfx.Rect
 	scale                                  float32
 	placingNotification                    bool
+	hoverStatus                            *statusState
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
 	pointerEvents, resizeEvents, keyEvents uint64
@@ -549,6 +550,11 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
 		return 0
 	case wmDestroy:
+		if status := state.hoverStatus; status != nil {
+			status.cancelHoverGap()
+			status.hover.panel, status.hover.panelID = nil, 0
+			state.hoverStatus = nil
+		}
 		state.releaseMenuKeyboard()
 		state.shortcuts.Store(false)
 		state.syncShortcutHook()
@@ -912,6 +918,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			track := trackMouse{Size: uint32(unsafe.Sizeof(trackMouse{})), Flags: 2, Window: window}
 			trackMouseEvent.Call(uintptr(unsafe.Pointer(&track)))
 			state.tracking = true
+			if status := state.hoverStatus; status != nil {
+				status.cancelHoverGap()
+			}
 		}
 		eventKind := platform.PointerMove
 		button := gfx.PointerButtonNone
@@ -971,6 +980,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmMouseLeave, wmKillFocus:
 		state.tracking = false
+		if kind == wmMouseLeave && state.hoverStatus != nil {
+			state.hoverStatus.startHoverGap()
+		}
 		if kind == wmMouseLeave && state.web != nil && state.web.pointerOverCover() {
 			return 0 // the pointer went onto a window that hands it back, not out of this one
 		}

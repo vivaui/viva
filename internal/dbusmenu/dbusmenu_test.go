@@ -729,3 +729,19 @@ func TestAReadThatRebuildsAChangedMenuAnnouncesIt(t *testing.T) {
 		t.Fatalf("the answering read announced revision %d", again.LayoutUpdated)
 	}
 }
+
+func TestRefreshPublishesNewItemsToMenuHostsThatCacheLayout(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+	before := layoutIDs(t, object)
+	sessions = append(sessions, "beta")
+	result := object.Refresh()
+	if result.LayoutUpdated == 0 {
+		t.Fatal("no layout change for a new item")
+	}
+	after := layoutIDs(t, object)
+	if len(after) != len(before)+1 || before[1] != after[1] {
+		t.Fatalf("refresh changed the id of an existing item: %v -> %v", before, after)
+	}
+}

@@ -26,6 +26,8 @@ type nativeStatusItem struct {
 	removed        atomic.Bool
 	onClick        func(platform.StatusClick)
 	menu           func() []platform.MenuItem
+	hoverPanel     func(platform.ScreenRect) platform.Window
+	hoverWindow    *nativeWindow
 	currentEntries []platform.MenuEntry
 }
 
@@ -69,6 +71,26 @@ func (item *nativeStatusItem) SetIcon(icon platform.StatusIcon) error {
 	return nil
 }
 
+func (item *nativeStatusItem) SetMenuOnHover(enabled bool) bool {
+	if item.removed.Load() || item.menu == nil {
+		return false
+	}
+	C.viva_status_item_set_hover(item.token, C.int(boolInt(enabled)))
+	return true
+}
+
+func (item *nativeStatusItem) SetHoverPanel(open func(platform.ScreenRect) platform.Window) bool {
+	if item.removed.Load() {
+		return false
+	}
+	item.hoverPanel = open
+	C.viva_status_item_set_hover_panel(item.token, C.int(boolInt(open != nil)))
+	return true
+}
+
+// AppKit rebuilds this menu each time it opens.
+func (*nativeStatusItem) RefreshMenu() {}
+
 func (item *nativeStatusItem) SetTooltip(tooltip string) {
 	if item.removed.Load() {
 		return
@@ -100,6 +122,30 @@ func vivaStatusItemClicked(handle C.uintptr_t, button C.int, x, y, width, height
 		Anchor:         platform.ScreenRect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)},
 		PanelDismissed: dismissed != 0,
 	})
+}
+
+//export vivaStatusItemHover
+func vivaStatusItemHover(handle C.uintptr_t, x, y, width, height C.float) unsafe.Pointer {
+	item := cgo.Handle(handle).Value().(*nativeStatusItem)
+	if item.removed.Load() || item.hoverPanel == nil {
+		return nil
+	}
+	anchor := platform.ScreenRect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)}
+	if panel, ok := item.hoverPanel(anchor).(*nativeWindow); ok && panel != nil && !panel.closed.Load() {
+		item.hoverWindow = panel
+		return panel.token
+	}
+	return nil
+}
+
+//export vivaStatusItemEndHover
+func vivaStatusItemEndHover(handle C.uintptr_t, closeWindow C.int) {
+	item := cgo.Handle(handle).Value().(*nativeStatusItem)
+	panel := item.hoverWindow
+	item.hoverWindow = nil
+	if closeWindow != 0 {
+		panel.Close()
+	}
 }
 
 //export vivaStatusItemUpdateMenu

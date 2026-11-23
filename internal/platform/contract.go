@@ -311,6 +311,11 @@ type StatusItem interface {
 	SetIcon(StatusIcon) error
 	// SetTooltip replaces the text shown while the pointer rests on the icon.
 	SetTooltip(string)
+	// Hover setters return false if the host cannot deliver the requested interaction.
+	SetMenuOnHover(bool) bool
+	SetHoverPanel(func(ScreenRect) Window) bool
+	// RefreshMenu invalidates a menu cached by the desktop.
+	RefreshMenu()
 	// Remove takes the icon away. It is idempotent and thread-safe.
 	Remove()
 }
@@ -352,15 +357,23 @@ type StatusClick struct {
 	PanelDismissed bool
 }
 
+type LinuxTrayBackend uint8
+
+const (
+	LinuxTrayStatusNotifier LinuxTrayBackend = iota
+	LinuxTrayXEmbed
+)
+
 // StatusItemConfig describes a status item. OnClick and Menu run on the native
 // event-loop thread. With a Menu the system shows it for a press of the item.
 // OnClick then runs only for a press the system does not turn into the menu: a
 // primary press, which a Linux host reports as an activation of the item.
 type StatusItemConfig struct {
-	Tooltip string
-	Icon    StatusIcon
-	OnClick func(StatusClick)
-	Menu    func() []MenuItem
+	LinuxTrayBackend LinuxTrayBackend
+	Tooltip          string
+	Icon             StatusIcon
+	OnClick          func(StatusClick)
+	Menu             func() []MenuItem
 }
 
 // MenuItem is one entry of a status item's menu. A separator has no other

@@ -157,7 +157,9 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 			area := platform.ScreenRect{X: float32(rect[0]), Y: float32(rect[1]), Width: float32(rect[2]), Height: float32(rect[3])}
 			width, height := float32(config.Width)*w.ratio, float32(config.Height)*w.ratio
 			x, y := platform.PlaceNotification(width, height, 12*w.ratio, area)
-			if config.HasOrigin {
+			if config.HasAnchor {
+				x, y = platform.PlacePanel(config.Anchor, width, height, area)
+			} else if config.HasOrigin {
 				x, y = platform.RestoreNotification(config.Origin.X*w.ratio, config.Origin.Y*w.ratio, width, height, area)
 			}
 			g.windowMove(w.toplevel, int32(x), int32(y))
@@ -167,6 +169,16 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 		g.windowSetTypeHint(w.toplevel, 8) // GDK_WINDOW_TYPE_HINT_POPUP_MENU
 		g.windowSkipTaskbar(w.toplevel, 1)
 		g.windowKeepAbove(w.toplevel, 1)
+		if config.HasAnchor && !a.wayland {
+			anchor := config.Anchor
+			if monitor := g.gdkMonitorAtPoint(display, int32(anchor.X), int32(anchor.Y)); monitor != 0 {
+				var r [4]int32
+				g.gdkMonitorWorkarea(monitor, &r)
+				area := platform.ScreenRect{X: float32(r[0]), Y: float32(r[1]), Width: float32(r[2]), Height: float32(r[3])}
+				x, y := platform.PlacePanel(anchor, float32(config.Width)*w.ratio, float32(config.Height)*w.ratio, area)
+				g.windowMove(w.toplevel, int32(x), int32(y))
+			}
+		}
 	}
 	w.setIcon()
 	w.placeAtOrigin()
@@ -280,6 +292,10 @@ func (w *gtkWindow) notificationMonitor(display uintptr) uintptr {
 		return 0
 	}
 	g := w.g
+	if w.config.HasAnchor {
+		a := w.config.Anchor
+		return g.gdkMonitorAtPoint(display, int32(a.X+a.Width/2), int32(a.Y+a.Height/2))
+	}
 	if w.config.HasOrigin {
 		at := w.config.Origin
 		if monitor := g.gdkMonitorAtPoint(display, int32(at.X*w.ratio), int32(at.Y*w.ratio)); monitor != 0 {

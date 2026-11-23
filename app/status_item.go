@@ -53,8 +53,20 @@ type StatusClick struct {
 	PanelDismissed bool
 }
 
+// LinuxTrayBackend selects the host protocol on Linux. Other platforms ignore it.
+type LinuxTrayBackend uint8
+
+const (
+	// LinuxTrayStatusNotifier uses the desktop StatusNotifier host (the default).
+	LinuxTrayStatusNotifier LinuxTrayBackend = iota
+	// LinuxTrayXEmbed explicitly requests a direct X11 tray with pointer events.
+	// It requires the vivaxembed build tag, XCB, a tray manager and system GTK 3.
+	LinuxTrayXEmbed
+)
+
 // StatusItemConfig describes a status item.
 type StatusItemConfig struct {
+	LinuxTrayBackend LinuxTrayBackend
 	// Tooltip is shown while the pointer rests on the icon.
 	Tooltip string
 	Icon    StatusIcon
@@ -107,6 +119,14 @@ type StatusItemControl interface {
 	Remove()
 }
 
+// StatusItemHoverControl is the optional extension a custom Host implements for
+// hover and dynamic menu changes. Hosts with a click-only icon can omit it.
+type StatusItemHoverControl interface {
+	SetMenuOnHover(bool) bool
+	SetHoverPanel(func(StatusAnchor) *Window) bool
+	RefreshMenu()
+}
+
 // StatusItem is one icon the application keeps in the system's status area: the
 // menu bar on macOS, the notification area on Windows, the StatusNotifier host
 // (the tray of most Linux desktops) elsewhere.
@@ -132,6 +152,42 @@ func (item *StatusItem) SetTooltip(tooltip string) {
 	if item != nil && !item.removed.Load() {
 		item.control.SetTooltip(tooltip)
 	}
+}
+
+// RefreshMenu publishes changes to a dynamic menu to hosts that cache it.
+// Call on the application's event-loop thread after changing menu state.
+func (item *StatusItem) RefreshMenu() {
+	if item == nil || item.removed.Load() {
+		return
+	}
+	if host, ok := item.control.(StatusItemHoverControl); ok {
+		host.RefreshMenu()
+	}
+}
+
+// SetMenuOnHover asks the desktop to open the item's existing menu when the
+// pointer rests on its icon. Call on the event-loop thread. It returns false
+// on hosts without a non-activating native hover menu, including Windows and Linux.
+func (item *StatusItem) SetMenuOnHover(enabled bool) bool {
+	if item == nil || item.removed.Load() {
+		return false
+	}
+	host, ok := item.control.(StatusItemHoverControl)
+	return ok && host.SetMenuOnHover(enabled)
+}
+
+// SetHoverPanel opens a non-activating panel when the pointer rests on this
+// status item. The callback runs on the event-loop thread. Open a
+// WindowNotification with the supplied Anchor and return it so the host can
+// close it when the pointer leaves both the icon and the panel. A nil callback
+// disables the panel. It takes precedence over SetMenuOnHover. Hosts such as
+// Linux StatusNotifier that own hover presentation return false.
+func (item *StatusItem) SetHoverPanel(open func(StatusAnchor) *Window) bool {
+	if item == nil || item.removed.Load() {
+		return false
+	}
+	host, ok := item.control.(StatusItemHoverControl)
+	return ok && host.SetHoverPanel(open)
 }
 
 // Remove takes the icon away. It is idempotent and, unlike the setters, may be

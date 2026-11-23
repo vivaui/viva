@@ -31,7 +31,7 @@ desktop session.
 | A hidden window runs `OnWake` but paints nothing until it is shown again | a window nobody can see (hidden, minimized, covered, on another space or desktop, as far as the platform reports it) must not lay out, rasterize and present frames; the frame it missed is painted when it shows again |
 | A panel opens, paints and closes from another goroutine | `WindowPanel` is a window kind of its own on each backend |
 | A notification paints without pointer input and returns to idle | a notification may open while the pointer stays on another window |
-| A status item can be added, changed and removed (SKIP where the desktop has no status area) | `AddStatusItem` and its setters on three different APIs |
+| A status item can be added, refreshed and removed (SKIP without a status area) | Hover can be disabled on a supporting host. A removed item refuses hover and can safely ignore menu refreshes. |
 | `Quit` ends the loop though windows refuse to close, even as the last-used window closes | the loop must end whatever the windows say |
 
 It was written after the status-icon work, and each check is something a real
