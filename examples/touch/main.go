@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -24,6 +25,8 @@ type model struct {
 	// lifecycle is what the system last did to the application: it went to the background, came
 	// back, or asked for memory.
 	lifecycle string
+	// zoom is how large the title is drawn, set by pinching the page.
+	zoom float32
 	// detail is the row open on its own page, or -1: going back closes it.
 	detail int
 	// invalidator asks for a new frame after a change the page was not told of.
@@ -31,7 +34,7 @@ type model struct {
 }
 
 func newModel() *model {
-	m := &model{volume: ui.SliderState{Value: 40}, detail: -1}
+	m := &model{volume: ui.SliderState{Value: 40}, detail: -1, zoom: 1}
 	m.list.Label = func(i int) string { return fmt.Sprintf("Row %d", i+1) }
 	return m
 }
@@ -60,6 +63,14 @@ func (m *model) detailPage(c ui.C) {
 	})
 }
 
+// pinched is two fingers pinching the page: the zoom follows how far apart they go.
+func (m *model) pinched(event gfx.PinchEvent) gfx.EventResult {
+	if event.Phase == gfx.PinchChange {
+		m.zoom = min(max(m.zoom*event.Delta, 0.5), 4)
+	}
+	return gfx.EventResult{Handled: true, Repaint: true}
+}
+
 func (m *model) page(c ui.C) {
 	if m.detail >= 0 {
 		m.detailPage(c)
@@ -72,6 +83,7 @@ func (m *model) page(c ui.C) {
 					m.taps++
 				}
 				ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))
+				ui.Text(c, fmt.Sprintf("Zoom %.2f", m.zoom)).Muted()
 			})
 			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
 				ui.Text(c, fmt.Sprintf("Volume %.0f", m.volume.Value))
@@ -128,7 +140,7 @@ func (m *model) systemChanged(event app.LifecycleEvent) {
 func main() {
 	m := newModel()
 	m.invalidator = new(app.Invalidator)
-	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged, OnBack: m.back}
+	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged, OnBack: m.back, OnPinch: m.pinched}
 	if err := ui.Run(config, ui.PageConfig{View: m.page, Invalidator: m.invalidator}); err != nil {
 		log.Fatal(err)
 	}

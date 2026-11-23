@@ -226,6 +226,12 @@ type Config struct {
 	// application stop work nobody can see, such as a remote desktop stream.
 	// Hide is the application's own request and is not reported here.
 	OnMinimize func(minimized bool)
+	// OnPinch receives two fingers pinching the window: its begin, each change and its end.
+	// Only a touch screen and a touchpad that can pinch send them; the event says where the
+	// fingers are, how far apart they are against the start and since the last event, and the
+	// hit under them. Handled keeps the pinch from doing anything else (nothing does by
+	// default), and Repaint asks for a frame.
+	OnPinch func(event gfx.PinchEvent) gfx.EventResult
 	// OnBack runs on the window thread when the user goes back: the back button or gesture
 	// of an Android phone, an edge swipe on an iPhone. Return true when the application went
 	// back (closed a sheet, popped a page) and the window stays; return false for the
