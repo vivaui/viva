@@ -129,7 +129,7 @@ func vivaViewResized(handle C.uintptr_t, view unsafe.Pointer, width C.double, he
 		}
 	}()
 
-	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height), SafeArea: state.safeArea})
+	frame, err := state.resizeHandler(Size{Width: float32(width), Height: float32(height)})
 	if err == nil {
 		// The layer presents the frame in the same Core Animation transaction as
 		// the new bounds (see -[VivaMetalView beginLiveResizeRelaxation]), so the

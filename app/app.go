@@ -232,19 +232,6 @@ type Config struct {
 	// hit under them. Handled keeps the pinch from doing anything else (nothing does by
 	// default), and Repaint asks for a frame.
 	OnPinch func(event gfx.PinchEvent) gfx.EventResult
-	// OnBack runs on the window thread when the user goes back: the back button or gesture
-	// of an Android phone, an edge swipe on an iPhone. Return true when the application went
-	// back (closed a sheet, popped a page) and the window stays; return false for the
-	// system's own answer, which on Android is closing the window. A window without it gets
-	// the system's answer, and an iPhone window installs no edge swipe. A desktop window never
-	// gets one.
-	OnBack func() bool
-	// OnLifecycle runs on the window thread when the system moves a phone application
-	// between the foreground and the background, or asks it for memory. A desktop window
-	// never gets one. A phone may end a backgrounded application without further notice, so
-	// Background is when to save what the user would miss; a MemoryWarning is when to drop
-	// caches that can be rebuilt.
-	OnLifecycle func(LifecycleEvent)
 	// OnActivate runs on the window thread when the top-level window becomes
 	// the active window, including when the user switches back from another
 	// application. Moving focus between editors inside the window does not
@@ -373,16 +360,3 @@ func (config Config) originPoint() gfx.Point {
 	}
 	return *config.Origin
 }
-
-// LifecycleEvent is a change the system makes to the state of a phone application (see
-// Config.OnLifecycle).
-type LifecycleEvent uint8
-
-const (
-	// LifecycleBackground says the application went behind another.
-	LifecycleBackground LifecycleEvent = iota + 1
-	// LifecycleForeground says it came back to the front.
-	LifecycleForeground
-	// LifecycleMemoryWarning says the system wants memory back.
-	LifecycleMemoryWarning
-)

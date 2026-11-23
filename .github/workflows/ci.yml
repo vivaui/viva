@@ -154,16 +154,6 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
-      # The Android build is the real thing: the program as a shared library with
-      # the NDK's compiler, the host's Java, and an APK around them with the SDK's
-      # tools, all of which the runner's image has. It is not run here; the
-      # runner has no device.
-      - name: Android build
-        run: |
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
-          go run ./cmd/viva build --target android ./examples/guides/hello
-          go run ./cmd/viva build --target android --arch amd64 ./examples/guides/hello
       - name: Native Linux text rasterization
         run: |
           sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
@@ -361,11 +351,6 @@ jobs:
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
-
-      # The iOS build compiles the Metal and UIKit bridge against the simulator
-      # SDK; it is not run here, since the runner cannot show a simulator.
-      - name: iOS simulator build
-        run: go run ./cmd/viva build --target ios-sim ./examples/guides/hello
 
 
 

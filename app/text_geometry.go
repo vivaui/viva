@@ -5,14 +5,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
-	"github.com/vivaui/viva/internal/platform"
 )
 
 // textGeometry is where the text of the focused field is on the window: the character
 // boundary nearest a point, the caret at a boundary and the rectangles a range covers. The
-// framework draws the text, so it is the one that can say; a phone's text interaction (the
-// caret a tap places, the word a long press selects, the handles and the magnifier) is
-// built on it. Indexes are runes of the field's value, as in TextState.
+// framework draws the text, so it is the one that can say; a finger's text interaction
+// (the caret a tap places, the word a long press selects) is built on it. Indexes are runes of the field's value, as in TextState.
 //
 // A field that lays its rows out itself answers through its gfx.TextPlacement. Any other
 // is one line, measured the way the components paint it: from the line's origin in the
@@ -55,16 +53,6 @@ func (painter *painter) focusedTextGeometry() (textGeometry, bool) {
 		geometry.shown = strings.Repeat("•", utf8.RuneCountInString(value))
 	}
 	return geometry, true
-}
-
-// textGeometryOf is the geometry of the focused field as the platform asks for it, nil
-// while no field has the focus.
-func (painter *painter) textGeometryOf() platform.TextGeometry {
-	geometry, ok := painter.focusedTextGeometry()
-	if !ok {
-		return nil
-	}
-	return geometry
 }
 
 // IndexAt is the character boundary nearest a window point.
