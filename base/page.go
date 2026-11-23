@@ -754,14 +754,19 @@ func (p *Page) Paint(Surface *gfx.Canvas, Size Size) {
 // canvas's. A host that draws a page this way routes its input with Key,
 // Pointer, Wheel and TextInput; Config does that for a whole window.
 //
-// Clicks are the part of that routing a host has to finish itself: Clicked(id)
-// is true only in an event pass, which the painter opens around one paint for
-// it (see Canvas.BeginEventPass). A page drawn here is not painted by Config's
-// painter, so a press a control would act on reaches nothing unless the host
-// delivers it. Take the id from the last paint's Canvas.Hits, hit-test it at the
-// release, then paint once between Canvas.BeginEventPass and Canvas.EndEventPass
-// and ask for another paint: the event pass's own output is discarded, as the
-// painter discards it, so the frame the user sees is the one after the change.
+// Clicks are the part of that routing a host completes itself when it paints and
+// presents the canvas on its own. Clicked(id) is true only in an event pass,
+// which the painter opens around one paint for it (see Canvas.BeginEventPass). A
+// page drawn inside another canvas's paint — Config's painter, or an embedded
+// canvas such as Slot.Draw's — already runs in that pass and needs nothing more.
+// A host that owns the paint loop delivers a click as the painter does: the
+// target taken from Canvas.Hits when the pointer went down, reported at the
+// release only while the pointer is still over it and the press was not
+// consumed. Paint once between Canvas.BeginEventPass and Canvas.EndEventPass,
+// call Canvas.RunAfterPaint, then ask for another paint: the event pass's own
+// output is discarded, as the painter discards it, so the frame the user sees is
+// the one after the change. Canvas.DeliverPointer runs that same sequence for a
+// pointer pass.
 func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	if tree := Surface.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
