@@ -13,6 +13,34 @@ func TestTextEnginePassesTheContract(t *testing.T) {
 	textenginetest.Run(t, SharedTextEngine())
 }
 
+func TestCoreTextHitRetainsTheMixedDirectionEdge(t *testing.T) {
+	const prefix, first, second, suffix = "a\U00010437 ", "\u05d0\u05b7", "\u05d1", " cd"
+	const value, size = prefix + first + second + suffix, 20
+	engine := SharedTextEngine()
+	var canvas gfx.Canvas
+	canvas.SetTextEngine(engine)
+	span := func(from, to int) gfx.TextSpan {
+		t.Helper()
+		spans := engine.Selection(nil, value, size, 0, from, to)
+		if len(spans) != 1 || spans[0].Width <= 0 {
+			t.Fatalf("range [%d,%d) spans %v", from, to, spans)
+		}
+		return spans[0]
+	}
+	start, middle, end := len(prefix), len(prefix+first), len(prefix+first+second)
+	left := span(start-1, start)
+	right := span(start, middle)
+	for _, check := range []struct{ x, edge float32 }{
+		{left.X + left.Width*0.9, left.X + left.Width},
+		{right.X + right.Width*0.9, right.X + right.Width},
+	} {
+		hit := canvas.TextHitAt(value, size, 0, check.x)
+		if hit.Offset != start || hit.X-check.edge > 0.02 || check.edge-hit.X > 0.02 {
+			t.Errorf("clicked %g: hit %+v; want byte %d at %g (RTL ends at byte %d)", check.x, hit, start, check.edge, end)
+		}
+	}
+}
+
 func TestTextEngineRasterizesProportionalText(t *testing.T) {
 	engine := SharedTextEngine()
 	textenginetest.TransparentColorGlyphs(t, engine)

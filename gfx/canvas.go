@@ -1548,6 +1548,23 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
+// TextHitAt reports a byte boundary together with the caret position picked by
+// a click. Keep X as well as Offset when a mixed-direction line can draw the
+// same boundary at either end of a run. A custom measurer or engine without
+// TextHitEngine supplies its ordinary caret position.
+func (canvas *Canvas) TextHitAt(value string, size, weight, x float32) TextHit {
+	if canvas.measurer == nil {
+		if engine, ok := canvas.engine.(TextHitEngine); ok {
+			return engine.HitAt(value, size, weight, x)
+		}
+		if canvas.engine == nil {
+			return referenceEngine{}.HitAt(value, size, weight, x)
+		}
+	}
+	offset := canvas.TextOffsetAt(value, size, weight, x)
+	return TextHit{Offset: offset, X: canvas.TextCaret(value, size, weight, offset)}
+}
+
 // TextOffsetAtStyle is TextOffsetAt for a style that may be italic or fixed-pitch (see
 // TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
