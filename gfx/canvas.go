@@ -2277,8 +2277,9 @@ func (canvas *Canvas) AfterPaint(fn func()) {
 }
 
 // RunAfterPaint runs and clears the functions deferred by AfterPaint, and reports
-// whether there were any. The runtime calls it once the event pass has ended; an
-// application never does.
+// whether there were any. The runtime calls it once the event pass has ended; a
+// host that paints and presents its own canvas calls it too, between the event
+// pass and the repaint.
 func (canvas *Canvas) RunAfterPaint() bool {
 	fns := canvas.afterPaint
 	canvas.afterPaint = nil
@@ -2303,7 +2304,9 @@ type ClickInfo struct {
 // BeginEventPass makes the next paint the event pass of a click on id, with what
 // the runtime knows of it: Clicked(id) is true in the pass, and ClickInfo says how
 // the click came. Pair it with EndEventPass around that one paint. The runtime does
-// this; an application only calls Clicked, ClickModifiers and DoubleClicked.
+// this for a window; a host that paints and presents its own canvas does it too,
+// and an application otherwise only calls Clicked, ClickModifiers and
+// DoubleClicked.
 func (canvas *Canvas) BeginEventPass(id ID, info ClickInfo) {
 	canvas.clicked, canvas.clickInfo, canvas.eventPass = id, info, true
 }
