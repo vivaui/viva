@@ -132,6 +132,12 @@ func (painter *painter) carryTouch(step interaction.TouchStep) (platform.Frame, 
 			frame, err = painter.repaintAfterInput()
 		}
 	}
+	if step.Pinch != interaction.PinchNone {
+		phase := gfx.PinchPhase(step.Pinch)
+		if painter.applyPinch(phase, step.PinchX, step.PinchY, step.PinchScale, step.PinchDelta, t.modifiers) && !t.advancing {
+			frame, err = painter.repaintAfterInput()
+		}
+	}
 	if step.Wake && painter.scheduleFrame != nil {
 		painter.scheduleFrame(step.WakeAfter)
 	}

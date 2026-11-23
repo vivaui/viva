@@ -441,3 +441,35 @@ func TestGoingBackClosesTheRowsPage(t *testing.T) {
 		t.Fatal("the row did not open a second time")
 	}
 }
+
+// Two fingers moving apart zoom the page, and the first finger's gesture does nothing else.
+func TestPinchingZoomsThePage(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnPinch: m.pinched}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	for _, step := range []func() error{
+		func() error { return driver.TouchDown(1, 150, 500) },
+		func() error { return driver.TouchDown(2, 250, 500) },
+		func() error { return driver.TouchMove(2, 350, 500) },
+		func() error { return driver.TouchUp(2, 350, 500) },
+		func() error { return driver.TouchUp(1, 150, 500) },
+	} {
+		if err := step(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if m.zoom < 1.9 || m.zoom > 2.1 {
+		t.Fatalf("zoom = %v after the fingers went from 100 to 200 apart, want about 2", m.zoom)
+	}
+	if !shown(driver, "Zoom 2.00") {
+		t.Fatal("the page does not show the zoom")
+	}
+	if m.taps != 0 || m.detail >= 0 {
+		t.Fatalf("a pinch tapped (%d) or opened a row (%d)", m.taps, m.detail)
+	}
+}
