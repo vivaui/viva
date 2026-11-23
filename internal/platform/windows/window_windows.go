@@ -121,6 +121,7 @@ type windowState struct {
 	// (any goroutine sets it); shortcutsHeld says this window's share of the hook is installed.
 	shortcuts                              atomic.Bool
 	shortcutsHeld                          bool
+	menuKeys                               menuKeyboard
 	caretTimer                             uintptr
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
@@ -547,6 +548,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
 		return 0
 	case wmDestroy:
+		state.releaseMenuKeyboard()
 		state.shortcuts.Store(false)
 		state.syncShortcutHook()
 		state.destroyed(window)
@@ -671,6 +673,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmSetFocus:
 		state.focused = true
+		state.syncMenuKeyboard()
 		state.syncShortcutHook()
 		state.setCaretVisible(true)
 		if err := state.restartCaretTimer(); err != nil {
@@ -961,6 +964,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 1 // the side-button messages ask for TRUE, unlike the others
 		}
 		return 0
+	case wmPointerDown, wmPointerUpdate, wmPointerUp, wmPointerCaptureChanged:
+		if state.touchPointer(kind, first) {
+			return 0
+		}
 	case wmMouseLeave, wmKillFocus:
 		state.tracking = false
 		if kind == wmMouseLeave && state.web != nil && state.web.pointerOverCover() {
@@ -977,6 +984,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				state.endIMEComposition()
 			}
 			state.focused = false
+			state.releaseMenuKeyboard()
 			state.syncShortcutHook()
 			state.textDragging = false
 			state.stopCaretTimer()
@@ -992,6 +1000,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 0
 		}
 		state.modifierTap(first, second, true, modifiers())
+	case wmMenuKey:
+		state.deliverMenuMessage(first, second)
+		return 0
 	case wmKeyDown, wmSysKeyDown:
 		if state.textEnabled && state.imeComposing {
 			break // IME candidate keys must not submit or dismiss the surrounding form.
@@ -1282,6 +1293,9 @@ func (state *windowState) frameWithText(frame platform.Frame, err error, nativeV
 func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error, nativeVisualChanged bool, cancelNative func()) error {
 	if err == nil && state.window == 0 {
 		return nil
+	}
+	if err == nil {
+		state.syncMenuKeyboard()
 	}
 	views := frame.NativeViews
 	if err == nil {

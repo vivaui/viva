@@ -23,16 +23,30 @@ type command struct {
 func commands() []command {
 	return []command{
 		{name: "build", usage: "build [flags] [package]",
-			summary: "Build a release program for macOS, Windows, Linux or the browser.",
+			summary: "Build a release program for macOS, Windows, Linux, iOS or the browser.",
 			detail: "Builds with -trimpath and a stripped, reproducible link, and reports the size. Settings come from\n" +
 				"viva.toml when there is one; the package argument overrides [app] package (or [web] package for\n" +
 				"--target web, which also writes the loader and an index.html). macOS builds are compiled for\n" +
 				"[mac] min_system, not for the macOS of the machine building them, and reach Cocoa through cgo;\n" +
 				"Linux and Windows builds disable cgo by default. Use --cgo for application-owned native libraries;\n" +
 				"provide the target C compiler and link flags, and check the resulting system dependencies.\n" +
-				"Windows release builds use the GUI subsystem; with --debug they keep the console.",
+				"Windows release builds use the GUI subsystem; with --debug they keep the console. --target ios-sim writes\n" +
+				"an .app for the iOS simulator (macOS with Xcode; the Metal and UIKit bridge is built with cgo against\n" +
+				"the SDK); viva run builds, installs and starts it. --target android writes an .apk (the program as a\n" +
+				"shared library, built with the NDK's compiler, around the host's Activity, put together with the Android\n" +
+				"SDK's tools and the JDK, with no Gradle), signed with the debug key.",
 			run: func(arguments []string, output, errorOutput io.Writer) error {
 				return runBuild(arguments, output, errorOutput)
+			}},
+		{name: "run", usage: "run [flags] [package]",
+			summary: "Build the application and start it in the iOS simulator or on an Android device.",
+			detail: "--target ios-sim builds an .app for the simulator, boots a simulator if none is running, installs the app and\n" +
+				"starts it. --device names the simulator or gives its identifier; without it, an iPhone already booted is used,\n" +
+				"else the newest iPhone the machine has. The Simulator window is shown unless -open=false. It needs macOS with\n" +
+				"Xcode. --target android builds an .apk, installs it with adb on the device that is ready (--device gives its\n" +
+				"serial; a phone before an emulator) and starts it. For the desktop, use viva dev.",
+			run: func(arguments []string, output, errorOutput io.Writer) error {
+				return runRun(arguments, output, errorOutput)
 			}},
 		{name: "sign", usage: "sign --target windows --program FILE",
 			summary: "Sign a Windows program that was built elsewhere, in place.",

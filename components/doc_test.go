@@ -24,6 +24,7 @@ var docPrimaryEntries = map[string][]string{
 	"chart_downsample.go":   {"ChartDownsample"},
 	"code_editor.go":        {"CodeEditor"},
 	"code_editor_layout.go": {"CodeEditor"},
+	"code_editor_shaped.go": {"CodeEditor"},
 	"code_diff.go":          {"CodeDiff"},
 	"code_diff_inline.go":   {"CodeDiffInline"},
 	"code_diff_model.go":    {"DiffCodeLines"},

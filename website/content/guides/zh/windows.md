@@ -23,7 +23,7 @@ group: guides
 | `WindowPanel` | 无外框的临时弹出窗口，位于其他窗口之上，用来在状态栏图标旁边打开。 |
 | `WindowNotification` | 接受鼠标操作但不抢键盘焦点的桌面浮窗，用于后台任务的结果提示；Wayland 下位置、层级与焦点由合成器决定。 |
 
-使用自定义标题栏时，窗口按钮在 macOS 上由系统绘制，在 Windows 和 Linux 上由 Viva 绘制。无论哪种，它们都会盖住条带的一部分，所以用 `app.TitlebarInsets` 询问盖住多少，让自己的内容避开。`Config.TitlebarHeight` 设置条带高度（Viva 放置自绘按钮和 macOS 红绿灯的位置）；窗口从你标记了 `MovesWindow` 的那一行移动，行内的控件仍然接收自己的点击，行上方打开的菜单或对话框会被那里的点击关闭，指针拖动后窗口才移动。`Config.WindowControls` 给 Viva 绘制的按钮定样式，使它们跟随你的主题。
+使用自定义标题栏时，窗口按钮在 macOS 上由系统绘制，在 Windows 和 Linux 上由 Viva 绘制。无论哪种，它们都会盖住条带的一部分，所以用 `c.TitlebarInsets()` 询问盖住多少，让自己的内容避开。`Config.TitlebarHeight` 设置条带高度（Viva 放置自绘按钮和 macOS 红绿灯的位置）；窗口从你标记了 `MovesWindow` 的那一行移动，行内的控件仍然接收自己的点击，行上方打开的菜单或对话框会被那里的点击关闭，指针拖动后窗口才移动。`Config.WindowControls` 给 Viva 绘制的按钮定样式，使它们跟随你的主题。
 
 ## 全屏
 
@@ -45,7 +45,7 @@ Windows 使用整个显示器而不是任务栏工作区，并保存之前的位
 
 ## 完整示例
 
-下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `app.TitlebarInsets` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.ModalWith`，只在有关闭请求挂起时才声明：
+下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `c.TitlebarInsets()` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.ModalWith`，只在有关闭请求挂起时才声明：
 
 <!-- example: windows/main.go -->
 ```go
@@ -68,7 +68,7 @@ type notes struct {
 func (state *notes) page(c ui.C) {
 	// The bar is as tall as the title bar and leaves room for the window buttons
 	// on whichever side the platform puts them.
-	leading, trailing := app.TitlebarInsets()
+	leading, trailing := c.TitlebarInsets()
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Height(28).PadRight(trailing).PadLeft(leading).Items(ui.Center).MovesWindow().Children(func() {
 			ui.Text(c, "Notes").Muted()

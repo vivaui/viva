@@ -140,7 +140,9 @@ WebView and no bundled rendering runtime.
 - `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
   CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
   static settings), and the environment on Linux. A policy the platform cannot
-  evaluate is an error, never a silent direct connection.
+  evaluate is an error, never a silent direct connection. `SystemProxyContext`
+  lets a request cancel macOS PAC downloads and evaluation; both entry points
+  bound PAC work to ten seconds.
 - `gfx.MonoFamily` draws fixed-pitch text in any installed family and
   `app.MonospaceFamilies` lists them.
 - `Config.OnFileDrop` receives files dragged from the file manager, with the hit

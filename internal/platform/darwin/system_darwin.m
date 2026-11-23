@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <AppKit/AppKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <dispatch/dispatch.h>

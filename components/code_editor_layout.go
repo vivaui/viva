@@ -14,9 +14,8 @@ import (
 
 // A CodeEditor lays its text out on a grid of character cells, as a terminal
 // does: every character is one cell wide, a wide one (CJK, emoji) two, a
-// combining mark none, and a tab runs to the next tab stop. Columns, caret
-// movement, selections and indentation all become cell arithmetic, which needs no
-// text measurement and so costs the same however long the text is.
+// combining mark none, and a tab runs to the next tab stop. Row breaks and
+// caret hits keep grapheme clusters together within that grid.
 
 // codeRow is one row of the grid: the bytes value[start:end] of one logical
 // line, which a soft wrap splits into several rows.
@@ -128,6 +127,35 @@ func decodeAt(value string, at int) (rune, int) {
 		return rune(r), 1
 	}
 	return utf8.DecodeRuneInString(value[at:])
+}
+
+// gridCluster returns the byte end and cell width of the grapheme at a
+// boundary. The cells still use the same widths as the drawing runs.
+func (editor *CodeEditor) gridCluster(value string, at, column int) (end, cells int) {
+	r, size := decodeAt(value, at)
+	end = at + size
+	cells = displayCells(r, column, editor.tabWidth, editor.reps)
+	if end == len(value) || r < utf8.RuneSelf && value[end] < utf8.RuneSelf {
+		return end, cells
+	}
+	boundary := text.NextGraphemeBoundary(value, at)
+	for end < boundary {
+		r, size = decodeAt(value, end)
+		cells += displayCells(r, column+cells, editor.tabWidth, editor.reps)
+		end += size
+	}
+	return end, cells
+}
+
+func gridCaretStart(value string, offset int) int {
+	offset = min(max(offset, 0), len(value))
+	if offset == 0 || offset == len(value) {
+		return offset
+	}
+	if before, after := value[offset-1], value[offset]; before|after < utf8.RuneSelf && (before != '\r' || after != '\n') {
+		return offset
+	}
+	return gfx.GraphemeStart(value, offset)
 }
 
 // fit lays value out in rows of cols cells unless it already is.
@@ -346,17 +374,20 @@ func (editor *CodeEditor) SoftWrapOffsets(dst []int) []int {
 // before the word that does not fit, or inside it when it is longer than a row;
 // the spaces that end a row hang past its right edge instead of wrapping.
 func (editor *CodeEditor) appendLine(value string, start, end, line int) {
+	if !editor.wrap {
+		editor.addRow(value, start, end, start, line, editor.columnBetween(value, start, end))
+		return
+	}
 	rowStart, column := start, 0
 	wordStart, wordColumn := -1, 0
 	previousSpace := false
 	for at := start; at < end; {
-		r, size := decodeAt(value, at)
-		width := displayCells(r, column, editor.tabWidth, editor.reps)
-		space := r == ' ' || r == '\t'
+		next, width := editor.gridCluster(value[:end], at, column)
+		space := value[at] == ' ' || value[at] == '\t'
 		if !space && previousSpace {
 			wordStart, wordColumn = at, column
 		}
-		if editor.wrap && !space && column+width > editor.cols && column > 0 {
+		if !space && column+width > editor.cols && column > 0 {
 			cut, cutColumn := at, column
 			if wordStart > rowStart {
 				cut, cutColumn = wordStart, wordColumn
@@ -364,11 +395,16 @@ func (editor *CodeEditor) appendLine(value string, start, end, line int) {
 			editor.addRow(value, rowStart, cut, start, line, cutColumn)
 			rowStart, wordStart = cut, -1
 			column = editor.columnBetween(value, cut, at)
-			width = displayCells(r, column, editor.tabWidth, editor.reps)
+			// Only a tab's width depends on column. Tabs are separate clusters
+			// and do not wrap here. A wide cluster can still overflow the moved word.
+			if column > 0 && column+width > editor.cols {
+				editor.addRow(value, rowStart, at, start, line, column)
+				rowStart, column = at, 0
+			}
 		}
 		previousSpace = space
 		column += width
-		at += size
+		at = next
 	}
 	editor.addRow(value, rowStart, end, start, line, column)
 }
@@ -487,14 +523,19 @@ func (walker *columnWalker) column(offset int) int {
 // distance in cells from the start of the row.
 func (editor *CodeEditor) offsetAtColumn(row codeRow, x float32) int {
 	column := 0
-	for at := int(row.start); at < int(row.end); {
-		r, size := decodeAt(editor.text, at)
-		width := displayCells(r, column, editor.tabWidth, editor.reps)
+	value := editor.text[:row.end]
+	for at := int(row.start); at < len(value); {
+		next, width := at+1, 0
+		if r := value[at]; r < utf8.RuneSelf && (next == len(value) || value[next] < utf8.RuneSelf) {
+			width = displayCells(rune(r), column, editor.tabWidth, editor.reps)
+		} else {
+			next, width = editor.gridCluster(value, at, column)
+		}
 		if x < float32(column)+float32(width)/2 {
 			return at
 		}
 		column += width
-		at += size
+		at = next
 	}
 	return int(row.end)
 }
@@ -519,7 +560,17 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point gfx.Point) (offset, virtualC
 	}
 	index = max(0, min(index, len(editor.rows)-1))
 	row := editor.rows[index]
-	column := (point.X - editor.content.X + editor.scrollX) / editor.cellWidth
+	x := point.X - editor.content.X + editor.scrollX
+	if hit, shaped := editor.shapedHit(row, x); shaped {
+		editor.rememberShapedHit(row, hit)
+		editor.goalActive = false
+		editor.setUpstream(hit.Offset, hit.Offset == int(row.end) && editor.softWrapped(index))
+		return hit.Offset, 0, true
+	}
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
+	column := x / editor.cellWidth
 	offset = editor.offsetAtColumn(row, column)
 	editor.setUpstream(offset, offset == int(row.end) && editor.softWrapped(index))
 	if offset == int(row.end) && !editor.softWrapped(index) {
@@ -541,6 +592,9 @@ func (editor *CodeEditor) setUpstream(offset int, upstream bool) {
 
 // arrive notes where a movement ended and returns it.
 func (editor *CodeEditor) arrive(offset int, upstream bool) int {
+	if editor.shaping != nil {
+		editor.shaping.hitValid = false
+	}
 	editor.setUpstream(offset, upstream)
 	editor.goalActive = false
 	return offset
@@ -564,6 +618,7 @@ func (editor *CodeEditor) Move(text string, caret int, movement TextareaMovement
 	if !editor.painted || len(editor.rows) == 0 || editor.text != text {
 		return caret
 	}
+	caret = gridCaretStart(text, caret)
 	index := editor.rowOf(caret)
 	row := editor.rows[index]
 	switch movement {
@@ -595,21 +650,34 @@ func (editor *CodeEditor) Move(text string, caret int, movement TextareaMovement
 	}
 	if !editor.goalActive || editor.goalCaret != caret {
 		editor.goal = float32(editor.columnOf(row, caret))
+		if x, shaped := editor.shapedCaretX(row, caret); shaped && editor.cellWidth > 0 {
+			editor.goal = x / editor.cellWidth
+		}
 	}
 	target := index + step
 	var offset int
 	var upstream bool
+	var hit gfx.TextHit
+	var shaped bool
 	switch {
 	case target < 0:
 		offset = 0
 	case target >= len(editor.rows):
 		offset = len(text)
 	default:
-		offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		hit, shaped = editor.shapedHit(editor.rows[target], editor.goal*editor.cellWidth)
+		if shaped {
+			offset = hit.Offset
+		} else {
+			offset = editor.offsetAtColumn(editor.rows[target], editor.goal)
+		}
 		upstream = offset == int(editor.rows[target].end) && editor.softWrapped(target)
 	}
 	goal := editor.goal
 	offset = editor.arrive(offset, upstream)
+	if shaped {
+		editor.rememberShapedHit(editor.rows[target], hit)
+	}
 	editor.goal, editor.goalCaret, editor.goalActive = goal, offset, true
 	return offset
 }
@@ -682,7 +750,7 @@ func clampScroll(scroll, most float32) float32 {
 // follow scrolls to keep the caret in view when the caret, or the row it is on,
 // is not where the last paint left it. A wheel or a drag of a scrollbar moves the
 // view and the next paint leaves it there until the caret moves.
-func (editor *CodeEditor) follow(caret, row, column int) {
+func (editor *CodeEditor) follow(caret, row, column int, x float32, shaped bool) {
 	if !editor.followedValid || editor.followed != caret || editor.followedRow != row {
 		top := float32(row) * editor.lineHeight
 		if top < editor.scrollY {
@@ -692,6 +760,9 @@ func (editor *CodeEditor) follow(caret, row, column int) {
 		}
 		if !editor.wrap {
 			left, right := float32(column)*editor.cellWidth, float32(column+1)*editor.cellWidth
+			if shaped {
+				left, right = x, x+editor.cellWidth
+			}
 			if left < editor.scrollX {
 				editor.scrollX = max(0, left-editor.cellWidth*2)
 			} else if right > editor.scrollX+editor.content.Width {

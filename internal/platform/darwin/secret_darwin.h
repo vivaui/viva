@@ -1,3 +1,5 @@
+//go:build !ios
+
 #ifndef VIVA_SECRET_DARWIN_H
 #define VIVA_SECRET_DARWIN_H
 

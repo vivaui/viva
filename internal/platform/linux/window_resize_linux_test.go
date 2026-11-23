@@ -1,6 +1,9 @@
+//go:build linux && !android
+
 package linux
 
 import (
+	"slices"
 	"testing"
 	"unsafe"
 
@@ -8,22 +11,17 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 )
 
-func TestMovingWindowDoesNotQueryVulkanSurface(t *testing.T) {
-	queries := 0
+// Moving a window changes no size: the renderer is not asked about its surface, not
+// resized, and the window still reports where its content is.
+func TestMovingWindowDoesNotResizeOrQueryTheSurface(t *testing.T) {
 	var frames []gfx.Rect
+	renderer := &fakeWindowRenderer{deviceWidth: 100, deviceHeight: 100}
 	state := &linuxWindowState{
 		win: &window{id: 1, width: 100, height: 100},
 		config: platform.Config{
 			OnFrameChange: func(frame gfx.Rect) { frames = append(frames, frame) },
 		},
-		renderer: &vulkanRenderer{
-			physical: 1, surface: 2, width: 100, height: 100,
-			api: &vulkanAPI{getSurfaceCapabilities: func(_, _ uintptr, caps *vkSurfaceCapabilities) int32 {
-				queries++
-				caps.Current = vkExtent2D{Width: 100, Height: 100}
-				return vkSuccess
-			}},
-		},
+		renderer: renderer,
 	}
 	for x := int16(10); x < 30; x++ {
 		event := xcbConfigureEvent{ResponseType: xcbConfigureNotify | 0x80, Window: 1, X: x, Y: 20, Width: 100, Height: 100}
@@ -31,63 +29,49 @@ func TestMovingWindowDoesNotQueryVulkanSurface(t *testing.T) {
 			t.Fatalf("move: closed=%v err=%v", closed, err)
 		}
 	}
-	if queries != 0 || state.resizeEvents != 0 {
-		t.Fatalf("pure movement queried the surface %d times and resized %d times", queries, state.resizeEvents)
+	if renderer.count("surfaceSize") != 0 || renderer.count("resize") != 0 || state.resizeEvents != 0 {
+		t.Fatalf("pure movement asked about the surface %d times, resized %d times and reported %d resizes: %v",
+			renderer.count("surfaceSize"), renderer.count("resize"), state.resizeEvents, renderer.calls)
 	}
 	if len(frames) != 20 || frames[len(frames)-1] != (gfx.Rect{X: 29, Y: 20, Width: 100, Height: 100}) {
 		t.Fatalf("movement stopped reporting the content frame: %v", frames)
 	}
 }
 
-func TestObsoleteConfigureDoesNotCacheSurfaceForLaterPresent(t *testing.T) {
-	recreations := 0
-	renderer := newSuboptimalTestRenderer(vkErrorOutOfDate, vkSuccess, &recreations)
-	renderer.physical, renderer.surface = 1, 2
-	renderer.width, renderer.height = 100, 100
-	queries := 0
-	current := uint32(100)
-	baseQuery := renderer.api.getSurfaceCapabilities
-	renderer.api.getSurfaceCapabilities = func(device, surface uintptr, caps *vkSurfaceCapabilities) int32 {
-		queries++
-		status := baseQuery(device, surface, caps)
-		caps.Current.Width = current
-		return status
-	}
+// What a configure event made the renderer read about its surface is not kept for later:
+// an obsolete event that needed no resize must not leave capabilities for a later
+// present to rebuild the swapchain by.
+func TestConfigureDoesNotLeaveSurfaceCapabilitiesBehind(t *testing.T) {
+	renderer := &fakeWindowRenderer{deviceWidth: 100, deviceHeight: 100, serverSize: [2]uint32{100, 100}}
 	state := &linuxWindowState{win: &window{id: 1, width: 100, height: 100}, renderer: renderer}
-	// The server has already reached the size we drew; this queued intermediate
-	// Configure must not leave its capabilities for a later OUT_OF_DATE recovery.
+	// The server has already reached the size we drew: this queued intermediate
+	// Configure needs no resize.
 	event := xcbConfigureEvent{ResponseType: xcbConfigureNotify | 0x80, Window: 1, Width: 90, Height: 100}
 	if closed, err := state.handleEvent(unsafe.Pointer(&event)); closed || err != nil {
 		t.Fatalf("obsolete configure: closed=%v err=%v", closed, err)
 	}
-	current = 120
-	if err := renderer.presentRebuilding(); err != nil {
-		t.Fatal(err)
+	if renderer.count("resize") != 0 {
+		t.Fatalf("an obsolete configure resized the renderer: %v", renderer.calls)
 	}
-	if queries != 2 || renderer.width != current || recreations != 1 {
-		t.Fatalf("recovery used obsolete geometry: queries=%d width=%d recreations=%d", queries, renderer.width, recreations)
+	if last := renderer.calls[len(renderer.calls)-1]; last != "forget" {
+		t.Fatalf("the configure left the surface capabilities it read: %v", renderer.calls)
 	}
 }
 
-func TestResizeSharesSurfaceQueryOnlyWithItsOwnSwapchain(t *testing.T) {
-	recreations := 0
-	renderer := newSuboptimalTestRenderer(vkSuccess, vkSuccess, &recreations)
-	renderer.physical, renderer.surface = 1, 2
-	renderer.width, renderer.height = 100, 100
-	queries := 0
-	baseQuery := renderer.api.getSurfaceCapabilities
-	renderer.api.getSurfaceCapabilities = func(device, surface uintptr, caps *vkSurfaceCapabilities) int32 {
-		queries++
-		status := baseQuery(device, surface, caps)
-		caps.Current.Width = 120
-		return status
-	}
+// A resize reads the surface once and resizes the swapchain by that reading: the window
+// asks the renderer for the surface's size, then resizes it, then presents.
+func TestResizeAsksForTheSurfaceThenResizesThenPresents(t *testing.T) {
+	renderer := &fakeWindowRenderer{deviceWidth: 100, deviceHeight: 100}
 	state := &linuxWindowState{win: &window{id: 1, width: 100, height: 100}, renderer: renderer}
 	event := xcbConfigureEvent{ResponseType: xcbConfigureNotify | 0x80, Window: 1, Width: 120, Height: 100}
 	if closed, err := state.handleEvent(unsafe.Pointer(&event)); closed || err != nil {
 		t.Fatalf("resize: closed=%v err=%v", closed, err)
 	}
-	if queries != 1 || recreations != 1 || renderer.width != 120 || renderer.hasPendingCapabilities {
-		t.Fatalf("resize queries=%d recreations=%d width=%d pending=%v", queries, recreations, renderer.width, renderer.hasPendingCapabilities)
+	surface, resize, present := slices.Index(renderer.calls, "surfaceSize"), slices.Index(renderer.calls, "resize"), slices.Index(renderer.calls, "present")
+	if surface < 0 || !(surface < resize && resize < present) {
+		t.Fatalf("a resize made the calls %v, want surfaceSize, resize, present in that order", renderer.calls)
+	}
+	if renderer.deviceWidth != 120 || state.resizeEvents != 1 {
+		t.Fatalf("the renderer is %d wide after %d resize events", renderer.deviceWidth, state.resizeEvents)
 	}
 }

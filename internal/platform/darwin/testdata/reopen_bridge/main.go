@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && !ios
 
 // This subprocess exercises the real Cocoa/Go bridge and exits without input.
 package main

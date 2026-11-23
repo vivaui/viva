@@ -1,3 +1,5 @@
+//go:build !android
+
 package linux
 
 import (
@@ -11,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +70,19 @@ func TestClipboardImageFromX11Owner(t *testing.T) {
 	}
 
 	own("-t", "image/png", "-i", imagePath)
+	if value, err := ClipboardText(); err != nil || value != "" {
+		t.Fatalf("image-only copy returned %d text bytes: %v", len(value), err)
+	}
+	editor := text.NewEditor("draft")
+	editor.SetSelection(text.Range{Start: 0, End: 5})
+	event, changed, err := platform.TextClipboardEvent(platform.EditorState(editor), false, 'v', ClipboardText, nil)
+	if err != nil || !changed || event.Kind != platform.TextPasteNoText {
+		t.Fatalf("image paste = %+v, changed=%v, error=%v", event, changed, err)
+	}
+	event.Apply(editor)
+	if editor.String() != "draft" || editor.CanUndo() {
+		t.Fatal("image paste changed the draft or undo history")
+	}
 	if has, err := clipboardOffersImage(); !has {
 		t.Fatalf("clipboard offers no image with a PNG on it (error: %v)", err)
 	}
@@ -83,11 +99,69 @@ func TestClipboardImageFromX11Owner(t *testing.T) {
 		t.Fatal(err)
 	}
 	own("-i", textPath)
+	if value, err := ClipboardText(); err != nil || value != "plain text" {
+		t.Fatalf("text after image = %q, %v", value, err)
+	}
 	if HasClipboardImage() {
 		t.Fatal("HasClipboardImage = true with text on the clipboard")
 	}
 	if _, err := ClipboardImagePNG(); !errors.Is(err, platform.ErrNoClipboardImage) {
 		t.Fatalf("error = %v, want ErrNoClipboardImage", err)
+	}
+	if err := os.WriteFile(textPath, []byte("caf\xe9"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	own("-t", "STRING", "-i", textPath)
+	if value, err := ClipboardText(); err != nil || value != "café" {
+		t.Fatalf("legacy Latin-1 = %q, %v", value, err)
+	}
+}
+
+// A background copy can replace our clipboard before the window loop handles
+// SelectionClear. Reads must follow the server's owner, not the stale cache.
+func TestClipboardImageAfterExternalOwnerReplacesCachedText(t *testing.T) {
+	win := liveSelectionWindow(t)
+	if err := SetClipboardText("old draft"); err != nil {
+		t.Fatal(err)
+	}
+	picture := picturePNG(t)
+	command := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-i")
+	command.Stdin = bytes.NewReader(picture)
+	if err := command.Run(); err != nil {
+		t.Fatal(err)
+	}
+	// Do not pump the window's pending SelectionClear event.
+	if owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom); err != nil || owner == win.id {
+		t.Fatalf("external owner did not claim the clipboard: %d, %v", owner, err)
+	}
+	got, err := ClipboardImagePNG()
+	if err != nil || !bytes.Equal(got, picture) {
+		t.Fatalf("external picture after cached text: %d bytes, %v", len(got), err)
+	}
+	if value, err := ClipboardText(); err != nil || value != "" {
+		t.Fatalf("stale text after external picture: %q, %v", value, err)
+	}
+}
+
+func BenchmarkClipboardTextFromX11Owner(b *testing.B) {
+	if os.Getenv("VIVA_LINUX_XCB_SMOKE") == "" {
+		b.Skip("set VIVA_LINUX_XCB_SMOKE=1 with a private X11 display and xclip")
+	}
+	value := strings.Repeat("clipboard 文本 ", 10)
+	command := exec.Command("xclip", "-selection", "clipboard", "-i")
+	command.Stdin = strings.NewReader(value)
+	if err := command.Run(); err != nil {
+		b.Fatal(err)
+	}
+	if got, err := ClipboardText(); err != nil || got != value {
+		b.Fatalf("clipboard not ready: %q, %v", got, err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if got, err := ClipboardText(); err != nil || got != value {
+			b.Fatalf("clipboard text: %q, %v", got, err)
+		}
 	}
 }
 

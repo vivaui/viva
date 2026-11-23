@@ -13,6 +13,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+over_limit=0
 
 check() {
     name=$1
@@ -26,7 +27,7 @@ check() {
     printf '%-28s %10d B  (limit %d)\n' "$name" "$size" "$limit"
     if [ "$size" -gt "$limit" ]; then
         echo "size: $name is $size bytes, over the $limit-byte limit" >&2
-        exit 1
+        over_limit=1
     fi
 }
 
@@ -39,3 +40,5 @@ check "hello windows/amd64" windows amd64 ./examples/guides/hello "$hello_limit"
 check "hello linux/amd64" linux amd64 ./examples/guides/hello "$hello_limit"
 check "showcase darwin/arm64" darwin arm64 ./cmd/showcase "$gallery_limit"
 check "showcase windows/amd64" windows amd64 ./cmd/showcase "$gallery_windows_limit"
+
+exit "$over_limit"

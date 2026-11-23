@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build darwin && !ios
 
 #include <CoreServices/CoreServices.h>
 #include <dispatch/dispatch.h>

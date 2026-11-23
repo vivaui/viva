@@ -286,7 +286,19 @@ type HoverTooltip struct {
 	// shown is the control whose tooltip the last Paint drew, so a press or an
 	// explicit Dismiss can suppress that control until the pointer leaves.
 	shown gfx.ID
+	// held is the control a finger held and whose tooltip the hold opened, from heldSince
+	// until TouchTooltipTime has passed or another finger touches.
+	held      gfx.ID
+	heldSince time.Duration
 }
+
+// TouchTooltipTime is how long the tooltip a held finger opened stays: a touch screen has
+// no pointer to rest on a control, so a long press shows the hint, as Android's
+// tooltipText and Material's long-press tooltip do, and it goes away by itself.
+const TouchTooltipTime = 1500 * time.Millisecond
+
+// Holding returns the control whose tooltip a held finger opened and that is still open, or zero.
+func (hover *HoverTooltip) Holding() gfx.ID { return hover.held }
 
 // Showing returns the control whose tooltip the last Paint drew, or zero.
 func (hover *HoverTooltip) Showing() gfx.ID { return hover.shown }
@@ -314,7 +326,8 @@ func (hover *HoverTooltip) ShowOnFocus() { hover.focus = true }
 // for hits without a Hint.
 func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, options TooltipOptions, delay time.Duration) bool {
 	hovered := canvas.Hovered()
-	if !canvas.Pressed().IsZero() {
+	hover.holdByFinger(canvas)
+	if !canvas.Pressed().IsZero() && hover.held.IsZero() {
 		if !hover.shown.IsZero() {
 			hover.suppressed = hover.shown
 		}
@@ -330,7 +343,16 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 	}
 	id := hovered
 	immediate := false
-	if hover.focus {
+	if !hover.held.IsZero() {
+		id, immediate = hover.held, true
+		if remaining := TouchTooltipTime - (canvas.Now() - hover.heldSince); remaining > 0 {
+			canvas.RequestFrameIn(remaining)
+		} else {
+			hover.held = gfx.ID{}
+			id, immediate = hovered, false
+		}
+	}
+	if hover.focus && hover.held.IsZero() {
 		if focused := canvas.FocusVisible(); !focused.IsZero() {
 			id, immediate = focused, true
 		}
@@ -372,6 +394,32 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 	BeginTooltip(canvas, theme, viewport, hit.Bounds, options).Paint(hit.Hint)
 	hover.shown = id
 	return true
+}
+
+// holdByFinger opens the tooltip of a control a finger held long enough to press it as a
+// right click, when nothing took that press (a control with a context menu takes it, as
+// on Android a long-click listener keeps the tooltip from showing).
+func (hover *HoverTooltip) holdByFinger(canvas *gfx.Canvas) {
+	event, consumed, ok := canvas.PointerPass()
+	if !ok || event.Kind != gfx.PointerDown {
+		return
+	}
+	if event.Button == gfx.PointerButtonPrimary {
+		hover.held = gfx.ID{} // another touch: what a held finger opened is closed
+		return
+	}
+	if consumed || event.Device != gfx.PointerTouch || event.Button != gfx.PointerButtonSecondary || event.Target.IsZero() {
+		return
+	}
+	for _, hit := range canvas.Hits() {
+		if hit.ID == event.Target && (hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleTerminal) {
+			return // a held finger selects the text of a field
+		}
+		if hit.ID == event.Target && !hit.Block && hit.Hint != "" {
+			hover.held, hover.heldSince = event.Target, canvas.Now()
+			return
+		}
+	}
 }
 
 // Aliases into the style vocabulary, kept for callers of this component.

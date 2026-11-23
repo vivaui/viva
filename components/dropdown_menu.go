@@ -168,6 +168,9 @@ type DropdownMenuOptions struct {
 	Unpainted  bool
 	PaintPanel func(canvas *gfx.Canvas, bounds gfx.Rect, theme gfx.Theme)
 	PaintItem  func(MenuItemPaint)
+	// MaxWidth caps the surface width, including its default minimum. Zero
+	// keeps the default minimum and leaves the width unbounded.
+	MaxWidth float32
 }
 
 // DropdownMenuItem describes one stable menu action.
@@ -246,11 +249,15 @@ type DropdownMenu struct {
 
 // BeginDropdownMenu paints an open menu using caller-owned layer, focus scope,
 // and Escape action identities. Bounds are normalized to Vega's 8rem minimum
-// (6rem for a submenu).
+// (6rem for a submenu), subject to MaxWidth.
 func BeginDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options DropdownMenuOptions) DropdownMenu {
 	minWidth := float32(128)
 	if options.Submenu {
 		minWidth = 96
+	}
+	if options.MaxWidth > 0 {
+		minWidth = min(minWidth, options.MaxWidth)
+		bounds.Width = min(bounds.Width, options.MaxWidth)
 	}
 	return DropdownMenu{surface: beginMenuSurface(canvas, theme, bounds, minWidth, menuSurfaceOptions{
 		layer: options.Layer, scope: options.Scope, dismissID: options.DismissID, viewport: options.Viewport, scroll: options.Scroll,

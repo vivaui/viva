@@ -1,3 +1,5 @@
+//go:build !ios
+
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #include <stdint.h>

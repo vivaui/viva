@@ -32,6 +32,48 @@ type TextEngine interface {
 	OffsetAt(value string, size, weight, x float32) int
 }
 
+// TextHit identifies a byte boundary and its visual position in logical pixels
+// from the left of the line. A mixed-direction boundary can have two positions.
+type TextHit struct {
+	Offset int
+	X      float32
+}
+
+// TextHitEngine is an optional capability for engines that can report which
+// visual position of a boundary was hit. Offset follows the TextEngine byte
+// offset contract. X is the caret position nearest the click on the side hit.
+type TextHitEngine interface {
+	TextEngine
+	HitAt(value string, size, weight, x float32) TextHit
+}
+
+// FittedMonoCaret gives the two edges at one grapheme boundary of a shaped
+// monospace run. Leading belongs to the following grapheme; Trailing to the
+// preceding one. Positions are logical pixels from the left edge of the run.
+type FittedMonoCaret struct {
+	Offset            int
+	Leading, Trailing float32
+}
+
+// FittedMonoCaretEngine measures the same shaping and horizontal fit used to
+// draw one complete LabelRuns run with Ligatures set. Carets are appended in
+// increasing UTF-8 byte order, starting at zero and ending at len(value).
+// A false result leaves dst unchanged.
+type FittedMonoCaretEngine interface {
+	TextEngine
+	FittedMonoCarets(dst []FittedMonoCaret, value string, style TextStyle, span float32) ([]FittedMonoCaret, bool)
+}
+
+// FittedBidiMonoCarets measures a mixed or right-to-left monospace label. It
+// returns false when the canvas cannot measure its fitted native shape.
+func (canvas *Canvas) FittedBidiMonoCarets(dst []FittedMonoCaret, value string, style TextStyle, span float32) ([]FittedMonoCaret, bool) {
+	engine, ok := canvas.engine.(FittedMonoCaretEngine)
+	if !ok || canvas.measurer != nil || span <= 0 || !textmetrics.Bidirectional(value) {
+		return dst, false
+	}
+	return engine.FittedMonoCarets(dst, value, style, span)
+}
+
 // TextRasterizer is an optional TextEngine capability that draws one shaped
 // proportional line into a transparent premultiplied BGRA bitmap at scale.
 // Width and height are bitmap pixels. The same platform font, fallback and
@@ -247,6 +289,10 @@ func (referenceEngine) Selection(dst []TextSpan, value string, size, weight floa
 
 func (referenceEngine) OffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
+}
+
+func (referenceEngine) HitAt(value string, size, weight, x float32) TextHit {
+	return TextHit(textmetrics.HitAt(value, size, weight, x))
 }
 
 // offsetAtByPrefix is the character boundary of value whose prefix width is nearest to

@@ -159,9 +159,22 @@ type Config struct {
 	// so Control+Enter still reaches the field as before. Other named keys
 	// remain OnKey events. On Windows an ordinary (non-terminal, non-Placed)
 	// text field that has focus takes the standard editing and clipboard chords
-	// first, so the application does not see them there.
+	// first, so the application does not see them there. While CaptureMenuKeys
+	// reports true, a captured key is not passed on to text or the input method
+	// when this callback returns unhandled, and unmodified keys are offered
+	// during a composition too.
 	// This callback runs on the window thread.
 	OnShortcut func(event gfx.KeyEvent) gfx.EventResult
+	// CaptureMenuKeys reports whether a transient menu owns the keyboard.
+	// Windows routes its keys to OnShortcut (printable) or OnKey (named)
+	// before IME processing, keeping the underlying text input and its
+	// composition installed until the menu closes. A captured key never
+	// reaches text or the input method: an unhandled key is dropped, a held
+	// key repeats with Repeat set, and a named key the runtime cannot express
+	// is swallowed. The callback runs on the window thread and must not change
+	// state. It does nothing outside Windows, and if the system refuses the
+	// keyboard hook the keys are delivered as usual. Also supported by Driver.
+	CaptureMenuKeys func() bool
 	// OnModifierTap receives a modifier key that was pressed and released on its
 	// own (see gfx.ModifierTapEvent), which OnKey never sees outside a terminal
 	// that asked for the whole keyboard. It is how an application builds
@@ -208,6 +221,12 @@ type Config struct {
 	// application stop work nobody can see, such as a remote desktop stream.
 	// Hide is the application's own request and is not reported here.
 	OnMinimize func(minimized bool)
+	// OnLifecycle runs on the window thread when the system moves a phone application
+	// between the foreground and the background, or asks it for memory. A desktop window
+	// never gets one. A phone may end a backgrounded application without further notice, so
+	// Background is when to save what the user would miss; a MemoryWarning is when to drop
+	// caches that can be rebuilt.
+	OnLifecycle func(LifecycleEvent)
 	// OnActivate runs on the window thread when the top-level window becomes
 	// the active window, including when the user switches back from another
 	// application. Moving focus between editors inside the window does not
@@ -336,3 +355,16 @@ func (config Config) originPoint() gfx.Point {
 	}
 	return *config.Origin
 }
+
+// LifecycleEvent is a change the system makes to the state of a phone application (see
+// Config.OnLifecycle).
+type LifecycleEvent uint8
+
+const (
+	// LifecycleBackground says the application went behind another.
+	LifecycleBackground LifecycleEvent = iota + 1
+	// LifecycleForeground says it came back to the front.
+	LifecycleForeground
+	// LifecycleMemoryWarning says the system wants memory back.
+	LifecycleMemoryWarning
+)

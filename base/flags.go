@@ -35,6 +35,16 @@ const (
 	FlagInvalid  // a control whose value failed validation: the destructive border and ring
 )
 
+// A Text's own faces, beyond its size, weight and color: the italic face of its
+// font and the line struck through it. They are not bits of the element state word
+// — its 32 are all taken, the last of them by the required marker below — and a
+// face describes the text rather than the element, so they have a byte of their own
+// (Node.TextDecor).
+const (
+	textItalic uint8 = 1 << iota // Italic: the face gfx.StyledTextEngine shapes
+	textStrike                   // Strike: one line through the middle of each line
+)
+
 // flagRequired marks a page Label that appends the field title's required
 // marker. It is internal: only the page Label reads it.
 const flagRequired uint32 = 1 << 31

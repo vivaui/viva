@@ -123,6 +123,7 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 			Layer: layer, Scope: focus, DismissID: dismiss, Viewport: f.GetBounds(), ID: id,
 			Scroll: &m.Scroll, Side: side, Submenu: m.Parent != nil, RowHeight: m.GetRowSize(),
 			Unpainted: m.GetUnpainted(), PaintPanel: m.GetPanelPainter(), PaintItem: m.GetItemPainter(),
+			MaxWidth: m.GetWidthMax(),
 		})
 		for i := range m.Items {
 			switch row := &m.Items[i]; row.Kind {

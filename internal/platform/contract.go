@@ -83,6 +83,15 @@ type Config struct {
 	// as far as the platform says so. An adapter that cannot tell never calls it,
 	// and the window counts as visible.
 	OnVisibility VisibilityHandler
+	// TextGeometry, when set, answers where the text of the focused text input is on the
+	// window, or nil while none is. A phone's adapter builds the text interaction on it: the
+	// caret a tap places, the handles of a selection and the magnifier. The answer is read
+	// at once and not kept.
+	TextGeometry func() TextGeometry
+	// OnLifecycle, when set, runs on the window thread when the system moves the
+	// application between the foreground and the background, or warns it of low memory.
+	// Only the phone adapters call it.
+	OnLifecycle func(Lifecycle)
 	// OnMaximize, when set, runs on the window thread when the window is
 	// maximized or restored.
 	OnMaximize MaximizeHandler
@@ -101,6 +110,9 @@ type Config struct {
 	// every other key is delivered as it was.
 	ModifierTaps bool
 	OnShortcut   ShortcutHandler
+	// CaptureMenuKeys asks Windows to give a foreground menu its keys before
+	// text services, without ending the focused editor's composition.
+	CaptureMenuKeys func() bool
 	// OnActivate, when set, runs on the window thread when the top-level
 	// window becomes the active window. Focus moving between views inside the
 	// window does not call it.
@@ -124,7 +136,11 @@ type Config struct {
 	// node: press it, focus it, set its value. The adapter calls it on the
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
-	OnRedraw        RedrawHandler
+	// AccessibilityTree, when set, answers with the tree the window has now, for an adapter
+	// whose assistive technology starts after the window opened: frames carry the tree only
+	// when it changes. The slice is the application's, read at once and not kept.
+	AccessibilityTree func() []AccessibilityNode
+	OnRedraw          RedrawHandler
 	// SetFrameInterval, when set, is called by the adapter on the window thread
 	// once it knows how the window's frames are paced: the interval between
 	// display frames, or zero when presenting a frame blocks until the display
@@ -492,7 +508,37 @@ type PointerEvent struct {
 	// ClickCount is the number of consecutive presses this Down or Up belongs
 	// to (2 for a double click). Move and Exit events leave it 0.
 	ClickCount int
+	// Device is what the event comes from (gfx.PointerDevice), and PointerID
+	// tells apart the fingers or pens touching at once.
+	Device    gfx.PointerDevice
+	PointerID int32
 }
+
+// TextGeometry is where the text of a text input is, in logical window pixels. Indexes
+// are runes of the input's value, as in TextState.
+type TextGeometry interface {
+	// IndexAt is the character boundary nearest a window point; false when the field has
+	// painted nothing to place a caret in.
+	IndexAt(x, y float32) (int, bool)
+	// CaretRect is where the caret is at a boundary, as tall as its line; false when the
+	// input does not know (a field that lays its rows out itself answers for its caret only).
+	CaretRect(index int) (gfx.Rect, bool)
+	// RangeRects appends the rectangles the runes [start, end) cover.
+	RangeRects(dst []gfx.Rect, start, end int) []gfx.Rect
+}
+
+// Lifecycle is a change the system makes to the state of a phone application.
+type Lifecycle uint8
+
+const (
+	// LifecycleBackground is the application going behind another: the time to save what
+	// the user would miss, as the system may end it from there without a word.
+	LifecycleBackground Lifecycle = iota + 1
+	// LifecycleForeground is the application coming back to the front.
+	LifecycleForeground
+	// LifecycleMemoryWarning is the system asking applications to give memory back.
+	LifecycleMemoryWarning
+)
 
 // Size is a window client size in logical pixels.
 type Size struct {
@@ -502,6 +548,9 @@ type Size struct {
 	// (1.25 at 125%), or zero when the platform does not say. The application paints
 	// what must land on whole device pixels for it.
 	Scale float32
+	// SafeArea is how far the system covers each edge of the window, in logical pixels
+	// (status bar, sensor housing, home indicator); zero where it covers nothing.
+	SafeArea gfx.Insets
 }
 
 // KeyEvent is one normalized keyboard event. Key identities mirror
@@ -665,6 +714,8 @@ func ShortcutCandidate(event KeyEvent) bool {
 // system already applied. Precise reports whether the deltas are device pixels
 // (trackpad) or scaled line approximations (classic mouse wheels).
 type ScrollEvent struct {
+	// Phase is what moves the content; the zero value is a wheel or a touchpad.
+	Phase     gfx.ScrollPhase
 	Modifiers input.Modifiers
 	X         float32
 	Y         float32
