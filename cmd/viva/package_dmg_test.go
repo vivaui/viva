@@ -10,8 +10,16 @@ import (
 	"testing"
 )
 
-func TestPackageMakesADiskImageHoldingTheBundleAndAnApplicationsLink(t *testing.T) {
+func requireDMGIntegration(t *testing.T) {
+	t.Helper()
 	requireMac(t)
+	if os.Getenv("VIVA_DMG_INTEGRATION_TEST") != "1" {
+		t.Skip("set VIVA_DMG_INTEGRATION_TEST=1 to run disk image integration tests")
+	}
+}
+
+func TestPackageMakesADiskImageHoldingTheBundleAndAnApplicationsLink(t *testing.T) {
+	requireDMGIntegration(t)
 	dir := fixture(t, packageTOML)
 	writeIcon(t, filepath.Join(dir, "icon.png"), 512)
 	var output strings.Builder

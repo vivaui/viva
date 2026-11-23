@@ -343,6 +343,8 @@ jobs:
       # tests of that set are bound by hdiutil, codesign and the linker rather
       # than by the cores, so the two type-checks run beside them, not before.
       - name: vet and test
+        env:
+          VIVA_DMG_INTEGRATION_TEST: '1'
         run: |
           status=0
           # shellcheck disable=SC2046 # one package per word, by design

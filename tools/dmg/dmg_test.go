@@ -111,10 +111,18 @@ func TestPropertyListsAreReadByTheSystem(t *testing.T) {
 	}
 }
 
-func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
+func requireDMGIntegration(t *testing.T) {
+	t.Helper()
 	if runtime.GOOS != "darwin" {
 		t.Skip("disk images are made on macOS")
 	}
+	if os.Getenv("VIVA_DMG_INTEGRATION_TEST") != "1" {
+		t.Skip("set VIVA_DMG_INTEGRATION_TEST=1 to run disk image integration tests")
+	}
+}
+
+func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
+	requireDMGIntegration(t)
 	bundle := filepath.Join(t.TempDir(), "Sample.app")
 	if err := os.MkdirAll(filepath.Join(bundle, "Contents"), 0o755); err != nil {
 		t.Fatal(err)
@@ -201,9 +209,7 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 }
 
 func TestDetachAcceptsAnAlreadyUnmountedImage(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("disk images are made on macOS")
-	}
+	requireDMGIntegration(t)
 	mount := filepath.Join(t.TempDir(), "mount")
 	if err := os.Mkdir(mount, 0o755); err != nil {
 		t.Fatal(err)

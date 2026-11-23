@@ -142,7 +142,7 @@ func releaseEnvironment(t *testing.T) {
 }
 
 func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
-	requireMac(t)
+	requireDMGIntegration(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{}
@@ -200,7 +200,7 @@ func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
 // carry its own ticket: without one the system asks Apple at every launch, and
 // refuses the update wherever that lookup cannot be made.
 func TestAZippedBundleIsNotarizedAndStapledBeforeTheImageIsMade(t *testing.T) {
-	requireMac(t)
+	requireDMGIntegration(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{}
@@ -248,7 +248,7 @@ func TestABundleWithoutADiskImageIsNotarizedByAZipAndStapledBeforeItIsZipped(t *
 }
 
 func TestARejectedNotarizationFailsThePackageWithApplesReasons(t *testing.T) {
-	requireMac(t)
+	requireDMGIntegration(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{status: "Invalid"}
