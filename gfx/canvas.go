@@ -222,7 +222,9 @@ const (
 // Ligatures asks the fixed-pitch renderer to shape the run as one line instead
 // of placing one glyph per cell, so a font's programming ligatures appear. The
 // shaped run is fitted to the run's full cell span; it therefore needs ASCII
-// text and at least two cells. Other runs keep the one-glyph-per-cell rule.
+// text and at least two cells. A run that Canvas.FittedBidiMonoCarets measured
+// is the exception: its mixed-direction label is shaped whole so its joins and
+// caret positions survive. Other runs keep the one-glyph-per-cell rule.
 type TextRun struct {
 	Column    int32
 	Bytes     int32

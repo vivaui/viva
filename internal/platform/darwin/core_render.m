@@ -1002,7 +1002,8 @@ void viva_label_window(size_t full, size_t limit, BOOL visible, size_t left, siz
                         CGContextSaveGState(context);
                         CGContextTranslateCTM(context, cellLeft, baseline);
                         CGContextScaleCTM(context, span / width, 1);
-                        CGContextSetTextPosition(context, 0, 0);
+                        CGFloat origin = ascii ? 0 : viva_fitted_mono_origin(line, (CFIndex)shown.length);
+                        CGContextSetTextPosition(context, -origin, 0);
                         CTLineDraw(line, context);
                         CGContextRestoreGState(context);
                     }
