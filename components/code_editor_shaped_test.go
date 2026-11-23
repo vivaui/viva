@@ -8,6 +8,37 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
+func TestCodeEditorShapedResizeKeepsManualScroll(t *testing.T) {
+	for _, mode := range []struct {
+		name      string
+		direction gfx.TextDirection
+	}{{"LTR", gfx.DirectionLTR}, {"RTL", gfx.DirectionRTL}} {
+		t.Run(mode.name, func(t *testing.T) {
+			f := newCodeFixture(strings.Repeat(strings.Repeat("a\u05d0\u05d1z", 30)+"\n", 40))
+			f.snapshot.ShapedBidi, f.snapshot.Direction = true, mode.direction
+			f.bounds.Width = f.widthFor(24)
+			f.paint()
+			f.editor.SetScrollX(40)
+			f.editor.SetScrollY(80)
+			f.bounds.Width = f.widthFor(30)
+			f.paint()
+			if x, y := f.editor.ScrollX(), f.editor.ScrollY(); x != 40 || y != 80 {
+				t.Fatalf("resize changed scroll to (%g, %g); want (40, 80)", x, y)
+			}
+			// A real direction change still reveals the unchanged caret.
+			f.snapshot.Direction = gfx.DirectionRTL
+			if mode.direction == gfx.DirectionRTL {
+				f.snapshot.Direction = gfx.DirectionLTR
+			}
+			f.bounds.Width = f.widthFor(32)
+			f.paint()
+			if y := f.editor.ScrollY(); y != 0 {
+				t.Fatalf("direction change left the caret above the viewport: ScrollY = %g", y)
+			}
+		})
+	}
+}
+
 func testCodeEditorRTLAlignsPaintAndPlacement(t *testing.T, engine gfx.TextEngine) {
 	t.Helper()
 	const short = "\u05d0\u05d1\u05d2"

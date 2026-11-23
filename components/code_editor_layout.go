@@ -173,9 +173,12 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 			return
 		}
 	}
-	if editor.shaping != nil {
-		editor.shaping = nil
-		editor.followedValid, editor.goalActive = false, false
+	if s := editor.shaping; s != nil {
+		// A refit invalidates row geometry, not the caret the viewport last
+		// followed. Keep the previous direction for configureShaping to compare.
+		clear(s.rows)
+		s.hitValid = false
+		editor.goalActive = false
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)
