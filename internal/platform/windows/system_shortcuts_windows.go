@@ -37,6 +37,11 @@ const (
 	vkRightWin         = 0x5c
 )
 
+func asyncKeyDown(vk uintptr) bool {
+	state, _, _ := getAsyncKeyState.Call(vk)
+	return state&0x8000 != 0
+}
+
 // kbdLLHook is the KBDLLHOOKSTRUCT a low-level keyboard hook receives.
 type kbdLLHook struct {
 	VkCode      uint32
@@ -74,7 +79,7 @@ func (window *nativeWindow) CaptureSystemShortcuts(capture bool) error {
 // syncShortcutHook installs the hook while this window wants the shortcuts and has the focus, and
 // removes it when no window does. It runs on the windows' thread.
 func (state *windowState) syncShortcutHook() {
-	want := state.shortcuts.Load() && state.focused && state.window != 0
+	want := (state.shortcuts.Load() || state.menuKeys.open || state.menuKeys.held != 0) && state.focused && state.window != 0
 	if want == state.shortcutsHeld {
 		return
 	}
@@ -108,29 +113,29 @@ func shortcutHookProc(code, kind, data uintptr) (result uintptr) {
 			result = 0
 		}
 	}()
-	if int32(code) >= 0 {
-		event := (*kbdLLHook)(pointer(data))
-		if shortcutTaken(kind, event) {
-			return 1
+	if code == 0 {
+		// This hook runs for the desktop. Look at the payload only for
+		// an opted-in, focused Viva window that is actually foreground.
+		foreground, _, _ := getForegroundWindow.Call()
+		if value, found := windowStates.Load(foreground); found {
+			state := value.(*windowState)
+			if state.focused && state.shortcutsHeld {
+				event := (*kbdLLHook)(pointer(data))
+				if (state.menuKeys.open || state.menuKeys.held != 0) && state.takePhysicalMenuKey(kind, event) ||
+					state.shortcuts.Load() && state.takeSystemShortcut(kind, event) {
+					return 1
+				}
+			}
 		}
 	}
 	result, _, _ = callNextHookEx.Call(shortcutHook.handle, code, kind, data)
 	return result
 }
 
-// shortcutTaken decides whether this key belongs to the system's shortcuts and, if so, hands it
+// takeSystemShortcut decides whether this key belongs to the system's shortcuts and, if so, hands it
 // to the foreground window as an ordinary key message.
-func shortcutTaken(kind uintptr, event *kbdLLHook) bool {
+func (state *windowState) takeSystemShortcut(kind uintptr, event *kbdLLHook) bool {
 	if event.VkCode > 0xff {
-		return false
-	}
-	foreground, _, _ := getForegroundWindow.Call()
-	value, found := windowStates.Load(foreground)
-	if !found {
-		return false
-	}
-	state := value.(*windowState)
-	if !state.shortcuts.Load() || !state.focused {
 		return false
 	}
 	down := kind == wmKeyDown || kind == wmSysKeyDown
@@ -150,7 +155,7 @@ func shortcutTaken(kind uintptr, event *kbdLLHook) bool {
 	case !down:
 		message = wmKeyUp
 	}
-	postMessage.Call(foreground, message, uintptr(vk), shortcutKeyLParam(event, down, altDown, wasTaken))
+	postMessage.Call(state.window, message, uintptr(vk), shortcutKeyLParam(event, down, altDown, wasTaken))
 	return true
 }
 
@@ -169,7 +174,7 @@ func shortcutKeyBelongsToSystem(vk uint32, down, tookPress bool) bool {
 	}
 	held := func(keys ...uintptr) bool {
 		for _, key := range keys {
-			if state, _, _ := getAsyncKeyState.Call(key); state&0x8000 != 0 {
+			if asyncKeyDown(key) {
 				return true
 			}
 		}

@@ -17,6 +17,12 @@ import (
 // keeps the Finder from showing it.
 const backgroundFile = ".background.png"
 
+// stagedBundle is the bundle's name on the writable volume before the Finder
+// sees it: hidden, and without an .app suffix, so the temporary volume never
+// shows an installable application. settle renames it to the real name only
+// after the volume is attached.
+const stagedBundle = ".viva-bundle"
+
 // Options describes one image to build.
 type Options struct {
 	// Bundle is the .app directory to put in the image.
@@ -45,11 +51,8 @@ func Build(options Options) error {
 		return err
 	}
 	app := filepath.Base(options.Bundle)
-	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, app)).CombinedOutput(); err != nil {
+	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, stagedBundle)).CombinedOutput(); err != nil {
 		return fmt.Errorf("copying the bundle: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	if err := os.Symlink("/Applications", filepath.Join(staging, "Applications")); err != nil {
-		return err
 	}
 	picture, err := options.Layout.picture()
 	if err != nil {
@@ -129,6 +132,12 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(mount, ".DS_Store"), store, 0o644); err != nil {
+		return err
+	}
+	if err := os.Symlink("/Applications", filepath.Join(mount, "Applications")); err != nil {
+		return err
+	}
+	if err := os.Rename(filepath.Join(mount, stagedBundle), filepath.Join(mount, app)); err != nil {
 		return err
 	}
 	// Mounting leaves bookkeeping behind that has no use on the next Mac.

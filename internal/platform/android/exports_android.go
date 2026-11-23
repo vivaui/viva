@@ -70,6 +70,14 @@ func Java_dev_viva_host_Native_surfaceDestroyed(env *C.JNIEnv, _ C.jclass) {
 	<-ack
 }
 
+//export Java_dev_viva_host_Native_redrawNeeded
+func Java_dev_viva_host_Native_redrawNeeded(env *C.JNIEnv, _ C.jclass) {
+	// The system shows the surface when this returns, so the window must be on it by then.
+	ack := make(chan struct{})
+	send(event{kind: eventRedrawNeeded, ack: ack})
+	<-ack
+}
+
 //export Java_dev_viva_host_Native_touch
 func Java_dev_viva_host_Native_touch(env *C.JNIEnv, _ C.jclass, action, pointer C.jint, x, y C.jfloat, tool, buttons, modifiers C.jint, uptime C.jlong) {
 	ev := event{kind: eventTouch, action: int32(action), pointer: int32(pointer), x: float32(x), y: float32(y),

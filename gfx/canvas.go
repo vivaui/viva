@@ -222,7 +222,9 @@ const (
 // Ligatures asks the fixed-pitch renderer to shape the run as one line instead
 // of placing one glyph per cell, so a font's programming ligatures appear. The
 // shaped run is fitted to the run's full cell span; it therefore needs ASCII
-// text and at least two cells. Other runs keep the one-glyph-per-cell rule.
+// text and at least two cells. A run that Canvas.FittedBidiMonoCarets measured
+// is the exception: its mixed-direction label is shaped whole so its joins and
+// caret positions survive. Other runs keep the one-glyph-per-cell rule.
 type TextRun struct {
 	Column    int32
 	Bytes     int32
@@ -1548,6 +1550,23 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
+// TextHitAt reports a byte boundary together with the caret position picked by
+// a click. Keep X as well as Offset when a mixed-direction line can draw the
+// same boundary at either end of a run. A custom measurer or engine without
+// TextHitEngine supplies its ordinary caret position.
+func (canvas *Canvas) TextHitAt(value string, size, weight, x float32) TextHit {
+	if canvas.measurer == nil {
+		if engine, ok := canvas.engine.(TextHitEngine); ok {
+			return engine.HitAt(value, size, weight, x)
+		}
+		if canvas.engine == nil {
+			return referenceEngine{}.HitAt(value, size, weight, x)
+		}
+	}
+	offset := canvas.TextOffsetAt(value, size, weight, x)
+	return TextHit{Offset: offset, X: canvas.TextCaret(value, size, weight, offset)}
+}
+
 // TextOffsetAtStyle is TextOffsetAt for a style that may be italic or fixed-pitch (see
 // TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
@@ -2277,8 +2296,9 @@ func (canvas *Canvas) AfterPaint(fn func()) {
 }
 
 // RunAfterPaint runs and clears the functions deferred by AfterPaint, and reports
-// whether there were any. The runtime calls it once the event pass has ended; an
-// application never does.
+// whether there were any. The runtime calls it once the event pass has ended; a
+// host that paints and presents its own canvas calls it too, between the event
+// pass and the repaint.
 func (canvas *Canvas) RunAfterPaint() bool {
 	fns := canvas.afterPaint
 	canvas.afterPaint = nil
@@ -2303,7 +2323,9 @@ type ClickInfo struct {
 // BeginEventPass makes the next paint the event pass of a click on id, with what
 // the runtime knows of it: Clicked(id) is true in the pass, and ClickInfo says how
 // the click came. Pair it with EndEventPass around that one paint. The runtime does
-// this; an application only calls Clicked, ClickModifiers and DoubleClicked.
+// this for a window; a host that paints and presents its own canvas does it too,
+// and an application otherwise only calls Clicked, ClickModifiers and
+// DoubleClicked.
 func (canvas *Canvas) BeginEventPass(id ID, info ClickInfo) {
 	canvas.clicked, canvas.clickInfo, canvas.eventPass = id, info, true
 }

@@ -237,14 +237,18 @@ func (b *bidiLine) edge(value string, offset int) int {
 	x := 0
 	for _, run := range b.runs {
 		if run.Start == use.Start && run.End == use.End {
-			if run.Level&1 != 0 {
-				return x + units(value[offset:run.End], b.weight)
-			}
-			return x + units(value[run.Start:offset], b.weight)
+			return x + b.runEdge(value, run, offset)
 		}
 		x += units(value[run.Start:run.End], b.weight)
 	}
 	return x
+}
+
+func (b *bidiLine) runEdge(value string, run bidi.Run, offset int) int {
+	if run.Level&1 != 0 {
+		return units(value[offset:run.End], b.weight)
+	}
+	return units(value[run.Start:offset], b.weight)
 }
 
 // runAt is the run that holds the character at byte offset (the runs are in visual order);
@@ -327,23 +331,86 @@ func OffsetAt(value string, size, weight float32, x float32) int {
 	if !bidi.NeedsBidi(value) {
 		return NearestBoundary(value, x, func(offset int) float32 { return Width(value[:offset], size, weight) })
 	}
-	// A line read in more than one direction has carets that do not grow with the
-	// offset: every boundary is measured, against one resolution of the line.
+	b := bidiPool.Get().(*bidiLine)
+	b.resolve(value, weightIndex(weight))
+	hit := b.nearestPrimary(value, size, x)
+	b.release()
+	return hit.Offset
+}
+
+// CaretHit is both the source offset and the visual position of a text hit.
+// At a direction change there may be two positions for the same byte offset.
+type CaretHit struct {
+	Offset int
+	X      float32
+}
+
+// HitAt places the caret within the directional run under x. This keeps the
+// two sides of a direction change distinct even when they share a visual edge.
+func HitAt(value string, size, weight float32, x float32) CaretHit {
+	if !bidi.NeedsBidi(value) {
+		caret := func(offset int) float32 { return Width(value[:offset], size, weight) }
+		offset := NearestBoundary(value, x, caret)
+		return CaretHit{Offset: offset, X: caret(offset)}
+	}
+	return hitBidi(value, size, weight, x)
+}
+
+func hitBidi(value string, size, weight float32, x float32) CaretHit {
 	table := weightIndex(weight)
 	b := bidiPool.Get().(*bidiLine)
 	b.resolve(value, table)
-	best, bestDistance := 0, float32(-1)
+	px := func(at int) float32 { return float32(at) * size / unitsPerEm }
+	left := 0
+	for _, run := range b.runs {
+		width := units(value[run.Start:run.End], table)
+		// A click exactly on a run's edge belongs to the run whose right edge
+		// it is, and the first and last runs keep the line's own ends: without
+		// that a click on the leftmost or rightmost pixel falls through to the
+		// inner caret of the nearest run.
+		if x >= px(left) && x <= px(left+width) {
+			best, distance := CaretHit{}, float32(-1)
+			at := snap(value, run.Start)
+			if at < run.Start {
+				at = grapheme.Next(value, at)
+			}
+			for ; at <= run.End; at = grapheme.Next(value, at) {
+				pos := px(left + b.runEdge(value, run, at))
+				if gap := absf(pos - x); distance < 0 || gap < distance {
+					best, distance = CaretHit{Offset: at, X: pos}, gap
+				}
+				if at == run.End {
+					break
+				}
+			}
+			if distance >= 0 {
+				b.release()
+				return best
+			}
+			break
+		}
+		left += width
+	}
+	hit := b.nearestPrimary(value, size, x)
+	b.release()
+	return hit
+}
+
+// At the exact meeting point of two runs, use the paragraph's usual caret
+// affinity. This also handles clicks outside the visible advances.
+func (b *bidiLine) nearestPrimary(value string, size, x float32) CaretHit {
+	best, bestDistance := CaretHit{}, float32(-1)
 	for offset := 0; ; {
-		d := absf(float32(b.edge(value, offset))*size/unitsPerEm - x)
+		pos := float32(b.edge(value, offset)) * size / unitsPerEm
+		d := absf(pos - x)
 		if bestDistance < 0 || d < bestDistance {
-			best, bestDistance = offset, d
+			best, bestDistance = CaretHit{Offset: offset, X: pos}, d
 		}
 		if offset >= len(value) {
 			break
 		}
 		offset = grapheme.Next(value, offset)
 	}
-	b.release()
 	return best
 }
 
