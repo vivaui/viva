@@ -11,7 +11,7 @@ import (
 )
 
 func TestPackageMakesADiskImageHoldingTheBundleAndAnApplicationsLink(t *testing.T) {
-	requireMac(t)
+	requireDiskImages(t)
 	dir := fixture(t, packageTOML)
 	writeIcon(t, filepath.Join(dir, "icon.png"), 512)
 	var output strings.Builder

@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/internal/grapheme"
 	"github.com/vivaui/viva/internal/linebreak"
+	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/internal/uniprops"
 )
 
@@ -279,10 +280,29 @@ const wrapProbe = 64
 // line costs a few times its own length (times its logarithm), not the length
 // of the paragraph behind it.
 func (canvas *Canvas) fitPrefix(line string, font lineFont, width float32) (fit int, all bool) {
+	return fitPrefix(canvas, line, font, width)
+}
+
+// lineMeasure is what wrapping asks of whatever measures the lines: how wide a line is in a
+// font. A canvas measures with its text engine; referenceMeasure with the reference metrics.
+type lineMeasure interface {
+	widthIn(value string, font lineFont) float32
+}
+
+// referenceMeasure measures a plain line with the reference metrics, as a canvas without a
+// text engine does: no shaping, so it is cheap however many lines it measures.
+type referenceMeasure struct{}
+
+func (referenceMeasure) widthIn(value string, font lineFont) float32 {
+	return textmetrics.Width(value, font.size, font.weight)
+}
+
+// fitPrefix is Canvas.fitPrefix with the lines measured by measure.
+func fitPrefix(measure lineMeasure, line string, font lineFont, width float32) (fit int, all bool) {
 	lo, hi := 0, len(line) // line[:lo] fits (the empty prefix does); line[:hi] does not once a probe failed
 	for step := wrapProbe; ; step *= 2 {
 		probe := runeFloor(line, lo+step)
-		if canvas.widthIn(trimSpaceRight(line[:probe]), font) > width {
+		if measure.widthIn(trimSpaceRight(line[:probe]), font) > width {
 			hi = probe
 			break
 		}
@@ -298,7 +318,7 @@ func (canvas *Canvas) fitPrefix(line string, font lineFont, width float32) (fit 
 				break
 			}
 		}
-		if canvas.widthIn(trimSpaceRight(line[:mid]), font) <= width {
+		if measure.widthIn(trimSpaceRight(line[:mid]), font) <= width {
 			lo = mid
 		} else {
 			hi = mid

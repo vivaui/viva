@@ -767,8 +767,6 @@ type Canvas struct {
 	onSurface bool
 	// titlebarLeading and titlebarTrailing are the window's TitlebarInsets.
 	titlebarLeading, titlebarTrailing float32
-	// safeArea is the window's SafeArea.
-	safeArea Insets
 	// touched is set once a finger has touched the window.
 	touched bool
 	// prevHovered is the hit the pointer was on at the end of the previous
@@ -2116,15 +2114,6 @@ func (canvas *Canvas) SetPointerOnSurface(on bool) {
 func (canvas *Canvas) TitlebarInsets() (leading, trailing float32) {
 	return canvas.titlebarLeading, canvas.titlebarTrailing
 }
-
-// SafeArea is how far the system covers the edges of the window: the status bar and the
-// sensor housing, the home indicator or navigation bar, a cutout or rounded corner. A page
-// keeps its content inside of on a phone, where the window runs under the bars. Zero for
-// a desktop window.
-func (canvas *Canvas) SafeArea() Insets { return canvas.safeArea }
-
-// SetSafeArea records the window's SafeArea; the runtime calls it before each paint.
-func (canvas *Canvas) SetSafeArea(insets Insets) { canvas.safeArea = insets }
 
 // SetTitlebarInsets records the window's TitlebarInsets; the runtime calls it
 // before each paint.

@@ -208,6 +208,35 @@ type ModifierTapEvent struct {
 	Target ID
 }
 
+// PinchPhase is where two fingers are in a pinch.
+type PinchPhase uint8
+
+const (
+	// PinchBegin is the second finger touching: Scale is 1.
+	PinchBegin PinchPhase = iota + 1
+	// PinchChange is a finger moving.
+	PinchChange
+	// PinchEnd is a finger lifting, or the system taking the pinch away: Scale is what it
+	// was at the last change.
+	PinchEnd
+)
+
+// PinchEvent is two fingers held on the window, as they move toward or away from each
+// other. X and Y are the midpoint in logical window pixels, which a zoom keeps under the
+// fingers. Scale is how far apart the fingers are as a multiple of how far apart they began;
+// Delta is the same since the last event, which is what a zoom that multiplies its own
+// level takes. Target is the stable hit ID at X, Y. A pinch is no scroll and no press:
+// what the first finger was doing ended when the second came.
+type PinchEvent struct {
+	Phase     PinchPhase
+	Modifiers Modifiers
+	X, Y      float32
+	Scale     float32
+	Delta     float32
+	Viewport  Size
+	Target    ID
+}
+
 // ScrollEvent is one normalized scroll gesture in logical window pixels.
 // Target is the stable hit ID at X,Y. Viewport is the current logical window
 // size, allowing coordinate-driven controls to derive their local geometry.
