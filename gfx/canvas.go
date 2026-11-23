@@ -767,6 +767,8 @@ type Canvas struct {
 	titlebarLeading, titlebarTrailing float32
 	// safeArea is the window's SafeArea.
 	safeArea Insets
+	// touched is set once a finger has touched the window.
+	touched bool
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -2364,13 +2366,20 @@ func (canvas *Canvas) Consume() {
 // PointerPass is the pointer event being delivered in this paint, whoever it is aimed at, and
 // whether a control has already consumed it; ok is false outside an event pass. A control
 // that comes last in the paint, as a tooltip does, reads what the others left of the event.
+//
+// It asks for the event pass only once a finger has touched the window (SetTouched), so a
+// window used with a mouse pays nothing for a control that reads touch.
 func (canvas *Canvas) PointerPass() (event PointerEvent, consumed, ok bool) {
-	canvas.listensForPointer = true
+	canvas.listensForPointer = canvas.listensForPointer || canvas.touched
 	if !canvas.hasPointer {
 		return PointerEvent{}, false, false
 	}
 	return canvas.pointer, canvas.consumed, true
 }
+
+// SetTouched records that a finger has touched the window. The runtime calls it on the first
+// touch event.
+func (canvas *Canvas) SetTouched() { canvas.touched = true }
 
 // ListensForPointer reports whether the last paint asked PointerOn or PointerIn:
 // whether a pointer event needs the event pass.
