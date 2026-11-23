@@ -19,7 +19,7 @@ import (
 type gtkNativeWidgetFocusState struct {
 	windowFocused, otherFocused, nativeKeys, imeActive       bool
 	windowFocusedAtOtherClick                                bool
-	pointerOnOther                                           bool
+	pointerOnEditor, pointerOnOther                          bool
 	webFocus, windowFocus, afterTakeKeys                     uintptr
 	focusLost, focusLostAtOtherClick, focusLostAtReturnClick int
 	otherClicks, editorClicks, entryIn, entryOut             int
@@ -52,9 +52,10 @@ func gtkNativeWidgetState(ctx context.Context, app *gtkApplication, editor, othe
 		state := gtkNativeWidgetFocusState{
 			windowFocused: editor.focused, otherFocused: other.focused,
 			nativeKeys: editor.nativeKeys, webFocus: editor.webFocus,
-			imeActive:      editor.ime != nil && editor.ime.active,
-			pointerOnOther: other.wl != nil && other.wl.s.focus == other.wl,
-			focusLost:      *lost, otherClicks: *otherClicks, editorClicks: *editorClicks,
+			imeActive:       editor.ime != nil && editor.ime.active,
+			pointerOnEditor: editor.wl != nil && editor.wl.s.focus == editor.wl,
+			pointerOnOther:  other.wl != nil && other.wl.s.focus == other.wl,
+			focusLost:       *lost, otherClicks: *otherClicks, editorClicks: *editorClicks,
 		}
 		if trace := gtkNativeWidgetTraceActive; trace != nil {
 			state.windowFocus = trace.getFocus(editor.toplevel)
@@ -262,6 +263,14 @@ func gtkNativeWidgetFocusRun(ctx context.Context, t *testing.T, app *gtkApplicat
 		return append(failures, ctx.Err().Error())
 	}
 	logState("after B hide, before A click")
+	if _, err := driver.command("move-editor", "", ""); err != nil {
+		return append(failures, err.Error())
+	}
+	if err := gtkNativeWidgetWait(ctx, app, p.w, other, lost, otherClicks, editorClicks, "A editor pointer entry", func(s gtkNativeWidgetFocusState) bool {
+		return s.pointerOnEditor && !s.pointerOnOther
+	}); err != nil {
+		return append(failures, err.Error())
+	}
 	if _, err := driver.command("click", "", ""); err != nil {
 		return append(failures, err.Error())
 	}
