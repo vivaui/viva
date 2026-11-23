@@ -155,6 +155,11 @@ type DropdownMenuOptions struct {
 	// Submenu makes this the content of a submenu, which has a smaller minimum
 	// width (96) than a menu opened by a trigger (128).
 	Submenu bool
+	// RowHeight is the height of an item row; zero is the theme's control height,
+	// and a row with a description stays as tall as the description needs. It is
+	// ContextMenuOptions.RowHeight for a menu a trigger opens instead of a point:
+	// the same rows, sized the same way.
+	RowHeight float32
 	// Unpainted declares the menu's behavior, size and rows but paints none of
 	// it: PaintPanel draws the surface and PaintItem draws each row, both inside
 	// the menu's layer, clipping and focus scope. Hits, focus, the keyboard and
@@ -219,6 +224,15 @@ func DropdownMenuItemHeight(theme gfx.Theme, item DropdownMenuItem) float32 {
 	return menuItemHeight(theme, item.common(), 0)
 }
 
+// DropdownMenuItemHeightFor is DropdownMenuItemHeight for a menu whose rows are
+// rowHeight high — DropdownMenuOptions.RowHeight — instead of the theme's control
+// height. Zero keeps the theme's, and a row with a description stays as tall as
+// the description needs, exactly as AddItem reserves it, so a caller that lays a
+// menu out from its rows measures them with this.
+func DropdownMenuItemHeightFor(theme gfx.Theme, item DropdownMenuItem, rowHeight float32) float32 {
+	return menuItemHeight(theme, item.common(), rowHeight)
+}
+
 // The heights AddLabel and AddSeparator reserve, and the padding of the surface
 // around its rows: a menu's bounds are as tall as its rows and twice the padding.
 const (
@@ -248,7 +262,7 @@ func BeginDropdownMenu(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, opt
 	return DropdownMenu{surface: beginMenuSurface(canvas, theme, bounds, minWidth, menuSurfaceOptions{
 		layer: options.Layer, scope: options.Scope, dismissID: options.DismissID, viewport: options.Viewport, scroll: options.Scroll,
 		key: overlayKey(options.ID, options.DismissID, options.Scope), side: options.Side, submenu: options.Submenu,
-		labelMuted: true, tabCloses: true,
+		labelMuted: true, tabCloses: true, rowHeight: options.RowHeight,
 		unpainted: options.Unpainted, paintPanel: options.PaintPanel, paintItem: options.PaintItem,
 	})}
 }
