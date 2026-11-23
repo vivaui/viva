@@ -1,7 +1,9 @@
 package base
 
 import (
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
@@ -139,6 +141,7 @@ type TextareaLayout struct {
 	wrap   bool
 	size   float32
 	width  float32 // the width rows were wrapped to
+	fonts  uint32  // the canvas's FontGeneration the rows were measured in
 	fitted bool
 	// boxWidth is the outer width the box was last laid out in, which AutoGrow
 	// measures the next time the page lays the box out. It is zero before the
@@ -352,17 +355,96 @@ func (layout *TextareaLayout) setUpstream(offset int, upstream bool) {
 
 // fit wraps text to width unless the rows already are, and keeps what it wrapped
 // them with for the events that follow.
+//
+// A paragraph wraps on its own, so when only the text changed since the last fit,
+// only the paragraphs an edit touched are wrapped again: the rows before them are
+// kept and the rows after them move by the length the edit added or removed. Typing
+// in a long text, or a log growing at its end, then costs the paragraphs it changes,
+// not the whole text. Other fonts, a size or a width wrap the whole text again.
 func (layout *TextareaLayout) Fit(canvas *gfx.Canvas, text string, size, width float32, wrap bool) {
+	fonts := canvas.FontGeneration()
+	same := layout.fitted && layout.canvas == canvas && layout.fonts == fonts && layout.wrap == wrap && layout.size == size && layout.width == width
 	layout.canvas = canvas
-	if layout.fitted && layout.wrap == wrap && layout.size == size && layout.width == width && layout.text == text {
+	if same && layout.text == text {
 		return
 	}
-	layout.fitted, layout.wrap, layout.size, layout.width, layout.text = true, wrap, size, width, text
 	wrapWidth := width
 	if !wrap {
 		wrapWidth = 0
 	}
-	layout.Rows = canvas.WrapRows(layout.Rows[:0], text, size, gfx.WeightRegular, wrapWidth)
+	if same {
+		layout.rewrap(text, wrapWidth)
+	} else {
+		layout.Rows = canvas.WrapRows(layout.Rows[:0], text, size, gfx.WeightRegular, wrapWidth)
+	}
+	layout.fitted, layout.fonts, layout.wrap, layout.size, layout.width, layout.text = true, fonts, wrap, size, width, text
+}
+
+// rewrap wraps again the paragraphs of the last fitted text that differ in text,
+// keeping the rows of the others.
+func (layout *TextareaLayout) rewrap(text string, wrapWidth float32) {
+	old := layout.text
+	prefix := commonPrefix(old, text)
+	suffix := commonSuffix(old[prefix:], text[prefix:])
+	// The edit spans the paragraphs from the one the first changed byte is in to the
+	// one the last is in; the newline that ends that one is the first in the suffix.
+	from := strings.LastIndexByte(text[:prefix], '\n') + 1
+	oldResume, newResume := len(old)+1, len(text)+1 // where the next untouched paragraph starts
+	if newline := strings.IndexByte(old[len(old)-suffix:], '\n'); newline >= 0 {
+		oldResume = len(old) - suffix + newline + 1
+		newResume = len(text) - suffix + newline + 1
+	}
+	rows := layout.Rows
+	kept := sort.Search(len(rows), func(index int) bool { return rows[index].Start >= from })
+	tail := len(rows)
+	if oldResume <= len(old) {
+		tail = sort.Search(len(rows), func(index int) bool { return rows[index].Start >= oldResume })
+	}
+	// The edited paragraphs are wrapped onto the end of the rows, turned to sit before
+	// the rows after the edit, and the rows they replace are dropped.
+	end := len(rows)
+	for at := from; at >= 0 && at < newResume; {
+		var row gfx.TextRow
+		row, at = layout.canvas.WrapRow(text, at, layout.size, gfx.WeightRegular, wrapWidth)
+		rows = append(rows, row)
+	}
+	edited := len(rows) - end
+	slices.Reverse(rows[tail:end])
+	slices.Reverse(rows[end:])
+	slices.Reverse(rows[tail:])
+	rows = append(rows[:kept], rows[tail:]...)
+	if delta := len(text) - len(old); delta != 0 {
+		for index := kept + edited; index < len(rows); index++ {
+			rows[index].Start += delta
+			rows[index].End += delta
+		}
+	}
+	layout.Rows = rows
+}
+
+// commonPrefix is the length of the longest prefix a and b share, compared a block
+// at a time so a long text costs a memory comparison, not a loop over its bytes.
+func commonPrefix(a, b string) int {
+	n := min(len(a), len(b))
+	at := 0
+	for block := 4096; at+block <= n && a[at:at+block] == b[at:at+block]; at += block {
+	}
+	for at < n && a[at] == b[at] {
+		at++
+	}
+	return at
+}
+
+// commonSuffix is the length of the longest suffix a and b share.
+func commonSuffix(a, b string) int {
+	n := min(len(a), len(b))
+	at := 0
+	for block := 4096; at+block <= n && a[len(a)-at-block:len(a)-at] == b[len(b)-at-block:len(b)-at]; at += block {
+	}
+	for at < n && a[len(a)-at-1] == b[len(b)-at-1] {
+		at++
+	}
+	return at
 }
 
 // rowOf is the row the caret at offset is drawn on.
