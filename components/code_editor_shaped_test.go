@@ -109,3 +109,39 @@ func TestCodeEditorShapedSelectionAndCompositionUseVisualSpans(t *testing.T) {
 		t.Fatal("composition did not underline the middle visual cell")
 	}
 }
+
+func TestCodeEditorShapedHighlightKeepsTheFullRunAndSelectionStyle(t *testing.T) {
+	const value = "a\u05d0\u05d1z"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	keyword := gfx.RGB(230, 60, 40)
+	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
+		if line != value {
+			t.Errorf("highlighter got %q; want logical source %q", line, value)
+		}
+		return append(dst, CodeEditorRun{Start: 0, End: 3, Color: keyword, Italic: true})
+	}
+	f.snapshot.SelectionStart, f.snapshot.SelectionEnd = 1, 3
+	f.paint()
+	labels := f.canvas.Texts()
+	cell, _, _ := f.cell()
+	left := f.editor.content.X
+	if len(labels) != 4 {
+		t.Fatalf("painted %d labels; want four disjoint visual styles", len(labels))
+	}
+	for i, want := range []struct {
+		color  gfx.Color
+		italic bool
+	}{{keyword, true}, {f.theme.Foreground, false}, {f.theme.SelectionForeground, true}, {f.theme.Foreground, false}} {
+		label := labels[i]
+		runs := f.canvas.TextRuns(label)
+		if label.Value != value || len(runs) != 1 || !runs[0].Ligatures || runs[0].Bytes != int32(len(value)) {
+			t.Fatalf("clip %d changed the shaped source: label=%q runs=%+v", i, label.Value, runs)
+		}
+		if !label.HasClip || !near(label.ClipOf.X, left+float32(i)*cell) || !near(label.ClipOf.Width, cell) ||
+			runs[0].Color != want.color || runs[0].Italic != want.italic {
+			t.Errorf("clip %d: bounds=%+v run=%+v; want column %d with %+v", i, label.ClipOf, runs[0], i, want)
+		}
+	}
+}

@@ -3,11 +3,41 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
+
+func TestCodeEditorShapedHighlightSkipsClipsOutsideTheViewport(t *testing.T) {
+	const count = 120
+	const letter = "\u05d0"
+	f := newCodeFixture(strings.Repeat(letter, count))
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi = true
+	f.bounds.Width = f.widthFor(8)
+	f.snapshot.Highlight = func(_, source string, dst []CodeEditorRun) []CodeEditorRun {
+		for i := 0; i < len(source); i += len(letter) {
+			color := gfx.RGB(220, 40, 40)
+			if i/len(letter)%2 == 1 {
+				color = gfx.RGB(40, 40, 220)
+			}
+			dst = append(dst, CodeEditorRun{Start: i, End: i + len(letter), Color: color})
+		}
+		return dst
+	}
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) < 3 || len(labels) > 10 {
+		t.Fatalf("painted %d labels for an eight-cell viewport", len(labels))
+	}
+	for _, label := range labels {
+		if label.Value != f.snapshot.Value || !label.HasClip || label.ClipOf.Width <= 0 {
+			t.Errorf("nonvisible or split shaped label: clip=%+v, bytes=%d", label.ClipOf, len(label.Value))
+		}
+	}
+}
 
 func TestCodeEditorCoreTextKeepsFittedArabicCaretEdges(t *testing.T) {
 	const prefix = "a\u0301\U00010437 "
@@ -45,6 +75,32 @@ func TestCodeEditorCoreTextKeepsFittedArabicCaretEdges(t *testing.T) {
 		if got, ok := f.editor.CaretBounds(); !ok || !near(got.X, want) {
 			t.Errorf("IME placement at byte %d: %+v, %v; want X=%g", at, got, ok, want)
 		}
+	}
+	before, ok := f.editor.CaretBounds()
+	if !ok {
+		t.Fatal("shaped caret missing before applying styles")
+	}
+	comment := gfx.RGB(30, 110, 65)
+	f.snapshot.HighlightLine = func(_ string, index int, source string, dst []CodeEditorRun) []CodeEditorRun {
+		if index != 0 || source != value {
+			t.Fatalf("highlight got line %d %q; want the logical source", index, source)
+		}
+		return append(dst, CodeEditorRun{Start: len(prefix), End: len(value) - 2, Color: comment, Italic: true})
+	}
+	f.paint()
+	if after, ok := f.editor.CaretBounds(); !ok || after != before {
+		t.Fatalf("applying an italic style moved the remembered caret: before %+v, after %+v, %v", before, after, ok)
+	}
+	styled := false
+	for _, label := range f.canvas.Texts() {
+		runs := f.canvas.TextRuns(label)
+		if len(runs) != 1 || !runs[0].Ligatures || label.Value != value {
+			t.Fatalf("highlight split the fitted run: label=%q runs=%+v", label.Value, runs)
+		}
+		styled = styled || (label.HasClip && runs[0].Color == comment && runs[0].Italic)
+	}
+	if !styled {
+		t.Fatal("the fitted Arabic range was not drawn in the requested style")
 	}
 }
 
