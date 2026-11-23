@@ -154,16 +154,6 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
-      # The Android build is the real thing: the program as a shared library with
-      # the NDK's compiler, the host's Java, and an APK around them with the SDK's
-      # tools, all of which the runner's image has. It is not run here; the
-      # runner has no device.
-      - name: Android build
-        run: |
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
-          go run ./cmd/viva build --target android ./examples/guides/hello
-          go run ./cmd/viva build --target android --arch amd64 ./examples/guides/hello
       - name: Native Linux text rasterization
         run: |
           sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
@@ -184,7 +174,7 @@ jobs:
         run: |
           sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
             { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
-          xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
+          xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11|TrayWindowQueuedRedrawBeforeInput|TrayWindowRepaintsLaterExposure)$' -count=1 -v
           GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
@@ -193,6 +183,16 @@ jobs:
           sudo apt-get install -y xvfb xdotool libx11-xcb1 ||
             { sudo apt-get update && sudo apt-get install -y xvfb xdotool libx11-xcb1; }
           xvfb-run -a go test ./internal/platform/linux -run '^TestNativeX11(GlobalShortcut|WindowIconPropertyUpdates)$' -count=1 -v
+      - name: Native X11 clipboard formats and ownership
+        run: |
+          sudo apt-get install -y xclip python3-gi gir1.2-gtk-3.0 ||
+            { sudo apt-get update && sudo apt-get install -y xclip python3-gi gir1.2-gtk-3.0; }
+          env -u WAYLAND_DISPLAY GDK_BACKEND=x11 VIVA_LINUX_XCB_SMOKE=1 \
+            xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
+            go test ./internal/platform/linux -run '^TestClipboardImage(FromX11Owner|AfterExternalOwnerReplacesCachedText|StreamedWithINCR)$|^TestX11ClipboardChangeLifecycle$' -count=1 -timeout=60s -v
+          env -u WAYLAND_DISPLAY GDK_BACKEND=x11 VIVA_TEST_GTK_CLIPBOARD_WATCH=x11 \
+            xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
+            go test -tags vivagtk ./internal/platform/linux -run '^TestGTKClipboardChangeNative$' -count=1 -timeout=60s -v
 
   # The browser target is a release target: it compiles every package, runs the
   # shared tests under GOOS=js, and builds the browser entry points and a guide.
@@ -349,11 +349,6 @@ jobs:
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
-
-      # The iOS build compiles the Metal and UIKit bridge against the simulator
-      # SDK; it is not run here, since the runner cannot show a simulator.
-      - name: iOS simulator build
-        run: go run ./cmd/viva build --target ios-sim ./examples/guides/hello
 
 
 

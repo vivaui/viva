@@ -95,7 +95,8 @@ type View struct {
 	spec  Spec
 	input ui.Handlers
 	draw  func(*ui.DrawContext)
-	id    gfx.ID
+	// id names the control the text is drawn in; its links and trails are its parts.
+	id gfx.ID
 
 	// rect is the control as the last paint placed it and clip the part of it on screen;
 	// cellW and lineH are the grid it was drawn on, width the text width it wrapped at,
@@ -223,7 +224,7 @@ func (v *View) PointOf(p Point) (gfx.Point, bool) {
 	}
 	_, from, _ := v.rowBytes(index)
 	text := src.Line(p.Line)
-	at := min(max(p.Byte, from), len(text))
+	at := boundary(text, min(max(p.Byte, from), len(text)))
 	x := v.rect.X + v.spec.PadX + (float32(cellsOf(text[from:at], 0))+0.25)*v.cellW
 	y := v.rect.Y + v.spec.PadY + (float32(index)+0.5)*v.lineH
 	if y < v.clip.Y || y >= v.clip.Y+v.clip.Height {
@@ -243,8 +244,8 @@ func (v *View) Visible() (int, int) {
 	return v.rowLine(from), v.rowLine(max(to-1, from)) + 1
 }
 
-// Declare declares the view with spec and returns its outermost box: the scrolling area,
-// or the text itself.
+// Declare declares the view with spec and returns its outermost box: the scrolling area
+// or the container sized to its text.
 func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 	v.spec = spec
 	if v.draw == nil {
@@ -278,21 +279,21 @@ func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 		}
 		height = max(height, state.Viewport)
 		outer.Children(func() {
-			v.id = ui.ID(c.Part("text"))
-			control = ui.Control(c.Part("text"), spec.Label, &v.input).FillWidth().Height(height).Draw(v.draw)
+			control = v.control(c, spec.Label).FillWidth().Height(height)
 		})
 	} else if spec.Wrap {
 		// The rows depend on the width, which the page knows only once it lays the view
 		// out: the layout wraps the lines there, before it asks for the height.
 		v.wrap.v = v
 		outer = ui.CustomLayout(c, &v.wrap).FillWidth().Children(func() {
-			v.id = ui.ID(c.Part("text"))
-			control = ui.Control(c.Part("text"), spec.Label, &v.input).Draw(v.draw)
+			control = v.control(c, spec.Label)
 		})
 	} else {
-		v.id = ui.ID(c.Part("text"))
-		control = ui.Control(c.Part("text"), spec.Label, &v.input).FillWidth().Height(height).Draw(v.draw)
-		outer = control
+		// Parts belong to one instance, including when the view has no scroll or wrap
+		// container. This also consumes a Key the caller gave this view.
+		outer = ui.Column(c).FillWidth().Height(height).Children(func() {
+			control = v.control(c, spec.Label).Fill()
+		})
 	}
 	if control.Shortcut(ui.Primary, "c") && v.Has() {
 		text, copy := v.Text(), spec.Copy
@@ -308,9 +309,17 @@ func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 		v.SelectAll()
 	}
 	if spec.Menu != nil {
-		ui.ContextMenuAt(c.Key("menu"), control, &v.menuOpen, v.menuAt, spec.Menu)
+		ui.ContextMenuAt(c, control, &v.menuOpen, v.menuAt, spec.Menu)
 	}
 	return outer
+}
+
+// control declares the control the text is drawn in, with the text cursor over it.
+func (v *View) control(c ui.C, label string) ui.Box {
+	v.id = ui.ID(c.Part("text"))
+	return ui.Control(c.Part("text"), label, &v.input).
+		HitWith(v.id, label, gfx.HitOptions{Role: gfx.RoleGroup, Cursor: gfx.PointerCursorText}).
+		Draw(v.draw)
 }
 
 // wrapLayout lays out a view that wraps: the text takes the width it is given and is as
@@ -382,6 +391,9 @@ func (v *View) onPointer(event gfx.PointerEvent) gfx.EventResult {
 	at := gfx.Point{X: event.X, Y: event.Y}
 	switch event.Kind {
 	case gfx.PointerDown:
+		// The press focuses what it lands on, a link or a trail too; the keyboard
+		// goes back to the view, where the selection's keys are.
+		took := gfx.EventResult{Handled: true, Repaint: true, Focus: v.id}
 		if event.Button == gfx.PointerButtonSecondary {
 			if v.spec.Menu == nil {
 				return gfx.EventResult{}
@@ -391,7 +403,7 @@ func (v *View) onPointer(event gfx.PointerEvent) gfx.EventResult {
 				v.menuLine, v.menuSet = p.Line, true
 			}
 			v.menuOpen, v.menuAt = true, at
-			return gfx.EventResult{Handled: true, Repaint: true}
+			return took
 		}
 		if event.Button != gfx.PointerButtonPrimary {
 			return gfx.EventResult{}
@@ -399,13 +411,13 @@ func (v *View) onPointer(event gfx.PointerEvent) gfx.EventResult {
 		if n, ok := v.trailAt(at); ok {
 			// A press on a button after a line presses it, and leaves the selection be.
 			v.trailHeld, v.trailLine = true, n
-			return gfx.EventResult{Handled: true}
+			return gfx.EventResult{Handled: true, Focus: v.id}
 		}
 		v.pressed, v.moved, v.press, v.pointer, v.clicks = true, false, at, at, max(event.ClickCount, 1)
 		p, ok := v.pointAt(at, v.clicks == 1)
 		if !ok {
 			v.Selection.Clear()
-			return gfx.EventResult{Handled: true, Repaint: true}
+			return took
 		}
 		if event.Modifiers&gfx.ModifierShift != 0 && v.clicks == 1 {
 			v.Selection.Extend(p, src.Line(p.Line))
@@ -413,7 +425,7 @@ func (v *View) onPointer(event gfx.PointerEvent) gfx.EventResult {
 		} else {
 			v.Selection.Begin(p, src.Line(p.Line), v.clicks)
 		}
-		return gfx.EventResult{Handled: true, Repaint: true}
+		return took
 	case gfx.PointerMove:
 		if !v.pressed {
 			return gfx.EventResult{Handled: v.trailHeld, Repaint: v.hoverAt(at)}

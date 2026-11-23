@@ -12,6 +12,25 @@ func TestNotificationPlacementRespectsWorkAreaAndNegativeScreenOrigins(t *testin
 	}
 }
 
+func TestRestoreNotificationClampsRememberedOrigin(t *testing.T) {
+	area := ScreenRect{X: -1920, Y: 30, Width: 1920, Height: 1040}
+	for _, test := range []struct {
+		name               string
+		x, y, wantX, wantY float32
+	}{
+		{"inside", -1200, 60, -1200, 60},
+		{"partly outside", -100, 1040, -320, 942},
+		{"screen gone", -8000, -4000, -1920, 30},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			x, y := RestoreNotification(test.x, test.y, 320, 128, area)
+			if x != test.wantX || y != test.wantY {
+				t.Errorf("restored %g,%g, want %g,%g", x, y, test.wantX, test.wantY)
+			}
+		})
+	}
+}
+
 func TestPlacePanelOpensTowardTheMiddleOfTheScreen(t *testing.T) {
 	work := ScreenRect{Width: 1920, Height: 1040} // a 40 pixel taskbar at the bottom
 	// An icon in the bottom-right corner of a bottom taskbar: the panel is above

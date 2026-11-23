@@ -25,9 +25,11 @@ A theme is a value, `gfx.LightTheme()` or `gfx.DarkTheme()`. Switching appearanc
 
 A page control for a heavy or stateful component lives in its own package under `ui/<capability>`. Import it only when the page uses it; the package is the pay-for-use boundary.
 
-- Editors and visuals: `ui/textview`, `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`, `ui/columnresize`, `ui/reordergrid`
+- Editors and visuals: `ui/codeeditor`, `ui/textview`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`, `ui/columnresize`, `ui/reordergrid`
 - Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`, `ui/sidebar`, `ui/hovercard`
 - Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`, `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`, `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`
+
+`ui/textview` displays read-only text that the user can select and copy, such as logs and process output. Keep a `textview.View` in the model and call `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`; `textview.Strings` adapts a string slice. The caller owns the lines, styles and actions. The view owns selection and drawing without an editing or undo model.
 
 The package name is the capability, never a `view` suffix, and its state type is named by role: `calendar.State`, `message.Row`, `attachment.Card`. Keep locals out of the package name (`cal`, `msg`, `pic`); a model field may keep the noun (`m.calendar`) because a selector never shadows a package.
 

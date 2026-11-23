@@ -302,14 +302,15 @@ func (w *gtkWindow) frameDrag(e *gdkEventButton, x, y float32) bool {
 	if w.fullscreen.Load() {
 		return false
 	}
-	if w.config.WindowMode != platform.WindowCustomTitlebar {
+	notification := w.config.WindowMode == platform.WindowNotification
+	if w.config.WindowMode != platform.WindowCustomTitlebar && !notification {
 		return false
 	}
 	press := platform.PressClient
 	if w.config.PressAt != nil {
 		press = w.config.PressAt(x, y)
 	}
-	if !w.maximized {
+	if !notification && !w.maximized {
 		// The top edge yields to a control, so the buttons work up to the top.
 		if edge := platform.EdgeAt(x, y, w.width, w.height, press == platform.PressControl); edge != platform.EdgeNone {
 			w.g.windowBeginResize(w.toplevel, gdkEdge(edge), 1, int32(e.XRoot), int32(e.YRoot), e.Time)
@@ -325,7 +326,7 @@ func (w *gtkWindow) frameDrag(e *gdkEventButton, x, y float32) bool {
 		return false
 	}
 	w.pointer.clicks.Press(time.Duration(e.Time)*time.Millisecond, uint8(e.Button), x, y)
-	if w.pointer.clicks.Current() == 2 {
+	if !notification && w.pointer.clicks.Current() == 2 {
 		w.actionToggleMaximize()
 		return true
 	}

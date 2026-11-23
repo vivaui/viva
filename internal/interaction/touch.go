@@ -34,6 +34,20 @@ const (
 	velocityWindow = 100 * time.Millisecond
 )
 
+// PinchPhase is where two fingers are in a pinch.
+type PinchPhase uint8
+
+const (
+	PinchNone PinchPhase = iota
+	PinchBegin
+	PinchChange
+	PinchEnd
+)
+
+// pinchMinDistance is the least the two fingers of a pinch may start apart, in logical
+// pixels: closer, the ratio of their distances is noise.
+const pinchMinDistance = 24
+
 type touchPhase uint8
 
 const (
@@ -60,6 +74,13 @@ type TouchStep struct {
 	ScrollX, ScrollY     float32
 	ScrollAtX, ScrollAtY float32
 	Momentum             bool
+	// Pinch is where two fingers are in a pinch: at its start, as it changes and at its
+	// end; zero when this step is no part of one. Scale is the distance between the fingers
+	// as a multiple of what it was at the start, Delta the same since the last step, and
+	// PinchX, PinchY the midpoint.
+	Pinch                  PinchPhase
+	PinchX, PinchY         float32
+	PinchScale, PinchDelta float32
 	// ScrollEnds says the finger that was scrolling lifted or was taken: what it held
 	// past an end of the content is let go.
 	ScrollEnds bool
@@ -95,16 +116,35 @@ type Touch struct {
 	flinging               bool
 	flingVX, flingVY       float32 // the finger's velocity, logical pixels a second
 	flingAt                time.Duration
+	// A pinch is the first finger (id) and a second one (pinchID) held together.
+	pinching              bool
+	pinchID               int32
+	pinchAX, pinchAY      float32 // where the first finger is
+	pinchBX, pinchBY      float32 // where the second is
+	pinchStart, pinchLast float32 // the distance between them when it began, and at the last step
 }
 
 // Active reports whether a finger is down or a fling moves.
-func (t *Touch) Active() bool { return t.phase != touchIdle || t.flinging }
+func (t *Touch) Active() bool { return t.phase != touchIdle || t.flinging || t.pinching }
 
 // Down is finger id touching at x, y. claimsDrag says what is under it takes a
 // moving finger as a drag (a slider, a divider): it presses at once.
 func (t *Touch) Down(id int32, x, y float32, now time.Duration, claimsDrag bool) TouchStep {
+	if t.pinching {
+		return TouchStep{} // a third finger is nothing
+	}
 	if t.phase != touchIdle && id != t.id {
-		return t.Cancel() // a second finger is not a press: the first one's gesture ends
+		// A second finger is not a press: the first one's gesture ends, and the two are a pinch.
+		ax, ay := t.lastX, t.lastY
+		step := t.Cancel()
+		if distance := float32(math.Hypot(float64(x-ax), float64(y-ay))); distance >= pinchMinDistance {
+			t.pinching, t.pinchID = true, id
+			t.pinchAX, t.pinchAY, t.pinchBX, t.pinchBY = ax, ay, x, y
+			t.pinchStart, t.pinchLast = distance, distance
+			step.Pinch, step.PinchX, step.PinchY = PinchBegin, (ax+x)/2, (ay+y)/2
+			step.PinchScale, step.PinchDelta = 1, 1
+		}
+		return step
 	}
 	t.flinging = false
 	t.phase, t.id, t.down = touchPending, id, now
@@ -120,6 +160,9 @@ func (t *Touch) Down(id int32, x, y float32, now time.Duration, claimsDrag bool)
 
 // Move is finger id moving to x, y.
 func (t *Touch) Move(id int32, x, y float32, now time.Duration) TouchStep {
+	if t.pinching {
+		return t.pinchMove(id, x, y)
+	}
 	if t.phase == touchIdle || id != t.id {
 		return TouchStep{}
 	}
@@ -146,6 +189,13 @@ func (t *Touch) Move(id int32, x, y float32, now time.Duration) TouchStep {
 
 // Up is finger id lifting at x, y.
 func (t *Touch) Up(id int32, x, y float32, now time.Duration) TouchStep {
+	if t.pinching {
+		if id != t.id && id != t.pinchID {
+			return TouchStep{}
+		}
+		step := t.pinchMove(id, x, y)
+		return t.endPinch(step)
+	}
 	if t.phase == touchIdle || id != t.id {
 		return TouchStep{}
 	}
@@ -173,6 +223,9 @@ func (t *Touch) Up(id int32, x, y float32, now time.Duration) TouchStep {
 // Cancel ends what the finger was doing without a click: the platform took it,
 // or a second finger came.
 func (t *Touch) Cancel() TouchStep {
+	if t.pinching {
+		return t.endPinch(TouchStep{})
+	}
 	phase := t.phase
 	t.phase, t.pressDue, t.longPressDue, t.flinging = touchIdle, false, false, false
 	if phase == touchPanning {
@@ -207,6 +260,42 @@ func (t *Touch) Advance(now time.Duration) TouchStep {
 // Fling reports a fling that moved nothing, at the end of what it scrolls: it
 // stops.
 func (t *Touch) FlingBlocked() { t.flinging = false }
+
+// pinchMove follows one of the two fingers of a pinch and says how far apart they are now.
+func (t *Touch) pinchMove(id int32, x, y float32) TouchStep {
+	switch id {
+	case t.id:
+		t.pinchAX, t.pinchAY = x, y
+	case t.pinchID:
+		t.pinchBX, t.pinchBY = x, y
+	default:
+		return TouchStep{}
+	}
+	distance := float32(math.Hypot(float64(t.pinchBX-t.pinchAX), float64(t.pinchBY-t.pinchAY)))
+	step := TouchStep{
+		Pinch: PinchChange, PinchX: (t.pinchAX + t.pinchBX) / 2, PinchY: (t.pinchAY + t.pinchBY) / 2,
+		PinchScale: distance / t.pinchStart, PinchDelta: 1,
+	}
+	if t.pinchLast > 0 {
+		step.PinchDelta = distance / t.pinchLast
+	}
+	t.pinchLast = distance
+	return step
+}
+
+// endPinch ends a pinch where the fingers last were: the finger that is left is no gesture.
+func (t *Touch) endPinch(step TouchStep) TouchStep {
+	scale := float32(1)
+	if t.pinchStart > 0 {
+		scale = t.pinchLast / t.pinchStart
+	}
+	step.Pinch = PinchEnd
+	step.PinchX, step.PinchY = (t.pinchAX+t.pinchBX)/2, (t.pinchAY+t.pinchBY)/2
+	step.PinchScale, step.PinchDelta = scale, 1
+	t.pinching = false
+	t.phase = touchIdle
+	return step
+}
 
 func (t *Touch) press(now time.Duration) TouchStep {
 	t.phase, t.pressDue = touchPressed, false

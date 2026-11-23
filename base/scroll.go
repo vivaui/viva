@@ -504,7 +504,7 @@ func (f *Frame) wheelArea(panel int32, event gfx.ScrollEvent) (result gfx.EventR
 				break
 			}
 			n := &f.Nodes[i]
-			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil || f.Exts[n.Ext].scrollManual {
+			if n.Ext == 0 || f.Exts[n.Ext].scrollState == nil || f.Exts[n.Ext].scrollManual || !f.within(int32(i), panel) {
 				continue
 			}
 			if !f.within(int32(i), panel) {

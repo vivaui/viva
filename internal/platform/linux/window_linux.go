@@ -167,7 +167,8 @@ type linuxWindowState struct {
 	// margin before its matching ConfigureNotify supplied the final dimensions.
 	frameGeometryDirty bool
 	// hidden records the application's request, independently of the asynchronous
-	// MapNotify/UnmapNotify events. The first Expose after a map paints in full.
+	// MapNotify/UnmapNotify events. exposed records that a mapped frame was shown;
+	// it must not suppress later server requests to restore lost pixels.
 	hidden  bool
 	exposed bool
 	// visible is the last visibility reported to OnVisibility; a window starts as visible.
@@ -243,6 +244,7 @@ func RunApplication(start platform.ApplicationStart) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	application := &linuxApplication{}
+	defer stopClipboardWatch()
 	defer application.closeStatus()
 	defer application.atspiClose()
 	defer application.closeDesktop()
@@ -266,7 +268,16 @@ func RunApplication(start platform.ApplicationStart) error {
 		if len(fds) == 0 {
 			break
 		}
-		if result := application.windows[0].win.api.poll(&fds[0], uintptr(len(fds)), application.pollTimeout()); result < 0 {
+		timeout := application.pollTimeout()
+		// A synchronous XCB reply (including renderer setup) can move events
+		// out of the socket into libxcb's queue. poll cannot see those bytes.
+		// Dispatch them before sleeping, without polling an idle application.
+		for _, state := range states {
+			if state != nil && state.bufferedEvent() {
+				timeout = 0
+			}
+		}
+		if result := application.windows[0].win.api.poll(&fds[0], uintptr(len(fds)), timeout); result < 0 {
 			// A signal that reaches the thread while it sleeps ends the wait
 			// early without anything being wrong: wait again.
 			if errno := *application.windows[0].win.api.errnoLocation(); errno == errnoINTR {
@@ -281,10 +292,13 @@ func RunApplication(start platform.ApplicationStart) error {
 			application.checkInputMethod()
 		}
 		for index, descriptor := range fds {
-			if descriptor.REvents == 0 {
+			state := states[index]
+			if state != nil && !application.contains(state) {
 				continue
 			}
-			state := states[index]
+			if descriptor.REvents == 0 && (state == nil || !state.bufferedEvent()) {
+				continue
+			}
 			if state == nil {
 				switch {
 				case application.inputMethod != nil && int(descriptor.FD) == application.inputMethod.FD():
@@ -507,6 +521,18 @@ func (application *linuxApplication) pollTimeout() int32 {
 	return timeout
 }
 
+// bufferedEvent peeks only at events already read from the socket. Preserve
+// their order with any input held by motion/configure coalescing.
+func (state *linuxWindowState) bufferedEvent() bool {
+	if state.held != nil {
+		return true
+	}
+	if poll := state.win.api.pollForQueuedEvent; poll != nil {
+		state.held = poll(state.win.connection)
+	}
+	return state.held != nil
+}
+
 // takeHeld returns the event read ahead, once.
 func (state *linuxWindowState) takeHeld() unsafe.Pointer {
 	if state.held == nil {
@@ -628,13 +654,14 @@ func (state *linuxWindowState) coalesceMotions(event unsafe.Pointer) unsafe.Poin
 func (state *linuxWindowState) coalesceConfigures(event unsafe.Pointer) unsafe.Pointer {
 	configure := (*xcbConfigureEvent)(event)
 	var heldSync unsafe.Pointer
+	var heldExpose unsafe.Pointer
 	var heldPointers []unsafe.Pointer
 	finish := func(boundary unsafe.Pointer) unsafe.Pointer {
 		if len(heldPointers) == 0 {
-			state.holdEvents(heldSync, boundary)
+			state.holdEvents(heldExpose, heldSync, boundary)
 		} else {
-			replay := make([]unsafe.Pointer, 0, len(heldPointers)+2)
-			replay = append(replay, heldSync)
+			replay := make([]unsafe.Pointer, 0, len(heldPointers)+3)
+			replay = append(replay, heldExpose, heldSync)
 			replay = append(replay, heldPointers...)
 			replay = append(replay, boundary)
 			state.holdEvents(replay...)
@@ -674,8 +701,17 @@ func (state *linuxWindowState) coalesceConfigures(event unsafe.Pointer) unsafe.P
 			state.win.api.free(next)
 		case xcbExpose:
 			expose := (*xcbExposeEvent)(next)
-			if expose.Window == state.win.id && (state.hidden || state.exposed) {
-				state.win.api.free(next)
+			if expose.Window == state.win.id {
+				if state.hidden {
+					state.win.api.free(next)
+				} else {
+					// A position-only Configure does not repaint. Preserve one
+					// exposure after the final geometry instead of losing damage.
+					if heldExpose != nil {
+						state.win.api.free(heldExpose)
+					}
+					heldExpose = next
+				}
 				continue
 			}
 			return finish(next)
@@ -1225,7 +1261,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 			return true, nil
 		}
 	case xcbExpose:
-		if !state.hidden && !state.exposed && (*xcbExposeEvent)(event).Count == 0 {
+		if expose := (*xcbExposeEvent)(event); !state.hidden && expose.Window == win.id && expose.Count == 0 {
 			state.exposed = true
 			return false, renderer.presentFull()
 		}

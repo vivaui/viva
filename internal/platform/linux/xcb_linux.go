@@ -349,6 +349,7 @@ type xcbAPI struct {
 	flush                     func(uintptr) int32
 	waitForEvent              func(uintptr) unsafe.Pointer
 	pollForEvent              func(uintptr) unsafe.Pointer
+	pollForQueuedEvent        func(uintptr) unsafe.Pointer
 	fileDescriptor            func(uintptr) int32
 	internAtom                func(uintptr, uint8, uint16, *byte) xcbAtomCookie
 	internAtomReply           func(uintptr, xcbAtomCookie, *unsafe.Pointer) *xcbAtomReply
@@ -440,6 +441,7 @@ func openXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.flush, library, "xcb_flush")
 	purego.RegisterLibFunc(&api.waitForEvent, library, "xcb_wait_for_event")
 	purego.RegisterLibFunc(&api.pollForEvent, library, "xcb_poll_for_event")
+	purego.RegisterLibFunc(&api.pollForQueuedEvent, library, "xcb_poll_for_queued_event")
 	purego.RegisterLibFunc(&api.fileDescriptor, library, "xcb_get_file_descriptor")
 	purego.RegisterLibFunc(&api.internAtom, library, "xcb_intern_atom")
 	purego.RegisterLibFunc(&api.internAtomReply, library, "xcb_intern_atom_reply")

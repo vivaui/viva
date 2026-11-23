@@ -24,14 +24,18 @@ type painter struct {
 	left   float32
 	y      float32
 	line   int
+	// parts names the links and Button trails, each a part of the view's control, and
+	// part is how many this paint has named.
+	parts gfx.Scope
+	part  int
 	// fit is how many cells of the row are drawn before the ellipsis of a line cut short,
 	// and -1 when the row is drawn whole.
 	fit int
 }
 
 // paint draws the rows on screen: the selection behind them, then each row on the
-// fixed-pitch grid in its spans' colors. It declares the view's hit again with the text
-// cursor, and the links with the hand.
+// fixed-pitch grid in its spans' colors. Its links and Button trails are declared as
+// parts of the view (see ui.Handlers.Parts), with the hand cursor.
 func (v *View) paint(dc *ui.DrawContext) {
 	canvas := dc.Canvas
 	src := v.spec.Source
@@ -48,10 +52,9 @@ func (v *View) paint(dc *ui.DrawContext) {
 	if v.pressed && v.moved {
 		v.extendTo(v.pointer)
 	}
-	canvas.HitWithOptions(v.id, v.clip, dc.Label, gfx.HitOptions{Role: gfx.RoleGroup, Cursor: gfx.PointerCursorText})
 	from, to := v.rowRange()
 	selFrom, selTo, selected := v.Selection.Range(src)
-	p := &painter{v: v, canvas: canvas, style: v.spec.Font, left: v.rect.X + v.spec.PadX}
+	p := &painter{v: v, canvas: canvas, style: v.spec.Font, left: v.rect.X + v.spec.PadX, parts: v.input.Parts()}
 	p.style.Mono = true
 	limit := max(int(labelWidth/v.cellW), 1)
 	cols := max(int(math.Ceil(float64((v.clip.X+v.clip.Width-p.left)/v.cellW))), 0)
@@ -126,7 +129,7 @@ func (p *painter) trail(n int, t Trail) {
 	p.canvas.Label(t.Text, rect, t.Style)
 	if t.Button {
 		hit := gfx.Rect{X: rect.X, Y: p.y, Width: rect.Width, Height: v.lineH}
-		p.canvas.HitWithOptions(v.id, hit, t.Text, gfx.HitOptions{Role: gfx.RoleButton, Cursor: gfx.PointerCursorHand})
+		p.canvas.HitWithOptions(p.nextPart(), hit, t.Text, gfx.HitOptions{Role: gfx.RoleButton, Cursor: gfx.PointerCursorHand, SkipTab: true})
 		v.trails = append(v.trails, trailHit{line: n, rect: hit})
 	}
 }
@@ -182,7 +185,8 @@ func (v *View) paintSelection(canvas *gfx.Canvas, text string, line, start, end,
 
 // row draws the bytes start to end of a line, the columns before cols of it, as labels
 // of at most limit columns: each character on its cells, in the color of the span it is
-// in. A tab or a control character leaves its cells empty; a combining mark is not drawn.
+// in. Each non-ASCII grapheme is shaped as one run, including all its marks. A tab or a
+// control character leaves its cells empty.
 func (p *painter) row(text string, start, end, cols, limit int) int {
 	v := p.v
 	span := 0
@@ -192,13 +196,8 @@ func (p *painter) row(text string, start, end, cols, limit int) int {
 	for i := start; i < end; {
 		at := i
 		r, size := utf8.DecodeRuneInString(text[i:])
-		i += size
-		width := runeCells(r, cells)
-		if width == 0 {
-			p.flush(text[labelAt:labelTo], label, labelEnd)
-			label = -1
-			continue
-		}
+		i = nextGrapheme(text, i)
+		width := cellsOf(text[at:i], cells)
 		if cells >= cols || p.fit >= 0 && cells+width > cols {
 			p.flush(text[labelAt:labelTo], label, labelEnd)
 			return at
@@ -230,13 +229,13 @@ func (p *painter) row(text string, start, end, cols, limit int) int {
 			}
 		}
 		italic := styled && style.Italic
-		ascii := r < 0x80
+		ascii := r < 0x80 && i-at == 1
 		if ascii && runASCII && run >= 0 && p.runs[run].Color == color && p.runs[run].Weight == weight &&
 			p.runs[run].Italic == italic && p.runs[run].Underline == style.Underline && p.runs[run].Strike == style.Strike {
-			p.runs[run].Bytes += int32(size)
+			p.runs[run].Bytes += int32(i - at)
 			p.runs[run].Cells += int32(width)
 		} else {
-			bytes := size
+			bytes := i - at
 			if invalid {
 				bytes = len(replacementChar)
 			}
@@ -258,8 +257,8 @@ func (p *painter) row(text string, start, end, cols, limit int) int {
 }
 
 // decorate fills the backgrounds of a row's spans and declares the hits of its links with
-// the hand cursor, named by their text, under the view's own identity so a press on a link
-// still selects.
+// the hand cursor, named by their text. Each is a part of the view, so a press on a link
+// still reaches the view's Pointer and selects.
 func (p *painter) decorate(text string, start, end int) {
 	v := p.v
 	for _, span := range v.spans {
@@ -286,9 +285,17 @@ func (p *painter) decorate(text string, start, end int) {
 			if label == "" {
 				label = text[a:b]
 			}
-			p.canvas.HitWithOptions(v.id, rect, label, gfx.HitOptions{Role: gfx.RoleLink, Cursor: gfx.PointerCursorHand})
+			p.canvas.HitWithOptions(p.nextPart(), rect, label, gfx.HitOptions{Role: gfx.RoleLink, Cursor: gfx.PointerCursorHand, SkipTab: true})
 		}
 	}
+}
+
+// nextPart names the next link or Button trail of the paint. They are out of the Tab
+// order, so the view is one tab stop however many links it shows, as a console is.
+func (p *painter) nextPart() gfx.ID {
+	id := p.parts.At(p.part)
+	p.part++
+	return id
 }
 
 // flush draws the runs gathered for a label from column start to column end and empties

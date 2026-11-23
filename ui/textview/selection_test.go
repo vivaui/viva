@@ -175,3 +175,36 @@ func TestWrapLineBreaksAfterASpaceOrAtTheLimit(t *testing.T) {
 		t.Fatalf("an empty line has rows %+v, want one empty row", rows)
 	}
 }
+
+func TestGraphemesStayWholeInSelectionAndWrapping(t *testing.T) {
+	for _, cluster := range []string{"e\u0301", "👩‍💻", "🇨🇳", "क्ष"} {
+		t.Run(cluster, func(t *testing.T) {
+			for at := 1; at < len(cluster); at++ {
+				if got := boundary(cluster, at); got != 0 {
+					t.Errorf("boundary at byte %d splits %q at %d", at, cluster, got)
+				}
+			}
+			width := float32(cellsOf(cluster, 0))
+			if got := byteAt(cluster, width*0.75, true); got != len(cluster) {
+				t.Errorf("nearest boundary is byte %d, want the end %d of %q", got, len(cluster), cluster)
+			}
+			if got := byteAt(cluster, width*0.75, false); got != 0 {
+				t.Errorf("the character under the pointer starts at byte %d, want 0", got)
+			}
+			line := "x" + cluster + "z"
+			rows := wrapLine(nil, 0, line, 1)
+			if len(rows) != 3 || line[rows[0].from:rows[0].to] != "x" ||
+				line[rows[1].from:rows[1].to] != cluster || line[rows[2].from:rows[2].to] != "z" {
+				t.Errorf("wrapping %q into one-cell rows split its character: %+v", line, rows)
+			}
+		})
+	}
+	for _, word := range []string{"cafe\u0301", "👩‍💻", "क्ष"} {
+		line := word + " next"
+		var selection Selection
+		selection.Begin(Point{0, len(word) - 1}, line, 2)
+		if got := selection.Text(Strings{line}); got != word {
+			t.Errorf("double clicking %q selected %q", word, got)
+		}
+	}
+}

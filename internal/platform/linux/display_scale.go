@@ -200,6 +200,26 @@ func monitorAt(monitors []monitorGeometry, x, y int) (monitorGeometry, bool) {
 	return fallback, have
 }
 
+// notificationMonitorAt picks the nearest screen when an old position is
+// outside all current monitors.
+func notificationMonitorAt(monitors []monitorGeometry, x, y int) (monitorGeometry, bool) {
+	var closest monitorGeometry
+	var closestDistance int64
+	found := false
+	for _, monitor := range monitors {
+		if monitor.Width <= 0 || monitor.Height <= 0 {
+			continue
+		}
+		dx := int64(x - min(max(x, monitor.X), monitor.X+monitor.Width-1))
+		dy := int64(y - min(max(y, monitor.Y), monitor.Y+monitor.Height-1))
+		distance := dx*dx + dy*dy
+		if !found || distance < closestDistance || (distance == closestDistance && monitor.Primary) {
+			closest, closestDistance, found = monitor, distance, true
+		}
+	}
+	return closest, found
+}
+
 // xsettings holds the settings of the XSETTINGS manager that a scale is derived
 // from.
 type xsettings struct {

@@ -222,11 +222,14 @@ func (m *model) page(c ui.C) {
   `ui/chart`, `ui/sidebar`. Its state type is named by role, not by repeating the package: `calendar.State`,
   `message.Row`, `attachment.Card`. Use `cal`, `msg`, `pic` for locals; a model field may keep the noun
   (`m.calendar`) because a selector never shadows a package.
-- Editors and visuals: `ui/textview`, `ui/codeeditor`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`,
+- Editors and visuals: `ui/codeeditor`, `ui/textview`, `ui/chart`, `ui/markdown`, `ui/image`, `ui/calendar`, `ui/carousel`,
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
   `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+- For read-only selectable output, keep a `textview.View` in the model and call
+  `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`. The caller owns the
+  lines, spans and actions; `ui/textview` owns selection and drawing without an editing model.
 - Some packages expose `pkg.View(c, label, &state)` (`calendar.View`, `markdown.View`); others a method on the state
   (`avatar.New().View(c, label)`, `questionnaire.New().View(c, label)`). `go doc github.com/vivaui/viva/ui/<package>`
   shows which.
@@ -431,7 +434,7 @@ func (m *model) page(c ui.C) {
 
 ### Text and icons
 
-- Text: `FontSize`, `Weight`, `Bold`, `Color`, `Highlight`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
+- Text: `FontSize`, `Weight`, `Bold`, `Italic`, `Strike`, `Color`, `Highlight`, `Muted`, `Mono`, `MonoFace`, `TextCenter`, `TextEnd`, `TextDirection`, `LineHeight`;
   `Ellipsis()` keeps a Text to one line and ends it with … when it does not fit; `MaxLines(n)` lets a Text
   break into at most n lines (the last ends with …), `ui.Wrap(c, text)` into as many as the width needs. A
   paragraph its container does not stretch asks for its widest line, so a long URL or path runs out over the
@@ -445,7 +448,11 @@ func (m *model) page(c ui.C) {
   overrides it. The height follows the width. Viva measures text with its own metrics,
   the same on every platform, and draws the platform's glyphs at that width: a button as wide as its label, a tab, a
   table column sized to content and every line break are the same on macOS, Windows and Linux, so do not size by a
-  platform's font (or special-case a platform) to make text fit.
+  platform's font (or special-case a platform) to make text fit. `Italic()` draws a Text in the italic face of its
+  font and wraps it at that face's widths; a text is never slanted by a transform, so a font whose family has no
+  italic face stays upright. `Strike()` draws a one-pixel line in the text's color through the middle of every line
+  it breaks into, from its first glyph to its last, as Markdown does for ~~struck~~ text: it changes no width, so a
+  struck Text keeps the layout it had upright.
 
 ### Buttons and controls
 

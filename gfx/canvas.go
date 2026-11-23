@@ -659,7 +659,7 @@ type Hit struct {
 	IsLabel bool
 	// Backdrop is HitOptions.Backdrop.
 	Backdrop bool
-	// MovesWindow marks a region of a custom-titlebar window that moves the
+	// MovesWindow marks a region of a custom-titlebar or notification window that moves the
 	// window when pressed (see Canvas.MoveRegion). It has no ID and no
 	// accessibility node.
 	MovesWindow bool
@@ -767,8 +767,6 @@ type Canvas struct {
 	onSurface bool
 	// titlebarLeading and titlebarTrailing are the window's TitlebarInsets.
 	titlebarLeading, titlebarTrailing float32
-	// safeArea is the window's SafeArea.
-	safeArea Insets
 	// touched is set once a finger has touched the window.
 	touched bool
 	// prevHovered is the hit the pointer was on at the end of the previous
@@ -1808,8 +1806,8 @@ func (canvas *Canvas) BlockSurface(bounds Rect) {
 	})
 }
 
-// MoveRegion declares a place a custom-titlebar window is moved from: pressing
-// and dragging it moves the window, and a double click zooms it. It is inert as
+// MoveRegion makes a custom-titlebar or notification window draggable there.
+// Double-clicking zooms a custom-titlebar window. A move region is inert as
 // Block is, with no ID, hover, focus or accessibility node, and it lies where it
 // was declared in paint order: a control declared after it, such as a button of a
 // tab bar laid over it, takes its own presses, and so does the surface of a dialog
@@ -2116,15 +2114,6 @@ func (canvas *Canvas) SetPointerOnSurface(on bool) {
 func (canvas *Canvas) TitlebarInsets() (leading, trailing float32) {
 	return canvas.titlebarLeading, canvas.titlebarTrailing
 }
-
-// SafeArea is how far the system covers the edges of the window: the status bar and the
-// sensor housing, the home indicator or navigation bar, a cutout or rounded corner. A page
-// keeps its content inside of on a phone, where the window runs under the bars. Zero for
-// a desktop window.
-func (canvas *Canvas) SafeArea() Insets { return canvas.safeArea }
-
-// SetSafeArea records the window's SafeArea; the runtime calls it before each paint.
-func (canvas *Canvas) SetSafeArea(insets Insets) { canvas.safeArea = insets }
 
 // SetTitlebarInsets records the window's TitlebarInsets; the runtime calls it
 // before each paint.
