@@ -16,6 +16,7 @@ import (
 // backgroundFile is the picture's name at the top of the image. The leading dot
 // keeps the Finder from showing it.
 const backgroundFile = ".background.png"
+const stagedBundle = ".viva-bundle"
 
 // Options describes one image to build.
 type Options struct {
@@ -45,11 +46,8 @@ func Build(options Options) error {
 		return err
 	}
 	app := filepath.Base(options.Bundle)
-	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, app)).CombinedOutput(); err != nil {
+	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, stagedBundle)).CombinedOutput(); err != nil {
 		return fmt.Errorf("copying the bundle: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	if err := os.Symlink("/Applications", filepath.Join(staging, "Applications")); err != nil {
-		return err
 	}
 	picture, err := options.Layout.picture()
 	if err != nil {
@@ -129,6 +127,12 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(mount, ".DS_Store"), store, 0o644); err != nil {
+		return err
+	}
+	if err := os.Symlink("/Applications", filepath.Join(mount, "Applications")); err != nil {
+		return err
+	}
+	if err := os.Rename(filepath.Join(mount, stagedBundle), filepath.Join(mount, app)); err != nil {
 		return err
 	}
 	// Mounting leaves bookkeeping behind that has no use on the next Mac.

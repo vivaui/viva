@@ -30,7 +30,7 @@ func TestPackageMakesADiskImageHoldingTheBundleAndAnApplicationsLink(t *testing.
 	}
 
 	mount := t.TempDir()
-	if out, err := exec.Command("hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mount, image).CombinedOutput(); err != nil {
+	if out, err := exec.Command("hdiutil", "attach", "-nobrowse", "-noautoopen", "-readonly", "-mountpoint", mount, image).CombinedOutput(); err != nil {
 		t.Fatalf("hdiutil attach: %v\n%s", err, out)
 	}
 	t.Cleanup(func() { _ = exec.Command("hdiutil", "detach", "-force", mount).Run() })
