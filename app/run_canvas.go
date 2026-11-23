@@ -17,6 +17,9 @@ import (
 // closes. When config.Paint is set the canvas is repainted on window resizes
 // and pointer interactions; otherwise the initial canvas stays unchanged.
 func RunCanvas(config Config, canvas *gfx.Canvas) error {
+	if runtime.GOOS != "windows" {
+		config.CaptureMenuKeys = nil
+	}
 	attendFaults()
 	normalized, err := config.normalize()
 	if err != nil {
@@ -187,6 +190,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnFrameChange:     frameChangeHandler(normalized.OnFrameChange),
 		OnMinimize:        minimizeHandler(normalized.OnMinimize),
 		OnVisibility:      gate.handler(),
+		TextGeometry:      painter.textGeometryOf,
 		OnLifecycle:       lifecycleHandler(normalized.OnLifecycle),
 		OnMaximize:        maximizeHandler(normalized.OnMaximize),
 		OnFullscreen:      painter.fullscreenHandler(normalized.OnFullscreen),
@@ -196,6 +200,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		OnKey:             keyHandler,
 		ModifierTaps:      normalized.OnModifierTap != nil,
 		OnShortcut:        painter.shortcutHandler(normalized),
+		CaptureMenuKeys:   normalized.CaptureMenuKeys,
 		OnAccessibility:   painter.accessibilityHandler(normalized),
 		AccessibilityTree: func() []platform.AccessibilityNode { return painter.accessibility },
 		OnFocusLost:       painter.focusLostHandler(),
@@ -227,6 +232,9 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 // The painter is what carries out an event result the window did not receive
 // from an event handler, such as an application menu action.
 func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, *painter, func(), error) {
+	if runtime.GOOS != "windows" {
+		config.CaptureMenuKeys = nil
+	}
 	normalized, err := config.normalize()
 	if err != nil {
 		return platform.Config{}, nil, nil, err

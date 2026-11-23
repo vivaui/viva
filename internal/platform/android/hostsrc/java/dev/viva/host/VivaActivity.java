@@ -19,7 +19,7 @@ import android.widget.FrameLayout;
  * program draws on with Vulkan. Everything the user does reaches the program as
  * what happened; nothing here lays anything out.
  */
-public class VivaActivity extends Activity implements SurfaceHolder.Callback {
+public class VivaActivity extends Activity implements SurfaceHolder.Callback2 {
     private VivaView view;
 
     @Override
@@ -39,6 +39,12 @@ public class VivaActivity extends Activity implements SurfaceHolder.Callback {
         root.setOnApplyWindowInsetsListener(VivaActivity::applyInsets);
         setContentView(root);
         barIcons(); // needs the decor view, which setContentView installs
+        if (Build.VERSION.SDK_INT >= 31) {
+            // The window is drawn on the surface, which the system's reveal of the splash screen
+            // does not follow: left to it, the reveal stops part way and leaves the window faded
+            // until the next layout. The splash screen goes as soon as the window is drawn.
+            getSplashScreen().setOnExitAnimationListener(splash -> splash.remove());
+        }
         Native.start(getFilesDir().getAbsolutePath(), getCacheDir().getAbsolutePath());
     }
 
@@ -140,6 +146,12 @@ public class VivaActivity extends Activity implements SurfaceHolder.Callback {
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         Host.preferHighRefresh(holder.getSurface());
         Native.surfaceChanged(holder.getSurface(), width, height, getResources().getDisplayMetrics().density);
+    }
+
+    /** The system waits for this before it shows the surface, so the program draws on it first. */
+    @Override
+    public void surfaceRedrawNeeded(SurfaceHolder holder) {
+        Native.redrawNeeded();
     }
 
     @Override

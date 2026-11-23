@@ -30,24 +30,27 @@ import (
 type eventKind uint8
 
 const (
-	eventSurface       eventKind = iota + 1 // a surface, of a size, on a display of a density
-	eventSurfaceLost                        // the surface is going away: let go of it, then answer
-	eventTouch                              // a finger, a pen or a mouse
-	eventVisible                            // the activity is in front or behind
-	eventLowMemory                          // the system is short of memory
-	eventClose                              // the user asked to close the window
-	eventWake                               // something was posted
-	eventRedraw                             // the application asked for a frame
-	eventText                               // the input method edits the text input
-	eventKey                                // a key of a keyboard
-	eventHover                              // a mouse over the surface
-	eventHoverExit                          // the mouse left it
-	eventScroll                             // a wheel
-	eventAppearance                         // the theme, the language or the animation setting may have changed
-	eventAccessibility                      // a screen reader started or stopped
-	eventAccessible                         // a screen reader asks something of a node
-	eventInsets                             // the system bars, the cutout or the keyboard cover other edges
-	eventLifecycle                          // the activity went to the background or came back
+	eventSurface         eventKind = iota + 1 // a surface, of a size, on a display of a density
+	eventSurfaceLost                          // the surface is going away: let go of it, then answer
+	eventTouch                                // a finger, a pen or a mouse
+	eventVisible                              // the activity is in front or behind
+	eventLowMemory                            // the system is short of memory
+	eventClose                                // the user asked to close the window
+	eventWake                                 // something was posted
+	eventRedraw                               // the application asked for a frame
+	eventText                                 // the input method edits the text input
+	eventKey                                  // a key of a keyboard
+	eventHover                                // a mouse over the surface
+	eventHoverExit                            // the mouse left it
+	eventScroll                               // a wheel
+	eventAppearance                           // the theme, the language or the animation setting may have changed
+	eventAccessibility                        // a screen reader started or stopped
+	eventAccessible                           // a screen reader asks something of a node
+	eventInsets                               // the system bars, the cutout or the keyboard cover other edges
+	eventLifecycle                            // the activity went to the background or came back
+	eventSelectionHandle                      // a selection handle is held or dragged
+	eventSelectionAction                      // an item of the selection's menu
+	eventRedrawNeeded                         // the system shows the surface once a frame is on it: draw one, then answer
 )
 
 // event is one thing that happened, small enough to queue by value.
@@ -231,6 +234,12 @@ func (application *application) handle(ev event) {
 		application.accessible(ev)
 	case eventLowMemory:
 		application.lifecycle(platform.LifecycleMemoryWarning)
+	case eventSelectionHandle:
+		application.selectionHandle(ev)
+	case eventSelectionAction:
+		application.selectionAction(ev)
+	case eventRedrawNeeded:
+		application.redrawNeeded(ev)
 	case eventLifecycle:
 		application.lifecycle(platform.Lifecycle(ev.action))
 	case eventInsets:
@@ -326,16 +335,17 @@ type window struct {
 	closed      bool
 	visible     bool
 
-	native   *C.ANativeWindow // the surface the host gave, nil when it has none
-	width    uint32           // its size in device pixels
-	height   uint32
-	density  float32 // device pixels per logical pixel
-	renderer *vulkan.Renderer
-	text     *textInput // the application's focused text input, if it has one
-	insets   gfx.Insets // how far the system covers each edge, in logical pixels
-	hovering bool       // a mouse is over the surface
-	a11y     bool       // a screen reader reads the window
-	treeIDs  []gfx.ID   // the nodes of the tree last sent to the host, by place
+	native    *C.ANativeWindow // the surface the host gave, nil when it has none
+	width     uint32           // its size in device pixels
+	height    uint32
+	density   float32 // device pixels per logical pixel
+	renderer  *vulkan.Renderer
+	text      *textInput  // the application's focused text input, if it has one
+	selection selectionUI // the handles and the menu the host shows over a selection
+	insets    gfx.Insets  // how far the system covers each edge, in logical pixels
+	hovering  bool        // a mouse is over the surface
+	a11y      bool        // a screen reader reads the window
+	treeIDs   []gfx.ID    // the nodes of the tree last sent to the host, by place
 }
 
 func (win *window) Close() {
@@ -460,14 +470,6 @@ func (application *application) surfaceChanged(ev event) {
 		}
 		if err := win.resized(true); err != nil {
 			application.fail(err)
-			return
-		}
-		// Seen on the emulator (Android 15): the first frame presented to a surface that has
-		// just come back is not the one the screen shows, even though it is drawn from the
-		// scene that holds the application's latest frame; presenting the same scene again
-		// shows it. The cause below the Vulkan calls is not known (ADR 0095 keeps the note).
-		if err := win.renderer.Present(); err != nil {
-			application.fail(err)
 		}
 	default:
 		// The same surface at another size (a rotation, a split screen) or density.
@@ -542,6 +544,40 @@ func (application *application) surfaceLost(ev event) {
 	}
 }
 
+// redrawNeeded draws the window on the surface the system is about to show, and answers
+// once the frame is presented (SurfaceHolder.Callback2.surfaceRedrawNeeded): the system
+// shows a new surface only after it, so the user never sees one without the window on it.
+// The frame is presented even when nothing in it changed, as the surface may hold none.
+func (application *application) redrawNeeded(ev event) {
+	defer close(ev.ack)
+	win := application.window
+	if win == nil || win.closed || win.renderer == nil || win.native == nil {
+		return
+	}
+	defer application.guard()
+	if win.config.OnRedraw != nil {
+		frame, err := win.config.OnRedraw()
+		if err == nil {
+			_, err = win.renderer.Apply(frame)
+		}
+		if err == nil {
+			win.setTextInput(frame.TextInput)
+			win.syncTree(frame)
+		}
+		if err != nil {
+			application.fail(err)
+			return
+		}
+	}
+	if err := win.renderer.Present(); err != nil {
+		application.fail(err)
+		return
+	}
+	if win.config.FramePresented != nil {
+		win.config.FramePresented()
+	}
+}
+
 // present draws a frame the application answered with.
 func (win *window) present(frame platform.Frame) error {
 	if win.renderer == nil || win.native == nil || !win.visible {
@@ -554,6 +590,7 @@ func (win *window) present(frame platform.Frame) error {
 	if err == nil {
 		win.setTextInput(frame.TextInput)
 		win.syncTree(frame)
+		win.syncSelection()
 	}
 	if err == nil && win.config.FramePresented != nil {
 		win.config.FramePresented()

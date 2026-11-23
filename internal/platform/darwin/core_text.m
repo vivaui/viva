@@ -243,6 +243,50 @@ size_t viva_text_line_index_at(const viva_text_line *line, double x) {
     return (size_t)index;
 }
 
+viva_text_hit viva_text_line_hit_at(const viva_text_line *line, double x) {
+    size_t index = viva_text_line_index_at(line, x);
+    CGFloat alternate = 0;
+    CGFloat primary = CTLineGetOffsetForStringIndex((CTLineRef)line->line, (CFIndex)index, &alternate);
+    return (viva_text_hit){index, fabs(x - alternate) < fabs(x - primary) ? alternate : primary};
+}
+
+CGFloat viva_fitted_mono_origin(CTLineRef line, CFIndex length) {
+    // CoreText puts trailing RTL whitespace before the line's origin, but
+    // includes its advance in typographic width. Fit both into the grid span.
+    CGFloat alternate = 0;
+    CGFloat end = CTLineGetOffsetForStringIndex(line, length, &alternate);
+    return MIN(0, MIN(end, alternate));
+}
+
+int viva_fitted_mono_carets(const unsigned char *bytes, size_t length, double size, double weight,
+                          int face, double span, viva_fitted_mono_caret *carets, size_t count) {
+    @autoreleasepool {
+        NSString *shown = [[NSString alloc] initWithBytes:bytes length:length encoding:NSUTF8StringEncoding];
+        if (shown == nil) {
+            return 0;
+        }
+        CFIndex units = (CFIndex)shown.length;
+        CTLineRef line = viva_mono_fallback_line(shown, viva_mono_font(size, weight, face), face, NULL);
+        [shown release];
+        if (line == NULL) {
+            return 0;
+        }
+        CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+        if (width > 0 && span > 0) {
+            CGFloat scale = span / width;
+            CGFloat origin = viva_fitted_mono_origin(line, units);
+            for (size_t i = 0; i < count; ++i) {
+                CGFloat leading = 0;
+                CGFloat trailing = CTLineGetOffsetForStringIndex(line, (CFIndex)carets[i].index, &leading);
+                carets[i].leading = (leading - origin) * scale;
+                carets[i].trailing = (trailing - origin) * scale;
+            }
+        }
+        CFRelease(line);
+        return width > 0 && span > 0;
+    }
+}
+
 // The most extents viva_text_line_selection tells apart before it folds the rest into the
 // last: a selection crossing a change of direction more often than this is not text.
 #define VIVA_SELECTION_PIECES 32

@@ -1,0 +1,147 @@
+package components
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/vivaui/viva/gfx"
+)
+
+type shapedCodeTestEngine struct{ gfx.TextEngine }
+
+func (shapedCodeTestEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	if value != "a\u05d0\u05d1z" {
+		return dst, false
+	}
+	// Visual order is a bet alef z. The boundary before alef is at 1/4
+	// after the Latin letter and at 3/4 before the RTL letter.
+	return append(dst,
+		gfx.FittedMonoCaret{Offset: 0, Leading: 0, Trailing: 0},
+		gfx.FittedMonoCaret{Offset: 1, Leading: span * 0.75, Trailing: span * 0.25},
+		gfx.FittedMonoCaret{Offset: 3, Leading: span * 0.5, Trailing: span * 0.5},
+		gfx.FittedMonoCaret{Offset: 5, Leading: span * 0.75, Trailing: span * 0.25},
+		gfx.FittedMonoCaret{Offset: 6, Leading: span, Trailing: span},
+	), true
+}
+
+type countingShapedEngine struct {
+	gfx.TextEngine
+	calls int
+}
+
+func (engine *countingShapedEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	engine.calls++
+	return append(dst,
+		gfx.FittedMonoCaret{Offset: 0, Leading: 0, Trailing: 0},
+		gfx.FittedMonoCaret{Offset: len(value), Leading: span, Trailing: span},
+	), true
+}
+
+// A viewport taller than the fixed 64-row cache bound keeps its rows: the cache
+// used to clear in the middle of a paint, so every row missed again every frame.
+func TestCodeEditorShapedCacheHoldsATallViewport(t *testing.T) {
+	const lines = 70
+	const row = "aא"
+	value := strings.Repeat(row+"\n", lines-1) + row
+	f := newCodeFixture(value)
+	engine := &countingShapedEngine{TextEngine: gfx.ReferenceTextEngine()}
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi = true
+	f.bounds.Height = 2000
+	f.paint()
+	if engine.calls < lines {
+		t.Fatalf("first paint shaped %d rows, want at least %d", engine.calls, lines)
+	}
+	engine.calls = 0
+	f.paint()
+	if engine.calls != 0 {
+		t.Fatalf("repainting an unchanged viewport shaped %d rows again, want 0", engine.calls)
+	}
+}
+
+func TestCodeEditorRetainsTheClickedShapedCaretEdge(t *testing.T) {
+	f := newCodeFixture("a\u05d0\u05d1z")
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	f.paint()
+	cell, _, line := f.cell()
+	left := f.editor.content.X
+	y := f.editor.content.Y + line/2
+	for _, column := range []float32{1, 3} {
+		at, ok := f.editor.OffsetAt(gfx.Point{X: left + (column-0.1)*cell, Y: y})
+		if !ok || at != 1 {
+			t.Fatalf("hit near column %g = %d, %v; want byte 1", column, at, ok)
+		}
+		f.snapshot.Caret = at
+		f.paint()
+		if caret, ok := f.editor.CaretBounds(); !ok || !near(caret.X, left+column*cell) {
+			t.Errorf("click near %g: IME caret %+v, %v; want X=%g", column, caret, ok, left+column*cell)
+		}
+	}
+	f.snapshot.ShapedBidi = false
+	f.paint()
+	if caret, ok := f.editor.CaretBounds(); !ok || !near(caret.X, left+cell) {
+		t.Errorf("turning off shape kept an alternate edge: %+v, %v", caret, ok)
+	}
+}
+
+func TestCodeEditorShapedSelectionAndCompositionUseVisualSpans(t *testing.T) {
+	f := newCodeFixture("a\u05d0\u05d1z")
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	f.snapshot.SelectionEnd = 3
+	f.snapshot.CompositionStart, f.snapshot.CompositionEnd = 3, 5
+	f.paint()
+	cell, _, _ := f.cell()
+	left := f.editor.content.X
+	spans := f.fills(f.theme.Selection)
+	if len(spans) != 2 || !near(spans[0].X, left) || !near(spans[0].Width, cell) ||
+		!near(spans[1].X, left+2*cell) || !near(spans[1].Width, cell) {
+		t.Fatalf("selection spanned the wrong visual cells: %+v", spans)
+	}
+	found := false
+	for _, fill := range f.fills(f.theme.Foreground) {
+		if fill.Height == 1 && near(fill.X, left+cell) && near(fill.Width, cell) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("composition did not underline the middle visual cell")
+	}
+}
+
+func TestCodeEditorShapedHighlightKeepsTheFullRunAndSelectionStyle(t *testing.T) {
+	const value = "a\u05d0\u05d1z"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	keyword := gfx.RGB(230, 60, 40)
+	f.snapshot.Highlight = func(_, line string, dst []CodeEditorRun) []CodeEditorRun {
+		if line != value {
+			t.Errorf("highlighter got %q; want logical source %q", line, value)
+		}
+		return append(dst, CodeEditorRun{Start: 0, End: 3, Color: keyword, Italic: true})
+	}
+	f.snapshot.SelectionStart, f.snapshot.SelectionEnd = 1, 3
+	f.paint()
+	labels := f.canvas.Texts()
+	cell, _, _ := f.cell()
+	left := f.editor.content.X
+	if len(labels) != 4 {
+		t.Fatalf("painted %d labels; want four disjoint visual styles", len(labels))
+	}
+	for i, want := range []struct {
+		color  gfx.Color
+		italic bool
+	}{{keyword, true}, {f.theme.Foreground, false}, {f.theme.SelectionForeground, true}, {f.theme.Foreground, false}} {
+		label := labels[i]
+		runs := f.canvas.TextRuns(label)
+		if label.Value != value || len(runs) != 1 || !runs[0].Ligatures || runs[0].Bytes != int32(len(value)) {
+			t.Fatalf("clip %d changed the shaped source: label=%q runs=%+v", i, label.Value, runs)
+		}
+		if !label.HasClip || !near(label.ClipOf.X, left+float32(i)*cell) || !near(label.ClipOf.Width, cell) ||
+			runs[0].Color != want.color || runs[0].Italic != want.italic {
+			t.Errorf("clip %d: bounds=%+v run=%+v; want column %d with %+v", i, label.ClipOf, runs[0], i, want)
+		}
+	}
+}

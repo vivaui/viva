@@ -68,7 +68,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAs
 - 保留式 Row/Column/Stack/Flex 布局，布局不变时 O(1) 检查。
 - 按绘制顺序的指针路由、稳定的键盘焦点和 Tab 遍历。
 - macOS 原生 `NSTextInputClient` 集成，支持真实的中文输入法候选组合、按字素编辑和 UTF-16 映射。
-- macOS、Windows 和 Linux 上由焦点驱动的动态原生文本编辑器，带显式的启用/替换/禁用帧更新。macOS 和 Windows 的光标定时器只在可编辑字段获得焦点时存在。Linux 通过 IBus 协议组字（IBus 以及 Fcitx5 的 IBus 前端）；XIM 仍未支持。
+- macOS、Windows 和 Linux 上由焦点驱动的动态原生文本编辑器，带显式的启用/替换/禁用帧更新。macOS 和 Windows 的光标定时器只在可编辑字段获得焦点时存在。Linux 通过 IBus 协议（IBus 以及 Fcitx5 的 IBus 前端）或 Fcitx 4 自己的协议组字；XIM 仍未支持。
 - 一棵独立的保留式语义无障碍树。
 - 直接 CoreText 整形、系统字体回退、GPU 合成的文本纹理，以及有上限的测量缓存。
 - 实验性的 Windows shell：Win32 事件、D3D11 保留式渲染、内嵌 DXBC 着色器、DirectWrite 测量，以及有上限的 GDI 标签纹理；原生构建不加载着色器编译器。

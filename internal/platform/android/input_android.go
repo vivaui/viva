@@ -108,6 +108,7 @@ func (win *window) setTextInput(update platform.TextInputUpdate) {
 	if update.Input == nil {
 		if win.text != nil {
 			win.text = nil
+			win.hideSelection()
 			C.viva_host_keyboard(0, 0, 0)
 		}
 		return
@@ -160,7 +161,7 @@ func (application *application) textEdit(ev event) {
 		return
 	}
 	defer application.guard()
-	text, session := win.text, &win.text.session
+	session := &win.text.session
 	var err error
 	switch ev.edit.operation {
 	case opCommit:
@@ -185,7 +186,14 @@ func (application *application) textEdit(ev event) {
 		application.fail(err)
 		return
 	}
-	text.input.State = session.State
+	application.textEdited()
+}
+
+// textEdited shows an edit the session has applied: the host's mirror of the input is
+// refreshed, and the application's frame for it is drawn.
+func (application *application) textEdited() {
+	win := application.window
+	win.text.input.State = win.text.session.State
 	win.pushEditor()
 	if win.config.OnRedraw != nil {
 		frame, err := win.config.OnRedraw()

@@ -20,6 +20,12 @@ public final class Native {
     /** The surface of the window has a size (and the display a density), or a new one. */
     public static native void surfaceChanged(Surface surface, int width, int height, float density);
 
+    /**
+     * The system shows the surface once it has a frame: the program draws the window on it
+     * and this returns when the frame is presented.
+     */
+    public static native void redrawNeeded();
+
     /** The surface is going away; the program must stop drawing to it before this returns. */
     public static native void surfaceDestroyed();
 
@@ -44,6 +50,12 @@ public final class Native {
      * known and whenever it changes.
      */
     public static native void insets(float left, float top, float right, float bottom);
+
+    /** A selection handle (0 the start's, 1 the end's) is held (phase 0), dragged to a point of the surface (1) or let go (2). */
+    public static native void selectionHandle(int which, int phase, float x, float y);
+
+    /** An item of the selection's menu: 1 Cut, 2 Copy, 3 Paste, 4 Select all. */
+    public static native void selectionAction(int action);
 
     /** The user asked to close the window (the back gesture at the root). */
     public static native void closeRequested();
