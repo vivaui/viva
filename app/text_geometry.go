@@ -9,9 +9,8 @@ import (
 
 // textGeometry is where the text of the focused field is on the window: the character
 // boundary nearest a point, the caret at a boundary and the rectangles a range covers. The
-// framework draws the text, so it is the one that can say; a phone's text interaction (the
-// caret a tap places, the word a long press selects, the handles and the magnifier) is
-// built on it. Indexes are runes of the field's value, as in TextState.
+// framework draws the text, so it is the one that can say; a finger's text interaction
+// (the caret a tap places, the word a long press selects) is built on it. Indexes are runes of the field's value, as in TextState.
 //
 // A field that lays its rows out itself answers through its gfx.TextPlacement. Any other
 // is one line, measured the way the components paint it: from the line's origin in the
@@ -73,7 +72,7 @@ func (geometry textGeometry) IndexAt(x, y float32) (int, bool) {
 // CaretRect is the caret at a boundary, as tall as the line.
 func (geometry textGeometry) CaretRect(index int) (gfx.Rect, bool) {
 	if geometry.placement != nil {
-		return geometry.placement.CaretBounds()
+		return gfx.Rect{}, false // it paints one caret, wherever the caret is
 	}
 	offset := byteOffsetOfRune(geometry.shown, index)
 	x := geometry.origin() + geometry.canvas.TextCaretStyle(geometry.shown, geometry.style, offset)

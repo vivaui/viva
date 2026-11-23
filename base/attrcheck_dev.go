@@ -190,6 +190,16 @@ func (f *Frame) checkTextAttributes(n *Node, name string, mono, face, line, alig
 	if !mono && n.Flags&flagMono != 0 {
 		f.badAttribute(n, name, "Mono", "Mono styles a Text or a single-line text field; this element paints no monospace text")
 	}
+	// A text field shapes its own value in the painter that reads Mono; no element
+	// that reaches this check reads Italic, so setting it is reported, not ignored.
+	if n.TextDecor&textItalic != 0 {
+		f.badAttribute(n, name, "Italic", "Italic styles a Text; this element shapes no italic text")
+	}
+	// Strike is drawn by the Text painter, so an element that paints no text of its
+	// own never draws it: report it rather than drop it.
+	if n.TextDecor&textStrike != 0 {
+		f.badAttribute(n, name, "Strike", "Strike styles a Text; this element draws no struck-through text")
+	}
 	if !face && n.Face != 0 {
 		f.badAttribute(n, name, "MonoFace", "MonoFace styles a Text or a single-line text field; this element paints no monospace text")
 	}

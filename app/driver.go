@@ -293,25 +293,6 @@ func (driver *Driver) Resize(width, height int) error {
 	return err
 }
 
-// Lifecycle tells the application the system did something to it, as a phone does when it
-// moves the application to the background or asks it for memory.
-func (driver *Driver) Lifecycle(event LifecycleEvent) {
-	if driver.config.OnLifecycle != nil {
-		driver.config.OnLifecycle(event)
-	}
-}
-
-// SetSafeArea says the system covers the window's edges by insets, as a phone's status bar,
-// sensor housing and home indicator do, and lets the page lay out again inside what is left.
-func (driver *Driver) SetSafeArea(insets gfx.Insets) error {
-	if err := driver.Pump(); err != nil {
-		return err
-	}
-	size := driver.painter.size
-	_, err := driver.painter.resize(platform.Size{Width: size.Width, Height: size.Height, Scale: driver.painter.scale, SafeArea: insets})
-	return err
-}
-
 func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, button gfx.PointerButton, clicks int) error {
 	if err := driver.Pump(); err != nil {
 		return err

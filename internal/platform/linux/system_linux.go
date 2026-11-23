@@ -54,7 +54,7 @@ func ClipboardText() (string, error) {
 	}
 	if win := activeWindow.Load(); win != nil {
 		win.mu.Lock()
-		if activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard {
+		if activeWindow.Load() == win && win.clipboardOwnedLocked() {
 			value := win.clipboard
 			win.mu.Unlock()
 			return value, nil
@@ -81,18 +81,66 @@ func readSelectionTextX11(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	utf8, err := api.atom(connection, "UTF8_STRING")
+	utf8Atom, err := api.atom(connection, "UTF8_STRING")
 	if err != nil {
 		return "", err
 	}
-	value, accepted, err := readSelection(api, connection, requestor, selection, utf8, property)
+	// Some owners (including xclip) answer unadvertised text requests with
+	// their binary payload. Ask TARGETS first, just as the image reader does,
+	// so an image-only copy reaches TextPasteNoText rather than the editor.
+	targets, err := api.atom(connection, "TARGETS")
 	if err != nil {
 		return "", err
 	}
-	if accepted {
-		return value, nil
+	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, selection, targets, property, 1<<16)
+	if err != nil {
+		return "", err
 	}
-	return readLegacySelection(api, connection, requestor, selection, property)
+	textTarget := utf8Atom
+	wantUTF8, wantLatin1 := true, true
+	if accepted && kind == xcbAtomAtom && len(data)%4 == 0 {
+		mimeUTF8, mimeErr := api.atom(connection, "text/plain;charset=utf-8")
+		if mimeErr != nil {
+			return "", mimeErr
+		}
+		wantUTF8, wantLatin1 = false, false
+		for offset := 0; offset < len(data); offset += 4 {
+			switch binary.NativeEndian.Uint32(data[offset:]) {
+			case utf8Atom:
+				wantUTF8, textTarget = true, utf8Atom
+			case xcbAtomString:
+				wantLatin1 = true
+			case mimeUTF8:
+				// Owners that only offer the MIME spelling of UTF-8 text.
+				if !wantUTF8 {
+					wantUTF8, textTarget = true, mimeUTF8
+				}
+			}
+		}
+	}
+	// Old owners without TARGETS still get the legacy text requests.
+	if wantUTF8 {
+		// A target the owner advertised may answer typed as UTF8_STRING; only the
+		// unadvertised legacy request needs the type check.
+		read := readSelection
+		if textTarget == utf8Atom {
+			read = readTypedSelection
+		}
+		value, accepted, err := read(api, connection, requestor, selection, textTarget, property)
+		if err != nil {
+			return "", err
+		}
+		if accepted {
+			if !utf8.ValidString(value) {
+				return "", fmt.Errorf("linux: clipboard text is not valid UTF-8")
+			}
+			return value, nil
+		}
+	}
+	if wantLatin1 {
+		return readLegacySelection(api, connection, requestor, selection, property)
+	}
+	return "", nil
 }
 
 // HasClipboardImage reports whether the X11 CLIPBOARD owner offers image/png.
@@ -287,7 +335,27 @@ func ownsClipboardText() bool {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	return activeWindow.Load() == win && win.connection != 0 && win.ownsClipboard
+	return activeWindow.Load() == win && win.clipboardOwnedLocked()
+}
+
+// SelectionClear can still be queued when a background owner finishes a copy.
+// Check ownership when reading the cache, never on a timer, so an immediate
+// paste cannot return stale text or incorrectly report that no image exists.
+// win.mu is held by the caller.
+func (win *window) clipboardOwnedLocked() bool {
+	if win.connection == 0 || !win.ownsClipboard {
+		return false
+	}
+	owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom)
+	if err != nil {
+		return false
+	}
+	if owner == win.id {
+		return true
+	}
+	win.clipboard, win.clipboardHTML, win.clipboardFiles, win.clipboardImage = "", "", nil, nil
+	win.ownsClipboard = false
+	return false
 }
 
 // ownedClipboardImage is the picture this window's clipboard holds, and whether
@@ -299,7 +367,7 @@ func ownedClipboardImage() ([]byte, bool) {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard || len(win.clipboardImage) == 0 {
+	if activeWindow.Load() != win || !win.clipboardOwnedLocked() || len(win.clipboardImage) == 0 {
 		return nil, false
 	}
 	return append([]byte(nil), win.clipboardImage...), true
@@ -314,7 +382,7 @@ func ownedClipboardFiles() ([]string, bool) {
 	}
 	win.mu.Lock()
 	defer win.mu.Unlock()
-	if activeWindow.Load() != win || win.connection == 0 || !win.ownsClipboard {
+	if activeWindow.Load() != win || !win.clipboardOwnedLocked() {
 		return nil, false
 	}
 	return append([]string(nil), win.clipboardFiles...), true
@@ -1055,7 +1123,7 @@ func selectionOwner(api *xcbAPI, connection uintptr, selection uint32) (uint32, 
 }
 
 func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, property uint32) (string, error) {
-	value, accepted, err := readSelection(api, connection, requestor, selection, xcbAtomString, property)
+	value, accepted, err := readTypedSelection(api, connection, requestor, selection, xcbAtomString, property)
 	if err != nil || !accepted {
 		return "", err
 	}
@@ -1065,12 +1133,32 @@ func readLegacySelection(api *xcbAPI, connection uintptr, requestor, selection, 
 // readSelection asks the owner for target as text. A text bigger than one property comes in
 // pieces (INCR), as readSelectionBytes collects them.
 func readSelection(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32) (string, bool, error) {
-	data, _, accepted, err := readSelectionBytes(api, connection, requestor, selection, target, property, maxClipboardBytes)
+	return readSelectionText(api, connection, requestor, selection, target, property, false)
+}
+
+// readTypedSelection is readSelection for the clipboard text readers: an owner that answers
+// with another type than the one asked for (a binary payload from an unadvertised request)
+// is treated as having no text.
+func readTypedSelection(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32) (string, bool, error) {
+	return readSelectionText(api, connection, requestor, selection, target, property, true)
+}
+
+func readSelectionText(api *xcbAPI, connection uintptr, requestor, selection, target, property uint32, typed bool) (string, bool, error) {
+	data, kind, accepted, err := readSelectionBytes(api, connection, requestor, selection, target, property, maxClipboardBytes)
 	if errors.Is(err, platform.ErrClipboardImageTooLarge) {
 		return "", false, fmt.Errorf("linux: clipboard text exceeds 64 MiB")
 	}
 	if err != nil || !accepted {
 		return "", false, err
+	}
+	if typed && kind != target {
+		incr, atomErr := api.atom(connection, "INCR")
+		if atomErr != nil {
+			return "", false, atomErr
+		}
+		if kind != incr {
+			return "", false, nil
+		}
 	}
 	return string(data), true, nil
 }
@@ -1199,16 +1287,4 @@ func (win *window) clearPixmap(pixmap uint32) error {
 	err := win.checkRequest("clear cursor pixmap", win.api.polyFillRectangle(win.connection, pixmap, gc, 1, &rectangle))
 	win.api.freeGC(win.connection, gc)
 	return err
-}
-
-// OnClipboardChange reports that this target cannot watch the clipboard. X11 announces a change of
-// selection owner through the XFixes extension and the GTK shell through its own clipboard
-// signal, and neither is wired up yet; the alternative, asking who owns the selection on a timer,
-// would run for as long as the process lives and miss a new copy by the same owner, which is the
-// common case. The clipboard itself keeps working.
-func OnClipboardChange(notify func()) error {
-	if notify == nil {
-		return nil
-	}
-	return unsupported("clipboard change events are not available on this display server")
 }

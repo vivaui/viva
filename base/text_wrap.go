@@ -15,6 +15,7 @@ type wrapCache struct {
 	Size     float32
 	Weight   float32
 	mono     bool
+	italic   bool
 	Face     gfx.MonoFace
 	width    float32
 	MaxLines int
@@ -25,9 +26,10 @@ type wrapCache struct {
 // wrapText appends the lines of a wrapped Text, breaking them as gfx.Canvas.WrapLines
 // does (spaces, East Asian text with its line-start and line-end rules, separators
 // inside a long path or URL, and as a last resort between whole characters), each
-// line measured as it is drawn: a Mono text on its cells. Both
-// the full line set and the ellipsized last line are kept for the life of the view,
-// so a page that does not change does no wrapping or string building.
+// line measured as it is drawn: a Mono text on its cells, an Italic one in the
+// italic face. Both the full line set and the ellipsized last line are kept for the
+// life of the view, so a page that does not change does no wrapping or string
+// building.
 func (f *Frame) wrapText(dst []string, n *Node) []string {
 	if f.wrapCursor == len(f.Ellipses) {
 		f.Ellipses = append(f.Ellipses, gfx.EllipsisCache{})
@@ -41,25 +43,29 @@ func (f *Frame) wrapText(dst []string, n *Node) []string {
 	width := max(n.Rect.Width-n.PadX(), 1)
 	maxLines := int(n.MaxLines)
 	mono := n.Flags&flagMono != 0
+	italic := n.TextDecor&textItalic != 0
 	face := gfx.MonoFace(0)
 	if mono {
 		face = n.Face
 	}
-	if wrapped.filled && wrapped.Text == n.Text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight && wrapped.mono == mono && wrapped.Face == face && wrapped.width == width && wrapped.MaxLines == maxLines {
+	if wrapped.filled && wrapped.Text == n.Text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight &&
+		wrapped.mono == mono && wrapped.italic == italic && wrapped.Face == face &&
+		wrapped.width == width && wrapped.MaxLines == maxLines {
 		return append(dst, wrapped.Lines...)
 	}
 	start := len(dst)
 	dst = f.Surface.WrapLinesStyle(dst, n.Text, n.textStyle(), width, maxLines, cache)
-	wrapped.Text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.Face, wrapped.width, wrapped.MaxLines = n.Text, n.FontSize, n.Weight, mono, face, width, maxLines
+	wrapped.Text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.italic, wrapped.Face = n.Text, n.FontSize, n.Weight, mono, italic, face
+	wrapped.width, wrapped.MaxLines = width, maxLines
 	wrapped.Lines = append(wrapped.Lines[:0], dst[start:]...)
 	wrapped.filled = true
 	return dst
 }
 
-// textStyle is the style a Text's width depends on: its size, weight and, when it is
-// Mono, its face.
+// textStyle is the style a Text's width depends on: its size, weight, slant and,
+// when it is Mono, its face.
 func (n *Node) textStyle() gfx.TextStyle {
-	return gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Mono: n.Flags&flagMono != 0, MonoFace: n.Face}
+	return gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Italic: n.TextDecor&textItalic != 0, Mono: n.Flags&flagMono != 0, MonoFace: n.Face}
 }
 
 // Wrap adds text that breaks into as many lines as the width it is given needs,

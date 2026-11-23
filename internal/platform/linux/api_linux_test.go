@@ -201,6 +201,12 @@ func TestNextEventCoalescesConfigureNotifyAndInterleavedSyncAndExpose(t *testing
 	}
 	win.api.free(first)
 
+	exposure := state.nextEvent()
+	if exposure == nil || (*xcbGenericEvent)(exposure).ResponseType&0x7f != xcbExpose {
+		t.Fatal("configure coalescing lost the server's exposure request")
+	}
+	win.api.free(exposure)
+
 	second := state.nextEvent()
 	if second == nil {
 		t.Fatal("second nextEvent returned nil, want held Sync(202)")

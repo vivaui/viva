@@ -194,6 +194,73 @@ func TestALinkOpensOnAClickAndSelectsOnADrag(t *testing.T) {
 	}
 }
 
+// Each link and each Button trail is a node of its own for assistive technology, a part
+// of the view's control: no two nodes share an identity, and a press on a part still
+// reaches the view. The text shows the text cursor, a link the hand.
+func TestLinksAndTrailsAreNodesOfTheirOwn(t *testing.T) {
+	o := openOutput(t, "\tat demo.Main.run(Main.java:12)", "\tat demo.Main.main(Main.java:12)", "done")
+	o.link = "Main.java:12"
+	o.trail = 2
+	o.must(o.driver.Paint())
+	seen := map[gfx.ID]string{}
+	var view gfx.ID
+	roles := map[gfx.Role]int{}
+	for _, node := range o.driver.Accessibility() {
+		if node.ID.IsZero() {
+			continue
+		}
+		if other, ok := seen[node.ID]; ok {
+			t.Fatalf("%q and %q share the identity %v", other, node.Label, node.ID)
+		}
+		seen[node.ID] = node.Label
+		roles[node.Role]++
+		if node.Role == gfx.RoleGroup && node.Label == "Output" {
+			view = node.ID
+		}
+	}
+	if roles[gfx.RoleLink] != 2 || roles[gfx.RoleButton] != 1 || view.IsZero() {
+		t.Fatalf("the nodes are %v, want the view, two links and a button", seen)
+	}
+	x, y := o.at(1, strings.Index(o.lines[1], o.link)+2)
+	part, ok := o.driver.HitTest(x, y)
+	if !ok || part == view {
+		t.Fatalf("the link is hit as %v, want a part of the view %v", part, view)
+	}
+	o.must(o.driver.Move(x, y))
+	if got := o.driver.Snapshot().Cursor; got != app.CursorHand {
+		t.Fatalf("over the link the cursor is %v, want the hand", got)
+	}
+	x, y = o.at(2, 1)
+	o.must(o.driver.Move(x, y))
+	if got := o.driver.Snapshot().Cursor; got != app.CursorText {
+		t.Fatalf("over the text the cursor is %v, want the text cursor", got)
+	}
+}
+
+// A press on a link focuses the view, not the link, so the keys of the selection work
+// after it: Primary+C copies what a drag from the link selected, Escape clears it and
+// Primary+A selects everything.
+func TestTheKeysStayWithTheViewAfterAPressOnALink(t *testing.T) {
+	o := openOutput(t, "\tat demo.Main.run(Main.java:12)", "done")
+	o.link = "Main.java:12"
+	o.must(o.driver.Paint())
+	from := strings.Index(o.lines[0], o.link)
+	o.drag(0, from+2, 0, from+len("Main.java"))
+	if got, want := o.copyShortcut(), "in.java"; got != want {
+		t.Fatalf("after a drag from the link Primary+C copied %q, want %q", got, want)
+	}
+	o.must(o.driver.Key(gfx.KeyEscape, 0))
+	if o.view.Has() {
+		t.Fatalf("after a press on the link Escape kept %q selected", o.view.Text())
+	}
+	x, y := o.at(0, from+2)
+	o.must(o.driver.Click(x, y))
+	o.chord('a')
+	if got, want := o.copyShortcut(), "\tat demo.Main.run(Main.java:12)\ndone"; got != want {
+		t.Fatalf("after a click on the link Primary+A then Primary+C copied %q, want %q", got, want)
+	}
+}
+
 // A Button trail is pressed by a click, and is never part of what is selected or copied.
 func TestATrailIsPressedButNeverCopied(t *testing.T) {
 	o := openOutput(t, "Receiving objects", "done")
@@ -223,6 +290,149 @@ func TestCopyGoesThroughTheSpecHook(t *testing.T) {
 	}
 	if len(o.copied) != 1 || o.copied[0] != "beta" {
 		t.Fatalf("the hook got %q, want [\"beta\"]", o.copied)
+	}
+}
+
+func TestSiblingViewsKeepTheirInputSeparate(t *testing.T) {
+	var views [2]textview.View
+	lines := [2]string{"first output", "second output"}
+	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			for i := range views {
+				views[i].Declare(c, textview.Spec{
+					Label: lines[i], Source: textview.Strings{lines[i]},
+					Font: gfx.TextStyle{Size: 13}, LineHeight: 18,
+				})
+			}
+		})
+	}})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 640, Height: 320}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(driver.Paint())
+	for _, i := range []int{1, 0} {
+		at, ok := views[i].PointOf(textview.Point{Line: 0, Byte: 2})
+		if !ok {
+			t.Fatalf("view %d is not on screen", i)
+		}
+		must(driver.DoubleClick(at.X, at.Y))
+		if got, want := views[i].Text(), strings.Fields(lines[i])[0]; got != want {
+			t.Fatalf("double clicking view %d selected %q, want %q", i, got, want)
+		}
+		_, err := driver.ShortcutChord(keymap.Primary, 'a')
+		must(err)
+		_, err = driver.ShortcutChord(keymap.Primary, 'c')
+		must(err)
+		must(driver.Paint())
+		if got := driver.Clipboard(); got != lines[i] {
+			t.Fatalf("copy in view %d got %q, want %q", i, got, lines[i])
+		}
+		must(driver.Key(gfx.KeyEscape, 0))
+		if views[0].Has() || views[1].Has() {
+			t.Fatal("input in one view left a selection in its sibling")
+		}
+	}
+	seen := map[gfx.ID]string{}
+	for _, node := range driver.Accessibility() {
+		if node.ID.IsZero() {
+			continue
+		}
+		if other, ok := seen[node.ID]; ok {
+			t.Fatalf("%q and %q share the identity %v", other, node.Label, node.ID)
+		}
+		seen[node.ID] = node.Label
+	}
+}
+
+func TestClosedMenusLeaveTheNextSiblingsIdentityAlone(t *testing.T) {
+	var views [2]textview.View
+	pressed := -1
+	page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Children(func() {
+			for i := range views {
+				views[i].Declare(c, textview.Spec{
+					Label: "Output", Source: textview.Strings{"first", "second"}, Scroll: true,
+					Font: gfx.TextStyle{Size: 13}, LineHeight: 18,
+					Menu: func(menu *ui.MenuItems) {
+						if menu.Item("Copy line").Clicked() {
+							pressed = i
+						}
+					},
+				}).Height(80)
+			}
+			ui.Button(c, "After the views")
+		})
+	}})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 640, Height: 320}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(driver.Paint())
+	for i := range views {
+		at, ok := views[i].PointOf(textview.Point{Line: 1})
+		if !ok {
+			t.Fatalf("view %d is not on screen", i)
+		}
+		must(driver.ClickButton(at.X, at.Y, gfx.PointerButtonSecondary))
+		if line, ok := views[i].MenuLine(); !ok || line != 1 {
+			t.Fatalf("view %d opened the menu on line %d (%v), want 1", i, line, ok)
+		}
+		hit := trailHit(t, driver, "Copy line")
+		must(driver.Click(hit.Bounds.X+hit.Bounds.Width/2, hit.Bounds.Y+hit.Bounds.Height/2))
+		if pressed != i {
+			t.Fatalf("view %d's menu pressed view %d", i, pressed)
+		}
+		must(driver.Paint())
+	}
+}
+
+func TestPaintAndCopyKeepGraphemesWhole(t *testing.T) {
+	for _, test := range []struct{ line, word string }{
+		{"cafe\u0301", "cafe\u0301"}, {"a👩‍💻b", "👩‍💻"}, {"a🇨🇳b", "🇨🇳"}, {"क्ष", "क्ष"}, {"\u0301x", ""},
+	} {
+		line := test.line
+		t.Run(line, func(t *testing.T) {
+			o := openOutput(t, line)
+			var drawn strings.Builder
+			for _, label := range o.driver.Snapshot().Labels {
+				drawn.WriteString(label.Value)
+				end := 0
+				for _, run := range label.Runs {
+					end += int(run.Bytes)
+					if gfx.GraphemeStart(label.Value, end) != end {
+						t.Fatalf("run ending at %d splits a grapheme of %q", end, label.Value)
+					}
+				}
+				if end != len(label.Value) {
+					t.Fatalf("runs hold %d bytes of %q", end, label.Value)
+				}
+			}
+			if got := drawn.String(); got != line {
+				t.Fatalf("paint drew %q, want the complete text %q", got, line)
+			}
+			if test.word != "" {
+				x, y := o.at(0, 1)
+				o.must(o.driver.DoubleClick(x, y))
+				if got := o.copyShortcut(); got != test.word {
+					t.Fatalf("double clicking %q copied %q, want %q", line, got, test.word)
+				}
+			}
+		})
 	}
 }
 

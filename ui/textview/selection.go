@@ -11,10 +11,13 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 // Point is a place in the text: the number of a line, as the Source numbers it, and a
-// byte offset into the line.
+// byte offset into the line. Selection points snap to whole grapheme boundaries.
 type Point struct {
 	Line, Byte int
 }
@@ -199,43 +202,41 @@ func clamp(src Source, p Point) Point {
 	return Point{p.Line, boundary(src.Line(p.Line), p.Byte)}
 }
 
-// boundary moves at into text and back to the start of the character it is inside.
+// boundary keeps a base and its marks, an emoji sequence or a conjunct together.
 func boundary(text string, at int) int {
-	at = min(max(at, 0), len(text))
-	for at > 0 && at < len(text) && !utf8.RuneStart(text[at]) {
-		at--
-	}
-	return at
+	return gfx.GraphemeStart(text, at)
 }
 
 // wordAt is the word, the run of spaces or the run of punctuation under the character
 // at at, as a double click in a code editor selects it. At the end of the text
 // it is the one before.
-func wordAt(text string, at int) (int, int) {
-	if text == "" {
+func wordAt(value string, at int) (int, int) {
+	if value == "" {
 		return 0, 0
 	}
-	if at >= len(text) {
-		_, size := utf8.DecodeLastRuneInString(text)
-		at = len(text) - size
+	if at >= len(value) {
+		at = text.PreviousGraphemeBoundary(value, len(value))
+	} else {
+		at = boundary(value, at)
 	}
-	r, _ := utf8.DecodeRuneInString(text[at:])
+	r, _ := utf8.DecodeRuneInString(value[at:])
 	class := charClass(r)
 	from := at
 	for from > 0 {
-		r, size := utf8.DecodeLastRuneInString(text[:from])
+		previous := text.PreviousGraphemeBoundary(value, from)
+		r, _ := utf8.DecodeRuneInString(value[previous:])
 		if charClass(r) != class {
 			break
 		}
-		from -= size
+		from = previous
 	}
 	to := at
-	for to < len(text) {
-		r, size := utf8.DecodeRuneInString(text[to:])
+	for to < len(value) {
+		r, _ := utf8.DecodeRuneInString(value[to:])
 		if charClass(r) != class {
 			break
 		}
-		to += size
+		to = nextGrapheme(value, to)
 	}
 	return from, to
 }

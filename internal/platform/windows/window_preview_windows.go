@@ -24,6 +24,9 @@ func (window *nativeWindow) MoveTo(origin gfx.Point) {
 	if scale <= 0 {
 		scale = 1
 	}
+	if state.config.WindowMode == platform.WindowNotification {
+		scale = 1
+	}
 	x := int32(origin.X * scale)
 	y := int32(origin.Y * scale)
 	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), 0, 0, 0x15) // nosize, nozorder, noactivate

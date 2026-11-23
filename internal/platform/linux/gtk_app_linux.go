@@ -61,6 +61,7 @@ type gtkApplication struct {
 	clipboardGet, clipboardClear uintptr
 	clipboardBytes               map[uintptr][]byte
 	clipboardGeneration          uintptr
+	clipboardWatch               gtkClipboardWatch
 }
 
 // gtkTasks are the functions other goroutines asked the loop to run.
@@ -111,6 +112,7 @@ func RunGTKApplication(start platform.ApplicationStart) error {
 	application.mainThread = syscall.Gettid()
 	application.installHooks()
 	defer application.removeHooks()
+	defer application.clipboardWatch.stop(g)
 	// Whoever starts to watch the desktop's settings, from any goroutine, wakes the loop to open the
 	// connection that hears them.
 	platform.SetWatchHook(func() {

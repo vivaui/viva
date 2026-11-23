@@ -339,7 +339,10 @@ func (f *Frame) paintText(n *Node) {
 	left, right := n.Inset(AxisX)
 	top, bottom := n.Inset(AxisY)
 	r := Rect{X: n.Rect.X + left, Y: n.Rect.Y + top, Width: max(n.Rect.Width-left-right, 0), Height: max(n.Rect.Height-top-bottom, 0)}
-	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.Color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
+	style := gfx.TextStyle{
+		Size: n.FontSize, Weight: n.Weight, Color: n.Color, Italic: n.TextDecor&textItalic != 0,
+		Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection,
+	}
 	alignment := gfx.AlignStart
 	switch {
 	case n.Flags&flagTextCenter != 0:
@@ -356,7 +359,11 @@ func (f *Frame) paintText(n *Node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.paintLabel(n, f.Lines[n.LineFirst+k], bounds, style, alignment)
+			line := f.Lines[n.LineFirst+k]
+			f.paintLabel(n, line, bounds, style, alignment)
+			if n.TextDecor&textStrike != 0 {
+				f.paintStrike(line, bounds, style, alignment)
+			}
 		}
 		return
 	}
@@ -367,6 +374,9 @@ func (f *Frame) paintText(n *Node) {
 		f.Surface.Clip(r)
 	}
 	f.paintLabel(n, n.Text, bounds, style, alignment)
+	if n.TextDecor&textStrike != 0 {
+		f.paintStrike(n.Text, bounds, style, alignment)
+	}
 	if clipped {
 		f.Surface.Unclip()
 	}
@@ -378,4 +388,19 @@ func (f *Frame) paintLabel(n *Node, value string, bounds Rect, style gfx.TextSty
 		return
 	}
 	f.Surface.LabelAligned(value, bounds, style, alignment)
+}
+
+// paintStrike draws the line a struck-through Text crosses: the one
+// components.MarkdownView has drawn for ~~struck~~ text, one pixel high, in the
+// text's color, across the middle of the line box. It runs from the left end the
+// line is drawn at (Canvas.LabelOrigin, so a centered or right-aligned text is
+// struck where its glyphs are) for the width the line is measured at
+// (Canvas.TextWidthStyle, so a Mono line is struck across its cells), which is the
+// text and not the box the text was given.
+func (f *Frame) paintStrike(value string, bounds Rect, style gfx.TextStyle, alignment gfx.Alignment) {
+	if value == "" {
+		return
+	}
+	x := f.Surface.LabelOrigin(value, bounds, style, alignment)
+	f.Surface.Fill(Rect{X: x, Y: bounds.Y + bounds.Height/2, Width: f.Surface.TextWidthStyle(value, style), Height: 1}, style.Color)
 }

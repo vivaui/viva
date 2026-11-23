@@ -140,6 +140,8 @@ func (window *Window) Show() {
 // application's windows finds it by comparing its pointer with their frames. The
 // result is false for a closed window. On displays of different scale the
 // coordinates of windows on different displays are only approximately comparable.
+// On Windows a WindowNotification reports X and Y in physical desktop pixels,
+// suitable for saving and restoring with Config.Origin. Its size is still logical.
 // It may be called from any goroutine.
 func (window *Window) Frame() (gfx.Rect, bool) {
 	if window == nil || window.control == nil || window.closed.Load() {

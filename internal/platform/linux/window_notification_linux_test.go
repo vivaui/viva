@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -50,6 +51,27 @@ func TestNotificationNativeX11(t *testing.T) {
 	wantX, wantY := win.panelOrigin(config)
 	if x != int32(wantX) || y != int32(wantY) {
 		t.Fatalf("origin %d,%d want %d,%d", x, y, wantX, wantY)
+	}
+	// The initial position is inside the monitor. A stale top-left far outside
+	// the private display falls back to the edge of the available work area.
+	scale := win.displayScale()
+	for _, test := range []struct {
+		origin       gfx.Point
+		wantX, wantY int32
+	}{
+		{gfx.Point{X: float32(x) / scale, Y: float32(y) / scale}, x, y},
+		{gfx.Point{X: -10000, Y: -10000}, 0, 0},
+	} {
+		config.HasOrigin, config.Origin = true, test.origin
+		restored, err := openWindow(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rx, ry := restored.rootOrigin()
+		restored.close()
+		if rx != test.wantX || ry != test.wantY {
+			t.Errorf("restoring %+v produced %d,%d want %d,%d", test.origin, rx, ry, test.wantX, test.wantY)
+		}
 	}
 	getProperty := func(name string, kind uint32) uint32 {
 		t.Helper()
