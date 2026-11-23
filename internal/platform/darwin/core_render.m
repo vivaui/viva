@@ -1361,10 +1361,13 @@ void viva_encode_scene(
         BOOL scissored = NO;
         if ([layer clipped]) {
             CGRect clip = [layer clip];
-            NSInteger left = MAX((NSInteger)floor(clip.origin.x * targetScale), 0);
-            NSInteger top = MAX((NSInteger)floor(clip.origin.y * targetScale), 0);
-            NSInteger right = MIN((NSInteger)ceil((clip.origin.x + clip.size.width) * targetScale), (NSInteger)targetWidth);
-            NSInteger bottom = MIN((NSInteger)ceil((clip.origin.y + clip.size.height) * targetScale), (NSInteger)targetHeight);
+            // Round both edges to the nearest device pixel, as the rectangle
+            // path does: two abutting text clips must share one edge, or both
+            // include the boundary column and composite the run twice.
+            NSInteger left = MIN(MAX((NSInteger)floor(clip.origin.x * targetScale + 0.5), 0), (NSInteger)targetWidth);
+            NSInteger top = MIN(MAX((NSInteger)floor(clip.origin.y * targetScale + 0.5), 0), (NSInteger)targetHeight);
+            NSInteger right = MIN(MAX((NSInteger)floor((clip.origin.x + clip.size.width) * targetScale + 0.5), 0), (NSInteger)targetWidth);
+            NSInteger bottom = MIN(MAX((NSInteger)floor((clip.origin.y + clip.size.height) * targetScale + 0.5), 0), (NSInteger)targetHeight);
             if (right <= left || bottom <= top) {
                 continue;
             }

@@ -28,6 +28,7 @@ type codeShaping struct {
 	wrap       bool
 	rows       map[int32]codeShapedRow
 	rowBytes   int
+	rowLimit   int
 	paragraphs [2]codeShapedParagraph // keep the caret's and the visible paragraph warm
 	hit        gfx.TextHit
 	hitRow     int32
@@ -66,6 +67,14 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 			paragraphs: [2]codeShapedParagraph{{start: -1}, {start: -1}}}
 		editor.shaping = s
 	}
+	s.rowLimit = codeShapedMaxCachedRows
+	if editor.lineHeight > 0 {
+		s.rowLimit = max(s.rowLimit, int(editor.content.Height/editor.lineHeight)+2)
+	}
+	if len(s.rows) > s.rowLimit {
+		clear(s.rows)
+		s.rowBytes = 0
+	}
 	if s.hitValid && s.hit.Offset != snapshot.Caret {
 		s.hitValid = false
 	}
@@ -83,7 +92,7 @@ func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 	shaped := editor.measureShapedRow(row)
 	// Charge for the source and any expansion (such as tabs or isolate markers).
 	bytes = max(bytes, len(shaped.value))
-	if len(s.rows) >= codeShapedMaxCachedRows || s.rowBytes+bytes > codeShapedCacheBytes {
+	if len(s.rows) >= s.rowLimit || s.rowBytes+bytes > codeShapedCacheBytes {
 		clear(s.rows)
 		s.rowBytes = 0
 	}

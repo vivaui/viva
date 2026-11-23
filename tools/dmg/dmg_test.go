@@ -148,6 +148,9 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	mount := t.TempDir()
+	// -noautoopen keeps the Finder from opening this read-only mount: -nobrowse
+	// hides it from the sidebar but does not stop the automatic open that offers
+	// to install the application.
 	out, err := exec.Command("hdiutil", "attach", "-plist", "-nobrowse", "-noautoopen", "-readonly", "-mountpoint", mount, image).CombinedOutput()
 	if err != nil {
 		t.Fatalf("attach: %v\n%s", err, out)
@@ -167,6 +170,9 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(mount, "Sample.app", "Contents", "Info.plist")); err != nil {
 		t.Fatalf("the bundle is not in the image root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mount, stagedBundle)); !os.IsNotExist(err) {
+		t.Fatalf("the final image still holds the staging bundle: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(mount, backgroundFile)); err != nil {
 		t.Fatalf("the background picture is not in the image: %v", err)

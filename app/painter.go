@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/framebuild"
@@ -35,9 +34,10 @@ type painter struct {
 	onKey          func(gfx.KeyEvent) gfx.EventResult
 	// onDeactivate is the application's, called after a window loses the
 	// activation and the keys that were down are released.
-	onDeactivate func() gfx.EventResult
-	onShortcut   func(gfx.KeyEvent) gfx.EventResult
-	onScroll     func(gfx.ScrollEvent) gfx.EventResult
+	onDeactivate    func() gfx.EventResult
+	onShortcut      func(gfx.KeyEvent) gfx.EventResult
+	captureMenuKeys func() bool
+	onScroll        func(gfx.ScrollEvent) gfx.EventResult
 	// onModifierTap and tap recognize a modifier pressed and released on its own.
 	onModifierTap func(gfx.ModifierTapEvent) gfx.EventResult
 	tap           input.ModifierTap
@@ -155,20 +155,21 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		canvas.SetTree(config.Tree)
 	}
 	painter := &painter{
-		paint:         config.Paint,
-		onPointer:     config.OnPointer,
-		onKey:         config.OnKey,
-		onDeactivate:  config.OnDeactivate,
-		onShortcut:    config.OnShortcut,
-		onScroll:      config.OnScroll,
-		onModifierTap: config.OnModifierTap,
-		onFileDrop:    config.OnFileDrop,
-		onResize:      config.OnResize,
-		textInput:     config.TextInput,
-		canvas:        canvas,
-		size:          gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
-		frame:         framebuild.New(canvas),
-		accessibility: make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
+		paint:           config.Paint,
+		onPointer:       config.OnPointer,
+		onKey:           config.OnKey,
+		onDeactivate:    config.OnDeactivate,
+		onShortcut:      config.OnShortcut,
+		captureMenuKeys: config.CaptureMenuKeys,
+		onScroll:        config.OnScroll,
+		onModifierTap:   config.OnModifierTap,
+		onFileDrop:      config.OnFileDrop,
+		onResize:        config.OnResize,
+		textInput:       config.TextInput,
+		canvas:          canvas,
+		size:            gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
+		frame:           framebuild.New(canvas),
+		accessibility:   make([]platform.AccessibilityNode, 0, len(canvas.Hits())+1),
 	}
 	painter.onTextEvent = painter.applyTextEvent
 	painter.clipboardText = func() string {
@@ -385,14 +386,23 @@ func (painter *painter) pointerStep(event platform.PointerEvent) (result gfx.Eve
 // placeCaret puts the caret of the focused text field where a press, or the drag
 // of one, lands, when the field lays its rows out itself (gfx.TextPlacement): the
 // platform editor knows one line only and leaves such a field to this. A press
-// puts the caret there and a drag extends the selection from it. It reports
-// whether the selection changed.
+// puts the caret there and a drag extends the selection from it. A finger's press
+// places it in any field: the platform editor reads the mouse only, and a phone
+// has none. A finger held on a field selects the word under it, as a phone's text
+// field does. It reports whether the selection changed.
 func (painter *painter) placeCaret(event platform.PointerEvent) bool {
+	touch := event.Device == gfx.PointerTouch
 	switch event.Kind {
 	case platform.PointerDown:
 		painter.placing = false
+		if painter.focus.Focused().IsZero() || painter.pointer.Hovered() != painter.focus.Focused() {
+			return false
+		}
+		if touch && event.Button == gfx.PointerButtonSecondary {
+			return painter.selectWordAt(event.X, event.Y)
+		}
 		primary := event.Button == gfx.PointerButtonPrimary || event.Button == gfx.PointerButtonNone
-		if !primary || painter.focus.Focused().IsZero() || painter.pointer.Hovered() != painter.focus.Focused() {
+		if !primary {
 			return false
 		}
 	case platform.PointerMove:
@@ -409,11 +419,15 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 		return false
 	}
 	context, placement, _ := painter.focusedTextField()
-	if placement == nil || context.ReadOnly || painter.textInput == nil {
+	if placement == nil && !touch || context.ReadOnly || painter.textInput == nil {
 		painter.placing = false
 		return false
 	}
-	offset, ok := placement.OffsetAt(gfx.Point{X: event.X, Y: event.Y})
+	geometry, ok := painter.focusedTextGeometry()
+	if !ok {
+		return false
+	}
+	index, ok := geometry.IndexAt(event.X, event.Y)
 	input := painter.textInput(context)
 	if !ok || input == nil {
 		return false
@@ -422,7 +436,6 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 		input.State = TextStateOf(input.Editor)
 	}
 	value := input.State.Value
-	index := utf8.RuneCountInString(value[:max(0, min(offset, len(value)))])
 	selection := TextEvent{Kind: TextSetSelection, Selection: TextRange{Start: painter.placeAnchor, End: index}}
 	switch event.Kind {
 	case platform.PointerDown:
@@ -453,6 +466,37 @@ func (painter *painter) placeCaret(event platform.PointerEvent) bool {
 			painter.placeUnit, painter.placeUnitRange = 0, text.Range{}
 		}
 	}
+	return applySelection(input, selection)
+}
+
+// selectWordAt selects the word of the focused field under a window point, or puts the
+// caret there when the point is on no word (between words, past the end).
+func (painter *painter) selectWordAt(x, y float32) bool {
+	context, _, _ := painter.focusedTextField()
+	if context.ReadOnly || painter.textInput == nil {
+		return false
+	}
+	geometry, ok := painter.focusedTextGeometry()
+	if !ok {
+		return false
+	}
+	index, ok := geometry.IndexAt(x, y)
+	input := painter.textInput(context)
+	if !ok || input == nil {
+		return false
+	}
+	if input.Editor != nil {
+		input.State = TextStateOf(input.Editor)
+	}
+	word := text.WordRange(input.State.Value, index)
+	if context.Secure || rangeIsSpace(input.State.Value, word) {
+		word = text.Range{Start: index, End: index}
+	}
+	return applySelection(input, TextEvent{Kind: TextSetSelection, Selection: TextRange{Start: word.Start, End: word.End}})
+}
+
+// applySelection gives a selection to the field's editor, or to its handler.
+func applySelection(input *TextInput, selection TextEvent) bool {
 	if input.Editor != nil {
 		selection.Apply(input.Editor)
 		input.State = TextStateOf(input.Editor)
@@ -1193,7 +1237,9 @@ func (painter *painter) applyCursor(next Cursor, image *gfx.CursorImage) error {
 			}
 		}
 	} else if painter.setCursor != nil {
-		if err := painter.setCursor(next); err != nil {
+		// A target with no pointer to shape, a phone's, answers ErrUnsupported: there is
+		// nothing to show, and the window goes on.
+		if err := painter.setCursor(next); err != nil && !errors.Is(err, ErrUnsupported) {
 			return err
 		}
 	}
@@ -1250,7 +1296,16 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 	return context, text.Placement, index
 }
 
+func (painter *painter) menuCapturesKeys() bool {
+	return painter.captureMenuKeys != nil && painter.captureMenuKeys()
+}
+
 func (painter *painter) syncTextInput() platform.TextInputUpdate {
+	// A menu's focus trap can move UI focus to a row or to no control.
+	// Publishing that as a new text owner would cancel the IME composition.
+	if painter.menuCapturesKeys() {
+		return platform.TextInputUpdate{}
+	}
 	if painter.textInput == nil {
 		return painter.disableTextInput()
 	}

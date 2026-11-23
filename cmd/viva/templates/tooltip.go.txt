@@ -412,6 +412,9 @@ func (hover *HoverTooltip) holdByFinger(canvas *gfx.Canvas) {
 		return
 	}
 	for _, hit := range canvas.Hits() {
+		if hit.ID == event.Target && (hit.Role == gfx.RoleTextField || hit.Role == gfx.RoleTerminal) {
+			return // a held finger selects the text of a field
+		}
 		if hit.ID == event.Target && !hit.Block && hit.Hint != "" {
 			hover.held, hover.heldSince = event.Target, canvas.Now()
 			return

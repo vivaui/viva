@@ -161,7 +161,7 @@ func TestFittedArabicRunRemainsWholeWhenClipped(t *testing.T) {
 	}
 	defer offscreen.Close()
 	white := gfx.RGB(255, 255, 255)
-	render := func(italic, split bool) []byte {
+	render := func(italic, split bool, at float32) []byte {
 		t.Helper()
 		label := TextLabel{
 			Value: text, X: x, Y: y, Width: width, Height: height, FontSize: 24, Mono: true, CellWidth: 12,
@@ -171,9 +171,9 @@ func TestFittedArabicRunRemainsWholeWhenClipped(t *testing.T) {
 		labels := []TextLabel{label}
 		if split {
 			label.Clipped = true
-			label.Clip = gfx.Rect{X: x, Y: y, Width: width / 2, Height: height}
+			label.Clip = gfx.Rect{X: x, Y: y, Width: at, Height: height}
 			right := label
-			right.Clip.X += width / 2
+			right.Clip.X += at
 			labels = []TextLabel{label, right}
 		}
 		if err := offscreen.Set(nil, labels, nil); err != nil {
@@ -185,8 +185,8 @@ func TestFittedArabicRunRemainsWholeWhenClipped(t *testing.T) {
 		}
 		return pixels
 	}
-	upright := render(false, false)
-	slanted := render(true, false)
+	upright := render(false, false, 0)
+	slanted := render(true, false, 0)
 	if bytes.Equal(upright, slanted) {
 		t.Fatal("fitted italic text was painted upright")
 	}
@@ -194,8 +194,10 @@ func TestFittedArabicRunRemainsWholeWhenClipped(t *testing.T) {
 		italic bool
 		whole  []byte
 	}{{false, upright}, {true, slanted}} {
-		if !bytes.Equal(style.whole, render(style.italic, true)) {
-			t.Errorf("clipping changed the pixels of the full Arabic line (italic=%v)", style.italic)
+		for _, at := range []float32{width / 2, width/2 + 0.25} {
+			if !bytes.Equal(style.whole, render(style.italic, true, at)) {
+				t.Errorf("clipping at %.2f changed the pixels of the full Arabic line (italic=%v)", at, style.italic)
+			}
 		}
 	}
 }

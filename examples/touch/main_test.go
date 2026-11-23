@@ -2,6 +2,7 @@ package main
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -315,5 +316,85 @@ func TestThePageShowsWhatTheSystemDid(t *testing.T) {
 	}
 	if !shown(driver, "System: memory warning") {
 		t.Fatal("the page does not show the memory warning")
+	}
+}
+
+// typeInName focuses the name field with a tap and types value into it.
+func typeInName(t *testing.T, driver *app.Driver, value string) gfx.Rect {
+	t.Helper()
+	field := control(t, driver, "Name").Bounds
+	x, y := field.X+field.Width/2, field.Y+field.Height/2
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type(value); err != nil {
+		t.Fatal(err)
+	}
+	return field
+}
+
+// wordX is the x of the middle of a word of the name field, from where the
+// field paints it.
+func wordX(t *testing.T, driver *app.Driver, word string) float32 {
+	t.Helper()
+	for _, label := range driver.Snapshot().Labels {
+		if strings.Contains(label.Value, word) {
+			at := strings.Index(label.Value, word)
+			share := (float32(at) + float32(len(word))/2) / float32(len(label.Value))
+			return label.Bounds.X + label.Bounds.Width*share
+		}
+	}
+	t.Fatalf("no label shows %q", word)
+	return 0
+}
+
+// A finger lifted inside the text puts the caret there, as on a phone; typing goes in
+// at that point, not at the end.
+func TestATapPutsTheCaretWhereTheFingerLifts(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	field := typeInName(t, driver, "hello world")
+	y := field.Y + field.Height/2
+	// Between "hello" and " world": where the space starts.
+	x := wordX(t, driver, "hello") + (wordX(t, driver, "world")-wordX(t, driver, "hello"))/2 - 4
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("X"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.name; got == "hello worldX" || !strings.Contains(got, "X") {
+		t.Fatalf("typed after a tap mid-text: %q, want the X inside the text", got)
+	}
+}
+
+// A finger held on a word selects it; typing replaces it.
+func TestAHeldFingerSelectsTheWord(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	field := typeInName(t, driver, "hello world")
+	x, y := wordX(t, driver, "world"), field.Y+field.Height/2
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("there"); err != nil {
+		t.Fatal(err)
+	}
+	if m.name != "hello there" {
+		t.Fatalf("name = %q after holding on \"world\" and typing, want %q", m.name, "hello there")
 	}
 }

@@ -65,6 +65,8 @@ type Driver struct {
 	// modifierKeys is the modifier keys KeyDown holds, one bit per
 	// gfx.KeyShiftLeft..ui.KeyMetaRight.
 	modifierKeys uint8
+	// A menu press may close the menu. Its repeats and release still belong to it.
+	menuKeys map[uint32]bool
 
 	clipboard      string
 	notifications  []Notification
@@ -602,6 +604,16 @@ func driverTyped(key gfx.Key, character string, modifiers gfx.Modifiers) string 
 	return character
 }
 
+func (driver *Driver) menuKey(key gfx.Key, character string, modifiers gfx.Modifiers) error {
+	event := platform.KeyEvent{Key: key, Modifiers: modifiers, Text: strings.ToLower(character)}
+	if key == gfx.KeyUnknown {
+		_, _, err := driver.painter.shortcut(event)
+		return err
+	}
+	_, err := driver.painter.key(event)
+	return err
+}
+
 // KeyDown presses a key and keeps it down until KeyUp, as a person holding it
 // would. Modifier keys (gfx.KeyShiftLeft and the like) stay held for every pointer,
 // scroll and key the driver delivers meanwhile, so Shift-click and Ctrl-click
@@ -617,6 +629,17 @@ func (driver *Driver) KeyDown(key gfx.Key, character string) error {
 		driver.modifierKeys |= 1 << (key - gfx.KeyShiftLeft)
 	}
 	modifiers := driver.heldModifiers()
+	code := driverKeyCode(key, character)
+	if driver.menuKeys[code] {
+		return nil
+	}
+	if driver.painter.menuCapturesKeys() && !key.IsModifier() {
+		if driver.menuKeys == nil {
+			driver.menuKeys = make(map[uint32]bool)
+		}
+		driver.menuKeys[code] = true
+		return driver.menuKey(key, character, modifiers)
+	}
 	if !driver.HoldsKeys() {
 		switch {
 		case key.IsModifier():
@@ -668,6 +691,11 @@ func (driver *Driver) KeyUp(key gfx.Key, character string) error {
 	if key.IsModifier() {
 		driver.modifierKeys &^= 1 << (key - gfx.KeyShiftLeft)
 	}
+	code := driverKeyCode(key, character)
+	if driver.menuKeys[code] {
+		delete(driver.menuKeys, code)
+		return nil
+	}
 	if !driver.HoldsKeys() && !(key.IsModifier() && driver.painter.onModifierTap != nil) {
 		return nil
 	}
@@ -699,6 +727,7 @@ func (driver *Driver) LoseFocus() error {
 		return err
 	}
 	driver.modifierKeys = 0
+	clear(driver.menuKeys)
 	_, err := driver.painter.focusLost()
 	return err
 }
@@ -717,6 +746,9 @@ func (driver *Driver) Key(key gfx.Key, modifiers gfx.Modifiers) error {
 		return err
 	}
 	modifiers |= driver.heldModifiers()
+	if driver.painter.menuCapturesKeys() {
+		return driver.menuKey(key, "", modifiers)
+	}
 	if key == gfx.KeySpace && driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: " "})
 		if err != nil || handled {
@@ -811,6 +843,9 @@ func (driver *Driver) terminalKey(key gfx.Key, modifiers gfx.Modifiers, text str
 func (driver *Driver) Chord(modifiers gfx.Modifiers, character string) error {
 	if err := driver.Pump(); err != nil {
 		return err
+	}
+	if driver.painter.menuCapturesKeys() {
+		return driver.menuKey(gfx.KeyUnknown, character, modifiers)
 	}
 	if driver.config.OnShortcut != nil && !driver.painter.nativeText.State.Composing {
 		_, handled, err := driver.painter.shortcut(platform.KeyEvent{Modifiers: modifiers, Text: strings.ToLower(character)})
@@ -945,6 +980,9 @@ func (driver *Driver) ShortcutChord(modifiers gfx.Modifiers, character rune) (bo
 		return false, err
 	}
 	shortcut := shortcutText(character)
+	if driver.painter.menuCapturesKeys() {
+		return true, driver.menuKey(gfx.KeyUnknown, shortcut, modifiers)
+	}
 	if driver.editing() && !driver.terminal() {
 		event := platform.KeyEvent{Modifiers: input.Modifiers(modifiers), Text: shortcut}
 		if command, ok := platform.TextEditingCommand(event); ok {

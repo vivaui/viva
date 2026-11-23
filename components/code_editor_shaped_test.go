@@ -8,6 +8,39 @@ import (
 	"github.com/vivaui/viva/text"
 )
 
+type countingShapedEngine struct {
+	gfx.TextEngine
+	calls int
+}
+
+func (engine *countingShapedEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	engine.calls++
+	return append(dst,
+		gfx.FittedMonoCaret{Offset: 0, Leading: 0, Trailing: 0},
+		gfx.FittedMonoCaret{Offset: len(value), Leading: span, Trailing: span},
+	), true
+}
+
+// A tall viewport should not clear the cache halfway through every paint.
+func TestCodeEditorShapedCacheHoldsATallViewport(t *testing.T) {
+	const lines = 70
+	const row = "a\u05d0"
+	f := newCodeFixture(strings.Repeat(row+"\n", lines-1) + row)
+	engine := &countingShapedEngine{TextEngine: gfx.ReferenceTextEngine()}
+	f.canvas.SetTextEngine(engine)
+	f.snapshot.ShapedBidi = true
+	f.bounds.Height = 2000
+	f.paint()
+	if engine.calls < lines {
+		t.Fatalf("first paint shaped %d rows, want at least %d", engine.calls, lines)
+	}
+	engine.calls = 0
+	f.paint()
+	if engine.calls != 0 {
+		t.Fatalf("repainting an unchanged viewport shaped %d rows again, want 0", engine.calls)
+	}
+}
+
 func testCodeEditorBidiOverrideAcrossSoftBreak(t *testing.T, engine gfx.TextEngine) {
 	t.Helper()
 	for _, test := range []struct{ name, value, character string }{
