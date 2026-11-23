@@ -20,6 +20,12 @@ public final class Native {
     /** The surface of the window has a size (and the display a density), or a new one. */
     public static native void surfaceChanged(Surface surface, int width, int height, float density);
 
+    /**
+     * The system shows the surface once it has a frame: the program draws the window on it
+     * and this returns when the frame is presented.
+     */
+    public static native void redrawNeeded();
+
     /** The surface is going away; the program must stop drawing to it before this returns. */
     public static native void surfaceDestroyed();
 
