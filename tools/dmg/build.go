@@ -16,6 +16,11 @@ import (
 // backgroundFile is the picture's name at the top of the image. The leading dot
 // keeps the Finder from showing it.
 const backgroundFile = ".background.png"
+
+// stagedBundle is the bundle's name on the writable volume before the Finder
+// sees it: hidden, and without an .app suffix, so the temporary volume never
+// shows an installable application. settle renames it to the real name only
+// after the volume is attached.
 const stagedBundle = ".viva-bundle"
 
 // Options describes one image to build.
