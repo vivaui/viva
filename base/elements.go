@@ -318,7 +318,7 @@ func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool
 		b = c.f.Field(field, id, Label, placeholder)
 	}
 	c.f.bindField(b, field)
-	p.fields = append(p.fields, fieldEntry{ID: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: id, field: field, box: b.i})
 	return b
 }
 
@@ -345,7 +345,7 @@ func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string
 	}
 	b := c.f.Field(field, ID, Label, placeholder)
 	c.f.bindField(b, field)
-	p.fields = append(p.fields, fieldEntry{ID: ID, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: ID, field: field, box: b.i})
 	return b
 }
 
@@ -362,7 +362,7 @@ func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
 	if p.areaKey == nil {
 		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
 	}
-	p.fields = append(p.fields, fieldEntry{ID: id, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: id, field: field, box: b.i})
 	return b
 }
 
@@ -382,7 +382,7 @@ func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
 	if p.areaKey == nil {
 		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
 	}
-	p.fields = append(p.fields, fieldEntry{ID: ID, field: field})
+	p.fields = append(p.fields, fieldEntry{ID: ID, field: field, box: b.i})
 	return b
 }
 
