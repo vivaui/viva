@@ -15,6 +15,18 @@ import (
 	"testing"
 )
 
+// requireDiskImages skips a test that makes real disk images with hdiutil unless
+// VIVA_DISK_IMAGE_TESTS is set. The disk image service of a shared macOS machine fails
+// now and then whatever the code does, so these run where a change can affect how an
+// image is made (the disk-image CI job), not on every change.
+func requireDiskImages(t *testing.T) {
+	t.Helper()
+	requireMac(t)
+	if os.Getenv("VIVA_DISK_IMAGE_TESTS") == "" {
+		t.Skip("makes real disk images with hdiutil; set VIVA_DISK_IMAGE_TESTS=1 to run")
+	}
+}
+
 func requireMac(t *testing.T) {
 	t.Helper()
 	if runtime.GOOS != "darwin" {

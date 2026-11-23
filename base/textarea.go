@@ -1,7 +1,9 @@
 package base
 
 import (
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
@@ -139,7 +141,12 @@ type TextareaLayout struct {
 	wrap   bool
 	size   float32
 	width  float32 // the width rows were wrapped to
-	fitted bool
+	fonts  uint32  // the canvas's FontGeneration the rows were measured in
+	// exact tells for each row whether the canvas wrapped it (Show) or it is still
+	// the estimate Fit made; estimated counts the estimated ones.
+	exact     []bool
+	estimated int
+	fitted    bool
 	// boxWidth is the outer width the box was last laid out in, which AutoGrow
 	// measures the next time the page lays the box out. It is zero before the
 	// first paint.
@@ -228,8 +235,12 @@ func (layout *TextareaLayout) Wheel(event gfx.ScrollEvent) bool {
 // after a final newline. The rows it wraps are the ones the next paint at that
 // width uses.
 func (layout *TextareaLayout) RowCount(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool) int {
+	return layout.rowCount(canvas, theme, text, width, noWrap, -1)
+}
+
+func (layout *TextareaLayout) rowCount(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool, most int) int {
 	layout.Fit(canvas, text, theme.Metrics.FontSizeM, textareaMax(0, width-2*theme.Metrics.TextInsetX()), !noWrap)
-	return len(layout.Rows)
+	return layout.realizeUpTo(most)
 }
 
 // ContentHeight is the height a box of outer width width needs to show text
@@ -237,7 +248,16 @@ func (layout *TextareaLayout) RowCount(canvas *gfx.Canvas, theme gfx.Theme, text
 // `field-sizing: content` of shadcn's textarea. The application caps it where it
 // wants the box to start scrolling.
 func (layout *TextareaLayout) ContentHeight(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool) float32 {
-	rows := layout.RowCount(canvas, theme, text, width, noWrap)
+	return layout.ContentHeightUpTo(canvas, theme, text, width, noWrap, -1)
+}
+
+// ContentHeightUpTo is ContentHeight for a box that grows to at most maxRows rows: the
+// rows past that are not wrapped with the canvas, so a long text in an AutoGrow box costs
+// the rows it can show. The height is exact while the text takes no more than maxRows
+// rows, and taller than maxRows rows when it takes more. A negative maxRows is
+// ContentHeight.
+func (layout *TextareaLayout) ContentHeightUpTo(canvas *gfx.Canvas, theme gfx.Theme, text string, width float32, noWrap bool, maxRows int) float32 {
+	rows := layout.rowCount(canvas, theme, text, width, noWrap, maxRows)
 	return textareaMax(64, float32(rows)*(theme.Metrics.FontSizeM+7)+2*textareaPadY)
 }
 
@@ -350,19 +370,237 @@ func (layout *TextareaLayout) setUpstream(offset int, upstream bool) {
 	layout.Upstream, layout.UpstreamCaret = upstream, offset
 }
 
-// fit wraps text to width unless the rows already are, and keeps what it wrapped
-// them with for the events that follow.
+// Fit lays text out in rows at width unless they already are, and keeps what it
+// laid them out with for the events that follow.
+//
+// The rows are estimated with the reference metrics (gfx.WrapRowEstimate), which shape
+// nothing, and Show wraps the ones the box shows with the canvas: opening a long text
+// costs the rows in view, not one shaped line for every row of the text. A paragraph
+// wraps on its own, so when only the text changed since the last fit, only the
+// paragraphs an edit touched are laid out again: the rows before them are kept and the
+// rows after them move by the length the edit added or removed. Other fonts, a size or
+// a width lay the whole text out again.
 func (layout *TextareaLayout) Fit(canvas *gfx.Canvas, text string, size, width float32, wrap bool) {
+	fonts := canvas.FontGeneration()
+	same := layout.fitted && layout.canvas == canvas && layout.fonts == fonts && layout.wrap == wrap && layout.size == size && layout.width == width
 	layout.canvas = canvas
-	if layout.fitted && layout.wrap == wrap && layout.size == size && layout.width == width && layout.text == text {
+	if same && layout.text == text {
 		return
 	}
-	layout.fitted, layout.wrap, layout.size, layout.width, layout.text = true, wrap, size, width, text
-	wrapWidth := width
-	if !wrap {
-		wrapWidth = 0
+	layout.size, layout.width, layout.wrap = size, width, wrap
+	if same {
+		layout.rewrap(text)
+	} else {
+		layout.Rows, layout.exact, layout.estimated = layout.Rows[:0], layout.exact[:0], 0
+		layout.estimate(text, 0, len(text)+1)
 	}
-	layout.Rows = canvas.WrapRows(layout.Rows[:0], text, size, gfx.WeightRegular, wrapWidth)
+	layout.fitted, layout.fonts, layout.text = true, fonts, text
+}
+
+// wrapWidth is the width rows wrap at, 0 for rows that never wrap.
+func (layout *TextareaLayout) wrapWidth() float32 {
+	if !layout.wrap {
+		return 0
+	}
+	return layout.width
+}
+
+// estimate appends the estimated rows of the paragraphs of text from the one starting
+// at from to the one before resume (len(text)+1 for the last).
+func (layout *TextareaLayout) estimate(text string, from, resume int) {
+	width := layout.wrapWidth()
+	for at := from; at >= 0 && at < resume; {
+		var row gfx.TextRow
+		row, at = gfx.WrapRowEstimate(text, at, layout.size, gfx.WeightRegular, width)
+		layout.Rows = append(layout.Rows, row)
+		// A row that does not wrap is measured by nothing, so it is what the canvas gives.
+		layout.exact = append(layout.exact, width <= 0)
+		if width > 0 {
+			layout.estimated++
+		}
+	}
+}
+
+// rewrap lays out again the paragraphs of the last fitted text that differ in text,
+// keeping the rows of the others.
+func (layout *TextareaLayout) rewrap(text string) {
+	old := layout.text
+	prefix := commonPrefix(old, text)
+	suffix := commonSuffix(old[prefix:], text[prefix:])
+	// The edit spans the paragraphs from the one the first changed byte is in to the
+	// one the last is in; the newline that ends that one is the first in the suffix.
+	from := strings.LastIndexByte(text[:prefix], '\n') + 1
+	oldResume, newResume := len(old)+1, len(text)+1 // where the next untouched paragraph starts
+	if newline := strings.IndexByte(old[len(old)-suffix:], '\n'); newline >= 0 {
+		oldResume = len(old) - suffix + newline + 1
+		newResume = len(text) - suffix + newline + 1
+	}
+	rows := layout.Rows
+	kept := sort.Search(len(rows), func(index int) bool { return rows[index].Start >= from })
+	tail := len(rows)
+	if oldResume <= len(old) {
+		tail = sort.Search(len(rows), func(index int) bool { return rows[index].Start >= oldResume })
+	}
+	end := len(rows)
+	layout.estimate(text, from, newResume)
+	edited := len(layout.Rows) - end
+	layout.splice(kept, tail, end)
+	if delta := len(text) - len(old); delta != 0 {
+		for index := kept + edited; index < len(layout.Rows); index++ {
+			layout.Rows[index].Start += delta
+			layout.Rows[index].End += delta
+		}
+	}
+}
+
+// splice replaces rows [from, to) with the rows appended after end, the length the rows
+// had before: the new rows are turned to sit before the rows after to, and the old ones
+// are dropped. The rows' exactness moves with them.
+func (layout *TextareaLayout) splice(from, to, end int) {
+	for index := from; index < to; index++ {
+		if !layout.exact[index] {
+			layout.estimated--
+		}
+	}
+	rows, exact := layout.Rows, layout.exact
+	slices.Reverse(rows[to:end])
+	slices.Reverse(rows[end:])
+	slices.Reverse(rows[to:])
+	slices.Reverse(exact[to:end])
+	slices.Reverse(exact[end:])
+	slices.Reverse(exact[to:])
+	layout.Rows = append(rows[:from], rows[to:]...)
+	layout.exact = append(exact[:from], exact[to:]...)
+}
+
+// paragraphRows widens rows [first, last] to the whole paragraphs they are in, among
+// the first count rows.
+func (layout *TextareaLayout) paragraphRows(first, last, count int) (int, int) {
+	rows, text := layout.Rows[:count], layout.text
+	for first > 0 && text[rows[first].Start-1] != '\n' {
+		first--
+	}
+	for last+1 < len(rows) && text[rows[last+1].Start-1] != '\n' {
+		last++
+	}
+	return first, last
+}
+
+// realize wraps with the canvas the paragraphs of rows [first, last] whose rows are
+// estimated, and reports whether it changed any. The text at the top of the box stays
+// there, and the row of the caret the box last followed is the row it is on now.
+func (layout *TextareaLayout) realize(first, last int) bool {
+	if layout.estimated == 0 || len(layout.Rows) == 0 {
+		return false
+	}
+	first, last = max(first, 0), min(last, len(layout.Rows)-1)
+	if first > last {
+		return false
+	}
+	first, last = layout.paragraphRows(first, last, len(layout.Rows))
+	if !slices.Contains(layout.exact[first:last+1], false) {
+		return false
+	}
+	var top int
+	var within float32
+	if layout.LineHeight > 0 {
+		row := min(int(layout.Scroll/layout.LineHeight), len(layout.Rows)-1)
+		top, within = layout.Rows[row].Start, layout.Scroll-float32(row)*layout.LineHeight
+	}
+	// The block is laid out again on the end of the rows, a paragraph at a time: one
+	// that is exact is copied, an estimated one is wrapped with the canvas.
+	text, width, end := layout.text, layout.wrapWidth(), len(layout.Rows)
+	for row := first; row <= last; {
+		_, after := layout.paragraphRows(row, row, end)
+		if !slices.Contains(layout.exact[row:after+1], false) {
+			layout.Rows = append(layout.Rows, layout.Rows[row:after+1]...)
+			layout.exact = append(layout.exact, layout.exact[row:after+1]...)
+		} else {
+			resume := len(text) + 1
+			if newline := strings.IndexByte(text[layout.Rows[row].Start:], '\n'); newline >= 0 {
+				resume = layout.Rows[row].Start + newline + 1
+			}
+			for at := layout.Rows[row].Start; at >= 0 && at < resume; {
+				var wrapped gfx.TextRow
+				wrapped, at = layout.canvas.WrapRow(text, at, layout.size, gfx.WeightRegular, width)
+				layout.Rows = append(layout.Rows, wrapped)
+				layout.exact = append(layout.exact, true)
+			}
+		}
+		row = after + 1
+	}
+	layout.splice(first, last+1, end)
+	if layout.LineHeight > 0 {
+		layout.Scroll = float32(layout.rowAt(top))*layout.LineHeight + within
+	}
+	if layout.FollowedValid {
+		layout.followedRow = layout.RowOf(layout.followed)
+	}
+	return true
+}
+
+// rowAt is the row that holds offset.
+func (layout *TextareaLayout) rowAt(offset int) int {
+	return max(sort.Search(len(layout.Rows), func(index int) bool { return layout.Rows[index].Start > offset })-1, 0)
+}
+
+// Show settles what the box paints after Fit: the rows in view are wrapped with the
+// canvas, the text at the top of the box stays where it is as they change, and a caret
+// that moved since the last paint is kept in view as Follow keeps it. Content and
+// LineHeight are the box's for this paint.
+func (layout *TextareaLayout) Show(caret int) {
+	moved := !layout.FollowedValid || layout.followed != caret || layout.followedRow != layout.RowOf(caret)
+	for {
+		layout.Follow(caret, layout.RowOf(caret))
+		if layout.LineHeight <= 0 {
+			return
+		}
+		first := int(layout.Scroll / layout.LineHeight)
+		last := int((layout.Scroll + layout.Content.Height) / layout.LineHeight)
+		if !layout.realize(first, last) {
+			return
+		}
+		if moved {
+			layout.FollowedValid = false // the rows the caret was followed to have changed
+		}
+	}
+}
+
+// realizeUpTo wraps with the canvas the rows from the first until more than most are
+// exact, or all of them for most < 0, and returns how many rows the text takes: exactly
+// while that is no more than most.
+func (layout *TextareaLayout) realizeUpTo(most int) int {
+	if most < 0 {
+		most = len(layout.Rows)
+	}
+	for layout.realize(0, most) {
+	}
+	return len(layout.Rows)
+}
+
+// commonPrefix is the length of the longest prefix a and b share, compared a block
+// at a time so a long text costs a memory comparison, not a loop over its bytes.
+func commonPrefix(a, b string) int {
+	n := min(len(a), len(b))
+	at := 0
+	for block := 4096; at+block <= n && a[at:at+block] == b[at:at+block]; at += block {
+	}
+	for at < n && a[at] == b[at] {
+		at++
+	}
+	return at
+}
+
+// commonSuffix is the length of the longest suffix a and b share.
+func commonSuffix(a, b string) int {
+	n := min(len(a), len(b))
+	at := 0
+	for block := 4096; at+block <= n && a[len(a)-at-block:len(a)-at] == b[len(b)-at-block:len(b)-at]; at += block {
+	}
+	for at < n && a[len(a)-at-1] == b[len(b)-at-1] {
+		at++
+	}
+	return at
 }
 
 // rowOf is the row the caret at offset is drawn on.
