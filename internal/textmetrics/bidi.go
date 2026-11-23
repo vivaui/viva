@@ -364,7 +364,11 @@ func hitBidi(value string, size, weight float32, x float32) CaretHit {
 	left := 0
 	for _, run := range b.runs {
 		width := units(value[run.Start:run.End], table)
-		if x > px(left) && x < px(left+width) {
+		// A click exactly on a run's edge belongs to the run whose right edge
+		// it is, and the first and last runs keep the line's own ends: without
+		// that a click on the leftmost or rightmost pixel falls through to the
+		// inner caret of the nearest run.
+		if x >= px(left) && x <= px(left+width) {
 			best, distance := CaretHit{}, float32(-1)
 			at := snap(value, run.Start)
 			if at < run.Start {

@@ -205,6 +205,25 @@ func TestHitAtUsesTheSideOfADirectionBoundary(t *testing.T) {
 	}
 }
 
+func TestHitAtKeepsTheLineEdges(t *testing.T) {
+	const value = "ab אַב cd"
+	const size = 20
+	width := Width(value, size, 0)
+	for _, check := range []struct {
+		name         string
+		edge, inside float32
+	}{
+		{"left", 0, 0.0001},
+		{"right", width, width - 0.0001},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			if got, want := HitAt(value, size, 0, check.edge), HitAt(value, size, 0, check.inside); got != want {
+				t.Fatalf("click on the %s edge at %g gave %+v, just inside gave %+v", check.name, check.edge, got, want)
+			}
+		})
+	}
+}
+
 func nextRuneOffset(value string, offset int) int {
 	if offset >= len(value) {
 		return offset + 1
