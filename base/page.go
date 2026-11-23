@@ -753,6 +753,15 @@ func (p *Page) Paint(Surface *gfx.Canvas, Size Size) {
 // out at the slot's rectangle; a page given no Tree names its controls in the
 // canvas's. A host that draws a page this way routes its input with Key,
 // Pointer, Wheel and TextInput; Config does that for a whole window.
+//
+// Clicks are the part of that routing a host has to finish itself: Clicked(id)
+// is true only in an event pass, which the painter opens around one paint for
+// it (see Canvas.BeginEventPass). A page drawn here is not painted by Config's
+// painter, so a press a control would act on reaches nothing unless the host
+// delivers it. Take the id from the last paint's Canvas.Hits, hit-test it at the
+// release, then paint once between Canvas.BeginEventPass and Canvas.EndEventPass
+// and ask for another paint: the event pass's own output is discarded, as the
+// painter discards it, so the frame the user sees is the one after the change.
 func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	if tree := Surface.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
