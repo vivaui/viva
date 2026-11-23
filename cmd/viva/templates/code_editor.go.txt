@@ -142,6 +142,8 @@ type CodeEditorSnapshot struct {
 	// ShapedBidi opts unwrapped plain grid rows into native bidi shaping where
 	// available. Tabs, representations and visual whitespace/indent markers
 	// still use the logical grid, as do editors with highlighting or decorations.
+	// A row over 4096 bytes keeps the grid, and a platform whose text engine
+	// cannot shape a fitted monospaced run draws the grid unchanged.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// TabWidth is the width of a tab stop in cells; zero is four.
