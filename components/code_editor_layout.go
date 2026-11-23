@@ -564,7 +564,7 @@ func (editor *CodeEditor) OffsetWithVirtualAt(point gfx.Point) (offset, virtualC
 	if hit, shaped := editor.shapedHit(row, x); shaped {
 		editor.rememberShapedHit(row, hit)
 		editor.goalActive = false
-		editor.setUpstream(hit.Offset, false)
+		editor.setUpstream(hit.Offset, hit.Offset == int(row.end) && editor.softWrapped(index))
 		return hit.Offset, 0, true
 	}
 	if editor.shaping != nil {

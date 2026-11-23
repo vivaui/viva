@@ -139,11 +139,14 @@ type CodeEditorSnapshot struct {
 	FontSize float32
 	// MonoFace is the fixed-pitch font the code is set in.
 	MonoFace gfx.MonoFace
-	// ShapedBidi opts unwrapped plain grid rows into native bidi shaping where
-	// available. Tabs, representations and visual whitespace/indent markers
-	// still use the logical grid, as do editors with highlighting or decorations.
-	// A row over 4096 bytes keeps the grid, and a platform whose text engine
-	// cannot shape a fitted monospaced run draws the grid unchanged.
+	// ShapedBidi opts plain grid rows into native bidi shaping where available.
+	// Representations and visual whitespace/indent markers still use the logical
+	// grid, as do editors with highlighting or decorations. A row over 4096
+	// bytes keeps the grid, and a platform whose text engine cannot shape a
+	// fitted monospaced run draws the grid unchanged. A wrapped continuation
+	// takes its paragraph's base direction, not the full bidi levels a strong
+	// context before the break could give it; an explicit embedding or isolate
+	// keeps the grid.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
 	// TabWidth is the width of a tab stop in cells; zero is four.
@@ -1050,16 +1053,21 @@ func (paint *codePaint) row(index int, y float32) {
 		paint.lineEnding(row, y, left)
 	}
 	if paint.showWrapSymbol && editor.softWrapped(index) {
-		canvas.Label("↪", gfx.Rect{
-			X:     editor.content.X + editor.content.Width - paint.cellWidth,
-			Y:     y + (paint.lineHeight-paint.cellHeight)/2,
-			Width: paint.cellWidth, Height: paint.cellHeight,
-		}, gfx.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
+		paint.wrapSymbol(y)
 	}
 
 	if !paint.deferOverlays {
 		paint.overlays(index, y)
 	}
+}
+
+func (paint *codePaint) wrapSymbol(y float32) {
+	content := paint.editor.content
+	paint.canvas.Label("↪", gfx.Rect{
+		X:     content.X + content.Width - paint.cellWidth,
+		Y:     y + (paint.lineHeight-paint.cellHeight)/2,
+		Width: paint.cellWidth, Height: paint.cellHeight,
+	}, gfx.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
 }
 
 func (paint *codePaint) overlays(index int, y float32) {
