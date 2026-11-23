@@ -107,8 +107,6 @@ func Column(c C) Box { return base.Column(c) }
 
 func Stack(c C) Box { return base.Stack(c) }
 
-func SafeArea(c C) Box { return base.SafeArea(c) }
-
 func Divider(c C) Box { return base.Divider(c) }
 
 func Spacer(c C) Box { return base.Spacer(c) }

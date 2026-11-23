@@ -234,3 +234,52 @@ func TestAFlingStepDoesNotAllocate(t *testing.T) {
 		t.Fatalf("a fling frame allocated %v times", allocations)
 	}
 }
+
+// Two fingers are a pinch the application hears from begin to end, and the first finger's
+// press does not click or scroll.
+func TestTwoFingersPinchAndNeverPressOrScroll(t *testing.T) {
+	var events []gfx.PinchEvent
+	f := newTouchFixture(t)
+	f.driver.painter.onPinch = func(event gfx.PinchEvent) gfx.EventResult {
+		events = append(events, event)
+		return gfx.EventResult{Handled: true}
+	}
+	f.must(t, f.driver.TouchDown(1, 100, 300))
+	f.must(t, f.driver.TouchDown(2, 200, 300))
+	f.must(t, f.driver.TouchMove(2, 300, 300))
+	f.must(t, f.driver.TouchMove(1, 50, 300))
+	f.must(t, f.driver.TouchUp(2, 300, 300))
+	f.must(t, f.driver.TouchUp(1, 50, 300))
+	if len(events) != 4 || events[0].Phase != gfx.PinchBegin || events[len(events)-1].Phase != gfx.PinchEnd {
+		t.Fatalf("events = %+v, want begin, two changes and end", events)
+	}
+	last := events[len(events)-2]
+	if last.Scale < 2.4 || last.Scale > 2.6 || last.X != 175 {
+		t.Fatalf("the last change = %+v, want scale 2.5 about x 175", last)
+	}
+	if f.clicks != 0 || f.presses != 0 || f.scrolls != 0 {
+		t.Fatalf("a pinch clicked %d, pressed %d and scrolled %d times", f.clicks, f.presses, f.scrolls)
+	}
+}
+
+// A page that does not listen to pinches is not bothered by them.
+func TestAPinchNobodyListensToDoesNothing(t *testing.T) {
+	f := newTouchFixture(t)
+	f.must(t, f.driver.TouchDown(1, 100, 300))
+	f.must(t, f.driver.TouchDown(2, 200, 300))
+	f.must(t, f.driver.TouchMove(2, 300, 300))
+	f.must(t, f.driver.TouchUp(2, 300, 300))
+	f.must(t, f.driver.TouchUp(1, 100, 300))
+}
+
+// The public pinch phases are the state machine's, converted by number.
+func TestPinchPhasesConvertByNumber(t *testing.T) {
+	for _, c := range []struct {
+		inner  interaction.PinchPhase
+		public gfx.PinchPhase
+	}{{interaction.PinchBegin, gfx.PinchBegin}, {interaction.PinchChange, gfx.PinchChange}, {interaction.PinchEnd, gfx.PinchEnd}} {
+		if gfx.PinchPhase(c.inner) != c.public {
+			t.Fatalf("phase %d converts to %d, want %d", c.inner, gfx.PinchPhase(c.inner), c.public)
+		}
+	}
+}

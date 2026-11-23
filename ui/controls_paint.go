@@ -339,7 +339,7 @@ func measureTextareaNode(f *Frame, n *Node) {
 		// paint records and then asks for before it is shown.
 		if layout := snapshot.Layout; layout != nil {
 			if width := layout.BoxWidth(); width > 0 {
-				height := layout.ContentHeight(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap)
+				height := layout.ContentHeightUpTo(f.Surface, f.Palette, snapshot.LayoutText(), width, snapshot.NoWrap, int(n.MaxLines))
 				maxHeight := float32(n.MaxLines)*line + 2*base.TextareaPadY
 				n.Pref[AxisY] = max(64, min(height, maxHeight))
 			}

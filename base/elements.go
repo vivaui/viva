@@ -14,21 +14,6 @@ func Row(c C) Box    { return c.page.container(c.f.Row()) }
 func Column(c C) Box { return c.page.container(c.f.Column()) }
 func Stack(c C) Box  { return c.page.container(c.f.Stack()) }
 
-// SafeArea is a column that fills its container and keeps what it holds inside what the
-// system draws over the window's edges: the status bar and the sensor housing, the home
-// indicator or navigation bar, a cutout. A phone's window runs under them, so the page's
-// background reaches the screen's edges while its content stays readable and tappable. It is
-// padded by the window's SafeArea as the last layout left it, and not at all on a desktop
-// window. Put it once at the root of a page; the padding is its own, so give the content
-// inside it a column of its own for any other.
-func SafeArea(c C) Box {
-	var inset gfx.Insets
-	if c.f.Surface != nil {
-		inset = c.f.Surface.SafeArea()
-	}
-	return Column(c).Fill().PadSides(inset.Top, inset.Right, inset.Bottom, inset.Left)
-}
-
 // Scroll is a scroll area whose offset is kept by the area's own name.
 func Scroll(c C) Box {
 	p := c.page

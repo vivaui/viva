@@ -1,7 +1,9 @@
-// Touch is the page a phone is checked with: what a finger does to each kind of control.
-// A long list scrolls under a finger and keeps going when it lifts; a tap presses; a
-// finger held on a row opens its menu; a slider takes a moving finger as a drag; and a
-// field brings the keyboard. The same page runs with a mouse on a desktop.
+// Touch is the page a touch screen is checked with: what a finger does to each kind of
+// control. A long list scrolls under a finger, keeps going when it lifts and gives at its
+// ends; a tap presses; a finger held on a row opens its menu, and on a control with a
+// tooltip shows it; a slider takes a moving finger as a drag; a tap in a field puts the
+// caret there and a held finger selects a word; and two fingers pinch the zoom. The same
+// page runs with a mouse.
 package main
 
 import (
@@ -9,6 +11,7 @@ import (
 	"log"
 
 	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
 
@@ -21,42 +24,43 @@ type model struct {
 	name   string
 	list   ui.ListState
 	menu   string
-	// lifecycle is what the system last did to the application: it went to the background, came
-	// back, or asked for memory.
-	lifecycle string
-	// invalidator asks for a new frame after a change the page was not told of.
-	invalidator *app.Invalidator
+	// zoom is set by pinching the page.
+	zoom float32
 }
 
 func newModel() *model {
-	m := &model{volume: ui.SliderState{Value: 40}}
+	m := &model{volume: ui.SliderState{Value: 40}, zoom: 1}
 	m.list.Label = func(i int) string { return fmt.Sprintf("Row %d", i+1) }
 	return m
 }
 
+// pinched is two fingers pinching the page: the zoom follows how far apart they go.
+func (m *model) pinched(event gfx.PinchEvent) gfx.EventResult {
+	if event.Phase == gfx.PinchChange {
+		m.zoom = min(max(m.zoom*event.Delta, 0.5), 4)
+	}
+	return gfx.EventResult{Handled: true, Repaint: true}
+}
+
 func (m *model) page(c ui.C) {
-	ui.SafeArea(c).Children(func() {
-		ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
-			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-				if ui.Button(c, "Tap me").Tooltip("Counts your taps").Clicked() {
-					m.taps++
-				}
-				ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))
-			})
-			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
-				ui.Text(c, fmt.Sprintf("Volume %.0f", m.volume.Value))
-				ui.Slider(c, &m.volume).Width(220).Step(1)
-			})
-			ui.Switch(c, &m.notify, "Notifications")
-			ui.TextField(c, &m.name, "Name", "Your name").Width(320)
-			if m.menu != "" {
-				ui.Text(c, m.menu).Muted()
+	ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
+		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+			if ui.Button(c, "Tap me").Tooltip("Counts your taps").Clicked() {
+				m.taps++
 			}
-			if m.lifecycle != "" {
-				ui.Text(c, "System: "+m.lifecycle).Muted()
-			}
-			ui.List(c, &m.list, rows, m.row).Label("Rows").Grow(1)
+			ui.Text(c, fmt.Sprintf("Tapped %d times", m.taps))
+			ui.Text(c, fmt.Sprintf("Zoom %.2f", m.zoom)).Muted()
 		})
+		ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
+			ui.Text(c, fmt.Sprintf("Volume %.0f", m.volume.Value))
+			ui.Slider(c, &m.volume).Width(220).Step(1)
+		})
+		ui.Switch(c, &m.notify, "Notifications")
+		ui.TextField(c, &m.name, "Name", "Your name").Width(320)
+		if m.menu != "" {
+			ui.Text(c, m.menu).Muted()
+		}
+		ui.List(c, &m.list, rows, m.row).Label("Rows").Grow(1)
 	})
 }
 
@@ -79,24 +83,10 @@ func (m *model) row(r ui.ListRow) {
 	})
 }
 
-// systemChanged notes what the system did; the next frame shows it.
-func (m *model) systemChanged(event app.LifecycleEvent) {
-	switch event {
-	case app.LifecycleBackground:
-		m.lifecycle = "background"
-	case app.LifecycleForeground:
-		m.lifecycle = "foreground"
-	case app.LifecycleMemoryWarning:
-		m.lifecycle = "memory warning"
-	}
-	m.invalidator.Invalidate()
-}
-
 func main() {
 	m := newModel()
-	m.invalidator = new(app.Invalidator)
-	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged}
-	if err := ui.Run(config, ui.PageConfig{View: m.page, Invalidator: m.invalidator}); err != nil {
+	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnPinch: m.pinched}
+	if err := ui.Run(config, ui.PageConfig{View: m.page}); err != nil {
 		log.Fatal(err)
 	}
 }
