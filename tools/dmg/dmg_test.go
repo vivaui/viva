@@ -111,18 +111,8 @@ func TestPropertyListsAreReadByTheSystem(t *testing.T) {
 	}
 }
 
-func requireDMGIntegration(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS != "darwin" {
-		t.Skip("disk images are made on macOS")
-	}
-	if os.Getenv("VIVA_DMG_INTEGRATION_TEST") != "1" {
-		t.Skip("set VIVA_DMG_INTEGRATION_TEST=1 to run disk image integration tests")
-	}
-}
-
 func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
-	requireDMGIntegration(t)
+	requireDiskImages(t)
 	bundle := filepath.Join(t.TempDir(), "Sample.app")
 	if err := os.MkdirAll(filepath.Join(bundle, "Contents"), 0o755); err != nil {
 		t.Fatal(err)
@@ -209,7 +199,9 @@ func TestBuiltImageHoldsTheLayoutTheFinderReads(t *testing.T) {
 }
 
 func TestDetachAcceptsAnAlreadyUnmountedImage(t *testing.T) {
-	requireDMGIntegration(t)
+	if runtime.GOOS != "darwin" {
+		t.Skip("disk images are made on macOS")
+	}
 	mount := filepath.Join(t.TempDir(), "mount")
 	if err := os.Mkdir(mount, 0o755); err != nil {
 		t.Fatal(err)
@@ -266,5 +258,19 @@ func TestNoArrowIsDrawnWhereTheIconsLeaveNoRoom(t *testing.T) {
 	}
 	if last != first {
 		t.Fatal("an arrow was drawn between icons with no room for it")
+	}
+}
+
+// requireDiskImages skips a test that makes real disk images with hdiutil unless
+// VIVA_DISK_IMAGE_TESTS is set. The disk image service of a shared macOS machine fails
+// now and then whatever the code does, so these run where a change can affect how an
+// image is made (the disk-image CI job), not on every change.
+func requireDiskImages(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "darwin" {
+		t.Skip("disk images are made on macOS")
+	}
+	if os.Getenv("VIVA_DISK_IMAGE_TESTS") == "" {
+		t.Skip("makes real disk images with hdiutil; set VIVA_DISK_IMAGE_TESTS=1 to run")
 	}
 }

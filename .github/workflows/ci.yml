@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.paths.outputs.code }}
+      diskimage: ${{ steps.paths.outputs.diskimage }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,14 +39,16 @@ jobs:
           # A release tag always runs the whole gate: the tag is what ships, so
           # nothing about its contents may skip a check.
           case "${{ github.ref }}" in
-            refs/tags/*) echo "code=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            refs/tags/*) printf 'code=true\ndiskimage=true\n' >> "$GITHUB_OUTPUT"; exit 0 ;;
           esac
           base="${{ github.event.pull_request.base.sha }}"
           [ -n "$base" ] || base="${{ github.event.before }}"
           code=true
+          diskimage=true
           if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
             git diff --name-only --no-renames "$base" HEAD > "$RUNNER_TEMP/changed"
             code=false
+            diskimage=false
             while IFS= read -r file; do
               case "$file" in
                 # Nothing here can change what the gate builds, runs or measures.
@@ -54,15 +57,20 @@ jobs:
                 *.md | docs/* | LICENSE | NOTICE | .github/ISSUE_TEMPLATE/*) ;;
                 *) code=true ;;
               esac
+              case "$file" in
+                # What makes or tests a disk image: the disk-image job.
+                tools/dmg/* | tools/appbundle/* | cmd/viva/package* | go.mod | go.sum | .github/workflows/ci.yml) diskimage=true ;;
+              esac
             done < "$RUNNER_TEMP/changed"
           else
             echo "no base commit to compare with; running the gate" >&2
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "diskimage=$diskimage" >> "$GITHUB_OUTPUT"
           {
             echo "### changed files"
             head -50 "$RUNNER_TEMP/changed" 2>/dev/null | sed 's/^/    /' || true
-            echo "code=$code"
+            echo "code=$code diskimage=$diskimage"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Formatting and the Linux type-check of every package. Both are the same on
@@ -333,8 +341,6 @@ jobs:
       # tests of that set are bound by hdiutil, codesign and the linker rather
       # than by the cores, so the two type-checks run beside them, not before.
       - name: vet and test
-        env:
-          VIVA_DMG_INTEGRATION_TEST: '1'
         run: |
           status=0
           # shellcheck disable=SC2046 # one package per word, by design
@@ -442,6 +448,26 @@ jobs:
       - name: compare
         run: go run ./tools/perfhistory compare -threshold 0.20 -min-ns 100 /tmp/base.txt < /tmp/head.txt
 
+  # The tests that make real disk images with hdiutil. The disk image service of a
+  # shared macOS runner fails now and then whatever the code does (busy, not
+  # mountable, permission denied), so these run when a change can affect how an
+  # image is made, not on every change; the darwin job skips them. Their logic
+  # is tested on every change against a stand-in hdiutil.
+  disk-image:
+    needs: changes
+    if: needs.changes.outputs.diskimage == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: disk images made with hdiutil
+        env:
+          VIVA_DISK_IMAGE_TESTS: "1"
+        run: go test ./tools/dmg ./cmd/viva -run 'DiskImage|BuiltImage' -count=1
+
   # The single check to require in branch protection. It reports success when
   # every job this change needed passed and the rest were skipped, so a
   # documentation-only pull request is green without running anything and a
@@ -449,7 +475,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
+    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, disk-image, windows-materials, windows-arm64-text, benchmarks, size]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed
