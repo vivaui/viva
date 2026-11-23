@@ -39,6 +39,7 @@ const touchTargetSize = 44
 // touchEvent reads one event of a finger.
 func (painter *painter) touchEvent(event platform.PointerEvent) (platform.Frame, error) {
 	t := &painter.touch
+	painter.canvas.SetTouched()
 	now := painter.canvas.Now()
 	var step interaction.TouchStep
 	if event.Kind == platform.PointerDown && (!t.Active() || event.PointerID == t.id) {
