@@ -128,8 +128,9 @@ func ClipboardText() (string, error) {
 // Nothing runs until the first call: no timer, no thread. It may be made before
 // the first window opens, except with the GTK backend: GTK requires an
 // initialized display, so register after opening the first window. XCB listens
-// as soon as it registers with XFixes. One
-// registration serves the process and the last wins; OnClipboardChange(nil)
+// as soon as it registers with XFixes, and stops when RunApplication returns,
+// so a registration made before the application runs, or kept across a second
+// run, needs to be made again. One registration serves the process and the last wins; OnClipboardChange(nil)
 // stops watching. An error wrapping ErrUnsupported means this target cannot
 // watch the clipboard (for example, GTK on Wayland and web): the clipboard keeps
 // working, only the news is missing, and a caller may fall back to reading it
