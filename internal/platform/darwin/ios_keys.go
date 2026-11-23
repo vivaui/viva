@@ -148,3 +148,30 @@ func vivaIOSLifecycle(handle C.uintptr_t, view unsafe.Pointer, kind C.int) {
 	}()
 	state.lifecycleHandler(platform.Lifecycle(kind))
 }
+
+// vivaIOSBack is the edge swipe from the left: the user goes back. The application's OnBack
+// answers whether it did; there is nothing for the system to do instead, as an iPhone
+// application has no window to close.
+//
+//export vivaIOSBack
+func vivaIOSBack(handle C.uintptr_t, view unsafe.Pointer) {
+	state, ok := runStateFor(handle)
+	if !ok || state.closed || state.backHandler == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			platform.ReportFault("darwin: back handler", recovered)
+			state.err = fmt.Errorf("darwin: back handler panicked: %v", recovered)
+			C.viva_view_close(view)
+		}
+	}()
+	frame, _, err := state.backHandler()
+	if err == nil {
+		err = presentFrame(state, view, frame, false)
+	}
+	if err != nil {
+		state.err = err
+		C.viva_view_close(view)
+	}
+}

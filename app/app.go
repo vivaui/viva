@@ -226,6 +226,13 @@ type Config struct {
 	// application stop work nobody can see, such as a remote desktop stream.
 	// Hide is the application's own request and is not reported here.
 	OnMinimize func(minimized bool)
+	// OnBack runs on the window thread when the user goes back: the back button or gesture
+	// of an Android phone, an edge swipe on an iPhone. Return true when the application went
+	// back (closed a sheet, popped a page) and the window stays; return false for the
+	// system's own answer, which on Android is closing the window. A window without it gets
+	// the system's answer, and an iPhone window installs no edge swipe. A desktop window never
+	// gets one.
+	OnBack func() bool
 	// OnLifecycle runs on the window thread when the system moves a phone application
 	// between the foreground and the background, or asks it for memory. A desktop window
 	// never gets one. A phone may end a backgrounded application without further notice, so

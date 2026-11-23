@@ -293,6 +293,24 @@ func (driver *Driver) Resize(width, height int) error {
 	return err
 }
 
+// Back is the user going back, as a phone's back button or edge swipe is: it reports whether
+// the application went back. A window without OnBack answers false, and the system would
+// close it.
+func (driver *Driver) Back() (bool, error) {
+	if err := driver.Pump(); err != nil {
+		return false, err
+	}
+	if driver.config.OnBack == nil {
+		return false, nil
+	}
+	handled := driver.config.OnBack()
+	if !handled {
+		return false, nil
+	}
+	_, err := driver.painter.repaint()
+	return true, err
+}
+
 // Lifecycle tells the application the system did something to it, as a phone does when it
 // moves the application to the background or asks it for memory.
 func (driver *Driver) Lifecycle(event LifecycleEvent) {

@@ -644,6 +644,20 @@ func (application *application) closeRequested() {
 		return
 	}
 	defer application.guard()
+	if win.config.OnBack != nil {
+		// The back gesture is the application's first: a page to pop, a sheet to close.
+		frame, handled, err := win.config.OnBack()
+		if err == nil {
+			err = win.present(frame)
+		}
+		if err != nil {
+			application.fail(err)
+			return
+		}
+		if handled {
+			return
+		}
+	}
 	if win.config.OnCloseRequest != nil {
 		win.config.OnCloseRequest(func() { application.Post(application.closeWindow) })
 		return

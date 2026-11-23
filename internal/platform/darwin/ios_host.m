@@ -20,6 +20,7 @@ extern int vivaIOSKeyEvent(uintptr_t callbackHandle, void *view, int usage, int 
                            const unsigned char *utf8, size_t utf8Length);
 extern void vivaIOSVisibility(uintptr_t callbackHandle, void *view, int visible);
 extern void vivaIOSLifecycle(uintptr_t callbackHandle, void *view, int kind);
+extern void vivaIOSBack(uintptr_t callbackHandle, void *view);
 extern int vivaIOSTextIndexAt(uintptr_t callbackHandle, float x, float y, int64_t *index);
 extern int vivaIOSTextCaretRect(uintptr_t callbackHandle, int64_t index, float *rect);
 extern int vivaIOSTextRangeRects(uintptr_t callbackHandle, int64_t start, int64_t end, float *rects, int capacity);
@@ -360,6 +361,14 @@ static NSString *viva_string(const char *chars, size_t length) {
     _resizeEventsEnabled = config->resize_events_enabled != 0;
     // Fingers are separate pointers: a second one ends what the first was doing.
     self.multipleTouchEnabled = YES;
+    // The edge swipe from the left is the user going back. It leaves the touches to the
+    // page, which also sees them, and the application is told only when it set OnBack.
+    UIScreenEdgePanGestureRecognizer *back = [[UIScreenEdgePanGestureRecognizer alloc] initWithTarget:self action:@selector(edgeSwiped:)];
+    back.edges = UIRectEdgeLeft;
+    back.cancelsTouchesInView = NO;
+    back.delaysTouchesBegan = NO;
+    [self addGestureRecognizer:back];
+    [back release];
     self.opaque = config->clear_alpha >= 1.0;
 
     CAMetalLayer *layer = (CAMetalLayer *)self.layer;
@@ -424,6 +433,12 @@ static NSString *viva_string(const char *chars, size_t length) {
         // The insets come first: the resize that follows lays the page out inside them.
         vivaIOSSafeArea(_callbackHandle, self, _safeArea.top, _safeArea.left, _safeArea.bottom, _safeArea.right);
         vivaViewResized(_callbackHandle, self, size.width, size.height);
+    }
+}
+
+- (void)edgeSwiped:(UIScreenEdgePanGestureRecognizer *)recognizer {
+    if (recognizer.state == UIGestureRecognizerStateEnded && !_closed) {
+        vivaIOSBack(_callbackHandle, self);
     }
 }
 

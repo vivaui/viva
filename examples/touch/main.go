@@ -24,17 +24,47 @@ type model struct {
 	// lifecycle is what the system last did to the application: it went to the background, came
 	// back, or asked for memory.
 	lifecycle string
+	// detail is the row open on its own page, or -1: going back closes it.
+	detail int
 	// invalidator asks for a new frame after a change the page was not told of.
 	invalidator *app.Invalidator
 }
 
 func newModel() *model {
-	m := &model{volume: ui.SliderState{Value: 40}}
+	m := &model{volume: ui.SliderState{Value: 40}, detail: -1}
 	m.list.Label = func(i int) string { return fmt.Sprintf("Row %d", i+1) }
 	return m
 }
 
+// back is the user going back: the open row's page closes. It reports whether it did, and
+// with the list showing the system's answer follows (an Android phone closes the window).
+func (m *model) back() bool {
+	if m.detail < 0 {
+		return false
+	}
+	m.detail = -1
+	m.list.Select(-1) // the same row opens again when it is tapped again
+	return true
+}
+
+// detailPage is a row on a page of its own, which the back gesture closes.
+func (m *model) detailPage(c ui.C) {
+	ui.SafeArea(c).Children(func() {
+		ui.Column(c).Fill().Pad(16).Gap(12).Children(func() {
+			ui.Text(c, fmt.Sprintf("Row %d", m.detail+1)).FontSize(24).Weight(600)
+			ui.Text(c, "Swipe back, or press back, to return to the list.").Muted()
+			if ui.Button(c, "Back").Clicked() {
+				m.detail = -1
+			}
+		})
+	})
+}
+
 func (m *model) page(c ui.C) {
+	if m.detail >= 0 {
+		m.detailPage(c)
+		return
+	}
 	ui.SafeArea(c).Children(func() {
 		ui.Column(c).Fill().Pad(16).Gap(12).Items(ui.Stretch).Children(func() {
 			ui.Row(c).Gap(12).Items(ui.Center).Children(func() {
@@ -56,6 +86,9 @@ func (m *model) page(c ui.C) {
 				ui.Text(c, "System: "+m.lifecycle).Muted()
 			}
 			ui.List(c, &m.list, rows, m.row).Label("Rows").Grow(1)
+			if m.list.Changed() && m.list.Selected() >= 0 {
+				m.detail = m.list.Selected() // a tap chooses a row, and a phone opens it
+			}
 		})
 	})
 }
@@ -95,7 +128,7 @@ func (m *model) systemChanged(event app.LifecycleEvent) {
 func main() {
 	m := newModel()
 	m.invalidator = new(app.Invalidator)
-	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged}
+	config := app.Config{Title: "Touch", Width: 420, Height: 760, OnLifecycle: m.systemChanged, OnBack: m.back}
 	if err := ui.Run(config, ui.PageConfig{View: m.page, Invalidator: m.invalidator}); err != nil {
 		log.Fatal(err)
 	}

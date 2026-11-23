@@ -162,6 +162,7 @@ type runState struct {
 	minimizeHandler   platform.MinimizeHandler
 	visibilityHandler platform.VisibilityHandler
 	lifecycleHandler  func(platform.Lifecycle)
+	backHandler       platform.BackHandler
 	textGeometry      func() platform.TextGeometry
 	fullscreenHandler func(bool)
 	onReopen          func()
@@ -369,7 +370,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, lifecycleHandler: config.OnLifecycle, textGeometry: config.TextGeometry, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, lifecycleHandler: config.OnLifecycle, backHandler: config.OnBack, textGeometry: config.TextGeometry, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
 	state.pointerHandler = config.OnPointer
 	state.resizeHandler = config.OnResize
 	state.keyHandler = config.OnKey

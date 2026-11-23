@@ -88,6 +88,12 @@ type Config struct {
 	// caret a tap places, the handles of a selection and the magnifier. The answer is read
 	// at once and not kept.
 	TextGeometry func() TextGeometry
+	// OnBack, when set, runs on the window thread when the user goes back: a phone's back
+	// button or gesture, an edge swipe. It reports whether the application went back; when it
+	// did not, the adapter does what the system does (Android closes the window, as a close
+	// request would). Only the phone adapters call it, and an iOS window installs the edge
+	// swipe only when it is set.
+	OnBack BackHandler
 	// OnLifecycle, when set, runs on the window thread when the system moves the
 	// application between the foreground and the background, or warns it of low memory.
 	// Only the phone adapters call it.
@@ -681,6 +687,10 @@ type MaximizeHandler func(maximized bool)
 
 // KeyHandler applies one keyboard event and returns an optional repaint.
 type KeyHandler func(KeyEvent) (Frame, error)
+
+// BackHandler reports that the user asked to go back, with an optional repaint, and says
+// whether the application did.
+type BackHandler func() (Frame, bool, error)
 
 // FocusLostHandler reports that the window lost the keyboard and returns an
 // optional repaint.

@@ -398,3 +398,46 @@ func TestAHeldFingerSelectsTheWord(t *testing.T) {
 		t.Fatalf("name = %q after holding on \"world\" and typing, want %q", m.name, "hello there")
 	}
 }
+
+// Going back closes the page a row opened and leaves the list as it was; with the list
+// showing the application does not take it, and the system's answer follows.
+func TestGoingBackClosesTheRowsPage(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnBack: m.back}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(driver.Close)
+	if went, err := driver.Back(); err != nil || went {
+		t.Fatalf("back on the list: went=%v err=%v, want the system's answer", went, err)
+	}
+	x, y := centerOf(t, driver, "Row 3")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Swipe back, or press back, to return to the list.") {
+		t.Fatal("a tap on a row did not open its page")
+	}
+	if went, err := driver.Back(); err != nil || !went {
+		t.Fatalf("back on a row's page: went=%v err=%v, want the page closed", went, err)
+	}
+	if !shown(driver, "Row 3") || shown(driver, "Swipe back, or press back, to return to the list.") {
+		t.Fatal("going back did not return to the list")
+	}
+	// The same row opens again.
+	x, y = centerOf(t, driver, "Row 3")
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if !shown(driver, "Swipe back, or press back, to return to the list.") {
+		t.Fatal("the row did not open a second time")
+	}
+}

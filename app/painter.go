@@ -771,6 +771,21 @@ func (painter *painter) focusLostHandler() platform.FocusLostHandler {
 	return painter.focusLost
 }
 
+// backHandler is the application's OnBack as the platform's, or nil without one: when the
+// application went back, the page is painted again for what it changed.
+func (painter *painter) backHandler(back func() bool) platform.BackHandler {
+	if back == nil {
+		return nil
+	}
+	return func() (platform.Frame, bool, error) {
+		if !back() {
+			return platform.Frame{}, false, nil
+		}
+		frame, err := painter.repaintAfterInput()
+		return frame, true, err
+	}
+}
+
 // deactivateHandler is what a window hands the platform for the loss of the
 // activation: it releases the keys that were down and then tells the
 // application, so the callback sees no key still held.
