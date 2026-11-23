@@ -18,6 +18,21 @@ type TextRow struct{ Start, End int }
 // wraps, so each paragraph is a row. Nothing is allocated, so a caller that
 // needs only the rows in view can ask for them one at a time.
 func (canvas *Canvas) WrapRow(value string, from int, size, weight, width float32) (row TextRow, next int) {
+	return wrapRow(canvas, value, from, size, weight, width)
+}
+
+// WrapRowEstimate is WrapRow with the widths taken from the reference metrics a canvas
+// without a text engine measures with, instead of the platform's shaped text. It shapes
+// nothing, so it costs a small part of WrapRow, and its rows are the platform's wherever
+// the two agree on whether a line fits and near them elsewhere: what a view of a long text
+// takes for the rows it does not show, wrapping the ones it shows with the canvas.
+//
+//	row, next := gfx.WrapRowEstimate(text, from, 13, gfx.WeightRegular, width)
+func WrapRowEstimate(value string, from int, size, weight, width float32) (row TextRow, next int) {
+	return wrapRow(referenceMeasure{}, value, from, size, weight, width)
+}
+
+func wrapRow(measure lineMeasure, value string, from int, size, weight, width float32) (row TextRow, next int) {
 	from = max(0, min(from, len(value)))
 	end := len(value)
 	if newline := strings.IndexByte(value[from:], '\n'); newline >= 0 {
@@ -34,7 +49,7 @@ func (canvas *Canvas) WrapRow(value string, from int, size, weight, width float3
 		return TextRow{Start: from, End: end}, next
 	}
 	line := value[from:end]
-	fit, all := canvas.fitPrefix(line, lineFont{size: size, weight: weight}, width)
+	fit, all := fitPrefix(measure, line, lineFont{size: size, weight: weight}, width)
 	if all {
 		return TextRow{Start: from, End: end}, next
 	}

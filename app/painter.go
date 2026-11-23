@@ -22,8 +22,6 @@ import (
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
 	fullscreen bool
-	// safeArea is how far the system covers the window's edges, as the platform last said.
-	safeArea gfx.Insets
 	// touch reads a finger's presses, pans and flings (touch.go).
 	touch touchState
 	// customTitlebar says the page draws the window's titlebar strip itself
@@ -212,7 +210,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 func (painter *painter) resize(size platform.Size) (platform.Frame, error) {
 	next := gfx.Size{Width: size.Width, Height: size.Height}
 	changed := next != painter.size
-	painter.size, painter.scale, painter.safeArea = next, size.Scale, size.SafeArea
+	painter.size, painter.scale = next, size.Scale
 	if changed && painter.onResize != nil {
 		painter.onResize(next)
 	}
@@ -773,21 +771,6 @@ func (painter *painter) focusLostHandler() platform.FocusLostHandler {
 	return painter.focusLost
 }
 
-// backHandler is the application's OnBack as the platform's, or nil without one: when the
-// application went back, the page is painted again for what it changed.
-func (painter *painter) backHandler(back func() bool) platform.BackHandler {
-	if back == nil {
-		return nil
-	}
-	return func() (platform.Frame, bool, error) {
-		if !back() {
-			return platform.Frame{}, false, nil
-		}
-		frame, err := painter.repaintAfterInput()
-		return frame, true, err
-	}
-}
-
 // deactivateHandler is what a window hands the platform for the loss of the
 // activation: it releases the keys that were down and then tells the
 // application, so the callback sees no key still held.
@@ -1086,7 +1069,6 @@ func (painter *painter) paintCanvas() {
 	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetPointerOnSurface(painter.onSurface)
 	painter.canvas.SetTitlebarInsets(painter.titlebarInsets())
-	painter.canvas.SetSafeArea(painter.safeArea)
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)

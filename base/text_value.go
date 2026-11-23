@@ -1,9 +1,11 @@
 package base
 
 import (
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 // TextValue is what a TextField or TextArea edits: a *string of the model, which
@@ -26,8 +28,9 @@ type boundText struct {
 // fieldOf names the text field bound to value and returns the Field that edits it.
 // A string is kept in step with a Field of the page's: what the user typed since
 // the last paint is written to *value, and a value the program changed is put in
-// the field with the caret at its end. When both changed, what the user typed is
-// kept, as the newer edit.
+// the field as the edit that turns the field's text into it (see Field.follow): the
+// caret and selection keep to the text they were on. When both changed, what the user
+// typed is kept, as the newer edit.
 func fieldOf[T TextValue](p *Page, Kind uint8, Value T) (*Field, gfx.ID) {
 	switch v := any(Value).(type) {
 	case *Field:
@@ -45,12 +48,66 @@ func fieldOf[T TextValue](p *Page, Kind uint8, Value T) (*Field, gfx.ID) {
 		case typed != bound.synced:
 			*v, bound.synced = typed, typed
 		case *v != bound.synced:
-			bound.field.SetText(*v)
+			bound.field.follow(*v)
 			bound.synced = *v
 		}
 		return &bound.field, id
 	}
 	panic("unreachable: TextValue is *string or *Field")
+}
+
+// follow puts value in the field as the program's edit of the text it holds: only the
+// runes between the start and the end the two share are replaced, so a long text that
+// grows at its end, as a log does, costs what was added, and the caret and selection keep
+// to the text they were on. A caret at the end of the text stays at its end as text is
+// added there, and one inside replaced text goes to the end of what replaced it. Like
+// SetText, the change is not the user's edit. A field being composed by an input method,
+// or one that restricts what it takes, is set as SetText sets it.
+func (field *Field) follow(value string) {
+	editor := field.ensure()
+	old := editor.String()
+	if _, composing := editor.Composition(); composing || old == value {
+		if composing {
+			field.SetText(value)
+		}
+		return
+	}
+	prefix := commonPrefix(old, value)
+	for prefix > 0 && (prefix < len(old) && !utf8.RuneStart(old[prefix]) || prefix < len(value) && !utf8.RuneStart(value[prefix])) {
+		prefix--
+	}
+	suffix := commonSuffix(old[prefix:], value[prefix:])
+	for suffix > 0 && !utf8.RuneStart(old[len(old)-suffix]) {
+		suffix--
+	}
+	// Both ends are rune boundaries, which the editor's index turns into rune indexes
+	// without counting the runes before them.
+	start, end := editor.RuneIndex(prefix), editor.RuneIndex(len(old)-suffix)
+	inserted := value[prefix : len(value)-suffix]
+	shift := utf8.RuneCountInString(inserted) - (end - start)
+	last := editor.RuneCount()
+	place := func(at int) int {
+		switch {
+		case at < start || at == start && (at != end || at != last):
+			return at
+		case at >= end:
+			return at + shift
+		default:
+			return end + shift
+		}
+	}
+	selection, caret := editor.Selection(), editor.Caret()
+	anchor := selection.Start
+	if caret == selection.Start {
+		anchor = selection.End
+	}
+	after := text.Range{Start: place(anchor), End: place(caret)}
+	edits := [1]text.Replacement{{Range: text.Range{Start: start, End: end}, Text: inserted}}
+	if editor.ReplaceRangesWith(edits[:], text.ReplaceRangesOptions{AfterSelection: &after}) != nil {
+		field.SetText(value)
+		return
+	}
+	field.seen = editor.String() // the program's own change is not an edit
 }
 
 // sweepTexts forgets the fields of strings whose names the page no longer keeps:

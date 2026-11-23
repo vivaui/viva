@@ -142,7 +142,7 @@ func releaseEnvironment(t *testing.T) {
 }
 
 func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
-	requireMac(t)
+	requireDiskImages(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{}

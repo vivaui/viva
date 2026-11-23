@@ -24,25 +24,3 @@ xcrun --sdk macosx metallib \
     -o "$shader_dir/scene.metallib"
 
 unlink "$air"
-
-# iOS has two: a Metal library records the platform it was built for, and the
-# simulator's is not the device's (shader_ios.go picks the one it runs on).
-minimum_ios=16.0
-
-xcrun --sdk iphoneos metal \
-    -mios-version-min="$minimum_ios" \
-    -c "$shader_dir/scene.metal" \
-    -o "$air"
-xcrun --sdk iphoneos metallib \
-    "$air" \
-    -o "$shader_dir/scene_ios.metallib"
-unlink "$air"
-
-xcrun --sdk iphonesimulator metal \
-    -mios-simulator-version-min="$minimum_ios" \
-    -c "$shader_dir/scene.metal" \
-    -o "$air"
-xcrun --sdk iphonesimulator metallib \
-    "$air" \
-    -o "$shader_dir/scene_ios_simulator.metallib"
-unlink "$air"

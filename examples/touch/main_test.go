@@ -280,45 +280,6 @@ func TestAHeldFingerOnAControlWithAMenuShowsNoTooltip(t *testing.T) {
 	}
 }
 
-// A page keeps inside the bars a phone's system draws over its window, and the page's own
-// background reaches the edges: the window being told the bars grow moves the content down.
-func TestThePageKeepsInsideTheSafeArea(t *testing.T) {
-	m := newModel()
-	driver := open(t, m)
-	before := control(t, driver, "Tap me").Bounds
-	if err := driver.SetSafeArea(gfx.Insets{Top: 47, Bottom: 34, Left: 10, Right: 10}); err != nil {
-		t.Fatal(err)
-	}
-	after := control(t, driver, "Tap me").Bounds
-	if after.Y != before.Y+47 || after.X != before.X+10 {
-		t.Fatalf("the button moved from %v, %v to %v, %v, want 10 right and 47 down", before.X, before.Y, after.X, after.Y)
-	}
-	rows := driver.Snapshot().Hits
-	last := rows[len(rows)-1]
-	if bottom := last.Bounds.Y + last.Bounds.Height; bottom > 760-34+0.5 {
-		t.Fatalf("content reaches %v, into the 34 px the home indicator covers", bottom)
-	}
-}
-
-// What the system does to the application shows on the page once the application says so.
-func TestThePageShowsWhatTheSystemDid(t *testing.T) {
-	m := newModel()
-	m.invalidator = new(app.Invalidator)
-	page := ui.NewPage(ui.PageConfig{View: m.page, Invalidator: m.invalidator})
-	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnLifecycle: m.systemChanged}), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(driver.Close)
-	driver.Lifecycle(app.LifecycleMemoryWarning)
-	if err := driver.Pump(); err != nil {
-		t.Fatal(err)
-	}
-	if !shown(driver, "System: memory warning") {
-		t.Fatal("the page does not show the memory warning")
-	}
-}
-
 // typeInName focuses the name field with a tap and types value into it.
 func typeInName(t *testing.T, driver *app.Driver, value string) gfx.Rect {
 	t.Helper()
@@ -351,7 +312,7 @@ func wordX(t *testing.T, driver *app.Driver, word string) float32 {
 	return 0
 }
 
-// A finger lifted inside the text puts the caret there, as on a phone; typing goes in
+// A finger lifted inside the text puts the caret there; typing goes in
 // at that point, not at the end.
 func TestATapPutsTheCaretWhereTheFingerLifts(t *testing.T) {
 	skipWithoutTouchRuntime(t)
@@ -399,49 +360,6 @@ func TestAHeldFingerSelectsTheWord(t *testing.T) {
 	}
 }
 
-// Going back closes the page a row opened and leaves the list as it was; with the list
-// showing the application does not take it, and the system's answer follows.
-func TestGoingBackClosesTheRowsPage(t *testing.T) {
-	skipWithoutTouchRuntime(t)
-	m := newModel()
-	page := ui.NewPage(ui.PageConfig{View: m.page})
-	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnBack: m.back}), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(driver.Close)
-	if went, err := driver.Back(); err != nil || went {
-		t.Fatalf("back on the list: went=%v err=%v, want the system's answer", went, err)
-	}
-	x, y := centerOf(t, driver, "Row 3")
-	if err := driver.TouchDown(1, x, y); err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.TouchUp(1, x, y); err != nil {
-		t.Fatal(err)
-	}
-	if !shown(driver, "Swipe back, or press back, to return to the list.") {
-		t.Fatal("a tap on a row did not open its page")
-	}
-	if went, err := driver.Back(); err != nil || !went {
-		t.Fatalf("back on a row's page: went=%v err=%v, want the page closed", went, err)
-	}
-	if !shown(driver, "Row 3") || shown(driver, "Swipe back, or press back, to return to the list.") {
-		t.Fatal("going back did not return to the list")
-	}
-	// The same row opens again.
-	x, y = centerOf(t, driver, "Row 3")
-	if err := driver.TouchDown(1, x, y); err != nil {
-		t.Fatal(err)
-	}
-	if err := driver.TouchUp(1, x, y); err != nil {
-		t.Fatal(err)
-	}
-	if !shown(driver, "Swipe back, or press back, to return to the list.") {
-		t.Fatal("the row did not open a second time")
-	}
-}
-
 // Two fingers moving apart zoom the page, and the first finger's gesture does nothing else.
 func TestPinchingZoomsThePage(t *testing.T) {
 	skipWithoutTouchRuntime(t)
@@ -469,7 +387,7 @@ func TestPinchingZoomsThePage(t *testing.T) {
 	if !shown(driver, "Zoom 2.00") {
 		t.Fatal("the page does not show the zoom")
 	}
-	if m.taps != 0 || m.detail >= 0 {
-		t.Fatalf("a pinch tapped (%d) or opened a row (%d)", m.taps, m.detail)
+	if m.taps != 0 || m.list.Selected() >= 0 {
+		t.Fatalf("a pinch tapped (%d) or chose a row (%d)", m.taps, m.list.Selected())
 	}
 }
