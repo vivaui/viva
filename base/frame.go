@@ -118,7 +118,6 @@ type Node struct {
 	Face                 gfx.MonoFace
 	TextDirection        gfx.TextDirection // the paragraph direction of a Text; zero takes it from the text
 	TextEnd              bool              // a Text aligned to the end of its direction
-	TextDecor            uint8             // the faces a Text is drawn in (textItalic, textStrike)
 	Color                Color
 	ID                   gfx.ID
 	Label                string
@@ -152,9 +151,13 @@ type Node struct {
 	// styling, including the valid zero value of regular weight.
 	FontSet, WeightSet bool
 	Frozen             bool
-	Rect               Rect
-	Band               uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
-	FocusScope         gfx.ID // the focus scope the subtree paints in, when it is not the page's
+	// TextDecor is the faces a Text is drawn in. It sits in the padding after
+	// Frozen so that Node keeps its size; a byte at the end of the struct would
+	// have grown every Node by eight.
+	TextDecor  uint8
+	Rect       Rect
+	Band       uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
+	FocusScope gfx.ID // the focus scope the subtree paints in, when it is not the page's
 }
 
 // placement says where a Popup goes.
