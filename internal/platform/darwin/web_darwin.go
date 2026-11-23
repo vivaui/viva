@@ -10,6 +10,8 @@ package darwin
 import "C"
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,6 +24,15 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 )
+
+// partitionIdentifier gives WebKit the same persistent store for a partition name on every launch.
+func partitionIdentifier(name string) string {
+	sum := sha1.Sum([]byte("viva-storage-partition:" + name))
+	sum[6] = sum[6]&0x0f | 0x50 // version 5
+	sum[8] = sum[8]&0x3f | 0x80 // RFC 4122 variant
+	text := hex.EncodeToString(sum[:16])
+	return strings.ToUpper(text[0:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:32])
+}
 
 // Web pages inside the window (ADR 0064): WKWebView, one per page, subviews of the window's Metal
 // view and above its layer. A page gives way where Viva draws over it (platform.NativeCuts): those
@@ -134,7 +145,7 @@ func (w *webState) open(config platform.WebViewConfig) (platform.WebView, error)
 		if C.viva_web_partition_supported() == 0 {
 			return nil, fmt.Errorf("darwin: a named storage partition needs macOS 14 or newer: %w", platform.ErrWebViewUnsupported)
 		}
-		partition = C.CString(platform.PartitionIdentifier(config.Partition))
+		partition = C.CString(partitionIdentifier(config.Partition))
 		defer C.free(unsafe.Pointer(partition))
 	}
 	var failure *C.char
