@@ -44,52 +44,83 @@ int viva_system_proxy(const char *target, char **value, char **error_message) {
         return -1;
     }
     CFDictionaryRef settings = CFNetworkCopySystemProxySettings();
+    if (settings == NULL) {
+        CFRelease(url);
+        viva_proxy_set_error(error_message, "the system proxy settings are unavailable");
+        return -1;
+    }
     CFArrayRef proxies = CFNetworkCopyProxiesForURL(url, settings);
     CFRelease(url);
-    if (settings != NULL) {
-        CFRelease(settings);
+    CFRelease(settings);
+    if (proxies == NULL) {
+        viva_proxy_set_error(error_message, "the system returned no proxy decision");
+        return -1;
     }
+    int status = viva_proxy_select(proxies, value, error_message);
+    CFRelease(proxies);
+    return status;
+}
+
+int viva_proxy_select(CFArrayRef proxies, char **value, char **error_message) {
     if (proxies == NULL || CFArrayGetCount(proxies) == 0) {
-        if (proxies != NULL) {
-            CFRelease(proxies);
-        }
-        return 0;
+        viva_proxy_set_error(error_message, "the policy returned no proxy decision");
+        return -1;
     }
     CFDictionaryRef proxy = (CFDictionaryRef)CFArrayGetValueAtIndex(proxies, 0);
     CFStringRef type = (CFStringRef)CFDictionaryGetValue(proxy, kCFProxyTypeKey);
-    int status = 0;
-    if (type != NULL && CFStringCompare(type, kCFProxyTypeNone, 0) != kCFCompareEqualTo) {
-        if (CFStringCompare(type, kCFProxyTypeAutoConfigurationURL, 0) == 0 ||
-            CFStringCompare(type, kCFProxyTypeAutoConfigurationJavaScript, 0) == 0) {
-            status = 2;
-        } else {
-            CFStringRef host = (CFStringRef)CFDictionaryGetValue(proxy, kCFProxyHostNameKey);
-            CFNumberRef port = (CFNumberRef)CFDictionaryGetValue(proxy, kCFProxyPortNumberKey);
-            char *host_text = viva_proxy_copy_utf8(host);
-            int port_value = 0;
-            if (port != NULL) {
-                CFNumberGetValue(port, kCFNumberIntType, &port_value);
-            }
-            if (host_text == NULL) {
-                viva_proxy_set_error(error_message, "the selected proxy has no host");
-                status = -1;
-            } else {
-                const char *scheme = CFStringCompare(type, kCFProxyTypeSOCKS, 0) == 0 ? "socks5" : "http";
-                char buffer[1024];
-                if (port_value > 0) {
-                    snprintf(buffer, sizeof buffer, "%s://%s:%d", scheme, host_text, port_value);
-                } else {
-                    snprintf(buffer, sizeof buffer, "%s://%s", scheme, host_text);
-                }
-                *value = strdup(buffer);
-                free(host_text);
-                status = *value == NULL ? -1 : 1;
-                if (status < 0) {
-                    viva_proxy_set_error(error_message, "the proxy URL could not be allocated");
-                }
-            }
-        }
+    if (type == NULL) {
+        viva_proxy_set_error(error_message, "the selected proxy has no type");
+        return -1;
     }
-    CFRelease(proxies);
-    return status;
+    if (CFEqual(type, kCFProxyTypeNone)) {
+        return 0;
+    }
+    if (CFEqual(type, kCFProxyTypeAutoConfigurationURL) ||
+        CFEqual(type, kCFProxyTypeAutoConfigurationJavaScript)) {
+        int from_url = CFEqual(type, kCFProxyTypeAutoConfigurationURL);
+        CFStringRef configuration = NULL;
+        if (from_url) {
+            CFURLRef pac_url = (CFURLRef)CFDictionaryGetValue(proxy, kCFProxyAutoConfigurationURLKey);
+            if (pac_url != NULL) {
+                configuration = CFURLGetString(pac_url);
+            }
+        } else {
+            configuration = (CFStringRef)CFDictionaryGetValue(proxy, kCFProxyAutoConfigurationJavaScriptKey);
+        }
+        *value = viva_proxy_copy_utf8(configuration);
+        if (*value == NULL) {
+            viva_proxy_set_error(error_message, "the PAC configuration is missing");
+            return -1;
+        }
+        return from_url ? 2 : 3;
+    }
+    CFStringRef host = (CFStringRef)CFDictionaryGetValue(proxy, kCFProxyHostNameKey);
+    CFNumberRef port = (CFNumberRef)CFDictionaryGetValue(proxy, kCFProxyPortNumberKey);
+    char *host_text = viva_proxy_copy_utf8(host);
+    int port_value = 0;
+    if (port != NULL) {
+        CFNumberGetValue(port, kCFNumberIntType, &port_value);
+    }
+    if (host_text == NULL) {
+        viva_proxy_set_error(error_message, "the selected proxy has no host");
+        return -1;
+    }
+    const char *scheme = CFEqual(type, kCFProxyTypeSOCKS) ? "socks5" : "http";
+    char buffer[1024];
+    if (port_value > 0) {
+        if (strchr(host_text, ':') != NULL && host_text[0] != '[') {
+            snprintf(buffer, sizeof buffer, "%s://[%s]:%d", scheme, host_text, port_value);
+        } else {
+            snprintf(buffer, sizeof buffer, "%s://%s:%d", scheme, host_text, port_value);
+        }
+    } else {
+        snprintf(buffer, sizeof buffer, "%s://%s", scheme, host_text);
+    }
+    *value = strdup(buffer);
+    free(host_text);
+    if (*value == NULL) {
+        viva_proxy_set_error(error_message, "the proxy URL could not be allocated");
+        return -1;
+    }
+    return 1;
 }
