@@ -462,3 +462,27 @@ func TestAPageNobodyWatchesForFailureGivesThePlatformNone(t *testing.T) {
 		t.Fatal("an application that set no OnProcessFailed got one")
 	}
 }
+
+func TestWebViewUserAgentSuffixIsPerPageAndValidated(t *testing.T) {
+	var opened []platform.WebViewConfig
+	host := &WebHost{native: &platform.WebHost{Open: func(config platform.WebViewConfig) (platform.WebView, error) {
+		opened = append(opened, config)
+		return nil, platform.ErrWebViewUnsupported
+	}}}
+	for _, suffix := range []string{"ExampleDesktop/1.0", ""} {
+		if _, err := host.Open(WebViewConfig{URL: "https://example.com/", UserAgentSuffix: suffix}); !errors.Is(err, ErrUnsupported) {
+			t.Fatal(err)
+		}
+	}
+	if len(opened) != 2 || opened[0].UserAgentSuffix != "ExampleDesktop/1.0" || opened[1].UserAgentSuffix != "" {
+		t.Fatal("user agent suffix leaked between pages")
+	}
+	for _, suffix := range []string{"app\r\nInjected: yes", "app\x00", "app\x7f", "\u4e2d"} {
+		if _, err := host.Open(WebViewConfig{UserAgentSuffix: suffix}); err == nil || errors.Is(err, ErrUnsupported) {
+			t.Fatal("invalid user agent suffix reached the platform")
+		}
+	}
+	if len(opened) != 2 {
+		t.Fatal("invalid suffix opened a native page")
+	}
+}
