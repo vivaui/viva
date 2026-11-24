@@ -19,7 +19,7 @@ func (state *windowState) minimumTrackSize() point {
 		return point{}
 	}
 	var frame rect
-	if state.config.WindowMode == platform.WindowTitled {
+	if state.config.WindowMode == platform.WindowTitled && !state.decoration.removed {
 		if adjustWindow.Find() == nil {
 			adjustWindow.Call(uintptr(unsafe.Pointer(&frame)), wsOverlappedWindow, 0, 0, uintptr(max(state.scale, 1)*96))
 		} else {

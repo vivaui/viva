@@ -37,7 +37,7 @@ func (state *windowState) resizeClient(width, height int) {
 		Bottom: int32(math.Round(float64(height) * float64(scale))),
 	}
 	style := uintptr(wsOverlappedWindow)
-	if state.config.WindowMode == platform.WindowTitled {
+	if state.config.WindowMode == platform.WindowTitled && !state.decoration.removed {
 		if adjustWindow.Find() == nil {
 			adjustWindow.Call(uintptr(unsafe.Pointer(&bounds)), style, 0, 0, uintptr(scale*96))
 		} else {

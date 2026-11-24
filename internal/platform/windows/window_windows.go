@@ -80,6 +80,7 @@ type windowState struct {
 	// pendingTitle is the title SetTitle asked for, applied on the window thread.
 	pendingTitle        titleRequest
 	pendingIcon         iconRequest
+	decoration          windowDecoration
 	fullscreen          atomic.Bool
 	fullscreenChanging  bool
 	fullscreenStyle     uint32
@@ -214,7 +215,7 @@ type nativeWindow struct {
 // reportFrame tells the application where its content area is now, in logical
 // pixels of the window's display. It reports only changes.
 func (state *windowState) reportFrame() {
-	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.iconic() || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
+	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.iconic() || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging || state.decoration.changing {
 		return
 	}
 	var client rect
@@ -518,6 +519,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmFullscreen:
 		state.setFullscreen(first != 0)
+		return 0
+	case wmChangeDecoration:
+		state.applyDecoration()
 		return 0
 	case wmSetTitle:
 		state.applyTitle()
@@ -1355,6 +1359,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 func (state *windowState) destroyed(window uintptr) {
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
+	if request := state.decoration.close(); request != nil {
+		defer request.done(fmt.Errorf("windows: window closed before its decoration change completed"))
+	}
 	killTimer.Call(window, resizeTimerID)
 	if state.timerPeriodSet {
 		timeEndPeriod.Call(1)
