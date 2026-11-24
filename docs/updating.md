@@ -185,6 +185,11 @@ versions, the OS, the architecture and every file with its mode, size and
 SHA-256. The feed's signature covers the patch's URL, size and digest, and the
 client checks every file it writes against the digest in `patch.json`.
 
+A client on a version that is not listed takes the full archive, so a release
+that ships often can pass `--patch-from` for several recent versions. A patch
+grows with the distance between versions; `--patch-max-ratio 0.6` leaves out any
+patch larger than 60% of its archive, since downloading it saves too little.
+
 On Windows the payload is a **directory**: the program and the folders beside
 it from the portable zip. The same patch applies to an NSIS installation and to
 a portable copy, because both hold those files at the same paths. A portable
