@@ -6,6 +6,7 @@ import (
 	"errors"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
@@ -576,4 +577,47 @@ func TestPostDelegatesToTheHost(t *testing.T) {
 	application.Post(nil) // harmless
 	var nilApplication *Application
 	nilApplication.Post(func() { t.Fatal("a nil application ran work") })
+}
+
+// PostAfter hands the work to the host's loop once the delay has passed, not on
+// the caller's goroutine.
+func TestPostAfterRunsTheWorkOnTheHost(t *testing.T) {
+	host := &fakeHost{}
+	application := &Application{host: host}
+	ran := make(chan struct{}, 1)
+	stop := application.PostAfter(time.Millisecond, func() { ran <- struct{}{} })
+	select {
+	case <-ran:
+	case <-time.After(time.Second):
+		t.Fatal("the host did not run the delayed work")
+	}
+	stop() // idempotent
+	stop()
+}
+
+// Stop takes back a call that has not started: the loop never runs it.
+func TestPostAfterStopPreventsTheWork(t *testing.T) {
+	host := &fakeHost{}
+	application := &Application{host: host}
+	ran := make(chan struct{}, 1)
+	stop := application.PostAfter(50*time.Millisecond, func() { ran <- struct{}{} })
+	stop()
+	select {
+	case <-ran:
+		t.Fatal("stopped work ran")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	var nilApplication *Application
+	stop = nilApplication.PostAfter(time.Millisecond, func() { t.Fatal("a nil application ran work") })
+	stop()
+}
+
+func BenchmarkPostAfterStop(b *testing.B) {
+	application := &Application{host: &fakeHost{}}
+	b.ReportAllocs()
+	for b.Loop() {
+		stop := application.PostAfter(time.Hour, func() {})
+		stop()
+	}
 }

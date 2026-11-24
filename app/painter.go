@@ -22,8 +22,6 @@ import (
 // native label list, so an unchanged repaint performs no renderer work.
 type painter struct {
 	fullscreen bool
-	// safeArea is how far the system covers the window's edges, as the platform last said.
-	safeArea gfx.Insets
 	// touch reads a finger's presses, pans and flings (touch.go).
 	touch touchState
 	// customTitlebar says the page draws the window's titlebar strip itself
@@ -38,6 +36,7 @@ type painter struct {
 	onShortcut      func(gfx.KeyEvent) gfx.EventResult
 	captureMenuKeys func() bool
 	onScroll        func(gfx.ScrollEvent) gfx.EventResult
+	onPinch         func(gfx.PinchEvent) gfx.EventResult
 	// onModifierTap and tap recognize a modifier pressed and released on its own.
 	onModifierTap func(gfx.ModifierTapEvent) gfx.EventResult
 	tap           input.ModifierTap
@@ -162,6 +161,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		onShortcut:      config.OnShortcut,
 		captureMenuKeys: config.CaptureMenuKeys,
 		onScroll:        config.OnScroll,
+		onPinch:         config.OnPinch,
 		onModifierTap:   config.OnModifierTap,
 		onFileDrop:      config.OnFileDrop,
 		onResize:        config.OnResize,
@@ -210,7 +210,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 func (painter *painter) resize(size platform.Size) (platform.Frame, error) {
 	next := gfx.Size{Width: size.Width, Height: size.Height}
 	changed := next != painter.size
-	painter.size, painter.scale, painter.safeArea = next, size.Scale, size.SafeArea
+	painter.size, painter.scale = next, size.Scale
 	if changed && painter.onResize != nil {
 		painter.onResize(next)
 	}
@@ -847,6 +847,23 @@ func (painter *painter) scroll(event platform.ScrollEvent) (platform.Frame, erro
 // applyScroll gives a scroll to the application, or scrolls the page itself when
 // the application leaves it, and reports whether anything changed that needs a
 // repaint.
+// applyPinch gives the application a pinch and reports whether the page is to be painted
+// again. A pinch nobody listens to changes nothing.
+func (painter *painter) applyPinch(phase gfx.PinchPhase, x, y, scale, delta float32, modifiers input.Modifiers) bool {
+	if painter.onPinch == nil {
+		return false
+	}
+	target := gfx.ID{}
+	if hit, ok := painter.focus.Router().HitTest(x, y); ok {
+		target = hit
+	}
+	response := painter.onPinch(gfx.PinchEvent{
+		Phase: phase, Modifiers: gfx.Modifiers(modifiers), X: x, Y: y, Scale: scale, Delta: delta,
+		Viewport: painter.size, Target: target,
+	})
+	return painter.applyEventResult(response) || response.Repaint
+}
+
 func (painter *painter) applyScroll(event platform.ScrollEvent) bool {
 	if event.DeltaY == 0 && event.DeltaX == 0 && event.Phase != gfx.ScrollPhaseEnd {
 		return false
@@ -1052,7 +1069,6 @@ func (painter *painter) paintCanvas() {
 	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetPointerOnSurface(painter.onSurface)
 	painter.canvas.SetTitlebarInsets(painter.titlebarInsets())
-	painter.canvas.SetSafeArea(painter.safeArea)
 	painter.canvas.SetScroll(painter.scrollX, painter.scrollY)
 	painter.canvas.BeginFrame()
 	painter.paint(painter.canvas, painter.size)

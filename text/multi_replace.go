@@ -90,28 +90,18 @@ func (editor *Editor) ReplaceRangesWith(edits []Replacement, options ReplaceRang
 		contexts = make([]lineContext, 0, len(edits))
 	}
 	position := start
-	runePosition, bytePosition := 0, 0
-	linePosition, lineShift := 0, 0
+	lineShift := 0
 	labels := editor.lfLabelState()
 	var labelSpans []lfLabelSpan
 	for _, edit := range edits {
-		for runePosition < edit.Range.Start {
-			if contexts != nil && editor.runes.At(runePosition) == '\n' {
-				linePosition++
-			}
-			bytePosition += runeBytes(editor.runes.At(runePosition))
-			runePosition++
-		}
-		primitive := Edit{Start: bytePosition}
-		sourceLine := linePosition
-		for runePosition < edit.Range.End {
-			if contexts != nil && editor.runes.At(runePosition) == '\n' {
-				linePosition++
-			}
-			width := runeBytes(editor.runes.At(runePosition))
-			primitive.Removed += width
-			bytePosition += width
-			runePosition++
+		// Where the edit is in the original text, in bytes and lines, from the store's
+		// index rather than a walk from the start: a batch near the end of a long text
+		// costs its own runes.
+		from := editor.runes.ByteOffset(edit.Range.Start)
+		primitive := Edit{Start: from, Removed: editor.runes.ByteOffset(edit.Range.End) - from}
+		sourceLine := 0
+		if contexts != nil {
+			sourceLine = editor.runes.Line(edit.Range.Start)
 		}
 		inserted := []rune(edit.Text)
 		for _, character := range inserted {

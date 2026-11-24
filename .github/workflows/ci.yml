@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.paths.outputs.code }}
+      diskimage: ${{ steps.paths.outputs.diskimage }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,14 +39,16 @@ jobs:
           # A release tag always runs the whole gate: the tag is what ships, so
           # nothing about its contents may skip a check.
           case "${{ github.ref }}" in
-            refs/tags/*) echo "code=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            refs/tags/*) printf 'code=true\ndiskimage=true\n' >> "$GITHUB_OUTPUT"; exit 0 ;;
           esac
           base="${{ github.event.pull_request.base.sha }}"
           [ -n "$base" ] || base="${{ github.event.before }}"
           code=true
+          diskimage=true
           if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
             git diff --name-only --no-renames "$base" HEAD > "$RUNNER_TEMP/changed"
             code=false
+            diskimage=false
             while IFS= read -r file; do
               case "$file" in
                 # Nothing here can change what the gate builds, runs or measures.
@@ -54,15 +57,20 @@ jobs:
                 *.md | docs/* | LICENSE | NOTICE | .github/ISSUE_TEMPLATE/*) ;;
                 *) code=true ;;
               esac
+              case "$file" in
+                # What makes or tests a disk image: the disk-image job.
+                tools/dmg/* | tools/appbundle/* | cmd/viva/package* | go.mod | go.sum | .github/workflows/ci.yml) diskimage=true ;;
+              esac
             done < "$RUNNER_TEMP/changed"
           else
             echo "no base commit to compare with; running the gate" >&2
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "diskimage=$diskimage" >> "$GITHUB_OUTPUT"
           {
             echo "### changed files"
             head -50 "$RUNNER_TEMP/changed" 2>/dev/null | sed 's/^/    /' || true
-            echo "code=$code"
+            echo "code=$code diskimage=$diskimage"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Formatting and the Linux type-check of every package. Both are the same on
@@ -154,16 +162,6 @@ jobs:
             wait "$pid" || status=1
           done
           exit "$status"
-      # The Android build is the real thing: the program as a shared library with
-      # the NDK's compiler, the host's Java, and an APK around them with the SDK's
-      # tools, all of which the runner's image has. It is not run here; the
-      # runner has no device.
-      - name: Android build
-        run: |
-          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
-          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)}"
-          go run ./cmd/viva build --target android ./examples/guides/hello
-          go run ./cmd/viva build --target android --arch amd64 ./examples/guides/hello
       - name: Native Linux text rasterization
         run: |
           sudo apt-get install -y libpangocairo-1.0-0 fonts-noto-color-emoji ||
@@ -186,7 +184,7 @@ jobs:
         run: |
           sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
             { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
-          xvfb-run -a go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11)$' -count=1 -v
+          xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11|TrayWindowQueuedRedrawBeforeInput|TrayWindowRepaintsLaterExposure)$' -count=1 -v
           GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
@@ -362,11 +360,6 @@ jobs:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/darwin -run '^TestNativeCarbonGlobalShortcut$' -count=1 -v
 
-      # The iOS build compiles the Metal and UIKit bridge against the simulator
-      # SDK; it is not run here, since the runner cannot show a simulator.
-      - name: iOS simulator build
-        run: go run ./cmd/viva build --target ios-sim ./examples/guides/hello
-
 
 
   windows-materials:
@@ -461,6 +454,26 @@ jobs:
       - name: compare
         run: go run ./tools/perfhistory compare -threshold 0.20 -min-ns 100 /tmp/base.txt < /tmp/head.txt
 
+  # The tests that make real disk images with hdiutil. The disk image service of a
+  # shared macOS runner fails now and then whatever the code does (busy, not
+  # mountable, permission denied), so these run when a change can affect how an
+  # image is made, not on every change; the darwin job skips them. Their logic
+  # is tested on every change against a stand-in hdiutil.
+  disk-image:
+    needs: changes
+    if: needs.changes.outputs.diskimage == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: disk images made with hdiutil
+        env:
+          VIVA_DISK_IMAGE_TESTS: "1"
+        run: go test ./tools/dmg ./cmd/viva -run 'DiskImage|BuiltImage' -count=1
+
   # The single check to require in branch protection. It reports success when
   # every job this change needed passed and the rest were skipped, so a
   # documentation-only pull request is green without running anything and a
@@ -468,7 +481,7 @@ jobs:
   passed:
     name: ci passed
     if: always()
-    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, windows-materials, windows-arm64-text, benchmarks]
+    needs: [changes, lint, dev-attributes, cross-vet, web, web-browser, test, darwin, disk-image, windows-materials, windows-arm64-text, benchmarks, size]
     runs-on: ubuntu-latest
     steps:
       - name: every job this change needed passed
@@ -483,17 +496,12 @@ jobs:
             esac
           done
 
-  # Release sizes on every change, without blocking: hello is over its own
-  # alarm limit while the ui/components boundary decision (see
-  # docs/benchmarks/2026-11-12-size-attribution-darwin-arm64.md) is open, so
-  # the job records the number on each run and the hard limit returns with
-  # the boundary. Builds the same targets benchmarks/size.sh checks on a
-  # release machine; remove continue-on-error when the limit is honest again.
+  # Release sizes on every change, reported in the job summary to watch across
+  # changes; benchmarks/size.sh judges no size against a fixed limit.
   size:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -405,6 +405,24 @@ func (r *runner) scenarios(results *report) {
 		return p.waitFor("the panel's OnClosed", p.isClosed)
 	})
 
+	check("a notification paints without pointer input and returns to idle", func() error {
+		p, err := r.open("notification", app.WindowNotification, false)
+		if err != nil {
+			return err
+		}
+		defer p.window.Close()
+		if err := p.waitFor("the notification's first paint", func() bool { return p.paints.Load() > 0 }); err != nil {
+			return err
+		}
+		time.Sleep(quiet)
+		paints := p.paints.Load()
+		time.Sleep(quiet)
+		if extra := p.paints.Load() - paints; extra != 0 {
+			return fmt.Errorf("an idle notification painted %d extra frames", extra)
+		}
+		return nil
+	})
+
 	check("a status item can be added, changed and removed", func() error {
 		var item *app.StatusItem
 		var addErr, iconErr error
