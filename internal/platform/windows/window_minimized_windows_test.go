@@ -1,16 +1,66 @@
 package windows
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 	"time"
 	"unsafe"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
 
 // swMinimize is SW_MINIMIZE: minimize the window and activate the next one.
 const swMinimize = 6
+
+// A window being minimized must not report the small iconic rectangle as its
+// content frame. WM_MOVE can run before WM_SIZE sets state.minimized, so a
+// frame handler that trusts the flag alone records the off-screen sentinel
+// position as where the window is; the window manager already knows it is
+// iconic.
+func TestMinimizeDoesNotReportTheIconicFrame(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var frames []gfx.Rect
+	minimized := false
+	err := RunApplication(func(application platform.Application) error {
+		opened, err := application.OpenWindow(platform.Config{
+			Title: "Viva minimized frame test", Width: 640, Height: 400,
+			ClearColor: platform.Color{Alpha: 1},
+			OnFrameChange: func(frame gfx.Rect) {
+				frames = append(frames, frame)
+			},
+			OnMinimize: func(value bool) {
+				if value {
+					minimized = true
+				}
+			},
+		})
+		if err != nil {
+			return err
+		}
+		defer opened.Close()
+		state := opened.(*nativeWindow).state
+		showWindow.Call(state.window, swMinimize)
+		deadline := time.Now().Add(2 * time.Second)
+		for !minimized {
+			if time.Now().After(deadline) {
+				return fmt.Errorf("window did not report minimization")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		for _, frame := range frames {
+			if frame.X <= -30000 || frame.Y <= -30000 || frame.Width < 1 || frame.Height < 1 {
+				return fmt.Errorf("reported the iconic frame %+v as the window's content area", frame)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 // A paint caused by minimizing must not present at the minimized client size. A
 // window with a custom frame reports the small minimized window itself (160x28),
