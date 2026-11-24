@@ -160,7 +160,11 @@ func (win *window) handleSelectionRequest(request *xcbSelectionRequestEvent) err
 		},
 	}
 	win.dropStaleTransfers()
-	if value, owned := win.selectionText(request.Selection); owned {
+	if request.Selection == win.xdnd.selection && win.xdnd.selection != 0 && win.source.active {
+		// A drag out owns XdndSelection while it runs; the target reads the
+		// file list from it after the drop.
+		win.answerXdndSelection(request, &notify)
+	} else if value, owned := win.selectionText(request.Selection); owned {
 		property := request.Property
 		if property == xcbAtomNone {
 			property = request.Target
@@ -309,6 +313,9 @@ func (win *window) handleSelectionClear(event *xcbSelectionClearEvent) {
 	case event.Selection == xcbAtomPrimary:
 		win.selections.primary = ""
 		win.selections.ownsPrimary = false
+	case event.Selection == win.xdnd.selection && win.xdnd.selection != 0:
+		// Another client took XdndSelection: this drag can deliver nothing.
+		win.cancelSourceDrag()
 	}
 }
 

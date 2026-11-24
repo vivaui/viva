@@ -86,6 +86,14 @@ type window struct {
 	keymap  xcbKeymap
 	frame   frameState
 	xdnd    xdndAtoms
+	// source is the drag out of this window (drag_linux.go). The event-loop
+	// thread owns it; lastRootX/Y and lastEventTime are the pointer event that
+	// started it, which the source must know while the application handles it.
+	source               xdndSource
+	application          *linuxApplication
+	lastRootX, lastRootY int16
+	lastEventTime        uint32
+	dragGeneration       uint64
 	// wmStateAtom is WM_STATE, resolved when the application asked for
 	// minimize changes; minimized is what it last said.
 	wmStateAtom uint32
@@ -986,6 +994,9 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		switch {
 		case message.Window == win.id && win.isDragMessage(message.Type):
 			return false, state.handleDragMessage(message)
+		case message.Window == win.id && win.isSourceDragMessage(message.Type):
+			win.handleSourceDragMessage(message)
+			return false, nil
 		case message.Format == 32 && message.Window == win.id && message.Type == win.closeAtom:
 			return true, nil
 		case message.Format == 32 && message.Window == win.id && message.Type == win.commandAtom:
@@ -1115,6 +1126,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		}
 	case xcbButtonPress:
 		inputEvent := (*xcbInputEvent)(event)
+		win.noteInputEvent(inputEvent)
 		if win.beginWindowMove(config, inputEvent) {
 			break
 		}
@@ -1125,12 +1137,17 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		return false, err
 	case xcbButtonRelease:
 		inputEvent := (*xcbInputEvent)(event)
+		win.noteInputEvent(inputEvent)
+		win.sourceDragRelease(inputEvent)
 		win.endPress()
 		if xcbPointerButton(inputEvent.Detail) != 0 {
 			return false, router.pointer(platform.PointerUp, inputEvent)
 		}
 	case xcbMotionNotify, xcbEnterNotify:
-		consumed, cancelled := win.dragMotion((*xcbInputEvent)(event))
+		inputEvent := (*xcbInputEvent)(event)
+		win.noteInputEvent(inputEvent)
+		win.sourceDragMotion(inputEvent)
+		consumed, cancelled := win.dragMotion(inputEvent)
 		if cancelled {
 			if err := router.pointerExit(); err != nil {
 				return false, err
@@ -1144,6 +1161,9 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		return false, router.pointerExit()
 	case xcbKeyPress:
 		inputEvent := (*xcbInputEvent)(event)
+		if win.source.active && normalizedKeysym(win.keymap.keysym(inputEvent.Detail, 0)) == input.KeyEscape {
+			win.sourceDragEscape()
+		}
 		repeat := state.pendingKeyReleaseDetail == inputEvent.Detail && state.pendingKeyReleaseTime == inputEvent.Time
 		state.pendingKeyReleaseDetail, state.pendingKeyReleaseTime = 0, 0
 		if !win.keymap.key(inputEvent.Detail).IsModifier() {
@@ -1427,7 +1447,7 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		api.disconnect(connection)
 		return nil, fmt.Errorf("linux: X server has no screen")
 	}
-	win := &window{api: api, connection: connection, screen: iterator.Data}
+	win := &window{api: api, connection: connection, screen: iterator.Data, application: application}
 	// The scale decides the window's size in device pixels. Where the window
 	// will be is not known yet; the requested origin is the best guess of which
 	// monitor, and the first ConfigureNotify corrects it.
@@ -1676,6 +1696,9 @@ func (win *window) postClientSize(width, height uint32) {
 func (win *window) close() {
 	win.mu.Lock()
 	defer win.mu.Unlock()
+	// A drag out is over with the window that owned it, and a target still
+	// waiting has nothing left to ask.
+	win.source = xdndSource{}
 	if win.tracker != nil {
 		win.tracker.close()
 		win.tracker = nil
