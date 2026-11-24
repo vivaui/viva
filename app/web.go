@@ -85,6 +85,10 @@ const WebProxyDirect = platform.WebProxyDirect
 
 // WebViewConfig describes a page to open.
 type WebViewConfig struct {
+	// UserAgentSuffix identifies this application after the system engine's default user agent.
+	// It is set before the first navigation, applies to child frames, and is private to this page.
+	// Empty preserves the engine default. Only printable ASCII is accepted.
+	UserAgentSuffix string
 	// URL is loaded when the page opens, unless HTML is set.
 	URL string
 	// HTML is loaded instead of a URL, with BaseURL as its address.
@@ -345,6 +349,9 @@ func partitionName(name string) (string, error) {
 // Open opens a page. It fails with ErrUnsupported when the platform cannot host pages or the system
 // has no web engine installed.
 func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
+	if strings.IndexFunc(config.UserAgentSuffix, func(r rune) bool { return r < 0x20 || r > 0x7e }) >= 0 {
+		return nil, fmt.Errorf("app: web view user agent suffix must be printable ASCII")
+	}
 	if config.TopCornerRadius < 0 || math.IsNaN(float64(config.TopCornerRadius)) || math.IsInf(float64(config.TopCornerRadius), 0) {
 		return nil, fmt.Errorf("app: invalid web view top corner radius")
 	}
@@ -363,6 +370,7 @@ func (host *WebHost) Open(config WebViewConfig) (*WebView, error) {
 	platformConfig := platform.WebViewConfig{
 		ID: uint32(id), URL: config.URL, HTML: config.HTML, BaseURL: config.BaseURL, Proxy: config.Proxy,
 		TopCornerRadius: config.TopCornerRadius,
+		UserAgentSuffix: config.UserAgentSuffix,
 		Ephemeral:       config.Ephemeral,
 		Partition:       partition,
 	}

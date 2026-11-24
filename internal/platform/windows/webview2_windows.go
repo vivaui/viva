@@ -393,6 +393,9 @@ const (
 	controllerMoveFocus       = 12
 	controllerClose           = 24
 	controllerGetWebView      = 25
+	viewGetSettings           = 3
+	settingsGetUserAgent      = 21
+	settingsPutUserAgent      = 22
 	viewNavigate              = 5
 	viewNavigateToString      = 6
 	viewAddNavStarting        = 7
@@ -459,6 +462,9 @@ const (
 // page is made with. It comes from the WebView2 SDK 1.0.1210.39 and Runtime 101 (Edge 101); a
 // runtime older than that does not answer for it.
 var iidEnvironment10 = guid{0xee0eb9df, 0x6f12, 0x46ce, [8]byte{0xb5, 0x3f, 0x3f, 0x47, 0xb9, 0xc9, 0x28, 0xe0}}
+
+// ICoreWebView2Settings2 from WebView2 SDK WebView2.h; UserAgent follows base settings.
+var iidSettings2 = guid{0xee9a0f68, 0xf46c, 0x4e32, [8]byte{0xac, 0x23, 0xef, 0x8c, 0xac, 0x22, 0x4d, 0x2a}}
 
 // iidProcessFailedArgs2 is ICoreWebView2ProcessFailedEventArgs2, the arguments of ProcessFailed that
 // say why the process went (WebView2 SDK 1.0.818.41, Runtime 94 and newer, which is older than the
