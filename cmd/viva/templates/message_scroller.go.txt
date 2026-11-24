@@ -240,7 +240,7 @@ func (scroller MessageScroller) paintButton(bounds gfx.Rect, id gfx.ID, label st
 	if scroller.canvas.FocusVisible() == id {
 		ring := scroller.theme.Ring
 		ring.Alpha *= 0.50
-		scroller.canvas.Rounded(messageScrollerExpand(bounds, 3), scroller.theme.Metrics.RadiusControl+3, ring)
+		scroller.canvas.Rounded(messageScrollerExpand(bounds, 3), gfx.RadiusOutset(scroller.theme.Metrics.RadiusControl, 3), ring)
 	}
 	scroller.canvas.RoundedBorder(bounds, scroller.theme.Metrics.RadiusControl, 1, scroller.theme.Border, background)
 	icon := &arrowDownIcon
