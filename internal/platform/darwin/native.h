@@ -391,6 +391,8 @@ int viva_offscreen_render(
 );
 void viva_offscreen_release(void *offscreen);
 int viva_run(viva_window_config config);
+enum { VIVA_APPLICATION_NOT_MAIN_THREAD = 9 };
+int viva_application_check_thread(void);
 int viva_application_begin(void);
 int viva_application_last_status(void);
 void *viva_application_open_window(viva_window_config config);
