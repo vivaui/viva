@@ -36,8 +36,8 @@ func (f *Frame) PaintChild(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
-	if extra := &f.Exts[n.Ext]; extra.glided && !n.ID.IsZero() && f.Surface != nil {
-		f.Surface.BeginGlide(n.ID, 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
+	if extra := &f.Exts[n.Ext]; extra.glided && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		f.Surface.BeginGlide(extra.glideIdentity(n), 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
 		defer f.Surface.EndPose()
 	}
 	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
@@ -407,4 +407,13 @@ func (f *Frame) paintStrike(value string, bounds Rect, style gfx.TextStyle, alig
 	}
 	x := f.Surface.LabelOrigin(value, bounds, style, alignment)
 	f.Surface.Fill(Rect{X: x, Y: bounds.Y + bounds.Height/2, Width: f.Surface.TextWidthStyle(value, style), Height: 1}, style.Color)
+}
+
+// glideIdentity is what a glided element is followed by: its own ID, or the one
+// its list gave it when it has none.
+func (x *Extra) glideIdentity(n *Node) gfx.ID {
+	if !n.ID.IsZero() {
+		return n.ID
+	}
+	return x.glideID
 }
