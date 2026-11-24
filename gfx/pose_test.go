@@ -206,3 +206,29 @@ func TestGlideIsInstantUnderReducedMotion(t *testing.T) {
 		t.Fatalf("reduced motion = %v animating=%v", got, canvas.Animating())
 	}
 }
+
+func TestGlideFromStartsWhereTheElementWasCarried(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := Motion{Duration: 100 * time.Millisecond, Easing: EaseLinear}
+	x := func(at time.Duration, layout float32, from *Point) (got float32) {
+		canvas.Reset()
+		frames.at(at, func() {
+			if from != nil {
+				canvas.GlideFrom(Item(1), 0, *from)
+			}
+			got = paintGlided(&canvas, Item(1), layout, motion)
+		})
+		return got
+	}
+	x(0, 100, nil)
+	if got := x(time.Second, 40, &Point{X: 300}); got != 300 {
+		t.Fatalf("first frame = %v, want the point it was carried to", got)
+	}
+	if got := x(time.Second+50*time.Millisecond, 40, nil); math.Abs(float64(got-170)) > 1e-3 {
+		t.Fatalf("halfway = %v, want 170", got)
+	}
+	if got := x(2*time.Second, 40, nil); got != 40 {
+		t.Fatalf("arrived = %v", got)
+	}
+}

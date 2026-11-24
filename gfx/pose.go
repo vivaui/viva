@@ -199,3 +199,32 @@ func (canvas *Canvas) BeginGlide(id ID, slot uint8, place Point, motion Motion) 
 	}
 	entry.origin, entry.placed = origin, true
 }
+
+// GlideFrom tells the canvas that the element named id and slot, which the
+// next BeginGlide places, was last seen at from: a tab dropped where the pointer
+// carried it, a row set down by a drag. The element then slides from there
+// instead of from where the previous frame painted it. It has to come before the
+// frame's BeginGlide of the element, and only affects the one that follows; an
+// element that is not painted again, a canvas without a frame clock and reduced
+// motion ignore it.
+func (canvas *Canvas) GlideFrom(id ID, slot uint8, from Point) {
+	state := &canvas.motion
+	if !state.active || id.IsZero() || state.reduce {
+		return
+	}
+	index := -1
+	for candidate := range state.poses {
+		if state.poses[candidate].id == id && state.poses[candidate].slot == slot {
+			index = candidate
+			break
+		}
+	}
+	if index < 0 {
+		return
+	}
+	entry := &state.poses[index]
+	// What the eye saw is the pose shown now, on top of the place painted.
+	now := state.frameTime()
+	entry.origin = Point{X: from.X - entry.channels[0].value(now), Y: from.Y - entry.channels[1].value(now)}
+	entry.placed = true
+}
