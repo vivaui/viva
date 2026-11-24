@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/keymap"
@@ -71,6 +72,37 @@ func (application *Application) Post(fn func()) {
 		return
 	}
 	application.host.Post(fn)
+}
+
+// PostAfter is Post after a delay: fn runs on the event-loop thread once d has
+// passed, through the same host post as Post. It does not wait for a window to
+// paint, so a hidden, minimized, or covered window still runs the work on time;
+// anything it changes is read by the next wake or paint that comes.
+//
+// A non-positive d posts on the next loop turn. The returned stop cancels the
+// call: after stop returns fn will not start, and stop is idempotent and safe
+// from any goroutine. Each call owns one timer until fn runs or stop is called;
+// PostAfter starts no goroutine, and an application that never calls it owns no
+// timer.
+func (application *Application) PostAfter(d time.Duration, fn func()) (stop func()) {
+	if application == nil || application.host == nil || fn == nil {
+		return func() {}
+	}
+	if d < 0 {
+		d = 0
+	}
+	var stopped atomic.Bool
+	timer := time.AfterFunc(d, func() {
+		application.Post(func() {
+			if !stopped.Load() {
+				fn()
+			}
+		})
+	})
+	return func() {
+		stopped.Store(true)
+		timer.Stop()
+	}
 }
 
 // Window is one independently retained native window. Close is idempotent and
