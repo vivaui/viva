@@ -235,3 +235,134 @@ func TestGlideFromStartsWhereTheElementWasCarried(t *testing.T) {
 		t.Fatalf("arrived = %v", got)
 	}
 }
+
+func paintPosedWith(canvas *Canvas, id ID, pose Pose, motion Motion, paint func()) {
+	canvas.BeginPose(id, 0, pose, motion, Point{X: 50, Y: 50})
+	paint()
+	canvas.EndPose()
+}
+
+func TestPoseRotationTurnsARectangleIntoVectorShapes(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		paintPosedWith(&canvas, Item(1), Pose{Rotate: math.Pi / 2}, Motion{Duration: time.Second}, func() {
+			canvas.Fill(Rect{X: 0, Y: 40, Width: 100, Height: 20}, Color{Red: 1, Alpha: 1})
+		})
+	})
+	if len(canvas.Rectangles()) != 0 || len(canvas.Triangles()) == 0 {
+		t.Fatalf("%d rectangles and %d triangles: a turned rectangle must become shapes", len(canvas.Rectangles()), len(canvas.Triangles()))
+	}
+	// A quarter turn about (50, 50) stands the 100x20 bar up: 20 wide, 100 tall.
+	left, top, right, bottom := float32(1e9), float32(1e9), float32(-1e9), float32(-1e9)
+	for _, triangle := range canvas.Triangles() {
+		for _, point := range triangle.Points {
+			left, right = min(left, point.X), max(right, point.X)
+			top, bottom = min(top, point.Y), max(bottom, point.Y)
+		}
+	}
+	if math.Abs(float64(right-left-20)) > 1e-3 || math.Abs(float64(bottom-top-100)) > 1e-3 {
+		t.Fatalf("turned bar spans %vx%v, want 20x100", right-left, bottom-top)
+	}
+}
+
+func TestPoseRotationKeepsPaintOrderAmongShapesAndTriangles(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		paintPosedWith(&canvas, Item(1), Pose{Rotate: 0.3}, Motion{Duration: time.Second}, func() {
+			canvas.Fill(Rect{Width: 50, Height: 50}, Color{Red: 1, Alpha: 1})
+			canvas.DrawIcon(Icon{ViewBox: 24, Stroke: 2, Commands: []PathCommand{MoveTo(4, 12), LineTo(20, 12)}, Cap: CapRound}, Rect{Width: 24, Height: 24}, Color{Alpha: 1})
+			canvas.Fill(Rect{X: 60, Width: 50, Height: 50}, Color{Green: 1, Alpha: 1})
+		})
+	})
+	previous := uint32(0)
+	for index, triangle := range canvas.Triangles() {
+		if triangle.Order < previous {
+			t.Fatalf("triangle %d has order %d after %d: the group is out of paint order", index, triangle.Order, previous)
+		}
+		previous = triangle.Order
+	}
+}
+
+func TestPoseRotationWarpsTextIntoAQuad(t *testing.T) {
+	var canvas Canvas
+	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		paintPosedWith(&canvas, Item(1), Pose{Rotate: math.Pi / 2}, Motion{Duration: time.Second}, func() {
+			canvas.Label("hello", Rect{X: 0, Y: 40, Width: 100, Height: 20}, TextStyle{Size: 13, Color: Color{Alpha: 1}})
+		})
+	})
+	text := canvas.Texts()[0]
+	if !text.HasQuad {
+		t.Fatal("a turned label was not given a quad")
+	}
+	// Top-left (0,40) turned a quarter about (50,50) lands at (60, 0).
+	if got := text.Quad[0]; math.Abs(float64(got.X-60)) > 1e-3 || math.Abs(float64(got.Y)) > 1e-3 {
+		t.Fatalf("top-left corner at %+v, want (60, 0)", got)
+	}
+	if text.Tint[0].Alpha != 1 {
+		t.Fatalf("the quad's tint %+v hides the text", text.Tint[0])
+	}
+}
+
+func TestPoseScaleMakesTextFollowIt(t *testing.T) {
+	var canvas Canvas
+	canvas.SetMeasurer(func(value string, size, weight float32) float32 { return float32(len(value)) * size / 2 })
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		paintPosedWith(&canvas, Item(1), Pose{Scale: 2}, Motion{Duration: time.Second}, func() {
+			canvas.Label("hi", Rect{X: 40, Y: 40, Width: 20, Height: 20}, TextStyle{Size: 13, Color: Color{Alpha: 1}})
+		})
+	})
+	text := canvas.Texts()[0]
+	if !text.HasQuad || text.Quad[1].X-text.Quad[0].X != 40 {
+		t.Fatalf("text quad %+v is not twice its box", text.Quad)
+	}
+}
+
+func TestPoseRotationFollowsClipAndHitAsBoundingBoxes(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.Reset()
+	frames.at(0, func() {
+		paintPosedWith(&canvas, Item(1), Pose{Rotate: math.Pi / 2}, Motion{Duration: time.Second}, func() {
+			canvas.Hit(Item(1), Rect{X: 0, Y: 40, Width: 100, Height: 20})
+		})
+	})
+	got := canvas.Hits()[0].Bounds
+	if math.Abs(float64(got.Width-20)) > 1e-3 || math.Abs(float64(got.Height-100)) > 1e-3 {
+		t.Fatalf("turned hit %+v, want 20x100", got)
+	}
+}
+
+func TestWarmRotatedPoseDoesNotAllocate(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(300*time.Millisecond, 0)
+	paint := func(angle float32) {
+		canvas.Reset()
+		for id := 1; id <= 16; id++ {
+			paintPosedWith(&canvas, Item(id), Pose{Rotate: angle}, motion, func() {
+				canvas.Rounded(Rect{Width: 60, Height: 30}, 6, Color{Red: 1, Alpha: 1})
+			})
+		}
+	}
+	frames.at(0, func() { paint(0) })
+	now := time.Duration(0)
+	for range 20 { // warm the scratch lists
+		now += 8 * time.Millisecond
+		frames.at(now, func() { paint(0.5) })
+	}
+	if allocations := testing.AllocsPerRun(50, func() {
+		now += 8 * time.Millisecond
+		frames.at(now, func() { paint(0.5) })
+	}); allocations != 0 {
+		t.Fatalf("warm rotated frames allocate %v times", allocations)
+	}
+}

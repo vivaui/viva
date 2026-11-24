@@ -728,10 +728,15 @@ type Canvas struct {
 	// fillPoints is the outline of a gradient-filled rounded rectangle.
 	fillPoints []Point
 	// path and triangulation scratch survives Reset: reused every paint.
-	strokeSideA     []Point
-	strokeSideB     []Point
-	strokeRing      []Point
-	ringPoints      []Point
+	strokeSideA []Point
+	strokeSideB []Point
+	strokeRing  []Point
+	ringPoints  []Point
+	// poseShapes, posePoints and poseMerge are the scratch of turning a posed
+	// group's rectangles into vector shapes (presence.go).
+	poseShapes      []Triangle
+	posePoints      []Point
+	poseMerge       []Triangle
 	ringEnds        []int32
 	earcut          earcutScratch
 	rings           []ringCacheEntry
@@ -1104,6 +1109,9 @@ func (canvas *Canvas) Trim() {
 	canvas.strokeSideB = trimCapacity(canvas.strokeSideB)
 	canvas.strokeRing = trimCapacity(canvas.strokeRing)
 	canvas.ringPoints = trimCapacity(canvas.ringPoints)
+	canvas.poseShapes = trimCapacity(canvas.poseShapes)
+	canvas.posePoints = trimCapacity(canvas.posePoints)
+	canvas.poseMerge = trimCapacity(canvas.poseMerge)
 	canvas.ringEnds = trimCapacity(canvas.ringEnds)
 	canvas.parentScratch = trimCapacity(canvas.parentScratch)
 	canvas.consumedScratch = trimCapacity(canvas.consumedScratch)
