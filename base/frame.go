@@ -191,7 +191,10 @@ type Extra struct {
 	ring          Color   // Ring: a line around the outside of the element
 	ringWidth     float32 // its width; zero is none
 	borderDashed  bool
-	fade          float32          // 1 less the opacity, so that the zero value is opaque
+	fade          float32    // 1 less the opacity, so that the zero value is opaque
+	glide         gfx.Motion // Glide: how the element slides to a place the layout moves it to
+	glided        bool
+	glideScroll   gfx.Point
 	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
 	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to

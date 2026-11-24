@@ -41,6 +41,8 @@ type presenceOpen struct {
 	// order is the canvas's last paint order when the group opened. The
 	// snapshot stores its primitives relative to it.
 	order uint32
+	// pose is what BeginPose asked for; unused by a presence.
+	pose poseTarget
 }
 
 // hitMotion is the placement a moving presence applies to one hit, as scale
@@ -543,9 +545,16 @@ func reverseTriangles(triangles []Triangle) {
 // is not worth one per frame, so a label moves with the overlay but keeps its size.
 func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, progress float32, leaving bool) {
 	transform := presence.transform(pivot, progress, leaving)
+	transform.apply(canvas, open, presence.Fade, presence.Fade && progress < 1)
+}
+
+// apply places and fades everything the canvas painted since open began. fade
+// multiplies every colour by the transform's alpha; vectorize turns rounded
+// border backings into rings first, which a fade that is not complete needs so
+// the backing does not show through the fill.
+func (transform presenceTransform) apply(canvas *Canvas, open presenceOpen, fade, vectorize bool) {
 	moving := transform.scale != 1 || transform.offset != (Point{})
-	fade := presence.Fade
-	if fade && progress < 1 {
+	if vectorize {
 		vectorizeBorderBackings(canvas, open.rectangles)
 	}
 	for index := open.rectangles; index < len(canvas.rectangles); index++ {

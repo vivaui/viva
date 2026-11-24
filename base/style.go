@@ -221,6 +221,25 @@ func (b Box) TransitionWith(motion gfx.Motion) Box {
 	return b
 }
 
+// Glide makes the element, with everything inside it, slide to a new place when
+// the layout moves it, over motion: a tab whose neighbour closed, a row dropped
+// into a list. The layout is not animated and the element is hit where it is
+// painted, which the last frame's place is until it arrives. An element needs a
+// stable ID to glide, as a Transition does; one painted for the first time is
+// simply there, and a canvas without a frame clock, or under reduced motion,
+// places it at once. An idle element schedules nothing.
+//
+// scrolled is how far the content around the element is scrolled by something
+// the framework does not own, such as tabs the application shifts sideways: a
+// scroll is not a move, so the element's place is measured less it. Pass the
+// zero Point where nothing scrolls.
+func (b Box) Glide(motion gfx.Motion, scrolled gfx.Point) Box {
+	b.N()
+	extra := b.f.Extra(b.i)
+	extra.glide, extra.glided, extra.glideScroll = motion, true, scrolled
+	return b
+}
+
 // Opacity draws the element and everything inside it with its colors' opacity
 // multiplied by v, 0 to 1: its fill, border, shadow, ring, text, icons and the
 // controls inside it, which are painted with a theme faded the same way. The

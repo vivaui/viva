@@ -372,10 +372,16 @@ func (slot *motionSlot) settled(now time.Duration) bool {
 
 // retarget starts the segment that carries the value shown at now to target.
 func (slot *motionSlot) retarget(now time.Duration, target float32, motion Motion) {
-	from, speed := slot.value(now), slot.velocity(now)
+	slot.rebase(now, 0, target, motion)
+}
+
+// rebase carries the value shown at now, moved by shift, to target, keeping the
+// velocity it has. A shift is for a value measured from an origin that moved
+// under it: what the eye saw stays where it was.
+func (slot *motionSlot) rebase(now time.Duration, shift, target float32, motion Motion) {
+	from, speed := slot.value(now)+shift, slot.velocity(now)
 	slot.from, slot.to, slot.start, slot.duration = from, target, now, motion.Duration
-	slot.easing, slot.spring = motion.Easing, motion.Spring
-	slot.speed = 0
+	slot.easing, slot.spring, slot.speed = motion.Easing, motion.Spring, 0
 	if motion.Spring {
 		bounce := float64(min(max(motion.Bounce, 0), 0.95))
 		slot.omega = 2 * math.Pi / motion.Duration.Seconds()
@@ -404,7 +410,11 @@ type motionState struct {
 	// presences are the overlays that are open or still leaving, and open the
 	// groups the current paint pass has begun and not yet ended (presence.go).
 	presences []presenceEntry
-	open      []presenceOpen
+	// poses are the elements with a Pose, and poseAt the cursor that finds them
+	// in paint order (pose.go).
+	poses  []poseEntry
+	poseAt int
+	open   []presenceOpen
 	// hitMotions keeps the placement of hits painted inside a moving presence
 	// for this frame, so native overlays anchored to them move with the paint.
 	hitMotions []hitMotionEntry
@@ -465,6 +475,7 @@ func (state *motionState) sweep() {
 	if cap(state.slots) > motionShrinkCapacity && len(state.slots)*motionShrinkFactor < cap(state.slots) {
 		state.slots = append(make([]motionSlot, 0, len(state.slots)*2), state.slots...)
 	}
+	state.sweepPoses()
 	onces := state.onces[:0]
 	for _, once := range state.onces {
 		if once.seen == state.frame {
@@ -494,6 +505,7 @@ func (canvas *Canvas) BeginFrame() {
 	state.frame++
 	state.cursor = 0
 	state.onceAt = 0
+	state.poseAt = 0
 	state.sampled = false
 	state.active = state.clock != nil
 	state.animating = false
