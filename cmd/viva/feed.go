@@ -16,8 +16,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vivaui/viva/tools/manifest"
@@ -480,7 +482,20 @@ func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, max
 		}
 		byTarget[key] = append(byTarget[key], from)
 	}
-	matched := make(map[string]int, len(byTarget))
+	// Every patch is cut from two archives of its own and written to a file of
+	// its own, so they run side by side; the feed entries are added afterwards in
+	// the order the arguments came, so the feed does not depend on which finished
+	// first.
+	type patchJob struct {
+		asset   *update.Asset
+		key     string
+		name    string
+		from    patchFrom
+		patch   update.Patch
+		written bool
+		err     error
+	}
+	var jobs []*patchJob
 	for i := range assets {
 		asset := &assets[i]
 		key := asset.OS + "/" + asset.Arch
@@ -500,34 +515,65 @@ func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, max
 		if err != nil {
 			return fmt.Errorf("feed: %s: %w", asset.URL, err)
 		}
-		newArchive := filepath.Join(dir, name)
 		for _, from := range froms {
-			var encoded bytes.Buffer
-			if _, err := patchgen.Write(patchgen.Request{
-				App: app, FromVersion: from.version, ToVersion: version,
-				OS: asset.OS, Arch: asset.Arch,
-				OldArchive: from.archive, NewArchive: newArchive,
-				Executable: executable, Exclude: excludes,
-				Output: &encoded,
-			}); err != nil {
-				return fmt.Errorf("feed: patch %s from %s: %w", key, from.version, err)
-			}
-			matched[key]++
-			if maxRatio > 0 && float64(encoded.Len()) > maxRatio*float64(asset.Size) {
-				continue
-			}
-			patchName := name + "." + from.version + ".patch"
-			if err := writePatchFileBeside(filepath.Join(dir, patchName), encoded.Bytes()); err != nil {
-				return err
-			}
-			sum := sha256.Sum256(encoded.Bytes())
-			asset.Patches = append(asset.Patches, update.Patch{
-				FromVersion: from.version,
-				URL:         base + "/" + url.PathEscape(patchName),
-				Size:        int64(encoded.Len()),
-				SHA256:      hex.EncodeToString(sum[:]),
-			})
+			jobs = append(jobs, &patchJob{asset: asset, key: key, name: name, from: from})
 		}
+	}
+	workers := min(runtime.GOMAXPROCS(0), len(jobs))
+	next := make(chan *patchJob)
+	var running sync.WaitGroup
+	for range workers {
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			for job := range next {
+				var encoded bytes.Buffer
+				if _, err := patchgen.Write(patchgen.Request{
+					App: app, FromVersion: job.from.version, ToVersion: version,
+					OS: job.asset.OS, Arch: job.asset.Arch,
+					OldArchive: job.from.archive, NewArchive: filepath.Join(dir, job.name),
+					Executable: executable, Exclude: excludes,
+					Output: &encoded,
+				}); err != nil {
+					job.err = fmt.Errorf("feed: patch %s from %s: %w", job.key, job.from.version, err)
+					continue
+				}
+				if maxRatio > 0 && float64(encoded.Len()) > maxRatio*float64(job.asset.Size) {
+					continue
+				}
+				patchName := job.name + "." + job.from.version + ".patch"
+				if err := writePatchFileBeside(filepath.Join(dir, patchName), encoded.Bytes()); err != nil {
+					job.err = err
+					continue
+				}
+				sum := sha256.Sum256(encoded.Bytes())
+				job.patch = update.Patch{
+					FromVersion: job.from.version,
+					URL:         base + "/" + url.PathEscape(patchName),
+					Size:        int64(encoded.Len()),
+					SHA256:      hex.EncodeToString(sum[:]),
+				}
+				job.written = true
+			}
+		}()
+	}
+	for _, job := range jobs {
+		next <- job
+	}
+	close(next)
+	running.Wait()
+	matched := make(map[string]int, len(byTarget))
+	for _, job := range jobs {
+		if job.err != nil {
+			return job.err
+		}
+		matched[job.key]++
+		if job.written {
+			job.asset.Patches = append(job.asset.Patches, job.patch)
+		}
+	}
+	for i := range assets {
+		asset := &assets[i]
 		sort.Slice(asset.Patches, func(a, b int) bool {
 			order, err := update.Compare(asset.Patches[a].FromVersion, asset.Patches[b].FromVersion)
 			return err == nil && order < 0

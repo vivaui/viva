@@ -195,6 +195,12 @@ type Extra struct {
 	glide         gfx.Motion // Glide: how the element slides to a place the layout moves it to
 	glided        bool
 	glideScroll   gfx.Point
+	presence      gfx.Presence // Presence: how the element enters and leaves
+	presenced     bool
+	pose          gfx.Pose // Pose: where the element sits relative to its place
+	poseMotion    gfx.Motion
+	posed         bool
+	glideID       gfx.ID           // the identity of a glided element that has no hit of its own, such as a list row
 	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
 	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to

@@ -266,6 +266,9 @@ type motionSlot struct {
 	spring      bool
 	omega, zeta float64
 	speed       float64
+	// carry is the speed Canvas.Throw gave a settled value: the next segment
+	// starts at it, once.
+	carry float64
 }
 
 // onceSlot is one PlayOnce timeline. Unlike motionSlot it never retargets: it
@@ -341,7 +344,7 @@ func (slot *motionSlot) springAt(elapsed time.Duration) (x, v float64) {
 // second, which a spring taking over from this segment continues from.
 func (slot *motionSlot) velocity(now time.Duration) float64 {
 	if slot.settled(now) {
-		return 0
+		return slot.carry
 	}
 	if slot.spring {
 		_, v := slot.springAt(now - slot.start)
@@ -381,7 +384,7 @@ func (slot *motionSlot) retarget(now time.Duration, target float32, motion Motio
 func (slot *motionSlot) rebase(now time.Duration, shift, target float32, motion Motion) {
 	from, speed := slot.value(now)+shift, slot.velocity(now)
 	slot.from, slot.to, slot.start, slot.duration = from, target, now, motion.Duration
-	slot.easing, slot.spring, slot.speed = motion.Easing, motion.Spring, 0
+	slot.easing, slot.spring, slot.speed, slot.carry = motion.Easing, motion.Spring, 0, 0
 	if motion.Spring {
 		bounce := float64(min(max(motion.Bounce, 0), 0.95))
 		slot.omega = 2 * math.Pi / motion.Duration.Seconds()
@@ -629,6 +632,8 @@ func (canvas *Canvas) Animate(id ID, slot uint8, target float32, motion Motion) 
 	}
 	if entry.to != target {
 		entry.retarget(now, target, motion)
+	} else {
+		entry.carry = 0
 	}
 	if !entry.settled(now) {
 		state.animating = true

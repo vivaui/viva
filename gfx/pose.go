@@ -14,6 +14,11 @@ type Pose struct {
 	Scale float32
 	// Fade is how far it is faded out, from 0, opaque, to 1, gone.
 	Fade float32
+	// Rotate turns it about the pivot, in radians, clockwise. Rectangles become
+	// vector shapes, text is drawn into a turned quad (a backend that cannot warp
+	// text draws the line upright where it would be), and shadows and images
+	// follow the element without turning.
+	Rotate float32
 }
 
 func (pose Pose) channels() [poseChannels]float32 {
@@ -21,10 +26,10 @@ func (pose Pose) channels() [poseChannels]float32 {
 	if scale == 0 {
 		scale = 1
 	}
-	return [poseChannels]float32{pose.Offset.X, pose.Offset.Y, scale, pose.Fade}
+	return [poseChannels]float32{pose.Offset.X, pose.Offset.Y, scale, pose.Fade, pose.Rotate}
 }
 
-const poseChannels = 4
+const poseChannels = 5
 
 // poseEntry is one posed element: a motionSlot per component of its pose, so
 // each keeps its own velocity when the target changes on the way.
@@ -94,13 +99,18 @@ func (canvas *Canvas) EndPose() {
 	}
 	transform := presenceTransform{
 		pivot: target.pivot, offset: Point{X: values[0], Y: values[1]},
-		scale: values[2], alpha: 1 - min(max(values[3], 0), 1),
-	}
+		scale: values[2], alpha: 1 - min(max(values[3], 0), 1), scaleText: true,
+	}.turn(values[4])
 	fade := values[3] > 0
-	if !fade && transform.scale == 1 && transform.offset == (Point{}) {
+	if !fade && transform.scale == 1 && transform.offset == (Point{}) && !transform.turned() {
 		return
 	}
 	transform.apply(canvas, open, fade, fade)
+	// What is seen is what is hit: a press lands on the tab where it is drawn,
+	// not where the layout will put it once it has arrived.
+	for index := open.hits; index < len(canvas.hits); index++ {
+		canvas.hits[index].Bounds = transform.rect(canvas.hits[index].Bounds)
+	}
 	state.recordHitMotions(canvas, open, transform.hitMotion())
 }
 

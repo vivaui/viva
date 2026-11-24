@@ -54,3 +54,31 @@ func TestGlideSlidesAnElementTheLayoutMoved(t *testing.T) {
 		t.Fatalf("arrived = %v animating=%v", got, canvas.Animating())
 	}
 }
+
+// A posed element is drawn where its pose puts it, and is hit there.
+func TestBoxPoseMovesAnElementAndItsHit(t *testing.T) {
+	var canvas gfx.Canvas
+	var view View
+	bounds := gfx.Rect{Width: 300, Height: 100}
+	canvas.SetClock(func() time.Duration { return 0 })
+	canvas.BeginFrame()
+	view.Draw(&canvas, gfx.LightTheme(), bounds, func(f *Frame) {
+		f.Column().Size(50, 20).Background(gfx.Color{Red: 1, Alpha: 1}).Hit(gfx.Item(3), "card").
+			Pose(gfx.Pose{Offset: gfx.Point{X: 30, Y: 5}, Scale: 2}, gfx.DefaultMotion())
+	})
+	canvas.EndFrame()
+	var painted gfx.Rect
+	for _, rectangle := range canvas.Rectangles() {
+		if rectangle.Color.Red == 1 {
+			painted = rectangle.Bounds
+		}
+	}
+	if painted.Width != 100 || painted.Height != 40 {
+		t.Fatalf("posed element painted %+v, want it twice as large", painted)
+	}
+	for _, hit := range canvas.Hits() {
+		if hit.ID == gfx.Item(3) && hit.Bounds != painted {
+			t.Fatalf("hit %+v, painted %+v: a press must land where it is drawn", hit.Bounds, painted)
+		}
+	}
+}
