@@ -563,6 +563,10 @@ func vivaCloseRequested(handle C.uintptr_t, view unsafe.Pointer) {
 func vivaWindowClosed(handle C.uintptr_t) {
 	state := cgo.Handle(handle).Value().(*runState)
 	state.closed = true
+	if window := state.window; window != nil {
+		window.closed.Store(true)
+		window.finishDecoration(nil, fmt.Errorf("darwin: window closed before its decoration change completed"))
+	}
 	if state.web != nil {
 		state.web.closeAll()
 	}
