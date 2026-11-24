@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/pem"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -47,19 +48,7 @@ func (signing macSigning) prepareProvisioning(run toolRunner, bundleID string) (
 	if err = os.WriteFile(profilePath, data, 0o600); err != nil {
 		return signing, noop, err
 	}
-	decoded, err := run("security", "cms", "-D", "-h", "0", "-u", "7", "-i", profilePath)
-	if err != nil {
-		return signing, noop, fmt.Errorf("verify/decode provisioning profile: %w", err)
-	}
-	// security cms can decode a signed message despite a failed verification;
-	// its signer status must be checked, not merely its process exit status.
-	if !strings.Contains(decoded, "nsigners=1;") || !strings.Contains(decoded, "signer0.status=GoodSignature;") {
-		return signing, noop, errors.New("provisioning profile CMS signature did not verify")
-	}
-	if !strings.Contains(decoded, `signer0.id="Apple Mac OS X Provisioning Profile Signing";`) && !strings.Contains(decoded, `signer0.id="Apple iPhone OS Provisioning Profile Signing";`) {
-		return signing, noop, errors.New("provisioning profile was not signed by Apple's provisioning profile signer")
-	}
-	xmlData, err := embeddedPlist(decoded)
+	xmlData, err := verifiedProfilePlist(run, profilePath)
 	if err != nil {
 		return signing, noop, err
 	}
@@ -120,11 +109,8 @@ func (signing macSigning) prepareProvisioning(run toolRunner, bundleID string) (
 		return signing, noop, errors.New("existing team entitlement does not match the provisioning profile")
 	}
 	groups := plistStrings(entitlements["keychain-access-groups"])
-	if existing, ok := entitlements["keychain-access-groups"]; ok && existing.XMLName.Local != "array" {
-		return signing, noop, errors.New("keychain access groups entitlement must be an array")
-	}
-	if len(groups) == 0 {
-		groups = []string{identifier}
+	if existing, ok := entitlements["keychain-access-groups"]; ok && (existing.XMLName.Local != "array" || len(groups) != len(existing.Children)) {
+		return signing, noop, errors.New("keychain access groups entitlement must be an array of strings")
 	}
 	allowedGroups := plistStrings(grants["keychain-access-groups"])
 	for _, group := range groups {
@@ -138,11 +124,6 @@ func (signing macSigning) prepareProvisioning(run toolRunner, bundleID string) (
 	}
 	entitlements["com.apple.application-identifier"] = plistString(identifier)
 	entitlements["com.apple.developer.team-identifier"] = plistString(teams[0])
-	array := plistElement{XMLName: xml.Name{Local: "array"}}
-	for _, group := range groups {
-		array.Children = append(array.Children, plistString(group))
-	}
-	entitlements["keychain-access-groups"] = array
 	merged, err := marshalPlist(entitlements)
 	if err != nil {
 		return signing, noop, err
@@ -168,6 +149,56 @@ func (signing macSigning) prepareProvisioning(run toolRunner, bundleID string) (
 	signing.entitlements, signing.profileData, signing.profileTeam, signing.profileDirectory = entitlementsPath, data, teams[0], directory
 	success = true
 	return signing, cleanup, nil
+}
+
+// Verify the CMS content signature first. The actual signer is written to a
+// separate file, then validated by Security.framework's Apple provisioning
+// policies. Neither signer names nor diagnostic strings from the plist are
+// used to decide whether to trust it.
+func verifiedProfilePlist(run toolRunner, profilePath string) ([]byte, error) {
+	dir := filepath.Dir(profilePath)
+	payload, signer := filepath.Join(dir, "payload.plist"), filepath.Join(dir, "signer.pem")
+	const openssl = "/usr/bin/openssl"
+	if _, err := run(openssl, "smime", "-verify", "-binary", "-inform", "DER", "-in", profilePath, "-noverify", "-signer", signer, "-out", payload); err != nil {
+		return nil, fmt.Errorf("verify provisioning profile content signature: %w", err)
+	}
+	signerData, err := os.ReadFile(signer)
+	if err != nil {
+		return nil, err
+	}
+	leaf, rest := pem.Decode(signerData)
+	if leaf == nil || leaf.Type != "CERTIFICATE" || len(bytes.TrimSpace(rest)) != 0 {
+		return nil, errors.New("expected exactly one provisioning profile signer")
+	}
+	chain, err := run(openssl, "pkcs7", "-inform", "DER", "-in", profilePath, "-print_certs")
+	if err != nil {
+		return nil, fmt.Errorf("read provisioning profile certificates: %w", err)
+	}
+	certArgs := []string{"-c", signer}
+	for encoded := []byte(chain); len(encoded) > 0; {
+		cert, tail := pem.Decode(encoded)
+		if cert == nil {
+			break
+		}
+		encoded = tail
+		if cert.Type != "CERTIFICATE" || bytes.Equal(cert.Bytes, leaf.Bytes) {
+			continue
+		}
+		path := filepath.Join(dir, fmt.Sprintf("chain-%d.der", len(certArgs)/2))
+		if err := os.WriteFile(path, cert.Bytes, 0o600); err != nil {
+			return nil, err
+		}
+		certArgs = append(certArgs, "-c", path)
+	}
+	// Apple OSXProvisioningProfileSigning and iPhoneProvisioningProfileSigning
+	// each require an Apple anchor and a provisioning-profile signing leaf.
+	for _, policy := range []string{"1.2.840.113635.100.1.40", "1.2.840.113635.100.1.56"} {
+		_, err = run("/usr/bin/security", append([]string{"verify-cert", "-q", "-p", policy}, certArgs...)...)
+		if err == nil {
+			return os.ReadFile(payload)
+		}
+	}
+	return nil, fmt.Errorf("verify Apple provisioning profile signer: %w", err)
 }
 
 func (signing macSigning) verifyProfileSignature(run toolRunner, bundle string) error {
@@ -217,7 +248,8 @@ func (signing macSigning) verifyProfileSignature(run toolRunner, bundle string) 
 		a, b := actual[key], expected[key]
 		matches := a.XMLName.Local == "string" && b.XMLName.Local == "string" && a.Text == b.Text
 		if key == "keychain-access-groups" {
-			matches = a.XMLName.Local == "array" && b.XMLName.Local == "array" && slices.Equal(plistStrings(a), plistStrings(b))
+			matches = a.XMLName.Local == "" && b.XMLName.Local == "" ||
+				a.XMLName.Local == "array" && b.XMLName.Local == "array" && len(plistStrings(a)) == len(a.Children) && slices.Equal(plistStrings(a), plistStrings(b))
 		}
 		if !matches {
 			return fmt.Errorf("signed entitlement %s does not match the provisioning profile", key)

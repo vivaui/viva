@@ -25,7 +25,8 @@ item.
 
 The native Win32 WebAuthn API version must be at least 6 and an active foreground
 window must belong to the calling process. Enrollment requests a platform-only,
-user-verification-required credential with PRF enabled. A verified assertion
+user-verification-required credential with PRF enabled. Registration checks
+that Windows confirms a resident credential with PRF enabled. A verified assertion
 must actually return a 32-byte PRF result. That result wraps the application key
 with AES-256-GCM; it is never persisted. Assertions must match the RP and exact
 credential, use the internal transport, and contain user-presence and
@@ -46,7 +47,8 @@ References: [Win32 WebAuthn](https://learn.microsoft.com/en-us/windows/win32/web
 
 ## macOS
 
-Keys use a Data Protection Keychain generic-password item protected by
+Keys use a Data Protection Keychain generic-password item in the signed app's
+own application-ID access group, protected by
 `SecAccessControl` user presence and `WhenUnlockedThisDeviceOnly`. Items do not
 synchronize through iCloud. Copying the opaque ID to another device is not a
 recovery mechanism. Each release uses a new `LAContext` with no Touch ID reuse
@@ -63,7 +65,8 @@ access before returning a usable slot.
 
 `viva package --provision-profile /path/to/App.provisionprofile` (or the
 `APPLE_PROVISION_PROFILE` path) optionally embeds a profile and merges its
-authorized app/keychain identity with existing entitlements. The profile must
+authorized app identity with existing entitlements. Explicit shared Keychain
+groups are preserved only when authorized by the profile. The profile must
 authorize the exact bundle ID and actual signing certificate. Without a
 profile, ordinary packaging stays unchanged and this protected-key facility
 may be unavailable. Profiles and signing credentials belong in the release

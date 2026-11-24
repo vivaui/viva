@@ -136,9 +136,14 @@ func validate(ctx context.Context, options Options) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(options.Service) == "" || strings.TrimSpace(options.Account) == "" ||
-		!utf8.ValidString(options.Service+options.Account+options.Reason) || strings.ContainsRune(options.Service+options.Account+options.Reason, '\x00') || len(options.Service) > 256 || len(options.Account) > 256 || len(options.Reason) > 1024 {
+	if len(options.Service) > 256 || len(options.Account) > 256 || len(options.Reason) > 1024 ||
+		strings.TrimSpace(options.Service) == "" || strings.TrimSpace(options.Account) == "" {
 		return errors.New("devicekey: bounded, nonempty service and account identifiers are required")
+	}
+	for _, field := range []string{options.Service, options.Account, options.Reason} {
+		if !utf8.ValidString(field) || strings.IndexByte(field, 0) >= 0 {
+			return errors.New("devicekey: invalid native string")
+		}
 	}
 	return nil
 }

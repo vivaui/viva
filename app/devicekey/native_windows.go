@@ -244,7 +244,7 @@ func nativeEnroll(ctx context.Context, options Options, key []byte) (result enve
 	}
 	result = envelope{Platform: "windows-webauthn-prf", ID: append([]byte(nil), unsafe.Slice(value.ID, value.IDSize)...), Binding: binding(options)}
 	// Syncable/backup-eligible credentials are unsuitable for a device-only slot.
-	if value.Version < 3 || value.Transport != 0x10 || !verifiedData(value.Auth, value.AuthSize, rpID) {
+	if !value.deviceBoundPRF(rpID) {
 		_ = deleteCredential(result.ID)
 		return envelope{}, fmt.Errorf("%w: platform authenticator did not provide a local user-verified PRF credential", ErrUnavailable)
 	}
@@ -270,6 +270,11 @@ func nativeEnroll(ctx context.Context, options Options, key []byte) (result enve
 	rand.Read(result.Nonce)
 	result.Ciphertext = aead.Seal(nil, result.Nonce, key, append(binding(options), result.ID...))
 	return result, nil
+}
+
+func (value *waAttestation) deviceBoundPRF(rpID string) bool {
+	return value.Version >= 5 && value.Transport == 0x10 && value.Resident != 0 && value.PRF != 0 &&
+		verifiedData(value.Auth, value.AuthSize, rpID)
 }
 
 func nativeUnseal(ctx context.Context, options Options, value envelope) ([]byte, error) {

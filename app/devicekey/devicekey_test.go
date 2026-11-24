@@ -44,3 +44,10 @@ func TestMalformedBlobDoesNotReachNativeStore(t *testing.T) {
 		}
 	}
 }
+
+func TestIdentifiersAreIndividuallyValidNativeStrings(t *testing.T) {
+	opts := Options{Service: "name\xc3", Account: "\xa9slot"}
+	if err := validate(context.Background(), opts); err == nil {
+		t.Error("accepted incomplete UTF-8 in service and account")
+	}
+}

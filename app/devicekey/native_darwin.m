@@ -10,20 +10,25 @@
 
 struct viva_device_key_operation { LAContext *context; };
 
+static NSString *application_identifier(void) {
+    SecTaskRef task = SecTaskCreateFromSelf(kCFAllocatorDefault);
+    if (task == NULL) return nil;
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, CFSTR("com.apple.application-identifier"), NULL);
+    CFRelease(task);
+    if (value == NULL) return nil;
+    if (CFGetTypeID(value) != CFStringGetTypeID() || CFStringGetLength((CFStringRef)value) == 0) {
+        CFRelease(value);
+        return nil;
+    }
+    return [(NSString *)value autorelease];
+}
+
 int viva_device_key_supported(void) {
     @autoreleasepool {
         // Data Protection Keychain access requires a provisioned application
         // identity. Bare/ad-hoc binaries must not advertise an unlock method
         // that will later fail with errSecMissingEntitlement.
-        SecTaskRef task = SecTaskCreateFromSelf(kCFAllocatorDefault);
-        if (task == NULL) return 0;
-        CFTypeRef identifier = SecTaskCopyValueForEntitlement(task,
-            CFSTR("com.apple.application-identifier"), NULL);
-        CFRelease(task);
-        BOOL entitled = identifier != NULL && CFGetTypeID(identifier) == CFStringGetTypeID()
-            && CFStringGetLength((CFStringRef)identifier) != 0;
-        if (identifier != NULL) CFRelease(identifier);
-        if (!entitled) return 0;
+        if (application_identifier() == nil) return 0;
         LAContext *context = [[LAContext alloc] init];
         BOOL supported = [context canEvaluatePolicy:LAPolicyDeviceOwnerAuthentication error:NULL];
         BOOL biometric = supported && [context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:NULL]
@@ -71,8 +76,11 @@ int64_t viva_device_key_operation_run(viva_device_key_operation *operation,
         NSString *account_name = [NSString stringWithUTF8String:account];
         NSString *prompt = [NSString stringWithUTF8String:reason];
         if (service_name == nil || account_name == nil || prompt == nil) return errSecParam;
+        NSString *group = application_identifier();
+        if (group == nil) return errSecMissingEntitlement;
         NSMutableDictionary *query = [NSMutableDictionary dictionaryWithDictionary:@{
             (id)kSecClass: (id)kSecClassGenericPassword,
+            (id)kSecAttrAccessGroup: group,
             (id)kSecAttrService: service_name,
             (id)kSecAttrAccount: account_name,
             (id)kSecAttrSynchronizable: @NO,

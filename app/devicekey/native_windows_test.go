@@ -98,3 +98,27 @@ func TestClientDataContainsFreshChallenge(t *testing.T) {
 		t.Error("challenge reused")
 	}
 }
+
+func TestAuthenticatorMustConfirmResidentPRFCredential(t *testing.T) {
+	rp := "devicekey.test"
+	hash := sha256.Sum256([]byte(rp))
+	data := make([]byte, 37)
+	copy(data, hash[:])
+	data[32] = 5
+	value := waAttestation{Version: 5, Transport: 0x10, Resident: 1, PRF: 1, Auth: &data[0], AuthSize: uint32(len(data))}
+	if !value.deviceBoundPRF(rp) {
+		t.Fatal("local resident PRF credential rejected")
+	}
+	for _, change := range []func(*waAttestation){
+		func(a *waAttestation) { a.Version = 4 },
+		func(a *waAttestation) { a.Resident = 0 },
+		func(a *waAttestation) { a.PRF = 0 },
+		func(a *waAttestation) { a.Transport = 1 },
+	} {
+		other := value
+		change(&other)
+		if other.deviceBoundPRF(rp) {
+			t.Fatal("accepted incompatible credential")
+		}
+	}
+}

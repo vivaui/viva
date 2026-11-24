@@ -17,6 +17,12 @@ import (
 	"unsafe"
 )
 
+const (
+	keychainAdd = iota + 1
+	keychainRead
+	keychainDelete
+)
+
 func nativeSupported() bool { return C.viva_device_key_supported() != 0 }
 func nativeMethod() VerificationMethod {
 	switch C.viva_device_key_supported() {
@@ -30,19 +36,22 @@ func nativeMethod() VerificationMethod {
 }
 
 func nativeEnroll(ctx context.Context, options Options, key []byte) (envelope, error) {
+	return enrollInKeychain(ctx, options, key, keychain)
+}
+
+func enrollInKeychain(ctx context.Context, options Options, key []byte, run func(context.Context, Options, []byte, []byte, int) (int64, []byte, error)) (envelope, error) {
 	value := envelope{Platform: "darwin-keychain-presence", ID: make([]byte, 32)}
 	rand.Read(value.ID)
-	status, _, err := keychain(ctx, options, value.ID, key, 1)
+	status, _, err := run(ctx, options, value.ID, key, keychainAdd)
 	if err == nil {
 		err = keychainError(status)
 	}
 	if err != nil {
-		_, _, _ = keychain(context.Background(), options, value.ID, nil, 3)
 		return envelope{}, err
 	}
 	// CopyMatching enforces the item's userPresence access control. Successful
 	// storage alone is not treated as proof that native authentication works.
-	status, verified, err := keychain(ctx, options, value.ID, nil, 2)
+	status, verified, err := run(ctx, options, value.ID, nil, keychainRead)
 	if err == nil && status == 0 && !equal(verified, key) {
 		err = ErrInvalidBlob
 	}
@@ -51,7 +60,7 @@ func nativeEnroll(ctx context.Context, options Options, key []byte) (envelope, e
 		err = keychainError(status)
 	}
 	if err != nil {
-		_, _, _ = keychain(context.Background(), options, value.ID, nil, 3)
+		_, _, _ = run(context.Background(), options, value.ID, nil, keychainDelete)
 		return envelope{}, err
 	}
 	return value, nil
@@ -61,7 +70,7 @@ func nativeUnseal(ctx context.Context, options Options, value envelope) ([]byte,
 	if value.Platform != "darwin-keychain-presence" || len(value.ID) != 32 || len(value.Ciphertext) != 0 || len(value.Salt) != 0 || len(value.Nonce) != 0 {
 		return nil, ErrInvalidBlob
 	}
-	status, key, err := keychain(ctx, options, value.ID, nil, 2)
+	status, key, err := keychain(ctx, options, value.ID, nil, keychainRead)
 	if err == nil {
 		err = keychainError(status)
 	}
@@ -76,7 +85,7 @@ func nativeRevoke(ctx context.Context, options Options, value envelope) error {
 	if value.Platform != "darwin-keychain-presence" || len(value.ID) != 32 {
 		return ErrInvalidBlob
 	}
-	status, _, err := keychain(ctx, options, value.ID, nil, 3)
+	status, _, err := keychain(ctx, options, value.ID, nil, keychainDelete)
 	if err != nil {
 		return err
 	}
@@ -114,7 +123,9 @@ func keychain(ctx context.Context, options Options, id, key []byte, action int) 
 	var size C.size_t
 	status := C.viva_device_key_operation_run(operation, service, account, reason, C.int(action), input, C.size_t(len(key)), &output, &size)
 	defer C.viva_device_key_bytes_release(output, size)
-	if err := ctx.Err(); err != nil {
+	// Successful adds and deletes already changed the Keychain. Report the
+	// committed outcome even if cancellation arrives as Security returns.
+	if err := ctx.Err(); err != nil && (action == keychainRead || status != 0) {
 		return 0, nil, err
 	}
 	if size > MaxKeySize {
