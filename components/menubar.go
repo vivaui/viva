@@ -165,8 +165,11 @@ type MenubarTrigger struct {
 
 // MenubarItem describes one stable action inside an open menubar popup.
 type MenubarItem struct {
-	ID       gfx.ID
-	Label    string
+	ID    gfx.ID
+	Label string
+	// Mnemonic is an optional one-character key shown after the label and
+	// matched before ordinary menu typeahead.
+	Mnemonic string
 	Shortcut string
 	// Keys, when set, replace Shortcut with one keycap per entry (for example
 	// "⌘", "⌥", "H"), painted with Kbd at the row's trailing edge.
@@ -192,7 +195,7 @@ type MenubarItem struct {
 
 func (item MenubarItem) common() menuItem {
 	return menuItem{
-		ID: item.ID, Label: item.Label, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
+		ID: item.ID, Label: item.Label, Mnemonic: item.Mnemonic, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
 		Value: item.Value, Hint: item.Hint, Kind: menuKind(item.Kind), Destructive: item.Variant == MenubarItemDestructive,
 		Checked: item.Checked, Selected: item.Selected, Disabled: item.Disabled, Inset: item.Inset, Expanded: item.Expanded, Icon: item.Icon,
 	}

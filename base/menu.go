@@ -2,6 +2,8 @@ package base
 
 import (
 	"time"
+	"unicode"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/vivaui/viva/gfx"
@@ -312,6 +314,7 @@ type MenuItemParts struct {
 	Theme       gfx.Theme
 	Rect        gfx.Rect
 	Label       string
+	Mnemonic    string
 	Description string
 	Shortcut    string
 	Checked     bool
@@ -360,7 +363,7 @@ func (m *MenuItems) paintItem(parts style.MenuItemPaint) {
 	}
 	m.drawItem(MenuItemParts{
 		Canvas: parts.Canvas, Theme: parts.Theme, Rect: parts.Bounds,
-		Label: parts.Label, Description: parts.Description, Shortcut: parts.Shortcut,
+		Label: parts.Label, Mnemonic: parts.Mnemonic, Description: parts.Description, Shortcut: parts.Shortcut,
 		Checked: parts.Checked, Selected: parts.Selected, Expanded: parts.Expanded,
 		Disabled: parts.Disabled, Active: parts.Active, Destructive: parts.Destructive,
 		Separator: parts.Separator, GroupLabel: parts.GroupLabel, Foreground: parts.Foreground,
@@ -377,6 +380,7 @@ func (m *MenuItems) paintPanel(Surface *gfx.Canvas, bounds gfx.Rect, Palette gfx
 type MenuRow struct {
 	Kind        MenuRowKind
 	Label       string
+	mnemonic    string
 	description string
 	icon        gfx.Icon
 	// The shortcut the row shows, a keymap.Chord's fields: the Page's type would
@@ -539,6 +543,13 @@ func (item MenuItem) Description(Text string) MenuItem {
 	return item
 }
 
+// Mnemonic declares the unmodified key that selects this menu item before
+// ordinary first-letter typeahead. Only the first rune is used when rendered.
+func (item MenuItem) Mnemonic(key string) MenuItem {
+	item.menu.Items[item.i].mnemonic = key
+	return item
+}
+
 // Icon paints icon before the item's label.
 func (item MenuItem) Icon(icon gfx.Icon) MenuItem {
 	item.menu.Items[item.i].icon = icon
@@ -624,6 +635,11 @@ func (p *Page) MenuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		if result, ok := m.submenuKey(event, inside); ok {
 			return result, true
 		}
+		if text := event.Text; !event.Release && event.Modifiers&^gfx.ModifierShift == 0 && text != "" {
+			if id, ok := m.mnemonicMatch(text, event.Target); ok {
+				return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true
+			}
+		}
 		if text := event.Text; !event.Release && event.Modifiers&^gfx.ModifierShift == 0 && (text != "" || event.Key == gfx.KeySpace) {
 			if text == "" {
 				text = " "
@@ -651,6 +667,29 @@ func (p *Page) MenuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 	}
 	return gfx.EventResult{}, false
+}
+
+func (m *MenuItems) mnemonicMatch(text string, from gfx.ID) (gfx.ID, bool) {
+	r, size := utf8.DecodeRuneInString(text)
+	if r == utf8.RuneError || size != len(text) {
+		return gfx.ID{}, false
+	}
+	start := -1
+	if row, ok := from.In(m.scope); ok {
+		start = int(row) - MenuRowsPart
+	}
+	for offset := 1; offset <= len(m.Items); offset++ {
+		index := (start + offset + len(m.Items)) % len(m.Items)
+		item := &m.Items[index]
+		if item.Kind != MenuRowItem || item.disabled || item.mnemonic == "" {
+			continue
+		}
+		mnemonic, mnemonicSize := utf8.DecodeRuneInString(item.mnemonic)
+		if mnemonicSize > 0 && unicode.ToLower(mnemonic) == unicode.ToLower(r) {
+			return m.scope.At(MenuRowsPart + index), true
+		}
+	}
+	return gfx.ID{}, false
 }
 
 // submenuKey opens the submenu of the row the keyboard is on with Right, Enter or

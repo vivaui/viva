@@ -112,6 +112,22 @@ func TestContextMenuKeysPaintKeycapsAtTheTrailingEdge(t *testing.T) {
 	}
 }
 
+func TestContextMenuMnemonicIsRenderedSeparatelyFromTheLabel(t *testing.T) {
+	var canvas gfx.Canvas
+	theme := gfx.DarkTheme()
+	item := ContextMenuItem{ID: gfx.Item(3), Label: "Copy", Mnemonic: "c", Shortcut: "Ctrl+Shift+C"}
+	withMnemonic := ContextMenuItemWidth(&canvas, theme, item)
+	withoutMnemonic := ContextMenuItemWidth(&canvas, theme, ContextMenuItem{ID: item.ID, Label: item.Label, Shortcut: item.Shortcut})
+	if withMnemonic <= withoutMnemonic {
+		t.Fatalf("mnemonic width = %v, without = %v", withMnemonic, withoutMnemonic)
+	}
+	menu := BeginContextMenu(&canvas, theme, gfx.Rect{Width: withMnemonic, Height: 80}, ContextMenuOptions{Layer: 5})
+	menu.AddItem(item)
+	if contextMenuTestText(canvas.Texts(), "Copy").Value != "Copy" || contextMenuTestText(canvas.Texts(), "(C)").Value != "(C)" {
+		t.Fatalf("texts = %+v, want separate label and mnemonic", canvas.Texts())
+	}
+}
+
 func TestContextMenuSlotHoldsCallerContentInsideTheMenu(t *testing.T) {
 	theme := gfx.DarkTheme()
 	var canvas gfx.Canvas

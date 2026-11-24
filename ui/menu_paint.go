@@ -11,7 +11,7 @@ import (
 // good until the next row.
 func menuItemsRow(m *MenuItems, i int) components.DropdownMenuItem {
 	row := &m.Items[i]
-	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
+	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Mnemonic: row.GetMnemonic(), Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
 	if row.GetDestructive() {
 		item.Variant = components.DropdownMenuItemDestructive
 	}
@@ -168,7 +168,7 @@ func paintAt(m *MenuItems, Surface *gfx.Canvas, Palette *Theme, bounds Rect, lay
 // contextItem is a dropdown row as a context menu's: the two describe one row.
 func contextItem(item components.DropdownMenuItem) components.ContextMenuItem {
 	context := components.ContextMenuItem{
-		ID: item.ID, Label: item.Label, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled, TrailingWidth: item.TrailingWidth,
+		ID: item.ID, Label: item.Label, Mnemonic: item.Mnemonic, Description: item.Description, Keys: item.Keys, Icon: item.Icon, Disabled: item.Disabled, TrailingWidth: item.TrailingWidth,
 		Checked: item.Checked, Selected: item.Selected,
 	}
 	switch item.Kind {
@@ -221,7 +221,7 @@ func menuSize(m *MenuItems) (width, height float32) {
 // scratch, good until the next row.
 func menuItemRow(m *MenuItems, i int) components.DropdownMenuItem {
 	row := &m.Items[i]
-	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
+	item := components.DropdownMenuItem{ID: m.GetScope().At(MenuRowsPart + i), Label: row.Label, Mnemonic: row.GetMnemonic(), Description: row.GetDescription(), Disabled: row.GetDisabled(), Icon: row.GetIcon(), TrailingWidth: row.GetTrailingWidth()}
 	if row.GetDestructive() {
 		item.Variant = components.DropdownMenuItemDestructive
 	}

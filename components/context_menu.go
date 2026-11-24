@@ -84,6 +84,9 @@ type ContextMenuOptions struct {
 type ContextMenuItem struct {
 	ID    gfx.ID
 	Label string
+	// Mnemonic is an optional one-character key shown after the label and
+	// matched before ordinary menu typeahead.
+	Mnemonic string
 	// Description is an optional muted second line. It increases the item height
 	// and is ellipsized to the available width; Hint may carry the full text.
 	Description string
@@ -113,7 +116,7 @@ type ContextMenuItem struct {
 func (item ContextMenuItem) common() menuItem {
 	return menuItem{
 		Description: item.Description,
-		ID:          item.ID, Label: item.Label, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
+		ID:          item.ID, Label: item.Label, Mnemonic: item.Mnemonic, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
 		Value: item.Value, Hint: item.Hint, Kind: menuKind(item.Kind), Destructive: item.Variant == ContextMenuItemDestructive,
 		Checked: item.Checked, Selected: item.Selected, Disabled: item.Disabled, Inset: item.Inset, Expanded: item.Expanded, Icon: item.Icon,
 	}

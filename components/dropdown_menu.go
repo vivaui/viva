@@ -19,6 +19,14 @@ const (
 	DropdownMenuItemDestructive
 )
 
+func menuMnemonicLabel(value string) string {
+	runeValue, size := utf8.DecodeRuneInString(value)
+	if size == 0 || runeValue == utf8.RuneError {
+		return ""
+	}
+	return "(" + string(unicode.ToUpper(runeValue)) + ")"
+}
+
 // DropdownMenuItemKind selects the item's indicator and semantic state.
 type DropdownMenuItemKind uint8
 
@@ -175,8 +183,11 @@ type DropdownMenuOptions struct {
 
 // DropdownMenuItem describes one stable menu action.
 type DropdownMenuItem struct {
-	ID       gfx.ID
-	Label    string
+	ID    gfx.ID
+	Label string
+	// Mnemonic is an optional one-character key shown after the label and
+	// matched before ordinary menu typeahead.
+	Mnemonic string
 	Shortcut string
 	// Keys, when set, replace Shortcut with one keycap per entry (for example
 	// "⌘", "⌥", "H"), painted with Kbd at the row's trailing edge.
@@ -206,7 +217,7 @@ type DropdownMenuItem struct {
 
 func (item DropdownMenuItem) common() menuItem {
 	return menuItem{
-		ID: item.ID, Label: item.Label, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
+		ID: item.ID, Label: item.Label, Mnemonic: item.Mnemonic, Shortcut: item.Shortcut, Keys: item.Keys, TrailingWidth: item.TrailingWidth,
 		Value: item.Value, Hint: item.Hint, Description: item.Description, Kind: menuKind(item.Kind), Destructive: item.Variant == DropdownMenuItemDestructive,
 		Checked: item.Checked, Selected: item.Selected, Disabled: item.Disabled, Inset: item.Inset, Expanded: item.Expanded, Icon: item.Icon,
 	}
@@ -393,6 +404,7 @@ const (
 type menuItem struct {
 	ID            gfx.ID
 	Label         string
+	Mnemonic      string
 	Description   string
 	Shortcut      string
 	Keys          []string
@@ -735,6 +747,9 @@ func menuItemWidth(canvas *gfx.Canvas, theme gfx.Theme, item menuItem, indicator
 		left += menuIconSize + menuIconGap
 	}
 	textWidth := canvas.TextWidth(item.Label, theme.Metrics.FontSizeM)
+	if item.Mnemonic != "" {
+		textWidth += canvas.TextWidth(menuMnemonicLabel(item.Mnemonic), theme.Metrics.FontSizeS) + 8
+	}
 	if item.Description != "" {
 		textWidth = max(textWidth, canvas.TextWidth(item.Description, theme.Metrics.FontSizeS))
 	}
@@ -829,7 +844,7 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		if paint := menu.options.paintItem; paint != nil {
 			paint(MenuItemPaint{
 				Canvas: canvas, Theme: theme, Bounds: bounds,
-				Label: item.Label, Description: item.Description, Shortcut: item.Shortcut,
+				Label: item.Label, Mnemonic: item.Mnemonic, Description: item.Description, Shortcut: item.Shortcut,
 				Checked:  item.Kind == menuCheckbox && item.Checked,
 				Selected: item.Kind == menuRadio && item.Selected,
 				Expanded: item.Kind == menuSubmenu && item.Expanded,
@@ -901,12 +916,24 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	}
 	labelWidth := max(0, bounds.Width-left-right)
 	label := item.Label
-	if canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular) > labelWidth {
-		label = canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth)
+	mnemonic := menuMnemonicLabel(item.Mnemonic)
+	mnemonicWidth := float32(0)
+	if mnemonic != "" {
+		mnemonicWidth = canvas.TextWidth(mnemonic, theme.Metrics.FontSizeS) + 8
 	}
-	canvas.Label(label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: labelWidth, Height: labelHeight}, gfx.TextStyle{
+	labelAreaWidth := max(0, labelWidth-mnemonicWidth)
+	if canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular) > labelAreaWidth {
+		label = canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, labelAreaWidth)
+	}
+	canvas.Label(label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: labelAreaWidth, Height: labelHeight}, gfx.TextStyle{
 		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
+	if mnemonic != "" {
+		labelUsed := canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular)
+		canvas.Label(mnemonic, gfx.Rect{X: bounds.X + left + labelUsed + 4, Y: labelY, Width: mnemonicWidth - 4, Height: labelHeight}, gfx.TextStyle{
+			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: dropdownMenuOpacity(theme.MutedForeground, item.Disabled),
+		})
+	}
 	if item.Description != "" {
 		color := theme.MutedForeground
 		if active {
