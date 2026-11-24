@@ -401,9 +401,10 @@ func (ime *linuxIME) commit(value string) {
 func (ime *linuxIME) preedit(value string, cursor int, visible bool, selection text.Range) {
 	if !visible || value == "" {
 		ime.engineComposing = false
+		// Cancelling restores the text the composition replaced; marking an empty
+		// string would delete a selection the user had before composing.
 		if ime.text.state.Composing {
-			ime.apply(platform.TextEvent{Kind: platform.TextSetMarked})
-			ime.apply(platform.TextEvent{Kind: platform.TextUnmark})
+			ime.apply(platform.TextEvent{Kind: platform.TextCancelComposition})
 		}
 		return
 	}
