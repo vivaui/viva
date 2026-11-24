@@ -151,19 +151,20 @@ func (state *linuxWindowState) requestDecoration(decorated bool, done func(error
 
 func (state *linuxWindowState) decorationGeometry() x11DecorationGeometry {
 	win := state.win
-	geometryCookie := win.api.getGeometry(win.connection, win.id)
-	originCookie := win.api.translateCoordinates(win.connection, win.id, win.screen.Root, 0, 0)
-	geometry := win.api.getGeometryReply(win.connection, geometryCookie, nil)
-	origin := win.api.translateCoordinatesReply(win.connection, originCookie, nil)
-	if geometry != nil {
-		defer win.api.free(unsafe.Pointer(geometry))
-	}
-	if origin != nil {
-		defer win.api.free(unsafe.Pointer(origin))
-	}
-	if geometry == nil || origin == nil {
+	return win.api.decorationGeometry(win.connection, win.id)
+}
+
+func (api *xcbAPI) decorationGeometry(connection uintptr, id uint32) x11DecorationGeometry {
+	geometry := api.getGeometryReply(connection, api.getGeometry(connection, id), nil)
+	if geometry == nil {
 		return x11DecorationGeometry{}
 	}
+	defer api.free(unsafe.Pointer(geometry))
+	origin := api.translateCoordinatesReply(connection, api.translateCoordinates(connection, id, geometry.Root, 0, 0), nil)
+	if origin == nil {
+		return x11DecorationGeometry{}
+	}
+	defer api.free(unsafe.Pointer(origin))
 	return x11DecorationGeometry{x: int32(origin.DstX), y: int32(origin.DstY),
 		width: uint32(geometry.Width), height: uint32(geometry.Height)}
 }
@@ -176,14 +177,18 @@ func (state *linuxWindowState) decorationExtents(atom uint32) ([4]uint32, bool) 
 }
 
 func (win *window) readDecorationProperty(atom, kind uint32, words []uint32, present *bool) bool {
-	cookie := win.api.getProperty(win.connection, 0, win.id, atom, kind, 0, uint32(len(words)))
+	return win.api.readDecorationProperty(win.connection, win.id, atom, kind, words, present)
+}
+
+func (api *xcbAPI) readDecorationProperty(connection uintptr, id, atom, kind uint32, words []uint32, present *bool) bool {
+	cookie := api.getProperty(connection, 0, id, atom, kind, 0, uint32(len(words)))
 	var nativeError unsafe.Pointer
-	reply := win.api.getPropertyReply(win.connection, cookie, &nativeError)
+	reply := api.getPropertyReply(connection, cookie, &nativeError)
 	if reply != nil {
-		defer win.api.free(unsafe.Pointer(reply))
+		defer api.free(unsafe.Pointer(reply))
 	}
 	if nativeError != nil {
-		win.api.free(nativeError)
+		api.free(nativeError)
 		return false
 	}
 	if reply == nil {
@@ -196,7 +201,7 @@ func (win *window) readDecorationProperty(atom, kind uint32, words []uint32, pre
 	if reply.Type != kind || reply.Format != 32 || reply.BytesAfter != 0 || reply.ValueLength != uint32(len(words)) {
 		return false
 	}
-	copy(words, unsafe.Slice((*uint32)(win.api.getPropertyValue(reply)), len(words)))
+	copy(words, unsafe.Slice((*uint32)(api.getPropertyValue(reply)), len(words)))
 	return true
 }
 
