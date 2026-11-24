@@ -30,6 +30,9 @@ void viva_web_back(void *web);
 void viva_web_forward(void *web);
 void viva_web_eval(void *web, const char *script);
 void viva_web_focus(void *web);
+// viva_web_show_dev_tools makes the page inspectable and opens Web Inspector for it: 1 when it was
+// opened, 0 when this WebKit has no way to open it from the application.
+int viva_web_show_dev_tools(void *web);
 // viva_web_title is the title of the page's current document, as a malloc'd UTF-8 string which the
 // caller frees, and an empty string when it has none. viva_web_can_go_back,
 // viva_web_can_go_forward and viva_web_is_loading answer the page's history and its loading, 1 or 0.
