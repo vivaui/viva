@@ -168,6 +168,14 @@ type xcbPropertyReply struct {
 	ValueLength  uint32
 	Pad          [12]byte
 }
+type xcbGeometryReply struct {
+	ResponseType, Depth        uint8
+	Sequence                   uint16
+	Length, Root               uint32
+	X, Y                       int16
+	Width, Height, BorderWidth uint16
+	Pad                        [10]byte
+}
 type xcbGenericEvent struct {
 	ResponseType uint8
 	Padding      uint8
@@ -312,10 +320,13 @@ type xcbAPI struct {
 	atomNameValue             func(*xcbAtomNameReply) *byte
 	atomNameLength            func(*xcbAtomNameReply) int32
 	changeProperty            func(uintptr, uint8, uint32, uint32, uint32, uint8, uint32, unsafe.Pointer) xcbVoidCookie
+	deleteProperty            func(uintptr, uint32, uint32) xcbVoidCookie
 	getProperty               func(uintptr, uint8, uint32, uint32, uint32, uint32, uint32) xcbPropertyCookie
 	getPropertyReply          func(uintptr, xcbPropertyCookie, *unsafe.Pointer) *xcbPropertyReply
 	getPropertyValue          func(*xcbPropertyReply) unsafe.Pointer
 	getPropertyLength         func(*xcbPropertyReply) int32
+	getGeometry               func(uintptr, uint32) xcbVoidCookie
+	getGeometryReply          func(uintptr, xcbVoidCookie, *unsafe.Pointer) *xcbGeometryReply
 	getKeyboardMapping        func(uintptr, uint8, uint8) xcbKeyboardMappingCookie
 	keyboardMappingReply      func(uintptr, xcbKeyboardMappingCookie, *unsafe.Pointer) *xcbKeyboardMappingReply
 	keyboardMappingKeysyms    func(*xcbKeyboardMappingReply) *uint32
@@ -404,10 +415,13 @@ func openXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.atomNameValue, library, "xcb_get_atom_name_name")
 	purego.RegisterLibFunc(&api.atomNameLength, library, "xcb_get_atom_name_name_length")
 	purego.RegisterLibFunc(&api.changeProperty, library, "xcb_change_property")
+	purego.RegisterLibFunc(&api.deleteProperty, library, "xcb_delete_property")
 	purego.RegisterLibFunc(&api.getProperty, library, "xcb_get_property")
 	purego.RegisterLibFunc(&api.getPropertyReply, library, "xcb_get_property_reply")
 	purego.RegisterLibFunc(&api.getPropertyValue, library, "xcb_get_property_value")
 	purego.RegisterLibFunc(&api.getPropertyLength, library, "xcb_get_property_value_length")
+	purego.RegisterLibFunc(&api.getGeometry, library, "xcb_get_geometry")
+	purego.RegisterLibFunc(&api.getGeometryReply, library, "xcb_get_geometry_reply")
 	purego.RegisterLibFunc(&api.getKeyboardMapping, library, "xcb_get_keyboard_mapping")
 	purego.RegisterLibFunc(&api.keyboardMappingReply, library, "xcb_get_keyboard_mapping_reply")
 	purego.RegisterLibFunc(&api.keyboardMappingKeysyms, library, "xcb_get_keyboard_mapping_keysyms")
