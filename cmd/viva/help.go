@@ -57,7 +57,9 @@ func commands() []command {
 				"macOS signing and notarization are optional and off unless an identity is given: --sign-identity or\n" +
 				"$APPLE_SIGNING_IDENTITY (\"-\" signs ad hoc, for this Mac only), $APPLE_CERTIFICATE and\n" +
 				"$APPLE_CERTIFICATE_PASSWORD (a base64 .p12 for a machine with no keychain), --entitlements or [mac]\n" +
-				"entitlements. With $APPLE_NOTARY_PROFILE, or $APPLE_API_KEY/_KEY_ID/_ISSUER, or $APPLE_ID/$APPLE_PASSWORD/\n" +
+				"entitlements. --provision-profile or $APPLE_PROVISION_PROFILE optionally embeds a macOS provisioning\n" +
+				"profile and grants its authorized app/keychain identity; it requires a matching real signing certificate.\n" +
+				"With $APPLE_NOTARY_PROFILE, or $APPLE_API_KEY/_KEY_ID/_ISSUER, or $APPLE_ID/$APPLE_PASSWORD/\n" +
 				"$APPLE_TEAM_ID as well, a Developer ID signature is also notarized and the ticket stapled.\n" +
 				"Windows signing is optional too: $WINDOWS_CERTIFICATE_FILE (a .pfx) or $WINDOWS_CERTIFICATE (base64) with\n" +
 				"$WINDOWS_CERTIFICATE_PASSWORD signs the program and the installer with osslsigncode (or signtool on\n" +

@@ -60,6 +60,11 @@ func packageDarwin(request packageRequest) error {
 		return err
 	}
 
+	if len(signing.profileData) != 0 {
+		if err := os.WriteFile(filepath.Join(result.Path, "Contents", "embedded.provisionprofile"), signing.profileData, 0o644); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintf(output, "packaged %s\n", displayPath(result.Path))
 	fmt.Fprintf(output, "  app      %s %s (%s)\n", loaded.App.Name, loaded.App.Version, loaded.App.ID)
 	target := "darwin/" + plan.arch + " (macOS " + loaded.Mac.MinSystem + " or later)"
@@ -179,6 +184,16 @@ func prepareSigning(request packageRequest, loaded *manifest.Manifest) (macSigni
 		if os.Getenv("APPLE_SIGNING_IDENTITY") == "" && request.sign.identity == "" {
 			signing.identity = identity
 		}
+	}
+	if signing.provisionProfile != "" {
+		prepared, remove, err := signing.prepareProvisioning(runSigningTool, loaded.App.ID)
+		if err != nil {
+			cleanup()
+			return signing, func() {}, err
+		}
+		previous := cleanup
+		cleanup = func() { remove(); previous() }
+		signing = prepared
 	}
 	return signing, cleanup, nil
 }
