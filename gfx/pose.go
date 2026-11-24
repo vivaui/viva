@@ -101,6 +101,11 @@ func (canvas *Canvas) EndPose() {
 		return
 	}
 	transform.apply(canvas, open, fade, fade)
+	// What is seen is what is hit: a press lands on the tab where it is drawn,
+	// not where the layout will put it once it has arrived.
+	for index := open.hits; index < len(canvas.hits); index++ {
+		canvas.hits[index].Bounds = transform.rect(canvas.hits[index].Bounds)
+	}
 	state.recordHitMotions(canvas, open, transform.hitMotion())
 }
 

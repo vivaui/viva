@@ -59,6 +59,9 @@ func TestPoseMovesHitsAlongWithTheirPaint(t *testing.T) {
 	frames := newTestFrames(&canvas)
 	canvas.Reset()
 	frames.at(0, func() { paintPosed(&canvas, Item(1), Pose{Offset: Point{X: 7, Y: 3}}, DefaultMotion()) })
+	if hit := canvas.Hits()[0].Bounds; hit != (Rect{X: 7, Y: 3, Width: 100, Height: 100}) {
+		t.Fatalf("hit bounds = %+v, want the drawn place", hit)
+	}
 	got, moved := canvas.HitPresenceRect(0, Rect{Width: 100, Height: 100})
 	if !moved || got != (Rect{X: 7, Y: 3, Width: 100, Height: 100}) {
 		t.Fatalf("hit rect = %+v moved=%v", got, moved)
