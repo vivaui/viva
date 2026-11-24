@@ -5003,7 +5003,17 @@ int viva_unregister_font_file(const char *path) {
     _size = size;
     _scale = MAX(scale, 1.0);
     _clear = clear;
-    _device = MTLCreateSystemDefaultDevice();
+    NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
+    for (id<MTLDevice> candidate in devices) {
+        if (candidate.isLowPower) {
+            _device = [candidate retain];
+            break;
+        }
+    }
+    [devices release];
+    if (_device == nil) {
+        _device = MTLCreateSystemDefaultDevice();
+    }
     _queue = _device != nil ? [_device newCommandQueue] : nil;
     if (_queue == nil || library == NULL || length == 0) {
         [self release];
