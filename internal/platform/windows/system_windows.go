@@ -237,7 +237,7 @@ func ClipboardImagePNG() ([]byte, error) {
 		return nil, windowsCallError("open clipboard", callErr)
 	}
 	defer closeClipboard.Call()
-	var pngErr error
+	var readErr error
 	if format := registeredPNGFormat(); format != 0 {
 		if available, _, _ := clipboardFormatAvailable.Call(format); available != 0 {
 			data, err := clipboardBytes(format, platform.MaxClipboardImageBytes+1<<10)
@@ -250,7 +250,7 @@ func ClipboardImagePNG() ([]byte, error) {
 			if err == nil {
 				return data, nil
 			}
-			pngErr = err
+			readErr = err
 		}
 	}
 	for _, format := range [...]uintptr{clipboardDIBV5, clipboardDIB} {
@@ -258,17 +258,16 @@ func ClipboardImagePNG() ([]byte, error) {
 			continue
 		}
 		dib, err := clipboardBytes(format, platform.MaxClipboardRawBytes)
-		if err != nil {
-			continue
+		if err == nil {
+			var data []byte
+			if data, err = platform.DIBToPNG(dib); err == nil {
+				return data, nil
+			}
 		}
-		data, err := platform.DIBToPNG(dib)
-		if err != nil {
-			continue
-		}
-		return data, nil
+		readErr = err
 	}
-	if pngErr != nil {
-		return nil, pngErr
+	if readErr != nil {
+		return nil, readErr
 	}
 	return nil, platform.ErrNoClipboardImage
 }

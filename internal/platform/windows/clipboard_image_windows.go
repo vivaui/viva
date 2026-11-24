@@ -61,11 +61,6 @@ func SetClipboardImage(png []byte) error {
 // openClipboardForWrite opens the clipboard with owner as the window it is held
 // for, waiting out the moment another program holds it while it writes.
 func openClipboardForWrite(owner uintptr) error {
-	if owner != 0 {
-		if valid, _, _ := isWindow.Call(owner); valid == 0 {
-			owner = 0
-		}
-	}
 	var opened uintptr
 	var callErr error
 	for attempt := 0; attempt < clipboardOpenAttempts; attempt++ {
