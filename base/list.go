@@ -992,7 +992,7 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 				}
 				box.Glide(state.Glide, scrolled)
 			}
-			if extra := c.f.Extra(box.i); extra.glided || extra.presenced {
+			if extra := c.f.Extra(box.i); extra.glided || extra.presenced || extra.posed {
 				extra.glideID = state.list.rows.At(state.key(i))
 			}
 			if state.RowWidth > 0 {

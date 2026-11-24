@@ -240,6 +240,22 @@ func (b Box) Glide(motion gfx.Motion, scrolled gfx.Point) Box {
 	return b
 }
 
+// Pose moves, scales, turns and fades the element, with everything inside it, to
+// pose about its centre, over motion: a card lifted by the pointer, a chevron
+// turned half way round, a row set a few pixels aside. The layout is not
+// changed and the frames that move it only paint; the element is hit where it is
+// drawn. The zero Pose is the element as laid out. It starts at its first pose,
+// so one that appears does not move in, and keeps the velocity of a pose that
+// changes on the way. The element needs a stable ID (a Hit, or a Key in a List);
+// a canvas without a frame clock and a session under reduced motion show the
+// pose at once. See gfx.Pose for what turning does to each kind of paint.
+func (b Box) Pose(pose gfx.Pose, motion gfx.Motion) Box {
+	b.N()
+	extra := b.f.Extra(b.i)
+	extra.pose, extra.poseMotion, extra.posed = pose, motion, true
+	return b
+}
+
 // Presence gives the element an entrance and an exit, as a dialog has: it fades
 // and moves in the first time it is painted, and when it is no longer painted
 // the canvas keeps drawing its last frame, fading and moving it out, until it is
