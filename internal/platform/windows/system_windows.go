@@ -205,6 +205,17 @@ func HasClipboardImage() bool {
 	return false
 }
 
+// activeOwnerWindow returns the HWND of the currently active window, or 0 if none
+// or if the HWND is no longer valid.
+func activeOwnerWindow() uintptr {
+	if state := active.Load(); state != nil && state.window != 0 {
+		if valid, _, _ := isWindow.Call(state.window); valid != 0 {
+			return state.window
+		}
+	}
+	return 0
+}
+
 // ClipboardImagePNG returns the clipboard's image as PNG bytes: the registered
 // "PNG" format as it is, otherwise CF_DIBV5 or CF_DIB converted.
 func ClipboardImagePNG() ([]byte, error) {
@@ -226,16 +237,20 @@ func ClipboardImagePNG() ([]byte, error) {
 		return nil, windowsCallError("open clipboard", callErr)
 	}
 	defer closeClipboard.Call()
+	var pngErr error
 	if format := registeredPNGFormat(); format != 0 {
 		if available, _, _ := clipboardFormatAvailable.Call(format); available != 0 {
 			data, err := clipboardBytes(format, platform.MaxClipboardImageBytes+1<<10)
-			if err != nil {
-				return nil, err
+			if err == nil {
+				data, err = platform.TrimClipboardPNG(data)
 			}
-			if data, err = platform.TrimClipboardPNG(data); err != nil {
-				return nil, err
+			if err == nil {
+				err = platform.CheckClipboardPNG(data)
 			}
-			return data, platform.CheckClipboardPNG(data)
+			if err == nil {
+				return data, nil
+			}
+			pngErr = err
 		}
 	}
 	for _, format := range [...]uintptr{clipboardDIBV5, clipboardDIB} {
@@ -244,9 +259,16 @@ func ClipboardImagePNG() ([]byte, error) {
 		}
 		dib, err := clipboardBytes(format, platform.MaxClipboardRawBytes)
 		if err != nil {
-			return nil, err
+			continue
 		}
-		return platform.DIBToPNG(dib)
+		data, err := platform.DIBToPNG(dib)
+		if err != nil {
+			continue
+		}
+		return data, nil
+	}
+	if pngErr != nil {
+		return nil, pngErr
 	}
 	return nil, platform.ErrNoClipboardImage
 }
@@ -369,10 +391,7 @@ func setClipboardText(value string, rectangular bool) error {
 	}
 	copy(unsafe.Slice((*uint16)(pointer(memory)), len(encoded)), encoded)
 	globalUnlock.Call(handle)
-	owner := uintptr(0)
-	if state := active.Load(); state != nil {
-		owner = state.window
-	}
+	owner := activeOwnerWindow()
 	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
 		return windowsCallError("open clipboard", callErr)
 	}
@@ -412,10 +431,7 @@ func SetClipboardFiles(paths []string) error {
 	}
 	clipboardMu.Lock()
 	defer clipboardMu.Unlock()
-	owner := uintptr(0)
-	if state := active.Load(); state != nil {
-		owner = state.window
-	}
+	owner := activeOwnerWindow()
 	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
 		return windowsCallError("open clipboard", callErr)
 	}

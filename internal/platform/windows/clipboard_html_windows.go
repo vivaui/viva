@@ -30,10 +30,7 @@ func SetClipboardHTML(html, alt string) error {
 	block := cfHTML(html)
 	clipboardMu.Lock()
 	defer clipboardMu.Unlock()
-	owner := uintptr(0)
-	if state := active.Load(); state != nil {
-		owner = state.window
-	}
+	owner := activeOwnerWindow()
 	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
 		return windowsCallError("open clipboard", callErr)
 	}
