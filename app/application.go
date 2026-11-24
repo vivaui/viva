@@ -23,6 +23,7 @@ var ErrNoWindows = errors.New("app: application opened no windows")
 // before resize/frame callbacks and repaints afterward.
 // An always-on-top host additionally implements SetAlwaysOnTop(bool) error.
 // A size-capable host additionally implements SetSize(int, int) error.
+// A decoration-capable host additionally implements SetDecorated(bool, func(error)) error.
 type WindowControl interface {
 	Close()
 	Hide()

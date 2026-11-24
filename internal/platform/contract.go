@@ -279,6 +279,9 @@ var ErrFullscreenUnsupported = errors.New("platform: fullscreen is unsupported")
 // above others.
 var ErrAlwaysOnTopUnsupported = errors.New("platform: always-on-top is unsupported")
 
+// ErrWindowDecorationUnsupported means the host cannot change native decorations.
+var ErrWindowDecorationUnsupported = errors.New("platform: live window decorations are unsupported")
+
 // ErrWindowSizeUnsupported means this window kind cannot be resized by the
 // application.
 var ErrWindowSizeUnsupported = errors.New("platform: programmatic window size is unsupported")

@@ -33,6 +33,61 @@ type x11DecorationChange struct {
 	rollingBack    bool
 }
 
+type x11DecorationRequest struct {
+	done func(error)
+}
+
+func (window *nativeWindow) SetDecorated(decorated bool, done func(error)) error {
+	if window == nil || window.closed.Load() {
+		return fmt.Errorf("linux: window is closed")
+	}
+	if done == nil {
+		return fmt.Errorf("linux: window decoration completion callback is required")
+	}
+	state := window.state
+	if state.config.WindowMode != platform.WindowTitled {
+		return platform.ErrWindowDecorationUnsupported
+	}
+	win := state.win
+	request := &x11DecorationRequest{done: done}
+	win.mu.Lock()
+	if win.connection == 0 || window.closed.Load() {
+		win.mu.Unlock()
+		return fmt.Errorf("linux: window is closed")
+	}
+	if win.decorationRequest != nil {
+		win.mu.Unlock()
+		return fmt.Errorf("linux: a decoration change is already pending")
+	}
+	win.decorationRequest = request
+	win.mu.Unlock()
+	state.application.Post(func() {
+		win.mu.Lock()
+		pending := win.decorationRequest == request
+		win.mu.Unlock()
+		if pending {
+			state.requestDecoration(decorated, func(err error) { win.finishDecorationRequest(request, err) })
+		}
+	})
+	return nil
+}
+
+// On close, request is nil and any accepted submission must complete, even
+// if the window loop closed before taking its queued work.
+func (win *window) finishDecorationRequest(request *x11DecorationRequest, err error) {
+	win.mu.Lock()
+	pending := win.decorationRequest
+	if request != nil && request != pending {
+		win.mu.Unlock()
+		return
+	}
+	win.decorationRequest = nil
+	win.mu.Unlock()
+	if pending != nil {
+		pending.done(err)
+	}
+}
+
 // requestDecoration runs on the window thread. Completion reports a matching
 // frame observed from the window manager, not merely a queued X11 request.
 func (state *linuxWindowState) requestDecoration(decorated bool, done func(error)) {
@@ -53,7 +108,7 @@ func (state *linuxWindowState) requestDecoration(decorated bool, done func(error
 	}
 	frame, ok := state.decorationExtents(extents)
 	if !ok {
-		done(fmt.Errorf("linux: the window manager does not report frame extents"))
+		done(fmt.Errorf("%w: the X11 window manager does not report frame extents", platform.ErrWindowDecorationUnsupported))
 		return
 	}
 	if decorated == (frame != [4]uint32{}) {

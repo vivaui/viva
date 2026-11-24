@@ -45,7 +45,8 @@ func TestNativeX11DecorationPreservesClient(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				state := control.(*nativeWindow).state
+				native := control.(*nativeWindow)
+				state := native.state
 				win := state.win
 				extentAtom, err := win.api.atom(win.connection, "_NET_FRAME_EXTENTS")
 				if err != nil {
@@ -82,7 +83,7 @@ func TestNativeX11DecorationPreservesClient(t *testing.T) {
 						finish(fmt.Errorf("could not read original Motif hints"))
 						return
 					}
-					state.requestDecoration(false, func(err error) {
+					if err := native.SetDecorated(false, func(err error) {
 						if err != nil {
 							finish(fmt.Errorf("hide decorations: %w", err))
 							return
@@ -91,7 +92,7 @@ func TestNativeX11DecorationPreservesClient(t *testing.T) {
 							finish(fmt.Errorf("borderless window did not preserve its client rectangle or id: %v", frame))
 							return
 						}
-						state.requestDecoration(true, func(err error) {
+						if err := native.SetDecorated(true, func(err error) {
 							if err != nil {
 								finish(fmt.Errorf("restore decorations: %w", err))
 								return
@@ -106,12 +107,20 @@ func TestNativeX11DecorationPreservesClient(t *testing.T) {
 								return
 							}
 							if size[0] == 640 && os.Getenv("VIVA_X11_DECORATION_WM_PID") != "" {
-								checkIgnoredDecoration(state, motifAtom, initial, finish)
+								checkIgnoredDecoration(native, motifAtom, initial, finish)
 							} else {
 								finish(nil)
 							}
-						})
-					})
+						}); err != nil {
+							finish(fmt.Errorf("submit restore: %w", err))
+						}
+					}); err != nil {
+						finish(fmt.Errorf("submit hide: %w", err))
+						return
+					}
+					if err := native.SetDecorated(false, func(error) { finish(fmt.Errorf("duplicate request completed")) }); err == nil {
+						finish(fmt.Errorf("accepted a second decoration request before the first completed"))
+					}
 				}
 				application.Post(start)
 				return nil
@@ -123,7 +132,7 @@ func TestNativeX11DecorationPreservesClient(t *testing.T) {
 	}
 }
 
-func checkIgnoredDecoration(state *linuxWindowState, motif uint32, initial x11DecorationHints, finish func(error)) {
+func checkIgnoredDecoration(native *nativeWindow, motif uint32, initial x11DecorationHints, finish func(error)) {
 	pid, err := strconv.Atoi(os.Getenv("VIVA_X11_DECORATION_WM_PID"))
 	if err != nil || pid <= 1 {
 		finish(fmt.Errorf("invalid private window manager pid"))
@@ -138,17 +147,48 @@ func checkIgnoredDecoration(state *linuxWindowState, motif uint32, initial x11De
 		finish(err)
 		return
 	}
-	state.requestDecoration(false, func(err error) {
+	if err := native.SetDecorated(false, func(err error) {
 		resumeErr := syscall.Kill(pid, syscall.SIGCONT)
 		if err == nil || !strings.Contains(err.Error(), "previous frame restored") || resumeErr != nil {
 			finish(fmt.Errorf("ignored request: %v; resume: %v", err, resumeErr))
 			return
 		}
 		var rolledBack x11DecorationHints
-		if !state.win.readDecorationProperty(motif, motif, rolledBack.words[:], &rolledBack.present) || rolledBack != initial {
+		if !native.state.win.readDecorationProperty(motif, motif, rolledBack.words[:], &rolledBack.present) || rolledBack != initial {
 			finish(fmt.Errorf("ignored request did not restore original hints: %+v", rolledBack))
 			return
 		}
 		finish(nil)
-	})
+	}); err != nil {
+		_ = syscall.Kill(pid, syscall.SIGCONT)
+		finish(err)
+	}
+}
+
+func TestNativeX11DecorationCompletesWhenQueuedWindowCloses(t *testing.T) {
+	if os.Getenv("VIVA_X11_DECORATION_NATIVE") != "1" {
+		t.Skip("requires a private X11 session with a window manager")
+	}
+	t.Setenv("VIVA_SOFTWARE_RENDERING", "1")
+	var outcomes []error
+	if err := RunApplication(func(application platform.Application) error {
+		control, err := application.OpenWindow(platform.Config{
+			Title: "Viva decoration close regression", Width: 640, Height: 400, ClearColor: platform.Color{Alpha: 1},
+		})
+		if err != nil {
+			return err
+		}
+		native := control.(*nativeWindow)
+		if err := native.SetDecorated(false, func(err error) { outcomes = append(outcomes, err) }); err != nil {
+			return err
+		}
+		// Close on the loop before it can drain the queued submission.
+		application.(*linuxApplication).closeWindow(native.state)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(outcomes) != 1 || outcomes[0] == nil || !strings.Contains(outcomes[0].Error(), "window closed") {
+		t.Fatalf("closed request outcomes = %v", outcomes)
+	}
 }

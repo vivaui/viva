@@ -31,6 +31,7 @@ type window struct {
 	fullscreenHandler         func(bool)
 	minimumSize               *minimumSizeCache
 	mu                        sync.Mutex
+	decorationRequest         *x11DecorationRequest // guarded by mu
 	api                       *xcbAPI
 	connection                uintptr
 	screen                    *xcbScreen
@@ -843,6 +844,7 @@ func (application *linuxApplication) closeWindow(target *linuxWindowState) {
 	target.text.close()
 	target.win.close()
 	target.finishDecorationChange(fmt.Errorf("linux: window closed during decoration change"))
+	target.win.finishDecorationRequest(nil, fmt.Errorf("linux: window closed during decoration change"))
 	application.rebuildPoll()
 	if len(application.windows) == 0 {
 		activeWindow.CompareAndSwap(target.win, nil)
