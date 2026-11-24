@@ -907,10 +907,12 @@ func BenchmarkHandledContextKey(b *testing.B) {
 
 func TestAddressPrefersTheEnvironmentThenTheDisplaysFile(t *testing.T) {
 	files := map[string]string{
-		"/var/lib/dbus/machine-id":               "abc123\n",
-		"/home/u/.config/ibus/bus/abc123-unix-1": "# comment\nIBUS_ADDRESS=unix:path=/home/u/.cache/ibus/dbus-1,guid=g\nIBUS_DAEMON_PID=99\n",
-		"/xdg/ibus/bus/abc123-remote-0":          "IBUS_ADDRESS=unix:abstract=/tmp/dbus-x,guid=h\n",
-		"/home/u/.config/ibus/bus/abc123-unix-0": "IBUS_DAEMON_PID=1\n",
+		"/var/lib/dbus/machine-id":                       "abc123\n",
+		"/home/u/.config/ibus/bus/abc123-unix-1":         "# comment\nIBUS_ADDRESS=unix:path=/home/u/.cache/ibus/dbus-1,guid=g\nIBUS_DAEMON_PID=99\n",
+		"/xdg/ibus/bus/abc123-remote-0":                  "IBUS_ADDRESS=unix:abstract=/tmp/dbus-x,guid=h\n",
+		"/home/u/.config/ibus/bus/abc123-unix-0":         "IBUS_DAEMON_PID=1\n",
+		"/home/u/.config/ibus/bus/abc123-unix-wayland-0": "IBUS_ADDRESS=unix:path=/home/u/.cache/ibus/dbus-w,guid=w\n",
+		"/custom/ibus-address":                           "IBUS_ADDRESS=unix:path=/custom,guid=c\n",
 	}
 	read := func(name string) ([]byte, error) {
 		if data, ok := files[name]; ok {
@@ -931,6 +933,9 @@ func TestAddressPrefersTheEnvironmentThenTheDisplaysFile(t *testing.T) {
 		{"local display", map[string]string{"DISPLAY": ":1", "HOME": "/home/u"}, "unix:path=/home/u/.cache/ibus/dbus-1,guid=g", true},
 		{"screen suffix is ignored", map[string]string{"DISPLAY": ":1.0", "HOME": "/home/u"}, "unix:path=/home/u/.cache/ibus/dbus-1,guid=g", true},
 		{"XDG_CONFIG_HOME and a host", map[string]string{"DISPLAY": "remote:0", "XDG_CONFIG_HOME": "/xdg"}, "unix:abstract=/tmp/dbus-x,guid=h", true},
+		{"Wayland session names the socket, not the display", map[string]string{"WAYLAND_DISPLAY": "wayland-0", "DISPLAY": ":1", "HOME": "/home/u"}, "unix:path=/home/u/.cache/ibus/dbus-w,guid=w", true},
+		{"Wayland without an XWayland display", map[string]string{"WAYLAND_DISPLAY": "wayland-0", "HOME": "/home/u"}, "unix:path=/home/u/.cache/ibus/dbus-w,guid=w", true},
+		{"address file named by the environment", map[string]string{"IBUS_ADDRESS_FILE": "/custom/ibus-address", "DISPLAY": ":1"}, "unix:path=/custom,guid=c", true},
 		{"file without an address", map[string]string{"DISPLAY": ":0", "HOME": "/home/u"}, "", false},
 		{"no file for this display", map[string]string{"DISPLAY": ":7", "HOME": "/home/u"}, "", false},
 		{"no home", map[string]string{"DISPLAY": ":1"}, "", false},
