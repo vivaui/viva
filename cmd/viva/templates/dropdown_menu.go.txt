@@ -920,6 +920,9 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	mnemonicWidth := float32(0)
 	if mnemonic != "" {
 		mnemonicWidth = canvas.TextWidth(mnemonic, theme.Metrics.FontSizeS) + 8
+		if mnemonicWidth > labelWidth {
+			mnemonic, mnemonicWidth = "", 0
+		}
 	}
 	labelAreaWidth := max(0, labelWidth-mnemonicWidth)
 	if canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular) > labelAreaWidth {
@@ -929,7 +932,7 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
 	if mnemonic != "" {
-		labelUsed := canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular)
+		labelUsed := min(labelAreaWidth, canvas.TextWidthWeight(label, theme.Metrics.FontSizeM, gfx.WeightRegular))
 		canvas.Label(mnemonic, gfx.Rect{X: bounds.X + left + labelUsed + 4, Y: labelY, Width: mnemonicWidth - 4, Height: labelHeight}, gfx.TextStyle{
 			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: dropdownMenuOpacity(theme.MutedForeground, item.Disabled),
 		})

@@ -543,8 +543,8 @@ func (item MenuItem) Description(Text string) MenuItem {
 	return item
 }
 
-// Mnemonic declares the unmodified key that selects this menu item before
-// ordinary first-letter typeahead. Only the first rune is used when rendered.
+// Mnemonic moves focus to this item before label typeahead when its key is
+// pressed. The first rune is matched case-insensitively.
 func (item MenuItem) Mnemonic(key string) MenuItem {
 	item.menu.Items[item.i].mnemonic = key
 	return item
@@ -637,6 +637,7 @@ func (p *Page) MenuKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 		}
 		if text := event.Text; !event.Release && event.Modifiers&^gfx.ModifierShift == 0 && text != "" {
 			if id, ok := m.mnemonicMatch(text, event.Target); ok {
+				m.typeahead.Reset()
 				return gfx.EventResult{Handled: true, Repaint: true, Focus: id, FocusVisible: true}, true
 			}
 		}

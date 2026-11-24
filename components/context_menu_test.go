@@ -128,6 +128,17 @@ func TestContextMenuMnemonicIsRenderedSeparatelyFromTheLabel(t *testing.T) {
 	}
 }
 
+func TestNarrowContextMenuKeepsMnemonicOutOfKeycaps(t *testing.T) {
+	var canvas gfx.Canvas
+	menu := BeginContextMenu(&canvas, gfx.DarkTheme(), gfx.Rect{Width: 80, Height: 80}, ContextMenuOptions{Layer: 5})
+	menu.AddItem(ContextMenuItem{ID: gfx.Item(3), Label: "Copy", Mnemonic: "c", Keys: []string{"Ctrl", "Shift", "Alt", "C"}})
+	firstKey := contextMenuTestText(canvas.Texts(), "Ctrl")
+	hint := contextMenuTestText(canvas.Texts(), "(C)")
+	if firstKey.Value == "" || hint.Value != "" {
+		t.Fatalf("first keycap = %q at %v, unwanted mnemonic = %q at %v", firstKey.Value, firstKey.Bounds, hint.Value, hint.Bounds)
+	}
+}
+
 func TestContextMenuSlotHoldsCallerContentInsideTheMenu(t *testing.T) {
 	theme := gfx.DarkTheme()
 	var canvas gfx.Canvas

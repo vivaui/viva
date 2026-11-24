@@ -180,7 +180,7 @@ func (m *contextModel) page(c ui.C) {
 				if menu.Item("Connect").Mnemonic("r").Disabled(m.connectDisabled).Clicked() {
 					m.connected = h
 				}
-				if menu.Item("Rename").Mnemonic("r").Keys(ui.Primary, "r").Clicked() {
+				if menu.Item("Rename").Keys(ui.Primary, "r").Clicked() {
 					m.renames++
 				}
 				menu.Separator()
@@ -260,6 +260,24 @@ func TestContextMenuDisabledMnemonicDoesNotCaptureKey(t *testing.T) {
 	}
 	if focused := d.Focused(); focused != "Rename" {
 		t.Fatalf("disabled mnemonic focused %q, want Rename via typeahead", focused)
+	}
+}
+
+func TestContextMenuMnemonicEndsThePreviousLabelSearch(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, m.page)
+	alpha := d.hit("alpha").Bounds
+	if err := d.driver.ClickButton(alpha.X+5, alpha.Y+alpha.Height/2, gfx.PointerButtonSecondary); err != nil {
+		t.Fatal(err)
+	}
+	// Start a label search with C, use the R mnemonic, then search for Wrap.
+	for _, key := range "crw" {
+		if _, err := d.driver.ShortcutChord(0, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if focused := d.Focused(); focused != "Wrap lines" {
+		t.Fatalf("after C, R, W focus = %q, want Wrap lines", focused)
 	}
 }
 
