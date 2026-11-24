@@ -214,7 +214,7 @@ type nativeWindow struct {
 // reportFrame tells the application where its content area is now, in logical
 // pixels of the window's display. It reports only changes.
 func (state *windowState) reportFrame() {
-	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.minimized || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
+	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.iconic() || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
 		return
 	}
 	var client rect
@@ -1376,9 +1376,7 @@ func (state *windowState) destroyed(window uintptr) {
 	}
 	defer func() {
 		release()
-		if state.application.windows == 0 {
-			active.CompareAndSwap(state, nil)
-		}
+		active.CompareAndSwap(state, nil)
 	}()
 	state.stopCaretTimer()
 	state.closeBackdropPower()

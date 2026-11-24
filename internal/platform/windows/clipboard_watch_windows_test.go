@@ -89,3 +89,12 @@ func TestClipboardChangeMayBeRegisteredBeforeAnyWindowAndStops(t *testing.T) {
 		t.Fatalf("a stopped watch still added a window: %v", err)
 	}
 }
+
+func TestForgetClipboardListenerUnregistersWindow(t *testing.T) {
+	fakeHwnd := uintptr(0xdeadbeef)
+	clipboardListeners.Store(fakeHwnd, struct{}{})
+	forgetClipboardListener(fakeHwnd)
+	if _, ok := clipboardListeners.Load(fakeHwnd); ok {
+		t.Fatal("clipboardListeners still has fakeHwnd after forgetClipboardListener")
+	}
+}

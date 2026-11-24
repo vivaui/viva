@@ -256,6 +256,16 @@ func (probe *gtkFcitxProbe) settle() {
 			probe.want = "a\uac00\ub098 c"
 		}
 	}
+	if probe.ending == "window-focus-out" {
+		switch {
+		case probe.engine == "hangul":
+			probe.want = "a\uac00c"
+		case p.tentative:
+			probe.want = "ac"
+		default:
+			probe.want = "abc"
+		}
+	}
 	switch probe.ending {
 	case "commit", "escape":
 		symbol := uint32(' ')
@@ -281,6 +291,7 @@ func (probe *gtkFcitxProbe) settle() {
 
 func (probe *gtkFcitxProbe) finish(failure string) {
 	p := probe.p
+	windowBlur := probe.ending == "window-focus-out"
 	var failures []string
 	if failure != "" {
 		failures = append(failures, failure)
@@ -304,15 +315,20 @@ func (probe *gtkFcitxProbe) finish(failure string) {
 		} else if probe.ending == "escape" {
 			wantResults, wantCancels = 0, 1
 		}
+		if windowBlur {
+			wantResults--
+			wantCancels++
+		}
 		if p.tentative && (results != wantResults || cancels != wantCancels) {
 			failures = append(failures, fmt.Sprintf("results/cancels=%d/%d, want=%d/%d", results, cancels, wantResults, wantCancels))
 		}
-		if !p.tentative && probe.engine == "pinyin" {
+		if windowBlur || !p.tentative && probe.engine == "pinyin" {
 			kind := platform.TextInsert
-			if probe.ending == "escape" {
+			if windowBlur || probe.ending == "escape" {
 				kind = platform.TextCancelComposition
-				if p.editor.CanUndo() || p.editor.CanRedo() || p.editor.Selection() != (text.Range{Start: 1, End: 2}) {
-					failures = append(failures, "Escape did not preserve selection and history")
+				if !p.tentative && probe.engine == "pinyin" &&
+					(p.editor.CanUndo() || p.editor.CanRedo() || p.editor.Selection() != (text.Range{Start: 1, End: 2})) {
+					failures = append(failures, "cancellation did not preserve selection and history")
 				}
 			}
 			if len(p.events) == 0 || p.events[len(p.events)-1].Kind != kind {
@@ -327,7 +343,7 @@ func (probe *gtkFcitxProbe) finish(failure string) {
 		}
 	}
 	probe.record(failures...)
-	if failure == "" && !p.tentative && probe.engine == "pinyin" && probe.ending != "escape" {
+	if failure == "" && !p.tentative && probe.engine == "pinyin" && probe.ending != "escape" && !windowBlur {
 		if !p.editor.Undo() || p.editor.String() != "abc" || p.editor.CanUndo() || !p.editor.Redo() || p.editor.String() != probe.want {
 			last := &p.trials[len(p.trials)-1]
 			last.failures = append(last.failures, "commit did not round-trip in a single undo unit")
@@ -336,8 +352,10 @@ func (probe *gtkFcitxProbe) finish(failure string) {
 	if failure == "" && p.tentative {
 		undos := []string{"ac", "abc"}
 		if probe.engine == "hangul" {
-			undos = []string{"a\uac00c", "ac", "abc"}
-		} else if probe.ending == "escape" {
+			if !windowBlur {
+				undos = []string{"a\uac00c", "ac", "abc"}
+			}
+		} else if probe.ending == "escape" || windowBlur {
 			undos = []string{"abc"}
 		}
 		for _, want := range undos {

@@ -1,8 +1,13 @@
 package dmg
 
 import (
+	"encoding/xml"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -117,8 +122,8 @@ func TestHdiutilReportsOtherFailuresAtOnce(t *testing.T) {
 // does.
 func TestReleasedDetachesTheDiskAgainWhileTheImageStaysAttached(t *testing.T) {
 	const image = "/tmp/viva-release-test/writable.dmg"
-	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string><key>dev-entry</key><string>/dev/disk7</string></dict></array></plist>", nil}
-	free := reply{"<plist><array></array></plist>", nil}
+	held := reply{imageInfoFixture(imageEntryFixture(image, "/dev/disk7")), nil}
+	free := reply{imageInfoFixture(""), nil}
 	replies := []reply{}
 	for i := 0; i < 7; i++ { // attempts 0 to 5 find it held, and the force detach of attempt 5 is one more run
 		replies = append(replies, held)
@@ -141,8 +146,8 @@ func TestReleasedDetachesTheDiskAgainWhileTheImageStaysAttached(t *testing.T) {
 
 func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
 	const image = "/tmp/viva-release-test/writable.dmg"
-	held := reply{"<plist><array><dict><key>image-path</key><string>" + image + "</string></dict></array></plist>", nil}
-	free := reply{"<plist><array></array></plist>", nil}
+	held := reply{imageInfoFixture(imageEntryFixture(image, "")), nil}
+	free := reply{imageInfoFixture(""), nil}
 	runs, waits := stub(t, []reply{held, held, free})
 	if err := released(image); err != nil {
 		t.Fatal(err)
@@ -153,6 +158,120 @@ func TestReleasedWaitsUntilTheImageIsNoLongerAttached(t *testing.T) {
 	stub(t, []reply{held})
 	if err := released(image); err == nil || !strings.Contains(err.Error(), image) {
 		t.Fatalf("an image that stays attached gave %v", err)
+	}
+}
+
+func imageInfoFixture(entries string) string {
+	return `<plist><dict><key>images</key><array>` + entries + `</array></dict></plist>`
+}
+
+func imageEntryFixture(path, device string) string {
+	var escaped strings.Builder
+	_ = xml.EscapeText(&escaped, []byte(path))
+	entry := `<dict><key>image-path</key><string>` + escaped.String() + `</string>`
+	if device != "" {
+		entry += `<key>system-entities</key><array><dict><key>dev-entry</key><string>` + device + `</string></dict></array>`
+	}
+	return entry + `</dict>`
+}
+
+func TestReleasedNeverForcesTheNextImageWhenTheOwnedEntryHasNoDisk(t *testing.T) {
+	const owned = "/tmp/owned.dmg"
+	other := imageEntryFixture("/tmp/other.dmg", "/dev/disk11")
+	held := reply{imageInfoFixture(imageEntryFixture(owned, "") + other), nil}
+	replies := slices.Repeat([]reply{held}, 7)
+	replies = append(replies, reply{imageInfoFixture(other), nil})
+	runs, _ := stub(t, replies)
+	if err := released(owned); err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range *runs {
+		if arguments[0] != "info" {
+			t.Fatalf("unexpected command while the owned entry has no disk: %v", arguments)
+		}
+	}
+}
+
+func TestImageRecordDecodesTheOwnedPathAndUsesItsPartition(t *testing.T) {
+	const owned = "/tmp/one & two.dmg"
+	info := imageInfoFixture(imageEntryFixture(owned, "/dev/disk7s1") + imageEntryFixture("/tmp/other.dmg", "/dev/disk11"))
+	held, device, err := imageRecord(info, owned, owned)
+	if !held || device != "/dev/disk7" || err != nil {
+		t.Fatalf("held=%v, device=%q, error=%v", held, device, err)
+	}
+	if _, _, err := imageRecord(`<plist><dict/></plist>`, owned, owned); err == nil {
+		t.Fatal("missing image information was treated as released")
+	}
+}
+
+func TestBuildWaitsForOwnedImageAfterBusyDetach(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the mocked build uses Darwin file metadata")
+	}
+	dir := t.TempDir()
+	bundle := filepath.Join(dir, "Sample.app")
+	if err := os.Mkdir(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	layout, err := Resolve(Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub(t, nil) // Restore the command and disable real delays.
+	var staging, writable string
+	forced, converted := 0, false
+	runHdiutil = func(arguments ...string) ([]byte, error) {
+		switch arguments[0] {
+		case "create":
+			staging = arguments[slices.Index(arguments, "-srcfolder")+1]
+			writable = arguments[len(arguments)-1]
+			return nil, os.WriteFile(writable, nil, 0o644)
+		case "attach":
+			mount := arguments[slices.Index(arguments, "-mountpoint")+1]
+			for _, name := range []string{backgroundFile, stagedBundle} {
+				if err := os.Rename(filepath.Join(staging, name), filepath.Join(mount, name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			mount, err := filepath.EvalSymlinks(mount)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return []byte(`<plist><dict><key>system-entities</key><array><dict><key>dev-entry</key><string>/dev/disk7s1</string><key>mount-point</key><string>` + mount + `</string></dict></array></dict></plist>`), nil
+		case "detach":
+			if arguments[len(arguments)-1] != "/dev/disk7" {
+				t.Fatalf("attempted to detach an unrelated disk: %v", arguments)
+			}
+			if slices.Contains(arguments, "-force") {
+				forced++
+				if forced == 2 {
+					return nil, nil
+				}
+			}
+			return []byte(`hdiutil: couldn't eject "disk7" - Resource busy`), errExit
+		case "info":
+			entries := imageEntryFixture("/tmp/other.dmg", "/dev/disk11")
+			if forced < 2 {
+				entries += imageEntryFixture(writable, "/dev/disk7")
+			}
+			return []byte(imageInfoFixture(entries)), nil
+		case "convert":
+			if forced != 2 {
+				t.Fatal("conversion began while the image was still attached")
+			}
+			converted = true
+			return nil, os.WriteFile(arguments[len(arguments)-1], []byte("converted"), 0o644)
+		default:
+			t.Fatalf("unexpected hdiutil call: %v", arguments)
+			return nil, errExit
+		}
+	}
+	image := filepath.Join(dir, "sample.dmg")
+	if err := Build(Options{Bundle: bundle, Volume: "Sample", Image: image, Layout: layout}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(image); err != nil || !converted || string(got) != "converted" {
+		t.Fatalf("final image = %q, converted=%v, err=%v", got, converted, err)
 	}
 }
 

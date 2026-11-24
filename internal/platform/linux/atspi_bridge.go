@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
@@ -437,13 +438,17 @@ func (bridge *atspiBridge) announceChanges(window *atspiWindow, path string, old
 	}
 	isText := next.Patterns().Has(platform.PatternText)
 	if isText && changed&platform.ChangedValue != 0 {
-		before, after := []rune(old.Value), []rune(next.Value)
-		start, removed, added := atspiTextEdit(before, after)
-		if removed > 0 {
-			bridge.emit(path, atspiEventObject, "TextChanged", "delete", int32(start), int32(removed), string(before[start:start+removed]))
-		}
-		if added > 0 {
-			bridge.emit(path, atspiEventObject, "TextChanged", "insert", int32(start), int32(added), string(after[start:start+added]))
+		start, removed, added := atspiTextEdit(old.Value, next.Value)
+		for _, change := range [...]struct{ kind, value string }{{"delete", removed}, {"insert", added}} {
+			if change.value == "" {
+				continue
+			}
+			length := utf8.RuneCountInString(change.value)
+			value := change.value
+			if !utf8.ValidString(value) {
+				value = string([]rune(value))
+			}
+			bridge.emit(path, atspiEventObject, "TextChanged", change.kind, int32(start), int32(length), value)
 		}
 	}
 	if isText && changed&platform.ChangedSelection != 0 && next.Selection.Valid {

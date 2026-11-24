@@ -36,6 +36,20 @@ func (f *Frame) PaintChild(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
+	if extra := &f.Exts[n.Ext]; extra.presenced && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		r := n.Rect
+		f.Surface.BeginPresence(extra.glideIdentity(n), elementPresenceSlot, extra.presence, gfx.Point{X: r.X + r.Width/2, Y: r.Y + r.Height/2})
+		defer f.Surface.EndPresence()
+	}
+	if extra := &f.Exts[n.Ext]; extra.posed && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		r := n.Rect
+		f.Surface.BeginPose(extra.glideIdentity(n), elementPoseSlot, extra.pose, extra.poseMotion, gfx.Point{X: r.X + r.Width/2, Y: r.Y + r.Height/2})
+		defer f.Surface.EndPose()
+	}
+	if extra := &f.Exts[n.Ext]; extra.glided && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		f.Surface.BeginGlide(extra.glideIdentity(n), 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
+		defer f.Surface.EndPose()
+	}
 	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
 		if f.memoFn(f, i, true) {
 			return
@@ -403,4 +417,20 @@ func (f *Frame) paintStrike(value string, bounds Rect, style gfx.TextStyle, alig
 	}
 	x := f.Surface.LabelOrigin(value, bounds, style, alignment)
 	f.Surface.Fill(Rect{X: x, Y: bounds.Y + bounds.Height/2, Width: f.Surface.TextWidthStyle(value, style), Height: 1}, style.Color)
+}
+
+// elementPresenceSlot is the slot of an element's own presence among those the
+// canvas keeps for its ID, apart from the parts of an overlay.
+const elementPresenceSlot = 200
+
+// elementPoseSlot is the slot of an element's Pose, apart from its Glide's.
+const elementPoseSlot = 1
+
+// glideIdentity is what a glided element is followed by: its own ID, or the one
+// its list gave it when it has none.
+func (x *Extra) glideIdentity(n *Node) gfx.ID {
+	if !n.ID.IsZero() {
+		return n.ID
+	}
+	return x.glideID
 }

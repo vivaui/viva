@@ -32,6 +32,7 @@ type gtkIME struct {
 	engineComposing bool
 	// session survives an empty native update until GTK supplies an end or result.
 	session, ending bool
+	discarding      bool
 	nativeDepth     int
 	// rootContext is the context of the outermost callContext, the call whose
 	// deferred finishPreedit runs when the native depth returns to zero. A
@@ -198,6 +199,10 @@ func (ime *gtkIME) sync() {
 		ime.callContext(context, ime.g.imFocusIn)
 	case !want && ime.active:
 		ime.active = false
+		if !ime.focused && ime.composing() {
+			ime.discardOnFocusOut(context)
+			return
+		}
 		if ime.engineComposing || ime.session {
 			ime.engineComposing = false
 			ime.callContext(context, ime.g.imReset)
@@ -222,6 +227,21 @@ func (ime *gtkIME) sync() {
 	}
 	ime.updateCursor()
 	ime.updateSurrounding()
+}
+
+func (ime *gtkIME) discardOnFocusOut(context uintptr) {
+	func() {
+		ime.discarding = true
+		defer func() { ime.discarding = false }()
+		ime.callContext(context, ime.g.imReset)
+		if ime.ctx == context && !ime.w.closed && !ime.active {
+			ime.callContext(context, ime.g.imFocusOut)
+		}
+	}()
+	if ime.current(context) && !ime.active {
+		ime.ending = true
+		ime.finishPreedit(context)
+	}
 }
 
 // updateCursor tells the input method's window where the caret is, in the toplevel's coordinates.
@@ -301,6 +321,9 @@ func (ime *gtkIME) deleteSurrounding(offset, count int) uintptr {
 }
 
 func (ime *gtkIME) commit(value string) {
+	if ime.discarding {
+		return
+	}
 	context, revision := ime.ctx, ime.w.text.stateRevision
 	composing := ime.composing()
 	if key := ime.shortcutKey; key != nil && !composing && value == key.Typed {
@@ -495,6 +518,9 @@ func (ime *gtkIME) clause(attrs uintptr, value string) (text.Range, bool) {
 
 // apply runs one text event through the field and presents the result.
 func (ime *gtkIME) apply(event platform.TextEvent) {
+	if ime.discarding {
+		return
+	}
 	frame, err := ime.w.text.textEvent(event)
 	ime.w.present(frame, err)
 }

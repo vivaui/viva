@@ -5,6 +5,10 @@ package linux
 import (
 	"testing"
 	"time"
+
+	"github.com/vivaui/viva/internal/fcitx"
+	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 )
 
 // stubDaemon stands in for a framework's connection in a selection test.
@@ -75,5 +79,67 @@ func TestDialFallsBackWhenTheNamedFrameworkIsAbsent(t *testing.T) {
 	}
 	if daemon := dialPreferred("", missing, missing); daemon != nil {
 		t.Fatalf("no daemon was reported as %v", daemon)
+	}
+}
+
+func TestFcitxPreeditClearKeepsSelectionAndHistory(test *testing.T) {
+	for _, selection := range []struct {
+		name       string
+		rangeValue text.Range
+	}{
+		{"forward", text.Range{Start: 1, End: 2}},
+		{"backward", text.Range{Start: 2, End: 1}},
+	} {
+		for _, ending := range []string{"cancel", "clear-before-commit", "commit-before-clear"} {
+			test.Run(selection.name+"/"+ending, func(test *testing.T) {
+				harness := newIMEHarness(test)
+				harness.editor = text.NewEditor("abc")
+				harness.editor.SetSelection(selection.rangeValue)
+				harness.input.state = platform.EditorState(harness.editor)
+				harness.focus(test)
+				handler := harness.ime.fcitxHandler()
+				assertSelection := func() {
+					test.Helper()
+					if harness.editor.Selection() != (text.Range{Start: 1, End: 2}) || harness.editor.Caret() != selection.rangeValue.End {
+						test.Fatalf("selection = %+v, caret = %d", harness.editor.Selection(), harness.editor.Caret())
+					}
+				}
+				handler.Preedit(fcitx.PreeditEvent{Text: "\u4f60", Visible: true, Cursor: 1})
+				if harness.editor.String() != "a\u4f60c" || harness.editor.CommittedString() != "abc" || !harness.ime.composing() {
+					test.Fatalf("preedit did not preserve the committed text: %+v", platform.EditorState(harness.editor))
+				}
+				if ending == "commit-before-clear" {
+					handler.Commit("\u4f60\u597d")
+				}
+				handler.Preedit(fcitx.PreeditEvent{})
+				if ending != "commit-before-clear" {
+					if harness.editor.String() != "abc" || harness.ime.composing() || harness.editor.CanUndo() {
+						test.Fatalf("clear changed the selection's text or history: %q", harness.editor.String())
+					}
+					assertSelection()
+				}
+				if ending == "cancel" {
+					handler.Preedit(fcitx.PreeditEvent{})
+					if harness.ime.composing() || harness.editor.CanUndo() || harness.editor.String() != "abc" {
+						test.Fatal("second clear changed an already canceled editor")
+					}
+					assertSelection()
+					return
+				}
+				if ending == "clear-before-commit" {
+					handler.Commit("\u4f60\u597d")
+				}
+				if harness.editor.CommittedString() != "a\u4f60\u597dc" || harness.ime.composing() {
+					test.Fatalf("commit = %q or still composing", harness.editor.CommittedString())
+				}
+				if !harness.editor.Undo() || harness.editor.String() != "abc" || harness.editor.CanUndo() {
+					test.Fatalf("one Undo did not restore the original text: %q", harness.editor.String())
+				}
+				assertSelection()
+				if !harness.editor.Redo() || harness.editor.String() != "a\u4f60\u597dc" {
+					test.Fatalf("Redo = %q", harness.editor.String())
+				}
+			})
+		}
 	}
 }

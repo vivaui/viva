@@ -10,6 +10,8 @@ import (
 
 // Run starts the native application loop and blocks until the final window
 // closes. It must be called from the program's main goroutine.
+// On macOS, call runtime.LockOSThread in an init function in package main to
+// keep that goroutine on the process main thread for AppKit.
 func Run(config Config) error {
 	attendFaults()
 	normalized, err := config.normalize()

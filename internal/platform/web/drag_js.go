@@ -14,6 +14,12 @@ import (
 // adapter paints into has no DataTransfer, and a canvas drag reaches the browser
 // as a drag of pixels, not of files. So the page can offer its files only by
 // copying them (see SetClipboardFiles), which is a different promise to the user.
-func StartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEffect, error) {
-	return platform.DragEffectNone, fmt.Errorf("%w: a browser drags files from a DOM DataTransfer a canvas does not have", platform.ErrDragUnsupported)
+func StartFileDrag(paths []string, allowed platform.DragEffect) error {
+	return fmt.Errorf("%w: a browser drags files from a DOM DataTransfer a canvas does not have", platform.ErrDragUnsupported)
+}
+
+// StartFilePromiseDrag cannot offer promised content for the same reason: a
+// canvas has no DataTransfer to put a file promise on.
+func StartFilePromiseDrag(files []platform.FilePromise) error {
+	return fmt.Errorf("%w: a browser drags files from a DOM DataTransfer a canvas does not have", platform.ErrDragUnsupported)
 }

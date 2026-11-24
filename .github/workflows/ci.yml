@@ -184,7 +184,7 @@ jobs:
         run: |
           sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0 ||
             { sudo apt-get update && sudo apt-get install -y xvfb libxcb-shape0 libgtk-3-0; }
-          xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11|TrayWindowQueuedRedrawBeforeInput|TrayWindowRepaintsLaterExposure)$' -count=1 -v
+          xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' go test ./internal/platform/linux -run '^Test(PreviewNativeX11Contract|NotificationNativeX11|TrayWindowQueuedRedrawBeforeInput|TrayWindowRepaintsLaterExposure|AFileDragOutReachesAnotherClient)$' -count=1 -v
           GDK_BACKEND=x11 VIVA_TEST_GTK_NOTIFICATION=1 xvfb-run -a go test -tags vivagtk ./internal/platform/linux -run '^TestGTKNotificationFocusHints$' -count=1 -v
       - name: Native X11 global shortcut
         env:
@@ -395,6 +395,8 @@ jobs:
         run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
       - name: Native Direct2D text origins and hidden labels
         run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText)$' -count=1 -v
+      - name: Promised file drag
+        run: go test ./internal/platform/windows -run '^Test(ThePromiseDataObject|ThePromiseStream|ThePromiseEnumerator|PromiseNames)' -count=1 -v
       - name: Native DirectWrite fitted bidi text
         run: go test ./internal/platform/windows ./components -run '^Test(Fitted(DirectWrite|WindowsClusters)|CodeEditorDirectWrite)' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only

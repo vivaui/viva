@@ -19,7 +19,7 @@ void *viva_application_window_view(void *token);
 // with an error on an older system rather than opened in the default store.
 void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, const char *html,
                     const char *base, const char *script, int main_frame_only, const char *scheme, int ephemeral, int direct,
-                    const char *partition, char **error);
+                    const char *user_agent_suffix, const char *partition, char **error);
 int viva_web_direct_supported(void);
 // viva_web_partition_supported answers whether this system can name the persistent store a partition uses.
 int viva_web_partition_supported(void);

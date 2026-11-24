@@ -151,7 +151,7 @@ func (button SplitButton) paintFocus(bounds gfx.Rect, variant ButtonVariant, id 
 		return
 	}
 	ring, _ := buttonRing(&button.theme, variant, false)
-	button.canvas.Rounded(expand(bounds, 3), button.theme.Metrics.RadiusControl+3, ring)
+	button.canvas.Rounded(expand(bounds, 3), gfx.RadiusOutset(button.theme.Metrics.RadiusControl, 3), ring)
 }
 
 func (button SplitButton) paintHalf(bounds gfx.Rect, index int, variant ButtonVariant, id gfx.ID, framed bool, radius float32) {

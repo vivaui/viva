@@ -1318,3 +1318,7 @@ int main(void) {
     }
     return 0;
 }
+
+// The promised content callbacks the drag source reports to Go.
+int vivaFilePromiseContent(intptr_t drag, int item, const char *path) { return 1; }
+void vivaFileDragFinished(intptr_t drag) {}

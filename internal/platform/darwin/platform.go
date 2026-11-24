@@ -499,6 +499,8 @@ func nativeStatusError(status C.int) error {
 		return fmt.Errorf("darwin: failed to create initial text texture")
 	case 8:
 		return fmt.Errorf("darwin: application loop is already running")
+	case C.VIVA_APPLICATION_NOT_MAIN_THREAD:
+		return fmt.Errorf("darwin: start the application on the process main thread by calling runtime.LockOSThread in an init function in package main")
 	default:
 		return fmt.Errorf("darwin: native application failed with status %d", status)
 	}
