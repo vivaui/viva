@@ -78,6 +78,8 @@ func systemAppearance() window.Appearance { return app.SystemAppearance() }
 // in one call. page is what OpenWindow takes: its View declares what the window
 // shows, and its Theme, Styles and the rest configure the page. The config's
 // Tree, Paint, TextInput and OnScroll are the page's (see Configure).
+// For a native macOS window, call runtime.LockOSThread in an init function in
+// package main and run from main to satisfy AppKit's main-thread requirement.
 //
 //	ui.Run(app.Config{Title: "Hosts", Width: 480, Height: 360}, ui.PageConfig{View: m.page})
 func Run(config app.Config, page PageConfig) error {
