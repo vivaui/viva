@@ -36,6 +36,10 @@ func (f *Frame) PaintChild(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
+	if extra := &f.Exts[n.Ext]; extra.glided && !n.ID.IsZero() && f.Surface != nil {
+		f.Surface.BeginGlide(n.ID, 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
+		defer f.Surface.EndPose()
+	}
 	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
 		if f.memoFn(f, i, true) {
 			return

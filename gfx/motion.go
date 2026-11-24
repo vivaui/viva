@@ -29,9 +29,27 @@ const (
 
 // Motion is one timed state change. A zero Duration is an instant change, so
 // hand-built themes that omit motion tokens stay static rather than animated.
+//
+// With Spring set the change is a spring instead of a timed curve: it keeps the
+// velocity it has when its target changes on the way, so a control clicked
+// again mid-flight turns around smoothly instead of stopping dead.
 type Motion struct {
+	// Duration is the length of a timed change and, for a spring, about how long
+	// it takes to arrive (the period of its oscillation).
 	Duration time.Duration
 	Easing   Easing
+	// Spring replaces Easing with a spring of Bounce.
+	Spring bool
+	// Bounce runs from 0, a spring that arrives without overshooting, toward 1,
+	// a wide wobble. It is the parameter SwiftUI and CSS-in-motion libraries
+	// give a spring, and is clamped to [0, 0.95]. Ignored unless Spring is set.
+	Bounce float32
+}
+
+// SpringMotion returns a spring that takes about duration to arrive and
+// overshoots by bounce (0 for none).
+func SpringMotion(duration time.Duration, bounce float32) Motion {
+	return Motion{Duration: duration, Spring: true, Bounce: bounce}
 }
 
 // DefaultMotion returns the 150ms standard-curve transition shadcn components
@@ -241,6 +259,13 @@ type motionSlot struct {
 	start    time.Duration
 	duration time.Duration
 	easing   Easing
+	// A spring segment is solved exactly from its start: offset is from-to at
+	// the start, speed the velocity then (value units per second), omega the
+	// natural frequency (rad/s) and zeta the damping ratio. The solution is a
+	// function of elapsed time alone, so a slow frame does not change its path.
+	spring      bool
+	omega, zeta float64
+	speed       float64
 }
 
 // onceSlot is one PlayOnce timeline. Unlike motionSlot it never retargets: it
@@ -259,6 +284,16 @@ type onceSlot struct {
 
 func (slot *motionSlot) value(now time.Duration) float32 {
 	elapsed := now - slot.start
+	if slot.spring {
+		if elapsed <= 0 {
+			return slot.from
+		}
+		if slot.settled(now) {
+			return slot.to
+		}
+		x, _ := slot.springAt(elapsed)
+		return slot.to + float32(x)
+	}
 	if slot.duration <= 0 || elapsed >= slot.duration {
 		return slot.to
 	}
@@ -269,8 +304,90 @@ func (slot *motionSlot) value(now time.Duration) float32 {
 	return Lerp(slot.from, slot.to, slot.easing.At(progress))
 }
 
+// Springs are at rest within these distances of the target, in value units and
+// units per second: well below a pixel, or a thousandth of a 0-to-1 opacity.
+const (
+	springRestOffset = 5e-4
+	springRestSpeed  = 5e-3
+	// springMaxCycles bounds how long a spring may run, in its own periods, so a
+	// pathological one cannot keep the application painting.
+	springMaxCycles = 12
+)
+
+// springAt returns the offset from the target and the velocity of a spring
+// segment after elapsed, the closed-form solution of x” + 2*zeta*omega*x' +
+// omega^2*x = 0 from (offset, speed).
+func (slot *motionSlot) springAt(elapsed time.Duration) (x, v float64) {
+	t := elapsed.Seconds()
+	x0, v0, w, z := float64(slot.from-slot.to), slot.speed, slot.omega, slot.zeta
+	switch {
+	case z < 1-1e-9:
+		wd := w * math.Sqrt(1-z*z)
+		decay := math.Exp(-z * w * t)
+		sin, cos := math.Sincos(wd * t)
+		b := (v0 + z*w*x0) / wd
+		x = decay * (x0*cos + b*sin)
+		v = decay * (-z*w*(x0*cos+b*sin) + (-x0*wd*sin + b*wd*cos))
+	default:
+		decay := math.Exp(-w * t)
+		b := v0 + w*x0
+		x = decay * (x0 + b*t)
+		v = decay * (b - w*(x0+b*t))
+	}
+	return x, v
+}
+
+// velocity is the speed of the displayed value at now, in value units per
+// second, which a spring taking over from this segment continues from.
+func (slot *motionSlot) velocity(now time.Duration) float64 {
+	if slot.settled(now) {
+		return 0
+	}
+	if slot.spring {
+		_, v := slot.springAt(now - slot.start)
+		return v
+	}
+	const step = time.Millisecond
+	lo, hi := max(now-step, slot.start), min(now+step, slot.start+slot.duration)
+	if hi <= lo {
+		return 0
+	}
+	return float64(slot.value(hi)-slot.value(lo)) / (hi - lo).Seconds()
+}
+
 func (slot *motionSlot) settled(now time.Duration) bool {
+	if slot.spring {
+		elapsed := now - slot.start
+		if elapsed <= 0 {
+			return slot.from == slot.to && slot.speed == 0
+		}
+		if slot.duration > 0 && elapsed >= slot.duration*springMaxCycles {
+			return true
+		}
+		x, v := slot.springAt(elapsed)
+		return math.Abs(x) < springRestOffset && math.Abs(v) < springRestSpeed
+	}
 	return slot.duration <= 0 || now-slot.start >= slot.duration || slot.from == slot.to
+}
+
+// retarget starts the segment that carries the value shown at now to target.
+func (slot *motionSlot) retarget(now time.Duration, target float32, motion Motion) {
+	slot.rebase(now, 0, target, motion)
+}
+
+// rebase carries the value shown at now, moved by shift, to target, keeping the
+// velocity it has. A shift is for a value measured from an origin that moved
+// under it: what the eye saw stays where it was.
+func (slot *motionSlot) rebase(now time.Duration, shift, target float32, motion Motion) {
+	from, speed := slot.value(now)+shift, slot.velocity(now)
+	slot.from, slot.to, slot.start, slot.duration = from, target, now, motion.Duration
+	slot.easing, slot.spring, slot.speed = motion.Easing, motion.Spring, 0
+	if motion.Spring {
+		bounce := float64(min(max(motion.Bounce, 0), 0.95))
+		slot.omega = 2 * math.Pi / motion.Duration.Seconds()
+		slot.zeta = 1 - bounce
+		slot.speed = speed
+	}
 }
 
 // motionState is the canvas-owned transition table. Slots live in paint order
@@ -293,7 +410,11 @@ type motionState struct {
 	// presences are the overlays that are open or still leaving, and open the
 	// groups the current paint pass has begun and not yet ended (presence.go).
 	presences []presenceEntry
-	open      []presenceOpen
+	// poses are the elements with a Pose, and poseAt the cursor that finds them
+	// in paint order (pose.go).
+	poses  []poseEntry
+	poseAt int
+	open   []presenceOpen
 	// hitMotions keeps the placement of hits painted inside a moving presence
 	// for this frame, so native overlays anchored to them move with the paint.
 	hitMotions []hitMotionEntry
@@ -354,6 +475,7 @@ func (state *motionState) sweep() {
 	if cap(state.slots) > motionShrinkCapacity && len(state.slots)*motionShrinkFactor < cap(state.slots) {
 		state.slots = append(make([]motionSlot, 0, len(state.slots)*2), state.slots...)
 	}
+	state.sweepPoses()
 	onces := state.onces[:0]
 	for _, once := range state.onces {
 		if once.seen == state.frame {
@@ -383,6 +505,7 @@ func (canvas *Canvas) BeginFrame() {
 	state.frame++
 	state.cursor = 0
 	state.onceAt = 0
+	state.poseAt = 0
 	state.sampled = false
 	state.active = state.clock != nil
 	state.animating = false
@@ -505,11 +628,7 @@ func (canvas *Canvas) Animate(id ID, slot uint8, target float32, motion Motion) 
 		return target
 	}
 	if entry.to != target {
-		entry.from = entry.value(now)
-		entry.to = target
-		entry.start = now
-		entry.duration = motion.Duration
-		entry.easing = motion.Easing
+		entry.retarget(now, target, motion)
 	}
 	if !entry.settled(now) {
 		state.animating = true
