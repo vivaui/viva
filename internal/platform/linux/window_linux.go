@@ -68,6 +68,10 @@ type window struct {
 	gnomeFilesAtom uint32
 	pngAtom        uint32
 	ownsClipboard  bool
+	// clipboardFocusedAt is monotonicNow of the last time this window gained the
+	// keyboard. A clipboard read in the moment after that can see no selection
+	// owner (system_linux.go).
+	clipboardFocusedAt atomic.Int64
 	// selections is the PRIMARY selection and the streams of data too large for one
 	// property (selection_linux.go).
 	selections selectionState
@@ -1205,10 +1209,13 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		// must not forget keys held here.
 		keyboardFocus := focus.Detail == xcbNotifyAncestor || focus.Detail == xcbNotifyNonlinear
 		// The same details, outside a grab, are the window becoming active.
-		if realFocus && keyboardFocus && config.OnActivate != nil {
-			config.OnActivate()
-			if err := state.refreshReadOnlyTextInput(); err != nil {
-				return false, err
+		if realFocus && keyboardFocus {
+			win.clipboardFocusedAt.Store(monotonicNow())
+			if config.OnActivate != nil {
+				config.OnActivate()
+				if err := state.refreshReadOnlyTextInput(); err != nil {
+					return false, err
+				}
 			}
 		}
 		if keyboardFocus {
