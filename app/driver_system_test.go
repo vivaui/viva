@@ -330,13 +330,13 @@ func TestDriverInterceptsOpenDirectory(t *testing.T) {
 	if err := driver.QueueOpenDirectory("/tmp/project", nil); err != nil {
 		t.Fatal(err)
 	}
-	options := OpenDirectoryOptions{Title: "Choose project"}
+	options := OpenDirectoryOptions{Title: "Choose project", InitialDirectory: "/tmp/projects"}
 	path, err := OpenDirectory(options)
 	if err != nil || path != "/tmp/project" {
 		t.Fatalf("OpenDirectory = %q, %v", path, err)
 	}
 	request, ok := driver.LastOpenDirectoryRequest()
-	if !ok || request.Title != options.Title {
+	if !ok || request != options {
 		t.Fatalf("request = %#v, %t", request, ok)
 	}
 
