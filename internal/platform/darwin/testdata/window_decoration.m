@@ -37,12 +37,13 @@ static void verify(NSWindow *window, NSInteger number, NSView *content, NSRespon
     assert(window.isVisible && window.isKeyWindow == key);
 }
 
-static void check(BOOL custom, BOOL visible, CGFloat width, CGFloat height) {
+static void check(BOOL custom, BOOL visible, NSRect area, CGFloat width, CGFloat height) {
     NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
         NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     if (custom) style |= NSWindowStyleMaskFullSizeContentView;
+    NSRect geometry = NSMakeRect(NSMidX(area) - width / 2, NSMidY(area) - height / 2, width, height);
     DecorationWindow *window = [[DecorationWindow alloc]
-        initWithContentRect:NSMakeRect(100, 100, width, height)
+        initWithContentRect:geometry
                   styleMask:style backing:NSBackingStoreBuffered defer:NO];
     window.releasedWhenClosed = NO;
     NSInteger level = custom ? NSFloatingWindowLevel : NSNormalWindowLevel;
@@ -75,12 +76,21 @@ static void check(BOOL custom, BOOL visible, CGFloat width, CGFloat height) {
         window.reportsMapped = YES;
     }
     NSInteger number = window.windowNumber;
-    NSRect geometry = contentRect(window);
+    geometry = contentRect(window);
+    // The operation may legitimately refuse if AppKit constrains the new frame
+    // to the display. Keep the success fixture inside the available screen.
+    assert(NSContainsRect(area, window.frame));
     [delegate setValue:@YES forKey:@"_fullscreenTransition"];
     assert([delegate changeDecoration:NO] == -1);
     verify(window, number, content, editor, geometry, style, level, visible);
     [delegate setValue:@NO forKey:@"_fullscreenTransition"];
-    assert([delegate changeDecoration:NO] == 1);
+    int result = [delegate changeDecoration:NO];
+    if (result != 1) {
+        fprintf(stderr, "could not remove chrome: result=%d custom=%d frame=%s client=%s screen=%s\n",
+            result, custom, NSStringFromRect(window.frame).UTF8String,
+            NSStringFromRect(geometry).UTF8String, NSStringFromRect(area).UTF8String);
+    }
+    assert(result == 1);
     if (visible) pumpEvents();
     verify(window, number, content, editor, geometry,
            style & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView), level, visible);
@@ -112,10 +122,16 @@ int main(int argc, const char *argv[]) {
         BOOL visible = argc == 2 && strcmp(argv[1], "--visible") == 0;
         [NSApp setActivationPolicy:visible ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyProhibited];
         if (visible) [NSApp finishLaunching];
-        check(NO, visible, 640, 400);
-        check(YES, visible, 640, 400);
-        check(NO, visible, 1280, 800);
-        check(YES, visible, 1280, 800);
+        NSScreen *screen = NSScreen.mainScreen ?: NSScreen.screens.firstObject;
+        assert(screen != nil);
+        NSRect area = screen.visibleFrame;
+        // Leave space for the titlebar even on smaller virtual displays.
+        CGFloat width = MIN(NSWidth(area) - 64, 1280);
+        CGFloat height = MIN(NSHeight(area) - 64, 800);
+        check(NO, visible, area, MIN(width, 640), MIN(height, 400));
+        check(YES, visible, area, MIN(width, 640), MIN(height, 400));
+        check(NO, visible, area, width, height);
+        check(YES, visible, area, width, height);
     }
     return 0;
 }
