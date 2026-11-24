@@ -737,3 +737,35 @@ func TestMenuItemIDNamesItsRow(t *testing.T) {
 		t.Fatalf("the row's hit is %v, ID says %v", hit.ID, row)
 	}
 }
+
+type toggleModel struct {
+	open bool
+	a, b bool
+}
+
+func (m *toggleModel) page(c ui.C) {
+	more := ui.Button(c, "More").Outline()
+	if more.Clicked() {
+		m.open = true
+	}
+	ui.Menu(c, more, &m.open, func(menu *ui.MenuItems) {
+		if menu.Item("Alpha").Checked(m.a).Toggled() {
+			m.a = !m.a
+		}
+		if menu.Item("Beta").Checked(m.b).Toggled() {
+			m.b = !m.b
+		}
+	})
+}
+
+// A Toggled item changes a setting and leaves the menu open for the next one.
+func TestMenuToggledKeepsTheMenuOpen(t *testing.T) {
+	m := &toggleModel{}
+	d := openPage(t, m.page)
+	d.click("More")
+	d.click("Alpha")
+	d.click("Beta")
+	if !m.a || !m.b || !m.open {
+		t.Fatalf("a=%v b=%v open=%v", m.a, m.b, m.open)
+	}
+}

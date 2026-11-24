@@ -9,10 +9,30 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func TestClipboardHandoffWaitsOnlyJustAfterFocus(t *testing.T) {
+	win := &window{}
+	previous := activeWindow.Load()
+	activeWindow.Store(win)
+	t.Cleanup(func() { activeWindow.Store(previous) })
+
+	if _, wait := clipboardHandoffDeadline(); wait {
+		t.Fatal("a window that has not gained the keyboard waited for a clipboard owner")
+	}
+	win.clipboardFocusedAt.Store(monotonicNow())
+	if _, wait := clipboardHandoffDeadline(); !wait {
+		t.Fatal("a window that just gained the keyboard did not wait for a clipboard owner")
+	}
+	win.clipboardFocusedAt.Store(monotonicNow() - int64(clipboardFocusWindow) - int64(time.Millisecond))
+	if _, wait := clipboardHandoffDeadline(); wait {
+		t.Fatal("a focus older than the hand-off window still waited for a clipboard owner")
+	}
+}
 
 func TestUnavailableSystemIntegrationsAreDetectable(t *testing.T) {
 	activeWindow.Store(nil)

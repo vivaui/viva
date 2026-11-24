@@ -45,8 +45,12 @@ func nativeSetClipboardImage(png []byte) error {
 	return webSystemError("write clipboard image", webplatform.SetClipboardImage(png))
 }
 
-func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) error {
 	return webplatform.StartFileDrag(paths, allowed)
+}
+
+func nativeStartFilePromiseDrag(files []FilePromise) error {
+	return webplatform.StartFilePromiseDrag(files)
 }
 
 func nativeClipboardImagePNG() ([]byte, error) {
