@@ -60,6 +60,8 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 		patchFroms = append(patchFroms, parsed)
 		return nil
 	})
+	var patchMaxRatio float64
+	flags.Float64Var(&patchMaxRatio, "patch-max-ratio", 0, "leave out a patch larger than this fraction of its full archive, such as 0.6 (0, the default, keeps every patch)")
 	flags.DurationVar(&validFor, "valid-for", 0, "how long clients trust the feed, such as 2160h; 0 (the default) never expires")
 	flags.StringVar(&keyFile, "key", "", "Ed25519 private key file (default $VIVA_UPDATE_KEY)")
 	positional, helped, err := parseFlags(c, flags, arguments, output)
@@ -114,8 +116,11 @@ func runFeed(arguments []string, output, _ io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if patchMaxRatio < 0 || patchMaxRatio > 1 {
+		return fmt.Errorf("--patch-max-ratio %v must be between 0 and 1", patchMaxRatio)
+	}
 	if len(patchFroms) > 0 {
-		if err := addPatches(assets, patchFroms, patchExcludes, artifactsDir, baseURL, version, app, loaded.ExecutableName()); err != nil {
+		if err := addPatches(assets, patchFroms, patchExcludes, patchMaxRatio, artifactsDir, baseURL, version, app, loaded.ExecutableName()); err != nil {
 			return err
 		}
 	}
@@ -451,8 +456,11 @@ func parsePatchFrom(value string) (patchFrom, error) {
 
 // addPatches writes a patch for every --patch-from that names a listed asset
 // and adds it to the asset. Every argument must match an asset, so a typo in
-// the platform cannot publish a feed that silently lacks its delta.
-func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, dir, baseURL, version, app, executable string) error {
+// the platform cannot publish a feed that silently lacks its delta. A patch
+// larger than maxRatio of its full archive is left out (no file, no feed entry)
+// because downloading it saves too little to be worth the apply step; a maxRatio
+// of 0 keeps every patch.
+func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, maxRatio float64, dir, baseURL, version, app, executable string) error {
 	base := strings.TrimRight(baseURL, "/")
 	byTarget := make(map[string][]patchFrom, len(froms))
 	for _, from := range froms {
@@ -504,6 +512,10 @@ func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, dir
 			}); err != nil {
 				return fmt.Errorf("feed: patch %s from %s: %w", key, from.version, err)
 			}
+			matched[key]++
+			if maxRatio > 0 && float64(encoded.Len()) > maxRatio*float64(asset.Size) {
+				continue
+			}
 			patchName := name + "." + from.version + ".patch"
 			if err := writePatchFileBeside(filepath.Join(dir, patchName), encoded.Bytes()); err != nil {
 				return err
@@ -515,7 +527,6 @@ func addPatches(assets []update.Asset, froms []patchFrom, excludes []string, dir
 				Size:        int64(encoded.Len()),
 				SHA256:      hex.EncodeToString(sum[:]),
 			})
-			matched[key]++
 		}
 		sort.Slice(asset.Patches, func(a, b int) bool {
 			order, err := update.Compare(asset.Patches[a].FromVersion, asset.Patches[b].FromVersion)
