@@ -73,12 +73,6 @@ func Build(options Options) error {
 	if err := settle(writable, options, app); err != nil {
 		return err
 	}
-	// Detaching returns before the disk image service lets go of the file;
-	// converting it while the service still holds it fails with "Resource
-	// temporarily unavailable", which hosted runners show for over a minute.
-	if err := released(writable); err != nil {
-		return err
-	}
 
 	// Write beside the target first so a failure leaves the previous image alone.
 	temporary := strings.TrimSuffix(options.Image, ".dmg") + ".viva-tmp.dmg"
@@ -114,8 +108,18 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	defer func() {
-		if detachErr := detach(device); err == nil {
-			err = detachErr
+		cleanupErr := detach(device)
+		// A busy disk can outlive the short detach retries, and even a successful
+		// detach can leave the backing file held. Wait for this image in both cases.
+		if cleanupErr == nil || transient("detach", cleanupErr.Error()) {
+			if waitErr := released(writable); waitErr != nil {
+				cleanupErr = errors.Join(cleanupErr, waitErr)
+			} else {
+				cleanupErr = nil
+			}
+		}
+		if err == nil {
+			err = cleanupErr
 		}
 	}()
 
@@ -275,16 +279,18 @@ func released(image string) error {
 		if err != nil {
 			return err
 		}
-		if !strings.Contains(out, "<string>"+path+"</string>") && !strings.Contains(out, "<string>"+image+"</string>") {
+		held, device, err := imageRecord(out, path, image)
+		if err != nil {
+			return err
+		}
+		if !held {
 			return nil
 		}
 		attached = out
-		if redetachAt[attempt] {
+		if redetachAt[attempt] && device != "" {
 			// The service can keep an image attached, and hold the file, after a detach
 			// that reported success: take its disk away again.
-			if device := diskOf(out, path, image); device != "" {
-				_ = hdiutil("detach", "-force", device)
-			}
+			_ = hdiutil("detach", "-force", device)
 		}
 		pause(releaseWait)
 	}
@@ -295,22 +301,54 @@ func released(image string) error {
 // detached again.
 var redetachAt = map[int]bool{5: true, 20: true, 50: true, 90: true}
 
-var diskNode = regexp.MustCompile(`<string>(/dev/disk\d+)</string>`)
+var diskNode = regexp.MustCompile(`^/dev/disk\d+$`)
 
-// diskOf is the disk of the attached image at one of the paths, from hdiutil info's
-// list: the first disk its entry names, since an entry lists its image's path before
-// its system entities.
-func diskOf(info string, paths ...string) string {
-	for _, path := range paths {
-		at := strings.Index(info, "<string>"+path+"</string>")
-		if at < 0 {
-			continue
-		}
-		if match := diskNode.FindStringSubmatch(info[at:]); match != nil {
-			return match[1]
+type imageInfoValue struct {
+	XMLName xml.Name
+	Text    string           `xml:",chardata"`
+	Values  []imageInfoValue `xml:",any"`
+}
+
+func (value imageInfoValue) field(key string) imageInfoValue {
+	for i := 0; i+1 < len(value.Values); i += 2 {
+		if entry := value.Values[i]; entry.XMLName.Local == "key" && entry.Text == key {
+			return value.Values[i+1]
 		}
 	}
-	return ""
+	return imageInfoValue{}
+}
+
+// imageRecord only takes an ejectable device from the matching image's own
+// system entities. A held entry can temporarily have no device at all.
+func imageRecord(info string, canonical, original string) (bool, string, error) {
+	var list struct {
+		XMLName xml.Name       `xml:"plist"`
+		Root    imageInfoValue `xml:"dict"`
+	}
+	if err := xml.Unmarshal([]byte(info), &list); err != nil {
+		return false, "", fmt.Errorf("dmg: reading attached images: %w", err)
+	}
+	images := list.Root.field("images")
+	if images.XMLName.Local != "array" {
+		return false, "", errors.New("dmg: disk image information has no images array")
+	}
+	for _, image := range images.Values {
+		path := image.field("image-path")
+		if path.XMLName.Local != "string" || (path.Text != canonical && path.Text != original) {
+			continue
+		}
+		entities := image.field("system-entities")
+		if entities.XMLName.Local == "array" {
+			for _, entity := range entities.Values {
+				entry := entity.field("dev-entry")
+				if device := wholeDisk(entry.Text); entry.XMLName.Local == "string" && diskNode.MatchString(device) {
+					return true, device, nil
+				}
+			}
+		}
+		return true, "", nil
+	}
+	return false, "", nil
 }
 
 func hdiutil(arguments ...string) error {
