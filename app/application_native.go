@@ -14,6 +14,8 @@ import (
 // RunApplication starts the native application loop. start runs once on the
 // locked native event-loop thread and must open at least one window. The call
 // blocks until the final window closes or a platform error terminates the loop.
+// On macOS, call runtime.LockOSThread in an init function in package main and
+// start the native application from main to satisfy AppKit's main-thread requirement.
 func RunApplication(start func(*Application) error) error {
 	attendFaults()
 	if applicationRunner != nil {

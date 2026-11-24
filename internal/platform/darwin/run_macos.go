@@ -9,6 +9,12 @@ import "C"
 
 import "github.com/vivaui/viva/internal/platform"
 
+// CheckApplicationThread checks the Cocoa startup requirement before any call
+// that would otherwise wait for the main dispatch queue.
+func CheckApplicationThread() error {
+	return nativeStatusError(C.viva_application_check_thread())
+}
+
 // Run enters the Cocoa event loop with one window.
 func Run(config Config) error {
 	return RunApplication(func(application platform.Application) error {

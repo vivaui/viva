@@ -1,6 +1,7 @@
 //go:build !ios
 
 #import "core.h"
+#include <pthread.h>
 #include "cursor_owner_darwin.h"
 #include "label_geometry.h"
 #include "main_menu_darwin.h"
@@ -4313,7 +4314,15 @@ static void viva_reset_profile_counters(void) {
 
 static VivaApplicationDelegate *viva_application_delegate;
 
+int viva_application_check_thread(void) {
+    return pthread_main_np() ? 0 : VIVA_APPLICATION_NOT_MAIN_THREAD;
+}
+
 int viva_application_begin(void) {
+    int status = viva_application_check_thread();
+    if (status != 0) {
+        return status;
+    }
     @autoreleasepool {
         if (viva_application_windows != nil) {
             return 8;
