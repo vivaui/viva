@@ -79,7 +79,7 @@ int64_t viva_device_key_operation_run(viva_device_key_operation *operation,
             (id)kSecUseDataProtectionKeychain: @YES,
             (id)kSecUseAuthenticationContext: operation->context,
         }];
-        if (action != 1 && prompt.length != 0) query[(id)kSecUseOperationPrompt] = prompt;
+        if (action != 1 && prompt.length != 0) operation->context.localizedReason = prompt;
         if (action == 1) {
             CFErrorRef error = NULL;
             SecAccessControlRef access = SecAccessControlCreateWithFlags(kCFAllocatorDefault,
