@@ -51,7 +51,7 @@ func Bubble(c C, text string, variant BubbleVariant) Box {
 			fill.Alpha *= 2
 		}
 	}
-	bubble := base.Column(c).MaxWidthPercent(80).Radius(theme.Metrics.RadiusSurface + 4)
+	bubble := base.Column(c).MaxWidthPercent(80).Radius(gfx.RadiusOutset(theme.Metrics.RadiusSurface, 4))
 	if variant != BubbleGhost {
 		bubble = bubble.PadSides(padY, padX, padY, padX).Background(fill)
 	}
