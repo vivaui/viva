@@ -4,6 +4,7 @@
 #include "cursor_owner_darwin.h"
 #include "label_geometry.h"
 #include "main_menu_darwin.h"
+#import <objc/runtime.h>
 
 static uint64_t viva_process_start_ticks;
 static uint64_t viva_pointer_event_count;
@@ -1130,6 +1131,20 @@ static NSString *viva_single_line_paste(NSString *value) {
 
 @end
 
+@class VivaMetalView;
+@class VivaFileDragSource;
+
+// VivaFileDragSource reports the end of a session the view started. It is not
+// retained by the view after the session ends; the system keeps it while the
+// session runs.
+@interface VivaFileDragSource : NSObject <NSDraggingSource> {
+    VivaMetalView *_view; // not retained: the view owns this source
+    intptr_t _drag;
+    NSDragOperation _allowed;
+}
+- (instancetype)initWithView:(VivaMetalView *)view handle:(uintptr_t)handle drag:(intptr_t)drag allowed:(NSDragOperation)allowed;
+@end
+
 @interface VivaMetalView : NSView <NSTextInputClient> {
     CAMetalLayer *_metalLayer;
     // What the surface draws: the rectangles, the label layers, the pipelines and
@@ -1201,6 +1216,10 @@ static NSString *viva_single_line_paste(NSString *value) {
     BOOL _profileEnabled;
     NSCursor *_cursor;
     BOOL _nativeCursorActive;
+    // The drag out of this window while a session is running: the source that
+    // reports its end and the promise delegates the session asks for content.
+    VivaFileDragSource *_fileDragSource;
+    NSArray *_fileDragDelegates;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -1773,6 +1792,57 @@ static int viva_navigation_command(SEL selector) {
         return NO;
     }
     return [self dropPhase:2 info:sender paths:(const char *)joined.bytes length:joined.length] != NSDragOperationNone;
+}
+
+// ---- Files dragged out of this window ----
+
+// emitPointerCancel ends the application's press when the system took it: the
+// dragging session swallows the button release, so the application would
+// otherwise keep a press the pointer can no longer follow.
+- (void)emitPointerCancel {
+    if (_callbackHandle == 0 || !_pointerEventsEnabled) {
+        return;
+    }
+    viva_pointer_event_count++;
+    vivaPointerEvent(_callbackHandle, self, VIVA_POINTER_CANCEL, 0, 0, 0, -1, -1, 0, 0);
+}
+
+// startFileDragWithItems begins a dragging session for the press that is being
+// handled now. The system owns the pointer until the drop or Escape reports
+// through the source, which is why the application must not keep its own press
+// open. drag and delegates are the promised drag's registry key and its
+// delegates; both are 0/nil for a drag of paths.
+- (int)startFileDragWithItems:(NSArray *)items allowed:(NSDragOperation)allowed drag:(intptr_t)drag delegates:(NSArray *)delegates {
+    NSEvent *event = [NSApp currentEvent];
+    if (event == nil) {
+        return -1;
+    }
+    switch (event.type) {
+        case NSEventTypeLeftMouseDown:
+        case NSEventTypeLeftMouseDragged:
+        case NSEventTypeRightMouseDragged:
+        case NSEventTypeOtherMouseDragged:
+            break;
+        default:
+            return -2;
+    }
+    if (_fileDragSource != nil) {
+        return -3;
+    }
+    VivaFileDragSource *source = [[VivaFileDragSource alloc] initWithView:self handle:_callbackHandle drag:drag allowed:allowed];
+    _fileDragSource = source;
+    _fileDragDelegates = [delegates retain];
+    NSDraggingSession *session = [self beginDraggingSessionWithItems:items event:event source:source];
+    session.animatesToStartingPositionsOnCancelOrFail = NO;
+    return 0;
+}
+
+- (void)fileDragSessionEnded {
+    [_fileDragSource release];
+    _fileDragSource = nil;
+    [_fileDragDelegates release];
+    _fileDragDelegates = nil;
+    [self emitPointerCancel];
 }
 
 - (void)scrollWheel:(NSEvent *)event {
@@ -3207,8 +3277,266 @@ static void viva_set_secure_event_input(BOOL on) {
 
 @end
 
-/* A workspace keeps its keyboard focus and main window role without a titlebar.
- * A plain borderless NSWindow declines both by default. */
+/* ---- Files dragged out of this window ---- */
+
+extern int vivaFilePromiseContent(intptr_t drag, int item, const char *path);
+extern void vivaFileDragFinished(intptr_t drag);
+
+// viva_drag_operation turns the platform effect bits (1 copy, 2 move, 4 link)
+// into the NSDragOperation a dragging source reports.
+static NSDragOperation viva_drag_operation(unsigned allowed) {
+    NSDragOperation operation = NSDragOperationNone;
+    if (allowed & 1) {
+        operation |= NSDragOperationCopy;
+    }
+    if (allowed & 2) {
+        operation |= NSDragOperationMove;
+    }
+    if (allowed & 4) {
+        operation |= NSDragOperationLink;
+    }
+    return operation;
+}
+
+// viva_drag_view is the view of the window handling the current press: a drag
+// starts from the mouse event that is being handled, and the session takes the
+// pointer over from it.
+static VivaMetalView *viva_drag_view(NSEvent **outEvent) {
+    NSEvent *event = [NSApp currentEvent];
+    if (outEvent != NULL) {
+        *outEvent = event;
+    }
+    if (event == nil || event.window == nil) {
+        return nil;
+    }
+    id view = event.window.contentView;
+    if (![view isKindOfClass:[VivaMetalView class]]) {
+        return nil;
+    }
+    return (VivaMetalView *)view;
+}
+
+// viva_drag_image is the picture that follows the pointer: the file's own icon
+// where there is a path, a folder or a stack of documents for promised content.
+static NSImage *viva_drag_image(NSString *path, BOOL directory) {
+    NSImage *image = nil;
+    if (path != nil) {
+        image = [[NSWorkspace sharedWorkspace] iconForFile:path];
+    }
+    if (image == nil) {
+        image = directory ? [NSImage imageNamed:NSImageNameFolder] : [NSImage imageNamed:NSImageNameMultipleDocuments];
+    }
+    image.size = NSMakeSize(32, 32);
+    return image;
+}
+
+static NSRect viva_drag_frame(VivaMetalView *view, NSEvent *event) {
+    NSPoint local = [view convertPoint:event.locationInWindow fromView:nil];
+    return NSMakeRect(local.x - 16, local.y - 16, 32, 32);
+}
+
+// VivaFileDragContext is the promised drag's content registry as long as any
+// provider may ask for it. The providers keep their delegates (through
+// associated objects); the delegates keep this; its deallocation is the moment
+// the application can forget the promises.
+@interface VivaFileDragContext : NSObject {
+    intptr_t _drag;
+}
+- (instancetype)initWithDrag:(intptr_t)drag;
+- (intptr_t)drag;
+@end
+
+@implementation VivaFileDragContext
+- (instancetype)initWithDrag:(intptr_t)drag {
+    if ((self = [super init]) != nil) {
+        _drag = drag;
+    }
+    return self;
+}
+- (intptr_t)drag {
+    return _drag;
+}
+- (void)dealloc {
+    if (_drag != 0) {
+        vivaFileDragFinished(_drag);
+    }
+    [super dealloc];
+}
+@end
+
+// VivaFileDragSource reports the end of a session the view started. It is not
+// retained by the view after the session ends; the system keeps it while the
+// session runs.
+@implementation VivaFileDragSource
+- (instancetype)initWithView:(VivaMetalView *)view handle:(uintptr_t)handle drag:(intptr_t)drag allowed:(NSDragOperation)allowed {
+    if ((self = [super init]) != nil) {
+        _view = view;
+        _drag = drag;
+        _allowed = allowed;
+    }
+    return self;
+}
+
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
+    (void)session;
+    (void)context;
+    return _allowed;
+}
+
+- (void)draggingSession:(NSDraggingSession *)session endedAtPoint:(NSPoint)screenPoint operation:(NSDragOperation)operation {
+    (void)session;
+    (void)screenPoint;
+    (void)operation;
+    // The view releases this source here, so keep it alive across the call.
+    [self retain];
+    [_view fileDragSessionEnded];
+    [self release];
+}
+
+// A drag to another application that also accepts drops is the only thing a
+// promised drag does; a link or a move would have to be produced by the source.
+- (BOOL)ignoreModifierKeysForDraggingSession:(NSDraggingSession *)session {
+    (void)session;
+    return YES;
+}
+@end
+
+// VivaFilePromiseDelegate produces one promised item when the target asks. Its
+// provider keeps it alive through the association set when the item is built,
+// and the context keeps the application's promises alive for as long as any
+// provider may ask.
+@interface VivaFilePromiseDelegate : NSObject <NSFilePromiseProviderDelegate> {
+    NSString *_name;
+    int _item;
+    VivaFileDragContext *_context; // retained
+}
+- (instancetype)initWithName:(NSString *)name item:(int)item context:(VivaFileDragContext *)context;
+@end
+
+@implementation VivaFilePromiseDelegate
+- (instancetype)initWithName:(NSString *)name item:(int)item context:(VivaFileDragContext *)context {
+    if ((self = [super init]) != nil) {
+        _name = [name copy];
+        _item = item;
+        _context = [context retain];
+    }
+    return self;
+}
+- (void)dealloc {
+    [_name release];
+    [_context release];
+    [super dealloc];
+}
+
+- (NSString *)filePromiseProvider:(NSFilePromiseProvider *)provider fileNameForType:(NSString *)fileType {
+    (void)provider;
+    (void)fileType;
+    return _name;
+}
+
+- (NSOperationQueue *)operationQueueForFilePromiseProvider:(NSFilePromiseProvider *)provider {
+    (void)provider;
+    static NSOperationQueue *queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        queue = [[NSOperationQueue alloc] init];
+        queue.name = @"viva-file-promise";
+    });
+    return queue;
+}
+
+- (void)filePromiseProvider:(NSFilePromiseProvider *)provider writePromiseToURL:(NSURL *)url completionHandler:(void (^)(NSError *))completionHandler {
+    (void)provider;
+    NSString *path = url.path;
+    const char *representation = path == nil ? NULL : path.fileSystemRepresentation;
+    int status = representation == NULL ? -1 : vivaFilePromiseContent([_context drag], _item, representation);
+    if (status == 0) {
+        completionHandler(nil);
+        return;
+    }
+    NSError *error = [NSError errorWithDomain:@"VivaFilePromiseErrorDomain"
+                                         code:status
+                                     userInfo:@{ NSLocalizedDescriptionKey : @"The file could not be produced." }];
+    completionHandler(error);
+}
+@end
+
+int viva_start_file_drag(const char *const *paths, size_t count, unsigned allowed) {
+    @autoreleasepool {
+        NSEvent *event = nil;
+        VivaMetalView *view = viva_drag_view(&event);
+        if (view == nil) {
+            return -1;
+        }
+        NSMutableArray *items = [NSMutableArray arrayWithCapacity:count];
+        NSRect frame = viva_drag_frame(view, event);
+        for (size_t index = 0; index < count; index++) {
+            if (paths[index] == NULL) {
+                continue;
+            }
+            NSString *path = [NSString stringWithUTF8String:paths[index]];
+            if (path == nil) {
+                continue;
+            }
+            NSPasteboardItem *writer = [[NSPasteboardItem alloc] init];
+            [writer setString:[[NSURL fileURLWithPath:path] absoluteString] forType:NSPasteboardTypeFileURL];
+            NSDraggingItem *item = [[NSDraggingItem alloc] initWithPasteboardWriter:writer];
+            [writer release];
+            [item setDraggingFrame:frame contents:viva_drag_image(path, NO)];
+            [items addObject:item];
+            [item release];
+        }
+        if (items.count == 0) {
+            return -2;
+        }
+        return [view startFileDragWithItems:items allowed:viva_drag_operation(allowed) drag:0 delegates:nil];
+    }
+}
+
+int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, size_t count) {
+    @autoreleasepool {
+        NSEvent *event = nil;
+        VivaMetalView *view = viva_drag_view(&event);
+        if (view == nil) {
+            return -1;
+        }
+        static char delegateKey;
+        VivaFileDragContext *context = [[VivaFileDragContext alloc] initWithDrag:drag];
+        NSMutableArray *dragging = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *delegates = [NSMutableArray arrayWithCapacity:count];
+        NSRect frame = viva_drag_frame(view, event);
+        for (size_t index = 0; index < count; index++) {
+            if (items[index].name == NULL) {
+                continue;
+            }
+            NSString *name = [NSString stringWithUTF8String:items[index].name];
+            if (name == nil) {
+                continue;
+            }
+            NSString *type = items[index].directory ? @"public.directory" : @"public.data";
+            VivaFilePromiseDelegate *delegate = [[VivaFilePromiseDelegate alloc] initWithName:name item:items[index].item context:context];
+            NSFilePromiseProvider *provider = [[NSFilePromiseProvider alloc] initWithFileType:type delegate:delegate];
+            // The provider's delegate is not retained by it; keep it exactly as
+            // long as the provider, which the target holds while it copies.
+            objc_setAssociatedObject(provider, &delegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            NSDraggingItem *item = [[NSDraggingItem alloc] initWithPasteboardWriter:provider];
+            [provider release];
+            [item setDraggingFrame:frame contents:viva_drag_image(nil, items[index].directory != 0)];
+            [dragging addObject:item];
+            [item release];
+            [delegates addObject:delegate];
+            [delegate release];
+        }
+        [context release];
+        if (dragging.count == 0) {
+            return -2;
+        }
+        return [view startFileDragWithItems:dragging allowed:NSDragOperationCopy drag:drag delegates:delegates];
+    }
+}
+
+/* A frameless workspace still owns keyboard focus and the application's main
+ * window role. A plain borderless NSWindow declines both by default. */
 @interface VivaWorkspaceWindow : NSWindow
 @end
 

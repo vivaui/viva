@@ -374,3 +374,31 @@ func BenchmarkDragRepaint(b *testing.B) {
 
 func centerX(r gfx.Rect) float32 { return r.X + r.Width/2 }
 func centerY(r gfx.Rect) float32 { return r.Y + r.Height/2 }
+
+// OnMove is how a drag that leaves the page sees its own moves: the page
+// routes them to the state and the application never gets them.
+func TestDragStateReportsEveryMoveOfAnActiveDrag(t *testing.T) {
+	m := newDragModel(true)
+	var moves []gfx.PointerEvent
+	m.state.OnMove = func(event gfx.PointerEvent) { moves = append(moves, event) }
+	d := m.open(t)
+	source, target := d.hit("Source"), d.hit("Target")
+	sx, sy := center(source.Bounds)
+	if err := d.driver.Press(sx, sy, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	// A press below the drag threshold is still a click; it is not reported.
+	if err := d.driver.Move(sx+1, sy+1); err != nil {
+		t.Fatal(err)
+	}
+	if len(moves) != 0 {
+		t.Fatalf("a click's move was reported as a drag move: %+v", moves)
+	}
+	tx, ty := center(target.Bounds)
+	if err := d.driver.Move(tx, ty); err != nil {
+		t.Fatal(err)
+	}
+	if len(moves) != 1 || moves[0].X != tx || moves[0].Y != ty {
+		t.Fatalf("moves = %+v, want the drag's own move", moves)
+	}
+}

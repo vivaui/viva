@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -593,6 +594,69 @@ version = "2.0.0"
 	// The patch must be much smaller than the archive it replaces.
 	if patch.Size >= feed.Latest.Assets[0].Size/2 {
 		t.Errorf("patch is %d bytes for a %d-byte archive", patch.Size, feed.Latest.Assets[0].Size)
+	}
+}
+
+func TestFeedLeavesOutAPatchOverTheMaxRatio(t *testing.T) {
+	t.Setenv("VIVA_UPDATE_KEY", "")
+	const oldTOML = `[app]
+name = "Fixture Notes"
+id = "dev.example.notes"
+version = "2.0.0"
+`
+	dir := t.TempDir()
+	oldDir, newDir := fixture(t, oldTOML), fixture(t, feedTestBasicTOML)
+	if err := os.WriteFile(filepath.Join(oldDir, "main.go"), []byte("package main\n\nfunc main() { extra() }\n\nfunc extra() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if output, err := runLinuxPackage(t, oldDir); err != nil {
+		t.Fatalf("packaging the old release: %v\n%s", err, output)
+	}
+	if output, err := runLinuxPackage(t, newDir); err != nil {
+		t.Fatalf("packaging the new release: %v\n%s", err, output)
+	}
+	dist := filepath.Join(dir, "dist")
+	oldArchive := filepath.Join(oldDir, "build", "fixture-notes-2.0.0-linux-amd64.tar.gz")
+	newArchive := filepath.Join(newDir, "build", "fixture-notes-2.0.1-linux-amd64.tar.gz")
+	copyFeedFile(t, newArchive, filepath.Join(dist, filepath.Base(newArchive)))
+	key, _ := feedTestKey(t, dir)
+	feedAsset := func(ratio string) update.Asset {
+		t.Helper()
+		feedPath := filepath.Join(dist, "latest.json")
+		var output bytes.Buffer
+		err := runCLI([]string{
+			"feed", "-C", newDir, "-dir", dist, "-base-url", "https://example.com/app",
+			"-key", key, "-out", feedPath,
+			"--patch-from", "linux/amd64=2.0.0=" + oldArchive, "--patch-max-ratio", ratio,
+		}, &output, io.Discard)
+		if err != nil {
+			t.Fatalf("ratio %s: %v\n%s", ratio, err, output.String())
+		}
+		data, err := os.ReadFile(feedPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var feed update.Feed
+		if err := json.Unmarshal(data, &feed); err != nil {
+			t.Fatal(err)
+		}
+		return feed.Latest.Assets[0]
+	}
+	patchPath := filepath.Join(dist, "fixture-notes-2.0.1-linux-amd64.tar.gz.2.0.0.patch")
+	full := feedAsset("1")
+	if len(full.Patches) != 1 {
+		t.Fatalf("a patch under the ratio is missing (%d patches)", len(full.Patches))
+	}
+	// A ratio just under the patch's own share of the archive must drop it.
+	if err := os.Remove(patchPath); err != nil {
+		t.Fatal(err)
+	}
+	ratio := 0.9 * float64(full.Patches[0].Size) / float64(full.Size)
+	if got := feedAsset(strconv.FormatFloat(ratio, 'f', -1, 64)); len(got.Patches) != 0 {
+		t.Errorf("a patch over the ratio is still listed (%d patches)", len(got.Patches))
+	}
+	if _, err := os.Stat(patchPath); err == nil {
+		t.Error("a patch over the ratio was still written beside the archives")
 	}
 }
 

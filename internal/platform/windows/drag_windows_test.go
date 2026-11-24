@@ -218,7 +218,7 @@ func TestAFileDragIsRefusedOffTheEventLoopThread(t *testing.T) {
 	if state.application.thread == 0 {
 		t.Fatal("the window's application has no event-loop thread")
 	}
-	if _, err := StartFileDrag([]string{`C:\Temp\one.txt`}, platform.DragEffectCopy); err == nil {
+	if err := StartFileDrag([]string{`C:\Temp\one.txt`}, platform.DragEffectCopy); err == nil {
 		t.Fatal("a drag started from another goroutine")
 	} else if !strings.Contains(err.Error(), "event-loop thread") {
 		t.Fatalf("the refusal says %q, want the event-loop thread", err)

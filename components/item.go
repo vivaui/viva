@@ -153,7 +153,7 @@ func (item Item) Paint(title, description, trailing string) ItemLayout {
 	if focused {
 		focus := item.theme.Ring
 		focus.Alpha *= 0.50
-		item.canvas.RoundedBorder(expand(item.bounds, 3), metrics.RadiusControl+3, 3, focus, gfx.Color{})
+		item.canvas.RoundedBorder(expand(item.bounds, 3), gfx.RadiusOutset(metrics.RadiusControl, 3), 3, focus, gfx.Color{})
 	}
 
 	background := gfx.Color{}

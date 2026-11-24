@@ -37,8 +37,15 @@ import "github.com/vivaui/viva/gfx"
 // another, and is internal to the engine.
 type DragState struct {
 	Frame *Frame
-	gen   uint32
-	epoch uint32 // the page paint this state was registered for
+	// OnMove receives every pointer move the state consumes once the press has
+	// become a drag, after the state's own position and target change. It is how
+	// a gesture continues past the page: a drag of files out of a window starts
+	// the operating system's drag when the pointer leaves the window. Keep it in
+	// the model and leave it nil when nothing needs it; it runs on the
+	// event-loop thread.
+	OnMove func(event gfx.PointerEvent)
+	gen    uint32
+	epoch  uint32 // the page paint this state was registered for
 
 	sources []dragSource
 	targets []dragTarget
@@ -339,6 +346,9 @@ func (s *DragState) pointer(event gfx.PointerEvent) (result gfx.EventResult, don
 		}
 		s.at = point
 		s.target = s.targetAt(point, s.source)
+		if s.OnMove != nil {
+			s.OnMove(event)
+		}
 		return gfx.EventResult{Handled: true, Repaint: true}, false
 	case gfx.PointerUp:
 		if !s.active {
