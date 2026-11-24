@@ -991,7 +991,9 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 					scrolled = gfx.Point{X: offset}
 				}
 				box.Glide(state.Glide, scrolled)
-				c.f.Extra(box.i).glideID = state.list.rows.At(state.key(i))
+			}
+			if extra := c.f.Extra(box.i); extra.glided || extra.presenced {
+				extra.glideID = state.list.rows.At(state.key(i))
 			}
 			if state.RowWidth > 0 {
 				box.MinWidth(state.RowWidth)
