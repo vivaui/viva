@@ -2,6 +2,7 @@ package linux
 
 import (
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
@@ -411,14 +412,38 @@ func atspiTextAfter(text []rune, offset int, granularity uint32) (string, int, i
 // atspiTextEdit describes the change from one text to another as the single
 // span that was removed and the text put in its place, found by trimming what
 // the two share at both ends.
-func atspiTextEdit(old, next []rune) (start, removed, added int) {
-	for start < len(old) && start < len(next) && old[start] == next[start] {
+func atspiTextEdit(old, next string) (start int, removed, added string) {
+	oldStart, nextStart := 0, 0
+	for oldStart < len(old) && nextStart < len(next) {
+		if value := old[oldStart]; value < utf8.RuneSelf && value == next[nextStart] {
+			oldStart++
+			nextStart++
+			start++
+			continue
+		}
+		oldRune, oldWidth := utf8.DecodeRuneInString(old[oldStart:])
+		nextRune, nextWidth := utf8.DecodeRuneInString(next[nextStart:])
+		if oldRune != nextRune {
+			break
+		}
+		oldStart += oldWidth
+		nextStart += nextWidth
 		start++
 	}
 	oldEnd, nextEnd := len(old), len(next)
-	for oldEnd > start && nextEnd > start && old[oldEnd-1] == next[nextEnd-1] {
-		oldEnd--
-		nextEnd--
+	for oldEnd > oldStart && nextEnd > nextStart {
+		if value := old[oldEnd-1]; value < utf8.RuneSelf && value == next[nextEnd-1] {
+			oldEnd--
+			nextEnd--
+			continue
+		}
+		oldRune, oldWidth := utf8.DecodeLastRuneInString(old[oldStart:oldEnd])
+		nextRune, nextWidth := utf8.DecodeLastRuneInString(next[nextStart:nextEnd])
+		if oldRune != nextRune {
+			break
+		}
+		oldEnd -= oldWidth
+		nextEnd -= nextWidth
 	}
-	return start, oldEnd - start, nextEnd - start
+	return start, old[oldStart:oldEnd], next[nextStart:nextEnd]
 }
