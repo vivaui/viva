@@ -9,6 +9,7 @@ import (
 
 	"github.com/vivaui/viva/internal/fcitx"
 	"github.com/vivaui/viva/internal/ibus"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 )
 
@@ -155,18 +156,34 @@ func (daemon fcitxDaemon) Deadline() (time.Time, bool) { return daemon.bus.Deadl
 func (daemon fcitxDaemon) Expire()                     { daemon.bus.Expire() }
 
 func (daemon fcitxDaemon) open(ime *linuxIME) (inputMethodContext, error) {
+	context, err := daemon.bus.NewContext("viva", ime.fcitxHandler())
+	if err != nil {
+		return nil, err
+	}
+	return fcitxContext{context}, nil
+}
+
+func (ime *linuxIME) fcitxHandler() fcitx.Handler {
 	epoch := ime.epoch
 	valid := func() bool { return ime.contextCurrent(epoch) }
-	context, err := daemon.bus.NewContext("viva", fcitx.Handler{
+	return fcitx.Handler{
 		Commit: func(value string) {
 			if valid() {
 				ime.commit(value)
 			}
 		},
 		Preedit: func(event fcitx.PreeditEvent) {
-			if valid() {
-				ime.preedit(event.Text, event.Cursor, event.Visible, text.Range{Start: event.Selection.Start, End: event.Selection.End})
+			if !valid() {
+				return
 			}
+			if !event.Visible || event.Text == "" {
+				ime.engineComposing = false
+				if ime.text.state.Composing {
+					ime.apply(platform.TextEvent{Kind: platform.TextCancelComposition})
+				}
+				return
+			}
+			ime.preedit(event.Text, event.Cursor, true, text.Range{Start: event.Selection.Start, End: event.Selection.End})
 		},
 		Forward: func(keysym, state uint32, release bool) {
 			if valid() {
@@ -178,11 +195,7 @@ func (daemon fcitxDaemon) open(ime *linuxIME) (inputMethodContext, error) {
 				ime.deleteSurrounding(offset, count)
 			}
 		},
-	})
-	if err != nil {
-		return nil, err
 	}
-	return fcitxContext{context}, nil
 }
 
 // fcitxContext is a Fcitx context behind the daemon interface. Fcitx wants the
