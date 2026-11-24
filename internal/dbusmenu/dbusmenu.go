@@ -192,6 +192,17 @@ func (object *Object) writeItemsUpdated(e *dbus.Encoder, byWire map[int32]int, e
 	e.EndArray(e.BeginArray(8))
 }
 
+// Refresh rebuilds the menu and reports signals for hosts holding its layout.
+func (object *Object) Refresh() Result {
+	difference := object.refresh()
+	object.stale = false
+	result := Result{ItemsUpdated: difference.items}
+	if difference.layout {
+		result.LayoutUpdated = object.revision
+	}
+	return result
+}
+
 // Call answers one call made to the menu's path, on either interface it has.
 func (object *Object) Call(call *dbus.Message) Result {
 	switch call.Interface {

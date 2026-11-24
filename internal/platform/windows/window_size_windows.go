@@ -61,4 +61,7 @@ func (state *windowState) resizeClient(width, height int) {
 		}
 	}
 	setWindowPosition.Call(state.window, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(h), flags)
+	if state.config.WindowMode == platform.WindowNotification && state.config.HasAnchor {
+		state.placePanel()
+	}
 }

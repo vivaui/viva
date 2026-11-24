@@ -32,6 +32,8 @@ int viva_application_update_icon(viva_status_icon icon);
 double viva_dock_icon_points(viva_status_icon icon);
 void *viva_status_item_create(const char *tooltip, viva_status_icon icon, uintptr_t callback_handle, int has_menu);
 int viva_status_item_set_icon(void *item, viva_status_icon icon);
+void viva_status_item_set_hover(void *item, int enabled);
+void viva_status_item_set_hover_panel(void *item, int enabled);
 void viva_status_item_set_tooltip(void *item, const char *tooltip);
 /* Replaces the entries of the item's menu. The menu is attached when the item
  * is created with one; NULL or a count of zero leaves it empty. Main thread

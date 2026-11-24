@@ -109,8 +109,8 @@ type Config struct {
 	// change. Nil, or a zero field, takes a color that suits ClearColor. Use
 	// TitlebarInsets to keep your own content clear of the buttons.
 	WindowControls func() WindowControlsStyle
-	// Anchor is where a WindowPanel opens: beside the status item whose click
-	// supplied it. Without one the panel is centered on the screen.
+	// Anchor opens a WindowPanel beside a status item. Without one the panel
+	// is centered. A WindowNotification may also open beside an anchor.
 	Anchor     StatusAnchor
 	ClearColor Color
 	// WindowBorderColor is read at every paint and names the color of the

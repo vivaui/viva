@@ -4150,7 +4150,7 @@ static void viva_set_secure_event_input(BOOL on) {
  * the menu bar at the top of the screen, and kept inside the visible part of the
  * screen the anchor is on. Without an anchor it is centered on the screen. */
 - (void)placePanel {
-    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION && !_hasAnchor) {
         if (_hasOrigin) {
             [self placeAtOrigin];
             return;

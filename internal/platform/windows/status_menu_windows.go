@@ -105,6 +105,11 @@ func buildMenu(menu uintptr, entries []platform.MenuEntry, cursor *int, count in
 // messages; it must be the foreground window while the menu is up, or a click
 // elsewhere would not close it.
 func (item *statusItem) popMenu(window uintptr, anchor platform.ScreenRect) {
+	if item.menuOpen {
+		return
+	}
+	item.menuOpen = true
+	defer func() { item.menuOpen = false }()
 	entries := platform.NumberMenu(item.menu())
 	if len(entries) == 0 {
 		return
