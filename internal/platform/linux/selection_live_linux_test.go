@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/text"
 )
 
 // These tests make a real window own a selection on the X server and have xclip, another
@@ -100,10 +101,13 @@ func TestThePrimarySelectionIsPastedByAnotherProgramAndReadBackFromIt(t *testing
 	stop := pumpSelectionEvents(win)
 	defer stop()
 
-	if err := SetPrimaryText("选中的 text"); err != nil {
-		t.Fatal(err)
-	}
-	if got := string(xclipOut(t, "primary")); got != "选中的 text" {
+	const selected = "选中的 text"
+	value := selected + strings.Repeat("a", 1<<20)
+	previous := platform.TextState{Value: value}
+	next := platform.TextState{Value: value, Selection: text.Range{Start: len([]rune(selected))}}
+	input := &linuxTextInput{}
+	input.publishPrimary(previous, next)
+	if got := string(xclipOut(t, "primary")); got != selected {
 		t.Fatalf("xclip read %q from PRIMARY", got)
 	}
 	// An empty CLIPBOARD makes xclip fail; what matters is that it does not hold the selection.
