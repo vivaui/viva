@@ -57,7 +57,7 @@ Wayland client and needs the system's GTK 3), and a Vulkan loader and driver for
 and DirectWrite. Viva loads the system libraries at runtime and bundles none of
 them.
 
-The current release is `v0.6.7`; name it explicitly (`@v0.6.7`) to pin it. Guides,
+The current release is `v0.6.8`; name it explicitly (`@v0.6.8`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
