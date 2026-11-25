@@ -165,7 +165,7 @@ var componentRequires = map[string][]string{
 	"sidebar":                 {"button"},
 	"single-select":           {"checkbox", "dialog", "dropdown-menu", "hierarchy-menu", "input", "popover", "tree"},
 	"slider":                  {"button", "direction"},
-	"sonner":                  {"toast"},
+	"sonner":                  {"dialog", "toast"},
 	"split-button":            {"button", "button-group", "tree"},
 	"switch":                  {"button"},
 	"tabs":                    {"button", "direction", "segmented-control"},

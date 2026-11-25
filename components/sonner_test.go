@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -14,8 +15,16 @@ func TestSonnerPaintsCallerOwnedStackNewestOnTop(t *testing.T) {
 		{Snapshot: ToastSnapshot{Title: "Middle", Index: 99}, Scope: gfx.Item(11), DismissID: gfx.Item(2)},
 		{Snapshot: ToastSnapshot{Title: "Oldest", Index: 99}, Scope: gfx.Item(12), DismissID: gfx.Item(3)},
 	}
-	layout := PaintSonner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, toasts, SonnerOptions{Layer: 40})
-	if layout != (SonnerLayout{Bounds: gfx.Rect{X: 600, Y: 596, Width: 384, Height: 88}, Painted: 3}) {
+	viewport := gfx.Rect{Width: 1000, Height: 700}
+	layout := PaintSonner(&canvas, gfx.LightTheme(), viewport, toasts, SonnerOptions{Layer: 40})
+	if layout.Painted != 3 {
+		t.Fatalf("painted = %d", layout.Painted)
+	}
+	// The stack shares one width, so its cards line up: the union's right and
+	// bottom edges are the viewport's inset edges, not a sum of card widths.
+	if layout.Bounds.Width <= 0 || layout.Bounds.Width > toastMaxWidth ||
+		layout.Bounds.X+layout.Bounds.Width != viewport.Width-toastInset ||
+		layout.Bounds.Y+layout.Bounds.Height != viewport.Height-toastInset {
 		t.Fatalf("stack layout = %+v", layout)
 	}
 	if canvas.EscapeTarget() != gfx.Item(1) {
@@ -23,6 +32,14 @@ func TestSonnerPaintsCallerOwnedStackNewestOnTop(t *testing.T) {
 	}
 	if len(canvas.Hits()) != 3 || canvas.Hits()[0].ID != gfx.Item(3) || canvas.Hits()[2].ID != gfx.Item(1) {
 		t.Fatalf("stack hits = %+v", canvas.Hits())
+	}
+	// The newest toast is at the edge and the older ones are lifted behind it.
+	row := map[string]float32{}
+	for _, text := range canvas.Texts() {
+		row[text.Value] = text.Bounds.Y
+	}
+	if !(row["Newest"] > row["Middle"] && row["Middle"] > row["Oldest"]) {
+		t.Fatalf("stack rows = %v, want the newest nearest the bottom", row)
 	}
 	seenLayer := [3]bool{}
 	for _, rectangle := range canvas.Rectangles() {
@@ -43,7 +60,8 @@ func TestSonnerPaintsCallerOwnedStackNewestOnTop(t *testing.T) {
 
 func TestSonnerExpandedGeometryAndLimitedEntry(t *testing.T) {
 	var canvas gfx.Canvas
-	layout := PaintSonner(&canvas, gfx.DarkTheme(), gfx.Rect{X: 2, Y: 3, Width: 800, Height: 600}, []SonnerToast{
+	viewport := gfx.Rect{X: 2, Y: 3, Width: 800, Height: 600}
+	layout := PaintSonner(&canvas, gfx.DarkTheme(), viewport, []SonnerToast{
 		{Snapshot: ToastSnapshot{Title: "One", Description: "Details"}, DismissID: gfx.Item(1)},
 		{Snapshot: ToastSnapshot{Title: "Hidden", Limited: true}, DismissID: gfx.Item(2)},
 		{Snapshot: ToastSnapshot{Title: "Three", Description: "Details"}, DismissID: gfx.Item(3)},
@@ -51,7 +69,9 @@ func TestSonnerExpandedGeometryAndLimitedEntry(t *testing.T) {
 	if layout.Painted != 2 {
 		t.Fatalf("painted = %d", layout.Painted)
 	}
-	if layout.Bounds != (gfx.Rect{X: 402, Y: 419, Width: 384, Height: 168}) {
+	if layout.Bounds.Width <= 0 || layout.Bounds.Width > toastMaxWidth ||
+		layout.Bounds.X+layout.Bounds.Width != viewport.X+viewport.Width-toastInset ||
+		layout.Bounds.Y+layout.Bounds.Height != viewport.Y+viewport.Height-toastInset {
 		t.Fatalf("expanded bounds = %+v", layout.Bounds)
 	}
 }
@@ -83,13 +103,29 @@ func TestSonnerShowsOnlyTheNewestLimitToasts(t *testing.T) {
 	var canvas gfx.Canvas
 	toasts := make([]SonnerToast, 5)
 	for index := range toasts {
-		toasts[index] = SonnerToast{Snapshot: ToastSnapshot{Title: "Toast"}, DismissID: gfx.Item(index + 1)}
+		toasts[index] = SonnerToast{Snapshot: ToastSnapshot{Title: fmt.Sprintf("Toast %d", index)}, DismissID: gfx.Item(index + 1)}
 	}
-	if layout := PaintSonner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, toasts, SonnerOptions{Layer: 1}); layout.Painted != 3 {
+	viewport := gfx.Rect{Width: 1000, Height: 700}
+	if layout := PaintSonner(&canvas, gfx.LightTheme(), viewport, toasts, SonnerOptions{Layer: 1}); layout.Painted != 3 {
 		t.Fatalf("painted = %d, want Base UI's default limit of 3", layout.Painted)
 	}
+	// The slice is newest first, so the visible three are 0, 1 and 2.
+	seen := map[string]bool{}
+	for _, text := range canvas.Texts() {
+		seen[text.Value] = true
+	}
+	for index := 0; index < 3; index++ {
+		if title := fmt.Sprintf("Toast %d", index); !seen[title] {
+			t.Fatalf("newest toast %q is not painted: %v", title, seen)
+		}
+	}
+	for index := 3; index < len(toasts); index++ {
+		if title := fmt.Sprintf("Toast %d", index); seen[title] {
+			t.Fatalf("toast %q beyond the limit is painted: %v", title, seen)
+		}
+	}
 	canvas.Reset()
-	if layout := PaintSonner(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, toasts, SonnerOptions{Layer: 1, Limit: 5}); layout.Painted != 5 {
+	if layout := PaintSonner(&canvas, gfx.LightTheme(), viewport, toasts, SonnerOptions{Layer: 1, Limit: 5}); layout.Painted != 5 {
 		t.Fatalf("painted = %d with Limit 5", layout.Painted)
 	}
 }

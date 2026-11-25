@@ -310,11 +310,11 @@ type toastQueueEntry struct {
 	paused    bool
 }
 
-// ToastQueue is caller-owned toast lifetime policy: Base UI's five-second
-// timeout, pause on hover/focus/window blur, loading toasts that do not expire,
-// and a visible limit. It never starts a timer; the caller asks Expire when
-// NextDeadline comes due and pauses or resumes as the pointer and focus move.
-// Painting remains PaintSonner's job.
+// ToastQueue is caller-owned toast lifetime policy: a default timeout (Base UI's
+// five seconds), pause on hover/focus/window blur, loading toasts that do not
+// expire, and a visible limit. AddFor gives one toast its own timeout. It never
+// starts a timer; the caller asks Expire when NextDeadline comes due and pauses
+// or resumes as the pointer and focus move. Painting remains PaintSonner's job.
 type ToastQueue struct {
 	// Timeout is the lifetime of a new non-loading toast; zero means
 	// ToastQueueTimeout.
@@ -338,10 +338,16 @@ func (queue *ToastQueue) limit() int {
 	return ToastQueueLimit
 }
 
-// Add enqueues a toast. When the limit is full it drops the oldest and returns
-// its ID so the caller can paint its exit. Add reports false for a zero ID or
-// one that is already queued.
+// Add enqueues a toast with the queue's Timeout. When the limit is full it
+// drops the oldest and returns its ID so the caller can paint its exit. Add
+// reports false for a zero ID or one that is already queued.
 func (queue *ToastQueue) Add(id gfx.ID, now time.Time, loading bool) (evicted gfx.ID, ok bool) {
+	return queue.AddFor(id, now, loading, 0)
+}
+
+// AddFor is Add with a lifetime for this toast: timeout overrides the queue's
+// Timeout when positive. A loading toast never expires whatever the timeout.
+func (queue *ToastQueue) AddFor(id gfx.ID, now time.Time, loading bool, timeout time.Duration) (evicted gfx.ID, ok bool) {
 	if id.IsZero() {
 		return gfx.ID{}, false
 	}
@@ -356,7 +362,10 @@ func (queue *ToastQueue) Add(id gfx.ID, now time.Time, loading bool) (evicted gf
 	}
 	entry := toastQueueEntry{id: id, loading: loading}
 	if !loading {
-		entry.deadline = now.Add(queue.timeout())
+		if timeout <= 0 {
+			timeout = queue.timeout()
+		}
+		entry.deadline = now.Add(timeout)
 	}
 	queue.entries = append(queue.entries, entry)
 	return evicted, true

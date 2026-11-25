@@ -37,32 +37,39 @@ func PaintSonner(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, toasts 
 		limit = 3
 	}
 	top := options.Position >= ToastTopRight
+	visible := min(limit, len(toasts))
+	// A stack shares one width, the widest card in it, so the cards that peek
+	// behind the front one line up instead of showing ragged edges.
+	var stackWidth float32
+	for index := 0; index < visible; index++ {
+		toast := toasts[index]
+		if toast.Snapshot.Limited {
+			continue
+		}
+		var scratch overlayLines
+		geometry, _ := toastMeasure(canvas, theme, viewport, toast.Snapshot, sonnerToastOptions(options, toast, 0), &scratch)
+		stackWidth = max(stackWidth, geometry.width)
+	}
 	var stack SonnerLayout
-	// Where the next toast of an expanded stack goes: after the heights of the
-	// toasts in front of it, each with its own wrapped text.
-	var reach float32
-	for index := len(toasts) - 1; index >= 0 && len(toasts)-1-index < limit; index-- {
+	// Paint from the back of the visible stack to its front, which is the
+	// first toast: the newest one sits at the edge and the older ones behind it.
+	for index := visible - 1; index >= 0; index-- {
 		toast := toasts[index]
 		snapshot := toast.Snapshot
-		snapshot.Index = sonnerIndex(len(toasts) - 1 - index)
+		snapshot.Index = sonnerIndex(index)
 		snapshot.Expanded = false
-		toastOptions := ToastOptions{
-			Layer:       sonnerLayer(options.Layer, len(toasts)-index-1),
-			Scope:       toast.Scope,
-			DismissID:   toast.DismissID,
-			ActionID:    toast.ActionID,
-			ActionLabel: toast.ActionLabel,
-			Disabled:    toast.Disabled,
-			Position:    options.Position,
-		}
+		toastOptions := sonnerToastOptions(options, toast, visible-1-index)
+		toastOptions.width = stackWidth
 		if options.Expanded && !snapshot.Limited {
+			// The toast sits after the ones in front of it, each with its own
+			// wrapped text at the stack's width.
+			reach := sonnerReach(canvas, theme, viewport, toasts, options, index, stackWidth)
 			if top {
 				snapshot.OffsetY += reach
 			} else {
 				snapshot.OffsetY -= reach
 			}
 			snapshot.Index = 0
-			reach += ToastHeight(canvas, theme, viewport, snapshot, toastOptions) + toastStackGap
 		}
 		layout := PaintToast(canvas, theme, viewport, snapshot, toastOptions)
 		if layout == (ToastLayout{}) {
@@ -76,6 +83,35 @@ func PaintSonner(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, toasts 
 		stack.Painted++
 	}
 	return stack
+}
+
+// sonnerReach is how far an expanded toast at index sits from the edge: after
+// the heights of the toasts in front of it, which are the smaller indexes.
+func sonnerReach(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, toasts []SonnerToast, options SonnerOptions, index int, width float32) float32 {
+	var reach float32
+	for front := 0; front < index; front++ {
+		if toasts[front].Snapshot.Limited {
+			continue
+		}
+		toastOptions := sonnerToastOptions(options, toasts[front], 0)
+		toastOptions.width = width
+		reach += ToastHeight(canvas, theme, viewport, toasts[front].Snapshot, toastOptions) + toastStackGap
+	}
+	return reach
+}
+
+// sonnerToastOptions is the options of one toast of a stack, before the stack's
+// shared width is known.
+func sonnerToastOptions(options SonnerOptions, toast SonnerToast, layerOffset int) ToastOptions {
+	return ToastOptions{
+		Layer:       sonnerLayer(options.Layer, layerOffset),
+		Scope:       toast.Scope,
+		DismissID:   toast.DismissID,
+		ActionID:    toast.ActionID,
+		ActionLabel: toast.ActionLabel,
+		Disabled:    toast.Disabled,
+		Position:    options.Position,
+	}
 }
 
 func sonnerIndex(index int) uint16 {
