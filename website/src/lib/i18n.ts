@@ -182,6 +182,8 @@ const chineseComponentNames: Record<string, string> = {
   'time-picker': '时间选择器',
   transfer: '穿梭框',
   upload: '文件上传',
+  anchor: '锚点',
+  comment: '评论',
   'labeled-divider': '带文字分隔线',
   'editable-tabs': '可编辑标签页',
   steps: '步骤条',

@@ -481,6 +481,8 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 		"timepicker":      true,
 		"transfer":        true,
 		"upload":          true,
+		"anchor":          true,
+		"comment":         true,
 		"questionnaire":   true,
 		"inputotp":        true,
 		"inputgroup":      true,
@@ -673,6 +675,8 @@ func TestModelFreePageSnippetsCompile(t *testing.T) {
 		"timepicker":   "github.com/vivaui/viva/ui/timepicker",
 		"transfer":     "github.com/vivaui/viva/ui/transfer",
 		"upload":       "github.com/vivaui/viva/ui/upload",
+		"anchor":       "github.com/vivaui/viva/ui/anchor",
+		"comment":      "github.com/vivaui/viva/ui/comment",
 		"sidebar":      "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
 		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
 	}

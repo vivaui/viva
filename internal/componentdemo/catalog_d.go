@@ -22,4 +22,6 @@ var groupDComponents = []Component{
 	timelineComponent,
 	transferComponent,
 	uploadComponent,
+	anchorComponent,
+	commentComponent,
 }
