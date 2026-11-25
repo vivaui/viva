@@ -42,9 +42,7 @@ int viva_systemauth_verify(viva_auth_context ctx, const char *reason) {
             dispatch_semaphore_signal(completion);
         }];
         dispatch_semaphore_wait(completion, DISPATCH_TIME_FOREVER);
-#if !OS_OBJECT_USE_OBJC
         dispatch_release(completion);
-#endif
         return result;
     }
 }
