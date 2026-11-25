@@ -467,6 +467,11 @@ int viva_view_update_accessibility(
 void viva_view_render(void *view);
 void viva_view_render_sync(void *view);
 void viva_view_close(void *view);
+// viva_view_popup_text_menu shows a menu of count rows at (x, y) of the view, in
+// the view's top-left coordinates, and returns once it has closed: the command of
+// the row chosen, or 0. A row with command 0 is a separator.
+int viva_view_popup_text_menu(void *view, int count, const int *commands, const char *const *titles,
+                              const int *disabled, double x, double y);
 void viva_view_close_confirmed(void *view);
 int viva_view_update_text(
     void *view,

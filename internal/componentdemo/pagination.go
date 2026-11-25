@@ -3,11 +3,15 @@ package componentdemo
 import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"github.com/vivaui/viva/ui/pagination"
 )
 
 var paginationComponent = Component{
 	ID: "pagination", Title: "Pagination", Category: "Navigation", Summary: "调用方持有当前页的紧凑分页控件。",
 	paint: (*State).paintPagination, initialize: (*State).initializePagination,
+	editable: func(exampleID string) (editableField, bool) {
+		return editableField{ID: pagerField}, exampleID == "pager"
+	},
 	Examples: []Example{
 		{ID: "default", Title: "分页导航", Description: "上一页、页码与下一页共同更新当前页。", Snippet: `pages := tree.Sub(page, tree.Name("page"))
 pagination := components.BeginPagination(canvas, theme, bounds)
@@ -41,6 +45,44 @@ ui.Pagination(c, []ui.PaginationItem{
     {Kind: ui.PaginationEllipsis},
     {ID: ui.ID(c), Label: "8", Kind: ui.PaginationPage},
     {ID: ui.ID(c), Label: "Next", Kind: ui.PaginationNext, Disabled: page == 8},
+})`},
+		{ID: "pager", Title: "总数与跳页", Description: "由 Total 自动排出页码窗口，并保持页码在范围内；输入页码后回车跳转。", Snippet: `m.pager = pagination.State{PageSize: 20}
+// in the page:
+pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:     len(m.rows),
+    ShowTotal: true,
+    Jumper:    true,
+})
+if m.pager.Changed() {
+    // m.pager.Page or m.pager.PageSize moved: load the rows
+}`, PageSnippet: `m.pager = pagination.State{PageSize: 20}
+// in the page:
+pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:     len(m.rows),
+    ShowTotal: true,
+    Jumper:    true,
+})
+if m.pager.Changed() {
+    // m.pager.Page or m.pager.PageSize moved: load the rows
+}`, PageSnippetZh: `m.pager = pagination.State{PageSize: 20}
+// in the page:
+pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:     len(m.rows),
+    ShowTotal: true,
+    Jumper:    true,
+})
+if m.pager.Changed() {
+    // m.pager.Page or m.pager.PageSize moved: load the rows
+}`},
+		{ID: "sizes", Title: "每页条数", Description: "改变每页条数时保持当前首行可见。", Snippet: `pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:       len(m.rows),
+    SizeOptions: []int{10, 20, 50},
+})`, PageSnippet: `pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:       len(m.rows),
+    SizeOptions: []int{10, 20, 50},
+})`, PageSnippetZh: `pagination.View(c, "Pages", &m.pager, pagination.Spec{
+    Total:       len(m.rows),
+    SizeOptions: []int{10, 20, 50},
 })`},
 		{ID: "boundaries", Title: "边界状态", Description: "第一页禁用上一页，并保留省略号。", Snippet: `pages := tree.Sub(page, tree.Name("page"))
 current := int32(1)
@@ -92,7 +134,49 @@ func (state *State) initializePagination() {
 	state.values[0] = 3
 }
 
+// pagerSizes are the page sizes the example offers, made once: a slice made in
+// each paint allocates in each paint.
+var pagerSizes = []int{10, 20, 50}
+
+// pagerBound says whether the platform editor was bound to the example's jump field.
+var pagerBound = map[*State]bool{}
+
+var pagerField = tree.ID(paginationUI, "jump")
+
+// pagerDemos is the state of the page-assembled example, made once.
+var pagerDemos = map[*State]*pagination.State{}
+
+func (state *State) paintPager(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	pager := pagerDemos[state]
+	if pager == nil {
+		pager = &pagination.State{PageSize: 20, Page: 6}
+		pagerDemos[state] = pager
+	}
+	if state.editing && state.editor != nil && !pagerBound[state] {
+		// The platform edits the jump field; the pager reads what is typed from the same editor.
+		pagerBound[state] = true
+		pager.Jumper().Bind(state.editor)
+	}
+	labels := pagination.Labels{
+		Previous: state.Text("上一页", "Previous"), Next: state.Text("下一页", "Next"), Total: state.Text("共", "Total"),
+		GoTo: state.Text("跳至页", "Go to page"), PerPage: state.Text("每页条数", "Rows per page"),
+	}
+	state.drawPage(canvas, theme, size, 760, state.Text("Pagination · 分页", "Pagination"), func(c ui.C) {
+		spec := pagination.Spec{Total: 235, ShowTotal: true, Labels: labels}
+		if state.exampleID == "sizes" {
+			spec.SizeOptions = pagerSizes
+		} else {
+			spec.Jumper, spec.JumperID = true, pagerField
+		}
+		pagination.View(c, state.Text("页码", "Pages"), pager, spec)
+	})
+}
+
 func (state *State) paintPagination(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Size) {
+	if state.exampleID == "pager" || state.exampleID == "sizes" {
+		state.paintPager(canvas, theme, size)
+		return
+	}
 	page := state.values[0]
 	compact := size.Width-48 < 430
 	state.drawPage(canvas, theme, size, 620, "Results", func(c ui.C) {

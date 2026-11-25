@@ -32,6 +32,12 @@ func Configure(page *Page, base app.Config) app.Config {
 		panic("ui: Configure: the app.Config has another Tree than the page's; give NewPage the window's Tree")
 	}
 	config := base
+	if config.TextMenu == nil && !page.GetConfig().CanvasMenus {
+		// The system's menu for a text field, in the words the page keeps.
+		if config.TextMenu = page.GetConfig().EditMenu; config.TextMenu == nil {
+			config.TextMenu = new(gfx.TextMenuLabels)
+		}
+	}
 	host := Host{
 		Tree: config.Tree, Paint: config.Paint, TextInput: config.TextInput,
 		OnScroll: config.OnScroll, OnKey: config.OnKey, OnShortcut: config.OnShortcut, OnPointer: config.OnPointer,

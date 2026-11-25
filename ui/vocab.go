@@ -25,6 +25,17 @@ const (
 	ExtraLarge = base.ExtraLarge // from 1600: wide screens
 )
 
+// Status is the outcome a control reports through color, one vocabulary for an
+// alert, a tag and a field.
+type Status = style.Status
+
+const (
+	StatusDefault = style.StatusDefault
+	StatusSuccess = style.StatusSuccess
+	StatusWarning = style.StatusWarning
+	StatusDanger  = style.StatusDanger
+)
+
 type Rect = base.Rect
 type Size = base.Size
 type Point = base.Point

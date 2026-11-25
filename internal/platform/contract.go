@@ -150,8 +150,12 @@ type Config struct {
 	OnCloseRequest CloseRequestHandler
 	// OnClosed runs exactly once on the native event-loop thread after this
 	// window has stopped receiving events and released its platform resources.
-	OnClosed         func()
-	TextInput        *TextInput
+	OnClosed  func()
+	TextInput *TextInput
+	// TakeTextMenu hands the adapter the text menu the runtime wants shown, once the
+	// adapter has delivered a press and presented the frame it produced. It returns
+	// false when no menu was asked for. Nil means the runtime shows none.
+	TakeTextMenu     func() (TextMenuRequest, bool)
 	DynamicTextInput bool
 	// ReadOnlyTextFocused reports the last painted focused hit. Linux uses it
 	// to recheck a disabled native input before routing a new key.
@@ -370,6 +374,46 @@ type MenuItem struct {
 	// siblings are told apart only by their order, so removing one of them gives
 	// a new id to the ones after it.
 	ID string
+}
+
+// TextMenuCommand is one command of the menu a text field opens on a secondary
+// press. The runtime runs it through the same path as the keyboard shortcut of
+// the same name, so a command chosen from the menu and a chord do the same thing.
+type TextMenuCommand uint8
+
+const (
+	// TextMenuNone is no command: a dismissed menu, or a separator in the items.
+	TextMenuNone TextMenuCommand = iota
+	TextMenuCut
+	TextMenuCopy
+	TextMenuPaste
+	TextMenuSelectAll
+)
+
+// TextMenuItem is one row of a text menu. A zero Command is a separator.
+type TextMenuItem struct {
+	Command  TextMenuCommand
+	Title    string
+	Disabled bool
+}
+
+// TextMenuRequest is the menu the runtime wants shown for the focused text
+// field: where, in logical pixels of the window's content, what rows, and what
+// runs with the command chosen. Perform runs on the event-loop thread after the
+// menu has closed.
+type TextMenuRequest struct {
+	Items   []TextMenuItem
+	X, Y    float32
+	Perform func(TextMenuCommand) (Frame, error)
+}
+
+// TextMenuPopper is implemented by the windows of an adapter that can show the
+// system's own menu: macOS and Windows. PopupTextMenu returns when the menu has
+// closed, with the command chosen, or TextMenuNone. It runs on the event-loop
+// thread, from inside the handler of the press that asked for it, as the
+// system's own text fields do.
+type TextMenuPopper interface {
+	PopupTextMenu(items []TextMenuItem, x, y float32) (TextMenuCommand, error)
 }
 
 // ApplicationStart initializes the first windows before the event loop waits.

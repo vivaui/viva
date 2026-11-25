@@ -154,7 +154,7 @@ func TestGroupAClicksChangeCallerState(t *testing.T) {
 		{"alert-dialog", "default", alertDialogAction, "", func(s *State) bool { return !s.alertOpen }},
 		{"alert-dialog", "media", alertDialogCancel, "", func(s *State) bool { return !s.alertOpen }},
 		{"attachment", "default", attachmentItem.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
-		{"breadcrumb", "default", breadcrumbLink.At(0), "", func(s *State) bool { return s.values[0] == 1 }},
+		{"breadcrumb", "default", gfx.ID{}, "工作区", func(s *State) bool { return s.values[0] == 1 }},
 		{"bubble", "conversation", bubbleReaction, "", func(s *State) bool { return s.flags == 1 }},
 		{"button-group", "horizontal", buttonGroupItem.At(2), "", func(s *State) bool { return s.values[0] == 2 }},
 		{"calendar", "month", calendarNext, "", func(s *State) bool { return s.values[0] == 1 }},

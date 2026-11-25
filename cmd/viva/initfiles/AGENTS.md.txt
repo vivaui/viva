@@ -169,6 +169,7 @@ func (m *model) page(c ui.C) {
   in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
   the page cannot declare.
 - `ui.Select(c, &m.size, choices, nil, ui.WithID(id))` names a control the application holds an identity for: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
+- `ui.TextField(c, &m.title, "Title", "", ui.MaxLength(80), ui.ShowCount())` caps a text control at 80 runes and shows "n/80" at the end of a `TextField` (it takes the place of an `Action`); `ui.MaxLength` also takes a `TextArea`. A model-kept `ui.Field` uses `Field.Restrict(accept, maxRunes)`.
 - Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
@@ -224,7 +225,9 @@ func (m *model) page(c ui.C) {
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
-  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`,
+  `ui/steps`, `ui/descriptions`, `ui/timeline`, `ui/rate`, `ui/inputnumber`, `ui/datepicker`, `ui/timepicker`,
+  `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`.
 - For read-only selectable output, keep a `textview.View` in the model and call
   `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`. The caller owns the
   lines, spans and actions; `ui/textview` owns selection and drawing without an editing model.
@@ -679,7 +682,7 @@ err := app.RunApplication(func(a *app.Application) error {
 
 Colors, all `gfx.Color`: `Background`, `Foreground`, `Card`, `CardForeground`, `CardElevated`, `Popover`,
 `PopoverForeground`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
-`Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
+`Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, `Warning` (the warning status color; `Theme.WarningColor` falls back to `Danger` when a hand-built theme leaves it zero), and
 `Chart` (an array of five). There is no `Surface`, `Text` or `Error`: use `Card`, `Foreground`, `Danger`.
 A `gfx.Color` is `{Red, Green, Blue, Alpha float32}` with each in 0..1 (so `gfx.Color{Alpha: 0.5}` is a black scrim);
 it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. To write a color of your own, `gfx.RGB24(0x0a84ff)`
