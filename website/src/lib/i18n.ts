@@ -108,6 +108,7 @@ const chineseComponentNames: Record<string, string> = {
   alert: '警告',
   empty: '空状态',
   progress: '进度条',
+  result: '结果页',
   skeleton: '骨架屏',
   sonner: '堆叠通知',
   spinner: '加载中',
@@ -175,6 +176,7 @@ const chineseComponentNames: Record<string, string> = {
   steps: '步骤条',
   'time-picker': '时间选择器',
   timeline: '时间线',
+  tag: '状态标签',
   transfer: '穿梭框',
 };
 
