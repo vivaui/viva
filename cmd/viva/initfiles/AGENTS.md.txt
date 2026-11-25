@@ -170,6 +170,7 @@ func (m *model) page(c ui.C) {
   the page cannot declare.
 - `ui.Select(c, &m.size, choices, nil, ui.WithID(id))` names a control the application holds an identity for: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
 - `ui.TextField(c, &m.title, "Title", "", ui.MaxLength(80), ui.ShowCount())` caps a text control at 80 runes and shows "n/80" at the end of a `TextField` (it takes the place of an `Action`); `ui.MaxLength` also takes a `TextArea`. A model-kept `ui.Field` uses `Field.Restrict(accept, maxRunes)`.
+- `.Warning(m.port == "22")` on a `TextField` or `TextArea` paints the warning border (the theme's `Warning` color) for a value that needs a look but did not fail; a field marked `Invalid` keeps its destructive border over it. A model-kept `ui.Field` sets `Field.Warning`; `inputgroup.Group.Warning(bool)` does the same for a group.
 - Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a

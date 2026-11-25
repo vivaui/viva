@@ -40,16 +40,18 @@ type TextareaSemantics struct {
 // DisplayValue starts a row; scrolling follows the caret when Layout is set.
 // Editing and IME state remain owned by the application/runtime.
 type TextareaSnapshot struct {
-	PaintLine     func(*gfx.Canvas, string, gfx.Rect, gfx.TextStyle)
-	ID            gfx.ID
-	Label         string
-	Value         string
-	DisplayValue  string
-	Placeholder   string
-	Hint          string
-	Disabled      bool
-	ReadOnly      bool
-	Invalid       bool
+	PaintLine    func(*gfx.Canvas, string, gfx.Rect, gfx.TextStyle)
+	ID           gfx.ID
+	Label        string
+	Value        string
+	DisplayValue string
+	Placeholder  string
+	Hint         string
+	Disabled     bool
+	ReadOnly     bool
+	Invalid      bool
+	// Warning paints the field with the warning border; Invalid wins over it.
+	Warning       bool
 	Focused       bool
 	NativeEditing bool
 	ShowCaret     bool
