@@ -45,7 +45,7 @@ Windows 使用整个显示器而不是任务栏工作区，并保存之前的位
 
 ## 完整示例
 
-下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `c.TitlebarInsets()` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.ModalWith`，只在有关闭请求挂起时才声明：
+下面的程序打开一个自定义标题栏窗口，其中的“Settings”按钮会打开第二个窗口，并且在有未保存的笔记时拒绝关闭。顶部条带是一个普通的 `ui.Row`，用 `c.TitlebarInsets()` 留出内边距，所以标题不会压到窗口按钮下面；确认框是 `ui.Modal`，只在有关闭请求挂起时才声明：
 
 <!-- example: windows/main.go -->
 ```go
@@ -81,7 +81,7 @@ func (state *notes) page(c ui.C) {
 					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
-		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
+		ui.Modal(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
 			Description: "The note has not been saved.", Width: 400, NoClose: true,
 		}, nil, func() {
 			if ui.Button(c, "Keep editing").Outline().Clicked() {

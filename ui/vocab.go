@@ -30,6 +30,9 @@ type Size = base.Size
 type Point = base.Point
 type Theme = base.Theme
 
+// Option is a setting a control takes after its fixed arguments, as WithID.
+type Option = base.Option
+
 // LightTheme is the light theme.
 func LightTheme() Theme { return base.LightTheme() }
 

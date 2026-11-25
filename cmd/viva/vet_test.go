@@ -42,7 +42,7 @@ func (m *model) page(c ui.C) {
 		// viva:ignore unkeyed-button
 		ui.Button(c, "Same")
 	}
-	ui.Modal(c, &m.open, "Title", nil, nil)
+	ui.Modal(c, &m.open, "Title", ui.ModalSpec{}, nil, nil)
 }
 
 func main() { _ = (&model{}).page }

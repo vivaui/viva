@@ -202,16 +202,12 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 // Select is a drop-down over choices, *value the chosen one (Placeholder shows while
 // it is none of them); picking an option sets it. Whether its list is open is the
 // Select's own state. Invalid(true) marks the value as failing validation and
-// DisabledOptions marks options unavailable.
-func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
-	return selectOf(c, Value, choices, Label, nil, false, gfx.ID{})
-}
-
-// SelectID is Select for a control the application already names: the trigger's
-// hit is id, so a row's words can be its LabelFor and the application's key and
-// focus routing can target it. The list's options keep the page's own identities.
-func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T) string) Box {
-	return selectOf(c, Value, choices, Label, nil, false, ID)
+// DisabledOptions marks options unavailable. WithID names a control the application
+// already names: the trigger's hit is id, so a row's words can be its LabelFor and the
+// application's key and focus routing can target it. The list's options keep the
+// page's own identities.
+func Select[T comparable](c C, Value *T, choices []T, Label func(T) string, opts ...Option) Box {
+	return selectOf(c, Value, choices, Label, nil, false, namedBy("Select", opts))
 }
 
 // selectOf is Select, or SelectBase when base is set: the same control without
@@ -287,17 +283,20 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 
 // TextField adds a text field editing value, a string of the model or a Field; the
 // page gives the platform its editor. Changed is true in the paint that finds it
-// edited, and the string already holds the edit then.
+// edited, and the string already holds the edit then. WithID names the field, for a
+// window's own input routing, an initial focus or a test; Field.Bind gives it an
+// editor the application keeps and reads itself.
 //
 //	ui.TextField(c, &m.name, "Name", "Your name")
-func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
-	return textFieldOf(c, Value, Label, placeholder, false)
+//	ui.TextField(c, &m.query, "Search", "", ui.WithID(m.searchID))
+func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
+	return textFieldOf(c, Value, Label, placeholder, false, namedBy("TextField", opts))
 }
 
 // textFieldOf is TextField, or TextFieldBase when base is set.
-func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool) Box {
+func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool, named gfx.ID) Box {
 	p := c.page
-	field, id := fieldOf(p, pkField, Value)
+	field, id := namedFieldOf(p, pkField, Value, named)
 	var b Box
 	if Base {
 		b = c.f.FieldBase(field, id, Label, placeholder)
@@ -309,41 +308,15 @@ func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool
 	return b
 }
 
-// TextFieldID is TextField for a field the application already names: id is the
-// field's identity in the page's Tree, so a window's own input routing, an
-// initial focus or a test can address it. It edits value, a string of the model
-// or a Field, as TextField does, and the page still gives the platform its
-// editor. Field.Bind gives it an editor the application keeps and reads itself.
-//
-//	ui.TextFieldID(c, m.searchID, &m.query, "Search", "")
-func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string) Box {
-	p := c.page
-	var field *Field
-	switch v := any(Value).(type) {
-	case *Field:
-		field = v
-	case *string:
-		// The string's editor is kept under the name its pointer is given, as
-		// TextField keeps it; only the element takes the application's identity.
-		field, _ = fieldOf(p, pkField, v)
-	}
-	if field == nil {
-		panic("ui: TextFieldID needs a string or a Field to edit")
-	}
-	b := c.f.Field(field, ID, Label, placeholder)
-	c.f.bindField(b, field)
-	p.fields = append(p.fields, fieldEntry{ID: ID, field: field, box: b.i})
-	return b
-}
-
 // TextArea adds a text field of several rows editing field: Enter starts a new
 // line, long lines wrap and the rows scroll to follow the caret. Give it a Height.
-// The page gives the platform its editor, as for a TextField; it has no Submitted.
+// The page gives the platform its editor, as for a TextField, and WithID names it
+// the same way; it has no Submitted.
 //
 //	ui.TextArea(c, &m.notes, "Notes", "Anything to add").Height(120)
-func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
+func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	p := c.page
-	field, id := fieldOf(p, pkArea, Value)
+	field, id := namedFieldOf(p, pkArea, Value, namedBy("TextArea", opts))
 	b := c.f.FieldArea(field, id, Label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {
@@ -353,42 +326,20 @@ func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
 	return b
 }
 
-// TextAreaID is TextArea for a field the application already names, as TextFieldID is
-// for TextField: id is the field's identity in the page's Tree, so an initial focus,
-// a window's own routing or a test can address it. Field.Bind gives it an editor the
-// application keeps and reads itself.
-//
-//	ui.TextAreaID(c, m.commandID, &m.commandField, "Command", "").Height(120)
-func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
-	if field == nil {
-		panic("ui: TextAreaID needs a Field")
-	}
-	p := c.page
-	b := c.f.FieldArea(field, ID, Label, placeholder)
-	c.f.bindField(b, field)
-	if p.areaKey == nil {
-		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
-	}
-	p.fields = append(p.fields, fieldEntry{ID: ID, field: field, box: b.i})
-	return b
-}
-
 // Popover shows the panel body declares, hanging off anchor, while *open: a press
 // outside it or Escape sets *open to false (and the press goes on to what is under
 // the pointer), and a press on the anchor only closes it, so the anchor that toggles
 // it does not open it again. The focus goes back to where it was as it closes. It
 // reports the paint that closed it, so a panel that must stay open sets *open back.
 //
+// spec gives the side, alignment, width and the rest of PopoverSpec; the Scope and
+// DismissID it leaves zero are made from open. Its zero Align centers the panel on the
+// anchor, and Start lines it up with the anchor's start.
+//
 //	more := ui.Button(c, "More")
 //	if more.Clicked() { m.menu = !m.menu }
-//	ui.Popover(c, more, &m.menu, func() { ... })
-func Popover(c C, Anchor Box, open *bool, body func()) bool {
-	return PopoverWith(c, Anchor, open, PopoverSpec{Align: Start}, body)
-}
-
-// PopoverWith is Popover with a spec: the side, alignment, width and the rest of
-// PopoverSpec. The Scope and DismissID it leaves zero are made from open.
-func PopoverWith(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
+//	ui.Popover(c, more, &m.menu, ui.PopoverSpec{Align: ui.Start}, func() { ... })
+func Popover(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
 	p := c.page
 	p.ForbidInMemo("Popover")
 	if !*open {
@@ -457,13 +408,9 @@ type ModalSpec struct {
 // *open to false. It keeps the keyboard while open, gives it to the first control as
 // it opens and back to where it was as it closes, and reports the paint that closed
 // it. The title is the dialog's name for assistive technology. body and footer may
-// be nil.
-func Modal(c C, open *bool, title string, body, footer func()) bool {
-	return ModalWith(c, open, title, ModalSpec{}, body, footer)
-}
-
-// ModalWith is Modal with a description, a size, no close button or an initial focus.
-func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
+// be nil. spec gives it a description, a size, no close button or an initial focus; the
+// zero ModalSpec is the plain dialog.
+func Modal(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
 	p := c.page
 	p.ForbidInMemo("Modal")
 	if !*open {

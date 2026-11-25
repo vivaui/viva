@@ -196,14 +196,9 @@ func Choice[T comparable](c C, Value *T, choices []T, Label func(T) string) Box 
 	return base.Choice(c, Value, choices, Label)
 }
 
-func Radio[T comparable](c C, Value *T, option T, Label string) Box {
+func Radio[T comparable](c C, Value *T, option T, Label string, opts ...Option) Box {
 	useCheckbox()
-	return base.Radio(c, Value, option, Label)
-}
-
-func RadioID[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
-	useCheckbox()
-	return base.RadioID(c, ID, Value, option, Label)
+	return base.Radio(c, Value, option, Label, opts...)
 }
 
 func RadioBase[T comparable](c C, Value *T, option T, Label string) Box {
@@ -223,14 +218,9 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 	return base.Tabs(c, Value, tabs, Label)
 }
 
-func Select[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
+func Select[T comparable](c C, Value *T, choices []T, Label func(T) string, opts ...Option) Box {
 	useSelect()
-	return base.Select(c, Value, choices, Label)
-}
-
-func SelectID[T comparable](c C, ID gfx.ID, Value *T, choices []T, Label func(T) string) Box {
-	useSelect()
-	return base.SelectID(c, ID, Value, choices, Label)
+	return base.Select(c, Value, choices, Label, opts...)
 }
 
 func SelectBase[T comparable](c C, Value *T, choices []T, Label func(T) string) Box {
@@ -250,14 +240,9 @@ func ColorSwatch(c C, Color Color, selected bool, Label string) Box {
 	return base.ColorSwatch(c, Color, selected, Label)
 }
 
-func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string) Box {
+func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string, opts ...Option) Box {
 	useColor()
-	return base.ColorPicker(c, state, Color, Label)
-}
-
-func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label string) Box {
-	useColor()
-	return base.ColorPickerID(c, ID, state, Color, Label)
+	return base.ColorPicker(c, state, Color, Label, opts...)
 }
 
 func Slider(c C, state *SliderState) Box { useSlider(); return base.Slider(c, state) }
@@ -296,14 +281,9 @@ func Pagination(c C, Items []PaginationItem) Box { usePagination(); return base.
 
 // Fields and text entry.
 
-func TextField[T TextValue](c C, Value T, Label, placeholder string) Box {
+func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
-	return base.TextField(c, Value, Label, placeholder)
-}
-
-func TextFieldID[T TextValue](c C, ID gfx.ID, Value T, Label, placeholder string) Box {
-	useField()
-	return base.TextFieldID(c, ID, Value, Label, placeholder)
+	return base.TextField(c, Value, Label, placeholder, opts...)
 }
 
 func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
@@ -311,14 +291,9 @@ func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
 	return base.TextFieldBase(c, Value, Label, placeholder)
 }
 
-func TextArea[T TextValue](c C, Value T, Label, placeholder string) Box {
+func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
-	return base.TextArea(c, Value, Label, placeholder)
-}
-
-func TextAreaID(c C, ID gfx.ID, field *Field, Label, placeholder string) Box {
-	useField()
-	return base.TextAreaID(c, ID, field, Label, placeholder)
+	return base.TextArea(c, Value, Label, placeholder, opts...)
 }
 
 func Fields(fields ...*Field) func(window.TextInputContext) *window.TextInput {
@@ -350,24 +325,14 @@ func Drawer(c C, open *bool, title string, spec DrawerSpec, body, footer func())
 	return base.Drawer(c, open, title, spec, body, footer)
 }
 
-func Modal(c C, open *bool, title string, body, footer func()) bool {
+func Modal(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
 	useDialog()
-	return base.Modal(c, open, title, body, footer)
+	return base.Modal(c, open, title, spec, body, footer)
 }
 
-func ModalWith(c C, open *bool, title string, spec ModalSpec, body, footer func()) bool {
-	useDialog()
-	return base.ModalWith(c, open, title, spec, body, footer)
-}
-
-func Popover(c C, Anchor Box, open *bool, body func()) bool {
+func Popover(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
 	usePopover()
-	return base.Popover(c, Anchor, open, body)
-}
-
-func PopoverWith(c C, Anchor Box, open *bool, spec PopoverSpec, body func()) bool {
-	usePopover()
-	return base.PopoverWith(c, Anchor, open, spec, body)
+	return base.Popover(c, Anchor, open, spec, body)
 }
 
 func Menu(c C, Anchor Box, open *bool, body func(*MenuItems)) {
@@ -455,6 +420,9 @@ func NavigateTree(items []TreeNavigationItem, current int, key gfx.Key, pageRows
 // Identity and input.
 
 func ID(c C) gfx.ID { return base.ID(c) }
+
+// WithID names a control with an identity the application holds; see base.WithID.
+func WithID(id gfx.ID) Option { return base.WithID(id) }
 
 func NewPage(config PageConfig) *Page { useTooltip(); return base.NewPage(config) }
 

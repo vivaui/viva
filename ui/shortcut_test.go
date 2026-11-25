@@ -42,7 +42,7 @@ func (m *shortcutModel) page(c ui.C) {
 		if more.Clicked() {
 			m.menu = !m.menu
 		}
-		ui.Popover(c, more, &m.menu, func() { ui.Button(c, "Rename") })
+		ui.Popover(c, more, &m.menu, ui.PopoverSpec{Align: ui.Start}, func() { ui.Button(c, "Rename") })
 	})
 }
 

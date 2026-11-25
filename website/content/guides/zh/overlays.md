@@ -41,7 +41,7 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
+		ui.Popover(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
@@ -52,7 +52,7 @@ func (m *model) page(c ui.C) {
 
 		// A modal dims the page and keeps the keyboard while dialogOpen is true:
 		// Escape, a press on the dim and the close button set it to false.
-		ui.ModalWith(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
+		ui.Modal(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
 			if ui.Button(c, "Cancel").Outline().Clicked() {
 				m.dialogOpen = false
 			}
@@ -73,7 +73,7 @@ func main() {
 
 ## 弹出框
 
-`ui.Popover(c, anchor, &open, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`ui.PopoverWith` 接受 `ui.PopoverSpec`，可以指定方向、对齐、宽度、内容内边距、与窗口边缘保持的边距（未设置时为 8），以及 `Instant`：无入场动画地打开，适合随用户输入在光标下出现的列表。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
+`ui.Popover(c, anchor, &open, spec, body)` 在 `open` 为真时显示 `body` 声明的面板，挂在 `anchor` 上，外观与 shadcn 的 Popover 一致。`spec` 是 `ui.PopoverSpec`，零值就是普通面板，可以指定方向、对齐、宽度、内容内边距、与窗口边缘保持的边距（未设置时为 8），以及 `Instant`：无入场动画地打开，适合随用户输入在光标下出现的列表。它默认在锚点下方打开，下方放不下时翻到上方。要锚定到触发控件，就保留它的 `Box`（`actions := ui.Button(c, ...)`）。
 
 在面板外按下或按 Escape 会把 `open` 设为 false。这次按下随后会传给指针下方的控件，与网页里的 popover 一致：一次点击另一个按钮，既关闭菜单，也按下那个按钮。在锚点上按下只会关闭面板，所以切换 `open` 的触发按钮不会在同一次点击里又把它打开。焦点回到面板打开前的位置。`Popover` 报告关闭它的那一遍绘制；必须保持打开的面板在那里把 `open` 改回 true。
 
@@ -87,7 +87,7 @@ func main() {
 
 ## 对话框
 
-`ui.Modal(c, &open, title, body, footer)` 在 `open` 为真时把窗口变暗，画出居中的表面，带标题和关闭按钮，并占住键盘。标题是必填的：它是对话框给辅助技术的名字。`body` 声明正文，`footer` 声明按钮，按钮按给定顺序靠右排列；两者都可以为 nil，表面高度正好等于正文所需。Escape、点击变暗的背景和关闭按钮都会把 `open` 设为 false。对话框打开时，正文里的第一个控件获得焦点（`ModalSpec.InitialFocus` 可以指定另一个）；关闭时，焦点回到打开它的那个控件。`ui.ModalWith` 接受 `ui.ModalSpec`，用来加描述、指定大小或去掉关闭按钮。
+`ui.Modal(c, &open, title, spec, body, footer)` 在 `open` 为真时把窗口变暗，画出居中的表面，带标题和关闭按钮，并占住键盘。标题是必填的：它是对话框给辅助技术的名字。`body` 声明正文，`footer` 声明按钮，按钮按给定顺序靠右排列；两者都可以为 nil，表面高度正好等于正文所需。Escape、点击变暗的背景和关闭按钮都会把 `open` 设为 false。对话框打开时，正文里的第一个控件获得焦点（`ModalSpec.InitialFocus` 可以指定另一个）；关闭时，焦点回到打开它的那个控件。`spec` 是 `ui.ModalSpec`，零值就是普通对话框，用来加描述、指定大小或去掉关闭按钮。
 
 `ui.Dialog(c, ui.DialogSpec{...})` 是同一个对话框由应用命名目标的形式：`Scope` 是焦点范围，`DismissID` 是背景和 Escape 报告的标识，`CloseID` 是右上角按钮的，`InitialFocusID` 是获得焦点的控件。`dialog.Header(fn)` 在标题行声明控件，`Body` 声明正文，`Footer` 声明按钮；`Dismissed()` 在递送其中任一点击的那一遍绘制里为真。
 

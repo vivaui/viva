@@ -190,12 +190,12 @@ func TestPagePopoverAndModal(t *testing.T) {
 			if more.Clicked() {
 				menu = !menu
 			}
-			ui.Popover(c, more, &menu, func() {
+			ui.Popover(c, more, &menu, ui.PopoverSpec{Align: ui.Start}, func() {
 				if ui.Button(c, "Delete…").Clicked() {
 					menu, confirm = false, true
 				}
 			})
-			ui.Modal(c, &confirm, "Delete host?", func() {
+			ui.Modal(c, &confirm, "Delete host?", ui.ModalSpec{}, func() {
 				ui.Text(c, "This cannot be undone.")
 			}, func() {
 				if ui.Button(c, "Delete").Destructive().Clicked() {
@@ -330,7 +330,7 @@ func combobox[T comparable](c ui.C, Value *T, options []T, Label func(T) string)
 		if trigger.Clicked() {
 			*open = !*open
 		}
-		ui.Popover(c, trigger, open, func() {
+		ui.Popover(c, trigger, open, ui.PopoverSpec{Align: ui.Start}, func() {
 			for i, option := range options {
 				if ui.Button(c.KeyInt(i), Label(option)).Ghost().Clicked() {
 					*Value, *open = option, false
@@ -407,7 +407,7 @@ func TestPagePopoverMoves(t *testing.T) {
 					if more.Clicked() {
 						open = !open
 					}
-					ui.Popover(c, more, &open, func() { ui.Button(c, "Rename") })
+					ui.Popover(c, more, &open, ui.PopoverSpec{Align: ui.Start}, func() { ui.Button(c, "Rename") })
 				})
 			}}, app.Config{})
 			d.click("More")
@@ -442,7 +442,7 @@ func BenchmarkPagePopoverOpen(b *testing.B) {
 	view := func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			more := ui.Button(c, "More")
-			ui.Popover(c, more, &open, func() {
+			ui.Popover(c, more, &open, ui.PopoverSpec{Align: ui.Start}, func() {
 				ui.Button(c, "Rename")
 				ui.Button(c, "Delete")
 			})
@@ -615,14 +615,14 @@ func TestSelectWithIconsMeasuresTheIconSpan(t *testing.T) {
 	}
 }
 
-// A TextAreaID is addressed by the identity the application gave it, and edits its
+// A TextArea given WithID is addressed by the identity the application gave it, and edits its
 // Field in rows like a TextArea.
-func TestPageTextAreaID(t *testing.T) {
+func TestPageTextAreaWithID(t *testing.T) {
 	var notes ui.Field
 	id := gfx.Item(41)
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
-			ui.TextAreaID(c, id, &notes, "Notes", "").Width(300).Height(120)
+			ui.TextArea(c, &notes, "Notes", "", ui.WithID(id)).Width(300).Height(120)
 		})
 	})
 	d.click("Notes")

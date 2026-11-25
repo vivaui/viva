@@ -143,7 +143,7 @@ func (state *State) paintTextareaGrowPage(canvas *gfx.Canvas, theme gfx.Theme, s
 	state.drawPage(canvas, theme, size, 540, state.Text("Textarea · 多行编辑", "Textarea · Multi-line editing"), func(c ui.C) {
 		field := ui.State[ui.Field](c, "notes")
 		state.bindPageField(field, initial)
-		ui.TextAreaID(c, textareaField, field, label, "").ReadOnly(!state.editing).AutoGrow(textareaGrowMaxRows)
+		ui.TextArea(c, field, label, "", ui.WithID(textareaField)).ReadOnly(!state.editing).AutoGrow(textareaGrowMaxRows)
 		caption(c, state.Text("高度由控件内容决定，最多五行；超过五行后在框内滚动。", "The control is as tall as its text, up to five rows; after that the box scrolls."))
 	})
 }
@@ -160,12 +160,12 @@ func (state *State) paintTextareaStatesPage(canvas *gfx.Canvas, theme gfx.Theme,
 		unavailable := state.pageFieldText(c, "disabled", "")
 		unavailable.Disabled = true
 		ui.Row(c).Gap(12).Children(func() {
-			ui.TextAreaID(c, textareaInvalid, tooShort, state.Text("错误说明", "Invalid field"), "").
+			ui.TextArea(c, tooShort, state.Text("错误说明", "Invalid field"), "", ui.WithID(textareaInvalid)).
 				Grow(1).Basis(0).Height(104).ReadOnly(true)
-			ui.TextAreaID(c, textareaReadOnly, generated, state.Text("只读说明", "Read-only field"), "").
+			ui.TextArea(c, generated, state.Text("只读说明", "Read-only field"), "", ui.WithID(textareaReadOnly)).
 				Grow(1).Basis(0).Height(104).ReadOnly(true)
 		})
-		ui.TextAreaID(c, textareaDisabled, unavailable, state.Text("禁用说明", "Disabled field"), state.Text("当前不可填写", "Currently unavailable")).Height(72)
+		ui.TextArea(c, unavailable, state.Text("禁用说明", "Disabled field"), state.Text("当前不可填写", "Currently unavailable"), ui.WithID(textareaDisabled)).Height(72)
 	})
 }
 
@@ -202,7 +202,7 @@ func (state *State) paintTextareaPage(canvas *gfx.Canvas, theme gfx.Theme, size 
 		field := ui.State[ui.Field](c, "notes")
 		state.bindPageField(field, initial)
 		field.Hint = hint
-		ui.TextAreaID(c, textareaField, field, label, "").Height(142)
+		ui.TextArea(c, field, label, "", ui.WithID(textareaField)).Height(142)
 		caption(c, state.Text("编辑与 IME 事件由应用持有；换行、行内定位与滚动由 Viva 的 TextareaLayout 负责。", "Editing and IME events stay with the app; TextareaLayout handles wrapping, caret placement, and scrolling."))
 	})
 }

@@ -25,7 +25,7 @@ var pageUsage = map[string]string{
 	"alert-dialog":  `ui.AlertDialog(c, &m.confirm, ui.AlertDialogSpec{Title: "Delete?", ActionLabel: "Delete", CancelLabel: "Cancel"})`,
 	"drawer":        `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
 	"sheet":         `ui.Drawer(c, &m.open, "Details", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
-	"popover":       `ui.PopoverWith(c, anchor, &m.open, ui.PopoverSpec{Title: "Details"}, body)`,
+	"popover":       `ui.Popover(c, anchor, &m.open, ui.PopoverSpec{Title: "Details"}, body)`,
 	"dropdown-menu": `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { menu.Item("Rename") })`,
 	"context-menu":  `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { menu.Item("Delete") })`,
 	"table": `bills := ui.TableRows{

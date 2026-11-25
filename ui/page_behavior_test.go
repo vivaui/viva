@@ -276,7 +276,7 @@ func TestPopoverClosesByEscapeAnchorAndOutside(t *testing.T) {
 			if ui.Button(c, "Other").Clicked() {
 				other++
 			}
-			ui.Popover(c, more, &open, func() { ui.Button(c, "Rename") })
+			ui.Popover(c, more, &open, ui.PopoverSpec{Align: ui.Start}, func() { ui.Button(c, "Rename") })
 		})
 	})
 	d.click("More")
@@ -305,7 +305,7 @@ func TestModalNeedsATitle(t *testing.T) {
 		}
 	}()
 	drawPage(ui.NewPage(ui.PageConfig{Theme: &pageTheme}), benchCanvas(), func(c ui.C) {
-		ui.Modal(c, &open, "", func() {}, nil)
+		ui.Modal(c, &open, "", ui.ModalSpec{}, func() {}, nil)
 	})
 }
 
@@ -373,8 +373,8 @@ func TestNativeViewTakesItsPlaceInThePage(t *testing.T) {
 			ui.Scroll(c).Height(100).Children(func() {
 				ui.Slot(c).Height(300).FillWidth().NativeView(1)
 			})
-			ui.Popover(c, anchor, &menu, func() { ui.Text(c, "over the page") })
-			ui.Modal(c, &open, "Preview", func() { ui.Slot(c).Size(100, 80).NativeView(2) }, nil)
+			ui.Popover(c, anchor, &menu, ui.PopoverSpec{Align: ui.Start}, func() { ui.Text(c, "over the page") })
+			ui.Modal(c, &open, "Preview", ui.ModalSpec{}, func() { ui.Slot(c).Size(100, 80).NativeView(2) }, nil)
 		})
 	})
 	var inPage, inDialog gfx.NativeView

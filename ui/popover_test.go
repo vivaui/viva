@@ -18,7 +18,7 @@ func TestPopoverHeaderAndFixedBody(t *testing.T) {
 	var body ui.Box
 	d := openPage(t, func(c ui.C) {
 		more := ui.Button(c, "More")
-		ui.PopoverWith(c, more, &open, ui.PopoverSpec{Width: 200, Title: "Transfers", Description: long}, func() {
+		ui.Popover(c, more, &open, ui.PopoverSpec{Width: 200, Title: "Transfers", Description: long}, func() {
 			body = ui.Column(c).FillWidth().Height(120).Children(func() { ui.Text(c, "Body") })
 		})
 	})
@@ -60,7 +60,7 @@ func TestPopoverHeaderToBodyFollowsSurfacePadding(t *testing.T) {
 		var body ui.Box
 		d := openPageWith(t, ui.PageConfig{Theme: &theme, View: func(c ui.C) {
 			more := ui.Button(c, "More")
-			ui.PopoverWith(c, more, &open, ui.PopoverSpec{Width: 300, Title: "Transfers", Description: "Active transfers"}, func() {
+			ui.Popover(c, more, &open, ui.PopoverSpec{Width: 300, Title: "Transfers", Description: "Active transfers"}, func() {
 				body = ui.Column(c).FillWidth().Height(40).Children(func() { ui.Text(c, "Body") })
 			})
 		}}, app.Config{})
@@ -89,7 +89,7 @@ func TestPopoverAlignOffset(t *testing.T) {
 		d := openPage(t, func(c ui.C) {
 			ui.Column(c).Pad(20).Children(func() {
 				more := ui.Button(c, "More").Width(200)
-				ui.PopoverWith(c, more, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, AlignOffset: shift, Width: 100}, func() {
+				ui.Popover(c, more, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, AlignOffset: shift, Width: 100}, func() {
 					body = ui.Column(c).FillWidth().Height(40)
 				})
 			})
@@ -110,7 +110,7 @@ func TestPopoverCanBeAHoverPreview(t *testing.T) {
 	open := true
 	d := openPage(t, func(c ui.C) {
 		anchor := ui.Button(c, "Anchor")
-		ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Title: "Details", Width: 200, Radius: 10, NoDismiss: true}, func() {
+		ui.Popover(c, anchor, &open, ui.PopoverSpec{Title: "Details", Width: 200, Radius: 10, NoDismiss: true}, func() {
 			ui.Text(c, "Body")
 		})
 	})
@@ -136,7 +136,7 @@ func TestPopoverMarginKeepsClearOfTheWindowEdge(t *testing.T) {
 		openPage(t, func(c ui.C) {
 			ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
 				anchor := ui.Button(c, "Anchor").Width(100)
-				ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, Width: 200, Margin: margin}, func() {
+				ui.Popover(c, anchor, &open, ui.PopoverSpec{Side: components.PopoverBottom, Align: ui.Start, Width: 200, Margin: margin}, func() {
 					body = ui.Column(c).FillWidth().Height(40)
 				})
 			})
@@ -156,7 +156,7 @@ func TestPopoverPaddingInsetsTheBody(t *testing.T) {
 		var body ui.Box
 		openPage(t, func(c ui.C) {
 			anchor := ui.Button(c, "Anchor")
-			ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Width: 200, Padding: padding}, func() {
+			ui.Popover(c, anchor, &open, ui.PopoverSpec{Width: 200, Padding: padding}, func() {
 				body = ui.Column(c).FillWidth().Height(40)
 			})
 		})
@@ -175,7 +175,7 @@ func TestPopoverInstantKeepsTheLayout(t *testing.T) {
 		var body ui.Box
 		openPage(t, func(c ui.C) {
 			anchor := ui.Button(c, "Anchor")
-			ui.PopoverWith(c, anchor, &open, ui.PopoverSpec{Width: 200, Instant: instant}, func() {
+			ui.Popover(c, anchor, &open, ui.PopoverSpec{Width: 200, Instant: instant}, func() {
 				body = ui.Column(c).FillWidth().Height(40)
 			})
 		})

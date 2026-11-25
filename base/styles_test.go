@@ -41,7 +41,7 @@ func TestStylesReplaceThePageRecipes(t *testing.T) {
 			Button(c, "Save")
 			Checkbox(c, &on, "Remember")
 			Switch(c, &on, "Sync")
-			TextFieldID(c, tree.ID(tree.Feature("styles"), "field"), &field, "Name", "")
+			TextField(c, &field, "Name", "", WithID(tree.ID(tree.Feature("styles"), "field")))
 		})
 	})
 	painted := make(map[gfx.Color]bool)

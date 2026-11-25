@@ -11,7 +11,7 @@ import (
 //
 //	email := ui.ID(c)
 //	ui.Label(c, "Work email").Required().LabelFor(email)
-//	ui.TextFieldID(c, email, &m.email, "Work email", "")
+//	ui.TextField(c, &m.email, "Work email", "", ui.WithID(email))
 func Label(c C, Text string) Box { useField(); return base.Label(c, Text) }
 
 // FieldOrientation is a FormField's arrangement: the title above the control,

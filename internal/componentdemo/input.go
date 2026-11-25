@@ -37,9 +37,9 @@ components.PaintInput(canvas, theme, field.Rect(), components.InputSnapshot{
     Placeholder: "name@example.com", Invalid: invalid,
 })`, PageSnippet: `// m.email starts as "not-an-email".
 m.email.Invalid = !strings.Contains(m.email.Text(), "@")
-ui.TextFieldID(c, ui.ID(c), &m.email, "Email", "name@example.com")`, PageSnippetZh: `// m.email 初始为 "not-an-email"。
+ui.TextField(c, &m.email, "Email", "name@example.com", ui.WithID(ui.ID(c)))`, PageSnippetZh: `// m.email 初始为 "not-an-email"。
 m.email.Invalid = !strings.Contains(m.email.Text(), "@")
-ui.TextFieldID(c, ui.ID(c), &m.email, "Email", "name@example.com")`},
+ui.TextField(c, &m.email, "Email", "name@example.com", ui.WithID(ui.ID(c)))`},
 		{ID: "states", Title: "禁用与只读", Description: "两个固定文本样本均不向平台 provider 暴露 Editor。", Snippet: `disabled := ui.Slot(c).FillWidth().Height(theme.Metrics.ControlHeight)
 components.PaintInput(canvas, theme, disabled.Rect(), components.InputSnapshot{
     ID: disabledID, Label: "Disabled",
@@ -195,7 +195,7 @@ func (state *State) paintInputPage(canvas *gfx.Canvas, theme gfx.Theme, size gfx
 		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, label).FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputEditable, field, label, placeholder).ReadOnly(!state.editing)
+			ui.TextField(c, field, label, placeholder, ui.WithID(inputEditable)).ReadOnly(!state.editing)
 		})
 		ui.Text(c, captionText).FontSize(theme.Metrics.FontSizeS).Muted()
 	})
@@ -213,11 +213,11 @@ func (state *State) paintInputStates(canvas *gfx.Canvas, theme gfx.Theme, size g
 		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Disabled").FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputDisabled, disabled, "Disabled", "")
+			ui.TextField(c, disabled, "Disabled", "", ui.WithID(inputDisabled))
 		})
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Read-only").FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputReadOnly, readOnly, "Read-only", "").ReadOnly(true)
+			ui.TextField(c, readOnly, "Read-only", "", ui.WithID(inputReadOnly)).ReadOnly(true)
 		})
 		ui.Text(c, state.Text("禁用与只读字段均不连接编辑器。", "Disabled and read-only fields do not connect an editor.")).
 			FontSize(theme.Metrics.FontSizeS).Muted()
@@ -263,16 +263,16 @@ func (state *State) paintCustomInputs(canvas *gfx.Canvas, theme gfx.Theme, size 
 		ui.Text(c, mode).FontSize(theme.Metrics.FontSizeS).Muted()
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "RadiusFull · 16").FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputEditable, pill, "Pill", state.Text("输入中文或 English…", "Type in Chinese or English…")).
+			ui.TextField(c, pill, "Pill", state.Text("输入中文或 English…", "Type in Chinese or English…"), ui.WithID(inputEditable)).
 				FontSize(16).Radius(gfx.RadiusFull).ReadOnly(!state.editing)
 		})
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Radius 2 · 12").FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputSquare, square, "Square", "").FontSize(12).Radius(2).ReadOnly(true)
+			ui.TextField(c, square, "Square", "", ui.WithID(inputSquare)).FontSize(12).Radius(2).ReadOnly(true)
 		})
 		ui.Column(c).Gap(6).Children(func() {
 			ui.Text(c, "Theme").FontSize(theme.Metrics.FontSizeM)
-			ui.TextFieldID(c, inputPlain, plain, "Theme", "").ReadOnly(true)
+			ui.TextField(c, plain, "Theme", "", ui.WithID(inputPlain)).ReadOnly(true)
 		})
 	})
 }
