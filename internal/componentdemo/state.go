@@ -71,11 +71,12 @@ var coreComponents = []Component{
 var catalog = buildCatalog()
 
 func buildCatalog() []Component {
-	result := make([]Component, 0, len(coreComponents)+len(groupAComponents)+len(groupBComponents)+len(groupCComponents))
+	result := make([]Component, 0, len(coreComponents)+len(groupAComponents)+len(groupBComponents)+len(groupCComponents)+len(groupDComponents))
 	result = append(result, coreComponents...)
 	result = append(result, groupAComponents...)
 	result = append(result, groupBComponents...)
 	result = append(result, groupCComponents...)
+	result = append(result, groupDComponents...)
 	for index := 1; index < len(result); index++ {
 		for current := index; current > 0 && componentLess(result[current], result[current-1]); current-- {
 			result[current], result[current-1] = result[current-1], result[current]

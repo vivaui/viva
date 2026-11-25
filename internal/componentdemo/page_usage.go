@@ -4,6 +4,7 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"steps":         `steps.View(c, "Checkout", &m.step, steps.Spec{Steps: m.stages, Clickable: true})`,
 	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
