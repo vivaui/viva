@@ -41,6 +41,8 @@ type presenceOpen struct {
 	// order is the canvas's last paint order when the group opened. The
 	// snapshot stores its primitives relative to it.
 	order uint32
+	// pose is what BeginPose asked for; unused by a presence.
+	pose poseTarget
 }
 
 // hitMotion is the placement a moving presence applies to one hit, as scale
@@ -391,18 +393,67 @@ func (snapshot *presenceSnapshot) replay(canvas *Canvas, presence Presence, pivo
 type presenceTransform struct {
 	pivot, offset Point
 	scale, alpha  float32
+	// sin and cos turn the element about the pivot, after scaling; both zero is
+	// no turn, which is the zero value.
+	sin, cos float32
+	// scaleText makes a label follow the scale, as a picture scaled with the
+	// element; without it a scaled element keeps its text at its own size, which
+	// stays sharp. A turned element always warps its text.
+	scaleText bool
+}
+
+func (transform presenceTransform) turned() bool { return transform.sin != 0 }
+
+// turn returns transform turned by angle radians, clockwise on a y-down page.
+func (transform presenceTransform) turn(angle float32) presenceTransform {
+	if angle != 0 {
+		sin, cos := math.Sincos(float64(angle))
+		transform.sin, transform.cos = float32(sin), float32(cos)
+	}
+	return transform
 }
 
 func (transform presenceTransform) point(point Point) Point {
+	if !transform.turned() {
+		return Point{
+			X: transform.pivot.X + (point.X-transform.pivot.X)*transform.scale + transform.offset.X,
+			Y: transform.pivot.Y + (point.Y-transform.pivot.Y)*transform.scale + transform.offset.Y,
+		}
+	}
+	x, y := (point.X-transform.pivot.X)*transform.scale, (point.Y-transform.pivot.Y)*transform.scale
 	return Point{
-		X: transform.pivot.X + (point.X-transform.pivot.X)*transform.scale + transform.offset.X,
-		Y: transform.pivot.Y + (point.Y-transform.pivot.Y)*transform.scale + transform.offset.Y,
+		X: transform.pivot.X + x*transform.cos - y*transform.sin + transform.offset.X,
+		Y: transform.pivot.Y + x*transform.sin + y*transform.cos + transform.offset.Y,
 	}
 }
 
+// rect is where rect lands: moved and scaled, and for a turned transform the
+// box that holds the turned rectangle, which is what a clip or a hit region
+// can be.
 func (transform presenceTransform) rect(rect Rect) Rect {
-	origin := transform.point(Point{X: rect.X, Y: rect.Y})
-	return Rect{X: origin.X, Y: origin.Y, Width: rect.Width * transform.scale, Height: rect.Height * transform.scale}
+	if !transform.turned() {
+		origin := transform.point(Point{X: rect.X, Y: rect.Y})
+		return Rect{X: origin.X, Y: origin.Y, Width: rect.Width * transform.scale, Height: rect.Height * transform.scale}
+	}
+	corners := [4]Point{
+		transform.point(Point{X: rect.X, Y: rect.Y}), transform.point(Point{X: rect.X + rect.Width, Y: rect.Y}),
+		transform.point(Point{X: rect.X, Y: rect.Y + rect.Height}), transform.point(Point{X: rect.X + rect.Width, Y: rect.Y + rect.Height}),
+	}
+	left, top, right, bottom := corners[0].X, corners[0].Y, corners[0].X, corners[0].Y
+	for _, corner := range corners[1:] {
+		left, right = min(left, corner.X), max(right, corner.X)
+		top, bottom = min(top, corner.Y), max(bottom, corner.Y)
+	}
+	return Rect{X: left, Y: top, Width: right - left, Height: bottom - top}
+}
+
+// centred is a rectangle of the scaled size of rect, centred where the centre of
+// rect lands: how a primitive that cannot turn (a shadow, a bitmap) follows a
+// turned element.
+func (transform presenceTransform) centred(rect Rect) Rect {
+	centre := transform.point(Point{X: rect.X + rect.Width/2, Y: rect.Y + rect.Height/2})
+	width, height := rect.Width*transform.scale, rect.Height*transform.scale
+	return Rect{X: centre.X - width/2, Y: centre.Y - height/2, Width: width, Height: height}
 }
 
 func (transform presenceTransform) color(color Color) Color {
@@ -543,10 +594,20 @@ func reverseTriangles(triangles []Triangle) {
 // is not worth one per frame, so a label moves with the overlay but keeps its size.
 func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, progress float32, leaving bool) {
 	transform := presence.transform(pivot, progress, leaving)
+	transform.apply(canvas, open, presence.Fade, presence.Fade && progress < 1)
+}
+
+// apply places and fades everything the canvas painted since open began. fade
+// multiplies every colour by the transform's alpha; vectorize turns rounded
+// border backings into rings first, which a fade that is not complete needs so
+// the backing does not show through the fill.
+func (transform presenceTransform) apply(canvas *Canvas, open presenceOpen, fade, vectorize bool) {
 	moving := transform.scale != 1 || transform.offset != (Point{})
-	fade := presence.Fade
-	if fade && progress < 1 {
+	if vectorize {
 		vectorizeBorderBackings(canvas, open.rectangles)
+	}
+	if transform.turned() {
+		transform.turnRectangles(canvas, open)
 	}
 	for index := open.rectangles; index < len(canvas.rectangles); index++ {
 		rectangle := &canvas.rectangles[index]
@@ -561,7 +622,11 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 	}
 	for index := open.shadows; index < len(canvas.shadows); index++ {
 		shadow := &canvas.shadows[index]
-		shadow.Bounds = transform.rect(shadow.Bounds)
+		if transform.turned() {
+			shadow.Bounds = transform.centred(shadow.Bounds)
+		} else {
+			shadow.Bounds = transform.rect(shadow.Bounds)
+		}
 		shadow.Radius *= transform.scale
 		shadow.Style.OffsetX *= transform.scale
 		shadow.Style.OffsetY *= transform.scale
@@ -593,7 +658,11 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 		if image.Backdrop {
 			continue
 		}
-		image.Bounds = transform.rect(image.Bounds)
+		if transform.turned() {
+			image.Bounds = transform.centred(image.Bounds)
+		} else {
+			image.Bounds = transform.rect(image.Bounds)
+		}
 		image.Radius *= transform.scale
 		if fade {
 			image.Fade = 1 - (1-image.Fade)*transform.alpha
@@ -604,28 +673,32 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 	}
 	for index := open.texts; index < len(canvas.texts); index++ {
 		text := &canvas.texts[index]
-		oldCenter := Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2}
-		center := transform.point(oldCenter)
-		text.Bounds.X, text.Bounds.Y = center.X-text.Bounds.Width/2, center.Y-text.Bounds.Height/2
-		if text.HasQuad {
-			// The quad places the label's picture; the text's size is not
-			// scaled, so move the corners by the centre's delta. Its tints stay
-			// as they are: the fade is already in the label's colour.
-			dx, dy := center.X-oldCenter.X, center.Y-oldCenter.Y
-			for corner := range text.Quad {
-				text.Quad[corner].X += dx
-				text.Quad[corner].Y += dy
+		if transform.turned() || (transform.scale != 1 && transform.scaleText) {
+			transform.warpText(text)
+		} else {
+			oldCenter := Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2}
+			center := transform.point(oldCenter)
+			text.Bounds.X, text.Bounds.Y = center.X-text.Bounds.Width/2, center.Y-text.Bounds.Height/2
+			if text.HasQuad {
+				// The quad places the label's picture; the text's size is not
+				// scaled, so move the corners by the centre's delta. Its tints stay
+				// as they are: the fade is already in the label's colour.
+				dx, dy := center.X-oldCenter.X, center.Y-oldCenter.Y
+				for corner := range text.Quad {
+					text.Quad[corner].X += dx
+					text.Quad[corner].Y += dy
+				}
 			}
-		}
-		if moving {
-			// A moving label's sub-pixel origin changes every frame. Native
-			// text backends key retained textures by it, so keeping the
-			// fraction would rasterize every visible label again on every
-			// frame. Whole-pixel motion leaves the origin at zero; the label
-			// still moves with its panel, and static text keeps its sub-pixel
-			// placement.
-			text.Bounds.X = float32(math.Round(float64(text.Bounds.X)))
-			text.Bounds.Y = float32(math.Round(float64(text.Bounds.Y)))
+			if moving {
+				// A moving label's sub-pixel origin changes every frame. Native
+				// text backends key retained textures by it, so keeping the
+				// fraction would rasterize every visible label again on every
+				// frame. Whole-pixel motion leaves the origin at zero; the label
+				// still moves with its panel, and static text keeps its sub-pixel
+				// placement.
+				text.Bounds.X = float32(math.Round(float64(text.Bounds.X)))
+				text.Bounds.Y = float32(math.Round(float64(text.Bounds.Y)))
+			}
 		}
 		if fade {
 			text.Style.Color = transform.color(text.Style.Color)
@@ -639,4 +712,76 @@ func (presence Presence) apply(canvas *Canvas, open presenceOpen, pivot Point, p
 			canvas.runs[index].Color = transform.color(canvas.runs[index].Color)
 		}
 	}
+}
+
+// warpText places a label's picture in the quad its corners land on: scaled,
+// turned and moved with the element. The box it is rasterised in keeps its size,
+// so the text keeps its layout; a backend that cannot draw text into a quad
+// paints the line axis-aligned where the label's centre went.
+func (transform presenceTransform) warpText(text *Text) {
+	source := text.Quad
+	if !text.HasQuad {
+		left, top, right, bottom := text.Bounds.X, text.Bounds.Y, text.Bounds.X+text.Bounds.Width, text.Bounds.Y+text.Bounds.Height
+		source = [4]Point{{X: left, Y: top}, {X: right, Y: top}, {X: left, Y: bottom}, {X: right, Y: bottom}}
+		white := Color{Red: 1, Green: 1, Blue: 1, Alpha: 1}
+		text.Tint = [4]Color{white, white, white, white}
+		text.HasQuad = true
+	}
+	for corner := range source {
+		text.Quad[corner] = transform.point(source[corner])
+	}
+	centre := transform.point(Point{X: text.Bounds.X + text.Bounds.Width/2, Y: text.Bounds.Y + text.Bounds.Height/2})
+	text.Bounds.X, text.Bounds.Y = centre.X-text.Bounds.Width/2, centre.Y-text.Bounds.Height/2
+}
+
+// turnRectangles replaces the rectangles painted since open began with vector
+// shapes: a rectangle cannot be turned, but its outline, rounded corners
+// included, can, and keeps the order it was painted in among the other
+// primitives. They are placed with the group's triangles afterwards.
+func (transform presenceTransform) turnRectangles(canvas *Canvas, open presenceOpen) {
+	if open.rectangles >= len(canvas.rectangles) {
+		return
+	}
+	shapes := canvas.poseShapes[:0]
+	for _, rectangle := range canvas.rectangles[open.rectangles:] {
+		if rectangle.Color.Alpha <= 0 || rectangle.Bounds.Width <= 0 || rectangle.Bounds.Height <= 0 {
+			continue
+		}
+		canvas.posePoints = appendRoundedRectContour(canvas.posePoints[:0], rectangle.Bounds, rectangle.Radius)
+		centre := Point{X: rectangle.Bounds.X + rectangle.Bounds.Width/2, Y: rectangle.Bounds.Y + rectangle.Bounds.Height/2}
+		points := canvas.posePoints
+		for index := range points {
+			next := points[(index+1)%len(points)]
+			shapes = append(shapes, Triangle{
+				Points: [3]Point{centre, points[index], next}, Color: rectangle.Color, Layer: rectangle.Layer,
+				// Only the outline feathers: the edge between the contour's two points.
+				EdgeMask: 2, ClipOf: rectangle.ClipOf, HasClip: rectangle.HasClip, Order: rectangle.Order,
+			})
+		}
+	}
+	canvas.poseShapes = shapes
+	canvas.rectangles = canvas.rectangles[:open.rectangles]
+	insertTrianglesByOrder(canvas, open.triangles, shapes)
+}
+
+// insertTrianglesByOrder merges shapes, which are in paint order, into the
+// triangles of the group from first on, so that the list stays in paint order.
+func insertTrianglesByOrder(canvas *Canvas, first int, shapes []Triangle) {
+	if len(shapes) == 0 {
+		return
+	}
+	existing := canvas.triangles[first:]
+	merged := canvas.poseMerge[:0]
+	left, right := 0, 0
+	for left < len(existing) || right < len(shapes) {
+		if right >= len(shapes) || (left < len(existing) && existing[left].Order < shapes[right].Order) {
+			merged = append(merged, existing[left])
+			left++
+		} else {
+			merged = append(merged, shapes[right])
+			right++
+		}
+	}
+	canvas.poseMerge = merged
+	canvas.triangles = append(canvas.triangles[:first], merged...)
 }

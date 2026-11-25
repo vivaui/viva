@@ -71,17 +71,38 @@ var (
 )
 
 // fileDataObject is the IDataObject of a drag of files: a pointer to the method
-// table first, as every COM object begins, then the paths it hands out. The
-// drag owns it, so the garbage collector keeps it for as long as the shell may
-// call it.
+// table first, as every COM object begins, then either the paths it hands out or
+// the promises that produce them. The drag owns it, so the garbage collector
+// keeps it for as long as the shell may call it.
 type fileDataObject struct {
 	table *[12]uintptr
 	refs  int32
 	paths []string
+	// promise is the content of a promised drag, nil for a drag of paths.
+	promise *promiseDrag
 	// enums are the enumerators given away. The shell holds them by a pointer
 	// the garbage collector cannot see, so the object keeps them for as long as
 	// the drag it belongs to lives. Only the drag's own thread appends.
 	enums []*fileFormatEnum
+}
+
+// formats is what this object offers a target: the drop list of paths, or a
+// file group descriptor and its per-file contents.
+func (data *fileDataObject) formatCount() int {
+	if data.promise != nil {
+		return 2
+	}
+	return 1
+}
+
+func (data *fileDataObject) formatAt(index int) formatEtc {
+	if data.promise == nil {
+		if index == 0 {
+			return fileFormat()
+		}
+		return formatEtc{}
+	}
+	return data.promise.formatAt(index)
 }
 
 // fileDropSource is the IDropSource of the same drag: what ends it and which
@@ -224,16 +245,25 @@ func dataRelease(this uintptr) uintptr {
 	if data.refs > 0 {
 		data.refs--
 	}
+	if data.refs == 0 && data.promise != nil {
+		unpinPromiseDrag(data)
+	}
 	return uintptr(data.refs)
 }
 
 // dataGetData hands the target a fresh copy of the list: OLE gives the memory to
-// the target, and the next question asks for another.
+// the target, and the next question asks for another. A promised drag hands over
+// its descriptor block, or the stream that produces one file.
 func dataGetData(this, format, medium uintptr) uintptr {
-	if !takesFileFormat(*(*formatEtc)(pointer(format))) {
+	data := dataOf(this)
+	asked := *(*formatEtc)(pointer(format))
+	if data.promise != nil {
+		return data.promiseGetData(asked, medium)
+	}
+	if !takesFileFormat(asked) {
 		return dvEFormatEtc
 	}
-	handle, err := dropListHandle(dataOf(this).paths)
+	handle, err := dropListHandle(data.paths)
 	if err != nil {
 		return eFail
 	}
@@ -244,7 +274,15 @@ func dataGetData(this, format, medium uintptr) uintptr {
 func dataGetDataHere(this, format, medium uintptr) uintptr { return eNotImpl }
 
 func dataQueryGetData(this, format uintptr) uintptr {
-	if !takesFileFormat(*(*formatEtc)(pointer(format))) {
+	data := dataOf(this)
+	asked := *(*formatEtc)(pointer(format))
+	if data.promise != nil {
+		if data.promise.takes(asked) {
+			return sOK
+		}
+		return dvEFormatEtc
+	}
+	if !takesFileFormat(asked) {
 		return dvEFormatEtc
 	}
 	return sOK
@@ -341,16 +379,21 @@ func enumRelease(this uintptr) uintptr {
 
 func enumNext(this, count, formats, fetched uintptr) uintptr {
 	enum := enumOf(this)
+	total := 0
+	if enum.owner != nil {
+		total = enum.owner.formatCount()
+	}
+	asked := uint32(count)
 	given := uint32(0)
-	if asked := uint32(count); asked > 0 && enum.at == 0 {
-		*(*formatEtc)(pointer(formats)) = fileFormat()
-		enum.at = 1
-		given = 1
+	for given < asked && int(enum.at) < total {
+		*(*formatEtc)(unsafe.Add(pointer(formats), int(given)*int(unsafe.Sizeof(formatEtc{})))) = enum.owner.formatAt(int(enum.at))
+		enum.at++
+		given++
 	}
 	if fetched != 0 {
 		*(*uint32)(pointer(fetched)) = given
 	}
-	if given != uint32(count) {
+	if given != asked {
 		return sFalse
 	}
 	return sOK
@@ -361,11 +404,18 @@ func enumSkip(this, count uintptr) uintptr {
 	if uint32(count) == 0 {
 		return sOK
 	}
+	total := 0
+	if enum.owner != nil {
+		total = enum.owner.formatCount()
+	}
 	// Skipping past the end moves to the end and reports S_FALSE, as the
 	// enumerator contract asks, when fewer formats remain than were asked for.
-	left := 1 - enum.at
-	enum.at = 1
-	if uint32(count) > left {
+	left := total - int(enum.at)
+	if left < 0 {
+		left = 0
+	}
+	enum.at = uint32(total)
+	if uint32(count) > uint32(left) {
 		return sFalse
 	}
 	return sOK
@@ -388,25 +438,23 @@ func enumClone(this, out uintptr) uintptr {
 
 // StartFileDrag takes files out of the application's active window, as a file
 // manager does when the user drags a selection to another window: the drag lasts
-// until the pointer is released or Escape is pressed, and the effect the target
-// took is returned, DragEffectNone when it took nothing.
+// until the pointer is released or Escape is pressed.
 //
-// allowed is the mask of effects the application offers; a target that takes one
-// of them reports it. It is called on the event-loop thread, from the handler of
-// the pointer event that starts the drag, and does not return until the drag has
-// ended. The files are read while the drop happens, so they must still exist
-// where they were when the user lets go.
-func StartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEffect, error) {
+// allowed is the mask of effects the application offers. It is called on the
+// event-loop thread, from the handler of the pointer event that starts the drag,
+// and does not return until the drag has ended. The files are read while the
+// drop happens, so they must still exist where they were when the user lets go.
+func StartFileDrag(paths []string, allowed platform.DragEffect) error {
 	state := active.Load()
 	if state == nil || state.window == 0 {
-		return platform.DragEffectNone, fmt.Errorf("windows: no window to drag files out of")
+		return fmt.Errorf("windows: no window to drag files out of")
 	}
 	thread, _, _ := getCurrentThread.Call()
 	if uint32(thread) != state.application.thread {
-		return platform.DragEffectNone, fmt.Errorf("windows: files are dragged out on the event-loop thread that owns the window")
+		return fmt.Errorf("windows: files are dragged out on the event-loop thread that owns the window")
 	}
 	if len(paths) == 0 {
-		return platform.DragEffectNone, fmt.Errorf("windows: no files to drag out of the window")
+		return fmt.Errorf("windows: no files to drag out of the window")
 	}
 	// DoDragDrop needs OLE, which CoInitializeEx does not set up: the drag-and-drop
 	// services answer CO_E_NOTINITIALIZED until OleInitialize has run on the
@@ -414,7 +462,7 @@ func StartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEf
 	// and closeOLE gives it back once.
 	if !state.application.oleReady {
 		if status, _, _ := oleInitialize.Call(0); int32(uint32(status)) < 0 {
-			return platform.DragEffectNone, hresult(status)
+			return hresult(status)
 		}
 		state.application.oleReady = true
 	}
@@ -444,8 +492,9 @@ func StartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEf
 	if uint32(status) == dragdropSDrop || uint32(status) == dragdropSCancel {
 		postMessage.Call(state.window, wmDragEnded, 0, 0)
 	}
-	if err := hresult(status); err != nil {
-		return platform.DragEffectNone, err
-	}
-	return platform.DragEffectOf(allowed, platform.DragEffect(effect)), nil
+	return hresult(status)
 }
+
+// StartFilePromiseDrag takes files out of the application's active window whose
+// content the application produces when the target reads it. It lives in
+// drag_promise_windows.go with the COM objects that serve it.

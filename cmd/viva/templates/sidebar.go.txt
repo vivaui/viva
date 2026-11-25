@@ -182,7 +182,7 @@ func PaintSidebarInset(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, sid
 	if card.Width <= 0 || card.Height <= 0 {
 		return gfx.Rect{}
 	}
-	canvas.Rounded(card, theme.Metrics.RadiusSurface+4, theme.Background)
+	canvas.Rounded(card, gfx.RadiusOutset(theme.Metrics.RadiusSurface, 4), theme.Background)
 	return card
 }
 

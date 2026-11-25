@@ -27,6 +27,7 @@ const maxDroppedURIs = 4096
 type xdndAtoms struct {
 	aware, enter, position, status, leave, drop, finished  uint32
 	selection, actionCopy, typeList, uriList, dropProperty uint32
+	proxy                                                  uint32
 }
 
 // xdndDrag is the drag in progress, as the source has told so far.

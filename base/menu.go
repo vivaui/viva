@@ -593,6 +593,14 @@ func (item MenuItem) Clicked() bool {
 	return true
 }
 
+// Toggled is Clicked for a setting that stays on screen: the menu stays open, so
+// several checkboxes can be changed before it is dismissed.
+func (item MenuItem) Toggled() bool {
+	m := item.menu
+	canvas := m.f.Surface
+	return canvas != nil && !m.Items[item.i].disabled && !m.Items[item.i].submenu && canvas.Clicked(m.scope.At(MenuRowsPart+item.i))
+}
+
 // draw paints the open menu in the popup the page placed for it.
 func (m *MenuItems) draw(d *DrawContext) {
 	m.paintAt(d.Canvas, d.Theme, d.Rect, max(m.layer, m.f.popupLayer))

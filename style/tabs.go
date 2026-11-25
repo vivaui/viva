@@ -25,5 +25,5 @@ func TabsGeometry(m gfx.Metrics) (listHeight, listPadding, triggerHeight, trigge
 
 // TabsListRadius is the corner radius of the strip behind its triggers, and
 // TabsTriggerRadius the radius of one trigger's surface.
-func TabsListRadius(m gfx.Metrics) float32    { return m.RadiusControl + 2 }
+func TabsListRadius(m gfx.Metrics) float32    { return gfx.RadiusOutset(m.RadiusControl, 2) }
 func TabsTriggerRadius(m gfx.Metrics) float32 { return m.RadiusControl }

@@ -79,9 +79,12 @@ func listenToClipboard(window uintptr) error {
 	return nil
 }
 
-// forgetClipboardListener drops a window that is being destroyed: Windows removes it from the
-// listener list itself.
-func forgetClipboardListener(window uintptr) { clipboardListeners.Delete(window) }
+// forgetClipboardListener removes a window that is being destroyed from the clipboard format listener list.
+func forgetClipboardListener(window uintptr) {
+	if _, ok := clipboardListeners.LoadAndDelete(window); ok {
+		removeClipboardFormatListener.Call(window)
+	}
+}
 
 // notifyClipboardChange runs in the window procedure.
 func notifyClipboardChange() {

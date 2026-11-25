@@ -55,6 +55,17 @@ func (m Metrics) RadiusItem() float32 { return max(m.RadiusControl-2, 0) }
 // dialog or card surface (RadiusSurface).
 func (m Metrics) RadiusPopup() float32 { return max(m.RadiusSurface-1, 0) }
 
+// RadiusOutset is the corner radius of a shape that stands by pixels outside one
+// of radius: a focus ring, a surface with a border around it, or a card larger
+// than a control. A square corner has nothing to follow and stays square, so a
+// theme whose radii are zero is square throughout and not rounded by the offsets.
+func RadiusOutset(radius, by float32) float32 {
+	if radius <= 0 {
+		return 0
+	}
+	return radius + by
+}
+
 // RadiusFull is a corner radius no control is tall enough to reach: every
 // rounded shape clamps its radius to half its shorter side, so this makes a
 // pill (or a circle, on a square) of whatever it is given to.

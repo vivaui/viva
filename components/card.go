@@ -42,7 +42,7 @@ func PaintCard(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, options Car
 	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
 		return CardLayout{}
 	}
-	radius := theme.Metrics.RadiusSurface + 4
+	radius := gfx.RadiusOutset(theme.Metrics.RadiusSurface, 4)
 	ring := theme.Foreground
 	ring.Alpha *= 0.10
 	canvas.Elevate(bounds, radius, gfx.ShadowXS) // shadow-xs
