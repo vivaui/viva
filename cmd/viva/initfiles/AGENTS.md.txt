@@ -131,6 +131,8 @@ func (m *model) page(c ui.C) {
   `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
   then `m.tree.Toggled()` (open or close that branch, give the tree its new rows) and `m.tree.Chosen()`.
+  To load a branch's children on demand, answer `Toggled()` by fetching and set `TreeNode.Loading` on that row
+  until they arrive: it shows a spinner in place of the chevron and takes no second press.
   Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
   where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
