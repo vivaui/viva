@@ -75,3 +75,13 @@ func (label LabelPainter) Paint(text string) {
 		})
 	}
 }
+
+// labelEllipsis keeps the complete value alongside the fitted label. Its
+// control may declare its hit after painting; that hit still owns the pointer.
+func labelEllipsis(canvas *gfx.Canvas, value string, bounds gfx.Rect, style gfx.TextStyle, target gfx.ID) {
+	shown := canvas.FitLine(value, style.Size, style.Weight, bounds.Width)
+	canvas.Label(shown, bounds, style)
+	if shown != "" && shown != value {
+		canvas.HoverHint(0, bounds, value, target)
+	}
+}

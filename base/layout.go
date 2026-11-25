@@ -84,6 +84,7 @@ func (f *Frame) measure(axis int) {
 			f.measureLeaf(n)
 		}
 		if n.Kind == kindText && n.Flags&flagWrap != 0 && axis == AxisY {
+			n.TextDecor &^= textTruncated
 			first := int32(len(f.Lines))
 			// An empty text has no line at all, as WrapLines gives it none; anything
 			// else that fits is one line and needs no breaking.

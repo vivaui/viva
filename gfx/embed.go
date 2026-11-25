@@ -142,7 +142,31 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 
 	scope := canvas.currentFocusScope()
 	tree := canvas.Tree()
-	for _, hit := range child.hits {
+	hintIndex := 0
+	appendHints := func(before int) {
+		for hintIndex < len(child.hoverHints) && int(child.hoverHints[hintIndex].hitAt) <= before {
+			hint := child.hoverHints[hintIndex]
+			hintIndex++
+			hint.Owner = tree.Mount(mount, hint.Owner)
+			hint.target = tree.MountID(mount, hint.target)
+			hint.Bounds = translateRect(hint.Bounds, origin)
+			if hasOuter {
+				hint.Bounds = intersectCanvasRect(hint.Bounds, outer)
+			}
+			if hint.scope.IsZero() {
+				hint.scope = scope
+			} else {
+				hint.scope = tree.MountID(mount, hint.scope)
+			}
+			hint.layer += layer
+			hint.hitAt = uint32(len(canvas.hits))
+			if hint.Bounds.Width > 0 && hint.Bounds.Height > 0 {
+				canvas.hoverHints = append(canvas.hoverHints, hint)
+			}
+		}
+	}
+	for index, hit := range child.hits {
+		appendHints(index)
 		hit.Bounds = translateRect(hit.Bounds, origin)
 		hit.Layer += layer
 		if hasOuter {
@@ -169,6 +193,7 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 		}
 		canvas.hits = append(canvas.hits, hit)
 	}
+	appendHints(len(child.hits))
 
 	if child.motion.animating {
 		canvas.motion.animating = true

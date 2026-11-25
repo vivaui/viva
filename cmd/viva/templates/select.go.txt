@@ -355,9 +355,9 @@ func (selectControl Select) paintTrigger() {
 			if options.Weight > 0 {
 				weight = options.Weight
 			}
-			canvas.Label(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+			labelEllipsis(canvas, value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 				Size: textSize, Weight: weight, Color: foreground,
-			})
+			}, options.TriggerID)
 		}
 		paintChevron(canvas, &chevronDownIcon, gfx.Rect{X: bounds.X + bounds.Width - chevronSpan, Y: bounds.Y, Width: selectIconSize, Height: bounds.Height}, chevron)
 	}
@@ -386,9 +386,9 @@ func (selectControl *Select) paintItem(bounds gfx.Rect, item SelectItem) {
 			textX += SelectIconSpan
 			textWidth -= SelectIconSpan
 		}
-		selectControl.canvas.Label(item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+		labelEllipsis(selectControl.canvas, item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 			Size: selectControl.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
-		})
+		}, item.ID)
 		if item.Selected {
 			paintCheck(selectControl.canvas, gfx.Rect{X: bounds.X + bounds.Width - 24, Y: bounds.Y, Width: 14, Height: bounds.Height}, 14, foreground)
 		}

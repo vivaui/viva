@@ -134,7 +134,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 		if query == "" && !open {
 			detail = s.Detail(s.ValueText)
 		}
-		paintLabelAndDetail(canvas, theme, layout.Input.X, layout.Input.Y, layout.Input.Width, layout.Input.Height, display, detail, color, o.Disabled)
+		paintLabelAndDetail(canvas, theme, layout.Input.X, layout.Input.Y, layout.Input.Width, layout.Input.Height, display, detail, color, o.Disabled, o.InputID)
 	}
 	accessibleValue := query
 	if accessibleValue == "" {
@@ -240,7 +240,7 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 			if content := choice.Content; content.Paint != nil {
 				content.Paint(canvas, gfx.Rect{X: left, Y: row.Y, Width: labelWidth, Height: row.Height}, theme)
 			} else {
-				paintLabelAndDetail(canvas, theme, left, row.Y, labelWidth, row.Height, label, choice.Detail, color, choice.Disabled)
+				paintLabelAndDetail(canvas, theme, left, row.Y, labelWidth, row.Height, label, choice.Detail, color, choice.Disabled, id)
 			}
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
@@ -261,21 +261,21 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 
 // paintLabelAndDetail paints a label in the width it has and, after it, the muted detail in
 // what is left, as Combobox rows did: the label keeps what it needs up to all but 40 pixels.
-func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, height float32, label, detail string, color gfx.Color, disabled bool) {
+func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, height float32, label, detail string, color gfx.Color, disabled bool, target gfx.ID) {
 	sizeM, sizeS := theme.Metrics.FontSizeM, theme.Metrics.FontSizeS
 	if detail == "" {
-		canvas.Label(canvas.FitLine(label, sizeM, gfx.WeightRegular, width), gfx.Rect{X: x, Y: y, Width: width, Height: height}, gfx.TextStyle{Size: sizeM, Color: color})
+		labelEllipsis(canvas, label, gfx.Rect{X: x, Y: y, Width: width, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
 		return
 	}
 	labelWidth := min(canvas.TextWidthWeight(label, sizeM, gfx.WeightRegular), max(width-40, 0))
-	canvas.Label(canvas.FitLine(label, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: x, Y: y, Width: labelWidth, Height: height}, gfx.TextStyle{Size: sizeM, Color: color})
+	labelEllipsis(canvas, label, gfx.Rect{X: x, Y: y, Width: labelWidth, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
 	detailX := x + labelWidth + singleSelectDetailGap
 	if detailWidth := max(x+width-detailX, 0); detailWidth > 0 {
 		muted := theme.MutedForeground
 		if disabled {
 			muted.Alpha *= .5
 		}
-		canvas.Label(canvas.FitLine(detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted})
+		labelEllipsis(canvas, detail, gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted}, target)
 	}
 }
 

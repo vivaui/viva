@@ -9,6 +9,27 @@ import (
 // popovers, menus and dialogs.
 const TooltipLayer = 1000
 
+// OverflowTooltip supplies the complete value when an application shortened
+// the displayed text itself, possibly across several highlighted labels. Call
+// it only when content was omitted. Unlike Tooltip it declares no control and
+// leaves the enclosing row's pointer, focus and accessibility unchanged. Text
+// truncated by Ellipsis or MaxLines supplies its complete value automatically.
+func (b Box) OverflowTooltip(text string) Box {
+	b.f.Extra(b.i).overflowTip = text
+	return b
+}
+
+// HoveredText returns this page's visible truncation hint under the pointer.
+func (p *Page) HoveredText() gfx.HoverHint {
+	if p == nil || !p.pointerIn || p.View.Frame == nil || p.View.Frame.Surface == nil {
+		return gfx.HoverHint{}
+	}
+	return p.View.Frame.Surface.HoverHintAt(p.root, p.pointer.X, p.pointer.Y)
+}
+
+// PointerDown reports a held pointer button, including a press on plain text.
+func (p *Page) PointerDown() bool { return p != nil && p.pointerDown }
+
 // Tooltip names what the element does in a tip that appears beside it while the
 // pointer rests on it, and is its description for assistive technology: what an
 // icon-only button needs. The tip hides on a press and stays hidden until the

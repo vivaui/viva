@@ -226,7 +226,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 			}
 			paintChevron(canvas, &hierarchyLeftIcon, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: 16, Height: bounds.Height}, look.Foreground)
 			text := gfx.Rect{X: bounds.X + 32, Y: bounds.Y, Width: max(bounds.Width-40, 0), Height: bounds.Height}
-			canvas.Label(canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, text.Width), text, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: look.Foreground})
+			labelEllipsis(canvas, label, text, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: look.Foreground}, o.OptionIDs.At(hierarchyBackIndex))
 			canvas.HitWithOptions(o.OptionIDs.At(hierarchyBackIndex), bounds, label, gfx.HitOptions{Role: gfx.RoleButton, Description: m.Nodes[parent].Path, SkipFocus: true})
 			menu.top += bounds.Height
 			menu.viewHeight = max(menu.viewHeight-bounds.Height, 0)
@@ -261,7 +261,7 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 					reserve += 16
 				}
 				labelWidth := max(rowBounds.Width-reserve, 0)
-				canvas.Label(canvas.FitLine(info.Name, theme.Metrics.FontSizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: rowBounds.X + 8, Y: rowBounds.Y, Width: labelWidth, Height: rowBounds.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+				labelEllipsis(canvas, info.Name, gfx.Rect{X: rowBounds.X + 8, Y: rowBounds.Y, Width: labelWidth, Height: rowBounds.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color}, id)
 				switch {
 				case info.Count > 0 && rowBounds.Width >= reserve:
 					chevron := &chevronRightIcon
@@ -323,7 +323,7 @@ func paintAction(m *HierarchyMenuState, menu *menuSurface, action HierarchyMenuA
 		}
 		color := look.Foreground
 		label := gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-16, 0), Height: row.Height}
-		canvas.Label(canvas.FitLine(action.Label, theme.Metrics.FontSizeM, gfx.WeightRegular, label.Width), label, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+		labelEllipsis(canvas, action.Label, label, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color}, action.ID)
 		row.Width = max(row.Width-menu.hitInset, 0)
 		canvas.HitWithOptions(action.ID, row, action.Label, gfx.HitOptions{Role: gfx.RoleMenuItem, Disabled: action.Disabled, SkipFocus: true})
 	})

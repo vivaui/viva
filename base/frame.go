@@ -219,6 +219,7 @@ type Extra struct {
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
 	Draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
+	overflowTip   string           // full text already shortened by the application
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
@@ -426,6 +427,10 @@ func (f *Frame) End() {
 	f.reportScrolls()
 	f.Scrolls.sweep()
 	f.reportSplitters()
+	if f.page != nil {
+		previous := f.Surface.SetHoverHintOwner(f.page.root)
+		defer f.Surface.SetHoverHintOwner(previous)
+	}
 	f.PaintChild(0)
 	f.raiseOverNativeViews()
 	if f.popupLayer != 0 {
@@ -437,8 +442,8 @@ func (f *Frame) End() {
 	if f.popupLayer != 0 {
 		f.Surface.PopLayer()
 	}
-	if f.tooltips {
-		f.paintTooltipFn(f)
+	if f.tooltips || f.page != nil {
+		f.paintTooltip()
 	} else if f.paintTooltipFn != nil {
 		f.tooltip = nil
 	}

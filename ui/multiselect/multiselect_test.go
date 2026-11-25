@@ -1,6 +1,7 @@
 package multiselect_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/app"
@@ -10,6 +11,42 @@ import (
 	"github.com/vivaui/viva/ui/multiselect"
 	"github.com/vivaui/viva/window"
 )
+
+func TestEllipsizedChipKeepsItsFullLabelAndRemoveButton(t *testing.T) {
+	h := open(t)
+	const full = "Development-with-a-complete-long-name"
+	h.state.SetOptions([]base.MultiSelectOption{{Value: "dev", Label: full}})
+	h.state.SetValues([]string{"dev"})
+	h.repaint()
+	var text gfx.Rect
+	for _, label := range h.drv.Snapshot().Labels {
+		if strings.HasSuffix(label.Value, "…") {
+			text = label.Bounds
+			break
+		}
+	}
+	if text.Width == 0 {
+		t.Fatal("the selected chip did not ellipsize")
+	}
+	if err := h.drv.Move(text.X+2, text.Y+text.Height/2); err != nil {
+		t.Fatal(err)
+	}
+	var tip string
+	for _, label := range h.drv.Snapshot().Labels {
+		if label.Layer == ui.TooltipLayer {
+			tip += label.Value
+		}
+	}
+	if tip != full {
+		t.Fatalf("chip tooltip %q, want %q", tip, full)
+	}
+	if err := h.drv.Click(center(h.hit(h.rem.At(0)).Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.state.Values()) != 0 {
+		t.Fatal("the text hint intercepted the remove button")
+	}
+}
 
 type harness struct {
 	t     *testing.T

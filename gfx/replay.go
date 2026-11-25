@@ -22,6 +22,7 @@ import "slices"
 // or ends.
 type Mark struct {
 	rectangles, triangles, shadows, images, texts, runs, hits, hitTexts, nativeViews uint32
+	hoverHints                                                                       uint32
 	// epoch is the paint the mark was taken in.
 	epoch uint32
 	// The clip, layer and focus scope in effect at the mark: what everything the
@@ -56,6 +57,7 @@ func (canvas *Canvas) Mark() Mark {
 		shadows: uint32(len(canvas.shadows)), images: uint32(len(canvas.images)),
 		texts: uint32(len(canvas.texts)), runs: uint32(len(canvas.runs)),
 		hits: uint32(len(canvas.hits)), hitTexts: uint32(len(canvas.hitTexts)),
+		hoverHints:  uint32(len(canvas.hoverHints)),
 		nativeViews: uint32(len(canvas.nativeViews)),
 		epoch:       canvas.previous.epoch, layer: canvas.currentLayer(), scope: canvas.currentFocusScope(),
 	}
@@ -135,6 +137,10 @@ func (canvas *Canvas) ReplayAt(span Span, dx, dy float32) (Span, bool) {
 		}
 	}
 	canvas.nativeViews = append(canvas.nativeViews, old.nativeViews[f.nativeViews:t.nativeViews]...)
+	for _, hint := range old.hoverHints[f.hoverHints:t.hoverHints] {
+		hint.hitAt = uint32(int64(hint.hitAt) + int64(from.hits) - int64(f.hits))
+		canvas.hoverHints = append(canvas.hoverHints, hint)
+	}
 	if dx != 0 || dy != 0 {
 		canvas.moveSince(from, dx, dy)
 	}
@@ -230,6 +236,9 @@ func (canvas *Canvas) moveSince(from Mark, dx, dy float32) {
 	for i := from.nativeViews; i < uint32(len(canvas.nativeViews)); i++ {
 		canvas.nativeViews[i].Bounds = canvas.nativeViews[i].Bounds.Offset(dx, dy)
 	}
+	for i := from.hoverHints; i < uint32(len(canvas.hoverHints)); i++ {
+		canvas.hoverHints[i].Bounds = canvas.hoverHints[i].Bounds.Offset(dx, dy)
+	}
 }
 
 // Rewind takes back everything painted since to, in this paint: a part that is
@@ -240,13 +249,14 @@ func (canvas *Canvas) Rewind(to Mark) bool {
 	if to.epoch != canvas.previous.epoch || int(to.rectangles) > len(canvas.rectangles) || int(to.triangles) > len(canvas.triangles) ||
 		int(to.shadows) > len(canvas.shadows) || int(to.images) > len(canvas.images) || int(to.texts) > len(canvas.texts) ||
 		int(to.runs) > len(canvas.runs) || int(to.hits) > len(canvas.hits) || int(to.hitTexts) > len(canvas.hitTexts) ||
-		int(to.nativeViews) > len(canvas.nativeViews) {
+		int(to.nativeViews) > len(canvas.nativeViews) || int(to.hoverHints) > len(canvas.hoverHints) {
 		return false
 	}
 	clear(canvas.texts[to.texts:]) // their strings are not kept past the rewind
 	clear(canvas.hits[to.hits:])
 	clear(canvas.hitTexts[to.hitTexts:])
 	clear(canvas.images[to.images:])
+	clear(canvas.hoverHints[to.hoverHints:])
 	canvas.rectangles = canvas.rectangles[:to.rectangles]
 	canvas.triangles = canvas.triangles[:to.triangles]
 	canvas.shadows = canvas.shadows[:to.shadows]
@@ -256,6 +266,7 @@ func (canvas *Canvas) Rewind(to Mark) bool {
 	canvas.hits = canvas.hits[:to.hits]
 	canvas.hitTexts = canvas.hitTexts[:to.hitTexts]
 	canvas.nativeViews = canvas.nativeViews[:to.nativeViews]
+	canvas.hoverHints = canvas.hoverHints[:to.hoverHints]
 	kept := canvas.motion.hitMotions[:0]
 	for _, entry := range canvas.motion.hitMotions {
 		if entry.index < int(to.hits) {
@@ -328,6 +339,7 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 	scratch.hits = append(scratch.hits, canvas.hits[:span.from.hits]...)
 	scratch.hitTexts = append(scratch.hitTexts, canvas.hitTexts[:span.from.hitTexts]...)
 	scratch.nativeViews = append(scratch.nativeViews, canvas.nativeViews[:span.from.nativeViews]...)
+	scratch.hoverHints = append(scratch.hoverHints, canvas.hoverHints[:span.from.hoverHints]...)
 	prev.from.clip, prev.from.clipped, prev.from.layer, prev.from.scope = span.from.clip, span.from.clipped, span.from.layer, span.from.scope
 	copied, ok := scratch.ReplayAt(prev, dx, dy)
 	if !ok {
@@ -341,6 +353,7 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 		slices.Equal(canvas.runs[span.from.runs:span.to.runs], scratch.runs[copied.from.runs:]) &&
 		slices.EqualFunc(canvas.hits[span.from.hits:span.to.hits], scratch.hits[copied.from.hits:copied.to.hits], sameHit) &&
 		slices.Equal(canvas.hitTexts[span.from.hitTexts:span.to.hitTexts], scratch.hitTexts[copied.from.hitTexts:copied.to.hitTexts]) &&
+		slices.Equal(canvas.hoverHints[span.from.hoverHints:span.to.hoverHints], scratch.hoverHints[copied.from.hoverHints:copied.to.hoverHints]) &&
 		slices.Equal(canvas.nativeViews[span.from.nativeViews:span.to.nativeViews], scratch.nativeViews[copied.from.nativeViews:])
 }
 
@@ -372,6 +385,7 @@ type primitiveLists struct {
 	texts       []Text
 	runs        []TextRun
 	hits        []Hit
+	hoverHints  []HoverHint
 	hitTexts    []HitText
 	nativeViews []NativeView
 }
@@ -413,6 +427,9 @@ func (lists *primitiveLists) extent(span Span) (Rect, bool) {
 	for _, v := range lists.nativeViews[f.nativeViews:t.nativeViews] {
 		grow(v.Bounds)
 	}
+	for _, hint := range lists.hoverHints[f.hoverHints:t.hoverHints] {
+		grow(hint.Bounds)
+	}
 	return out, have
 }
 
@@ -421,7 +438,8 @@ func (lists *primitiveLists) holds(span Span) bool {
 	return int(t.rectangles) <= len(lists.rectangles) && int(t.triangles) <= len(lists.triangles) &&
 		int(t.shadows) <= len(lists.shadows) && int(t.images) <= len(lists.images) &&
 		int(t.texts) <= len(lists.texts) && int(t.runs) <= len(lists.runs) &&
-		int(t.hits) <= len(lists.hits) && int(t.hitTexts) <= len(lists.hitTexts) && int(t.nativeViews) <= len(lists.nativeViews)
+		int(t.hits) <= len(lists.hits) && int(t.hitTexts) <= len(lists.hitTexts) && int(t.nativeViews) <= len(lists.nativeViews) &&
+		int(t.hoverHints) <= len(lists.hoverHints)
 }
 
 // previousPaint is the previous paint's lists, kept for Replay, and the number of
@@ -435,7 +453,7 @@ type previousPaint struct {
 
 // canvasTails is how long each pointer-holding list of a paint was when the
 // canvas last trimmed it: what lies past its length up to there is stale.
-type canvasTails struct{ images, texts, hits, hitTexts, nativeViews int }
+type canvasTails struct{ images, texts, hits, hitTexts, nativeViews, hoverHints int }
 
 // releaseTail clears items[len(items):*end], what an earlier paint held past this
 // one's length, and records this length. Everything past it was cleared before,
@@ -464,6 +482,7 @@ func (canvas *Canvas) rotate() {
 	canvas.hits, old.hits = old.hits[:0], canvas.hits
 	canvas.hitTexts, old.hitTexts = old.hitTexts[:0], canvas.hitTexts
 	canvas.nativeViews, old.nativeViews = old.nativeViews[:0], canvas.nativeViews
+	canvas.hoverHints, old.hoverHints = old.hoverHints[:0], canvas.hoverHints
 	canvas.tails, canvas.previous.tails = canvas.previous.tails, canvas.tails
 }
 
@@ -480,4 +499,5 @@ func (canvas *Canvas) trimPrevious() {
 	old.hits = trimCapacity(old.hits)
 	old.hitTexts = trimCapacity(old.hitTexts)
 	old.nativeViews = trimCapacity(old.nativeViews)
+	old.hoverHints = trimCapacity(old.hoverHints)
 }

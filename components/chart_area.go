@@ -502,8 +502,7 @@ func chartBeginFrame(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, spec 
 			// Edge ticks remain anchored to their data, but their labels must
 			// fit inside the chart container rather than spill into a neighbor.
 			x := min(max(plot.X+frac*plot.Width-width/2, area.X), area.X+area.Width-width)
-			text = canvas.FitLine(text, fontSize, gfx.WeightRegular, width)
-			canvas.Label(text, gfx.Rect{X: x, Y: plot.Y + plot.Height + chartAxisGap*scale, Width: width, Height: rowHeight}, labelStyle)
+			labelEllipsis(canvas, text, gfx.Rect{X: x, Y: plot.Y + plot.Height + chartAxisGap*scale, Width: width, Height: rowHeight}, labelStyle, gfx.ID{})
 		}
 	}
 	return chartFrame{layout: layout, plot: ChartPlot{ChartLayout: layout, Plot: plot, geo: geo}, scale: scale}

@@ -179,6 +179,10 @@ func (f *Frame) PaintChild(i int32) {
 		}
 	}
 
+	if extra.overflowTip != "" && f.page != nil {
+		canvas.HoverHint(f.page.root, r, extra.overflowTip, n.ID)
+	}
+
 	// A Text and an Icon draw with their color, which is the one the looks give.
 	color := n.Color
 	n.Color = fade(style.Color, f.Opacity)
@@ -378,6 +382,10 @@ func (f *Frame) paintText(n *Node) {
 			if n.TextDecor&textStrike != 0 {
 				f.paintStrike(line, bounds, style, alignment)
 			}
+		}
+		if n.TextDecor&textTruncated != 0 && f.page != nil && f.Exts[n.Ext].overflowTip == "" {
+			r.Height = min(r.Height, float32(n.LineCount)*lh)
+			f.Surface.HoverHint(f.page.root, r, n.Text)
 		}
 		return
 	}

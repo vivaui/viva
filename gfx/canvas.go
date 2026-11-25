@@ -696,6 +696,9 @@ type Canvas struct {
 	texts       []Text
 	runs        []TextRun
 	hits        []Hit
+	hoverHints  []HoverHint
+
+	hoverHintOwner Scope
 	// hitTexts holds the text geometry of the hits that declared any, in
 	// declaration order; Hit.Text is one more than the entry's index.
 	hitTexts     []HitText
@@ -1030,6 +1033,8 @@ func (canvas *Canvas) Reset() {
 	canvas.texts = canvas.texts[:0]
 	canvas.runs = canvas.runs[:0]
 	canvas.hits = canvas.hits[:0]
+	canvas.hoverHints = canvas.hoverHints[:0]
+	canvas.hoverHintOwner = 0
 	canvas.hitTexts = canvas.hitTexts[:0]
 	canvas.clips = canvas.clips[:0]
 	canvas.overlayClips = canvas.overlayClips[:0]
@@ -1078,6 +1083,7 @@ func (canvas *Canvas) Trim() {
 	releaseTail(canvas.images, &canvas.tails.images)
 	releaseTail(canvas.texts, &canvas.tails.texts)
 	releaseTail(canvas.hits, &canvas.tails.hits)
+	releaseTail(canvas.hoverHints, &canvas.tails.hoverHints)
 	releaseTail(canvas.hitTexts, &canvas.tails.hitTexts)
 	releaseTail(canvas.nativeViews, &canvas.tails.nativeViews)
 	canvas.rectangles = trimCapacity(canvas.rectangles)
@@ -1088,6 +1094,7 @@ func (canvas *Canvas) Trim() {
 	canvas.texts = trimCapacity(canvas.texts)
 	canvas.runs = trimCapacity(canvas.runs)
 	canvas.hits = trimCapacity(canvas.hits)
+	canvas.hoverHints = trimCapacity(canvas.hoverHints)
 	canvas.hitTexts = trimCapacity(canvas.hitTexts)
 	canvas.clips = trimCapacity(canvas.clips)
 	canvas.overlayClips = trimCapacity(canvas.overlayClips)
