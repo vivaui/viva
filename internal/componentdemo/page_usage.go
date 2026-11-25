@@ -91,7 +91,7 @@ ui.Table(c, &m.table, ui.TableSpec{
 	"aspect-ratio":      `aspectratio.View(c, "16:9 release preview", m.media, func() { ui.Text(c, "16:9 release preview").Muted() })`,
 	"attachment":        `m.attachment.View(c, "product-demo.mov").FillWidth()`,
 	"avatar":            `m.avatar.View(c, "Skyler").Size(64, 64)`,
-	"breadcrumb":        `ui.Row(c).Gap(6).Items(ui.Center).Children(func() { ui.Text(c, "Workspace").Muted(); ui.Text(c, "›").Muted(); ui.Text(c, "Preview") })`,
+	"breadcrumb":        `m.path.View(c, "Location", breadcrumb.Spec{Items: m.places, Max: 4})`,
 	"button-group":      `m.buttonGroup.View(c, "Text alignment").FillWidth()`,
 	"command":           `command.View(c, "Command", &m.command).FillWidth().Height(220)`,
 	"icon-hover":        `id := ui.ID(c); ui.Icon(c, m.moreIcon).Size(24, 24).Hit(id, "More actions").BindIconHover(ui.BindIconHover(&m.iconHover, id))`,

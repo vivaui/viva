@@ -73,7 +73,7 @@ var pageSource = map[string]string{
 	"aspect-ratio":      "ui/aspectratio/aspectratio.go",
 	"attachment":        "ui/attachment/attachment.go",
 	"avatar":            "ui/avatar/avatar.go",
-	"breadcrumb":        "base/elements.go",
+	"breadcrumb":        "ui/breadcrumb/breadcrumb.go",
 	"button-group":      "ui/buttongroup/buttongroup.go",
 	"command":           "ui/command/command.go",
 	"icon-hover":        "base/icon_motion.go",
