@@ -501,17 +501,16 @@ func (m *model) page(c ui.C) {
   from the state when the spec leaves them zero:
 
   ```go
-  columns := []components.TableColumn{
-      {Width: 160},
-      {}, // no width: the last column takes the rest
+  columns := []ui.TableColumn{
+      {Title: "Name", Width: 160, Sortable: true},
+      {Title: "Age", Sortable: true}, // no width: the last column takes the rest
   }
-  t := ui.Table(c, &m.table, ui.TableSpec{Headers: []string{"Name", "Age"},
-      Sortable: []bool{true, true}, Source: &m.data, Striped: true, Columns: columns})
+  t := ui.Table(c, &m.table, ui.TableSpec{Source: &m.data, Striped: true, Columns: columns})
   if i, ok := t.RowClicked(); ok { m.table.Select(i) }       // Selected() is the row or -1, ClearSort() unsorts
   if col, ok := t.HeaderClicked(); ok { m.table.SortBy(col); m.sortData() } // Sort() returns (column, descending, ok)
   ```
 
-  A header cell is clickable only where `Sortable[c]` is true; `Headers` alone draws a title nobody can click. In a
+  A header cell is clickable only where the column is `Sortable`; a `Title` alone draws a heading nobody can click, and a table none of whose columns has a `Title` has no header row. In a
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
   its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
   for assistive technology, `ScrollbarSize` sets its thickness (else the page's `PageConfig.ScrollbarSize`) and

@@ -256,7 +256,7 @@ func Splitter(c C, state *SplitterState) Box {
 // them zero. It is a whole control as declared: the page gives it the keys that
 // move its selection (TableState.Key), a click on a row selects that row as a
 // List's does, TableState.Changed reports either in the paint that delivers it,
-// and a table given Headers and no Columns shares its width between them.
+// and a table none of whose columns has a width shares its width between them.
 func Table(c C, state *TableState, spec TableSpec) Box {
 	p := c.page
 	if spec.Rows == 0 || spec.Header == 0 {

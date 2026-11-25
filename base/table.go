@@ -31,14 +31,14 @@ func (t *TableRows) Cell(row, column int) string {
 // TableSpec declares a Table.
 type TableSpec struct {
 	// Rows names the rows: row i is Rows.At(i). Header names the header cells of
-	// the columns in Sortable: column c is Header.At(c). Header may be zero when
+	// the Sortable columns: column c is Header.At(c). Header may be zero when
 	// nothing is sortable.
 	Rows, Header gfx.Scope
-	// Columns are the widths and alignments, as for components.Table: a column
-	// without a width (the last) takes what is left.
+	// Columns are the columns, each with its Title, Width, Alignment and Sortable:
+	// a column without a width (the last) takes what is left, and a table none of
+	// whose columns has a width shares its width equally between them. A table none
+	// of whose columns has a Title has no header row.
 	Columns []style.TableColumn
-	// Headers are the column titles; none means no header row.
-	Headers []string
 	// FitHeadings widens each fixed-width column that is narrower than its
 	// heading to the width the heading needs, so no heading is cut or ends in an
 	// ellipsis, the page equivalent of fitting the component's headings. A
@@ -47,10 +47,7 @@ type TableSpec struct {
 	// size and cell padding, so a heading translated longer than a hand-written
 	// width still fits. It applies to the preferred width and to painting.
 	FitHeadings bool
-	// Sortable says which columns can be sorted by clicking their header (a nil
-	// slice, none); the Table shows the arrow of the one TableState says is sorted.
-	Sortable []bool
-	Source   TableSource
+	Source      TableSource
 	// RowHeight is the height of every row, header included; zero takes the
 	// theme's TableRowHeight and TableHeaderHeight.
 	RowHeight float32
@@ -246,9 +243,12 @@ type TableDecl struct {
 	// and paints from. It keeps its capacity across frames, so a warm table
 	// fits no heading into a new allocation.
 	columns []style.TableColumn
-	// even is a table declared with Headers and no Columns: its columns share its
+	// even is a table none of whose columns has a width: its columns share its
 	// width equally, the last taking what rounding leaves.
 	even bool
+	// titles are the columns' titles, in the order of the columns, for the header
+	// row. It keeps its capacity across frames.
+	titles []string
 	// fontSize and foreground are the element's explicit text style: what the
 	// recipe's spec default is replaced with when the element set one.
 	fontSize      float32
@@ -276,7 +276,7 @@ type TableDecl struct {
 // what is left, however narrow that is. A table inside a ScrollArea is never
 // scrolled across by itself; the area owns its width, sideways or not.
 //
-//	tbl := f.Table(&state, ui.TableSpec{Rows: rows, Header: heads, Columns: cols, Headers: titles, Sortable: sortable, Source: &data})
+//	tbl := f.Table(&state, ui.TableSpec{Rows: rows, Header: heads, Columns: cols, Source: &data})
 //	if row, ok := tbl.RowClicked(); ok { state.Select(row) }
 //	if col, ok := tbl.HeaderClicked(); ok { state.SortBy(col); data.Sort(state.Sort()) }
 func (f *Frame) Table(state *TableState, spec TableSpec) Box {
@@ -290,10 +290,15 @@ func (f *Frame) Table(state *TableState, spec TableSpec) Box {
 		rows = max(spec.Source.Len(), 0)
 	}
 	decl := TableDecl{spec: spec, state: state, rows: rows}
-	if (spec.FitHeadings || len(spec.Columns) == 0) && index < cap(*decls) {
-		// Reuse the fitted columns of this table from the last paint even though
-		// the fit itself waits for the element's FontSize in resolveTables.
-		decl.columns = (*decls)[:cap(*decls)][index].columns
+	if index < cap(*decls) {
+		// Reuse the titles, and the fitted columns of a table that fits or shares,
+		// of this table from the last paint even though the fit itself waits for
+		// the element's FontSize in resolveTables.
+		last := &(*decls)[:cap(*decls)][index]
+		decl.titles = last.titles
+		if spec.FitHeadings || tableColumnsShare(spec.Columns) {
+			decl.columns = last.columns
+		}
 	}
 	*decls = append(*decls, decl)
 	return b
@@ -316,11 +321,14 @@ func (f *Frame) resolveTables() {
 		if n.Flags&flagHasColor != 0 {
 			decl.foreground, decl.hasForeground = n.Color, true
 		}
-		if len(decl.spec.Columns) == 0 && len(decl.spec.Headers) > 0 {
+		decl.titles = decl.titles[:0]
+		for _, column := range decl.spec.Columns {
+			decl.titles = append(decl.titles, column.Title)
+		}
+		if tableColumnsShare(decl.spec.Columns) {
 			// Columns are shared out when the table's width is known (paintTable);
-			// until then each is one that takes what is left.
-			decl.columns = append(decl.columns[:0], make([]style.TableColumn, len(decl.spec.Headers))...)
-			clear(decl.columns)
+			// the declared ones are left as the application wrote them.
+			decl.columns = append(decl.columns[:0], decl.spec.Columns...)
 			decl.spec.Columns, decl.even = decl.columns, true
 			continue
 		}
@@ -328,7 +336,7 @@ func (f *Frame) resolveTables() {
 			continue
 		}
 		decl.columns = append(decl.columns[:0], decl.spec.Columns...)
-		fitTableHeadings(f.Surface, f.Palette, decl.columns, decl.spec.Headers, decl.fontSize, decl.spec.CellPadding)
+		fitTableHeadings(f.Surface, f.Palette, decl.columns, decl.fontSize, decl.spec.CellPadding)
 		decl.spec.Columns = decl.columns
 	}
 }
@@ -339,7 +347,7 @@ func (f *Frame) resolveTables() {
 // column without a heading keep their width. The heading is measured at the
 // table's own font size and cell padding; a heading of a column too wide for
 // the room left is still ellipsized.
-func fitTableHeadings(canvas *gfx.Canvas, palette Theme, columns []style.TableColumn, headings []string, fontSize, cellPadding float32) {
+func fitTableHeadings(canvas *gfx.Canvas, palette Theme, columns []style.TableColumn, fontSize, cellPadding float32) {
 	size := fontSize
 	if size <= 0 {
 		size = palette.Metrics.FontSizeM
@@ -350,10 +358,10 @@ func fitTableHeadings(canvas *gfx.Canvas, palette Theme, columns []style.TableCo
 	}
 	for index := range columns {
 		column := &columns[index]
-		if column.Width <= 0 || index >= len(headings) || headings[index] == "" {
+		if column.Width <= 0 || column.Title == "" {
 			continue
 		}
-		need := canvas.TextWidthWeight(headings[index], size, gfx.WeightMedium)
+		need := canvas.TextWidthWeight(column.Title, size, gfx.WeightMedium)
 		inset := float32(0)
 		if column.Alignment == style.TableAlignLeft {
 			inset = max(column.Inset, 0) + max(column.EndInset, 0)
@@ -692,8 +700,32 @@ func (t *TableDecl) rowHeight(Palette Theme) float32 {
 	return TableRowHeight(Palette)
 }
 
+// hasHeader reports whether any column has a title to draw.
+func (t *TableDecl) hasHeader() bool {
+	for _, column := range t.spec.Columns {
+		if column.Title != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// tableColumnsShare reports whether a table's columns share its width equally: it
+// has some and none has a width of its own.
+func tableColumnsShare(columns []style.TableColumn) bool {
+	if len(columns) == 0 {
+		return false
+	}
+	for _, column := range columns {
+		if column.Width > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (t *TableDecl) headerHeight(Palette Theme) float32 {
-	if len(t.spec.Headers) == 0 {
+	if !t.hasHeader() {
 		return 0
 	}
 	if t.spec.RowHeight > 0 {

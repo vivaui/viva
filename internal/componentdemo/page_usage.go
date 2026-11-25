@@ -34,9 +34,8 @@ var pageUsage = map[string]string{
     {"性能审计", "待付款", "¥ 1,280"},
 }
 ui.Table(c, &m.table, ui.TableSpec{
-    Rows: rows, Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
-    Source: &bills,
+    Rows: rows, Source: &bills,
+    Columns: []ui.TableColumn{{Title: "项目", Width: 112}, {Title: "状态", Width: 88}, {Title: "金额"}},
 })`,
 	"list":              `ui.List(c, &m.list, len(rows), func(row ui.ListRow) { _ = row })`,
 	"tree":              `ui.Tree(c, &m.tree, len(rows), func(i int) string { return rows[i] }, func(i int) {})`,

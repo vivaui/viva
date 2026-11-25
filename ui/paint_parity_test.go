@@ -354,7 +354,8 @@ func TestTablePaintParity(t *testing.T) {
 	pageView := func(c ui.C) {
 		ui.Column(c).Pad(16).Children(func() {
 			element = ui.Table(c, &state, ui.TableSpec{
-				Columns: columns, Headers: headers, Source: &rows,
+				Columns: titledColumns(columns, headers, nil),
+				Source:  &rows,
 			}).Width(240)
 		})
 	}

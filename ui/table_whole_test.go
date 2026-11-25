@@ -21,7 +21,7 @@ func TestATableIsWholeAsDeclared(t *testing.T) {
 	var state ui.TableState
 	chosen := -1
 	d := openPage(t, func(c ui.C) {
-		ui.Table(c, &state, ui.TableSpec{Headers: []string{"Host", "Port"}, Source: wholeRows{}}).Width(400).Height(200)
+		ui.Table(c, &state, ui.TableSpec{Source: wholeRows{}, Columns: titledColumns(nil, []string{"Host", "Port"}, nil)}).Width(400).Height(200)
 		if state.Changed() {
 			chosen = state.Selected()
 		}

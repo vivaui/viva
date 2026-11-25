@@ -21,6 +21,23 @@ a target between or newer than those, also check its intervening release notes;
 this page is not a promise that other releases only add API. Releases before v0.2.2 are not
 covered: the release-note archive begins there.
 
+### Unreleased - a `ui.Table` column carries its own title and sort flag
+
+`TableSpec.Headers` and `TableSpec.Sortable` are removed; each `TableColumn` has a
+`Title` and a `Sortable` instead, so adding, dropping or reordering a column is one
+edit rather than three slices that must stay the same length.
+
+- `Columns: cols, Headers: []string{"Name", "Age"}, Sortable: []bool{true, false}`
+  becomes `Columns: []ui.TableColumn{{Title: "Name", Width: 160, Sortable: true},
+  {Title: "Age"}}`.
+- A table none of whose columns has a `Title` has no header row.
+- A table given `Headers` and no `Columns` shared its width between the columns.
+  Write one `TableColumn{Title: ...}` per column, with no `Width`: a table none of
+  whose columns has a width shares its own width equally, and leaves the slice you
+  declared as you wrote it.
+- `components.Table` is unchanged: it still takes `Header(headings)` separately and
+  ignores `Title` and `Sortable`.
+
 ### Unreleased - identity options and required specs
 
 The `...ID` and `...With` twins of a control are removed; each control has one

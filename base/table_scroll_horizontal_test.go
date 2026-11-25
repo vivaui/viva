@@ -39,7 +39,7 @@ func TestTableScrollsItsColumnsWhenTheyDoNotFit(t *testing.T) {
 	paint := func() {
 		view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: wideFourColumns, Headers: fourTitles, Sortable: []bool{true, false, false, false}, Source: &rows}).Size(viewport.Width, viewport.Height)
+				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: titledColumns(wideFourColumns, fourTitles, []bool{true, false, false, false}), Source: &rows}).Size(viewport.Width, viewport.Height)
 			})
 		})
 		headerX, rowX = headerAndRowX(canvas)
@@ -106,7 +106,7 @@ func TestTableWheelScrollsBothWays(t *testing.T) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Columns: wideFourColumns, Headers: fourTitles, Source: &rows}).Size(viewport.Width, viewport.Height)
+				f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(wideFourColumns, fourTitles, nil), Source: &rows}).Size(viewport.Width, viewport.Height)
 			})
 		})
 	}
@@ -158,7 +158,7 @@ func TestTableThatFitsDoesNotScrollAcross(t *testing.T) {
 			canvas.Reset()
 			view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 				f.Column().Fill().Children(func() {
-					f.Table(&state, TableSpec{Rows: tableScope, Columns: c.columns, Headers: headers, Source: &rows}).Size(viewport.Width, viewport.Height)
+					f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(c.columns, headers, nil), Source: &rows}).Size(viewport.Width, viewport.Height)
 				})
 			})
 		}
@@ -200,7 +200,7 @@ func TestTableInAScrollAreaLeavesAcrossToTheArea(t *testing.T) {
 						area = area.Sideways()
 					}
 					area.Children(func() {
-						f.Table(&state, TableSpec{Rows: tableScope, Columns: wideFourColumns, Headers: fourTitles, Source: &rows})
+						f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(wideFourColumns, fourTitles, nil), Source: &rows})
 					})
 				})
 			})
@@ -239,8 +239,10 @@ func TestTableHorizontalScrollbarDrags(t *testing.T) {
 		view.Draw(canvas, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.Table(&state, TableSpec{
-					Rows: tableScope, Header: headerScope, Columns: wideFourColumns,
-					Headers: fourTitles, Sortable: []bool{true, true, true, true}, Source: &rows,
+					Rows:                tableScope,
+					Header:              headerScope,
+					Columns:             titledColumns(wideFourColumns, fourTitles, []bool{true, true, true, true}),
+					Source:              &rows,
 					HorizontalScrollbar: gfx.Item(901),
 				}).Size(viewport.Width, viewport.Height)
 			})
@@ -303,11 +305,12 @@ func TestWideTableAllocatesNothingOnceWarm(t *testing.T) {
 	var view View
 	var state TableState
 	canvas := testCanvas()
+	columns := titledColumns(wideSixColumns, sixTitles, allSortableSix)
 	paint := func() {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: wideSixColumns, Headers: sixTitles, Sortable: allSortableSix, Striped: true, Source: rows, Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901)}).Fill()
+				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: columns, Striped: true, Source: rows, Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901)}).Fill()
 			})
 		})
 	}
@@ -335,7 +338,7 @@ func BenchmarkWideTable(b *testing.B) {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: wideSixColumns, Headers: sixTitles, Sortable: allSortableSix, Striped: true, Source: rows, Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901)}).Fill()
+				f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: titledColumns(wideSixColumns, sixTitles, allSortableSix), Striped: true, Source: rows, Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901)}).Fill()
 			})
 		})
 	}
@@ -362,10 +365,14 @@ func TestTableHorizontalBarKeepsTheGutterStripAndClearRows(t *testing.T) {
 		View.Draw(Surface, theme, gfx.Rect{Width: viewport.Width, Height: viewport.Height}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.Table(state, TableSpec{
-					Rows: tableScope, Columns: gutterColumns, Headers: []string{"A", "B", "C"},
-					Source: &rows, RowHeight: 30,
-					Scrollbar: gfx.Item(900), HorizontalScrollbar: gfx.Item(901),
-					ScrollbarSize: 12, ScrollbarGutter: gutter,
+					Rows:                tableScope,
+					Columns:             titledColumns(gutterColumns, []string{"A", "B", "C"}, nil),
+					Source:              &rows,
+					RowHeight:           30,
+					Scrollbar:           gfx.Item(900),
+					HorizontalScrollbar: gfx.Item(901),
+					ScrollbarSize:       12,
+					ScrollbarGutter:     gutter,
 				}).Size(viewport.Width, viewport.Height)
 			})
 		})
