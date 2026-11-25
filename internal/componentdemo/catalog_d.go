@@ -5,6 +5,7 @@ package componentdemo
 // primitives, so they have no canvas recipe in package components.
 var groupDComponents = []Component{
 	descriptionsComponent,
+	rateComponent,
 	stepsComponent,
 	timelineComponent,
 }
