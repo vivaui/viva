@@ -3,6 +3,7 @@ package ui_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/vivaui/viva/app"
@@ -55,6 +56,9 @@ func TestFileDropAreaTakesFilesOverIt(t *testing.T) {
 }
 
 func TestFileDropGoesToTheInnermostLastDeclaredArea(t *testing.T) {
+	if runtime.GOOS == "js" {
+		t.Skip("a browser gives dropped files without paths, so a test cannot drop them by path")
+	}
 	m := &fileDropModel{}
 	d := openPage(t, m.page)
 	dropAt(t, d, gfx.FileDropOver, "Inner")

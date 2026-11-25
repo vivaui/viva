@@ -3,6 +3,7 @@ package upload_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/vivaui/viva/app"
@@ -96,6 +97,9 @@ func (d driver) click(label string) {
 
 func files(t *testing.T, names ...string) []string {
 	t.Helper()
+	if runtime.GOOS == "js" {
+		t.Skip("a browser gives dropped files without paths, so a test cannot drop them by path")
+	}
 	dir := t.TempDir()
 	var paths []string
 	for _, name := range names {
