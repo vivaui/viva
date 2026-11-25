@@ -796,9 +796,11 @@ type Canvas struct {
 	afterPaint                  []func()
 	// pointer is the pointer event the event pass is delivering; consumed records
 	// that a control took it; listensForPointer that the last paint asked.
-	pointer           PointerEvent
-	hasPointer        bool
-	consumed          bool
+	pointer    PointerEvent
+	hasPointer bool
+	consumed   bool
+	// nativeTextMenu is whether the window shows the system's text menu.
+	nativeTextMenu    bool
 	listensForPointer bool
 	initialFocus      ID
 	// focusRequest asks the runtime to focus one hit even without a trap, as a
@@ -2372,6 +2374,14 @@ func (canvas *Canvas) PointerIn(list Scope) (int, PointerEvent, bool) {
 	}
 	return index, canvas.pointer, true
 }
+
+// SetNativeTextMenu records that the window shows the system's own menu for a
+// secondary press on a text field, so a page does not draw one too. The runtime
+// sets it from the window; it is not reset between paints.
+func (canvas *Canvas) SetNativeTextMenu(native bool) { canvas.nativeTextMenu = native }
+
+// NativeTextMenu reports whether the window shows the system's own text menu.
+func (canvas *Canvas) NativeTextMenu() bool { return canvas.nativeTextMenu }
 
 // Consume says the control took the pointer event being delivered: the runtime
 // does not also treat it as a click, and repaints. It does nothing outside the

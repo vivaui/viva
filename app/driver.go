@@ -39,9 +39,11 @@ var ErrNoTerminal = errors.New("app: no focused terminal")
 // through Config.Invalidator, exactly as with a window; the wake is applied the
 // next time the driver is called (or by Pump).
 type Driver struct {
-	config  Config
-	canvas  *gfx.Canvas
-	painter *painter
+	// textMenu is the system text menu the last press opened, until it is chosen from or dismissed.
+	textMenu *platform.TextMenuRequest
+	config   Config
+	canvas   *gfx.Canvas
+	painter  *painter
 
 	// origin is where Config.Origin put the content area; MoveWindow changes it
 	// as a window manager would.
@@ -154,6 +156,10 @@ func NewDriver(config Config, canvas *gfx.Canvas) (*Driver, error) {
 	driver.painter.setClipboardText = func(value string) {
 		driver.SetClipboard(value)
 	}
+	driver.painter.clipboardReader = func() (string, error) { return driver.clipboard, nil }
+	// The driver stands for a platform with the system's text menu, so a test
+	// sees what an application asking for one gets; it shows the menu itself.
+	driver.painter.enableTextMenu(true)
 	driver.painter.setCursor = func(Cursor) error { return nil }
 	driver.painter.setCursorImage = func(*gfx.CursorImage) error { return nil }
 	driver.painter.scheduleFrame = func(delay time.Duration) {
@@ -301,6 +307,11 @@ func (driver *Driver) pointer(kind platform.PointerEventKind, x, y float32, butt
 	_, err := driver.painter.pointerEvent(platform.PointerEvent{
 		Kind: kind, Button: button, Modifiers: driver.heldModifiers(), X: x, Y: y, ScreenX: origin.X + x, ScreenY: origin.Y + y, ClickCount: clicks,
 	})
+	if err == nil && driver.painter.textMenuNative {
+		if request, ok := driver.painter.takeTextMenu(); ok {
+			driver.textMenu = &request
+		}
+	}
 	return err
 }
 

@@ -8,6 +8,7 @@ type Option struct {
 	id       gfx.ID
 	maxRunes int
 	count    bool
+	plain    bool // WithoutEditMenu
 }
 
 // WithID names the control with an identity the application already holds, so the

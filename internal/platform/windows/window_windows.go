@@ -956,6 +956,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		} else if handled {
 			state.handleTextEvent(textEvent)
 		}
+		if kind == wmRightUp && state.config.TakeTextMenu != nil {
+			state.showTextMenu(window, screen)
+		}
 		if (kind == wmLeftUp || kind == wmRightUp || kind == wmMiddleUp || kind == wmXButtonUp) && first&mkAnyButton == 0 {
 			// The capture is held until the last button is up, so a drag that
 			// started with one button keeps going when another is released.

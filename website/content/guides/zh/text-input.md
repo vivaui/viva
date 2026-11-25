@@ -62,6 +62,8 @@ func main() {
 
 `ui.MaxLength(n)` 把 `TextField` 或 `TextArea` 限制在 n 个字符：超出的输入、粘贴和输入法组合内容会从末尾截掉，已有的更长文本不受影响。`ui.ShowCount()` 在 `TextField` 末尾显示已输入的字符数，设了上限时显示为“12/32”，它会占用 `Action` 的位置。两者和 `ui.WithID` 一样是固定参数之后的选项：`ui.TextField(c, &m.title, "Title", "", ui.MaxLength(80), ui.ShowCount())`。保存在模型里的 `*Field` 则用 `Field.Restrict(accept, maxRunes)`，它还能限制可输入的字符。
 
+`TextField` 和 `TextArea` 在次键按下时打开剪切、复制、粘贴、全选菜单，字段同时取得键盘。macOS 和 Windows 上是系统自己的菜单，由窗口为任何带编辑器的文本框弹出（应用自己画的输入框也一样）；其他平台由页面画一个，`PageConfig.CanvasMenus` 可以要求所有平台都用页面的。剪切和复制作用于选区，`Secure` 字段与键盘一样没有这两项；各命令与对应快捷键走同一条路径，所以 `TextField` 把粘贴的文本折成一行，`TextArea` 保留换行。文字默认是英文，由页面像主题一样以指针给出自己的语言，切换语言后下一次打开的菜单生效：`ui.PageConfig{EditMenu: &ui.EditMenuLabels{Cut: "Couper", Copy: "Copier", Paste: "Coller", SelectAll: "Tout sélectionner"}}`。自己带 `ContextMenu` 的字段用 `ui.WithoutEditMenu()`；`Memo` 里的字段只有系统菜单。只读字段没有编辑器，只有页面的菜单。
+
 `ui.TextField(c, &m.name, label, placeholder)` 直接从字段取得快照，不需要自己构造；`Changed` 报告用户编辑之后的第一次绘制，你自己赋值或调用 `SetText` 不算；`.Secure()` 让它成为密码字段。自己绘制字段的组件则接受 `InputSnapshot`，它是字段某一帧的视图：`Value`、`Placeholder`、`Invalid`、`Disabled`、`ReadOnly` 和 `Secure`，以及 `Focused` 和 `PlatformEditing`。页面的字段会替你设置最后一个。平台编辑器显示在屏幕上时，文本、光标和选区都由它自己绘制，静态标签不能画在它下面。所以 `PlatformEditing` 只在字段获得焦点且有文本时为真；焦点离开后，下一帧会把当前文本重新画成普通标签。示例的测试检查的正是这一点：点击 Save 之后，原生编辑器就消失了。
 
 快照里的选区和组合输入偏移量，是已绘制文本的 UTF-8 字节偏移；平台的文本事件使用的是 rune 索引。两者是不同的东西，不要在需要其中一个的地方传另一个。
