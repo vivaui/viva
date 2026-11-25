@@ -4,6 +4,7 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"tag":           `tag.View(c, "production", tag.Spec{Status: ui.StatusSuccess, Closable: true})`,
 	"steps":         `steps.View(c, "Checkout", &m.step, steps.Spec{Steps: m.stages, Clickable: true})`,
 	"descriptions":  `descriptions.View(c, "Host details", descriptions.Spec{Items: m.details, Columns: 2, Bordered: true})`,
 	"timeline":      `timeline.View(c, "History", timeline.Spec{Items: m.events, Pending: "Waiting"})`,

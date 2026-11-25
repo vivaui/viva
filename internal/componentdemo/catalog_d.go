@@ -4,6 +4,7 @@ package componentdemo
 // forms and data displays: opt-in page packages made of the page's own
 // primitives, so they have no canvas recipe in package components.
 var groupDComponents = []Component{
+	tagComponent,
 	datePickerComponent,
 	descriptionsComponent,
 	inputNumberComponent,
