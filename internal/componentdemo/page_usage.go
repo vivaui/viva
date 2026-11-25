@@ -16,7 +16,7 @@ var pageUsage = map[string]string{
 	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
-	"card":          `ui.Column(c).Pad(16).Radius(12).Border(1, border)`,
+	"card":          `card.View(c, card.Spec{Title: "Native preview", Description: "Keeps nodes."}, func() { ui.Text(c, "0").Bold() }).FillWidth()`,
 	"label":         `ui.Text(c, "Name").LabelFor(fieldID)`,
 	"kbd":           `ui.Kbd(c, "⌘", "K")`,
 	"tooltip":       `ui.Button(c, "Hover").Hit(id, "Hover").Tooltip("Hint")`,

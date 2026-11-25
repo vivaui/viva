@@ -47,7 +47,7 @@ var pageSource = map[string]string{
 	"tooltip":           "base/tooltip.go",
 	"kbd":               "base/leaves.go",
 	"label":             "base/elements.go",
-	"card":              "base/box.go",
+	"card":              "ui/card/card.go",
 	"item":              "base/box.go",
 	"empty":             "base/box.go",
 	"bubble":            "ui/bubble.go",
