@@ -20,6 +20,10 @@ func paintProgress(f *Frame, n *Node) {
 		paintProgressRing(f, n, palette)
 		return
 	}
+	if n.Segments > 1 && n.Natural >= 0 {
+		paintProgressSegments(f, n, palette)
+		return
+	}
 	if n.Natural >= 0 {
 		components.Progress(f.Surface, palette, r, n.Natural)
 		paintProgressHit(f, n, r, n.Natural)
@@ -111,4 +115,29 @@ func paintProgressRing(f *Frame, n *Node, palette Theme) {
 		canvas.DrawPath(builder.Path(side, side), box, gfx.PathStyle{Stroke: palette.Primary, StrokeWidth: width, Cap: gfx.CapRound})
 	}
 	paintProgressHit(f, n, box, fraction)
+}
+
+// paintProgressSegments draws a Progress as separate segments: the first of them
+// filled, a segment from half of it.
+func paintProgressSegments(f *Frame, n *Node, palette Theme) {
+	canvas := f.Surface
+	r := n.Rect
+	if r.Height <= 0 {
+		r.Height = ProgressHeight
+	}
+	count := int(n.Segments)
+	const gap = float32(3)
+	width := (r.Width - gap*float32(count-1)) / float32(count)
+	if width <= 0 {
+		return
+	}
+	filled := int(min(n.Natural, 1)*float32(count) + 0.5)
+	for i := range count {
+		color := palette.Muted
+		if i < filled {
+			color = palette.Primary
+		}
+		canvas.Rounded(Rect{X: r.X + float32(i)*(width+gap), Y: r.Y, Width: width, Height: r.Height}, r.Height/2, color)
+	}
+	paintProgressHit(f, n, r, min(n.Natural, 1))
 }

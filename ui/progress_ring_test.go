@@ -62,3 +62,36 @@ func TestProgressCircleRepaintsWithoutAllocating(t *testing.T) {
 		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
+
+// A segmented Progress is separate segments with the first of them filled for the
+// fraction, in the status color, and still one progress bar to assistive technology.
+func TestProgressSegmentsFillTheFirstOnes(t *testing.T) {
+	filled := func(fraction float32) int {
+		d := openPage(t, func(c ui.C) { ui.Progress(c, fraction).Segments(5).Status(ui.StatusSuccess).Width(200).Label("Stages") })
+		n := 0
+		for _, primitive := range d.driver.Snapshot().Primitives {
+			if primitive.Color == pageTheme.Success {
+				n++
+			}
+		}
+		return n
+	}
+	for fraction, want := range map[float32]int{0: 0, 0.2: 1, 0.6: 3, 1: 5} {
+		if got := filled(fraction); got != want {
+			t.Fatalf("a fraction of %v fills %d segments, want %d", fraction, got, want)
+		}
+	}
+	d := openPage(t, func(c ui.C) { ui.Progress(c, 0.6).Segments(5).Width(200).Label("Stages") })
+	if hit := d.hit("Stages"); hit.Role != gfx.RoleProgressBar {
+		t.Fatalf("a segmented bar is a %v, want a progress bar", hit.Role)
+	}
+}
+
+func TestProgressSegmentsRepaintWithoutAllocating(t *testing.T) {
+	d := openPage(t, func(c ui.C) { ui.Progress(c, 0.6).Segments(5).Width(200) })
+	d.repaint()
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}

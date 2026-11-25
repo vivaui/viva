@@ -125,6 +125,7 @@ type Node struct {
 	ButtonSize           style.Size
 	Status               style.Status // the outcome a Progress reports through its fill
 	Circle               bool         // a Progress drawn as a ring
+	Segments             uint8        // a Progress bar drawn as this many separate segments; zero is one bar
 	Loading              bool         // a Button that is busy: a spinner in its icon slot, and presses are not delivered
 	RowSpan              uint8        // the rows a Grid child covers; zero is one
 	OutOfFlow            uint8        // absolute positioning: see absolute.go
