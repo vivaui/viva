@@ -12,18 +12,36 @@ import (
 )
 
 var (
-	ErrUnavailable        = errors.New("system authentication is unavailable")
-	ErrCanceled           = errors.New("system authentication was canceled")
+	// ErrUnavailable means the system cannot verify the user here: the
+	// platform has no such facility, or the user has not set one up, or policy
+	// turns it off. Retrying does not help until that changes.
+	ErrUnavailable = errors.New("system authentication is unavailable")
+	// ErrCanceled means the user, or the system on the user's behalf, dismissed
+	// the prompt. It is a refusal, never a success.
+	ErrCanceled = errors.New("system authentication was canceled")
+	// ErrForegroundRequired means no window of this process was in the
+	// foreground, so the system had nothing to attach its prompt to. Call Verify
+	// again once the application's window is active.
 	ErrForegroundRequired = errors.New("system authentication requires an active window")
-	ErrFailed             = errors.New("system authentication failed")
+	// ErrFailed means the prompt ran and the user was not verified, or the
+	// request could not be made because another verification is already showing.
+	ErrFailed = errors.New("system authentication failed")
 )
 
+// VerificationMethod is how the system verifies the current user.
 type VerificationMethod uint8
 
 const (
+	// VerificationUnavailable is the zero value: the system offers no way to
+	// verify the user.
 	VerificationUnavailable VerificationMethod = iota
+	// VerificationWindowsHello is Windows Hello (face, fingerprint or PIN).
 	VerificationWindowsHello
+	// VerificationTouchID is Touch ID, with the system password as the fallback
+	// the system itself offers.
 	VerificationTouchID
+	// VerificationDevicePassword is the device-owner password, on a Mac without
+	// Touch ID.
 	VerificationDevicePassword
 )
 
