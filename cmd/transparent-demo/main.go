@@ -2,9 +2,10 @@
 
 // Command transparent-demo opens one window composited over the desktop, for
 // looking at Config.Transparent by hand on each platform. The left band is
-// painted at half alpha and the right one at full alpha; the top strip is a
-// custom titlebar. Where CapabilityTransparentWindow is missing the window is
-// opaque, which the title says.
+// painted at half alpha and the right one at full alpha, and the strip under
+// them is left unpainted; the top strip is a custom titlebar. The strip's title
+// says whether the capability is there and whether the desktop really shows
+// through, as OnTransparentChange reported when the window opened.
 package main
 
 import (
@@ -22,7 +23,7 @@ func main() {
 	var active atomic.Bool
 	config := app.Config{
 		Title: "transparent demo", Width: 640, Height: 360,
-		WindowMode:          mode(),
+		WindowMode:          app.WindowCustomTitlebar,
 		TitlebarHeight:      36,
 		Transparent:         true,
 		OnTransparentChange: func(on bool) { active.Store(on); fmt.Println("transparent active:", on) },
@@ -40,18 +41,4 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-const modeFile = `C:\vt\mode.txt`
-
-func mode() app.WindowMode {
-	if data, err := os.ReadFile(modeFile); err == nil {
-		switch string(data) {
-		case "titled":
-			return app.WindowTitled
-		case "frameless":
-			return app.WindowFrameless
-		}
-	}
-	return app.WindowCustomTitlebar
 }
