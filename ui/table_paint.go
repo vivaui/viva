@@ -160,6 +160,39 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 		}
 		canvas.HitWithLabel(t.GetSpec().Header.At(column-lead), cell, title)
 	}
+	for column, cell := range cells {
+		if column >= lead && column < len(t.GetSpec().Columns) && t.GetSpec().Columns[column].Filterable {
+			paintFilterButton(f, t, column, cell)
+		}
+	}
+}
+
+// funnelIcon is Lucide's filter.
+var funnelIcon = gfx.Icon{ViewBox: 24, Stroke: 2, Cap: gfx.CapRound, Join: gfx.JoinRound, Commands: []gfx.PathCommand{
+	gfx.MoveTo(22, 3), gfx.LineTo(2, 3), gfx.LineTo(10, 12.46), gfx.LineTo(10, 19), gfx.LineTo(14, 21), gfx.LineTo(14, 12.46), gfx.ClosePath(),
+}}
+
+// paintFilterButton paints the funnel at the end of a column's heading, in the
+// primary color while the column is filtered, and declares its hit. It is declared
+// after the heading's own, inside it, so a press on it is not a press on the heading.
+func paintFilterButton(f *Frame, t *TableDecl, column int, cell Rect) {
+	canvas := f.Surface
+	const side = 20
+	button := Rect{X: cell.X + cell.Width - side - f.Palette.Metrics.PadControlX/2, Y: cell.Y + (cell.Height-side)/2, Width: side, Height: side}
+	id := base.FilterID(canvas, t.GetSpec().Header, column-t.GetLead())
+	ink := f.Palette.MutedForeground
+	if t.GetSpec().Columns[column].Filtered {
+		ink = f.Palette.Primary
+	}
+	if canvas.Hovered() == id {
+		canvas.Rounded(button, f.Palette.Metrics.RadiusControl, f.Palette.Hover)
+	}
+	canvas.DrawIcon(funnelIcon, Rect{X: button.X + 4, Y: button.Y + 4, Width: side - 8, Height: side - 8}, ink)
+	label := t.GetSpec().FilterLabel
+	if label == "" {
+		label = "Filter"
+	}
+	canvas.HitWithOptions(id, button, label, gfx.HitOptions{Role: gfx.RoleButton, Description: t.GetSpec().Columns[column].Title, Selected: t.GetSpec().Columns[column].Filtered})
 }
 
 // checkSize is the side of a table's checkbox.

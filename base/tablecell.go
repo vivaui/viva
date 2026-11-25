@@ -22,6 +22,21 @@ import (
 // The header is not a cell and has no source row: it has no rectangle here.
 // Declaring the same state in more than one table leaves the calls describing
 // only the last table painted.
+// HeaderRect is the rectangle of the heading of a column (an index in Columns) as
+// the last paint put it, for the application to anchor a menu to. ok is false before
+// the first paint, for a column that is not painted, and for a table with no header.
+func (s *TableState) HeaderRect(column int) (gfx.Rect, bool) {
+	column += int(s.lead)
+	if column < 0 || column+1 >= len(s.cellLefts) || s.headerHeight <= 0 {
+		return gfx.Rect{}, false
+	}
+	left, right := s.cellLefts[column], s.cellLefts[column+1]
+	if right <= left {
+		return gfx.Rect{}, false
+	}
+	return gfx.Rect{X: left, Y: s.headerY, Width: right - left, Height: s.headerHeight}, true
+}
+
 func (s *TableState) CellRect(row, column int) (gfx.Rect, bool) {
 	column += int(s.lead) // a column of checkboxes comes before the columns the application declared
 	if row < int(s.rowFirst) || row >= int(s.rowEnd) || column < 0 || column+1 >= len(s.cellLefts) {

@@ -167,6 +167,19 @@ if m.table.CheckedChanged() {
     // the user ticked or unticked a row, or the header's checkbox
 }
 // m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`},
+		{ID: "filter", Title: "列过滤按钮", Description: "Filterable 在表头末尾加漏斗按钮，Filtered 表示该列已过滤；按钮被按下时 FilterClicked 报告列，用 HeaderRect 定位应用自己的筛选菜单。", Snippet: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`, PageSnippet: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`, PageSnippetZh: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
 headings := []string{"Item", "Status", "Amount"}
 components.FitTableHeadings(canvas, theme, columns, headings)
@@ -209,11 +222,13 @@ ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Mu
 type tableDemo struct {
 	state   ui.TableState
 	checked ui.Selection
-	rows    [3][3]string
-	source  ui.TableRows
-	columns []style.TableColumn
-	footer  string
-	caption string
+	// filterColumns is the columns with the filter button set, kept so a warm paint allocates nothing.
+	filterColumns []style.TableColumn
+	rows          [3][3]string
+	source        ui.TableRows
+	columns       []style.TableColumn
+	footer        string
+	caption       string
 }
 
 var tableDemos = map[*State]*tableDemo{}
@@ -264,11 +279,23 @@ func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		if state.exampleID == "overflow" {
 			spec.FitHeadings = true
 		}
+		if state.exampleID == "filter" {
+			// The status column's filter is on once its button is pressed.
+			columns := append(demo.filterColumns[:0], demo.columns...)
+			columns[1].Filterable, columns[1].Filtered = true, state.flags&1 != 0
+			spec.Columns = columns
+			demo.filterColumns = columns
+		}
 		if state.exampleID == "checked" {
 			spec.Checked = &demo.checked
 			spec.SelectAllLabel, spec.SelectRowLabel = state.Text("全选", "Select all rows"), state.Text("选择此行", "Select row")
 		}
 		table := ui.Table(c, &demo.state, spec)
+		if state.exampleID == "filter" {
+			if _, ok := table.FilterClicked(); ok {
+				state.flags ^= 1
+			}
+		}
 		if state.exampleID == "selection" {
 			if row, ok := table.RowClicked(); ok {
 				demo.state.Select(row)

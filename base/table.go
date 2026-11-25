@@ -59,6 +59,9 @@ type TableSpec struct {
 	// SelectAllLabel and SelectRowLabel are the accessible names of the header's
 	// checkbox and of a row's, "Select all rows" and "Select row" when empty.
 	SelectAllLabel, SelectRowLabel string
+	// FilterLabel is the accessible name of a column's filter button, "Filter" when
+	// empty; the column's title is its description.
+	FilterLabel string
 	// RowHeight is the height of every row, header included; zero takes the
 	// theme's TableRowHeight and TableHeaderHeight.
 	RowHeight float32
@@ -140,9 +143,11 @@ type TableState struct {
 	checkedChanged bool
 	// checkDone is the checkbox whose click this paint has already applied, so a
 	// table painted in two passes (frozen columns) applies it once.
-	checkDone        gfx.ID
-	rowFirst, rowEnd int32     // the declared source rows: rowFirst <= i < rowEnd
-	scope            gfx.Scope // the rows' identities, to tell a key meant for the table
+	checkDone gfx.ID
+	// headerY and headerHeight are where the header was painted last, for HeaderRect.
+	headerY, headerHeight float32
+	rowFirst, rowEnd      int32     // the declared source rows: rowFirst <= i < rowEnd
+	scope                 gfx.Scope // the rows' identities, to tell a key meant for the table
 	// cellLefts are the painted columns' left edges and the last column's right
 	// edge, and cellTop and cellRowHeight the first visible row's top and every
 	// row's height, as of the last paint; see CellRect. They keep their
@@ -441,6 +446,28 @@ func (b Box) HeaderClicked() (int, bool) {
 	return b.f.Surface.ClickedIn(WidgetsOf(b.f).tables[n.Aux].spec.Header)
 }
 
+// FilterClicked reports which column's filter button this paint is delivering a
+// press on (see TableColumn.Filterable): the index in Columns. The application opens
+// its choice of what to show, anchored at TableState.HeaderRect.
+func (b Box) FilterClicked() (int, bool) {
+	n := b.N()
+	if n.Kind != kindTable || b.f.Surface == nil {
+		return 0, false
+	}
+	t := &WidgetsOf(b.f).tables[n.Aux]
+	for column := t.lead; column < len(t.spec.Columns); column++ {
+		if t.spec.Columns[column].Filterable && b.f.Surface.Clicked(FilterID(b.f.Surface, t.spec.Header, column-t.lead)) {
+			return column - t.lead, true
+		}
+	}
+	return 0, false
+}
+
+// FilterID names the filter button of a column, in a scope inside the header's.
+func FilterID(canvas *gfx.Canvas, header gfx.Scope, column int) gfx.ID {
+	return canvas.Tree().Sub(header, gfx.Index(1<<30)).At(column)
+}
+
 // measureTable: as wide as its fixed columns, as tall as its header and rows.
 func (f *Frame) measureTable(n *Node) {
 	t := &WidgetsOf(f).tables[n.Aux]
@@ -607,11 +634,13 @@ func (f *Frame) paintTable(n *Node) {
 	// A header that has scrolled above the visible area stays at its top, until the
 	// last row would push it out.
 	headerY := r.Y
+	t.state.headerHeight = headerHeight
 	sticky := !scrolls && headerHeight > 0 && r.Y < clipTop
 	if sticky {
 		headerY = min(clipTop, r.Y+r.Height-headerHeight)
 		lo = max(lo, headerY+headerHeight)
 	}
+	t.state.headerY = headerY
 	t.state.page = int32(max(int((hi-lo)/rowHeight), 1))
 	first, last := 0, 0
 	if hi > lo && t.rows > 0 {
