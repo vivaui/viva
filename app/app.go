@@ -118,8 +118,17 @@ type Config struct {
 	// ClearColor of zero mean fully transparent instead of the default fill, and
 	// is how a window asks for per-pixel transparency at creation. Ask
 	// CapabilityTransparentWindow first; where it is missing the window is
-	// opaque and takes the default fill.
+	// opaque and takes the default fill. On Linux the window must be a
+	// WindowCustomTitlebar one and a compositing manager must own the screen;
+	// OnTransparentChange says whether it did.
 	Transparent bool
+	// OnTransparentChange is told once the window exists whether the desktop
+	// really shows through it. It reports false where Transparent could not be
+	// honored at run time: a Linux desktop with no compositing manager, or a
+	// window kind without an alpha surface. A window that asked for Transparent
+	// then paints as if it were opaque. It runs on the window thread; update
+	// paint state without blocking, and schedule a repaint.
+	OnTransparentChange func(active bool)
 	// WindowBorderColor is read at every paint and names the color of the
 	// border Windows 11 draws around a custom-titlebar window. The system
 	// composites that border against what is behind the window rather than

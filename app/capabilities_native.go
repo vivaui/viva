@@ -41,8 +41,6 @@ func nativeCapabilities() Capabilities {
 	} else {
 		capabilities |= CapabilityWindowMaximize
 	}
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		capabilities |= CapabilityTransparentWindow
-	}
+	capabilities |= capabilityTransparentWindow
 	return Capabilities(capabilities)
 }
