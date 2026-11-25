@@ -462,6 +462,7 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 		"marker":          true,
 		"metriccard":      true,
 		"steps":           true,
+		"descriptions":    true,
 		"questionnaire":   true,
 		"inputotp":        true,
 		"inputgroup":      true,
@@ -634,8 +635,9 @@ func TestModelFreePageSnippetsCompile(t *testing.T) {
 		"skeleton": "github.com/vivaui/viva/ui/skeleton", "inputgroup": "github.com/vivaui/viva/ui/inputgroup",
 		"inputotp": "github.com/vivaui/viva/ui/inputotp", "questionnaire": "github.com/vivaui/viva/ui/questionnaire",
 		"metriccard": "github.com/vivaui/viva/ui/metriccard", "marker": "github.com/vivaui/viva/ui/marker",
-		"steps":   "github.com/vivaui/viva/ui/steps",
-		"sidebar": "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
+		"steps":        "github.com/vivaui/viva/ui/steps",
+		"descriptions": "github.com/vivaui/viva/ui/descriptions",
+		"sidebar":      "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
 		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
 	}
 	wordM := regexp.MustCompile(`\bm\b`)
