@@ -626,8 +626,10 @@ func waitForNewValue(api *xcbAPI, connection uintptr, requestor, property uint32
 			return fmt.Errorf("linux: clipboard owner stopped sending the image within %s", clipboardWait)
 		}
 		milliseconds := max(remaining.Milliseconds(), 1)
-		ready := api.poll(file, 1, int32(min(milliseconds, int64(^uint32(0)>>1))))
-		runtime.KeepAlive(file)
+		ready, interrupted := pollSelection(api, file, int32(min(milliseconds, int64(^uint32(0)>>1))))
+		if interrupted {
+			continue
+		}
 		if ready < 0 || api.connectionHasError(connection) != 0 {
 			return fmt.Errorf("linux: wait for clipboard chunk failed")
 		}
@@ -1243,8 +1245,10 @@ func waitForSelection(api *xcbAPI, connection uintptr, requestor, selection, tar
 		if milliseconds > int64(^uint32(0)>>1) {
 			milliseconds = int64(^uint32(0) >> 1)
 		}
-		ready := api.poll(&file, 1, int32(milliseconds))
-		runtime.KeepAlive(&file)
+		ready, interrupted := pollSelection(api, &file, int32(milliseconds))
+		if interrupted {
+			continue
+		}
 		if ready == 0 {
 			return nil, fmt.Errorf("linux: clipboard owner did not respond within %s", timeout)
 		}
@@ -1255,6 +1259,15 @@ func waitForSelection(api *xcbAPI, connection uintptr, requestor, selection, tar
 			return nil, fmt.Errorf("linux: clipboard XCB connection failed")
 		}
 	}
+}
+
+func pollSelection(api *xcbAPI, file *pollFD, milliseconds int32) (int32, bool) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	ready := api.poll(file, 1, milliseconds)
+	interrupted := ready < 0 && *api.errnoLocation() == errnoINTR
+	runtime.KeepAlive(file)
+	return ready, interrupted
 }
 
 func latin1Clipboard(value string) []byte {
