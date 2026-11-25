@@ -4479,7 +4479,7 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
  * the menu bar at the top of the screen, and kept inside the visible part of the
  * screen the anchor is on. Without an anchor it is centered on the screen. */
 - (void)placePanel {
-    if (_windowMode == VIVA_WINDOW_NOTIFICATION) {
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION && !_hasAnchor) {
         if (_hasOrigin) {
             [self placeAtOrigin];
             return;

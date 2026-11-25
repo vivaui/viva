@@ -51,7 +51,7 @@ func TestNotificationNativeWindows(t *testing.T) {
 		if before, _, _ := focus.Call(); before != handle {
 			t.Fatalf("expected original keyboard focus %x, got %x", handle, before)
 		}
-		clicks := 0
+		clicks, exits := 0, 0
 		popup, err := app.OpenWindow(platform.Config{Title: "Incoming", Width: 336, Height: 136, WindowMode: platform.WindowNotification, PressAt: func(x, _ float32) platform.PressKind {
 			if x < 100 {
 				return platform.PressMove
@@ -60,6 +60,9 @@ func TestNotificationNativeWindows(t *testing.T) {
 		}, OnPointer: func(e platform.PointerEvent) (platform.Frame, error) {
 			if e.Kind == platform.PointerDown {
 				clicks++
+			}
+			if e.Kind == platform.PointerExit {
+				exits++
 			}
 			return platform.Frame{}, nil
 		}})
@@ -94,6 +97,10 @@ func TestNotificationNativeWindows(t *testing.T) {
 		if after, _, _ := focus.Call(); after != handle {
 			t.Fatal("interacting with notification stole focus")
 		}
+		send.Call(hwnd, wmMouseLeave, 0, 0)
+		if exits != 1 {
+			t.Fatalf("notification received %d exit event(s)", exits)
+		}
 
 		var work monitorInfo
 		work.Size = uint32(unsafe.Sizeof(work))
@@ -102,6 +109,23 @@ func TestNotificationNativeWindows(t *testing.T) {
 			t.Fatal("missing monitor work area")
 		}
 		width, height := native.Right-native.Left, native.Bottom-native.Top
+		area := platform.ScreenRect{
+			X: float32(work.Work.Left), Y: float32(work.Work.Top),
+			Width: float32(work.Work.Right - work.Work.Left), Height: float32(work.Work.Bottom - work.Work.Top),
+		}
+		anchor := platform.ScreenRect{X: area.X + area.Width/2, Y: area.Y + area.Height - 20, Width: 20, Height: 20}
+		anchored, err := app.OpenWindow(platform.Config{
+			Width: 336, Height: 136, WindowMode: platform.WindowNotification, HasAnchor: true, Anchor: anchor,
+		})
+		if err != nil {
+			return err
+		}
+		frame, ok := anchored.Frame()
+		x, y := platform.PlacePanel(anchor, float32(width), float32(height), area)
+		anchored.Close()
+		if !ok || frame.X != float32(int32(x)) || frame.Y != float32(int32(y)) {
+			t.Fatalf("anchored notification frame = %+v (ok=%v), want %v %v", frame, ok, x, y)
+		}
 		for _, test := range []struct {
 			name         string
 			origin, want point

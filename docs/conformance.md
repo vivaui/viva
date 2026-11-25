@@ -32,6 +32,7 @@ desktop session.
 | A panel opens, paints and closes from another goroutine | `WindowPanel` is a window kind of its own on each backend |
 | A notification paints without pointer input and returns to idle | a notification may open while the pointer stays on another window |
 | A status item can be added, changed and removed (SKIP where the desktop has no status area) | `AddStatusItem` and its setters on three different APIs |
+| A status preview opens without activation and closes after leaving both surfaces. A host without paired pointer events keeps normal activation and menu behavior. | `TestStatusPreviewCrossesGapAndClosesOnce`, `TestStatusPreviewWithoutHoverControlLeavesIconUsable` |
 | `Quit` ends the loop though windows refuse to close, even as the last-used window closes | the loop must end whatever the windows say |
 
 It was written after the status-icon work, and each check is something a real

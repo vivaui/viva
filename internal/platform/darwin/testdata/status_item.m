@@ -19,6 +19,10 @@ void vivaStatusItemClicked(uintptr_t callbackHandle, int button, float x, float 
     (void)callbackHandle; (void)button; (void)x; (void)y; (void)width; (void)height; (void)panelDismissed;
 }
 
+void vivaStatusItemHovered(uintptr_t callbackHandle, int entered, float x, float y, float width, float height) {
+    (void)callbackHandle; (void)entered; (void)x; (void)y; (void)width; (void)height;
+}
+
 void vivaStatusItemUpdateMenu(uintptr_t callbackHandle) {
     (void)callbackHandle;
     update_menu_called++;

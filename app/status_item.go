@@ -111,8 +111,10 @@ type StatusItemControl interface {
 // menu bar on macOS, the notification area on Windows, the StatusNotifier host
 // (the tray of most Linux desktops) elsewhere.
 type StatusItem struct {
-	control StatusItemControl
-	removed atomic.Bool
+	control     StatusItemControl
+	removed     atomic.Bool
+	application *Application
+	preview     atomic.Pointer[statusPreview]
 }
 
 // SetIcon replaces the icon. Like SetTooltip it must be called on the event-loop
@@ -138,6 +140,9 @@ func (item *StatusItem) SetTooltip(tooltip string) {
 // called from any goroutine.
 func (item *StatusItem) Remove() {
 	if item != nil && !item.removed.Swap(true) {
+		if preview := item.preview.Swap(nil); preview != nil {
+			item.application.Post(preview.close)
+		}
 		item.control.Remove()
 	}
 }
