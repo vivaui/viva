@@ -186,6 +186,7 @@ const chineseComponentNames: Record<string, string> = {
   comment: '评论',
   'image-preview': '图片预览',
   mentions: '提及',
+  tour: '引导',
   'labeled-divider': '带文字分隔线',
   'editable-tabs': '可编辑标签页',
   steps: '步骤条',
@@ -321,6 +322,9 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   } },
   mentions: { summary: "A text field that offers people or tags after a trigger such as @, and writes the chosen one in place of what was typed.", examples: {
     default: ["Type @ to mention", "Type @ and a few letters at the start of a word and the list filters by what the labels contain; Up and Down move, Enter or Tab chooses, Escape closes, and pressing an option does not take the keyboard from the field."],
+  } },
+  tour: { summary: "A guided tour: a note beside one control of the page at a time, with the rest of the window dimmed around it.", examples: {
+    default: ["Step by step", "The page names the control of each step with Target as it declares it and declares View last; only Finish counts as finishing, while Skip, Escape and a press outside just leave."],
   } },
   upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
     default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],

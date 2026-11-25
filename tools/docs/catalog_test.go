@@ -485,6 +485,7 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 		"comment":         true,
 		"imagepreview":    true,
 		"mentions":        true,
+		"tour":            true,
 		"questionnaire":   true,
 		"inputotp":        true,
 		"inputgroup":      true,
@@ -681,6 +682,7 @@ func TestModelFreePageSnippetsCompile(t *testing.T) {
 		"comment":      "github.com/vivaui/viva/ui/comment",
 		"imagepreview": "github.com/vivaui/viva/ui/imagepreview",
 		"mentions":     "github.com/vivaui/viva/ui/mentions",
+		"tour":         "github.com/vivaui/viva/ui/tour",
 		"sidebar":      "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
 		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
 	}

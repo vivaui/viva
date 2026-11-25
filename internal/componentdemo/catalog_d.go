@@ -26,4 +26,5 @@ var groupDComponents = []Component{
 	commentComponent,
 	imagePreviewComponent,
 	mentionsComponent,
+	tourComponent,
 }
