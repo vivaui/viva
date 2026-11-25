@@ -453,7 +453,7 @@ func TestPageUsageIsPageLevel(t *testing.T) {
 func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 	packages := map[string]bool{
 		"ui": true, "base": true, "gfx": true, "window": true, "text": true,
-		"style": true, "strings": true, "utf8": true, "time": true, "math": true,
+		"style": true, "strings": true, "slices": true, "utf8": true, "time": true, "math": true,
 		"codeeditor": true, "chart": true, "calendar": true,
 		"carousel": true, "multiselect": true, "hierarchypicker": true,
 		"markdown": true, "columnresize": true,
@@ -480,6 +480,7 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 		"datepicker":      true,
 		"timepicker":      true,
 		"transfer":        true,
+		"upload":          true,
 		"questionnaire":   true,
 		"inputotp":        true,
 		"inputgroup":      true,
@@ -671,6 +672,7 @@ func TestModelFreePageSnippetsCompile(t *testing.T) {
 		"datepicker":   "github.com/vivaui/viva/ui/datepicker",
 		"timepicker":   "github.com/vivaui/viva/ui/timepicker",
 		"transfer":     "github.com/vivaui/viva/ui/transfer",
+		"upload":       "github.com/vivaui/viva/ui/upload",
 		"sidebar":      "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
 		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
 	}

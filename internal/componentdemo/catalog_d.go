@@ -21,4 +21,5 @@ var groupDComponents = []Component{
 	timePickerComponent,
 	timelineComponent,
 	transferComponent,
+	uploadComponent,
 }

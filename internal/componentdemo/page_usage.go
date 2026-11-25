@@ -21,6 +21,7 @@ var pageUsage = map[string]string{
 	"date-picker":     `m.due.View(c, "Due date", &m.dueDate)`,
 	"time-picker":     `m.start.View(c, "Start", &m.startAt)`,
 	"transfer":        `m.moves.View(c, "Hosts", transfer.Spec{Items: m.hosts})`,
+	"upload":          `m.upload.View(c, "Attachments", upload.Spec{Items: m.files, Multiple: true})`,
 	"toggle-group":    `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":           `empty.View(c, empty.Spec{Title: "No projects yet"}, nil).Fill()`,
 	"item":            `ui.Row(c).Gap(8).FillWidth()`,
