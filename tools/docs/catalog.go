@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -44,7 +45,11 @@ type Page struct {
 	PageSource string
 	// Source is the Go file the examples call, relative to the repository root:
 	// components/<ID>.go, or ui/list.go for a page-layer control.
-	Source         string
+	Source string
+	// API lists the symbols the component page summarizes, as "package.Name".
+	// The page renders them from api.json, so the tables cannot drift from the
+	// code they document.
+	API            []string `json:"api,omitempty"`
 	All            []Nav
 	Examples       []Demo
 	InstallCommand string
@@ -69,6 +74,81 @@ type Manifest struct {
 	Coverage []Coverage   `json:"coverage"`
 }
 
+// componentAPI maps a component page to the API symbols it summarizes. Pilot:
+// the toast pages. Sites keep this list explicit because a page often calls
+// symbols outside its own recipe file: the toast page's page API lives in base.
+// pageAPIHelpers are the page-layout and measurement calls every example uses;
+// they are not the component's own API and stay out of its table.
+var pageAPIHelpers = map[string]bool{
+	"Row": true, "Column": true, "Text": true, "Textf": true, "Grid": true,
+	"Box": true, "Slot": true, "Spacer": true, "Children": true,
+	"If": true, "For": true, "Start": true, "Center": true, "End": true,
+	"Stretch": true, "Baseline": true, "Wrap": true, "Gap": true, "Pad": true,
+	"PadX": true, "PadY": true, "Margin": true, "MarginY": true, "Width": true,
+	"Height": true, "Size": true, "Fill": true, "FillWidth": true, "Shrink": true,
+	"Grow": true, "Self": true, "Align": true, "Justify": true, "Position": true,
+	"Padding": true, "ID": true, "C": true, "Theme": true,
+	"DrawContext": true,
+}
+
+var apiSymbolPattern = regexp.MustCompile(`\b([a-z][a-z0-9]*)\.([A-Z][A-Za-z0-9_]*)`)
+
+// derivePageAPI is the first pass for a component page without an explicit
+// list: the page symbols its examples call, then the recipe symbols their
+// canvas snippets call. Unknown names are dropped against api.json later.
+func derivePageAPI(examples []Demo, pagePackages map[string]bool) []string {
+	var symbols []string
+	seen := map[string]bool{}
+	add := func(symbol string) {
+		if !seen[symbol] {
+			seen[symbol] = true
+			symbols = append(symbols, symbol)
+		}
+	}
+	for _, example := range examples {
+		for _, snippet := range []string{example.PageSnippet, example.PageSnippetZh} {
+			for _, match := range apiSymbolPattern.FindAllStringSubmatch(snippet, -1) {
+				pkg, name := match[1], match[2]
+				if pkg == "components" {
+					continue
+				}
+				if pkg != "ui" && !pagePackages[pkg] {
+					continue
+				}
+				if pkg == "ui" && pageAPIHelpers[name] {
+					continue
+				}
+				add(pkg + "." + name)
+			}
+		}
+	}
+	for _, example := range examples {
+		for _, match := range apiSymbolPattern.FindAllStringSubmatch(example.Snippet, -1) {
+			if match[1] == "components" {
+				add("components." + match[2])
+			}
+		}
+	}
+	return symbols
+}
+
+// componentAPIExtra adds a page API the example snippets do not name, such as
+// a control built through a local variable.
+var componentAPIExtra = map[string][]string{
+	"toggle-group": {"togglegroup.Group"},
+}
+
+var componentAPI = map[string][]string{
+	"toast": {
+		"ui.Toaster", "ui.ToastConfig", "ui.Toasts",
+		"components.PaintToast", "components.ToastOptions", "components.ToastSnapshot",
+	},
+	"sonner": {
+		"ui.Toaster", "ui.ToastConfig", "ui.Toasts",
+		"components.PaintSonner", "components.SonnerOptions", "components.SonnerToast",
+	},
+}
+
 func loadPages(root string) ([]Page, Manifest, error) {
 	manifest, err := sourceManifest(root)
 	if err != nil {
@@ -82,6 +162,16 @@ func loadPages(root string) ([]Page, Manifest, error) {
 		}
 		seen[component.ID] = true
 		navigation = append(navigation, Nav{component.ID, component.Title, component.Category})
+	}
+	paths, err := apiPackagePaths(root)
+	if err != nil {
+		return nil, manifest, err
+	}
+	pagePackages := map[string]bool{"ui": true}
+	for _, path := range paths {
+		if strings.HasPrefix(path, "ui/") {
+			pagePackages[strings.TrimPrefix(path, "ui/")] = true
+		}
 	}
 	metadata := documentation()
 	var pages []Page
@@ -110,6 +200,12 @@ func loadPages(root string) ([]Page, Manifest, error) {
 			}
 			page.Examples = append(page.Examples, Demo{example.ID, example.Title, example.Description, example.Snippet, example.PageSnippet, example.PageSnippetZh, example.Height})
 		}
+		if explicit, ok := componentAPI[component.ID]; ok {
+			page.API = explicit
+		} else {
+			page.API = derivePageAPI(page.Examples, pagePackages)
+		}
+		page.API = append(page.API, componentAPIExtra[component.ID]...)
 		pages = append(pages, page)
 	}
 	if len(metadata) != len(pages) {
@@ -166,7 +262,7 @@ func validID(value string) bool {
 
 func sourceManifest(root string) (Manifest, error) {
 	manifest := Manifest{}
-	for _, directory := range []string{"app", "ui", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
+	for _, directory := range []string{"app", "ui", "base", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
 		err := filepath.WalkDir(filepath.Join(root, filepath.FromSlash(directory)), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -218,6 +314,17 @@ func writeData(root, output string, pages []Page, manifest Manifest) error {
 		}
 		return os.WriteFile(path, data, 0o644)
 	}
+	api, err := loadAPI(root)
+	if err != nil {
+		return err
+	}
+	if err := validateAPI(api); err != nil {
+		return err
+	}
+	prunePageAPI(pages, api)
+	if err := validatePageAPI(pages, api); err != nil {
+		return err
+	}
 	catalog := struct {
 		Pages    []Page     `json:"pages"`
 		Revision string     `json:"revision"`
@@ -228,13 +335,6 @@ func writeData(root, output string, pages []Page, manifest Manifest) error {
 		return err
 	}
 	if err := write("catalog.json", data); err != nil {
-		return err
-	}
-	api, err := loadAPI(root)
-	if err != nil {
-		return err
-	}
-	if err := validateAPI(api); err != nil {
 		return err
 	}
 	data, err = json.MarshalIndent(api, "", "  ")

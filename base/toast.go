@@ -38,9 +38,10 @@ const ToastLayer = TooltipLayer - 8
 
 // Toaster is the toasts of a window, kept in the model, as shadcn's Sonner: Show
 // puts one up, and ui.Toasts, declared once in the page, paints them. A toast goes
-// away five seconds after it appears, or when its close button is pressed; the
-// pointer resting on the stack, or the focus in it, keeps them up. Swipe carries
-// a caller's horizontal drag snapshot for one toast, and Expanded keeps the stack
+// away after Timeout (five seconds when zero), or when its close button is
+// pressed; the pointer resting on the stack, or the focus in it, keeps them up.
+// Limit is how many are visible at once (three when zero). Swipe carries a
+// caller's horizontal drag snapshot for one toast, and Expanded keeps the stack
 // open for a page that cannot hold the pointer on it. The zero value is empty.
 //
 //	type model struct{ toaster ui.Toaster }
@@ -57,10 +58,15 @@ type Toaster struct {
 	// in it does: a caller-owned flag, for a static page whose stack cannot be
 	// hovered. The zero value is collapsed.
 	Expanded bool
+	// Timeout is the lifetime of a toast that does not name one of its own; zero
+	// is five seconds, as Base UI's.
+	Timeout time.Duration
+	// Limit is the most toasts visible at once; zero is three, as Base UI's.
+	Limit int
 
 	queue   ToastQueue
 	toasts  []toast // oldest first
-	Next    uint32
+	next    uint32  // the number the next toast gets
 	scope   gfx.Scope
 	stack   []SonnerToast // scratch for one paint, newest first
 	entries []ToastQueueEntry
@@ -71,9 +77,25 @@ type toast struct {
 	n                  uint32 // its number: ToastID, and its identity in the Toaster's scope
 	title, description string
 	Kind               ToastKind
-	action             string  // the label of its button; none when empty
+	action             string // the label of its button; none when empty
+	timeout            time.Duration
+	hideClose          bool    // no close button: the toast leaves on its time or Close
 	swipeX             float32 // the caller's horizontal snapshot offset, from Swipe
 	shown              bool    // painted once: in the queue, with its time running
+}
+
+// ToastConfig is what one show call sets on its toast: an action button, a
+// lifetime of its own, or no close button. The zero value is a toast with the
+// Toaster's lifetime and its close button.
+type ToastConfig struct {
+	// Action labels the toast's button; none when empty.
+	Action string
+	// Timeout overrides the Toaster's Timeout for this toast; zero or less uses
+	// the Toaster's.
+	Timeout time.Duration
+	// HideClose leaves the close button off. The toast then leaves when its time
+	// is up, when its action is pressed, or when the application calls Close.
+	HideClose bool
 }
 
 // ToastID names a toast for Close.
@@ -82,7 +104,7 @@ type ToastID uint32
 // Show puts up a toast: a title, and a description under it ("" for none). The
 // same title and description already up is not shown twice; its time starts again.
 func (t *Toaster) Show(title, description string, Kind ToastKind) ToastID {
-	return t.ShowAction(title, description, Kind, "")
+	return t.ShowConfig(title, description, Kind, ToastConfig{})
 }
 
 // ShowAction is Show with a button labeled action, which Acted reports and which
@@ -90,9 +112,16 @@ func (t *Toaster) Show(title, description string, Kind ToastKind) ToastID {
 // to it: what the toast offers is somewhere in the window too, for the toast goes
 // by itself.
 func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action string) ToastID {
+	return t.ShowConfig(title, description, Kind, ToastConfig{Action: action})
+}
+
+// ShowConfig is Show with what this toast alone sets: an action button, its own
+// lifetime, or no close button. A toast that hides its close button still goes
+// by its time, by its action, or by Close.
+func (t *Toaster) ShowConfig(title, description string, Kind ToastKind, config ToastConfig) ToastID {
 	for i := range t.toasts {
 		if item := &t.toasts[i]; item.title == title && item.description == description {
-			item.Kind, item.action, item.swipeX = Kind, action, 0
+			item.Kind, item.action, item.timeout, item.hideClose, item.swipeX = Kind, config.Action, config.Timeout, config.HideClose, 0
 			if item.shown {
 				t.queue.Remove(t.ID(item.n))
 				item.shown = false // the next paint queues it again, with a fresh time
@@ -100,9 +129,12 @@ func (t *Toaster) ShowAction(title, description string, Kind ToastKind, action s
 			return ToastID(item.n)
 		}
 	}
-	t.Next++
-	t.toasts = append(t.toasts, toast{n: t.Next, title: title, description: description, Kind: Kind, action: action})
-	return ToastID(t.Next)
+	t.next++
+	t.toasts = append(t.toasts, toast{
+		n: t.next, title: title, description: description, Kind: Kind,
+		action: config.Action, timeout: config.Timeout, hideClose: config.HideClose,
+	})
+	return ToastID(t.next)
 }
 
 // Swipe moves toast id x pixels horizontally on this and later paints: the

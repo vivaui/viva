@@ -1937,11 +1937,17 @@ func (x *toast) GetAction() string { return x.action }
 // GetDescription reads the description of toast for the styled painting layer.
 func (x *toast) GetDescription() string { return x.description }
 
+// GetHideClose reads the hideClose of toast for the styled painting layer.
+func (x *toast) GetHideClose() bool { return x.hideClose }
+
 // GetN reads the n of toast for the styled painting layer.
 func (x *toast) GetN() uint32 { return x.n }
 
 // GetShown reads the shown of toast for the styled painting layer.
 func (x *toast) GetShown() bool { return x.shown }
+
+// GetTimeout reads the timeout of toast for the styled painting layer.
+func (x *toast) GetTimeout() time.Duration { return x.timeout }
 
 // GetTitle reads the title of toast for the styled painting layer.
 func (x *toast) GetTitle() string { return x.title }

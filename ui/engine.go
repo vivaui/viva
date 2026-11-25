@@ -107,6 +107,7 @@ type TextValue = base.TextValue
 type ToastID = base.ToastID
 type ToastKind = base.ToastKind
 type ToastPosition = base.ToastPosition
+type ToastConfig = base.ToastConfig
 type Toaster = base.Toaster
 type TooltipSide = base.TooltipSide
 type TreeDrop = base.TreeDrop

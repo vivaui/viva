@@ -10,10 +10,12 @@ import (
 
 func TestToastPaintsOnlyCallerSnapshot(t *testing.T) {
 	var canvas gfx.Canvas
-	layout := PaintToast(&canvas, gfx.LightTheme(), gfx.Rect{Width: 1000, Height: 700}, ToastSnapshot{
+	viewport := gfx.Rect{Width: 1000, Height: 700}
+	layout := PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{
 		Title: "Deployment complete", Description: "Production is now up to date.", Type: ToastSuccess, Index: 1, Expanded: true,
 	}, ToastOptions{Layer: 12, Scope: gfx.Item(63), DismissID: gfx.Item(7), ActionID: gfx.Item(8), ActionLabel: "View"})
-	if layout.Bounds != (gfx.Rect{X: 600, Y: 516, Width: 384, Height: 78}) {
+	if layout.Bounds.Width <= 0 || layout.Bounds.Width > toastMaxWidth ||
+		layout.Bounds.X+layout.Bounds.Width != viewport.Width-toastInset {
 		t.Fatalf("toast bounds = %+v", layout.Bounds)
 	}
 	if canvas.EscapeTarget() != gfx.Item(7) || !canvas.TrappedFocusScope().IsZero() {
@@ -77,6 +79,9 @@ func TestToastDescriptionWrapsAndTheToastGrows(t *testing.T) {
 	if long.Bounds.Height <= short.Bounds.Height || long.Bounds.Y+long.Bounds.Height != short.Bounds.Y+short.Bounds.Height {
 		t.Fatalf("short %+v, long %+v: want a taller toast that keeps its bottom edge", short.Bounds, long.Bounds)
 	}
+	if short.Bounds.Width >= long.Bounds.Width {
+		t.Fatalf("short %+v, long %+v: want the width to follow the text", short.Bounds, long.Bounds)
+	}
 }
 
 func TestToastPositionPicksTheCornerAndLoadingAsksForFramesOnlyWhileShown(t *testing.T) {
@@ -98,6 +103,56 @@ func TestToastPositionPicksTheCornerAndLoadingAsksForFramesOnlyWhileShown(t *tes
 	PaintToast(&canvas, gfx.LightTheme(), viewport, ToastSnapshot{Title: "Saving", Type: ToastLoading, Limited: true}, ToastOptions{Layer: 1})
 	if _, wake := canvas.NextFrame(); wake {
 		t.Fatal("a toast that is not shown kept the frame loop running")
+	}
+}
+
+// A toast with no dismiss ID paints no close button and does not keep its room.
+func TestToastWithoutDismissIDHasNoCloseButton(t *testing.T) {
+	var canvas gfx.Canvas
+	viewport := gfx.Rect{Width: 1000, Height: 700}
+	snapshot := ToastSnapshot{Title: "Copied", Type: ToastSuccess}
+	withClose := PaintToast(&canvas, gfx.LightTheme(), viewport, snapshot, ToastOptions{Layer: 1, DismissID: gfx.Item(1)})
+	if len(canvas.Hits()) != 1 || canvas.Hits()[0].Label != "Close toast" {
+		t.Fatalf("hits = %+v", canvas.Hits())
+	}
+	canvas.Reset()
+	withoutClose := PaintToast(&canvas, gfx.LightTheme(), viewport, snapshot, ToastOptions{Layer: 1})
+	if len(canvas.Hits()) != 0 {
+		t.Fatalf("a toast without a dismiss ID has hits: %+v", canvas.Hits())
+	}
+	if withoutClose.Bounds.Width >= withClose.Bounds.Width {
+		t.Fatalf("with close %+v, without %+v: want the close room gone", withClose.Bounds, withoutClose.Bounds)
+	}
+}
+
+// The queue's default timeout is one policy; AddFor lets one toast carry its
+// own, and a loading toast still never expires.
+func TestToastQueueAddForUsesTheToastsOwnTimeout(t *testing.T) {
+	now := time.Unix(0, 0)
+	var queue ToastQueue
+	if evicted, ok := queue.AddFor(gfx.Item(1), now, false, 2*time.Second); !ok || !evicted.IsZero() {
+		t.Fatalf("AddFor = (%v, %v)", evicted, ok)
+	}
+	if evicted, ok := queue.Add(gfx.Item(2), now, false); !ok || !evicted.IsZero() {
+		t.Fatalf("Add = (%v, %v)", evicted, ok)
+	}
+	if _, expired := queue.Expire(now.Add(1999 * time.Millisecond)); expired {
+		t.Fatal("a two-second toast expired early")
+	}
+	if id, expired := queue.Expire(now.Add(2 * time.Second)); !expired || id != gfx.Item(1) {
+		t.Fatalf("first expiry = (%v, %v), want item 1", id, expired)
+	}
+	if _, expired := queue.Expire(now.Add(4 * time.Second)); expired {
+		t.Fatal("the default five-second toast expired early")
+	}
+	if id, expired := queue.Expire(now.Add(5 * time.Second)); !expired || id != gfx.Item(2) {
+		t.Fatalf("second expiry = (%v, %v), want item 2", id, expired)
+	}
+	if _, ok := queue.AddFor(gfx.Item(3), now, true, time.Second); !ok {
+		t.Fatal("a loading toast did not add")
+	}
+	if _, expired := queue.Expire(now.Add(time.Hour)); expired {
+		t.Fatal("a loading toast expired")
 	}
 }
 

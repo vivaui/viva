@@ -17,14 +17,25 @@ const (
 
 // ToastOptions contains stable action and overlay identities.
 type ToastOptions struct {
-	Layer       uint16
-	Scope       gfx.ID
-	DismissID   gfx.ID
-	ActionID    gfx.ID
+	// Layer is the canvas layer the toast is painted on.
+	Layer uint16
+	// Scope groups the toast's identities and its focus.
+	Scope gfx.ID
+	// DismissID names the close button and the Escape target. Zero paints no
+	// close button and leaves Escape to the page.
+	DismissID gfx.ID
+	// ActionID names the action button; zero paints none.
+	ActionID gfx.ID
+	// ActionLabel is the action button's text; empty paints none.
 	ActionLabel string
-	Disabled    bool
+	// Disabled dims the toast and disables its action and close button.
+	Disabled bool
 	// Position is where the toast sits; the zero value is the bottom right.
 	Position ToastPosition
+
+	// width is the shared width of a stack, set by PaintSonner so its cards line
+	// up behind one another; zero lets the toast size itself to its content.
+	width float32
 }
 
 // ToastLayout exposes deterministic geometry for pointer routing and tests.
@@ -36,20 +47,29 @@ type ToastLayout struct {
 	Close  gfx.Rect
 }
 
-// Toast geometry, from Base UI's toast: a `max-w-sm` box 16px in from the
-// viewport, `p-4` around content whose parts are `gap-3` apart, a title and a
-// description `gap-1` apart, and a stack that peeks 12px per toast behind the
-// front one (`--peek`) or opens with 12px between toasts (`--gap`).
+// Toast geometry: a compact message bar, as Arco's Message and react-hot-toast:
+// 10px above and below, 16px at the ends, an icon and text 8px apart, and a
+// stack that peeks 10px per toast behind the front one. The width follows the
+// text up to 384px, and a description sits under the title as a smaller line.
+// A small close button sits at the end of the row and keeps its room.
 const (
 	toastMaxWidth  = float32(384)
 	toastInset     = float32(16)
-	toastPadding   = float32(16)
-	toastItemGap   = float32(12)
-	toastTextGap   = float32(4)
-	toastPeek      = float32(12)
-	toastStackGap  = float32(12)
-	toastIconSize  = float32(16)
-	toastCloseSize = float32(32)
+	toastPaddingX  = float32(16)
+	toastPaddingY  = float32(10)
+	toastItemGap   = float32(8)
+	toastTextGap   = float32(2)
+	toastPeek      = float32(10)
+	toastStackGap  = float32(10)
+	toastIconSize  = float32(20)
+	toastCloseSize = float32(20)
+	// A string's measured width and the sum of its clusters can differ by a
+	// fraction; the slack keeps a line that was measured to fit from wrapping.
+	toastTextSlack = float32(1)
+	// Each card behind the front of a collapsed stack is 5% smaller, down to a
+	// floor so a stack deeper than the visible limit cannot vanish.
+	toastStackScale    = float32(0.05)
+	toastStackMinScale = float32(0.80)
 )
 
 // toastGeometry measures a toast without painting it: the width, the wrapped
@@ -59,34 +79,61 @@ type toastGeometry struct {
 	text          float32 // height of the title and description lines
 	bodyWidth     float32
 	actionWidth   float32
+	actionHeight  float32
 	hasIcon       bool
 }
 
 func toastMeasure(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot ToastSnapshot, options ToastOptions, scratch *overlayLines) (toastGeometry, []string) {
 	var geometry toastGeometry
-	geometry.width = min(toastMaxWidth, viewport.Width-2*toastInset)
-	if geometry.width <= 0 {
+	limit := min(toastMaxWidth, viewport.Width-2*toastInset)
+	if limit <= 0 {
 		return geometry, nil
 	}
 	metrics := theme.Metrics
 	geometry.hasIcon = snapshot.Type != ToastDefault
-	geometry.bodyWidth = geometry.width - 2*toastPadding - toastCloseSize - toastItemGap
+	// Everything the width has to hold besides the text: the padding, the close
+	// button, and the icon and action when there are any.
+	chrome := 2 * toastPaddingX
+	if !options.DismissID.IsZero() {
+		chrome += toastCloseSize + toastItemGap
+	}
 	if geometry.hasIcon {
-		geometry.bodyWidth -= toastIconSize + toastItemGap
+		chrome += toastIconSize + toastItemGap
 	}
 	if !options.ActionID.IsZero() && options.ActionLabel != "" {
-		geometry.actionWidth = BeginButton(canvas, theme, gfx.ID{}, gfx.Rect{}).Small().SizeToFit(options.ActionLabel).BoundsWidth()
-		geometry.bodyWidth -= geometry.actionWidth + toastItemGap
+		button := BeginButton(canvas, theme, gfx.ID{}, gfx.Rect{}).Small().SizeToFit(options.ActionLabel)
+		geometry.actionWidth, geometry.actionHeight = button.BoundsWidth(), button.BoundsHeight()
+		chrome += geometry.actionWidth + toastItemGap
 	}
-	geometry.bodyWidth = max(geometry.bodyWidth, 0)
-	lines := overlayWrap(canvas, scratch, snapshot.Description, metrics.FontSizeM, gfx.WeightRegular, geometry.bodyWidth)
+	bodyLimit := max(limit-chrome, 0)
+	// The body takes the width its own text asks for, so a short title stays a
+	// compact bar, and the description wraps once that would pass the limit. A
+	// stack hands every card the same width instead, so its peeks line up.
+	var bodyWidth float32
+	if options.width > 0 {
+		bodyWidth = options.width - chrome
+	} else {
+		var titleWidth, descriptionWidth float32
+		if canvas != nil {
+			titleWidth = canvas.TextWidthWeight(snapshot.Title, metrics.FontSizeM, gfx.WeightMedium)
+			descriptionWidth = canvas.TextWidthWeight(snapshot.Description, metrics.FontSizeS, gfx.WeightRegular)
+		}
+		bodyWidth = max(titleWidth, descriptionWidth) + toastTextSlack
+	}
+	geometry.bodyWidth = min(max(bodyWidth, 0), bodyLimit)
+	geometry.width = min(chrome+geometry.bodyWidth, limit)
+	lines := overlayWrap(canvas, scratch, snapshot.Description, metrics.FontSizeS, gfx.WeightRegular, geometry.bodyWidth)
 	geometry.text = overlayLineHeight(metrics)
 	if len(lines) > 0 {
-		geometry.text += toastTextGap + float32(len(lines))*overlayLineHeight(metrics)
+		geometry.text += toastTextGap + float32(len(lines))*toastDescriptionLineHeight(metrics)
 	}
-	geometry.height = max(geometry.text, toastCloseSize) + 2*toastPadding
+	rowHeight := max(max(geometry.text, toastCloseSize), geometry.actionHeight)
+	geometry.height = rowHeight + 2*toastPaddingY
 	return geometry, lines
 }
+
+// toastDescriptionLineHeight is the leading of the smaller description line.
+func toastDescriptionLineHeight(metrics gfx.Metrics) float32 { return metrics.FontSizeS + 6 }
 
 // ToastHeight is how tall PaintToast makes the toast, for a caller that stacks
 // toasts itself.
@@ -97,10 +144,10 @@ func ToastHeight(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapsho
 }
 
 // PaintToast paints one toast snapshot at the viewport position the options
-// name, bottom right by default. Its height follows its text: the description
-// wraps. It schedules no work and retains no lifetime state, except that a
-// loading toast asks for a frame every 100ms to turn its spinner, until it is
-// no longer painted.
+// name, bottom right by default. Its width follows its text, up to 384px, and
+// its height follows the description, which wraps at that width. It schedules
+// no work and retains no lifetime state, except that a loading toast asks for a
+// frame every 100ms to turn its spinner, until it is no longer painted.
 func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot ToastSnapshot, options ToastOptions) ToastLayout {
 	if canvas == nil || viewport.Width <= 0 || viewport.Height <= 0 || snapshot.Limited {
 		return ToastLayout{}
@@ -121,7 +168,7 @@ func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot
 	default:
 		x = viewport.X + viewport.Width - width - toastInset
 	}
-	stack := float32(snapshot.Index) * toastPeek
+	stack := float32(0)
 	if snapshot.Expanded {
 		stack = float32(snapshot.Index) * (height + toastStackGap)
 	}
@@ -134,8 +181,26 @@ func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot
 	x += snapshot.SwipeX
 	y += snapshot.OffsetY + snapshot.SwipeY
 	bounds := gfx.Rect{X: x, Y: y, Width: width, Height: height}
+	// A toast that is not the front of a collapsed stack sits back from the
+	// edge, smaller: the scale and lift are what make the cards behind the
+	// front one visible and give the stack its depth.
+	pose, pivot := gfx.Pose{}, gfx.Point{}
+	if !snapshot.Expanded && snapshot.Index > 0 {
+		scale := max(1-float32(snapshot.Index)*toastStackScale, toastStackMinScale)
+		lift := float32(snapshot.Index) * toastPeek
+		pivot = gfx.Point{X: bounds.X + bounds.Width/2, Y: bounds.Y}
+		pose = gfx.Pose{Offset: gfx.Point{Y: lift}, Scale: scale}
+		if !top {
+			pivot.Y = bounds.Y + bounds.Height
+			pose.Offset.Y = -lift
+		}
+	}
+	posed := pose != (gfx.Pose{})
 	layout := ToastLayout{Bounds: bounds}
 	canvas.PushLayer(options.Layer)
+	if posed {
+		canvas.BeginPose(options.DismissID, 0, pose, theme.Transition, pivot)
+	}
 	if !options.DismissID.IsZero() {
 		// A toast may still be shown while a dialog or menu is open. Claim
 		// Escape at the outer depth so the overlay the user is working in keeps
@@ -145,14 +210,16 @@ func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot
 	if !options.Scope.IsZero() {
 		canvas.PushFocusScope(options.Scope)
 	}
-	canvas.BeginPresence(overlayKey(options.DismissID, options.Scope), overlaySurfacePart, toastPresence(theme, options.Position, height), centerOf(bounds))
-	// sonner's own shadow, 0 4px 12px rgb(0 0 0 / 10%): the pinned shadcn snapshot has none.
+	canvas.BeginPresence(overlayKey(options.DismissID, options.Scope), overlaySurfacePart, toastPresence(theme, options.Position), centerOf(bounds))
+	// Two soft layers instead of a border: one wide and one tight, close to
+	// sonner's 0 4px 12px rgb(0 0 0 / 10%) with a crisper edge under it.
 	canvas.Shadow(bounds, metrics.RadiusSurface, gfx.ShadowStyle{OffsetY: 4, Blur: 12}, gfx.Color{Alpha: 0.10})
-	canvas.RoundedBorder(bounds, metrics.RadiusSurface, 1, theme.Border, theme.Popover)
+	canvas.Shadow(bounds, metrics.RadiusSurface, gfx.ShadowStyle{OffsetY: 2, Blur: 4}, gfx.Color{Alpha: 0.06})
+	canvas.Rounded(bounds, metrics.RadiusSurface, theme.Popover)
 
 	// The icon, the text, the action and the close button are centered on the row
 	// the padding leaves.
-	row := gfx.Rect{X: bounds.X + toastPadding, Y: bounds.Y + toastPadding, Width: bounds.Width - 2*toastPadding, Height: bounds.Height - 2*toastPadding}
+	row := gfx.Rect{X: bounds.X + toastPaddingX, Y: bounds.Y + toastPaddingY, Width: bounds.Width - 2*toastPaddingX, Height: bounds.Height - 2*toastPaddingY}
 	textX := row.X
 	if geometry.hasIcon {
 		layout.Icon = gfx.Rect{X: row.X, Y: row.Y + (row.Height-toastIconSize)/2, Width: toastIconSize, Height: toastIconSize}
@@ -171,45 +238,86 @@ func PaintToast(canvas *gfx.Canvas, theme gfx.Theme, viewport gfx.Rect, snapshot
 		button.paint(options.ActionLabel, ButtonOutline)
 		right = layout.Action.X - toastItemGap
 	}
-	closeColor := theme.MutedForeground
-	if options.Disabled {
-		closeColor.Alpha *= 0.50
-	}
-	if !options.DismissID.IsZero() && !options.Disabled && canvas.Hovered() == options.DismissID {
-		canvas.Rounded(layout.Close, metrics.RadiusControl, theme.Accent)
-		closeColor = theme.AccentForeground
-	}
-	paintCross(canvas, layout.Close, 16, closeColor)
+	// The close button is always there, small and quiet, and takes the accent
+	// while the pointer or the focus is on it.
 	if !options.DismissID.IsZero() {
+		closeColor := theme.MutedForeground
+		if options.Disabled {
+			closeColor.Alpha *= 0.50
+		}
+		if !options.Disabled && (canvas.Hovered() == options.DismissID || canvas.Focused() == options.DismissID) {
+			canvas.Rounded(layout.Close, toastCloseSize/2, theme.Accent)
+			closeColor = theme.AccentForeground
+		}
+		paintCross(canvas, layout.Close, 14, closeColor)
 		canvas.HitWithOptions(options.DismissID, layout.Close, "Close toast", gfx.HitOptions{Role: gfx.RoleButton, Disabled: options.Disabled})
 	}
 
 	layout.Body = gfx.Rect{X: textX, Y: row.Y + (row.Height-geometry.text)/2, Width: max(0, right-textX), Height: geometry.text}
-	lineHeight := overlayLineHeight(metrics)
-	canvas.Label(snapshot.Title, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: lineHeight}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.PopoverForeground})
-	overlayParagraph(canvas, lines, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y + lineHeight + toastTextGap, Width: layout.Body.Width}, lineHeight, gfx.TextStyle{
-		Size: metrics.FontSizeM, Weight: gfx.WeightRegular, Color: theme.MutedForeground,
+	titleHeight, descriptionHeight := overlayLineHeight(metrics), toastDescriptionLineHeight(metrics)
+	canvas.Label(snapshot.Title, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y, Width: layout.Body.Width, Height: titleHeight}, gfx.TextStyle{Size: metrics.FontSizeM, Weight: gfx.WeightMedium, Color: theme.PopoverForeground})
+	overlayParagraph(canvas, lines, gfx.Rect{X: layout.Body.X, Y: layout.Body.Y + titleHeight + toastTextGap, Width: layout.Body.Width}, descriptionHeight, gfx.TextStyle{
+		Size: metrics.FontSizeS, Weight: gfx.WeightRegular, Color: theme.MutedForeground,
 	}, false)
 	canvas.EndPresence()
+	if posed {
+		canvas.EndPose()
+	}
 	if !options.Scope.IsZero() {
 		canvas.PopFocusScope()
 	}
 	canvas.PopLayer()
+	if posed {
+		layout = toastPoseLayout(layout, pose, pivot)
+	}
 	return layout
 }
 
-// toastPresence is how a toast comes and goes: it slides from and to beyond its
-// edge of the window, by 150% of its height, over 500ms (Base UI's
-// `translateY(150%)` with `cubic-bezier(0.22, 1, 0.36, 1)`), without fading.
-func toastPresence(theme gfx.Theme, position ToastPosition, height float32) gfx.Presence {
+// toastPoseLayout places the parts of a toast where the stack's pose puts them,
+// so a caller's layout and hit testing agree with what was painted.
+func toastPoseLayout(layout ToastLayout, pose gfx.Pose, pivot gfx.Point) ToastLayout {
+	layout.Bounds = toastPoseRect(layout.Bounds, pose, pivot)
+	layout.Icon = toastPoseRect(layout.Icon, pose, pivot)
+	layout.Body = toastPoseRect(layout.Body, pose, pivot)
+	layout.Action = toastPoseRect(layout.Action, pose, pivot)
+	layout.Close = toastPoseRect(layout.Close, pose, pivot)
+	return layout
+}
+
+func toastPoseRect(rect gfx.Rect, pose gfx.Pose, pivot gfx.Point) gfx.Rect {
+	if rect == (gfx.Rect{}) {
+		return rect
+	}
+	scale := pose.Scale
+	if scale <= 0 {
+		scale = 1
+	}
+	return gfx.Rect{
+		X:      pivot.X + (rect.X-pivot.X)*scale + pose.Offset.X,
+		Y:      pivot.Y + (rect.Y-pivot.Y)*scale + pose.Offset.Y,
+		Width:  rect.Width * scale,
+		Height: rect.Height * scale,
+	}
+}
+
+// toastPresence is how a toast comes and goes: it grows from 95% with a short
+// lift from its edge of the window and fades in, over 220ms. That is a lighter
+// arrival than Base UI's 150%-height slide, and the scale and fade are what make
+// it read as a notification rather than a panel.
+func toastPresence(theme gfx.Theme, position ToastPosition) gfx.Presence {
 	if !moving(theme) {
 		return gfx.Presence{}
 	}
-	slide := gfx.Point{Y: height * 1.5}
+	slide := gfx.Point{Y: 16}
 	if position >= ToastTopRight {
 		slide.Y = -slide.Y
 	}
-	return gfx.Presence{Motion: gfx.Motion{Duration: toastDuration, Easing: gfx.EaseEmphasized}, SlideIn: slide, SlideOut: slide}
+	return gfx.Presence{
+		Motion:  gfx.Motion{Duration: toastDuration, Easing: gfx.EaseEmphasized},
+		Fade:    true,
+		Scale:   0.95,
+		SlideIn: slide, SlideOut: slide,
+	}
 }
 
 // toastSpinnerStep is how long a loading toast's spinner holds each of its eight spokes.
@@ -229,7 +337,7 @@ func paintToastIcon(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, kind T
 		}
 		PaintSpinner(canvas, theme, bounds, phase)
 	case ToastSuccess:
-		canvas.DrawIcon(circleCheckIcon, bounds, theme.PopoverForeground)
+		canvas.DrawIcon(circleCheckIcon, bounds, theme.Success)
 	case ToastInfo:
 		canvas.DrawIcon(infoIcon, bounds, theme.PopoverForeground)
 	case ToastWarning:
@@ -269,8 +377,9 @@ var (
 	}}
 )
 
-// toastDuration is the 500ms of Base UI's toast transition.
-const toastDuration = 500 * time.Millisecond
+// toastDuration is how long a toast takes to arrive or leave. It is shorter than
+// Base UI's 500ms so a notification settles before it is read.
+const toastDuration = 220 * time.Millisecond
 
 // Aliases into the style vocabulary.
 type ToastQueue = base.ToastQueue
