@@ -261,6 +261,11 @@ type Config struct {
 	// application-owned native editor. Returning nil disables native editing.
 	// The callback runs on the window thread after painting.
 	TextInput TextInputProvider
+	// TextMenu asks for the menu a text field opens on a secondary press: the
+	// system's own on macOS and Windows, with these words. Nil leaves it to the
+	// page, which draws one of its own where the platform has none to show.
+	// The words are read when the menu opens, so a language change reaches it.
+	TextMenu *TextMenuLabels
 	// OnCloseRequest, when set, intercepts window close (the red traffic
 	// light). Call allow to close the window immediately or later; never
 	// calling it keeps the window open.

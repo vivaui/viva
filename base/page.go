@@ -237,6 +237,13 @@ type PageConfig struct {
 	// that keeps using Button, Checkbox, Switch, Input and Textarea rather than
 	// their Bases, and it does not affect a control given a look of its own.
 	Styles *Styles
+	// EditMenu points at the words of the menu a TextField or TextArea opens on a
+	// secondary press, as Theme points at the colors: the application changes them
+	// when its language does. Nil, and a label left empty, are English.
+	EditMenu *EditMenuLabels
+	// CanvasMenus keeps the menu of a TextField or TextArea the page's own, drawn
+	// in the window, where the platform would show the system's.
+	CanvasMenus bool
 }
 
 // Page is a window's declaration: one tree for the whole window. A Page lives
@@ -288,6 +295,8 @@ type Page struct {
 	groupIDs    []gfx.ID              // their members, in order
 	groupStops  map[gfx.ID]groupStop  // the member each group has the Tab stop on
 	contexts    []contextTarget       // the ContextMenus of the last paint, which Shift+F10 opens
+	editMenus   []editMenuEntry       // the fields of the last paint that have the standard edit menu
+	editFocus   gfx.ID                // the field whose edit menu item was chosen, which takes the keyboard in the next paint
 	combos      []*ComboState         // the Comboboxes of the last paint
 	trees       []*TreeState          // the Trees of the last paint
 	drags       []*DragState          // the DragStates of the last paint
@@ -815,6 +824,8 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.groups, p.groupIDs = p.groups[:0], p.groupIDs[:0]
 	clear(p.contexts)
 	p.contexts = p.contexts[:0]
+	clear(p.editMenus)
+	p.editMenus = p.editMenus[:0]
 	clear(p.combos)
 	p.combos = p.combos[:0]
 	clear(p.trees)
@@ -842,6 +853,7 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.ctx.page, p.ctx.f, p.ctx.nextSet = p, f, false
 	p.Nodes = append(p.Nodes[:0], protoNode{scope: p.root, named: true, parentNode: -1}) // node 0, the root column
 	View(&p.ctx)
+	p.declareEditMenus(&p.ctx)
 	f.End()
 	if p.settleContainers() {
 		p.retry = true

@@ -69,7 +69,7 @@ const (
 
 // TableColumn is a statically typed column declaration. Width is measured in
 // logical pixels; the final non-positive width consumes the remaining space.
-// Title and Sortable are read by ui.Table, which draws the heading and the sort
+// Title, Sortable, Filterable and Filtered are read by ui.Table, which draws the heading and the sort
 // hit of each column from them; components.Table takes its headings separately and
 // ignores both.
 type TableColumn struct {
@@ -81,6 +81,10 @@ type TableColumn struct {
 	// Sortable lets a click on the heading sort by the column: ui.Table gives it a
 	// hit in TableSpec.Header and shows the arrow of the column TableState sorts by.
 	Sortable bool
+	// Filterable puts a filter button at the end of the heading: ui.Table gives it a
+	// hit, and Box.FilterClicked reports a press on it, for the application to open
+	// the choice of what to show. Filtered paints the button as one that is on.
+	Filterable, Filtered bool
 	// Inset reserves leading content space inside a left-aligned cell, for
 	// example an application-painted file icon.
 	Inset float32

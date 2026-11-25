@@ -33,6 +33,10 @@ type Field struct {
 	// border and ring components.Input gives an invalid input. It is the application's
 	// to set and clear, as Secure is; it changes the look only.
 	Invalid bool
+	// Warning paints the field with the warning border: a value that needs a look but
+	// did not fail. Invalid wins over it. It is the application's to set and clear, as
+	// Invalid is; it changes the look only.
+	Warning bool
 	// Disabled paints the field dimmed and takes it out of the Tab order and the pointer's
 	// reach, as components.Input does for a disabled input. It is the application's to set
 	// and clear, as Secure is.
@@ -180,6 +184,25 @@ func (f *Frame) FieldBase(field *Field, ID gfx.ID, Label, placeholder string) Bo
 	return f.InputBase(field.Snapshot(f, ID, Label, placeholder))
 }
 
+// Warning paints a TextField or TextArea with the warning border (the theme's Warning
+// color) in place of the input border, for a value that needs a look but did not fail;
+// Warning(false) takes it away. A field marked Invalid keeps its destructive border
+// over it. A *Field sets Field.Warning where the model is made.
+//
+//	ui.TextField(c, &m.port, "Port", "").Warning(m.port == "22")
+func (b Box) Warning(warning bool) Box {
+	n := b.N()
+	switch n.Kind {
+	case kindInput:
+		WidgetsOf(b.f).inputs[n.Aux].Warning = warning
+	case kindTextarea:
+		WidgetsOf(b.f).textareas[n.Aux].Warning = warning
+	default:
+		panic("ui: Warning is for a TextField or TextArea")
+	}
+	return b
+}
+
 // ReadOnly makes the TextField or TextArea of the box read-only:
 // ReadOnly(true) keeps its ordinary look and its value visible, but gives the
 // platform no editor, paints no caret and applies no edit, as Field.ReadOnly
@@ -311,7 +334,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
 	snapshot := InputSnapshot{
-		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, ReadOnly: field.ReadOnly, Hint: field.Hint,
+		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Warning: field.Warning, Disabled: field.Disabled, ReadOnly: field.ReadOnly, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the
@@ -354,7 +377,7 @@ func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Bo
 	field.rows = true
 	return f.Textarea(TextareaSnapshot{
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
-		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid,
+		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid, Warning: input.Warning,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
 		SelectionRanges:  input.SelectionRanges,

@@ -454,10 +454,10 @@ func (f *Frame) themedDefaults(n *Node, Extra *Extra, s *resolved) {
 		return
 	case kindInput:
 		snapshot := &WidgetsOf(f).inputs[n.Aux]
-		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
+		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Warning: snapshot.Warning, Disabled: snapshot.Disabled}
 	case kindTextarea:
 		snapshot := &WidgetsOf(f).textareas[n.Aux]
-		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Disabled: snapshot.Disabled}
+		state = gfx.State{Focused: snapshot.Focused || f.Focused(n), Invalid: snapshot.Invalid, Warning: snapshot.Warning, Disabled: snapshot.Disabled}
 	default:
 		return
 	}

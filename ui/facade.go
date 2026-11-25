@@ -283,6 +283,7 @@ func Pagination(c C, Items []PaginationItem) Box { usePagination(); return base.
 
 func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
+	useEditMenu()
 	return base.TextField(c, Value, Label, placeholder, opts...)
 }
 
@@ -293,6 +294,7 @@ func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
 
 func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
+	useEditMenu()
 	return base.TextArea(c, Value, Label, placeholder, opts...)
 }
 
