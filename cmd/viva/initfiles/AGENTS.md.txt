@@ -232,7 +232,7 @@ func (m *model) page(c ui.C) {
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
   `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`,
   `ui/steps`, `ui/descriptions`, `ui/timeline`, `ui/rate`, `ui/inputnumber`, `ui/datepicker`, `ui/timepicker`,
-  `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`, `ui/editabletabs`, `ui/popconfirm`, `ui/divider`, `ui/typography`, `ui/validate`, `ui/upload`, `ui/anchor`, `ui/comment`.
+  `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`, `ui/editabletabs`, `ui/popconfirm`, `ui/divider`, `ui/typography`, `ui/validate`, `ui/upload`, `ui/anchor`, `ui/comment`, `ui/imagepreview`.
 - For read-only selectable output, keep a `textview.View` in the model and call
   `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`. The caller owns the
   lines, spans and actions; `ui/textview` owns selection and drawing without an editing model.
@@ -318,7 +318,7 @@ func (m *model) page(c ui.C) {
   model: `m.drop.Over()` paints the highlight while files are over it, and `m.drop.Dropped()` returns the files
   (and their paths, empty in a browser) once. `ui.OpenFiles(c, options, done)` is the system's picker, answering
   with files that read the same way; `ui.FilePath(file)` is a file's path where there is one. For a whole upload
-  area with a file list, use `ui/upload`, `ui/anchor`, `ui/comment`.
+  area with a file list, use `ui/upload`, `ui/anchor`, `ui/comment`, `ui/imagepreview`.
 - For a divider between two panes, use `ui.Splitter` (see "Keys, drag and the mouse"), not a `DragState`.
 
 ## Mistakes that compile (and how each is reported)

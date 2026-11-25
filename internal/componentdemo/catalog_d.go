@@ -24,4 +24,5 @@ var groupDComponents = []Component{
 	uploadComponent,
 	anchorComponent,
 	commentComponent,
+	imagePreviewComponent,
 }

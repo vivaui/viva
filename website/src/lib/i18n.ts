@@ -184,6 +184,7 @@ const chineseComponentNames: Record<string, string> = {
   upload: '文件上传',
   anchor: '锚点',
   comment: '评论',
+  'image-preview': '图片预览',
   'labeled-divider': '带文字分隔线',
   'editable-tabs': '可编辑标签页',
   steps: '步骤条',
@@ -313,6 +314,9 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   } },
   transfer: { summary: "Move items between two lists, with select-all and disabled items.", examples: {
     default: ["Move between two lists", "Tick items and press the button between the lists to move them; the tick in a list's head ticks or clears all of it; disabled items are never ticked or moved."],
+  } },
+  'image-preview': { summary: "A dialog to look at a picture larger than its thumbnail: zoom, fit, actual size and drag to pan.", examples: {
+    default: ["Thumbnail and preview", "The thumbnail is the page's own control and calls Open when it is pressed; the wheel, + and - zoom, 0 fits again, a drag pans and Escape closes."],
   } },
   upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
     default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],
