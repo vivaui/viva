@@ -63,6 +63,12 @@ type Object struct {
 	// without first saying it is about to show the menu is reading it again,
 	// so the menu is built again.
 	stale bool
+	// served is true once a host has been given the whole layout. The build
+	// that answers the first read is not a change any host has to be told
+	// about: no host kept an older layout, and announcing it can make a host
+	// that is still collecting the properties of the read it is completing
+	// start over, dropping them.
+	served bool
 }
 
 // New returns the menu of an icon, built by menu on demand.
@@ -81,7 +87,9 @@ type Result struct {
 	// changed: entries were added, removed or reordered, and the ids a host
 	// holds no longer name the entries they did. The caller receives the new
 	// layout either way; the signal tells the other hosts, which kept the
-	// layout they read earlier, to read it.
+	// layout they read earlier, to read it. A layout no host has read yet is
+	// not announced: there is nothing older to replace, and the host reading
+	// it holds the new one already.
 	LayoutUpdated uint32
 	// ItemsUpdated, when not empty, is the body of an ItemsPropertiesUpdated
 	// signal (ItemsUpdatedSignature): entries kept their ids, but their titles
@@ -210,6 +218,7 @@ func (object *Object) Call(call *dbus.Message) Result {
 			return failure("org.freedesktop.DBus.Error.InvalidArgs", "expected (iias)")
 		}
 		var difference change
+		served := object.served
 		if parent == 0 {
 			// Reading the whole menu again, with no word that it is about to
 			// show, is a host that kept the last layout; reading a submenu is
@@ -223,8 +232,11 @@ func (object *Object) Call(call *dbus.Message) Result {
 		if !object.writeLayout(&e, parent, depth, names) {
 			return failure("org.freedesktop.DBus.Error.InvalidArgs", "no such menu item")
 		}
+		if parent == 0 {
+			object.served = true
+		}
 		result := reply("u"+nodeType, &e)
-		if difference.layout {
+		if difference.layout && served {
 			result.LayoutUpdated = object.revision
 		}
 		result.ItemsUpdated = difference.items
@@ -295,7 +307,7 @@ func (object *Object) Call(call *dbus.Message) Result {
 		}
 		e.Bool(difference.layout)
 		result := reply("b", &e)
-		if difference.layout {
+		if difference.layout && object.served {
 			result.LayoutUpdated = object.revision
 		}
 		result.ItemsUpdated = difference.items
@@ -320,7 +332,7 @@ func (object *Object) Call(call *dbus.Message) Result {
 		errors := e.BeginArray(4)
 		e.EndArray(errors)
 		result := reply("aiai", &e)
-		if difference.layout {
+		if difference.layout && object.served {
 			result.LayoutUpdated = object.revision
 		}
 		result.ItemsUpdated = difference.items
