@@ -28,6 +28,25 @@ int vivaFileDropEvent(uintptr_t handle, void *view, int phase, double x, double 
     return drop_answer;
 }
 void vivaPointerEvent(uintptr_t handle, void *view, int kind, int button, int modifiers, int clickCount, double x, double y, double screenX, double screenY) {}
+// The promised content callback records what it is asked for and answers as the
+// test says.
+static int promise_calls, promise_answer = 1, promise_item;
+static char promise_path[512];
+int vivaFilePromiseContent(intptr_t drag, int item, const char *path) {
+    promise_calls++;
+    promise_item = item;
+    memset(promise_path, 0, sizeof(promise_path));
+    if (path != NULL) {
+        snprintf(promise_path, sizeof(promise_path), "%s", path);
+    }
+    return promise_answer;
+}
+static int finished_calls;
+static intptr_t finished_drag;
+void vivaFileDragFinished(intptr_t drag) {
+    finished_calls++;
+    finished_drag = drag;
+}
 void vivaViewResized(uintptr_t handle, void *view, double width, double height) {}
 void vivaRedrawRequested(uintptr_t handle, void *view) {}
 void vivaKeyEvent(uintptr_t handle, void *view, int key, int modifiers, int repeat, const unsigned char *utf8, size_t utf8Length) {}
@@ -125,6 +144,44 @@ int main(void) {
         int before = drop_calls;
         assert(![view performDragOperation:(id)drag]);
         assert(drop_calls == before);
+
+        // The platform's effect bits become what a dragging source reports.
+        assert(viva_drag_operation(0) == NSDragOperationNone);
+        assert(viva_drag_operation(1) == NSDragOperationCopy);
+        assert(viva_drag_operation(2) == NSDragOperationMove);
+        assert(viva_drag_operation(4) == NSDragOperationLink);
+        assert(viva_drag_operation(1 | 4) == (NSDragOperationCopy | NSDragOperationLink));
+
+        // A promised item names itself and asks the application for its content
+        // at the destination, then completes without an error.
+        VivaFileDragContext *context = [[VivaFileDragContext alloc] initWithDrag:42];
+        VivaFilePromiseDelegate *delegate = [[VivaFilePromiseDelegate alloc] initWithName:@"报告.pdf" item:3 context:context];
+        [context release];
+        NSFilePromiseProvider *provider = [[NSFilePromiseProvider alloc] initWithFileType:@"public.data" delegate:delegate];
+        assert([[delegate filePromiseProvider:provider fileNameForType:@"public.data"] isEqualToString:@"报告.pdf"]);
+        __block int completed = 0;
+        __block NSError *failure = nil;
+        promise_answer = 0;
+        [delegate filePromiseProvider:provider writePromiseToURL:[NSURL fileURLWithPath:@"/tmp/报告.pdf"] completionHandler:^(NSError *error) {
+            completed = 1;
+            failure = error;
+        }];
+        assert(completed == 1 && failure == nil);
+        assert(promise_calls == 1 && promise_item == 3 && strcmp(promise_path, "/tmp/报告.pdf") == 0);
+
+        // A failure reaches the target as an error rather than an empty file.
+        completed = 0;
+        failure = nil;
+        promise_answer = 1;
+        [delegate filePromiseProvider:provider writePromiseToURL:[NSURL fileURLWithPath:@"/tmp/failed.txt"] completionHandler:^(NSError *error) {
+            completed = 1;
+            failure = error;
+        }];
+        assert(completed == 1 && failure != nil);
+        [provider release];
+        // The provider and its target are gone, so the promises can be forgotten.
+        [delegate release];
+        assert(finished_calls == 1 && finished_drag == 42);
         printf("file drop: ok\n");
     }
     return 0;

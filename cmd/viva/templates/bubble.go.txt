@@ -141,7 +141,7 @@ func bubbleTint(theme gfx.Theme) gfx.Color {
 
 // radiusXL is the corner radius of the official rounded-xl surfaces, the one
 // Card uses.
-func radiusXL(metrics gfx.Metrics) float32 { return metrics.RadiusSurface + 4 }
+func radiusXL(metrics gfx.Metrics) float32 { return gfx.RadiusOutset(metrics.RadiusSurface, 4) }
 
 // BubbleReactionSide selects whether a reaction capsule overlaps the top or
 // bottom edge of a bubble.

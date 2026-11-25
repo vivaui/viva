@@ -35,10 +35,12 @@ type driverSystem struct {
 	sleep          map[string]int // sleep-prevention reasons this run holds, with their counts
 	// dragFiles and dragAllowed are what the application last asked to drag out
 	// of a driver-backed window, and dragTaken is the effect the driver's target
-	// took from them; see driverStartFileDrag.
-	dragFiles   []string
-	dragAllowed platform.DragEffect
-	dragTaken   platform.DragEffect
+	// took from them; see driverStartFileDrag. dragPromises is the same for a
+	// drag whose content the application produces on demand.
+	dragFiles    []string
+	dragAllowed  platform.DragEffect
+	dragTaken    platform.DragEffect
+	dragPromises []FilePromise
 }
 
 type driverSaveFileResponse struct {
@@ -151,14 +153,34 @@ func driverSetClipboardImage(png []byte) (error, bool) {
 // driverStartFileDrag answers a drag of files out of a driver-backed run: the
 // driver records what the application asked and takes the effect a folder window
 // takes, with no native drag and no pointer to move.
-func driverStartFileDrag(paths []string, allowed platform.DragEffect) (platform.DragEffect, error, bool) {
+func driverStartFileDrag(paths []string, allowed platform.DragEffect) (error, bool) {
 	system := activeDriverSystem.Load()
 	if system == nil {
-		return platform.DragEffectNone, nil, false
+		return nil, false
 	}
 	taken := platform.DragEffectOf(allowed, platform.DragEffect(platform.DropEffect(true, uint32(allowed))))
 	system.dragFiles, system.dragAllowed, system.dragTaken = append([]string(nil), paths...), allowed, taken
-	return taken, nil, true
+	return nil, true
+}
+
+// driverStartFilePromiseDrag answers a drag of promised files out of a
+// driver-backed run: the driver records the promises and leaves each Open and
+// List to the test, which plays the target and asks for what it wants.
+func driverStartFilePromiseDrag(files []FilePromise) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	system.dragPromises = append([]FilePromise(nil), files...)
+	return nil, true
+}
+
+// DraggedPromises is the promises the application last asked to drag out of the
+// driver's window. The slice is the driver's own; do not modify it. The content
+// is still the application's to produce: Open and List behave as they would for
+// a real target.
+func (driver *Driver) DraggedPromises() []FilePromise {
+	return driver.system.dragPromises
 }
 
 // DraggedFiles is the files the application last asked to drag out of the

@@ -1376,9 +1376,7 @@ func (state *windowState) destroyed(window uintptr) {
 	}
 	defer func() {
 		release()
-		if state.application.windows == 0 {
-			active.CompareAndSwap(state, nil)
-		}
+		active.CompareAndSwap(state, nil)
 	}()
 	state.stopCaretTimer()
 	state.closeBackdropPower()

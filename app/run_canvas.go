@@ -16,6 +16,8 @@ import (
 // RunCanvas presents a retained canvas and blocks until the native window
 // closes. When config.Paint is set the canvas is repainted on window resizes
 // and pointer interactions; otherwise the initial canvas stays unchanged.
+// On macOS, call runtime.LockOSThread in an init function in package main and
+// start the native canvas from main to satisfy AppKit's main-thread requirement.
 func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if runtime.GOOS != "windows" {
 		config.CaptureMenuKeys = nil
@@ -43,6 +45,9 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	if err := checkNativeApplicationThread(); err != nil {
+		return err
+	}
 	canvas.SetReduceMotion(nativeReduceMotion())
 	canvas.SetTextEngine(nativeTextEngine())
 	painter, err := newPainter(canvas, &normalized)

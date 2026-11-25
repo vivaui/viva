@@ -622,11 +622,28 @@ func primaryCandidate(private bool, previous, next platform.TextState) (string, 
 	if selection.Start > selection.End {
 		selection.Start, selection.End = selection.End, selection.Start
 	}
-	runes := []rune(next.Value)
-	if selection.Start == selection.End || selection.Start < 0 || selection.End > len(runes) {
+	if selection.Start == selection.End || selection.Start < 0 {
 		return "", false
 	}
-	return string(runes[selection.Start:selection.End]), true
+	start, end, runeIndex := 0, len(next.Value), 0
+	for offset := range next.Value {
+		if runeIndex == selection.Start {
+			start = offset
+		}
+		if runeIndex == selection.End {
+			end = offset
+			break
+		}
+		runeIndex++
+	}
+	if runeIndex != selection.End {
+		return "", false
+	}
+	selected := next.Value[start:end]
+	if !utf8.ValidString(selected) {
+		return string([]rune(selected)), true
+	}
+	return strings.Clone(selected), true
 }
 
 // caretIndex is the rune index of the caret: the end of the selection, or of the composition

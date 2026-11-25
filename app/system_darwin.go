@@ -22,8 +22,12 @@ func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardF
 
 func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }
 
-func nativeStartFileDrag(paths []string, allowed FileDragEffect) (FileDragEffect, error) {
+func nativeStartFileDrag(paths []string, allowed FileDragEffect) error {
 	return darwinplatform.StartFileDrag(paths, allowed)
+}
+
+func nativeStartFilePromiseDrag(files []FilePromise) error {
+	return darwinplatform.StartFilePromiseDrag(files)
 }
 
 func nativeReduceMotion() bool { return darwinplatform.ReduceMotion() }
