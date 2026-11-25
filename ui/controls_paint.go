@@ -358,6 +358,9 @@ func measureWidgetNode(f *Frame, n *Node) { f.MeasureWidget(n) }
 
 func measureProgressNode(f *Frame, n *Node) {
 	n.Pref = [2]float32{ProgressWidth, ProgressHeight}
+	if n.Circle {
+		n.Pref = [2]float32{ProgressRing, ProgressRing}
+	}
 }
 
 func measureSpinnerNode(f *Frame, n *Node) { n.Pref = [2]float32{16, 16} }

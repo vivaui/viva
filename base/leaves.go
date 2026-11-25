@@ -11,6 +11,8 @@ import (
 const (
 	ProgressHeight = 6
 	ProgressWidth  = 160
+	// ProgressRing is the side of a circular Progress given no size.
+	ProgressRing = 64
 	// An indeterminate bar's moving segment is this much of the track and takes
 	// indeterminatePeriod to cross it.
 	IndeterminateShare  = 0.4
@@ -48,6 +50,21 @@ func (b Box) Indeterminate() Box {
 	if n := b.N(); n.Kind == kindProgress {
 		n.Natural = -1
 	}
+	return b
+}
+
+// Circle draws a Progress as a ring that fills clockwise from twelve o'clock, 64 across
+// unless given a Width and Height (it is as large as the smaller of the two), and an
+// Indeterminate one as an arc that keeps turning. It keeps the status color and the
+// accessible progress bar of the bar.
+//
+//	ui.Progress(c, m.done/m.total).Circle().Size(80, 80)
+func (b Box) Circle() Box {
+	n := b.N()
+	if n.Kind != kindProgress {
+		panic("ui: Circle is for a Progress")
+	}
+	n.Circle = true
 	return b
 }
 

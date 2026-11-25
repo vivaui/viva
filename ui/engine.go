@@ -169,6 +169,7 @@ const (
 	PKToaster          = base.PKToaster
 	ProgressHeight     = base.ProgressHeight
 	ProgressWidth      = base.ProgressWidth
+	ProgressRing       = base.ProgressRing
 	ScrollbarLinger    = base.ScrollbarLinger
 	SpinnerStep        = base.SpinnerStep
 	TabIndicator       = base.TabIndicator
