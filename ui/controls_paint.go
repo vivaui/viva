@@ -173,7 +173,13 @@ func paintSwitch(f *Frame, v ControlView, n *Node) {
 	if disabled {
 		control = control.Disabled()
 	}
-	control.Paint()
+	result := control.Paint()
+	if n.Loading && result.Thumb.Width > 0 {
+		spinner := f.Palette
+		spinner.Foreground = f.Palette.MutedForeground
+		size := result.Thumb.Width * 0.75
+		components.PaintSpinner(canvas, spinner, Rect{X: result.Thumb.X + (result.Thumb.Width-size)/2, Y: result.Thumb.Y + (result.Thumb.Height-size)/2, Width: size, Height: size}, components.SpinnerPhase(buttonSpinnerPhase(f, n)))
+	}
 }
 
 func paintInputGroup(f *Frame, v ControlView) {
@@ -352,6 +358,9 @@ func measureWidgetNode(f *Frame, n *Node) { f.MeasureWidget(n) }
 
 func measureProgressNode(f *Frame, n *Node) {
 	n.Pref = [2]float32{ProgressWidth, ProgressHeight}
+	if n.Circle {
+		n.Pref = [2]float32{ProgressRing, ProgressRing}
+	}
 }
 
 func measureSpinnerNode(f *Frame, n *Node) { n.Pref = [2]float32{16, 16} }

@@ -248,7 +248,7 @@ func (n *Node) stretches(axis int) bool {
 	case kindSlider:
 		return (n.Natural > 0) == (axis == AxisY) // as long as its container, never as thick
 	case kindProgress:
-		return axis == AxisX // a bar is as wide as its column, but a row does not make it tall
+		return axis == AxisX && !n.Circle // a bar is as wide as its column, but a row does not make it tall; a ring keeps its size
 	case kindContainer, kindText, kindSpacer, kindSlot, kindInput, kindInputGroup, kindTextarea, kindSegmented, kindTable, kindTabs, kindSelect, kindSplitter:
 		return true
 	}

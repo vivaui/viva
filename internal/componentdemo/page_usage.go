@@ -4,6 +4,8 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"select-groups":   `ui.Select(c, &m.host, m.hosts, nil, ui.SelectGroups(m.groups))`,
+	"progress-ring":   `ui.Progress(c, m.done/m.total).Circle().Size(80, 80)`,
 	"slider-marks":    `ui.Slider(c, &m.quality).Range(0, 100).Step(25).Marks(m.marks)`,
 	"expandable-text": `m.about.View(c, m.description, typography.Spec{Rows: 3, Expandable: true}).FillWidth()`,
 	"labeled-divider": `divider.View(c, "or", divider.Spec{})`,

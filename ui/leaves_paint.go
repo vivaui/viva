@@ -16,6 +16,14 @@ func paintProgress(f *Frame, n *Node) {
 	case StatusDanger:
 		palette.Primary = palette.Danger
 	}
+	if n.Circle {
+		paintProgressRing(f, n, palette)
+		return
+	}
+	if n.Segments > 1 && n.Natural >= 0 {
+		paintProgressSegments(f, n, palette)
+		return
+	}
 	if n.Natural >= 0 {
 		components.Progress(f.Surface, palette, r, n.Natural)
 		paintProgressHit(f, n, r, n.Natural)
@@ -71,4 +79,65 @@ func paintSpinner(f *Frame, n *Node) {
 		}
 	}
 	components.PaintSpinner(canvas, f.Palette, n.Rect, phase)
+}
+
+// paintProgressRing draws a circular Progress: a muted ring and over it the arc of the
+// fraction, clockwise from twelve o'clock with round ends. An indeterminate one is an
+// arc of a quarter turn that keeps going round, and holds still when the system asks
+// for reduced motion.
+func paintProgressRing(f *Frame, n *Node, palette Theme) {
+	canvas := f.Surface
+	r := n.Rect
+	side := min(r.Width, r.Height)
+	if side <= 0 {
+		return
+	}
+	box := Rect{X: r.X + (r.Width-side)/2, Y: r.Y + (r.Height-side)/2, Width: side, Height: side}
+	width := min(max(side*0.09, 3), 10)
+	radius := (side - width) / 2
+	builder := canvas.PathBuilder()
+	builder.Arc(side/2, side/2, radius, -90, 360)
+	canvas.DrawPath(builder.Path(side, side), box, gfx.PathStyle{Stroke: palette.Muted, StrokeWidth: width})
+	filled := min(n.Natural, 1)
+	start, sweep, fraction := float32(-90), filled*360, filled
+	if n.Natural < 0 {
+		sweep, fraction = 90, -1
+		if !canvas.ReduceMotion() {
+			start += 360 * float32(canvas.Now()%IndeterminatePeriod) / float32(IndeterminatePeriod)
+			if f.Visible(n) {
+				canvas.RequestFrame()
+			}
+		}
+	}
+	if sweep > 0 {
+		builder = canvas.PathBuilder()
+		builder.Arc(side/2, side/2, radius, start, min(sweep, 359.9))
+		canvas.DrawPath(builder.Path(side, side), box, gfx.PathStyle{Stroke: palette.Primary, StrokeWidth: width, Cap: gfx.CapRound})
+	}
+	paintProgressHit(f, n, box, fraction)
+}
+
+// paintProgressSegments draws a Progress as separate segments: the first of them
+// filled, a segment from half of it.
+func paintProgressSegments(f *Frame, n *Node, palette Theme) {
+	canvas := f.Surface
+	r := n.Rect
+	if r.Height <= 0 {
+		r.Height = ProgressHeight
+	}
+	count := int(n.Segments)
+	const gap = float32(3)
+	width := (r.Width - gap*float32(count-1)) / float32(count)
+	if width <= 0 {
+		return
+	}
+	filled := int(min(n.Natural, 1)*float32(count) + 0.5)
+	for i := range count {
+		color := palette.Muted
+		if i < filled {
+			color = palette.Primary
+		}
+		canvas.Rounded(Rect{X: r.X + float32(i)*(width+gap), Y: r.Y, Width: width, Height: r.Height}, r.Height/2, color)
+	}
+	paintProgressHit(f, n, r, min(n.Natural, 1))
 }

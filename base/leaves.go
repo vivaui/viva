@@ -11,6 +11,8 @@ import (
 const (
 	ProgressHeight = 6
 	ProgressWidth  = 160
+	// ProgressRing is the side of a circular Progress given no size.
+	ProgressRing = 64
 	// An indeterminate bar's moving segment is this much of the track and takes
 	// indeterminatePeriod to cross it.
 	IndeterminateShare  = 0.4
@@ -48,6 +50,36 @@ func (b Box) Indeterminate() Box {
 	if n := b.N(); n.Kind == kindProgress {
 		n.Natural = -1
 	}
+	return b
+}
+
+// Circle draws a Progress as a ring that fills clockwise from twelve o'clock, 64 across
+// unless given a Width and Height (it is as large as the smaller of the two), and an
+// Indeterminate one as an arc that keeps turning. It keeps the status color and the
+// accessible progress bar of the bar.
+//
+//	ui.Progress(c, m.done/m.total).Circle().Size(80, 80)
+func (b Box) Circle() Box {
+	n := b.N()
+	if n.Kind != kindProgress {
+		panic("ui: Circle is for a Progress")
+	}
+	n.Circle = true
+	return b
+}
+
+// Segments draws a Progress bar as n separate segments with a gap between them, the first
+// ones filled for the fraction (a fraction of a segment fills it from one half), for work
+// that comes in steps: "3 of 5 stages". n of one or less is the ordinary bar, and a ring
+// keeps being a ring.
+//
+//	ui.Progress(c, float32(m.stage)/float32(m.stages)).Segments(m.stages)
+func (b Box) Segments(n int) Box {
+	node := b.N()
+	if node.Kind != kindProgress {
+		panic("ui: Segments is for a Progress")
+	}
+	node.Segments = uint8(min(max(n, 0), 255))
 	return b
 }
 

@@ -132,9 +132,9 @@ func paintSelect(f *Frame, n *Node) {
 		base.WidgetsOf(f).SetRows(append(base.WidgetsOf(f).GetRows(), Rect{}))
 	}
 	for index := first; index < first+visible && index < count; index++ {
-		item := components.SelectItem{ID: d.GetScope().At(index), Label: d.GetLabels()[index], Selected: index == d.GetSelected(), Disabled: base.OptionDisabled(d.GetDisabled(), index)}
-		if index < len(d.GetIcons()) {
-			item.Icon = d.GetIcons()[index]
+		item := components.SelectItem{ID: d.GetScope().At(index), Label: d.GetLabels()[index], Selected: index == d.GetSelected(), Disabled: base.OptionDisabled(d.GetDisabled(), index), Heading: d.IsHeading(index)}
+		if option := d.OptionAt(index); option >= 0 && option < len(d.GetIcons()) {
+			item.Icon = d.GetIcons()[option]
 		}
 		base.WidgetsOf(f).GetRows()[int(d.GetRects())+index] = control.AddItem(item)
 	}
