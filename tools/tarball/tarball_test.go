@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -217,6 +218,20 @@ func TestLinuxArchiveRejectsBadSpecs(t *testing.T) {
 	}
 }
 
+// shellPath is path as the sh these tests run sees it. install.sh is a POSIX
+// script that insists on an absolute prefix; on Windows sh is MSYS or Git
+// Bash, which reads a drive letter as a relative name and wants /c/Users/...
+func shellPath(path string) string {
+	if runtime.GOOS != "windows" {
+		return path
+	}
+	path = filepath.ToSlash(path)
+	if len(path) >= 2 && path[1] == ':' {
+		return "/" + strings.ToLower(path[:1]) + path[2:]
+	}
+	return path
+}
+
 // TestInstallScript unpacks the archive and runs install.sh with sh: install,
 // replace, and uninstall under a prefix, and the checks on the prefix.
 func TestInstallScript(t *testing.T) {
@@ -247,8 +262,9 @@ func TestInstallScript(t *testing.T) {
 	}
 
 	prefix := filepath.Join(t.TempDir(), "prefix")
+	shellPrefix := shellPath(prefix)
 	for round := 0; round < 2; round++ { // the second round replaces
-		if out, err := run("--prefix", prefix); err != nil {
+		if out, err := run("--prefix", shellPrefix); err != nil {
 			t.Fatalf("install: %v\n%s", err, out)
 		}
 	}
@@ -258,11 +274,12 @@ func TestInstallScript(t *testing.T) {
 		}
 	}
 	info, _ := os.Stat(filepath.Join(prefix, "bin", "fixture-notes"))
-	if info.Mode()&0o111 == 0 {
+	// NTFS has no execute bit; Go reports every file there as 0666 or 0444.
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		t.Error("the installed program is not executable")
 	}
 	desktop, _ := os.ReadFile(filepath.Join(prefix, "share/applications/fixture-notes.desktop"))
-	for _, want := range []string{"Exec=" + prefix + "/bin/fixture-notes\n", "Icon=" + prefix + "/share/icons/hicolor/256x256/apps/fixture-notes.png\n", "Name=Fixture Notes\n"} {
+	for _, want := range []string{"Exec=" + shellPrefix + "/bin/fixture-notes\n", "Icon=" + shellPrefix + "/share/icons/hicolor/256x256/apps/fixture-notes.png\n", "Name=Fixture Notes\n"} {
 		if !strings.Contains(string(desktop), want) {
 			t.Errorf("the installed desktop file lacks %q:\n%s", want, desktop)
 		}
@@ -271,7 +288,7 @@ func TestInstallScript(t *testing.T) {
 		t.Errorf("bin holds %d files; a temporary file was left", len(entries))
 	}
 
-	if out, err := run("uninstall", "--prefix="+prefix); err != nil || !strings.Contains(out, "removed") {
+	if out, err := run("uninstall", "--prefix="+shellPrefix); err != nil || !strings.Contains(out, "removed") {
 		t.Fatalf("uninstall: %v\n%s", err, out)
 	}
 	for _, path := range []string{"bin/fixture-notes", "share/applications/fixture-notes.desktop", "share/icons/hicolor/256x256/apps/fixture-notes.png"} {
@@ -335,7 +352,7 @@ func TestFileTypesAreInstalledAndRemoved(t *testing.T) {
 			t.Fatalf("%v: %v\n%s", arguments, err, out)
 		}
 	}
-	run("--prefix", prefix)
+	run("--prefix", shellPath(prefix))
 	installed := filepath.Join(prefix, "share", "applications", "fixture-notes.desktop")
 	if data, err := os.ReadFile(installed); err != nil || !strings.Contains(string(data), "/bin/fixture-notes %F\n") {
 		t.Errorf("installed entry: %v\n%s", err, data)
@@ -344,7 +361,7 @@ func TestFileTypesAreInstalledAndRemoved(t *testing.T) {
 	if data, err := os.ReadFile(types); err != nil || !strings.Contains(string(data), `<glob pattern="*.md"/>`) {
 		t.Errorf("installed mime package: %v\n%s", err, data)
 	}
-	run("uninstall", "--prefix", prefix)
+	run("uninstall", "--prefix", shellPath(prefix))
 	if _, err := os.Stat(types); err == nil {
 		t.Error("uninstall left the mime package")
 	}

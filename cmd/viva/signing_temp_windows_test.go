@@ -31,12 +31,40 @@ func signingACL(t *testing.T, path string) string {
 	return syscall.UTF16ToString(unsafe.Slice(value, size))
 }
 
+// sddlTrustee returns how a security descriptor string names the account with
+// sid. Windows writes the well-known accounts by a two-letter alias rather than
+// by SID (the built-in Administrator, RID 500, is "LA"), so comparing the
+// trustee of a descriptor read back from disk with the SID string fails for
+// exactly the accounts that have an alias. Round-tripping a one-entry
+// descriptor through the same conversion gives the form the system will use.
+func sddlTrustee(t *testing.T, sid string) string {
+	t.Helper()
+	sddl, err := syscall.UTF16PtrFromString("D:(A;;FA;;;" + sid + ")")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var descriptor uintptr
+	if ok, _, err := signingSDFromString.Call(uintptr(unsafe.Pointer(sddl)), 1, uintptr(unsafe.Pointer(&descriptor)), 0); ok == 0 {
+		t.Fatal(err)
+	}
+	defer syscall.LocalFree(syscall.Handle(descriptor))
+	var value *uint16
+	var size uint32
+	if ok, _, err := signingAdvapi.NewProc("ConvertSecurityDescriptorToStringSecurityDescriptorW").Call(descriptor, 1, 4, uintptr(unsafe.Pointer(&value)), uintptr(unsafe.Pointer(&size))); ok == 0 {
+		t.Fatal(err)
+	}
+	defer syscall.LocalFree(syscall.Handle(uintptr(unsafe.Pointer(value))))
+	entry := syscall.UTF16ToString(unsafe.Slice(value, size))
+	return entry[strings.LastIndex(entry, ";")+1 : len(entry)-1]
+}
+
 func assertPrivateSigningFile(t *testing.T, path string) {
 	t.Helper()
 	sid, err := signingUserSID()
 	if err != nil {
 		t.Fatal(err)
 	}
+	trustee := sddlTrustee(t, sid)
 	for _, name := range []string{filepath.Dir(path), path} {
 		acl := signingACL(t, name)
 		if name == filepath.Dir(path) && !strings.HasPrefix(acl, "D:P") {
@@ -48,7 +76,7 @@ func assertPrivateSigningFile(t *testing.T, path string) {
 		}
 		for _, entry := range entries[1:] {
 			parts := strings.Split(strings.TrimSuffix(entry, ")"), ";")
-			if len(parts) != 6 || parts[0] != "A" || parts[2] != "FA" || (parts[5] != sid && parts[5] != "SY") {
+			if len(parts) != 6 || parts[0] != "A" || parts[2] != "FA" || (parts[5] != trustee && parts[5] != "SY") {
 				t.Fatalf("unexpected access grant: %s", acl)
 			}
 		}
