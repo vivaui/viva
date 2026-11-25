@@ -5,12 +5,96 @@ package linux
 import (
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/input"
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 )
+
+func mockGTKIMEClientWindow(library *gtkLibrary) {
+	library.gdkWindowNew = func(parent uintptr, attrs *gdkWindowAttr, mask int32) uintptr { return 29 }
+	library.widgetRegisterWindow = func(widget, client uintptr) {}
+	library.cairoRegionRect = func(rectangle *[4]int32) uintptr { return 31 }
+	library.gdkWindowInputShape = func(client, region uintptr, x, y int32) {}
+	library.cairoRegionDestroy = func(region uintptr) {}
+	library.gdkWindowShow = func(client uintptr) {}
+}
+
+func TestGTKWaylandIMECursorTracksContentOrigin(t *testing.T) {
+	library := &gtkLibrary{}
+	mockGTKIMEClientWindow(library)
+	window := &gtkWindow{g: library, toplevel: 17, area: 18, ratio: 1}
+	window.wl = &waylandSurface{w: window}
+	window.text = &linuxTextInput{input: platform.TextInput{
+		Placed: true, CaretX: 44, CaretY: 59, CaretWidth: 2, CaretHeight: 21,
+	}}
+	ime := &gtkIME{w: window, g: library, ctx: 23}
+	library.objectRef = func(context uintptr) uintptr { return context }
+	library.objectUnref = func(context uintptr) {}
+	library.widgetGetWindow = func(widget uintptr) uintptr { return widget }
+	var clientWindow uintptr
+	library.imSetClientWindow = func(context, client uintptr) { clientWindow = client }
+	offsetX, offsetY := int32(26), int32(60)
+	library.widgetTranslate = func(source, dest uintptr, x, y int32, destX, destY *int32) int32 {
+		*destX, *destY = x+offsetX, y+offsetY
+		return 1
+	}
+	var observed [][4]int32
+	library.imSetCursorRect = func(context uintptr, rectangle *[4]int32) {
+		position := *rectangle
+		if clientWindow == window.area {
+			position[0] += offsetX
+			position[1] += offsetY
+		}
+		observed = append(observed, position)
+	}
+
+	ime.realized()
+	ime.updateCursor()
+	offsetX, offsetY = 0, 0
+	ime.updateCursor()
+	ime.updateCursor()
+	want := [][4]int32{{70, 119, 2, 21}, {44, 59, 2, 21}}
+	if !slices.Equal(observed, want) {
+		t.Fatalf("cursor updates after content origin change: got %v, want %v", observed, want)
+	}
+}
+
+func TestGTKWaylandUnmapEndsPointerActivatedIME(t *testing.T) {
+	g := &gtkLibrary{}
+	mockGTKIMEClientWindow(g)
+	app := &gtkApplication{g: g}
+	window := &gtkWindow{app: app, g: g, toplevel: 17, area: 18, ratio: 1}
+	window.pointer.clicks = &input.ClickCounter{}
+	window.text = &linuxTextInput{enabled: true, input: platform.TextInput{Placed: true}}
+	window.wl = &waylandSurface{w: window, gdkWindow: 19}
+	ime := &gtkIME{w: window, g: g, ctx: 23}
+	window.ime = ime
+	g.objectRef = func(context uintptr) uintptr { return context }
+	g.objectUnref = func(context uintptr) {}
+	g.widgetGetWindow = func(widget uintptr) uintptr { return widget }
+	g.widgetTranslate = func(source, dest uintptr, x, y int32, destX, destY *int32) int32 {
+		*destX, *destY = x, y
+		return 1
+	}
+	g.imSetClientWindow = func(context, client uintptr) {}
+	g.imSetCursorRect = func(context uintptr, rectangle *[4]int32) {}
+	g.imFocusIn = func(context uintptr) {}
+	focusOuts := 0
+	g.imFocusOut = func(context uintptr) { focusOuts++ }
+
+	window.deliverPointer(platform.PointerEvent{Kind: platform.PointerDown})
+	if window.focused || !ime.filtering() {
+		t.Fatalf("pointer did not activate IME before native focus: window=%t ime=%t", window.focused, ime.active)
+	}
+	window.mapChanged(false)
+	if ime.focused || ime.filtering() || focusOuts != 1 {
+		t.Fatalf("unmap left pointer-activated IME active: focused=%t active=%t focus-outs=%d", ime.focused, ime.active, focusOuts)
+	}
+}
 
 func TestGTKDestroyDetachesInputMethodBeforeNativeWidget(t *testing.T) {
 	g := &gtkLibrary{}
@@ -90,7 +174,11 @@ func TestGTKNativeInputMethodWindowTeardown(t *testing.T) {
 	if os.Getenv("VIVA_GTK_CLOSE_NATIVE") != "1" {
 		t.Skip("native close probe requires a private display and the Fcitx GTK module")
 	}
-	for _, mode := range []string{"programmatic", "default", "deferred"} {
+	modes := []string{"programmatic", "default", "deferred"}
+	if os.Getenv("GDK_BACKEND") == "wayland" {
+		modes = append(modes, "external")
+	}
+	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			closed, requests, events := 0, 0, 0
 			allowed := false
@@ -152,9 +240,12 @@ func TestGTKNativeInputMethodWindowTeardown(t *testing.T) {
 							}))
 						}
 					}
-					if mode == "programmatic" {
+					switch mode {
+					case "programmatic":
 						w.Close()
-					} else {
+					case "external":
+						a.g.widgetDestroy(w.toplevel)
+					default:
 						closeWindow(w.toplevel)
 					}
 				})

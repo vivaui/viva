@@ -166,13 +166,16 @@ class Seat:
             raise RuntimeError("AT-SPI editor rejected GrabFocus")
         return {"accepted": True}
 
-    def click(self, reference=None):
+    def editor_point(self, reference=None):
         reference = reference or self.editor
         x, y, width, height = call(self.accessible, reference[0], reference[1], COMPONENT,
                                    "GetExtents", GLib.Variant("(u)", (0,)))[0]
         if width <= 0 or height <= 0 or x < 0 or y < 0 or x + width > 800 or y + height > 600:
             raise RuntimeError("native click target is outside the private viewport")
-        return self.click_at(x + width // 2, y + height // 2)
+        return x + width // 2, y + height // 2
+
+    def click(self, reference=None):
+        return self.click_at(*self.editor_point(reference))
 
     def move(self, x, y):
         if not 0 <= x < 800 or not 0 <= y < 600:
@@ -232,6 +235,8 @@ def main():
                 result = seat.grab()
             elif operation == "click":
                 result = seat.click()
+            elif operation == "move-editor":
+                result = seat.move(*seat.editor_point())
             elif operation == "probe-switch":
                 result = seat.probe_switch(int(command["pid"]))
             elif operation == "move":

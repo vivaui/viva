@@ -533,6 +533,8 @@ func (w *gtkWindow) mapChanged(on bool) {
 		w.focusSerial++
 		if w.focused {
 			w.setKeyboard(false)
+		} else if w.ime != nil && w.ime.focused {
+			w.ime.setFocused(false)
 		}
 		*w.pointer.clicks = input.ClickCounter{}
 		w.pointer.pending, w.pointer.pendingDelivery = false, false
