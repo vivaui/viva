@@ -32,6 +32,8 @@ func TestGDKEventLayoutsMatchGTK3(t *testing.T) {
 		{"crossing.Mode", unsafe.Offsetof(gdkEventCrossing{}.Mode), 72},
 		{"focus.In", unsafe.Offsetof(gdkEventFocus{}.In), 18},
 		{"configure.X", unsafe.Offsetof(gdkEventConfigure{}.X), 20},
+		{"property.Window", unsafe.Offsetof(gdkEventProperty{}.Window), 8},
+		{"property.Atom", unsafe.Offsetof(gdkEventProperty{}.Atom), 24},
 		{"windowState.Changed", unsafe.Offsetof(gdkEventWindowState{}.Changed), 20},
 		{"windowState.New", unsafe.Offsetof(gdkEventWindowState{}.New), 24},
 	} {

@@ -206,6 +206,10 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event", "window-state-event", "configure-event"} {
 		g.connect(w.toplevel, signal, cb.event, data)
 	}
+	if !a.wayland && config.WindowMode == platform.WindowTitled {
+		g.widgetAddEvents(w.toplevel, gdkPropertyChangeMask)
+		g.connect(w.toplevel, "property-notify-event", cb.event, data)
+	}
 	if config.OnFileDrop != nil {
 		const actionCopy = 1 << 1
 		g.dragDestSet(w.area, 0, 0, 0, actionCopy)

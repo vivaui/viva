@@ -16,37 +16,39 @@ import (
 type gdkEventType int32
 
 const (
-	gdkMotionNotify  gdkEventType = 3
-	gdkButtonPress   gdkEventType = 4
-	gdk2ButtonPress  gdkEventType = 5
-	gdk3ButtonPress  gdkEventType = 6
-	gdkButtonRelease gdkEventType = 7
-	gdkKeyPress      gdkEventType = 8
-	gdkKeyRelease    gdkEventType = 9
-	gdkEnterNotify   gdkEventType = 10
-	gdkLeaveNotify   gdkEventType = 11
-	gdkFocusChange   gdkEventType = 12
-	gdkConfigure     gdkEventType = 13
-	gdkMap           gdkEventType = 14
-	gdkUnmap         gdkEventType = 15
-	gdkScroll        gdkEventType = 31
-	gdkWindowState   gdkEventType = 32
+	gdkMotionNotify   gdkEventType = 3
+	gdkButtonPress    gdkEventType = 4
+	gdk2ButtonPress   gdkEventType = 5
+	gdk3ButtonPress   gdkEventType = 6
+	gdkButtonRelease  gdkEventType = 7
+	gdkKeyPress       gdkEventType = 8
+	gdkKeyRelease     gdkEventType = 9
+	gdkEnterNotify    gdkEventType = 10
+	gdkLeaveNotify    gdkEventType = 11
+	gdkFocusChange    gdkEventType = 12
+	gdkConfigure      gdkEventType = 13
+	gdkMap            gdkEventType = 14
+	gdkUnmap          gdkEventType = 15
+	gdkPropertyNotify gdkEventType = 16
+	gdkScroll         gdkEventType = 31
+	gdkWindowState    gdkEventType = 32
 )
 
 // Event masks of gtk_widget_add_events.
 const (
-	gdkExposureMask      = 1 << 1
-	gdkPointerMotionMask = 1 << 2
-	gdkButtonPressMask   = 1 << 8
-	gdkButtonReleaseMask = 1 << 9
-	gdkKeyPressMask      = 1 << 10
-	gdkKeyReleaseMask    = 1 << 11
-	gdkEnterNotifyMask   = 1 << 12
-	gdkLeaveNotifyMask   = 1 << 13
-	gdkFocusChangeMask   = 1 << 14
-	gdkStructureMask     = 1 << 15
-	gdkScrollMask        = 1 << 21
-	gdkSmoothScrollMask  = 1 << 23
+	gdkExposureMask       = 1 << 1
+	gdkPointerMotionMask  = 1 << 2
+	gdkButtonPressMask    = 1 << 8
+	gdkButtonReleaseMask  = 1 << 9
+	gdkKeyPressMask       = 1 << 10
+	gdkKeyReleaseMask     = 1 << 11
+	gdkEnterNotifyMask    = 1 << 12
+	gdkLeaveNotifyMask    = 1 << 13
+	gdkFocusChangeMask    = 1 << 14
+	gdkStructureMask      = 1 << 15
+	gdkPropertyChangeMask = 1 << 16
+	gdkScrollMask         = 1 << 21
+	gdkSmoothScrollMask   = 1 << 23
 )
 
 // GdkModifierType bits.
@@ -97,6 +99,15 @@ type gdkEventButton struct {
 	Device    uintptr
 	XRoot     float64
 	YRoot     float64
+}
+
+type gdkEventProperty struct {
+	Type      gdkEventType
+	_         [4]byte
+	Window    uintptr
+	SendEvent int8
+	_         [7]byte
+	Atom      uintptr
 }
 
 type gdkEventMotion struct {

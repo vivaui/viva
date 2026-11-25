@@ -3543,10 +3543,10 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
 
 @implementation VivaWorkspaceWindow
 - (BOOL)canBecomeKeyWindow {
-    return YES;
+    return (self.styleMask & NSWindowStyleMaskTitled) == 0 || [super canBecomeKeyWindow];
 }
 - (BOOL)canBecomeMainWindow {
-    return YES;
+    return (self.styleMask & NSWindowStyleMaskTitled) == 0 || [super canBecomeMainWindow];
 }
 @end
 

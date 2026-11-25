@@ -12,9 +12,28 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func TestGTKDecorationObservationDoesNotScheduleAPoll(t *testing.T) {
+	w := &gtkWindow{app: &gtkApplication{}, g: &gtkLibrary{}}
+	w.g.timeoutAdd = func(interval uint32, _, _ uintptr) uint32 {
+		t.Errorf("observation scheduled another timer after %d ms", interval)
+		return 1
+	}
+	r := &gtkDecorationRequest{
+		api: &xcbAPI{
+			getProperty: func(uintptr, uint8, uint32, uint32, uint32, uint32, uint32) xcbPropertyCookie {
+				return xcbPropertyCookie{}
+			},
+			getPropertyReply: func(uintptr, xcbPropertyCookie, *unsafe.Pointer) *xcbPropertyReply { return nil },
+		},
+	}
+	w.decoration.pending = r
+	w.observeDecoration(r)
+}
 
 func TestNativeGTKDecorationRoundTrip(t *testing.T) {
 	if os.Getenv("VIVA_GTK_DECORATION_NATIVE") != "1" {
@@ -134,7 +153,7 @@ func TestNativeGTKDecorationRoundTrip(t *testing.T) {
 								err = verify(initial)
 							}
 							if err != nil {
-								finish(err)
+								finish(fmt.Errorf("restore decorations: %w", err))
 								return
 							}
 							checkHidden := func(err error) {
@@ -156,12 +175,7 @@ func TestNativeGTKDecorationRoundTrip(t *testing.T) {
 							if above {
 								checkHidden(nil)
 							} else {
-								checkGTKDecorationRollback(w, func(err error) {
-									if err == nil {
-										err = verify(initial)
-									}
-									checkHidden(err)
-								})
+								checkGTKDecorationRollback(w, func() error { return verify(initial) }, checkHidden)
 							}
 						}); err != nil {
 							finish(err)
@@ -186,7 +200,7 @@ func TestNativeGTKDecorationRoundTrip(t *testing.T) {
 	}
 }
 
-func checkGTKDecorationRollback(w *gtkWindow, done func(error)) {
+func checkGTKDecorationRollback(w *gtkWindow, verify func() error, done func(error)) {
 	pid, err := strconv.Atoi(os.Getenv("VIVA_X11_DECORATION_WM_PID"))
 	if err != nil || pid <= 1 {
 		done(fmt.Errorf("invalid private window manager pid"))
@@ -201,13 +215,27 @@ func checkGTKDecorationRollback(w *gtkWindow, done func(error)) {
 		done(err)
 		return
 	}
+	statusPath := fmt.Sprintf("/proc/%d/status", pid)
+	for deadline := time.Now().Add(time.Second); ; time.Sleep(5 * time.Millisecond) {
+		status, err := os.ReadFile(statusPath)
+		if err == nil && strings.Contains(string(status), "\nState:\tT") {
+			break
+		}
+		if err != nil || time.Now().After(deadline) {
+			_ = syscall.Kill(pid, syscall.SIGCONT)
+			done(fmt.Errorf("private window manager did not stop: %v", err))
+			return
+		}
+	}
 	if err := w.SetDecorated(false, func(err error) {
+		// Check the callback's postcondition before the WM can handle the queued hints.
+		verified := verify()
 		resumed := syscall.Kill(pid, syscall.SIGCONT)
 		if err == nil || !strings.Contains(err.Error(), "previous frame restored") || resumed != nil || w.g.windowGetDecorated(w.toplevel) == 0 {
 			done(fmt.Errorf("ignored decoration request = %v; resume = %v", err, resumed))
 			return
 		}
-		done(nil)
+		done(verified)
 	}); err != nil {
 		_ = syscall.Kill(pid, syscall.SIGCONT)
 		done(err)

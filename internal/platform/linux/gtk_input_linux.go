@@ -102,10 +102,15 @@ func (w *gtkWindow) handleEvent(widget, event uintptr) uintptr {
 			return 0
 		}
 		w.focusChanged(in)
+		w.observeDecorationEvent(nil)
 	case gdkWindowState:
 		w.stateChanged((*gdkEventWindowState)(unsafePointer(event)))
+		w.observeDecorationEvent(nil)
 	case gdkConfigure:
 		w.reportFrame()
+		w.observeDecorationEvent(nil)
+	case gdkPropertyNotify:
+		w.observeDecorationEvent((*gdkEventProperty)(unsafePointer(event)))
 	}
 	return 0
 }

@@ -5,7 +5,6 @@ package linux
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/vivaui/viva/internal/platform"
 )
@@ -19,20 +18,20 @@ type gtkDecorationState struct {
 }
 
 type gtkDecorationRequest struct {
-	decorated bool
-	done      func(error)
-	task      uintptr
-	source    uint32
-	api       *xcbAPI
-	conn      uintptr
-	xid       uint32
-	native    uintptr
-	extents   uint32
-	before    [4]uint32
-	geometry  x11DecorationGeometry
-	focused   bool
-	deadline  time.Time
-	rollback  bool
+	decorated  bool
+	done       func(error)
+	task       uintptr
+	source     uint32
+	api        *xcbAPI
+	conn       uintptr
+	xid        uint32
+	native     uintptr
+	extents    uint32
+	gdkExtents uintptr
+	before     [4]uint32
+	geometry   x11DecorationGeometry
+	focused    bool
+	rollback   bool
 }
 
 func (w *gtkWindow) SetDecorated(decorated bool, done func(error)) error {
@@ -109,6 +108,8 @@ func (w *gtkWindow) beginDecoration(r *gtkDecorationRequest) {
 		w.finishDecoration(r, err)
 		return
 	}
+	atomName := cString("_NET_FRAME_EXTENTS")
+	r.gdkExtents = w.g.atomIntern(&atomName[0], 0)
 	before, ok := r.frameExtents()
 	current := w.g.windowGetDecorated(w.toplevel) != 0
 	if !ok || current != (before != [4]uint32{}) {
@@ -127,8 +128,8 @@ func (w *gtkWindow) beginDecoration(r *gtkDecorationRequest) {
 		return
 	}
 	w.decoration.changing = true
+	w.armDecorationDeadline(r)
 	w.setDecorationHint(r.decorated)
-	r.deadline = time.Now().Add(decorationDeadline)
 	w.observeDecoration(r)
 }
 
@@ -147,32 +148,63 @@ func (r *gtkDecorationRequest) frameExtents() ([4]uint32, bool) {
 	return frame, ok && present
 }
 
-func (w *gtkWindow) observeDecoration(r *gtkDecorationRequest) {
+func (w *gtkWindow) pendingDecorationObservation() *gtkDecorationRequest {
+	if w.closed || !w.decoration.changing {
+		return nil
+	}
+	w.decoration.mu.Lock()
+	defer w.decoration.mu.Unlock()
+	return w.decoration.pending
+}
+
+func (w *gtkWindow) observeDecorationEvent(property *gdkEventProperty) {
+	if r := w.pendingDecorationObservation(); r != nil &&
+		(property == nil || property.Window == r.native && property.Atom == r.gdkExtents) {
+		w.observeDecoration(r)
+	}
+}
+
+func (w *gtkWindow) observeDecoration(r *gtkDecorationRequest) bool {
+	w.decoration.mu.Lock()
+	pending := w.decoration.pending == r
+	w.decoration.mu.Unlock()
+	if !pending {
+		return true
+	}
 	frame, ok := r.frameExtents()
 	if ok && w.g.widgetGetMapped(w.toplevel) != 0 && w.g.widgetGetWindow(w.toplevel) == r.native &&
 		r.api.decorationGeometry(r.conn, r.xid) == r.geometry {
 		if r.rollback && frame == r.before {
 			w.finishDecoration(r, fmt.Errorf("linux: decoration change was not confirmed; previous frame restored"))
-			return
+			return true
 		}
 		if !r.rollback && r.decorated == (frame != [4]uint32{}) && w.focused == r.focused &&
 			!w.minimized && !w.maximized && !w.Fullscreen() {
 			w.finishDecoration(r, nil)
-			return
+			return true
 		}
 	}
-	if !time.Now().Before(r.deadline) {
-		if r.rollback {
-			w.finishDecoration(r, fmt.Errorf("linux: decoration change and restoration were not confirmed"))
-			return
-		}
-		r.rollback = true
-		w.setDecorationHint(!r.decorated)
-		r.deadline = time.Now().Add(decorationDeadline)
-	}
+	return false
+}
+
+func (w *gtkWindow) armDecorationDeadline(r *gtkDecorationRequest) {
 	w.decoration.mu.Lock()
-	w.queueDecoration(r, 20, func() { w.observeDecoration(r) })
-	w.decoration.mu.Unlock()
+	defer w.decoration.mu.Unlock()
+	w.queueDecoration(r, uint32(decorationDeadline.Milliseconds()), func() { w.decorationTimedOut(r) })
+}
+
+func (w *gtkWindow) decorationTimedOut(r *gtkDecorationRequest) {
+	if w.observeDecoration(r) {
+		return
+	}
+	if r.rollback {
+		w.finishDecoration(r, fmt.Errorf("linux: decoration change and restoration were not confirmed"))
+		return
+	}
+	r.rollback = true
+	w.armDecorationDeadline(r)
+	w.setDecorationHint(!r.decorated)
+	w.observeDecoration(r)
 }
 
 func (w *gtkWindow) closeDecoration() {
@@ -189,6 +221,10 @@ func (w *gtkWindow) closeDecoration() {
 func (w *gtkWindow) finishDecoration(r *gtkDecorationRequest, err error) {
 	state := &w.decoration
 	state.mu.Lock()
+	if state.pending != r {
+		state.mu.Unlock()
+		return
+	}
 	state.pending = nil
 	if r.task != 0 {
 		w.app.tasks.take(r.task)
