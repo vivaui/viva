@@ -66,7 +66,7 @@ type Toaster struct {
 
 	queue   ToastQueue
 	toasts  []toast // oldest first
-	Next    uint32
+	next    uint32  // the number the next toast gets
 	scope   gfx.Scope
 	stack   []SonnerToast // scratch for one paint, newest first
 	entries []ToastQueueEntry
@@ -129,12 +129,12 @@ func (t *Toaster) ShowConfig(title, description string, Kind ToastKind, config T
 			return ToastID(item.n)
 		}
 	}
-	t.Next++
+	t.next++
 	t.toasts = append(t.toasts, toast{
-		n: t.Next, title: title, description: description, Kind: Kind,
+		n: t.next, title: title, description: description, Kind: Kind,
 		action: config.Action, timeout: config.Timeout, hideClose: config.HideClose,
 	})
-	return ToastID(t.Next)
+	return ToastID(t.next)
 }
 
 // Swipe moves toast id x pixels horizontally on this and later paints: the

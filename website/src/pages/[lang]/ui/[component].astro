@@ -5,8 +5,10 @@ import DocsLayout from '../../../layouts/DocsLayout.astro';
 import Preview from '../../../components/Preview.svelte';
 import CopyButton from '../../../components/CopyButton.svelte';
 import Icon from '../../../components/Icon.svelte';
+import ComponentAPI from '../../../components/ComponentAPI.astro';
 import { navigationFor, readCatalog } from '../../../lib/catalog';
 import { locales, messages, isLocale, localizePage, componentPath, categoryLabel, componentName } from '../../../lib/i18n';
+import { siteText } from '../../../lib/site';
 
 export const getStaticPaths = (() => locales.flatMap(lang => readCatalog().pages.map(page => ({ params: { lang, component: page.ID } })))) satisfies GetStaticPaths;
 const locale = Astro.params.lang;
@@ -16,10 +18,12 @@ const original = catalog.pages.find(entry => entry.ID === Astro.params.component
 const page = localizePage(original, locale);
 const zhName = locale === 'zh' ? componentName(locale, page.ID, page.Title) : '';
 const text = messages[locale];
+const apiText = siteText(locale);
 const themes = { light: 'github-light', dark: 'github-dark' } as const;
 const sourceFile = `${page.ID.replaceAll('-', '_')}.go`;
 const sourcePath = page.PageUsage && page.PageSource ? page.PageSource : (page.Source || `components/${sourceFile}`);
 const sections = page.Sections.filter(section => section.ID !== 'source-ownership');
+const apiSymbols = page.api ?? [];
 const optionalImports = {
   text: 'github.com/vivaui/viva/text',
   gfx: 'github.com/vivaui/viva/gfx',
@@ -93,6 +97,7 @@ const optionalImports = {
   {sections.map(section => <section class="doc-section prose" aria-labelledby={`section-${section.ID}`}>
     <h2 id={`section-${section.ID}`}>{section.Title}<a class="heading-anchor" href={`#section-${section.ID}`} aria-label={section.Title}>#</a></h2><p>{section.Text}</p>{section.Items && section.Items.length > 0 && <ul>{section.Items.map(item => <li>{item}</li>)}</ul>}
   </section>)}
+  {apiSymbols.length > 0 && <ComponentAPI symbols={apiSymbols} {locale} />}
   <section class="doc-section" aria-labelledby="page-keyboard"><h2 id="page-keyboard">{text.keyboard}</h2><p class="section-intro">{text.keyboardIntro}</p></section>
-  <nav slot="toc" aria-label={text.toc}><p class="toc-heading">{text.toc}</p>{page.Examples.map(example => <a class="toc-example" href={`#example-${example.ID}`}>{example.Title}</a>)}<a href="#installation">{text.installation}</a>{sections.map(section => <a href={`#section-${section.ID}`}>{section.Title}</a>)}<a href="#page-keyboard">{text.keyboard}</a></nav>
+  <nav slot="toc" aria-label={text.toc}><p class="toc-heading">{text.toc}</p>{page.Examples.map(example => <a class="toc-example" href={`#example-${example.ID}`}>{example.Title}</a>)}<a href="#installation">{text.installation}</a>{sections.map(section => <a href={`#section-${section.ID}`}>{section.Title}</a>)}{apiSymbols.length > 0 && <a href="#api">{apiText.apiTable}</a>}<a href="#page-keyboard">{text.keyboard}</a></nav>
 </DocsLayout>

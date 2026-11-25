@@ -271,27 +271,42 @@ func (hover *IconHoverState) Progress(canvas *gfx.Canvas, id gfx.ID, slot uint8,
 // SonnerToast is one caller-owned toast snapshot plus stable interaction IDs.
 // The caller owns insertion, expiry, swipe state, and removal.
 type SonnerToast struct {
-	Snapshot    ToastSnapshot
-	Scope       gfx.ID
-	DismissID   gfx.ID
-	ActionID    gfx.ID
+	// Snapshot is the toast's text, kind and placement.
+	Snapshot ToastSnapshot
+	// Scope groups the toast's identities and its focus.
+	Scope gfx.ID
+	// DismissID names the close button; zero paints none.
+	DismissID gfx.ID
+	// ActionID names the action button; zero paints none.
+	ActionID gfx.ID
+	// ActionLabel is the action button's text; empty paints none.
 	ActionLabel string
-	Disabled    bool
+	// Disabled dims the toast and disables its action and close button.
+	Disabled bool
 }
 
 // ToastSnapshot is the complete caller-owned state painted for one frame.
 // Timing, expiry, swipe interpretation, and stack membership live outside the
 // component.
 type ToastSnapshot struct {
-	Title       string
+	// Title is the toast's first line.
+	Title string
+	// Description is the smaller line under the title; empty paints none.
 	Description string
-	Type        ToastKind
-	Index       uint16
-	Expanded    bool
-	Limited     bool
-	OffsetY     float32
-	SwipeX      float32
-	SwipeY      float32
+	// Type selects the icon, its color, and the spinner.
+	Type ToastKind
+	// Index is how far the toast sits behind the front of its stack.
+	Index uint16
+	// Expanded lays a stack out with a gap instead of a peek.
+	Expanded bool
+	// Limited marks a toast beyond the visible limit; it paints nothing.
+	Limited bool
+	// OffsetY is the caller's vertical snapshot offset.
+	OffsetY float32
+	// SwipeX is the caller's horizontal drag snapshot.
+	SwipeX float32
+	// SwipeY is the caller's vertical drag snapshot.
+	SwipeY float32
 }
 
 // ToastQueueEntry is one live toast as the queue sees it.

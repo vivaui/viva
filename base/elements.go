@@ -46,7 +46,9 @@ func Text(c C, Value string) Box { return c.f.Text(Value) }
 // Textf allocates its string in every paint.
 func Textf(c C, format string, args ...any) Box { return c.f.Text(fmt.Sprintf(format, args...)) }
 func Spacer(c C) Box                            { return c.f.Spacer() }
-func Divider(c C) Box                           { return c.f.Divider() }
+
+// Divider draws a one-pixel separator line.
+func Divider(c C) Box { return c.f.Divider() }
 func Progress(c C, fraction float32) Box {
 	return c.f.Progress(c.page.ControlID(pkProgress), fraction)
 }

@@ -1,0 +1,54 @@
+---
+import { apiPath } from '../lib/routes';
+import { readAPI, typeHref, type APIFunc, type APIType } from '../lib/api';
+import { apiZh } from '../lib/api-zh';
+import { siteText } from '../lib/site';
+import type { Locale } from '../lib/i18n';
+import APIDescription from './APIDescription.astro';
+
+interface GroupEntry {
+  pkg: string;
+  types: { type: APIType; synopsis: string }[];
+  funcs: { func: APIFunc; owner?: APIType; kind?: 'function' | 'constructor' | 'method' }[];
+}
+interface Props { group: GroupEntry; locale: Locale }
+const { group, locale } = Astro.props;
+const text = siteText(locale);
+const data = readAPI();
+const zh = (key: string) => (locale === 'zh' ? apiZh[key] : undefined);
+---
+
+{group.types.map(({ type, synopsis }) => <section class="component-api-type">
+  <h4><a href={apiPath(locale, group.pkg, type.name)}><code>{type.name}</code></a></h4>
+  {synopsis && <p class="component-api-synopsis">{synopsis}</p>}
+  {type.fields && type.fields.length > 0 && <table class="component-api-table fields">
+    <thead><tr><th>{text.apiField}</th><th>{text.apiType}</th><th>{text.apiDescription}</th></tr></thead>
+    <tbody>{type.fields.map(field => <tr>
+      <td><code>{field.name}</code></td>
+      <td>{(() => {
+        const href = typeHref(data, group.pkg, field.type, locale);
+        return href ? <a class="component-api-type-link" href={href}><code>{field.type}</code></a> : <code>{field.type}</code>;
+      })()}</td>
+      <td><APIDescription text={zh(`${group.pkg}.${type.name}.${field.name}`)} blocks={field.doc} {locale} /></td>
+    </tr>)}</tbody>
+  </table>}
+  {type.methods.length > 0 && <table class="component-api-table calls">
+    <thead><tr><th>{text.apiMethods}</th><th>{text.apiSignature}</th><th>{text.apiDescription}</th></tr></thead>
+    <tbody>{type.methods.map(method => <tr>
+      <td><a href={`${apiPath(locale, group.pkg, type.name)}#method-${method.name}`}><code>{method.name}</code></a></td>
+      <td><code>{method.signature ?? method.name}</code></td>
+      <td><APIDescription text={zh(`${group.pkg}.${type.name}.${method.name}`)} blocks={method.doc} {locale} /></td>
+    </tr>)}</tbody>
+  </table>}
+</section>)}
+{group.funcs.length > 0 && <>
+  <p class="component-api-caption">{text.apiFunctions}</p>
+  <table class="component-api-table calls">
+    <thead><tr><th>{text.apiFunctions}</th><th>{text.apiSignature}</th><th>{text.apiDescription}</th></tr></thead>
+    <tbody>{group.funcs.map(({ func, owner, kind }) => <tr>
+      <td><a href={owner ? `${apiPath(locale, group.pkg, owner.name)}#${kind === 'method' ? 'method' : 'func'}-${func.name}` : `${apiPath(locale, group.pkg)}#func-${func.name}`}><code>{func.name}</code></a></td>
+      <td><code>{func.signature ?? func.name}</code></td>
+      <td><APIDescription text={zh(`${group.pkg}.${func.name}`)} blocks={func.doc} {locale} /></td>
+    </tr>)}</tbody>
+  </table>
+</>}
