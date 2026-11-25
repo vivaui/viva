@@ -301,6 +301,7 @@ type Page struct {
 	trees       []*TreeState          // the Trees of the last paint
 	drags       []*DragState          // the DragStates of the last paint
 	drag        *DragState            // the one following a press, if any
+	fileDrops   []*FileDropState      // the areas of the last paint that take files from the system
 	listStates  []*ListState          // the Lists of the last paint
 	splitters   []*SplitterState      // the Splitters of the last paint
 	tables      []tableRoute          // the Tables of the last paint, for the wheel and keys under the pointer
@@ -328,6 +329,7 @@ type Page struct {
 	baseKey      func(gfx.KeyEvent) gfx.EventResult
 	basePointer  func(gfx.PointerEvent) gfx.EventResult
 	baseShortcut func(gfx.KeyEvent) gfx.EventResult
+	baseFileDrop func(gfx.FileDropEvent) gfx.EventResult
 	// keyRoute, pointerRoute, areaKey and shortcutRoute are set by the first
 	// Control, TextArea or Shortcut a page declares, so a page without them does
 	// not link what routes their input.
@@ -709,6 +711,7 @@ type Host struct {
 	OnKey      func(gfx.KeyEvent) gfx.EventResult
 	OnShortcut func(gfx.KeyEvent) gfx.EventResult
 	OnPointer  func(gfx.PointerEvent) gfx.EventResult
+	OnFileDrop func(gfx.FileDropEvent) gfx.EventResult
 }
 
 // Attach wires the page into a host: the page adopts or keeps the tree, paints
@@ -721,6 +724,7 @@ func (p *Page) Attach(h *Host) {
 	p.basePointer, h.OnPointer = h.OnPointer, p.onPointer
 	p.baseShortcut, h.OnShortcut = h.OnShortcut, p.onShortcut
 	p.baseScroll, h.OnScroll = h.OnScroll, p.Wheel
+	p.baseFileDrop, h.OnFileDrop = h.OnFileDrop, p.onFileDrop
 }
 
 // Init prepares the page's identity tree from the host's, or a new one.
@@ -832,6 +836,8 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	p.trees = p.trees[:0]
 	clear(p.drags)
 	p.drags = p.drags[:0]
+	clear(p.fileDrops)
+	p.fileDrops = p.fileDrops[:0]
 	clear(p.listStates)
 	p.listStates = p.listStates[:0]
 	clear(p.tables)
