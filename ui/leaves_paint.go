@@ -7,8 +7,17 @@ import (
 
 func paintProgress(f *Frame, n *Node) {
 	r := n.Rect
+	palette := f.Palette
+	switch n.Status {
+	case StatusSuccess:
+		palette.Primary = palette.Success
+	case StatusWarning:
+		palette.Primary = palette.WarningColor()
+	case StatusDanger:
+		palette.Primary = palette.Danger
+	}
 	if n.Natural >= 0 {
-		components.Progress(f.Surface, f.Palette, r, n.Natural)
+		components.Progress(f.Surface, palette, r, n.Natural)
 		paintProgressHit(f, n, r, n.Natural)
 		return
 	}
@@ -30,7 +39,7 @@ func paintProgress(f *Frame, n *Node) {
 		}
 	}
 	canvas.Clip(r)
-	canvas.Rounded(Rect{X: x, Y: r.Y, Width: segment, Height: r.Height}, r.Height/2, f.Palette.Primary)
+	canvas.Rounded(Rect{X: x, Y: r.Y, Width: segment, Height: r.Height}, r.Height/2, palette.Primary)
 	canvas.Unclip()
 	paintProgressHit(f, n, r, -1)
 }

@@ -69,3 +69,26 @@ func TestSystemIntegrationValidation(t *testing.T) {
 		t.Fatal("SendNotification accepted empty notification")
 	}
 }
+
+func TestTransparentWindowKeepsAZeroClearColorWhereSupported(t *testing.T) {
+	config, err := (Config{Transparent: true}).normalize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Supports(CapabilityTransparentWindow) {
+		if !config.Transparent || config.ClearColor != (Color{}) {
+			t.Fatalf("a transparent window lost its clear color: %+v", config)
+		}
+		return
+	}
+	if config.Transparent || config.ClearColor.Alpha != 1 {
+		t.Fatalf("an unsupported transparent window must stay opaque: %+v", config)
+	}
+}
+
+func TestOpaqueWindowKeepsTheDefaultFill(t *testing.T) {
+	config, err := (Config{}).normalize()
+	if err != nil || config.Transparent || config.ClearColor.Alpha != 1 {
+		t.Fatalf("a window without Transparent must stay opaque: %+v, %v", config, err)
+	}
+}

@@ -51,6 +51,15 @@ type Config struct {
 	TitlebarHeight    float32
 	TrafficLightScale float32
 	ClearColor        Color
+	// Transparent asks for a window composited over the desktop: ClearColor's
+	// alpha is what shows what is behind it. Adapters that cannot composite
+	// ignore it, and app.Config only sets it where they report the capability.
+	Transparent bool
+	// OnTransparentChange, when set with Transparent, is told once the window
+	// exists whether the desktop shows through it. It is false where the
+	// adapter could not composite the window (no compositing manager, or a
+	// window kind that has no alpha surface).
+	OnTransparentChange func(active bool)
 	// WindowBorderColor, when set, is read on the window thread with every
 	// frame and names the color of the border the desktop draws around a
 	// custom-titlebar window. Windows 11 composites that border against what

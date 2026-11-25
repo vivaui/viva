@@ -27,7 +27,7 @@ components.BeginButton(canvas, theme, hitSave, bounds).Outline("Save")
 
 - 编辑器与可视化：`ui/codeeditor`、`ui/textview`、`ui/chart`、`ui/markdown`、`ui/image`、`ui/calendar`、`ui/carousel`、`ui/columnresize`、`ui/reordergrid`
 - 导航与浮层：`ui/command`、`ui/menubar`、`ui/navigationmenu`、`ui/sidebar`、`ui/hovercard`
-- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`、`ui/steps`、`ui/descriptions`、`ui/timeline`、`ui/rate`、`ui/inputnumber`、`ui/datepicker`、`ui/timepicker`、`ui/transfer`、`ui/alert`、`ui/tag`、`ui/breadcrumb`、`ui/card`、`ui/empty`、`ui/result`、`ui/pagination`、`ui/editabletabs`
+- 数据与输入：`ui/avatar`、`ui/avatareditor`、`ui/attachment`、`ui/metriccard`、`ui/marker`、`ui/skeleton`、`ui/aspectratio`、`ui/questionnaire`、`ui/messagescroller`、`ui/message`、`ui/inputgroup`、`ui/inputotp`、`ui/multiselect`、`ui/hierarchypicker`、`ui/buttongroup`、`ui/togglegroup`、`ui/steps`、`ui/descriptions`、`ui/timeline`、`ui/rate`、`ui/inputnumber`、`ui/datepicker`、`ui/timepicker`、`ui/transfer`、`ui/alert`、`ui/tag`、`ui/breadcrumb`、`ui/card`、`ui/empty`、`ui/result`、`ui/pagination`、`ui/editabletabs`、`ui/popconfirm`、`ui/divider`、`ui/typography`
 
 `ui/textview` 用来显示可选择、可复制的只读文本，例如日志和进程输出。在 model 中保留 `textview.View`，调用 `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`；`textview.Strings` 可以把字符串切片适配成数据源。调用方拥有文本、样式和动作，视图负责选择与绘制，不带编辑或撤销模型。
 

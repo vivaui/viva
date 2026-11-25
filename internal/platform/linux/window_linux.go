@@ -1529,6 +1529,11 @@ func (application *linuxApplication) openWindow(config platform.Config) (*window
 		api.createWindow(connection, xcbCopyFromParent, win.id, win.screen.Root, x, y, uint16(win.width), uint16(win.height), 0, xcbWindowClassInput, win.screen.RootVisual, xcbCWBackPixel|xcbCWBitGravity|xcbCWEventMask, &values[0])
 		win.depth = win.screen.RootDepth
 	}
+	if config.Transparent && config.OnTransparentChange != nil {
+		// Only the drawn frame has an alpha surface, and it exists only where a
+		// compositing manager owns the screen.
+		config.OnTransparentChange(win.frameWanted)
+	}
 	if config.WindowMode != platform.WindowTitled {
 		motifHints, atomErr := api.atom(connection, "_MOTIF_WM_HINTS")
 		if atomErr != nil {
