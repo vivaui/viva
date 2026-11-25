@@ -68,7 +68,7 @@ func nativeOpenFiles(options OpenFileOptions) ([]string, error) {
 }
 
 func nativeOpenDirectory(options OpenDirectoryOptions) (string, error) {
-	path, canceled, err := darwinplatform.OpenDirectory(darwinplatform.OpenDirectoryOptions{Title: options.Title})
+	path, canceled, err := darwinplatform.OpenDirectory(darwinplatform.OpenDirectoryOptions{Title: options.Title, InitialDirectory: options.InitialDirectory})
 	if canceled {
 		return "", ErrCanceled
 	}

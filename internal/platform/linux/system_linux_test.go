@@ -564,3 +564,23 @@ func TestOnClipboardChangeWithoutDisplayReportsUnsupported(t *testing.T) {
 		t.Fatalf("stopping a watch that never ran: %v", err)
 	}
 }
+
+func TestOpenDirectoryInitialDirectory(t *testing.T) {
+	for _, directory := range []string{"/tmp/My projects", "/tmp/My projects/"} {
+		for _, backend := range []string{"zenity", "kdialog"} {
+			t.Run(backend+directory, func(t *testing.T) {
+				got, err := openDirectoryDialogArguments(backend, OpenDirectoryOptions{Title: "Choose folder", InitialDirectory: directory})
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := []string{"--getexistingdirectory", directory, "--title", "Choose folder"}
+				if backend == "zenity" {
+					want = []string{"--file-selection", "--directory", "--title=Choose folder", "--filename=/tmp/My projects/"}
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("arguments = %#v; want %#v", got, want)
+				}
+			})
+		}
+	}
+}

@@ -49,6 +49,8 @@ type OpenFileOptions struct {
 
 type OpenDirectoryOptions struct {
 	Title string
+	// InitialDirectory is the starting folder. Empty uses the platform default.
+	InitialDirectory string
 }
 
 type SaveFileOptions struct {
@@ -994,9 +996,12 @@ func openDirectoryDialogArguments(backend string, options OpenDirectoryOptions) 
 		if options.Title != "" {
 			arguments = append(arguments, "--title="+options.Title)
 		}
+		if options.InitialDirectory != "" {
+			arguments = append(arguments, "--filename="+strings.TrimRight(options.InitialDirectory, "/")+"/")
+		}
 		return arguments, nil
 	case "kdialog":
-		arguments := []string{"--getexistingdirectory", ""}
+		arguments := []string{"--getexistingdirectory", options.InitialDirectory}
 		if options.Title != "" {
 			arguments = append(arguments, "--title", options.Title)
 		}

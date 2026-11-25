@@ -47,6 +47,7 @@ int viva_system_set_cursor(uint8_t shape, char **error_message);
 int viva_system_set_cursor_image(int width, int height, int hot_x, int hot_y, double scale, const uint8_t *pixels, char **error_message);
 int viva_system_open_files(
     const char *title,
+    const char *initial_directory,
     const char *const *extensions,
     size_t extension_count,
     int allow_multiple,

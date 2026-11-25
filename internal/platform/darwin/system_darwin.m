@@ -803,6 +803,7 @@ int viva_system_set_cursor_image(int width, int height, int hot_x, int hot_y, do
 
 int viva_system_open_files(
     const char *title,
+    const char *initial_directory,
     const char *const *extensions,
     size_t extension_count,
     int allow_multiple,
@@ -840,6 +841,10 @@ int viva_system_open_files(
             panel.canChooseDirectories = choose_directories != 0;
             panel.allowsMultipleSelection = allow_multiple != 0;
             panel.resolvesAliases = YES;
+            NSString *directory = viva_string(initial_directory);
+            if (directory.length > 0) {
+                panel.directoryURL = [NSURL fileURLWithPath:directory isDirectory:YES];
+            }
             if (panelTitle.length > 0) {
                 panel.title = panelTitle;
             }
