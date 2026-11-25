@@ -224,7 +224,9 @@ func (m *model) page(c ui.C) {
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
-  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`,
+  `ui/steps`, `ui/descriptions`, `ui/timeline`, `ui/rate`, `ui/inputnumber`, `ui/datepicker`, `ui/timepicker`,
+  `ui/transfer`.
 - For read-only selectable output, keep a `textview.View` in the model and call
   `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`. The caller owns the
   lines, spans and actions; `ui/textview` owns selection and drawing without an editing model.
