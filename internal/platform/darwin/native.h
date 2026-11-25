@@ -391,6 +391,8 @@ int viva_offscreen_render(
 );
 void viva_offscreen_release(void *offscreen);
 int viva_run(viva_window_config config);
+enum { VIVA_APPLICATION_NOT_MAIN_THREAD = 10 };
+int viva_application_check_thread(void);
 int viva_application_begin(void);
 int viva_application_last_status(void);
 void *viva_application_open_window(viva_window_config config);
@@ -550,6 +552,17 @@ void viva_text_line_release(viva_text_line *line);
 // caret there, and viva_text_line_index_at the cluster boundary nearest x.
 double viva_text_line_caret(const viva_text_line *line, size_t offset);
 size_t viva_text_line_index_at(const viva_text_line *line, double x);
+typedef struct {
+    size_t index;
+    double x;
+} viva_text_hit;
+viva_text_hit viva_text_line_hit_at(const viva_text_line *line, double x);
+typedef struct {
+    size_t index;
+    double leading, trailing;
+} viva_fitted_mono_caret;
+int viva_fitted_mono_carets(const unsigned char *bytes, size_t length, double size, double weight,
+                          int face, double span, viva_fitted_mono_caret *carets, size_t count);
 // viva_text_line_selection writes the extents of [start, end) as (x, width) pairs, left
 // to right, and returns how many it wrote (at most capacity): one, or several where the
 // selection crosses a change of direction.
@@ -582,5 +595,25 @@ void viva_register_mono_family(int face, const char *utf8, int classic, const ch
 char *viva_list_mono_families(void);
 // viva_list_font_families is the same for every installed family, fixed-pitch or not.
 char *viva_list_font_families(void);
+
+// viva_drag_item is one file of a promised drag: the name offered to the
+// target, whether it is a folder, and the value the application uses to produce
+// its content when the target asks.
+typedef struct {
+    const char *name;
+    int directory;
+    int item;
+} viva_drag_item;
+
+// viva_start_file_drag begins a dragging session of the files that already
+// exist at paths, from the window handling the current press, offering the
+// effects in allowed (the platform.DragEffect bits: 1 copy, 2 move, 4 link).
+// It returns 0, or a negative code when no session could start.
+int viva_start_file_drag(const char *const *paths, size_t count, unsigned allowed);
+
+// viva_start_file_promise_drag begins a dragging session of promised files:
+// the target asks for each one's content through vivaFilePromiseContent, with
+// the drag and item it was given here. It returns 0, or a negative code.
+int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, size_t count);
 
 #endif

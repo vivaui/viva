@@ -28,6 +28,10 @@ import (
 
 // webKit is the engine's entry points.
 type webKit struct {
+	viewSettings func(view uintptr) uintptr
+	getUserAgent func(settings uintptr) uintptr
+	setUserAgent func(settings uintptr, value *byte)
+
 	managerNew        func() uintptr
 	managerRegister   func(manager uintptr, name *byte) int32
 	managerAddScript  func(manager, script uintptr)
@@ -161,6 +165,9 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 			symbol   string
 		}{
 			{&k.resultValue, "webkit_javascript_result_get_js_value"},
+			{&k.viewSettings, "webkit_web_view_get_settings"},
+			{&k.getUserAgent, "webkit_settings_get_user_agent"},
+			{&k.setUserAgent, "webkit_settings_set_user_agent"},
 			{&k.managerNew, "webkit_user_content_manager_new"}, {&k.managerRegister, "webkit_user_content_manager_register_script_message_handler"},
 			{&k.managerAddScript, "webkit_user_content_manager_add_script"}, {&k.scriptNew, "webkit_user_script_new"},
 			{&k.viewNew, "webkit_web_view_new_with_user_content_manager"}, {&k.loadURI, "webkit_web_view_load_uri"},
@@ -634,6 +641,13 @@ func (w *gtkWindow) openWebView(c platform.WebViewConfig) (platform.WebView, err
 	g.connect(v.manager, "script-message-received::viva", cb.webMessage, v.handle)
 	if private == nil {
 		v.widget = k.viewNew(v.manager)
+	}
+	if c.UserAgentSuffix != "" {
+		// The suffix follows the engine's default string verbatim, as on the other platforms;
+		// the application-details setter would append "/version" to it.
+		settings := k.viewSettings(v.widget)
+		agent := cString(goString(k.getUserAgent(settings)) + " " + c.UserAgentSuffix)
+		k.setUserAgent(settings, &agent[0])
 	}
 	// Placed by its margins from the overlay's top left; hidden until a frame says where.
 	g.widgetSetHAlign(v.widget, 1)

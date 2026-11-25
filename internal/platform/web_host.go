@@ -1,10 +1,7 @@
 package platform
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"errors"
-	"strings"
 
 	"github.com/vivaui/viva/gfx"
 )
@@ -20,18 +17,6 @@ var ErrWebViewUnsupported = errors.New("platform: this window cannot host web pa
 
 // WebProxyDirect explicitly bypasses system proxies for one page's network context.
 const WebProxyDirect = "direct"
-
-// PartitionIdentifier is the identifier a platform that names a store by an identifier gives a storage
-// partition: a UUID made from the name, the same for a name in every run of the application, so a name
-// is one store. macOS's WKWebsiteDataStore names its persistent stores this way; WebView2 names a
-// profile by the partition's name itself, and WebKitGTK by the directory it keeps, one of the name.
-func PartitionIdentifier(name string) string {
-	sum := sha1.Sum([]byte("viva-storage-partition:" + name))
-	sum[6] = sum[6]&0x0f | 0x50 // a name-based UUID, version 5
-	sum[8] = sum[8]&0x3f | 0x80 // the variant a UUID carries
-	text := hex.EncodeToString(sum[:])
-	return strings.ToUpper(text[0:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:32])
-}
 
 // NativeView is a place in the window that a native view fills.
 type NativeView struct {
@@ -60,6 +45,8 @@ type WebHost struct {
 
 // WebViewConfig describes a page to open.
 type WebViewConfig struct {
+	// UserAgentSuffix is appended to the system engine's user agent before navigation.
+	UserAgentSuffix string
 	// ID names the view in Frame.NativeViews; it is chosen by the opener and unique in the window.
 	ID uint32
 	// URL is loaded when the view opens, if HTML is empty.

@@ -151,9 +151,13 @@ type Node struct {
 	// styling, including the valid zero value of regular weight.
 	FontSet, WeightSet bool
 	Frozen             bool
-	Rect               Rect
-	Band               uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
-	FocusScope         gfx.ID // the focus scope the subtree paints in, when it is not the page's
+	// TextDecor is the faces a Text is drawn in. It sits in the padding after
+	// Frozen so that Node keeps its size; a byte at the end of the struct would
+	// have grown every Node by eight.
+	TextDecor  uint8
+	Rect       Rect
+	Band       uint16 // the compositing band the subtree paints on (Overlay); zero is the page's
+	FocusScope gfx.ID // the focus scope the subtree paints in, when it is not the page's
 }
 
 // placement says where a Popup goes.
@@ -187,7 +191,16 @@ type Extra struct {
 	ring          Color   // Ring: a line around the outside of the element
 	ringWidth     float32 // its width; zero is none
 	borderDashed  bool
-	fade          float32          // 1 less the opacity, so that the zero value is opaque
+	fade          float32    // 1 less the opacity, so that the zero value is opaque
+	glide         gfx.Motion // Glide: how the element slides to a place the layout moves it to
+	glided        bool
+	glideScroll   gfx.Point
+	presence      gfx.Presence // Presence: how the element enters and leaves
+	presenced     bool
+	pose          gfx.Pose // Pose: where the element sits relative to its place
+	poseMotion    gfx.Motion
+	posed         bool
+	glideID       gfx.ID           // the identity of a glided element that has no hit of its own, such as a list row
 	gradient      int32            // 1 + the index of the element's gradient in frame.gradients, or 0 for none
 	States        int32            // 1 + the index of the element's Hover, Pressed and Focus looks in frame.states, or 0 for none
 	scrollState   *ScrollState     // the state a ScrollArea reports its extent to

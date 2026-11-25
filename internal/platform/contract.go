@@ -83,10 +83,6 @@ type Config struct {
 	// as far as the platform says so. An adapter that cannot tell never calls it,
 	// and the window counts as visible.
 	OnVisibility VisibilityHandler
-	// OnLifecycle, when set, runs on the window thread when the system moves the
-	// application between the foreground and the background, or warns it of low memory.
-	// Only the phone adapters call it.
-	OnLifecycle func(Lifecycle)
 	// OnMaximize, when set, runs on the window thread when the window is
 	// maximized or restored.
 	OnMaximize MaximizeHandler
@@ -105,6 +101,9 @@ type Config struct {
 	// every other key is delivered as it was.
 	ModifierTaps bool
 	OnShortcut   ShortcutHandler
+	// CaptureMenuKeys asks Windows to give a foreground menu its keys before
+	// text services, without ending the focused editor's composition.
+	CaptureMenuKeys func() bool
 	// OnActivate, when set, runs on the window thread when the top-level
 	// window becomes the active window. Focus moving between views inside the
 	// window does not call it.
@@ -128,11 +127,7 @@ type Config struct {
 	// node: press it, focus it, set its value. The adapter calls it on the
 	// event-loop thread and presents the frames it hands back.
 	OnAccessibility AccessibilityHandler
-	// AccessibilityTree, when set, answers with the tree the window has now, for an adapter
-	// whose assistive technology starts after the window opened: frames carry the tree only
-	// when it changes. The slice is the application's, read at once and not kept.
-	AccessibilityTree func() []AccessibilityNode
-	OnRedraw          RedrawHandler
+	OnRedraw        RedrawHandler
 	// SetFrameInterval, when set, is called by the adapter on the window thread
 	// once it knows how the window's frames are paced: the interval between
 	// display frames, or zero when presenting a frame blocks until the display
@@ -506,19 +501,6 @@ type PointerEvent struct {
 	PointerID int32
 }
 
-// Lifecycle is a change the system makes to the state of a phone application.
-type Lifecycle uint8
-
-const (
-	// LifecycleBackground is the application going behind another: the time to save what
-	// the user would miss, as the system may end it from there without a word.
-	LifecycleBackground Lifecycle = iota + 1
-	// LifecycleForeground is the application coming back to the front.
-	LifecycleForeground
-	// LifecycleMemoryWarning is the system asking applications to give memory back.
-	LifecycleMemoryWarning
-)
-
 // Size is a window client size in logical pixels.
 type Size struct {
 	Width  float32
@@ -527,9 +509,6 @@ type Size struct {
 	// (1.25 at 125%), or zero when the platform does not say. The application paints
 	// what must land on whole device pixels for it.
 	Scale float32
-	// SafeArea is how far the system covers each edge of the window, in logical pixels
-	// (status bar, sensor housing, home indicator); zero where it covers nothing.
-	SafeArea gfx.Insets
 }
 
 // KeyEvent is one normalized keyboard event. Key identities mirror

@@ -39,6 +39,7 @@ const touchTargetSize = 44
 // touchEvent reads one event of a finger.
 func (painter *painter) touchEvent(event platform.PointerEvent) (platform.Frame, error) {
 	t := &painter.touch
+	painter.canvas.SetTouched()
 	now := painter.canvas.Now()
 	var step interaction.TouchStep
 	if event.Kind == platform.PointerDown && (!t.Active() || event.PointerID == t.id) {
@@ -128,6 +129,12 @@ func (painter *painter) carryTouch(step interaction.TouchStep) (platform.Frame, 
 		// The finger lifted: content held past an end springs back, and the frames
 		// that does it come from the layout asking for them.
 		if painter.applyScroll(platform.ScrollEvent{Phase: gfx.ScrollPhaseEnd, X: step.ScrollAtX, Y: step.ScrollAtY}) && !t.advancing {
+			frame, err = painter.repaintAfterInput()
+		}
+	}
+	if step.Pinch != interaction.PinchNone {
+		phase := gfx.PinchPhase(step.Pinch)
+		if painter.applyPinch(phase, step.PinchX, step.PinchY, step.PinchScale, step.PinchDelta, t.modifiers) && !t.advancing {
 			frame, err = painter.repaintAfterInput()
 		}
 	}

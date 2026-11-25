@@ -57,7 +57,7 @@ Wayland client and needs the system's GTK 3), and a Vulkan loader and driver for
 and DirectWrite. Viva loads the system libraries at runtime and bundles none of
 them.
 
-The current release is `v0.6.7`; name it explicitly (`@v0.6.7`) to pin it. Guides,
+The current release is `v0.6.8`; name it explicitly (`@v0.6.8`) to pin it. Guides,
 the API reference, and a component catalog with live previews live in
 [`website/`](website/); run it with `npm run dev` there, or read them on
 [vivaui.dev](https://vivaui.dev/en/), which is also available in
@@ -140,7 +140,9 @@ WebView and no bundled rendering runtime.
 - `app/proxy.SystemProxy` reports the proxy the desktop selects for an HTTP URL:
   CFNetwork on macOS, WinHTTP's automatic proxy on Windows (PAC, WPAD and the
   static settings), and the environment on Linux. A policy the platform cannot
-  evaluate is an error, never a silent direct connection.
+  evaluate is an error, never a silent direct connection. `SystemProxyContext`
+  lets a request cancel macOS PAC downloads and evaluation; both entry points
+  bound PAC work to ten seconds.
 - `gfx.MonoFamily` draws fixed-pitch text in any installed family and
   `app.MonospaceFamilies` lists them.
 - `Config.OnFileDrop` receives files dragged from the file manager, with the hit

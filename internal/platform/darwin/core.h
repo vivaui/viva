@@ -268,6 +268,7 @@ NSString *viva_mono_fallback_family(NSString *cluster);
 BOOL viva_mono_is_last_resort_name(CFStringRef name);
 BOOL viva_mono_font_is_last_resort(CTFontRef font);
 CTLineRef viva_mono_fallback_line(NSString *value, VivaFont *base, int face, CGColorRef color);
+CGFloat viva_fitted_mono_origin(CTLineRef line, CFIndex length);
 void viva_prepare_text_context(CGContextRef context, CGFloat scale);
 void viva_draw_terminal_preedit(
     CGContextRef context, NSString *shown, CGFloat fontSize, int monoFace,

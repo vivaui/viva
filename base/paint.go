@@ -36,6 +36,20 @@ func (f *Frame) PaintChild(i int32) {
 		f.paintPopoverFn(f, i, n)
 		return
 	}
+	if extra := &f.Exts[n.Ext]; extra.presenced && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		r := n.Rect
+		f.Surface.BeginPresence(extra.glideIdentity(n), elementPresenceSlot, extra.presence, gfx.Point{X: r.X + r.Width/2, Y: r.Y + r.Height/2})
+		defer f.Surface.EndPresence()
+	}
+	if extra := &f.Exts[n.Ext]; extra.posed && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		r := n.Rect
+		f.Surface.BeginPose(extra.glideIdentity(n), elementPoseSlot, extra.pose, extra.poseMotion, gfx.Point{X: r.X + r.Width/2, Y: r.Y + r.Height/2})
+		defer f.Surface.EndPose()
+	}
+	if extra := &f.Exts[n.Ext]; extra.glided && f.Surface != nil && !extra.glideIdentity(n).IsZero() {
+		f.Surface.BeginGlide(extra.glideIdentity(n), 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
+		defer f.Surface.EndPose()
+	}
 	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
 		if f.memoFn(f, i, true) {
 			return
@@ -339,7 +353,10 @@ func (f *Frame) paintText(n *Node) {
 	left, right := n.Inset(AxisX)
 	top, bottom := n.Inset(AxisY)
 	r := Rect{X: n.Rect.X + left, Y: n.Rect.Y + top, Width: max(n.Rect.Width-left-right, 0), Height: max(n.Rect.Height-top-bottom, 0)}
-	style := gfx.TextStyle{Size: n.FontSize, Weight: n.Weight, Color: n.Color, Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection}
+	style := gfx.TextStyle{
+		Size: n.FontSize, Weight: n.Weight, Color: n.Color, Italic: n.TextDecor&textItalic != 0,
+		Mono: n.Flags&flagMono != 0, MonoFace: n.Face, Direction: n.TextDirection,
+	}
 	alignment := gfx.AlignStart
 	switch {
 	case n.Flags&flagTextCenter != 0:
@@ -356,7 +373,11 @@ func (f *Frame) paintText(n *Node) {
 		lh := n.leading()
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
-			f.paintLabel(n, f.Lines[n.LineFirst+k], bounds, style, alignment)
+			line := f.Lines[n.LineFirst+k]
+			f.paintLabel(n, line, bounds, style, alignment)
+			if n.TextDecor&textStrike != 0 {
+				f.paintStrike(line, bounds, style, alignment)
+			}
 		}
 		return
 	}
@@ -367,6 +388,9 @@ func (f *Frame) paintText(n *Node) {
 		f.Surface.Clip(r)
 	}
 	f.paintLabel(n, n.Text, bounds, style, alignment)
+	if n.TextDecor&textStrike != 0 {
+		f.paintStrike(n.Text, bounds, style, alignment)
+	}
 	if clipped {
 		f.Surface.Unclip()
 	}
@@ -378,4 +402,35 @@ func (f *Frame) paintLabel(n *Node, value string, bounds Rect, style gfx.TextSty
 		return
 	}
 	f.Surface.LabelAligned(value, bounds, style, alignment)
+}
+
+// paintStrike draws the line a struck-through Text crosses: the one
+// components.MarkdownView has drawn for ~~struck~~ text, one pixel high, in the
+// text's color, across the middle of the line box. It runs from the left end the
+// line is drawn at (Canvas.LabelOrigin, so a centered or right-aligned text is
+// struck where its glyphs are) for the width the line is measured at
+// (Canvas.TextWidthStyle, so a Mono line is struck across its cells), which is the
+// text and not the box the text was given.
+func (f *Frame) paintStrike(value string, bounds Rect, style gfx.TextStyle, alignment gfx.Alignment) {
+	if value == "" {
+		return
+	}
+	x := f.Surface.LabelOrigin(value, bounds, style, alignment)
+	f.Surface.Fill(Rect{X: x, Y: bounds.Y + bounds.Height/2, Width: f.Surface.TextWidthStyle(value, style), Height: 1}, style.Color)
+}
+
+// elementPresenceSlot is the slot of an element's own presence among those the
+// canvas keeps for its ID, apart from the parts of an overlay.
+const elementPresenceSlot = 200
+
+// elementPoseSlot is the slot of an element's Pose, apart from its Glide's.
+const elementPoseSlot = 1
+
+// glideIdentity is what a glided element is followed by: its own ID, or the one
+// its list gave it when it has none.
+func (x *Extra) glideIdentity(n *Node) gfx.ID {
+	if !n.ID.IsZero() {
+		return n.ID
+	}
+	return x.glideID
 }

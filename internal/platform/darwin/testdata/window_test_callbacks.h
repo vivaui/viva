@@ -34,3 +34,7 @@ void vivaCompositionInput(uintptr_t handle, void *view, int kind, const unsigned
                   int phase, int64_t rawStart, int64_t rawLength, int hasRaw) {}
 void vivaTextCompositionLost(uintptr_t handle, void *view, int reason) {}
 unsigned char *vivaCopyText(uintptr_t handle, void *view, size_t *length) { *length = 0; return NULL; }
+
+// The promised content callbacks the drag source reports to Go.
+int vivaFilePromiseContent(intptr_t drag, int item, const char *path) { return 1; }
+void vivaFileDragFinished(intptr_t drag) {}

@@ -146,5 +146,6 @@ func movedFrom(prev []string, Label string, number int) bool {
 type fieldEntry struct {
 	ID    gfx.ID
 	field *Field
+	box   int32                              // the field's element, for routing inside a wheel panel
 	key   func(gfx.KeyEvent) gfx.EventResult // Box.OnKey, while this field has the keyboard
 }

@@ -168,6 +168,20 @@ type xcbPropertyReply struct {
 	ValueLength  uint32
 	Pad          [12]byte
 }
+
+// xcbQueryTreeReply is the fixed part of a QueryTree reply; the children, when
+// any, follow it. Only the parent is read: it is how a drag source walks from
+// the window under the pointer up to the one that speaks XDND.
+type xcbQueryTreeReply struct {
+	ResponseType uint8
+	Pad0         uint8
+	Sequence     uint16
+	Length       uint32
+	Root         uint32
+	Parent       uint32
+	ChildrenLen  uint16
+	Pad1         [14]byte
+}
 type xcbGenericEvent struct {
 	ResponseType uint8
 	Padding      uint8
@@ -344,11 +358,16 @@ type xcbAPI struct {
 	translateCoordinates      func(uintptr, uint32, uint32, int16, int16) xcbTranslateCookie
 	translateCoordinatesReply func(uintptr, xcbTranslateCookie, *unsafe.Pointer) *xcbTranslateReply
 	sendEvent                 func(uintptr, uint8, uint32, uint32, *byte) xcbVoidCookie
+	queryPointer              func(uintptr, uint32) xcbVoidCookie
+	queryPointerReply         func(uintptr, xcbVoidCookie, *unsafe.Pointer) *queryPointerReply
+	queryTree                 func(uintptr, uint32) xcbVoidCookie
+	queryTreeReply            func(uintptr, xcbVoidCookie, *unsafe.Pointer) *xcbQueryTreeReply
 	ungrabPointer             func(uintptr, uint32) xcbVoidCookie
 	requestCheck              func(uintptr, xcbVoidCookie) *xcbGenericError
 	flush                     func(uintptr) int32
 	waitForEvent              func(uintptr) unsafe.Pointer
 	pollForEvent              func(uintptr) unsafe.Pointer
+	pollForQueuedEvent        func(uintptr) unsafe.Pointer
 	fileDescriptor            func(uintptr) int32
 	internAtom                func(uintptr, uint8, uint16, *byte) xcbAtomCookie
 	internAtomReply           func(uintptr, xcbAtomCookie, *unsafe.Pointer) *xcbAtomReply
@@ -435,11 +454,16 @@ func openXCB() (*xcbAPI, error) {
 	purego.RegisterLibFunc(&api.translateCoordinates, library, "xcb_translate_coordinates")
 	purego.RegisterLibFunc(&api.translateCoordinatesReply, library, "xcb_translate_coordinates_reply")
 	purego.RegisterLibFunc(&api.sendEvent, library, "xcb_send_event")
+	purego.RegisterLibFunc(&api.queryPointer, library, "xcb_query_pointer")
+	purego.RegisterLibFunc(&api.queryPointerReply, library, "xcb_query_pointer_reply")
+	purego.RegisterLibFunc(&api.queryTree, library, "xcb_query_tree")
+	purego.RegisterLibFunc(&api.queryTreeReply, library, "xcb_query_tree_reply")
 	purego.RegisterLibFunc(&api.ungrabPointer, library, "xcb_ungrab_pointer")
 	purego.RegisterLibFunc(&api.requestCheck, library, "xcb_request_check")
 	purego.RegisterLibFunc(&api.flush, library, "xcb_flush")
 	purego.RegisterLibFunc(&api.waitForEvent, library, "xcb_wait_for_event")
 	purego.RegisterLibFunc(&api.pollForEvent, library, "xcb_poll_for_event")
+	purego.RegisterLibFunc(&api.pollForQueuedEvent, library, "xcb_poll_for_queued_event")
 	purego.RegisterLibFunc(&api.fileDescriptor, library, "xcb_get_file_descriptor")
 	purego.RegisterLibFunc(&api.internAtom, library, "xcb_intern_atom")
 	purego.RegisterLibFunc(&api.internAtomReply, library, "xcb_intern_atom_reply")

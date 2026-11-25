@@ -13,8 +13,8 @@ type ColorSpan struct {
 
 // TextRasterizer draws the glyphs of a text label into the coverage bitmap of its
 // texture. The renderer owns the texture, its upload and its placement; what draws
-// the glyphs is the platform's text engine (Pango on a Linux desktop, the system's
-// Paint on Android), which the platform gives the renderer as a factory.
+// the glyphs is the platform's text engine (Pango on a Linux desktop), which the platform
+// gives the renderer as a factory.
 type TextRasterizer interface {
 	// Rasterize draws the device columns from skip to skip+width of the label, height
 	// rows tall, at scale. With allowLCD the result may be the coverage of each

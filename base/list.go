@@ -21,6 +21,11 @@ type ListState struct {
 	// than hash them: a 32-bit hash is past 2^31-1 half the time, and a key outside
 	// that range panics, since every such key would name the same row.
 	Key func(i int) int
+	// Glide, when it has a duration, slides a row to the place the list gives it
+	// after rows were added, removed or moved above or among them, instead of
+	// letting it jump: rows must have a Key to keep their identity, and a scroll is
+	// not a move. The zero Motion keeps the rows where the list puts them.
+	Glide gfx.Motion
 	// Label is the text of row i: typing the first letters of a row's text while
 	// the list has the keyboard focus chooses it. It is also the row's name for
 	// assistive technology unless Name says otherwise. Nil leaves the rows unnamed
@@ -980,6 +985,16 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 		for i := first; i < last; i++ {
 			box := listRowBox(c.KeyInt(state.key(i)), horizontal)
 			row(i, box)
+			if state.Glide.Duration > 0 {
+				scrolled := gfx.Point{Y: offset}
+				if horizontal {
+					scrolled = gfx.Point{X: offset}
+				}
+				box.Glide(state.Glide, scrolled)
+			}
+			if extra := c.f.Extra(box.i); extra.glided || extra.presenced || extra.posed {
+				extra.glideID = state.list.rows.At(state.key(i))
+			}
 			if state.RowWidth > 0 {
 				box.MinWidth(state.RowWidth)
 				box.N().Margin[3] = -scrollX
@@ -1233,10 +1248,10 @@ func (p *Page) ListKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 	return gfx.EventResult{}, false
 }
 
-// listWheelX scrolls the rows of the List with RowWidth under the pointer sideways,
-// by the horizontal wheel or by the wheel with Shift. It reports whether it moved a
-// list, and whether the event was a sideways one alone, left with nothing to scroll
-// down.
+// ListWheelX scrolls the rows of the List with RowWidth under the pointer sideways,
+// by the horizontal wheel or by the wheel with Shift, within the panel under the
+// pointer when there is one. It reports whether it moved a list, and whether the
+// event was a sideways one alone, left with nothing to scroll down.
 func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx, only := event.DeltaX, event.DeltaY == 0
 	if dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
@@ -1245,10 +1260,14 @@ func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	if dx == 0 {
 		return false, false
 	}
+	panel := int32(-1)
+	if f := p.View.Frame; f != nil {
+		panel = f.wheelPanel(event.X, event.Y)
+	}
 	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
-		if s.RowWidth <= 0 || in.f == nil || !in.f.ContainsPoint(int(in.area), event.X, event.Y) {
+		if s.RowWidth <= 0 || in.f == nil || !in.f.ContainsPoint(int(in.area), event.X, event.Y) || !in.f.within(in.area, panel) {
 			continue
 		}
 		room := s.RowWidth - in.View.Width

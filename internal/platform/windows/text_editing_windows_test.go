@@ -78,6 +78,36 @@ func TestNativeEditorOwnsClipboardAndEditingShortcuts(t *testing.T) {
 	}
 }
 
+func TestDisabledIMEOffersMenuShortcutDuringComposition(t *testing.T) {
+	state := windowState{
+		textEnabled:  true,
+		imeComposing: true,
+		textInput:    platform.TextInput{Terminal: true, DisableIME: true},
+	}
+	calls := 0
+	state.config.OnShortcut = func(event platform.KeyEvent) (platform.Frame, bool, error) {
+		calls++
+		if event.Text != "e" {
+			t.Fatalf("shortcut text = %q, want e", event.Text)
+		}
+		return platform.Frame{}, true, nil
+	}
+	if !state.offerShortcut('E', 0, 0) {
+		t.Fatal("disabled IME did not offer the printable key to OnShortcut")
+	}
+	if calls != 1 {
+		t.Fatalf("OnShortcut calls = %d, want 1", calls)
+	}
+
+	state.textInput.Terminal = false
+	if state.offerShortcut('E', 0, 0) {
+		t.Fatal("a non-terminal disabled-IME field bypassed its active composition")
+	}
+	if calls != 1 {
+		t.Fatalf("OnShortcut calls after non-terminal field = %d, want 1", calls)
+	}
+}
+
 func TestNativeEditingKeysUseTheMessageModifiers(t *testing.T) {
 	if value, _, ready := decodeUTF16Character(0, 0x7f); ready || value != "" {
 		t.Fatal("Ctrl+Backspace's DEL character must not be inserted after deleting a word")

@@ -17,6 +17,12 @@ import (
 // keeps the Finder from showing it.
 const backgroundFile = ".background.png"
 
+// stagedBundle is the bundle's name on the writable volume before the Finder
+// sees it: hidden, and without an .app suffix, so the temporary volume never
+// shows an installable application. settle renames it to the real name only
+// after the volume is attached.
+const stagedBundle = ".viva-bundle"
+
 // Options describes one image to build.
 type Options struct {
 	// Bundle is the .app directory to put in the image.
@@ -45,11 +51,8 @@ func Build(options Options) error {
 		return err
 	}
 	app := filepath.Base(options.Bundle)
-	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, app)).CombinedOutput(); err != nil {
+	if out, err := exec.Command("cp", "-R", options.Bundle, filepath.Join(staging, stagedBundle)).CombinedOutput(); err != nil {
 		return fmt.Errorf("copying the bundle: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	if err := os.Symlink("/Applications", filepath.Join(staging, "Applications")); err != nil {
-		return err
 	}
 	picture, err := options.Layout.picture()
 	if err != nil {
@@ -68,12 +71,6 @@ func Build(options Options) error {
 		return err
 	}
 	if err := settle(writable, options, app); err != nil {
-		return err
-	}
-	// Detaching returns before the disk image service lets go of the file;
-	// converting it while the service still holds it fails with "Resource
-	// temporarily unavailable", which hosted runners show for over a minute.
-	if err := released(writable); err != nil {
 		return err
 	}
 
@@ -111,8 +108,18 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	defer func() {
-		if detachErr := detach(device); err == nil {
-			err = detachErr
+		cleanupErr := detach(device)
+		// A busy disk can outlive the short detach retries, and even a successful
+		// detach can leave the backing file held. Wait for this image in both cases.
+		if cleanupErr == nil || transient("detach", cleanupErr.Error()) {
+			if waitErr := released(writable); waitErr != nil {
+				cleanupErr = errors.Join(cleanupErr, waitErr)
+			} else {
+				cleanupErr = nil
+			}
+		}
+		if err == nil {
+			err = cleanupErr
 		}
 	}()
 
@@ -129,6 +136,12 @@ func settle(writable string, options Options, app string) (err error) {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(mount, ".DS_Store"), store, 0o644); err != nil {
+		return err
+	}
+	if err := os.Symlink("/Applications", filepath.Join(mount, "Applications")); err != nil {
+		return err
+	}
+	if err := os.Rename(filepath.Join(mount, stagedBundle), filepath.Join(mount, app)); err != nil {
 		return err
 	}
 	// Mounting leaves bookkeeping behind that has no use on the next Mac.
@@ -266,16 +279,18 @@ func released(image string) error {
 		if err != nil {
 			return err
 		}
-		if !strings.Contains(out, "<string>"+path+"</string>") && !strings.Contains(out, "<string>"+image+"</string>") {
+		held, device, err := imageRecord(out, path, image)
+		if err != nil {
+			return err
+		}
+		if !held {
 			return nil
 		}
 		attached = out
-		if redetachAt[attempt] {
+		if redetachAt[attempt] && device != "" {
 			// The service can keep an image attached, and hold the file, after a detach
 			// that reported success: take its disk away again.
-			if device := diskOf(out, path, image); device != "" {
-				_ = hdiutil("detach", "-force", device)
-			}
+			_ = hdiutil("detach", "-force", device)
 		}
 		pause(releaseWait)
 	}
@@ -286,22 +301,54 @@ func released(image string) error {
 // detached again.
 var redetachAt = map[int]bool{5: true, 20: true, 50: true, 90: true}
 
-var diskNode = regexp.MustCompile(`<string>(/dev/disk\d+)</string>`)
+var diskNode = regexp.MustCompile(`^/dev/disk\d+$`)
 
-// diskOf is the disk of the attached image at one of the paths, from hdiutil info's
-// list: the first disk its entry names, since an entry lists its image's path before
-// its system entities.
-func diskOf(info string, paths ...string) string {
-	for _, path := range paths {
-		at := strings.Index(info, "<string>"+path+"</string>")
-		if at < 0 {
-			continue
-		}
-		if match := diskNode.FindStringSubmatch(info[at:]); match != nil {
-			return match[1]
+type imageInfoValue struct {
+	XMLName xml.Name
+	Text    string           `xml:",chardata"`
+	Values  []imageInfoValue `xml:",any"`
+}
+
+func (value imageInfoValue) field(key string) imageInfoValue {
+	for i := 0; i+1 < len(value.Values); i += 2 {
+		if entry := value.Values[i]; entry.XMLName.Local == "key" && entry.Text == key {
+			return value.Values[i+1]
 		}
 	}
-	return ""
+	return imageInfoValue{}
+}
+
+// imageRecord only takes an ejectable device from the matching image's own
+// system entities. A held entry can temporarily have no device at all.
+func imageRecord(info string, canonical, original string) (bool, string, error) {
+	var list struct {
+		XMLName xml.Name       `xml:"plist"`
+		Root    imageInfoValue `xml:"dict"`
+	}
+	if err := xml.Unmarshal([]byte(info), &list); err != nil {
+		return false, "", fmt.Errorf("dmg: reading attached images: %w", err)
+	}
+	images := list.Root.field("images")
+	if images.XMLName.Local != "array" {
+		return false, "", errors.New("dmg: disk image information has no images array")
+	}
+	for _, image := range images.Values {
+		path := image.field("image-path")
+		if path.XMLName.Local != "string" || (path.Text != canonical && path.Text != original) {
+			continue
+		}
+		entities := image.field("system-entities")
+		if entities.XMLName.Local == "array" {
+			for _, entity := range entities.Values {
+				entry := entity.field("dev-entry")
+				if device := wholeDisk(entry.Text); entry.XMLName.Local == "string" && diskNode.MatchString(device) {
+					return true, device, nil
+				}
+			}
+		}
+		return true, "", nil
+	}
+	return false, "", nil
 }
 
 func hdiutil(arguments ...string) error {

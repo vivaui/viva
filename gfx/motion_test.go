@@ -714,3 +714,174 @@ func TestNowIsTheFramesTimeAndTheEventsBetween(t *testing.T) {
 		t.Fatal("Now went back")
 	}
 }
+
+func TestSpringAnimateArrivesWithoutOvershootAtZeroBounce(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(300*time.Millisecond, 0)
+	value := func(at time.Duration, target float32) float32 {
+		var got float32
+		frames.at(at, func() { got = canvas.Animate(Item(1), 0, target, motion) })
+		return got
+	}
+	value(0, 0)
+	previous := value(time.Second, 1)
+	if previous != 0 {
+		t.Fatalf("start = %v", previous)
+	}
+	for at := time.Second + 8*time.Millisecond; at < 4*time.Second; at += 8 * time.Millisecond {
+		got := value(at, 1)
+		if got < previous || got > 1 {
+			t.Fatalf("at %v: %v after %v, want monotonic within [0, 1]", at-time.Second, got, previous)
+		}
+		previous = got
+	}
+	if previous != 1 || canvas.Animating() {
+		t.Fatalf("rest = %v animating=%v", previous, canvas.Animating())
+	}
+}
+
+func TestSpringBounceOvershootsAndSettles(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(300*time.Millisecond, 0.5)
+	value := func(at time.Duration) float32 {
+		var got float32
+		frames.at(at, func() { got = canvas.Animate(Item(1), 0, 1, motion) })
+		return got
+	}
+	frames.at(0, func() { canvas.Animate(Item(1), 0, 0, motion) })
+	peak := float32(0)
+	for at := time.Duration(0); at < 4*time.Second; at += 8 * time.Millisecond {
+		peak = max(peak, value(time.Second+at))
+	}
+	if peak <= 1 {
+		t.Fatalf("peak = %v, a bouncy spring overshoots", peak)
+	}
+	if got := value(10 * time.Second); got != 1 || canvas.Animating() {
+		t.Fatalf("rest = %v animating=%v", got, canvas.Animating())
+	}
+}
+
+func TestSpringPathDoesNotDependOnFrameRate(t *testing.T) {
+	sample := func(step time.Duration) float32 {
+		var canvas Canvas
+		frames := newTestFrames(&canvas)
+		motion := SpringMotion(400*time.Millisecond, 0.3)
+		frames.at(0, func() { canvas.Animate(Item(1), 0, 0, motion) })
+		frames.at(time.Millisecond, func() { canvas.Animate(Item(1), 0, 1, motion) }) // starts here
+		var got float32
+		for at := time.Millisecond + step; at <= 201*time.Millisecond; at += step {
+			frames.at(at, func() { got = canvas.Animate(Item(1), 0, 1, motion) })
+		}
+		return got
+	}
+	fast, slow := sample(5*time.Millisecond), sample(200*time.Millisecond)
+	if math.Abs(float64(fast-slow)) > 1e-4 || fast == 0 {
+		t.Fatalf("200ms in: %v at 200fps, %v in one frame", fast, slow)
+	}
+}
+
+func TestSpringRetargetKeepsVelocity(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(400*time.Millisecond, 0)
+	value := func(at time.Duration, target float32) float32 {
+		var got float32
+		frames.at(at, func() { got = canvas.Animate(Item(1), 0, target, motion) })
+		return got
+	}
+	value(0, 0)
+	value(time.Second, 1)
+	const dt = time.Millisecond
+	a, b := value(time.Second+150*time.Millisecond, 1), value(time.Second+150*time.Millisecond+dt, 1)
+	speed := float64(b-a) / dt.Seconds()
+	if speed <= 0 {
+		t.Fatalf("speed = %v mid-flight", speed)
+	}
+	// Retarget halfway: the value must neither jump nor stop dead.
+	at := time.Second + 150*time.Millisecond + dt
+	if got := value(at, 0); math.Abs(float64(got-b)) > 1e-5 {
+		t.Fatalf("retarget jumped from %v to %v", b, got)
+	}
+	next := value(at+dt, 0)
+	if carried := float64(next-b) / dt.Seconds(); carried < speed*0.8 {
+		t.Fatalf("velocity after retarget = %v, was %v: it stopped dead", carried, speed)
+	}
+}
+
+func TestSpringTakingOverATimedCurveKeepsItsVelocity(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	timed, spring := Motion{Duration: 200 * time.Millisecond, Easing: EaseLinear}, SpringMotion(300*time.Millisecond, 0)
+	value := func(at time.Duration, target float32, motion Motion) float32 {
+		var got float32
+		frames.at(at, func() { got = canvas.Animate(Item(1), 0, target, motion) })
+		return got
+	}
+	value(0, 0, timed)
+	value(time.Second, 1, timed)
+	at := time.Second + 100*time.Millisecond
+	before := value(at, 1, timed) // linear: 5 per second
+	if got := value(at, 2, spring); math.Abs(float64(got-before)) > 1e-5 {
+		t.Fatalf("takeover jumped from %v to %v", before, got)
+	}
+	next := value(at+time.Millisecond, 2, spring)
+	if speed := float64(next-before) / 0.001; speed < 4 {
+		t.Fatalf("speed after takeover = %v, the curve's was 5", speed)
+	}
+}
+
+func TestSpringHonoursReducedMotion(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	canvas.SetReduceMotion(true)
+	motion := SpringMotion(300*time.Millisecond, 0.3)
+	frames.at(0, func() { canvas.Animate(Item(1), 0, 0, motion) })
+	var got float32
+	frames.at(time.Second, func() { got = canvas.Animate(Item(1), 0, 1, motion) })
+	if got != 1 || canvas.Animating() {
+		t.Fatalf("reduced motion = %v animating=%v", got, canvas.Animating())
+	}
+}
+
+func TestWarmSpringAnimateDoesNotAllocate(t *testing.T) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(300*time.Millisecond, 0.2)
+	paint := func(target float32) {
+		for id := 1; id <= 64; id++ {
+			canvas.Animate(Item(id), 0, target, motion)
+		}
+	}
+	frames.at(0, func() { paint(0) })
+	now := time.Duration(0)
+	if allocations := testing.AllocsPerRun(100, func() {
+		now += 8 * time.Millisecond
+		frames.at(now, func() { paint(float32(now / (400 * time.Millisecond) % 2)) })
+	}); allocations != 0 {
+		t.Fatalf("warm spring frames allocate %v times", allocations)
+	}
+}
+
+func BenchmarkSpringAnimate(b *testing.B) {
+	var canvas Canvas
+	frames := newTestFrames(&canvas)
+	motion := SpringMotion(300*time.Millisecond, 0.2)
+	frames.at(0, func() {
+		for id := 1; id <= 64; id++ {
+			canvas.Animate(Item(id), 0, 0, motion)
+		}
+	})
+	now := time.Duration(0)
+	b.ReportAllocs()
+	for b.Loop() {
+		now += 8 * time.Millisecond
+		target := float32(now / (400 * time.Millisecond) % 2)
+		frames.at(now, func() {
+			for id := 1; id <= 64; id++ {
+				canvas.Animate(Item(id), 0, target, motion)
+			}
+		})
+	}
+}

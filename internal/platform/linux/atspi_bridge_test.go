@@ -3,6 +3,7 @@
 package linux
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -323,6 +324,108 @@ func TestAtspiEventsNameWhatChanged(t *testing.T) {
 	test.update(test.window, changed)
 	if len(test.signals) != 0 {
 		t.Errorf("an unchanged tree announced %v", test.signals)
+	}
+}
+
+func TestAtspiTextChangePreservesRuneOffsetsAndPayload(t *testing.T) {
+	type change struct {
+		kind          string
+		start, length int32
+		value         string
+	}
+	for _, test := range []struct {
+		name, before, after string
+		want                []change
+	}{
+		{"replace", "a界e\u0301尾", "a界\U0001f642尾", []change{{"delete", 2, 2, "e\u0301"}, {"insert", 2, 1, "\U0001f642"}}},
+		{"insert at end", "界", "界尾", []change{{"insert", 1, 1, "尾"}}},
+		{"delete repeated rune", "界尾尾", "界尾", []change{{"delete", 2, 1, "尾"}}},
+		{"delete all", "界", "", []change{{"delete", 0, 1, "界"}}},
+		{"empty before", "", "界", []change{{"insert", 0, 1, "界"}}},
+		{"invalid unchanged", "\xff", "\ufffd", nil},
+		{"invalid ends match", "\xffab\xfe", "\ufffd界b\ufffd", []change{{"delete", 1, 1, "a"}, {"insert", 1, 1, "界"}}},
+		{"invalid changed payload", "a\xff\xfe", "a界", []change{{"delete", 1, 2, "\ufffd\ufffd"}, {"insert", 1, 1, "界"}}},
+		{"invalid insert payload", "界", "界\xff", []change{{"insert", 1, 1, "\ufffd"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var got []change
+			bridge := atspiBridge{send: func(_, iface, member, signature string, body []byte) error {
+				args := dbus.NewDecoder(body)
+				kind, start, length := args.String(), args.Int32(), args.Int32()
+				if iface != atspiEventObject || member != "TextChanged" || signature != "siiva{sv}" || args.Signature() != "s" {
+					t.Fatalf("unexpected text signal: %s %s %s", iface, member, signature)
+				}
+				got = append(got, change{kind, start, length, args.String()})
+				return nil
+			}}
+			before := platform.AccessibilityNode{Role: platform.A11yRoleTextField, Value: test.before}
+			after := before
+			after.Value = test.after
+			bridge.announceChanges(nil, "/text", before, after)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("text changes = %+v, want %+v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAtspiTextChangeAllocationDoesNotGrowWithUnchangedText(t *testing.T) {
+	bridge := atspiBridge{send: func(_, _, _, _ string, _ []byte) error { return nil }}
+	allocations := func(suffix string) float64 {
+		before := platform.AccessibilityNode{Role: platform.A11yRoleTextField, Value: "a界" + suffix}
+		after := before
+		after.Value = "a尾" + suffix
+		return testing.AllocsPerRun(5, func() { bridge.announceChanges(nil, "/text", before, after) })
+	}
+	short := allocations("z")
+	if long := allocations(strings.Repeat("z", 1<<20)); long > short {
+		t.Fatalf("large value used %g allocations, small value used %g", long, short)
+	}
+}
+
+func BenchmarkAtspiTextChangeLargeValue(b *testing.B) {
+	bridge := atspiBridge{send: func(_, _, _, _ string, _ []byte) error { return nil }}
+	suffix := strings.Repeat("a", (16<<20)-4)
+	before := platform.AccessibilityNode{Role: platform.A11yRoleTextField, Value: "a界" + suffix}
+	after := before
+	after.Value = "a尾" + suffix
+	b.ReportAllocs()
+	for b.Loop() {
+		bridge.announceChanges(nil, "/text", before, after)
+	}
+}
+
+func TestAtspiAnnouncesFocusWhenAddingAControl(t *testing.T) {
+	nodes := demoNodes()
+	nodes[4].Focused = true
+	test := newTestBridge(nodes)
+	test.signals = nil
+	changed := demoNodes()
+	changed = append(changed,
+		platform.AccessibilityNode{ID: gfx.Item(7), Role: platform.A11yRoleButton, Label: "Close", Focusable: true},
+		platform.AccessibilityNode{ID: gfx.Item(8), Role: platform.A11yRoleTextField, Label: "Find", Focusable: true, Focused: true},
+	)
+	test.update(test.window, changed)
+	var events []string
+	for _, signal := range test.signals {
+		switch {
+		case signal.member == "ChildrenChanged" && signal.detail == "add" && signal.detail1 == int32(test.window.indexInParent(7)):
+			events = append(events, "find added")
+		case signal.member == "StateChanged" && signal.detail == "focused" && signal.detail1 == 1:
+			if signal.path != test.path(7) {
+				t.Fatalf("unexpected focus recipient: %+v", signal)
+			}
+			events = append(events, "find focused")
+		}
+	}
+	if got := strings.Join(events, ", "); got != "find added, find focused" {
+		t.Fatalf("new control events = %q, want add then focus", got)
+	}
+
+	test.signals = nil
+	test.update(test.window, changed)
+	if len(test.signals) != 0 {
+		t.Fatalf("unchanged focused tree announced %v", test.signals)
 	}
 }
 

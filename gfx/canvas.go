@@ -222,7 +222,9 @@ const (
 // Ligatures asks the fixed-pitch renderer to shape the run as one line instead
 // of placing one glyph per cell, so a font's programming ligatures appear. The
 // shaped run is fitted to the run's full cell span; it therefore needs ASCII
-// text and at least two cells. Other runs keep the one-glyph-per-cell rule.
+// text and at least two cells. A run that Canvas.FittedBidiMonoCarets measured
+// is the exception: its mixed-direction label is shaped whole so its joins and
+// caret positions survive. Other runs keep the one-glyph-per-cell rule.
 type TextRun struct {
 	Column    int32
 	Bytes     int32
@@ -657,7 +659,7 @@ type Hit struct {
 	IsLabel bool
 	// Backdrop is HitOptions.Backdrop.
 	Backdrop bool
-	// MovesWindow marks a region of a custom-titlebar window that moves the
+	// MovesWindow marks a region of a custom-titlebar or notification window that moves the
 	// window when pressed (see Canvas.MoveRegion). It has no ID and no
 	// accessibility node.
 	MovesWindow bool
@@ -726,10 +728,15 @@ type Canvas struct {
 	// fillPoints is the outline of a gradient-filled rounded rectangle.
 	fillPoints []Point
 	// path and triangulation scratch survives Reset: reused every paint.
-	strokeSideA     []Point
-	strokeSideB     []Point
-	strokeRing      []Point
-	ringPoints      []Point
+	strokeSideA []Point
+	strokeSideB []Point
+	strokeRing  []Point
+	ringPoints  []Point
+	// poseShapes, posePoints and poseMerge are the scratch of turning a posed
+	// group's rectangles into vector shapes (presence.go).
+	poseShapes      []Triangle
+	posePoints      []Point
+	poseMerge       []Triangle
 	ringEnds        []int32
 	earcut          earcutScratch
 	rings           []ringCacheEntry
@@ -765,8 +772,8 @@ type Canvas struct {
 	onSurface bool
 	// titlebarLeading and titlebarTrailing are the window's TitlebarInsets.
 	titlebarLeading, titlebarTrailing float32
-	// safeArea is the window's SafeArea.
-	safeArea Insets
+	// touched is set once a finger has touched the window.
+	touched bool
 	// prevHovered is the hit the pointer was on at the end of the previous
 	// paint, which is what HoverCrossed compares against.
 	prevHovered  ID
@@ -1102,6 +1109,9 @@ func (canvas *Canvas) Trim() {
 	canvas.strokeSideB = trimCapacity(canvas.strokeSideB)
 	canvas.strokeRing = trimCapacity(canvas.strokeRing)
 	canvas.ringPoints = trimCapacity(canvas.ringPoints)
+	canvas.poseShapes = trimCapacity(canvas.poseShapes)
+	canvas.posePoints = trimCapacity(canvas.posePoints)
+	canvas.poseMerge = trimCapacity(canvas.poseMerge)
 	canvas.ringEnds = trimCapacity(canvas.ringEnds)
 	canvas.parentScratch = trimCapacity(canvas.parentScratch)
 	canvas.consumedScratch = trimCapacity(canvas.consumedScratch)
@@ -1546,6 +1556,23 @@ func (canvas *Canvas) TextOffsetAt(value string, size, weight, x float32) int {
 	return textmetrics.OffsetAt(value, size, weight, x)
 }
 
+// TextHitAt reports a byte boundary together with the caret position picked by
+// a click. Keep X as well as Offset when a mixed-direction line can draw the
+// same boundary at either end of a run. A custom measurer or engine without
+// TextHitEngine supplies its ordinary caret position.
+func (canvas *Canvas) TextHitAt(value string, size, weight, x float32) TextHit {
+	if canvas.measurer == nil {
+		if engine, ok := canvas.engine.(TextHitEngine); ok {
+			return engine.HitAt(value, size, weight, x)
+		}
+		if canvas.engine == nil {
+			return referenceEngine{}.HitAt(value, size, weight, x)
+		}
+	}
+	offset := canvas.TextOffsetAt(value, size, weight, x)
+	return TextHit{Offset: offset, X: canvas.TextCaret(value, size, weight, offset)}
+}
+
 // TextOffsetAtStyle is TextOffsetAt for a style that may be italic or fixed-pitch (see
 // TextWidthStyle).
 func (canvas *Canvas) TextOffsetAtStyle(value string, style TextStyle, x float32) int {
@@ -1787,8 +1814,8 @@ func (canvas *Canvas) BlockSurface(bounds Rect) {
 	})
 }
 
-// MoveRegion declares a place a custom-titlebar window is moved from: pressing
-// and dragging it moves the window, and a double click zooms it. It is inert as
+// MoveRegion makes a custom-titlebar or notification window draggable there.
+// Double-clicking zooms a custom-titlebar window. A move region is inert as
 // Block is, with no ID, hover, focus or accessibility node, and it lies where it
 // was declared in paint order: a control declared after it, such as a button of a
 // tab bar laid over it, takes its own presses, and so does the surface of a dialog
@@ -2096,15 +2123,6 @@ func (canvas *Canvas) TitlebarInsets() (leading, trailing float32) {
 	return canvas.titlebarLeading, canvas.titlebarTrailing
 }
 
-// SafeArea is how far the system covers the edges of the window: the status bar and the
-// sensor housing, the home indicator or navigation bar, a cutout or rounded corner. A page
-// keeps its content inside of on a phone, where the window runs under the bars. Zero for
-// a desktop window.
-func (canvas *Canvas) SafeArea() Insets { return canvas.safeArea }
-
-// SetSafeArea records the window's SafeArea; the runtime calls it before each paint.
-func (canvas *Canvas) SetSafeArea(insets Insets) { canvas.safeArea = insets }
-
 // SetTitlebarInsets records the window's TitlebarInsets; the runtime calls it
 // before each paint.
 func (canvas *Canvas) SetTitlebarInsets(leading, trailing float32) {
@@ -2275,8 +2293,9 @@ func (canvas *Canvas) AfterPaint(fn func()) {
 }
 
 // RunAfterPaint runs and clears the functions deferred by AfterPaint, and reports
-// whether there were any. The runtime calls it once the event pass has ended; an
-// application never does.
+// whether there were any. The runtime calls it once the event pass has ended; a
+// host that paints and presents its own canvas calls it too, between the event
+// pass and the repaint.
 func (canvas *Canvas) RunAfterPaint() bool {
 	fns := canvas.afterPaint
 	canvas.afterPaint = nil
@@ -2301,7 +2320,9 @@ type ClickInfo struct {
 // BeginEventPass makes the next paint the event pass of a click on id, with what
 // the runtime knows of it: Clicked(id) is true in the pass, and ClickInfo says how
 // the click came. Pair it with EndEventPass around that one paint. The runtime does
-// this; an application only calls Clicked, ClickModifiers and DoubleClicked.
+// this for a window; a host that paints and presents its own canvas does it too,
+// and an application otherwise only calls Clicked, ClickModifiers and
+// DoubleClicked.
 func (canvas *Canvas) BeginEventPass(id ID, info ClickInfo) {
 	canvas.clicked, canvas.clickInfo, canvas.eventPass = id, info, true
 }
@@ -2364,13 +2385,20 @@ func (canvas *Canvas) Consume() {
 // PointerPass is the pointer event being delivered in this paint, whoever it is aimed at, and
 // whether a control has already consumed it; ok is false outside an event pass. A control
 // that comes last in the paint, as a tooltip does, reads what the others left of the event.
+//
+// It asks for the event pass only once a finger has touched the window (SetTouched), so a
+// window used with a mouse pays nothing for a control that reads touch.
 func (canvas *Canvas) PointerPass() (event PointerEvent, consumed, ok bool) {
-	canvas.listensForPointer = true
+	canvas.listensForPointer = canvas.listensForPointer || canvas.touched
 	if !canvas.hasPointer {
 		return PointerEvent{}, false, false
 	}
 	return canvas.pointer, canvas.consumed, true
 }
+
+// SetTouched records that a finger has touched the window. The runtime calls it on the first
+// touch event.
+func (canvas *Canvas) SetTouched() { canvas.touched = true }
 
 // ListensForPointer reports whether the last paint asked PointerOn or PointerIn:
 // whether a pointer event needs the event pass.

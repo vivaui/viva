@@ -142,7 +142,7 @@ func releaseEnvironment(t *testing.T) {
 }
 
 func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
-	requireMac(t)
+	requireDiskImages(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{}
@@ -199,8 +199,8 @@ func TestADiskImageIsSignedNotarizedAndStapledOnce(t *testing.T) {
 // A zip is what the in-app updater downloads, so the bundle inside it has to
 // carry its own ticket: without one the system asks Apple at every launch, and
 // refuses the update wherever that lookup cannot be made.
-func TestAZippedBundleIsNotarizedAndStapledBeforeTheImageIsMade(t *testing.T) {
-	requireMac(t)
+func TestDiskImageIsMadeAfterZippedBundleNotarization(t *testing.T) {
+	requireDiskImages(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{}
@@ -247,8 +247,8 @@ func TestABundleWithoutADiskImageIsNotarizedByAZipAndStapledBeforeItIsZipped(t *
 	}
 }
 
-func TestARejectedNotarizationFailsThePackageWithApplesReasons(t *testing.T) {
-	requireMac(t)
+func TestDiskImageNotarizationRejectionReportsApplesReasons(t *testing.T) {
+	requireDiskImages(t)
 	dir := signingFixture(t)
 	releaseEnvironment(t)
 	r := &recorder{status: "Invalid"}

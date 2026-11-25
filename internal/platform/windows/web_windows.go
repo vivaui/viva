@@ -316,6 +316,10 @@ func (page *windowsWeb) fail(err error) {
 // attach wires the page's events and what it is given, and runs what was asked of it meanwhile.
 func (page *windowsWeb) attach(environment uintptr) {
 	view := page.view
+	if err := page.applyUserAgentSuffix(); err != nil {
+		page.fail(err)
+		return
+	}
 	var token int64
 	comCall2(view, viewAddMessageReceived, newHandler(func(_, args uintptr) uintptr {
 		var text uintptr
@@ -1020,3 +1024,32 @@ func (w *webHost) closeAll() {
 
 var _ = syscall.Errno(0)
 var _ render.Rectangle
+
+// applyUserAgentSuffix runs before navigation, and changes only this WebView's settings.
+func (page *windowsWeb) applyUserAgentSuffix() error {
+	if page.config.UserAgentSuffix == "" {
+		return nil
+	}
+	var settings uintptr
+	if status := comCall1(page.view, viewGetSettings, uintptr(unsafe.Pointer(&settings))); int32(uint32(status)) < 0 || settings == 0 {
+		return fmt.Errorf("windows: get WebView2 settings: HRESULT %#x", uint32(status))
+	}
+	defer comCall0(settings, 2)
+	var extended uintptr
+	if status := comCall2(settings, 0, uintptr(unsafe.Pointer(&iidSettings2)), uintptr(unsafe.Pointer(&extended))); int32(uint32(status)) < 0 || extended == 0 {
+		return fmt.Errorf("%w: a user agent suffix needs ICoreWebView2Settings2", platform.ErrWebViewUnsupported)
+	}
+	defer comCall0(extended, 2)
+	var address uintptr
+	if status := comCall1(extended, settingsGetUserAgent, uintptr(unsafe.Pointer(&address))); int32(uint32(status)) < 0 || address == 0 {
+		if address != 0 {
+			coTaskMemFree.Call(address)
+		}
+		return fmt.Errorf("windows: read WebView2 user agent: HRESULT %#x", uint32(status))
+	}
+	value := wideString(address) + " " + page.config.UserAgentSuffix
+	if status := comCall1(extended, settingsPutUserAgent, uintptr(unsafe.Pointer(wide(value)))); int32(uint32(status)) < 0 {
+		return fmt.Errorf("windows: set WebView2 user agent: HRESULT %#x", uint32(status))
+	}
+	return nil
+}

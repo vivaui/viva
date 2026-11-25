@@ -2,6 +2,7 @@ package main
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -279,41 +280,114 @@ func TestAHeldFingerOnAControlWithAMenuShowsNoTooltip(t *testing.T) {
 	}
 }
 
-// A page keeps inside the bars a phone's system draws over its window, and the page's own
-// background reaches the edges: the window being told the bars grow moves the content down.
-func TestThePageKeepsInsideTheSafeArea(t *testing.T) {
-	m := newModel()
-	driver := open(t, m)
-	before := control(t, driver, "Tap me").Bounds
-	if err := driver.SetSafeArea(gfx.Insets{Top: 47, Bottom: 34, Left: 10, Right: 10}); err != nil {
+// typeInName focuses the name field with a tap and types value into it.
+func typeInName(t *testing.T, driver *app.Driver, value string) gfx.Rect {
+	t.Helper()
+	field := control(t, driver, "Name").Bounds
+	x, y := field.X+field.Width/2, field.Y+field.Height/2
+	if err := driver.TouchDown(1, x, y); err != nil {
 		t.Fatal(err)
 	}
-	after := control(t, driver, "Tap me").Bounds
-	if after.Y != before.Y+47 || after.X != before.X+10 {
-		t.Fatalf("the button moved from %v, %v to %v, %v, want 10 right and 47 down", before.X, before.Y, after.X, after.Y)
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
 	}
-	rows := driver.Snapshot().Hits
-	last := rows[len(rows)-1]
-	if bottom := last.Bounds.Y + last.Bounds.Height; bottom > 760-34+0.5 {
-		t.Fatalf("content reaches %v, into the 34 px the home indicator covers", bottom)
+	if err := driver.Type(value); err != nil {
+		t.Fatal(err)
+	}
+	return field
+}
+
+// wordX is the x of the middle of a word of the name field, from where the
+// field paints it.
+func wordX(t *testing.T, driver *app.Driver, word string) float32 {
+	t.Helper()
+	for _, label := range driver.Snapshot().Labels {
+		if strings.Contains(label.Value, word) {
+			at := strings.Index(label.Value, word)
+			share := (float32(at) + float32(len(word))/2) / float32(len(label.Value))
+			return label.Bounds.X + label.Bounds.Width*share
+		}
+	}
+	t.Fatalf("no label shows %q", word)
+	return 0
+}
+
+// A finger lifted inside the text puts the caret there; typing goes in
+// at that point, not at the end.
+func TestATapPutsTheCaretWhereTheFingerLifts(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	driver := open(t, m)
+	field := typeInName(t, driver, "hello world")
+	y := field.Y + field.Height/2
+	// Between "hello" and " world": where the space starts.
+	x := wordX(t, driver, "hello") + (wordX(t, driver, "world")-wordX(t, driver, "hello"))/2 - 4
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("X"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.name; got == "hello worldX" || !strings.Contains(got, "X") {
+		t.Fatalf("typed after a tap mid-text: %q, want the X inside the text", got)
 	}
 }
 
-// What the system does to the application shows on the page once the application says so.
-func TestThePageShowsWhatTheSystemDid(t *testing.T) {
+// A finger held on a word selects it; typing replaces it.
+func TestAHeldFingerSelectsTheWord(t *testing.T) {
+	skipWithoutTouchRuntime(t)
 	m := newModel()
-	m.invalidator = new(app.Invalidator)
-	page := ui.NewPage(ui.PageConfig{View: m.page, Invalidator: m.invalidator})
-	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnLifecycle: m.systemChanged}), nil)
+	driver := open(t, m)
+	field := typeInName(t, driver, "hello world")
+	x, y := wordX(t, driver, "world"), field.Y+field.Height/2
+	if err := driver.TouchDown(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Advance(700 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.TouchUp(1, x, y); err != nil {
+		t.Fatal(err)
+	}
+	if err := driver.Type("there"); err != nil {
+		t.Fatal(err)
+	}
+	if m.name != "hello there" {
+		t.Fatalf("name = %q after holding on \"world\" and typing, want %q", m.name, "hello there")
+	}
+}
+
+// Two fingers moving apart zoom the page, and the first finger's gesture does nothing else.
+func TestPinchingZoomsThePage(t *testing.T) {
+	skipWithoutTouchRuntime(t)
+	m := newModel()
+	page := ui.NewPage(ui.PageConfig{View: m.page})
+	driver, err := app.NewDriver(ui.Configure(page, app.Config{Width: 420, Height: 760, OnPinch: m.pinched}), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(driver.Close)
-	driver.Lifecycle(app.LifecycleMemoryWarning)
-	if err := driver.Pump(); err != nil {
-		t.Fatal(err)
+	for _, step := range []func() error{
+		func() error { return driver.TouchDown(1, 150, 500) },
+		func() error { return driver.TouchDown(2, 250, 500) },
+		func() error { return driver.TouchMove(2, 350, 500) },
+		func() error { return driver.TouchUp(2, 350, 500) },
+		func() error { return driver.TouchUp(1, 150, 500) },
+	} {
+		if err := step(); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if !shown(driver, "System: memory warning") {
-		t.Fatal("the page does not show the memory warning")
+	if m.zoom < 1.9 || m.zoom > 2.1 {
+		t.Fatalf("zoom = %v after the fingers went from 100 to 200 apart, want about 2", m.zoom)
+	}
+	if !shown(driver, "Zoom 2.00") {
+		t.Fatal("the page does not show the zoom")
+	}
+	if m.taps != 0 || m.list.Selected() >= 0 {
+		t.Fatalf("a pinch tapped (%d) or chose a row (%d)", m.taps, m.list.Selected())
 	}
 }

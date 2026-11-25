@@ -20,6 +20,21 @@ func tooltipShown(d *pageDriver, Text string) bool {
 	return false
 }
 
+func TestIdleTooltipPaintAllocatesNothing(t *testing.T) {
+	d := openPage(t, func(c ui.C) {
+		ui.Column(c).Children(func() {
+			ui.Button(c, "Info").Tooltip("More information")
+			ui.Button(c, "Plain")
+		})
+	})
+	if err := d.driver.Move(center(d.hit("Plain").Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("idle tooltip paint: %v allocations per repaint, want zero", allocs)
+	}
+}
+
 // A Tooltip appears while the pointer rests on its control, is the control's
 // description, hides on a press until the pointer leaves, and a Memo's copy keeps it.
 func TestTooltip(t *testing.T) {

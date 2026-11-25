@@ -479,15 +479,57 @@ func TestPrimaryCandidateIsTheNewlySelectedText(t *testing.T) {
 		{"selected", false, state("hello world", 0, 0), state("hello world", 6, 11), "world", true},
 		{"backwards", false, state("hello", 0, 0), state("hello", 4, 1), "ell", true},
 		{"multibyte", false, state("输入法测试", 0, 0), state("输入法测试", 1, 3), "入法", true},
+		{"end of Unicode text", false, state("a\U0001f600界", 0, 0), state("a\U0001f600界", 3, 1), "\U0001f600界", true},
+		{"invalid selected bytes", false, state("a\xff\xfez", 0, 0), state("a\xff\xfez", 1, 3), "\ufffd\ufffd", true},
+		{"invalid bytes before selection", false, state("\xffz", 0, 0), state("\xffz", 1, 2), "z", true},
+		{"same range after edit", false, state("ab", 0, 1), state("cb", 0, 1), "c", true},
 		{"collapsed", false, state("hello", 1, 3), state("hello", 2, 2), "", false},
 		{"unchanged", false, state("hello", 1, 3), state("hello", 1, 3), "", false},
 		{"password", true, state("secret", 0, 0), state("secret", 0, 6), "", false},
 		{"out of range", false, state("ab", 0, 0), state("ab", 0, 9), "", false},
+		{"invalid reverse", false, state("ab", 0, 0), state("ab", 1, -1), "", false},
 	} {
 		got, ok := primaryCandidate(test.private, test.previous, test.now)
 		if got != test.want || ok != test.ok {
 			t.Errorf("%s: got %q,%v want %q,%v", test.name, got, ok, test.want, test.ok)
 		}
+	}
+}
+
+func TestPrimaryCandidateDoesNotAllocateForTheWholeValue(t *testing.T) {
+	value := "\u9009\u4e2d" + strings.Repeat("a", 1<<20)
+	previous := platform.TextState{Value: value + "b"}
+	check := func(t *testing.T, selection text.Range, want string, maxAllocs float64) {
+		t.Helper()
+		next := platform.TextState{Value: value, Selection: selection}
+		var selected string
+		var ok bool
+		allocations := testing.AllocsPerRun(5, func() { selected, ok = primaryCandidate(false, previous, next) })
+		if selected != want || ok != (want != "") || allocations > maxAllocs {
+			t.Fatalf("got %q, %t and %g allocations; want %q with at most %g allocations", selected, ok, allocations, want, maxAllocs)
+		}
+	}
+	t.Run("collapsed", func(t *testing.T) { check(t, text.Range{Start: 12, End: 12}, "", 0) })
+	t.Run("small selection", func(t *testing.T) { check(t, text.Range{End: 2}, "\u9009\u4e2d", 1) })
+}
+
+func BenchmarkPrimaryCandidateLargeValue(b *testing.B) {
+	value := "\u9009\u4e2d" + strings.Repeat("a", (16<<20)-6)
+	previous := platform.TextState{Value: value + "b"}
+	for _, test := range []struct {
+		name      string
+		selection text.Range
+	}{
+		{"collapsed", text.Range{Start: 12, End: 12}},
+		{"small selection", text.Range{End: 2}},
+	} {
+		b.Run(test.name, func(b *testing.B) {
+			next := platform.TextState{Value: value, Selection: test.selection}
+			b.ReportAllocs()
+			for b.Loop() {
+				primaryCandidate(false, previous, next)
+			}
+		})
 	}
 }
 

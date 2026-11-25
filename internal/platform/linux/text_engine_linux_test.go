@@ -40,6 +40,41 @@ func TestEnginePassesTheTextEngineContract(t *testing.T) {
 	textenginetest.Run(t, newTestEngine(t))
 }
 
+func TestMixedDirectionHitUsesTheClickedClusterEdge(t *testing.T) {
+	engine := newTestEngine(t)
+	const prefix, first, second, tail = "ab ", "\u05d0\u05b7", "\u05d1", " cd"
+	const value = prefix + first + second + tail
+	const start, middle, end = len(prefix), len(prefix + first), len(prefix + first + second)
+	const size = 20
+	span := func(from, to int) gfx.TextSpan {
+		t.Helper()
+		spans := engine.Selection(nil, value, size, 0, from, to)
+		if len(spans) != 1 || spans[0].Width <= 0 {
+			t.Fatalf("selection [%d,%d) spans = %+v", from, to, spans)
+		}
+		return spans[0]
+	}
+	leftLatin := span(start-1, start)
+	leftRTL := span(middle, end)
+	rightRTL := span(start, middle)
+	rightLatin := span(end, end+1)
+	for _, check := range []struct {
+		name string
+		x    float32
+		want int
+	}{
+		{"Latin before RTL", leftLatin.X + 0.9*leftLatin.Width, start},
+		{"RTL at left boundary", leftRTL.X + 0.1*leftRTL.Width, end},
+		{"RTL at right boundary", rightRTL.X + 0.9*rightRTL.Width, start},
+		{"Latin after RTL", rightLatin.X + 0.1*rightLatin.Width, end},
+		{"RTL between graphemes", rightRTL.X + 0.1*rightRTL.Width, middle},
+	} {
+		if got := engine.OffsetAt(value, size, 0, check.x); got != check.want {
+			t.Errorf("%s: hit at %.2f returned byte %d, want %d", check.name, check.x, got, check.want)
+		}
+	}
+}
+
 func TestTextEngineRasterizesProportionalText(t *testing.T) {
 	engine := newTestEngine(t)
 	textenginetest.TransparentColorGlyphs(t, engine)

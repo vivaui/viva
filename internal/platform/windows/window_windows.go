@@ -103,6 +103,7 @@ type windowState struct {
 	maximized                              bool
 	lastFrame                              gfx.Rect
 	scale                                  float32
+	placingNotification                    bool
 	scaleFixed                             bool // VIVA_SCALE set it: the display's own scale is ignored
 	err                                    error
 	pointerEvents, resizeEvents, keyEvents uint64
@@ -121,6 +122,7 @@ type windowState struct {
 	// (any goroutine sets it); shortcutsHeld says this window's share of the hook is installed.
 	shortcuts                              atomic.Bool
 	shortcutsHeld                          bool
+	menuKeys                               menuKeyboard
 	caretTimer                             uintptr
 	baseRectangleCount, baseTextLabelCount int
 	textLabels                             []platform.TextLabel
@@ -212,7 +214,7 @@ type nativeWindow struct {
 // reportFrame tells the application where its content area is now, in logical
 // pixels of the window's display. It reports only changes.
 func (state *windowState) reportFrame() {
-	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.minimized || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
+	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.iconic() || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging {
 		return
 	}
 	var client rect
@@ -436,7 +438,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		postMessage.Call(state.window, wmRedraw, 0, 0)
 	}
 	if config.WindowMode == platform.WindowNotification {
-		state.placePanel()
+		state.placeNotification()
 		showWindow.Call(state.window, swShowNoActivate)
 	} else if config.WindowMode == platform.WindowPanel {
 		state.placePanel()
@@ -547,6 +549,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.constrainTracking((*minMaxInfo)(pointer(second)))
 		return 0
 	case wmDestroy:
+		state.releaseMenuKeyboard()
 		state.shortcuts.Store(false)
 		state.syncShortcutHook()
 		state.destroyed(window)
@@ -671,6 +674,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 	case wmSetFocus:
 		state.focused = true
+		state.syncMenuKeyboard()
 		state.syncShortcutHook()
 		state.setCaretVisible(true)
 		if err := state.restartCaretTimer(); err != nil {
@@ -864,7 +868,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		resizes := state.resizeEvents
 		if state.fullscreen.Load() {
 			state.fitFullscreenMonitor()
-		} else {
+		} else if !state.placingNotification {
 			setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
 		}
 		if state.sizingMove || state.sizing {
@@ -981,6 +985,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 				state.endIMEComposition()
 			}
 			state.focused = false
+			state.releaseMenuKeyboard()
 			state.syncShortcutHook()
 			state.textDragging = false
 			state.stopCaretTimer()
@@ -996,6 +1001,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return 0
 		}
 		state.modifierTap(first, second, true, modifiers())
+	case wmMenuKey:
+		state.deliverMenuMessage(first, second)
+		return 0
 	case wmKeyDown, wmSysKeyDown:
 		if state.textEnabled && state.imeComposing {
 			break // IME candidate keys must not submit or dismiss the surrounding form.
@@ -1056,6 +1064,14 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return htTransparent
 		}
 		if state.fullscreen.Load() {
+			return htClient
+		}
+		if state.config.WindowMode == platform.WindowNotification {
+			point := point{X: int32(int16(second)), Y: int32(int16(second >> 16))}
+			screenToClient.Call(window, uintptr(unsafe.Pointer(&point)))
+			if state.pressAt(float32(point.X)/state.scale, float32(point.Y)/state.scale) == platform.PressMove {
+				return htCaption
+			}
 			return htClient
 		}
 		if state.customFrame() {
@@ -1287,6 +1303,9 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 	if err == nil && state.window == 0 {
 		return nil
 	}
+	if err == nil {
+		state.syncMenuKeyboard()
+	}
 	views := frame.NativeViews
 	if err == nil {
 		state.applyBackdrop()
@@ -1357,9 +1376,7 @@ func (state *windowState) destroyed(window uintptr) {
 	}
 	defer func() {
 		release()
-		if state.application.windows == 0 {
-			active.CompareAndSwap(state, nil)
-		}
+		active.CompareAndSwap(state, nil)
 	}()
 	state.stopCaretTimer()
 	state.closeBackdropPower()

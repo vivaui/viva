@@ -16,7 +16,12 @@ import (
 // RunCanvas presents a retained canvas and blocks until the native window
 // closes. When config.Paint is set the canvas is repainted on window resizes
 // and pointer interactions; otherwise the initial canvas stays unchanged.
+// On macOS, call runtime.LockOSThread in an init function in package main and
+// start the native canvas from main to satisfy AppKit's main-thread requirement.
 func RunCanvas(config Config, canvas *gfx.Canvas) error {
+	if runtime.GOOS != "windows" {
+		config.CaptureMenuKeys = nil
+	}
 	attendFaults()
 	normalized, err := config.normalize()
 	if err != nil {
@@ -40,6 +45,9 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	if err := checkNativeApplicationThread(); err != nil {
+		return err
+	}
 	canvas.SetReduceMotion(nativeReduceMotion())
 	canvas.SetTextEngine(nativeTextEngine())
 	painter, err := newPainter(canvas, &normalized)
@@ -178,38 +186,37 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 			Red: normalized.ClearColor.Red, Green: normalized.ClearColor.Green,
 			Blue: normalized.ClearColor.Blue, Alpha: normalized.ClearColor.Alpha,
 		},
-		Web:               normalized.Web.bind(),
-		NativeViews:       slices.Clone(painter.lastViews),
-		Rectangles:        painter.frame.Rectangles(),
-		TextLabels:        painter.frame.Labels(),
-		Accessibility:     painter.accessibility,
-		OnResize:          resizeHandler,
-		OnFrameChange:     frameChangeHandler(normalized.OnFrameChange),
-		OnMinimize:        minimizeHandler(normalized.OnMinimize),
-		OnVisibility:      gate.handler(),
-		OnLifecycle:       lifecycleHandler(normalized.OnLifecycle),
-		OnMaximize:        maximizeHandler(normalized.OnMaximize),
-		OnFullscreen:      painter.fullscreenHandler(normalized.OnFullscreen),
-		OnReopen:          normalized.onReopen,
-		OnPointer:         pointerHandler,
-		PressAt:           painter.pressAt,
-		OnKey:             keyHandler,
-		ModifierTaps:      normalized.OnModifierTap != nil,
-		OnShortcut:        painter.shortcutHandler(normalized),
-		OnAccessibility:   painter.accessibilityHandler(normalized),
-		AccessibilityTree: func() []platform.AccessibilityNode { return painter.accessibility },
-		OnFocusLost:       painter.focusLostHandler(),
-		OnActivate:        normalized.OnActivate,
-		OnDeactivate:      painter.deactivateHandler(),
-		OnScroll:          scrollHandler,
-		OnFileDrop:        dropHandler,
-		OnRedraw:          redrawHandler,
-		SetFrameInterval:  setFrameInterval,
-		FramePresented:    framePresented,
-		Waker:             waker,
-		OnCloseRequest:    closeHandler,
-		OnClosed:          normalized.OnClosed,
-		DynamicTextInput:  normalized.TextInput != nil,
+		Web:              normalized.Web.bind(),
+		NativeViews:      slices.Clone(painter.lastViews),
+		Rectangles:       painter.frame.Rectangles(),
+		TextLabels:       painter.frame.Labels(),
+		Accessibility:    painter.accessibility,
+		OnResize:         resizeHandler,
+		OnFrameChange:    frameChangeHandler(normalized.OnFrameChange),
+		OnMinimize:       minimizeHandler(normalized.OnMinimize),
+		OnVisibility:     gate.handler(),
+		OnMaximize:       maximizeHandler(normalized.OnMaximize),
+		OnFullscreen:     painter.fullscreenHandler(normalized.OnFullscreen),
+		OnReopen:         normalized.onReopen,
+		OnPointer:        pointerHandler,
+		PressAt:          painter.pressAt,
+		OnKey:            keyHandler,
+		ModifierTaps:     normalized.OnModifierTap != nil,
+		OnShortcut:       painter.shortcutHandler(normalized),
+		CaptureMenuKeys:  normalized.CaptureMenuKeys,
+		OnAccessibility:  painter.accessibilityHandler(normalized),
+		OnFocusLost:      painter.focusLostHandler(),
+		OnActivate:       normalized.OnActivate,
+		OnDeactivate:     painter.deactivateHandler(),
+		OnScroll:         scrollHandler,
+		OnFileDrop:       dropHandler,
+		OnRedraw:         redrawHandler,
+		SetFrameInterval: setFrameInterval,
+		FramePresented:   framePresented,
+		Waker:            waker,
+		OnCloseRequest:   closeHandler,
+		OnClosed:         normalized.OnClosed,
+		DynamicTextInput: normalized.TextInput != nil,
 	}
 	if normalized.TextInput != nil {
 		config.ReadOnlyTextFocused = func() bool {
@@ -227,6 +234,9 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 // The painter is what carries out an event result the window did not receive
 // from an event handler, such as an application menu action.
 func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, *painter, func(), error) {
+	if runtime.GOOS != "windows" {
+		config.CaptureMenuKeys = nil
+	}
 	normalized, err := config.normalize()
 	if err != nil {
 		return platform.Config{}, nil, nil, err
@@ -260,12 +270,4 @@ func prepareNativeWindow(config Config, canvas *gfx.Canvas) (platform.Config, *p
 	frames = timer
 	stopWatchingDesktop := watchDesktopSettings(canvas, native.Waker)
 	return native, painter, func() { stopWatchingDesktop(); cleanup() }, nil
-}
-
-// lifecycleHandler is the application's OnLifecycle as the platform's, or nil without one.
-func lifecycleHandler(handler func(LifecycleEvent)) func(platform.Lifecycle) {
-	if handler == nil {
-		return nil
-	}
-	return func(event platform.Lifecycle) { handler(LifecycleEvent(event)) }
 }

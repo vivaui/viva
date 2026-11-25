@@ -155,33 +155,45 @@ type Context struct {
 
 // Address finds the IBus daemon's bus address the way libibus does: the
 // IBUS_ADDRESS variable, or else the file the daemon writes under the user's
-// configuration directory, named by the machine id, the display's host and its
-// number. getenv and readFile are os.Getenv and os.ReadFile outside tests.
+// configuration directory (IBUS_ADDRESS_FILE names it outright). Otherwise the
+// file is named by the machine id, the display's host and its number; a
+// Wayland session names the Wayland socket instead, and wins over DISPLAY even
+// for an X11 client running on XWayland. getenv and readFile are os.Getenv and
+// os.ReadFile outside tests.
 func Address(getenv func(string) string, readFile func(string) ([]byte, error)) (string, bool) {
 	if address := getenv("IBUS_ADDRESS"); address != "" {
 		return address, true
 	}
-	var machine string
-	for _, name := range []string{"/var/lib/dbus/machine-id", "/etc/machine-id"} {
-		if data, err := readFile(name); err == nil {
-			if machine = strings.TrimSpace(string(data)); machine != "" {
-				break
+	file := getenv("IBUS_ADDRESS_FILE")
+	if file == "" {
+		var machine string
+		for _, name := range []string{"/var/lib/dbus/machine-id", "/etc/machine-id"} {
+			if data, err := readFile(name); err == nil {
+				if machine = strings.TrimSpace(string(data)); machine != "" {
+					break
+				}
 			}
 		}
-	}
-	if machine == "" {
-		return "", false
-	}
-	host, number := displayParts(getenv("DISPLAY"))
-	config := getenv("XDG_CONFIG_HOME")
-	if config == "" {
-		home := getenv("HOME")
-		if home == "" {
+		if machine == "" {
 			return "", false
 		}
-		config = filepath.Join(home, ".config")
+		host, number := "unix", ""
+		if wayland := getenv("WAYLAND_DISPLAY"); wayland != "" {
+			number = wayland
+		} else {
+			host, number = displayParts(getenv("DISPLAY"))
+		}
+		config := getenv("XDG_CONFIG_HOME")
+		if config == "" {
+			home := getenv("HOME")
+			if home == "" {
+				return "", false
+			}
+			config = filepath.Join(home, ".config")
+		}
+		file = filepath.Join(config, "ibus", "bus", machine+"-"+host+"-"+number)
 	}
-	data, err := readFile(filepath.Join(config, "ibus", "bus", machine+"-"+host+"-"+number))
+	data, err := readFile(file)
 	if err != nil {
 		return "", false
 	}

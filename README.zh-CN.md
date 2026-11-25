@@ -34,7 +34,7 @@ viva dev .        # hot reload: save a file, the window updates and keeps its st
 
 环境要求：Go 1.26 或更新版本（缺失时 viva 会自己下载）。macOS 上需要 Xcode 命令行工具，因为 Viva 通过 cgo 访问 Cocoa 和 Metal；Linux 上需要带系统 XCB、Pango 和 Cairo 库的 X11（可选的 GTK 3 外壳用 `-tags vivagtk` 构建，是原生 Wayland 客户端，需要系统的 GTK 3），Vulkan 加载库和驱动用于 GPU 加速，缺失时窗口用 CPU 渲染；Windows 上需要 Win32、Direct3D 11 和 DirectWrite。Viva 在运行时加载系统库，自身不捆绑任何一个。
 
-当前版本是 `v0.6.7`；要固定版本就写明（`@v0.6.7`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
+当前版本是 `v0.6.8`；要固定版本就写明（`@v0.6.8`）。指南、API 参考和带实时预览的组件目录在 [`website/`](website/) 里，本地用 `npm run dev` 运行；也已经发布在 [vivaui.dev](https://vivaui.dev/zh/)。
 
 下面的一切描述的都是这个仓库：它的测量、它自己的程序，以及如何开发框架本身，而不是如何用框架。
 
@@ -68,7 +68,7 @@ Viva 面向 macOS、Windows 和 Linux 上的原生桌面应用，同时把 WebAs
 - 保留式 Row/Column/Stack/Flex 布局，布局不变时 O(1) 检查。
 - 按绘制顺序的指针路由、稳定的键盘焦点和 Tab 遍历。
 - macOS 原生 `NSTextInputClient` 集成，支持真实的中文输入法候选组合、按字素编辑和 UTF-16 映射。
-- macOS、Windows 和 Linux 上由焦点驱动的动态原生文本编辑器，带显式的启用/替换/禁用帧更新。macOS 和 Windows 的光标定时器只在可编辑字段获得焦点时存在。Linux 通过 IBus 协议组字（IBus 以及 Fcitx5 的 IBus 前端）；XIM 仍未支持。
+- macOS、Windows 和 Linux 上由焦点驱动的动态原生文本编辑器，带显式的启用/替换/禁用帧更新。macOS 和 Windows 的光标定时器只在可编辑字段获得焦点时存在。Linux 通过 IBus 协议（IBus 以及 Fcitx5 的 IBus 前端）或 Fcitx 4 自己的协议组字；XIM 仍未支持。
 - 一棵独立的保留式语义无障碍树。
 - 直接 CoreText 整形、系统字体回退、GPU 合成的文本纹理，以及有上限的测量缓存。
 - 实验性的 Windows shell：Win32 事件、D3D11 保留式渲染、内嵌 DXBC 着色器、DirectWrite 测量，以及有上限的 GDI 标签纹理；原生构建不加载着色器编译器。

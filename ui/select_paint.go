@@ -141,4 +141,8 @@ func paintSelect(f *Frame, n *Node) {
 	if visible < count {
 		control.AddScrollDown(d.GetScope().At(count+4), first+visible >= count)
 	}
+	// End closes the popup's entrance and paints its scrollbar: without it the
+	// popup's presence stays open and the next EndPresence of an enclosing dialog,
+	// drawer or popover closes the select's in its place.
+	control.End()
 }

@@ -753,6 +753,20 @@ func (p *Page) Paint(Surface *gfx.Canvas, Size Size) {
 // out at the slot's rectangle; a page given no Tree names its controls in the
 // canvas's. A host that draws a page this way routes its input with Key,
 // Pointer, Wheel and TextInput; Config does that for a whole window.
+//
+// Clicks are the part of that routing a host completes itself when it paints and
+// presents the canvas on its own. Clicked(id) is true only in an event pass,
+// which the painter opens around one paint for it (see Canvas.BeginEventPass). A
+// page drawn inside another canvas's paint — Config's painter, or an embedded
+// canvas such as Slot.Draw's — already runs in that pass and needs nothing more.
+// A host that owns the paint loop delivers a click as the painter does: the
+// target taken from Canvas.Hits when the pointer went down, reported at the
+// release only while the pointer is still over it and the press was not
+// consumed. Paint once between Canvas.BeginEventPass and Canvas.EndEventPass,
+// call Canvas.RunAfterPaint, then ask for another paint: the event pass's own
+// output is discarded, as the painter discards it, so the frame the user sees is
+// the one after the change. Canvas.DeliverPointer runs that same sequence for a
+// pointer pass.
 func (p *Page) Draw(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	if tree := Surface.Tree(); tree != nil && tree.Len() != 0 {
 		p.init(tree) // a page inside a window names its controls in the window's Tree
@@ -1201,10 +1215,12 @@ func (p *Page) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 }
 
 // RouteWheel scrolls an open Select, a TextArea under the pointer, or the scroll
-// area or sideways list under it, and reports an event none of them takes as not
-// handled. It is the page's own routing without the OnScroll fallback: a host
-// that forwards a wheel to the page from its own OnScroll calls this, so the page
-// cannot hand the same event back to the handler that is already routing it.
+// area or sideways list under it. Over a panel, only its contents take the wheel;
+// an event none of them takes stops there, handled, except over a ScrollAt area.
+// Beside every panel an event none takes is not handled. This is the page's own
+// routing without the OnScroll fallback: a host that forwards a wheel to the page
+// from its own OnScroll calls this, so the page cannot hand the same event back to
+// the handler that is already routing it.
 func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 	if h := p.controlOf(event.Target); h != nil && h.Scroll != nil {
 		if result := h.Scroll(event); result.Handled {
@@ -1216,10 +1232,15 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 			return state.Wheel(event)
 		}
 	}
+	f := p.View.Frame
+	panel := int32(-1)
+	if f != nil {
+		panel = f.wheelPanel(event.X, event.Y)
+	}
 	// A TextArea under the pointer scrolls its own rows first; at its end the wheel goes on
 	// to the page, as in a browser.
 	for _, entry := range p.fields {
-		if entry.field.rows && entry.field.area != nil && entry.field.area.Wheel(event) {
+		if entry.field.rows && entry.field.area != nil && f.within(entry.box, panel) && entry.field.area.Wheel(event) {
 			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
@@ -1235,13 +1256,17 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 			return gfx.EventResult{Handled: true, Repaint: true}
 		}
 	}
-	if result := p.View.Wheel(event); result.Handled || result.Repaint {
-		result.Repaint = result.Repaint || moved
-		return result
+	manual := false
+	if f != nil {
+		var result gfx.EventResult
+		if result, manual = f.wheelArea(panel, event); result.Handled || result.Repaint {
+			result.Repaint = result.Repaint || moved
+			return result
+		}
 	}
 	for i := len(p.tables) - 1; i >= 0; i-- {
 		route := &p.tables[i]
-		if !route.Scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) {
+		if !route.Scrolls && !route.sideways || !pointInRect(event.X, event.Y, route.bounds) || panel >= 0 && route.root != panel {
 			continue
 		}
 		state := &route.state.Scroll
@@ -1255,6 +1280,9 @@ func (p *Page) RouteWheel(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	if moved {
 		return gfx.EventResult{Handled: true, Repaint: true}
+	}
+	if panel >= 0 && !manual {
+		return gfx.EventResult{Handled: true} // what the panel covers is out of the wheel's reach
 	}
 	return gfx.EventResult{}
 }

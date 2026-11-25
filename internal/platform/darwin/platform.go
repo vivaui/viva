@@ -148,8 +148,6 @@ func (window *nativeWindow) SetAlwaysOnTop(enabled bool) error {
 }
 
 type runState struct {
-	// safeArea is how far the system covers the window's edges, as the iOS host last said.
-	safeArea          gfx.Insets
 	application       *nativeApplication
 	callbackHandle    cgo.Handle
 	onClosed          func()
@@ -161,7 +159,6 @@ type runState struct {
 	frameHandler      platform.FrameChangeHandler
 	minimizeHandler   platform.MinimizeHandler
 	visibilityHandler platform.VisibilityHandler
-	lifecycleHandler  func(platform.Lifecycle)
 	fullscreenHandler func(bool)
 	onReopen          func()
 	onActivate        func()
@@ -368,7 +365,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 
 	state := &runState{application: application, onClosed: config.OnClosed, waker: config.Waker, closeHandler: config.OnCloseRequest, pressAt: config.PressAt,
-		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, lifecycleHandler: config.OnLifecycle, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
+		frameHandler: config.OnFrameChange, minimizeHandler: config.OnMinimize, visibilityHandler: config.OnVisibility, fullscreenHandler: config.OnFullscreen, onReopen: config.OnReopen, onActivate: config.OnActivate}
 	state.pointerHandler = config.OnPointer
 	state.resizeHandler = config.OnResize
 	state.keyHandler = config.OnKey
@@ -502,6 +499,8 @@ func nativeStatusError(status C.int) error {
 		return fmt.Errorf("darwin: failed to create initial text texture")
 	case 8:
 		return fmt.Errorf("darwin: application loop is already running")
+	case C.VIVA_APPLICATION_NOT_MAIN_THREAD:
+		return fmt.Errorf("darwin: start the application on the process main thread by calling runtime.LockOSThread in an init function in package main")
 	default:
 		return fmt.Errorf("darwin: native application failed with status %d", status)
 	}
