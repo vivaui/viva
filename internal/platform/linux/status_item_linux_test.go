@@ -20,6 +20,20 @@ func testItem() *linuxStatusItem {
 	return &linuxStatusItem{name: "org.kde.StatusNotifierItem-1-1", tooltip: "Sessions", icon: platform.StatusIcon{Size: 4, RGBA: pixels}}
 }
 
+func TestStatusPreviewDisableWithoutLinuxHoverEvents(t *testing.T) {
+	item := testItem()
+	if item.SetHover(func(platform.StatusHover) {}) {
+		t.Fatal("StatusNotifier unexpectedly supplies paired hover events")
+	}
+	if !item.SetHover(nil) || !item.SetHover(nil) {
+		t.Fatal("disabling unsupported hover must still succeed")
+	}
+	item.removed.Store(true)
+	if item.SetHover(nil) {
+		t.Fatal("a removed item unexpectedly accepted a setter")
+	}
+}
+
 func TestStatusItemPropertiesDecodeAsTheirDeclaredTypes(t *testing.T) {
 	item := testItem()
 	signatures := map[string]string{

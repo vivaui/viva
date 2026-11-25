@@ -691,7 +691,9 @@ func (item *linuxStatusItem) handleMenu(call *dbus.Message) {
 	item.publishMenu(result)
 }
 
-func (item *linuxStatusItem) SetHover(func(platform.StatusHover)) bool { return false }
+func (item *linuxStatusItem) SetHover(handler func(platform.StatusHover)) bool {
+	return handler == nil && !item.removed.Load()
+}
 
 func (item *linuxStatusItem) RefreshMenu() {
 	if !item.removed.Load() && item.menu != nil {
