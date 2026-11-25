@@ -2,15 +2,18 @@ package windows
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
+	"os"
 	"testing"
 	"unsafe"
 )
 
 func TestFileDialogInitialDirectory(t *testing.T) {
 	directory := t.TempDir()
-	err := withSTA(func() error {
+	want, err := os.Stat(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = withSTA(func() error {
 		dialog, err := createFileDialog(&openDialogClass, &openDialogInterface)
 		if err != nil {
 			return err
@@ -28,7 +31,12 @@ func TestFileDialogInitialDirectory(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !strings.EqualFold(filepath.Clean(got), filepath.Clean(directory)) {
+		actual, err := os.Stat(got)
+		if err != nil {
+			return fmt.Errorf("stat dialog folder %q: %w", got, err)
+		}
+		// The shell can expand a short path to its long name.
+		if !os.SameFile(actual, want) {
 			return fmt.Errorf("dialog folder = %q; want %q", got, directory)
 		}
 		return nil
