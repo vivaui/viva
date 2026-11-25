@@ -1,6 +1,7 @@
 package base
 
 import (
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
@@ -52,7 +53,16 @@ type Field struct {
 	Alignment gfx.Alignment
 
 	editor *text.Editor
-	ID     gfx.ID
+	// accept and maxRunes are what Restrict last set on the editor, kept so a cap
+	// from MaxLength changes the one without losing the other.
+	accept   func(rune) bool
+	maxRunes int
+	// count is the "n/max" words ShowCount shows, made when the numbers change.
+	count struct {
+		runes, max int
+		text       string
+	}
+	ID gfx.ID
 	// input is the stable TextInput the platform provider hands out. Returning
 	// a fresh one on every repaint allocated once per focused frame.
 	input window.TextInput
@@ -71,6 +81,37 @@ type Field struct {
 	// FieldArea once and as a Field since keeps its layout but moves by its line.
 	area *TextareaLayout
 	rows bool
+}
+
+// Restrict limits what edits may put into the field: accept reports whether a rune
+// may be typed (nil accepts every rune) and maxRunes caps the length of the text
+// (zero or less means no cap), as text.Editor.Restrict does. Set it where the model
+// is made; a field bound to a string takes ui.MaxLength instead.
+//
+//	m.port.Restrict(func(r rune) bool { return r >= '0' && r <= '9' }, 5)
+func (field *Field) Restrict(accept func(rune) bool, maxRunes int) {
+	field.accept, field.maxRunes = accept, max(maxRunes, 0)
+	field.ensure().Restrict(field.accept, field.maxRunes)
+}
+
+// limit sets the cap of the field from ui.MaxLength, leaving what Restrict accepts.
+func (field *Field) limit(maxRunes int) {
+	if maxRunes != field.maxRunes {
+		field.Restrict(field.accept, maxRunes)
+	}
+}
+
+// countText is the words of the count: the runes the field holds, and the cap.
+func (field *Field) countText() string {
+	runes := field.ensure().RuneCount()
+	if field.count.text == "" || field.count.runes != runes || field.count.max != field.maxRunes {
+		field.count.runes, field.count.max = runes, field.maxRunes
+		field.count.text = strconv.Itoa(runes)
+		if field.maxRunes > 0 {
+			field.count.text += "/" + strconv.Itoa(field.maxRunes)
+		}
+	}
+	return field.count.text
 }
 
 func (field *Field) ensure() *text.Editor {
