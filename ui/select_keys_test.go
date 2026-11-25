@@ -79,16 +79,16 @@ func TestSelectEscapeClosesTheListFromTheKeyboard(t *testing.T) {
 	}
 }
 
-// SelectID names the trigger with the application's identity, so a row's words
+// A Select given WithID names the trigger with the application's identity, so a row's words
 // can be its label and the click still opens and chooses.
-func TestSelectIDNamesTheTrigger(t *testing.T) {
+func TestSelectWithIDNamesTheTrigger(t *testing.T) {
 	size := ""
 	var trigger gfx.ID
 	d := openPage(t, func(c ui.C) {
 		if trigger.IsZero() {
 			trigger = ui.ID(c)
 		}
-		ui.SelectID(c, trigger, &size, []string{"S", "M"}, nil).Label("Size")
+		ui.Select(c, &size, []string{"S", "M"}, nil, ui.WithID(trigger)).Label("Size")
 	})
 	if hit := d.hit("Size"); hit.ID != trigger {
 		t.Fatalf("the trigger's hit is %v, want %v", hit.ID, trigger)

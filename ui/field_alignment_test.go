@@ -18,7 +18,7 @@ func TestFieldAlignmentPlacesTheValue(t *testing.T) {
 		field := ui.Field{Alignment: align}
 		field.Bind(&editor)
 		d := openPage(t, func(c ui.C) {
-			ui.TextFieldID(c, ui.ID(c), &field, "Steps", "").Size(64, 32)
+			ui.TextField(c, &field, "Steps", "", ui.WithID(ui.ID(c))).Size(64, 32)
 		})
 		for _, painted := range d.driver.Snapshot().Texts {
 			if painted.Value == "30" {

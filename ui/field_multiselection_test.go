@@ -18,7 +18,7 @@ func TestFieldPaintsMultipleSelections(t *testing.T) {
 	field.Bind(editor)
 	search := gfx.Item(9)
 	view := func(c ui.C) {
-		ui.TextFieldID(c, search, &field, "Search", "").Width(200)
+		ui.TextField(c, &field, "Search", "", ui.WithID(search)).Width(200)
 	}
 	d := openPage(t, view)
 	bands := func() int {
@@ -54,7 +54,7 @@ func TestFieldMultiSelectionPaintAllocatesNothing(t *testing.T) {
 	field.Bind(editor)
 	search := gfx.Item(9)
 	d := openPage(t, func(c ui.C) {
-		ui.TextFieldID(c, search, &field, "Search", "").Width(200)
+		ui.TextField(c, &field, "Search", "", ui.WithID(search)).Width(200)
 	})
 	d.repaint()
 	if allocations := testing.AllocsPerRun(100, d.repaint); allocations != 0 {

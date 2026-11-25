@@ -684,6 +684,43 @@ func TestAReadAnnouncesPropertiesOnce(t *testing.T) {
 	}
 }
 
+// The build that answers the first layout read must not be announced. No host
+// keeps an older layout to replace, and a host that hears the announcement
+// while it is still collecting the properties of that read may discard them,
+// leaving the menu's rows without their text.
+func TestTheBuildThatAnswersAFirstReadIsNotAnnounced(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+
+	if result := object.Call(layoutCall(0, -1)); result.LayoutUpdated != 0 {
+		t.Fatalf("the first layout read announced revision %d", result.LayoutUpdated)
+	}
+	sessions = append(sessions, "beta")
+	if result := object.Call(aboutToShow(0)); result.LayoutUpdated == 0 {
+		t.Fatal("a layout that changed after one was served was not announced")
+	}
+}
+
+// AboutToShow can build the menu before any host has read it; that build is
+// not a change either, and the read that serves it must stay quiet too.
+func TestTheFirstAboutToShowDoesNotAnnounceTheMenuItBuilds(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+
+	if result := object.Call(aboutToShow(0)); result.LayoutUpdated != 0 {
+		t.Fatalf("the first AboutToShow announced revision %d", result.LayoutUpdated)
+	}
+	if result := object.Call(layoutCall(0, -1)); result.LayoutUpdated != 0 {
+		t.Fatalf("the first read after AboutToShow announced revision %d", result.LayoutUpdated)
+	}
+	sessions = append(sessions, "beta")
+	if result := object.Call(aboutToShow(0)); result.LayoutUpdated == 0 {
+		t.Fatal("a layout that changed after one was served was not announced")
+	}
+}
+
 func TestAboutToShowGroupAnnouncesAChangedLayout(t *testing.T) {
 	var chosen []string
 	sessions := []string{"alpha"}

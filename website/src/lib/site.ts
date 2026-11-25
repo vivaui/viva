@@ -30,6 +30,9 @@ const english = {
   apiTitle: 'API reference', apiSummary: 'Every exported type, function and constant of the Viva packages, generated from the Go source and its doc comments.',
   apiPackages: 'Packages', apiType: 'Type', apiPackage: 'Package', apiTypes: 'Types', apiFunctions: 'Functions', apiConstants: 'Constants', apiVariables: 'Variables',
   apiConstructors: 'Constructors', apiMethods: 'Methods', apiOverview: 'Overview', apiImport: 'Import path',
+  apiTable: 'API', apiField: 'Field', apiDescription: 'Description', apiSignature: 'Signature',
+  apiPageGroup: 'Page API', apiCanvasGroup: 'Canvas recipe',
+  apiCanvasNote: 'Use inside ui.Control/Draw, or copy the recipe with viva add. Prefer the ui.* page control where one exists.',
   apiEnglishOnly: 'API documentation is generated from the Go source and is in English.',
   notFoundGuide: 'This guide has no translation yet.',
 };
@@ -61,6 +64,9 @@ const chinese: typeof english = {
   apiTitle: 'API 参考', apiSummary: 'Viva 各个包导出的全部类型、函数与常量，由 Go 源码及其文档注释生成。',
   apiPackages: '包', apiType: '类型', apiPackage: '包', apiTypes: '类型', apiFunctions: '函数', apiConstants: '常量', apiVariables: '变量',
   apiConstructors: '构造函数', apiMethods: '方法', apiOverview: '概览', apiImport: '导入路径',
+  apiTable: 'API', apiField: '字段', apiDescription: '说明', apiSignature: '签名',
+  apiPageGroup: '页面 API', apiCanvasGroup: '画布配方',
+  apiCanvasNote: '在 ui.Control/Draw 内使用，或用 viva add 复制源码；有页面控件时优先用 ui.*。',
   apiEnglishOnly: 'API 文档由 Go 源码生成，内容为英文。',
   notFoundGuide: '这篇指南暂无翻译。',
 };

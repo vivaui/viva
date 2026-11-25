@@ -165,11 +165,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           for backend in x11 wayland; do
-            tests='^TestGTKNativeSeatKeyboardAfterContentClick$'
+            tests='^TestGTKNative(SeatKeyboardAfterContentClick|InputMethodWindowTeardown)$'
             if [ "$backend" = wayland ]; then
-              tests='^Test(GTKNative(SeatKeyboardAfterContentClick|WaylandSeatHideShow|WaylandWidgetExternalFocus|WaylandAttachFailure|WaylandInputRegions)|GTKWaylandWindowAttrLP64Layout)$'
+              tests='^Test(GTKNative(SeatKeyboardAfterContentClick|InputMethodWindowTeardown|WaylandSeatHideShow|WaylandPointerKeepsFcitxPreedit|WaylandWidgetExternalFocus|WaylandAttachFailure|WaylandInputRegions)|GTKWaylandWindowAttrLP64Layout)$'
             fi
-            xvfb-run -a -s '-screen 0 800x600x24' env VIVA_GTK_SEAT_NATIVE=1 VIVA_GTK_SEAT_REMAP=1 VIVA_GTK_NATIVE_WIDGET_FOCUS=1 VIVA_GTK_ATTACH_NATIVE=1 VIVA_GTK_REGION_NATIVE=1 VIVA_GTK_IME_NATIVE=1 VIVA_FCITX_ENGINE=pinyin G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN="$tests" sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
+            xvfb-run -a -s '-screen 0 800x600x24' env VIVA_GTK_SEAT_NATIVE=1 VIVA_GTK_SEAT_REMAP=1 VIVA_GTK_NATIVE_WIDGET_FOCUS=1 VIVA_GTK_ATTACH_NATIVE=1 VIVA_GTK_REGION_NATIVE=1 VIVA_GTK_CLOSE_NATIVE=1 VIVA_GTK_IME_NATIVE=1 VIVA_FCITX_ENGINE=pinyin G_DEBUG=fatal-criticals VIVA_FCITX_TEST_BINARY="$RUNNER_TEMP/viva-ibus-frontend.test" VIVA_IBUS_TEST_RUN="$tests" sh internal/ibus/testdata/native-fcitx-service.sh "$backend"
           done
       - name: Linux text callback ordering
         if: runner.os == 'Linux'
@@ -191,7 +191,7 @@ jobs:
         run: go test ./internal/platform/linux -run '^TestLinux(TextInputAlignmentMatchesGlyphCaretUnderlineAndPointer|RightToLeftAlignmentUsesLineWidthNotLogicalEndCaret|CandidateWindowFollowsAlignmentWhenNativeOverlaysAreHidden)$' -count=1
       - name: GTK input method teardown ordering
         if: runner.os == 'Linux'
-        run: go test -tags vivagtk ./internal/platform/linux -run '^TestGTKDestroyDetachesInputMethodBeforeNativeWidget$' -count=1 -v
+        run: go test -tags vivagtk ./internal/platform/linux -run '^TestGTK(DestroyDetachesInputMethodBeforeNativeWidget|WaylandUnmapEndsPointerActivatedIME|WaylandIMECursorTracksContentOrigin)$' -count=1 -v
       - name: Linux clipboard, compositing and icon contracts
         if: runner.os == 'Linux'
         run: |

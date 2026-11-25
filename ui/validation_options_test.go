@@ -68,9 +68,9 @@ func TestInvalidPageControlsCarryTheSemanticState(t *testing.T) {
 				case "select":
 					ui.Select(c, &size, []string{"S", "M"}, nil).Placeholder("Size").Invalid(true)
 				case "text field":
-					ui.TextFieldID(c, gfx.Item(1), &field, "Email", "")
+					ui.TextField(c, &field, "Email", "", ui.WithID(gfx.Item(1)))
 				case "text area":
-					ui.TextAreaID(c, gfx.Item(1), &field, "Notes", "")
+					ui.TextArea(c, &field, "Notes", "", ui.WithID(gfx.Item(1)))
 				case "combobox":
 					ui.Combobox(c, &framework, []string{"Go", "Rust"}, func(value string) string { return value }, "Framework").Invalid(true)
 				}

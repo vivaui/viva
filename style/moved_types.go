@@ -69,9 +69,18 @@ const (
 
 // TableColumn is a statically typed column declaration. Width is measured in
 // logical pixels; the final non-positive width consumes the remaining space.
+// Title and Sortable are read by ui.Table, which draws the heading and the sort
+// hit of each column from them; components.Table takes its headings separately and
+// ignores both.
 type TableColumn struct {
+	// Title is the column's heading; a ui.Table none of whose columns has a title
+	// draws no header row.
+	Title     string
 	Width     float32
 	Alignment TableAlignment
+	// Sortable lets a click on the heading sort by the column: ui.Table gives it a
+	// hit in TableSpec.Header and shows the arrow of the column TableState sorts by.
+	Sortable bool
 	// Inset reserves leading content space inside a left-aligned cell, for
 	// example an application-painted file icon.
 	Inset float32

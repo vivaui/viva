@@ -43,7 +43,7 @@ The loop for every change:
 | A table with sortable columns | Tables | `ui.Table`, `ui.TableSpec`, `ui.TableRows`, `components.TableColumn` |
 | Tabs or a navigation strip | Tabs and select | `ui.Tabs`, `ui.Choice`, a `switch` on the value |
 | A tree, a file tree, a gallery, a calendar grid | Lists, trees and scrolling | `ui.Tree`, `ui.TreeState`, `ui.Grid`, `ui.Flow` |
-| A dialog, menu, popup, drawer or dashboard | Menus, dialogs and popups | `ui.Modal`, `ui.ModalWith`, `ui.Dialog`, `ui.Menu`, `ui.PopoverWith`, `ui.Drawer` |
+| A dialog, menu, popup, drawer or dashboard | Menus, dialogs and popups | `ui.Modal`, `ui.Dialog`, `ui.Menu`, `ui.Popover`, `ui.Drawer` |
 | Animation, a progress bar, a timer, a media player | Animation and time | `c.Canvas().Now()`, `c.Canvas().RequestFrame()`, `ui.Progress`, `ui.Spinner` |
 | Light/dark, a color picker, custom colors | The theme | `gfx.LightTheme()`, `gfx.DarkTheme()`, `PageConfig.Theme`, `c.Theme()` |
 | A split pane, a divider, drag and drop | Keys, drag and the mouse | `ui.Splitter`, `ui.DragState`, `.DragSource`, `.DropTarget` |
@@ -91,8 +91,8 @@ func (m *model) page(c ui.C) {
 		})
 		if ui.Button(c, "Save").Clicked() { m.save() }
 	})
-	ui.Modal(c, &m.confirm, "Delete host?", func() { /* body */ }, func() { /* footer buttons */ })
-	ui.Popover(c, anchorBox, &m.menuOpen, func() { /* the panel */ })
+	ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{}, func() { /* body */ }, func() { /* footer buttons */ })
+	ui.Popover(c, anchorBox, &m.menuOpen, ui.PopoverSpec{}, func() { /* the panel */ })
 }
 ```
 
@@ -168,21 +168,20 @@ func (m *model) page(c ui.C) {
 - A row a menu cannot say: `menu.ContentPage(40, func(c ui.C, bounds ui.Rect) { ui.ColorSwatch(c, ...) })` declares page controls
   in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
   the page cannot declare.
-- `ui.SelectID(c, id, &m.size, choices, nil)` is `ui.Select` for a control the application names: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
+- `ui.Select(c, &m.size, choices, nil, ui.WithID(id))` names a control the application holds an identity for: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
 - Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
   handle that a drag toward the edge closes it by (past half its size, or thrown).
-- A modal dialog: declare it while it is open, `ui.Modal(c, &m.confirm, "Delete host?", body, footer)`; the title is
+- A modal dialog: declare it while it is open, `ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{}, body, footer)`; the title is
   required because it names the dialog for screen readers, and `body`/`footer` may be nil. It is centered over a scrim,
   keeps the keyboard while open and gives it back as it closes; a press on the scrim, the close button and Escape set
-  `m.confirm` to false. `ui.ModalWith(c, &m.confirm, "Delete host?", ui.ModalSpec{Description: "...", Width: 400}, body, footer)`
+  `m.confirm` to false. `ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{Description: "...", Width: 400}, body, footer)`
   adds a description, a size, `NoClose` or `InitialFocus`. For a dialog whose identities the application names itself, use
   `ui.Dialog(c, ui.DialogSpec{...})`: `Scope`, `DismissID`, `CloseID` and `InitialFocusID` are yours, `.Header(fn)`,
   `.Body(fn)` and `.Footer(fn)` declare it, and `.Dismissed()` reports the closing click. Do not write an Escape handler
   for any of these; they dismiss themselves.
-- A popup of your own: `ui.Popover(c, anchor, &m.open, body)` or
-  `ui.PopoverWith(c, anchor, ui.PopoverSpec{Width: 220, Align: ui.Start}, &m.open, body)`; it opens off its anchor,
+- A popup of your own: `ui.Popover(c, anchor, &m.open, ui.PopoverSpec{Width: 220, Align: ui.Start}, body)`; it opens off its anchor,
   flips when there is no room, closes on Escape or an outside press, and gives the focus back. A floating region that
   is none of these is `ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` (or `ui.LayerDrag` for a
   drag ghost): it takes no room, paints after the page and below Viva's menus and dialogs, and its children are page
@@ -190,7 +189,7 @@ func (m *model) page(c ui.C) {
   `Slot` and a `Hit`; the page's overlays keep the pointer, focus and dismissal a popup needs. A component author who
   declares the underlying popup places it with `Beside(rect, gap, align)` or `BesideBox(box, gap, align)` to the right
   of an anchor (a submenu), `BesideLeft`/`BesideLeftBox` to its left, and `Within(rect)` to keep it inside a region
-  instead of the window; `ui.PopoverWith`'s `Side` is the application-level form of the same placement.
+  instead of the window; `ui.Popover`'s `Side` is the application-level form of the same placement.
   `Below`/`BelowBox` and `Above`/`AboveBox` place below and above.
 
 ### Choices, toasts and shortcuts
@@ -502,17 +501,16 @@ func (m *model) page(c ui.C) {
   from the state when the spec leaves them zero:
 
   ```go
-  columns := []components.TableColumn{
-      {Width: 160},
-      {}, // no width: the last column takes the rest
+  columns := []ui.TableColumn{
+      {Title: "Name", Width: 160, Sortable: true},
+      {Title: "Age", Sortable: true}, // no width: the last column takes the rest
   }
-  t := ui.Table(c, &m.table, ui.TableSpec{Headers: []string{"Name", "Age"},
-      Sortable: []bool{true, true}, Source: &m.data, Striped: true, Columns: columns})
+  t := ui.Table(c, &m.table, ui.TableSpec{Source: &m.data, Striped: true, Columns: columns})
   if i, ok := t.RowClicked(); ok { m.table.Select(i) }       // Selected() is the row or -1, ClearSort() unsorts
   if col, ok := t.HeaderClicked(); ok { m.table.SortBy(col); m.sortData() } // Sort() returns (column, descending, ok)
   ```
 
-  A header cell is clickable only where `Sortable[c]` is true; `Headers` alone draws a title nobody can click. In a
+  A header cell is clickable only where the column is `Sortable`; a `Title` alone draws a heading nobody can click, and a table none of whose columns has a `Title` has no header row. In a
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
   its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
   for assistive technology, `ScrollbarSize` sets its thickness (else the page's `PageConfig.ScrollbarSize`) and

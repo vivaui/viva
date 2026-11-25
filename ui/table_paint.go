@@ -104,7 +104,7 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 	base.WidgetsOf(f).SetRectsCells(cells[:0])
 	hover := f.Palette.Hover
 	for column, cell := range cells {
-		if column < len(t.GetSpec().Sortable) && t.GetSpec().Sortable[column] && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column) {
+		if column < len(t.GetSpec().Columns) && t.GetSpec().Columns[column].Sortable && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column) {
 			canvas.Fill(cell, hover)
 		}
 	}
@@ -117,7 +117,7 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 	if t.GetForegroundSet() {
 		table = table.Foreground(t.GetForeground())
 	}
-	table.Header(t.GetSpec().Headers)
+	table.Header(t.GetTitles())
 
 	sorted, descending, isSorted := t.GetState().Sort()
 	metrics := f.Palette.Metrics
@@ -126,13 +126,10 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 		fontSize = metrics.FontSizeM
 	}
 	for column, cell := range cells {
-		if column >= len(t.GetSpec().Sortable) || !t.GetSpec().Sortable[column] || t.GetSpec().Header.IsZero() {
+		if column >= len(t.GetSpec().Columns) || !t.GetSpec().Columns[column].Sortable || t.GetSpec().Header.IsZero() {
 			continue
 		}
-		title := ""
-		if column < len(t.GetSpec().Headers) {
-			title = t.GetSpec().Headers[column]
-		}
+		title := t.GetSpec().Columns[column].Title
 		if isSorted && sorted == column {
 			arrow := "↑"
 			if descending {

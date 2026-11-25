@@ -338,11 +338,13 @@ func (m *model) page(c ui.C) {
 	ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
 		ui.Text(c, "Servers").FontSize(20).Bold()
 		table := ui.Table(c, &m.table, ui.TableSpec{
-			Headers:  []string{"Name", "State", "Region"},
-			Sortable: []bool{true, true, true},
-			Source:   &m.rows,
-			Striped:  true,
-			Columns:  []ui.TableColumn{{Width: 200}, {Width: 120}, {}},
+			Source:  &m.rows,
+			Striped: true,
+			Columns: []ui.TableColumn{
+				{Title: "Name", Width: 200, Sortable: true},
+				{Title: "State", Width: 120, Sortable: true},
+				{Title: "Region", Sortable: true},
+			},
 		})
 		if column, ok := table.HeaderClicked(); ok {
 			m.table.SortBy(column)

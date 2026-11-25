@@ -138,6 +138,74 @@ func TestToastActionAndLoading(t *testing.T) {
 	}
 }
 
+// A toast can hide its close button and set its own lifetime; the close button
+// is there by default and the Toaster's Timeout is the default lifetime.
+func TestToastConfigHidesItsCloseButtonAndSetsItsOwnTime(t *testing.T) {
+	m := &toastModel{}
+	d := openPage(t, m.page)
+	m.toaster.ShowConfig("Quiet", "", ui.ToastInfo, ui.ToastConfig{HideClose: true, Timeout: 2 * time.Second})
+	d.repaint()
+	if d.has("Close toast") {
+		t.Fatal("a toast that hides its close button has one")
+	}
+	if !tooltipShown(d, "Quiet") {
+		t.Fatal("the toast is not shown")
+	}
+	if err := d.driver.Advance(1500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !tooltipShown(d, "Quiet") {
+		t.Fatal("the toast went before its own time")
+	}
+	if err := d.driver.Advance(600 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Advance(time.Second); err != nil { // its exit
+		t.Fatal(err)
+	}
+	if tooltipShown(d, "Quiet") || m.toaster.Len() != 0 {
+		t.Fatal("the toast is still up after its own time")
+	}
+}
+
+// The Toaster's Timeout is the lifetime of a toast that does not name one.
+func TestToasterTimeoutSetsTheDefaultLifetime(t *testing.T) {
+	m := &toastModel{}
+	m.toaster.Timeout = 2 * time.Second
+	d := openPage(t, m.page)
+	m.toaster.Show("Quick", "", ui.ToastInfo)
+	d.repaint()
+	if err := d.driver.Advance(1500 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if !tooltipShown(d, "Quick") {
+		t.Fatal("the toast went before the Toaster's time")
+	}
+	if err := d.driver.Advance(600 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Advance(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if tooltipShown(d, "Quick") || m.toaster.Len() != 0 {
+		t.Fatal("the toast is still up after the Toaster's time")
+	}
+}
+
+// The Toaster's Limit is how many toasts it keeps up.
+func TestToasterLimitSetsTheVisibleCount(t *testing.T) {
+	m := &toastModel{}
+	m.toaster.Limit = 1
+	d := openPage(t, m.page)
+	m.toaster.Show("a", "", ui.ToastInfo)
+	d.repaint()
+	m.toaster.Show("b", "", ui.ToastInfo)
+	d.repaint()
+	if m.toaster.Len() != 1 || !tooltipShown(d, "b") || tooltipShown(d, "a") {
+		t.Fatalf("%d toasts, a shown %v, b shown %v", m.toaster.Len(), tooltipShown(d, "a"), tooltipShown(d, "b"))
+	}
+}
+
 func BenchmarkToasts(b *testing.B) {
 	m := &toastModel{}
 	m.toaster.Show("Saved", "The host list was written", ui.ToastSuccess)

@@ -18,10 +18,10 @@ components.PaintInput(canvas, theme, fieldBounds, components.InputSnapshot{
 })`, PageSnippet: `emailID := ui.ID(c)
 ui.Text(c, "Work email").LabelFor(emailID)
 // m.email starts as "team@viva.dev".
-ui.TextFieldID(c, emailID, &m.email, "Work email", "team@viva.dev").ReadOnly(true)`, PageSnippetZh: `emailID := ui.ID(c)
+ui.TextField(c, &m.email, "Work email", "team@viva.dev", ui.WithID(emailID)).ReadOnly(true)`, PageSnippetZh: `emailID := ui.ID(c)
 ui.Text(c, "工作邮箱").LabelFor(emailID)
 // m.email 初始为 "team@viva.dev"。
-ui.TextFieldID(c, emailID, &m.email, "工作邮箱", "team@viva.dev").ReadOnly(true)`},
+ui.TextField(c, &m.email, "工作邮箱", "team@viva.dev", ui.WithID(emailID)).ReadOnly(true)`},
 		{ID: "states", Title: "标签状态", Description: "普通、必填和禁用状态并列。", Snippet: `components.BeginLabel(canvas, theme, normalBounds).Paint("Display name")
 components.BeginLabel(canvas, theme, requiredBounds).Required().Paint("Organization name")
 components.BeginLabel(canvas, theme, disabledBounds).Required().
@@ -49,7 +49,7 @@ func (state *State) paintLabel(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 			label := state.Text("工作邮箱", "Work email")
 			ui.Column(c).FillWidth().Gap(8).Children(func() {
 				ui.Text(c, label).LabelFor(labelInput)
-				ui.TextFieldID(c, labelInput, email, label, "team@viva.dev").ReadOnly(true)
+				ui.TextField(c, email, label, "team@viva.dev", ui.WithID(labelInput)).ReadOnly(true)
 			})
 		})
 		return

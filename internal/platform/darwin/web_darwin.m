@@ -5,6 +5,8 @@
 #import <WebKit/WebKit.h>
 #import <Network/Network.h>
 
+#import <objc/message.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -401,11 +403,14 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
     VivaWebBridge *_bridge;
     NSTrackingArea *_tracking;
     CGFloat _topCornerRadius;
+    BOOL _devToolsOpened;
 }
 - (void)setTopCornerRadius:(CGFloat)radius;
 - (void)setBridge:(VivaWebBridge *)bridge;
 - (void)setCutRects:(NSArray<NSValue *> *)cuts masks:(NSArray<NSValue *> *)masks;
 - (void)cancelSchemeTasks;
+- (void)setDevToolsOpened:(BOOL)opened;
+- (void)closeDevTools;
 @end
 
 @implementation VivaWebView
@@ -432,6 +437,26 @@ static CGPathRef viva_web_outline(NSRect bounds, CGFloat requested, BOOL flipped
 
 - (void)cancelSchemeTasks {
     [_bridge cancelTasks];
+}
+
+- (void)setDevToolsOpened:(BOOL)opened {
+    _devToolsOpened = opened;
+}
+
+- (void)closeDevTools {
+    if (!_devToolsOpened) {
+        return;
+    }
+    _devToolsOpened = NO;
+    SEL inspectorSelector = NSSelectorFromString(@"_inspector");
+    if (![self respondsToSelector:inspectorSelector]) {
+        return;
+    }
+    id inspector = ((id (*)(id, SEL))objc_msgSend)(self, inspectorSelector);
+    SEL closeSelector = NSSelectorFromString(@"close");
+    if (inspector != nil && [inspector respondsToSelector:closeSelector]) {
+        ((void (*)(id, SEL))objc_msgSend)(inspector, closeSelector);
+    }
 }
 
 - (NSView *)hitTest:(NSPoint)point {
@@ -731,6 +756,41 @@ void viva_web_focus(void *web) {
     });
 }
 
+int viva_web_show_dev_tools(void *web) {
+    __block int shown = 0;
+    viva_web_main(^{
+        VivaWebView *view = (VivaWebView *)web;
+        // The public API only makes a page inspectable (macOS 13.3): the user then opens Web
+        // Inspector from the context menu or Safari's Develop menu. developerExtrasEnabled is the
+        // preference behind that menu entry on every release; the configuration copy shares the
+        // page's preferences object. Neither is turned on before the application asks.
+        @try {
+            [view.configuration.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
+        } @catch (NSException *exception) {
+        }
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 130300
+        if (@available(macOS 13.3, *)) {
+            view.inspectable = YES;
+        }
+#endif
+        // Opening the inspector itself has no public API: WKWebView's _inspector (WKInspector) is
+        // WebKit SPI, used only when this WebKit answers it.
+        SEL inspectorSelector = NSSelectorFromString(@"_inspector");
+        if (![view respondsToSelector:inspectorSelector]) {
+            return;
+        }
+        id inspector = ((id (*)(id, SEL))objc_msgSend)(view, inspectorSelector);
+        SEL showSelector = NSSelectorFromString(@"show");
+        if (inspector == nil || ![inspector respondsToSelector:showSelector]) {
+            return;
+        }
+        ((void (*)(id, SEL))objc_msgSend)(inspector, showSelector);
+        [view setDevToolsOpened:YES];
+        shown = 1;
+    });
+    return shown;
+}
+
 char *viva_web_title(void *web) {
     __block char *title = NULL;
     viva_web_main(^{
@@ -762,6 +822,7 @@ int viva_web_is_loading(void *web) {
 void viva_web_close(void *web) {
     viva_web_main(^{
         VivaWebView *view = (VivaWebView *)web;
+        [view closeDevTools];
         [view cancelSchemeTasks];
         [view.configuration.userContentController removeScriptMessageHandlerForName:@"viva"];
         view.navigationDelegate = nil;

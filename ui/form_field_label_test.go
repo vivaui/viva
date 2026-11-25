@@ -8,7 +8,7 @@ import (
 
 // A form field's title labels the control its children declare, as an HTML
 // label labels the control inside it: pressing the title focuses the field.
-// TextFieldID edits a model string under the application's own identity.
+// A TextField given WithID edits a model string under the application's own identity.
 func TestAFormFieldTitleLabelsItsControl(t *testing.T) {
 	var row ui.FormFieldState
 	email := ""
@@ -18,7 +18,7 @@ func TestAFormFieldTitleLabelsItsControl(t *testing.T) {
 			id = ui.ID(c)
 		}
 		ui.FormField(c, &row, "Work email").FillWidth().Children(func() {
-			ui.TextFieldID(c, id, &email, "Email", "you@example.com").FillWidth()
+			ui.TextField(c, &email, "Email", "you@example.com", ui.WithID(id)).FillWidth()
 		})
 	})
 	var title ui.Rect

@@ -124,7 +124,7 @@ func TestFieldInvalidChangesTheLook(t *testing.T) {
 	look := func(invalid bool) string {
 		var f ui.Field
 		f.Invalid = invalid
-		d := openPage(t, page(func(c ui.C) { ui.TextFieldID(c, gfx.Item(5), &f, "Name", "") }))
+		d := openPage(t, page(func(c ui.C) { ui.TextField(c, &f, "Name", "", ui.WithID(gfx.Item(5))) }))
 		return fmt.Sprint(d.driver.Snapshot().Primitives)
 	}
 	if look(false) == look(true) {
@@ -139,7 +139,7 @@ func TestFormFieldErrorInvalidAndFor(t *testing.T) {
 	state.Error, state.Invalid, state.For = "Not valid.", true, gfx.Item(9)
 	d := openPage(t, page(func(c ui.C) {
 		ui.FormField(c, &state, "Name").FillWidth().Height(90).Children(func() {
-			ui.TextFieldID(c, gfx.Item(9), new(ui.Field), "Name", "")
+			ui.TextField(c, new(ui.Field), "Name", "", ui.WithID(gfx.Item(9)))
 		})
 	}))
 	snap := d.driver.Snapshot()
@@ -163,7 +163,7 @@ func TestFieldDisabledIsDimmedAndInert(t *testing.T) {
 	look := func(disabled bool) (string, gfx.Hit) {
 		var f ui.Field
 		f.Disabled = disabled
-		d := openPage(t, page(func(c ui.C) { ui.TextFieldID(c, gfx.Item(5), &f, "Name", "") }))
+		d := openPage(t, page(func(c ui.C) { ui.TextField(c, &f, "Name", "", ui.WithID(gfx.Item(5))) }))
 		snap := d.driver.Snapshot()
 		for _, h := range snap.Hits {
 			if h.Role == gfx.RoleTextField {
@@ -237,7 +237,7 @@ func TestFormFieldDescriptionAndFieldHint(t *testing.T) {
 	f.Hint = "Locked while connected."
 	d := openPage(t, page(func(c ui.C) {
 		ui.FormField(c, &state, "Port").FillWidth().Height(90).Children(func() {
-			ui.TextFieldID(c, gfx.Item(9), &f, "Port", "")
+			ui.TextField(c, &f, "Port", "", ui.WithID(gfx.Item(9)))
 		})
 	}))
 	snap := d.driver.Snapshot()

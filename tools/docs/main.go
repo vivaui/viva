@@ -46,6 +46,10 @@ func run(output string, check bool) error {
 		if err := validateAPI(api); err != nil {
 			return err
 		}
+		prunePageAPI(pages, api)
+		if err := validatePageAPI(pages, api); err != nil {
+			return err
+		}
 		fmt.Printf("validated %d documented components and %d API packages · source %s\n", len(pages), len(api.Packages), manifest.Revision)
 		return nil
 	}

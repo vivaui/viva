@@ -46,7 +46,7 @@ func (m *paneModel) pane(c ui.C) {
 		if more.Clicked() {
 			m.menu = !m.menu
 		}
-		ui.Popover(c, more, &m.menu, func() { ui.Text(c, "Menu item") })
+		ui.Popover(c, more, &m.menu, ui.PopoverSpec{Align: ui.Start}, func() { ui.Text(c, "Menu item") })
 		ui.Select(c, &m.Size, []string{"S", "M", "L"}, nil).Placeholder("Size").Width(120)
 		ui.Tabs(c, &m.tab, []string{"General", "Keys"}, nil)
 		for _, row := range m.rows {

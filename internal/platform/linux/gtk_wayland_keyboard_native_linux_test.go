@@ -211,7 +211,7 @@ func gtkSeatWait(ctx context.Context, a *gtkApplication, p *gtkTentativeProbe, p
 	}
 }
 
-func gtkSeatRun(ctx context.Context, t *testing.T, a *gtkApplication, p *gtkTentativeProbe, pointers *gtkSeatPointer, backend, path string, remap bool) (failures []string) {
+func gtkSeatRun(ctx context.Context, t *testing.T, a *gtkApplication, p *gtkTentativeProbe, pointers *gtkSeatPointer, backend, path string, remap, retainOnClick bool) (failures []string) {
 	driver, err := newGTKSeatDriver(ctx, path)
 	if err != nil {
 		return []string{fmt.Sprintf("start XTest/AT-SPI driver: %v", err)}
@@ -364,6 +364,9 @@ func gtkSeatRun(ctx context.Context, t *testing.T, a *gtkApplication, p *gtkTent
 			return ctx.Err()
 		}
 	}
+	if retainOnClick {
+		return gtkSeatRetainPreeditOnClick(ctx, a, p, pointers, driver, typeKey, &failures)
+	}
 	trial("parent AX focus")
 	if err := reset(); err != nil {
 		return append(failures, err.Error())
@@ -501,17 +504,24 @@ func gtkSeatRun(ctx context.Context, t *testing.T, a *gtkApplication, p *gtkTent
 }
 
 func TestGTKNativeSeatKeyboardAfterContentClick(t *testing.T) {
-	testGTKNativeSeatKeyboard(t, false)
+	testGTKNativeSeatKeyboard(t, false, false)
 }
 
 func TestGTKNativeWaylandSeatHideShow(t *testing.T) {
 	if os.Getenv("VIVA_GTK_SEAT_REMAP") != "1" || os.Getenv("VIVA_FCITX_BACKEND") != "wayland" {
 		t.Skip("requires the private Wayland seat remap fixture")
 	}
-	testGTKNativeSeatKeyboard(t, true)
+	testGTKNativeSeatKeyboard(t, true, false)
 }
 
-func testGTKNativeSeatKeyboard(t *testing.T, remap bool) {
+func TestGTKNativeWaylandPointerKeepsFcitxPreedit(t *testing.T) {
+	if os.Getenv("VIVA_FCITX_BACKEND") != "wayland" {
+		t.Skip("requires the private Wayland Fcitx seat fixture")
+	}
+	testGTKNativeSeatKeyboard(t, false, true)
+}
+
+func testGTKNativeSeatKeyboard(t *testing.T, remap, retainOnClick bool) {
 	t.Helper()
 	if os.Getenv("VIVA_GTK_SEAT_NATIVE") != "1" {
 		t.Skip("requires the private Xvfb/DBus/Fcitx seat fixture")
@@ -544,15 +554,19 @@ func testGTKNativeSeatKeyboard(t *testing.T, remap bool) {
 	defer func() { gtkTentativeProbeActive = nil }()
 	result := make(chan []string, 1)
 	pointers := gtkSeatPointer{}
+	mode, titlebarHeight, editorTop := platform.WindowFrameless, float32(0), float32(20)
+	if retainOnClick {
+		mode, titlebarHeight, editorTop = platform.WindowCustomTitlebar, 80, 110
+	}
 	err = RunGTKApplication(func(application platform.Application) error {
 		a := application.(*gtkApplication)
 		window, openErr := application.OpenWindow(platform.Config{
-			Title: "Viva seat keyboard probe", Width: 800, Height: 600, WindowMode: platform.WindowFrameless,
+			Title: "Viva seat keyboard probe", Width: 800, Height: 600, WindowMode: mode, TitlebarHeight: titlebarHeight,
 			ClearColor:       platform.Color{Red: 1, Green: 1, Blue: 1, Alpha: 1},
 			DynamicTextInput: true,
 			Accessibility: []platform.AccessibilityNode{{
 				ID: gfx.Item(1), Role: platform.A11yRoleTextField, Label: "Seat editor",
-				X: 20, Y: 20, Width: 300, Height: 100, Focusable: true,
+				X: 20, Y: editorTop, Width: 300, Height: 100, Focusable: true,
 			}},
 			OnAccessibility: func(request platform.AccessibilityRequest, _ func(platform.Frame) error) (bool, error) {
 				return request.Node == gfx.Item(1) && request.Action == platform.AccessibilityFocus, nil
@@ -590,9 +604,12 @@ func testGTKNativeSeatKeyboard(t *testing.T, remap bool) {
 				p.w.destroy()
 				return
 			}
+			if retainOnClick {
+				editor.SetSelection(text.Range{Start: 1, End: 2})
+			}
 			p.install(editor)
 			go func() {
-				failures := gtkSeatRun(ctx, t, a, p, &pointers, backend, path, remap)
+				failures := gtkSeatRun(ctx, t, a, p, &pointers, backend, path, remap, retainOnClick)
 				result <- failures
 				a.enqueue(func() { p.w.destroy() })
 			}()
@@ -610,4 +627,97 @@ func testGTKNativeSeatKeyboard(t *testing.T, remap bool) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
+}
+
+func gtkSeatRetainPreeditOnClick(ctx context.Context, app *gtkApplication, probe *gtkTentativeProbe, pointers *gtkSeatPointer, driver *gtkSeatDriver, typeKey func(string, string, bool), failures *[]string) []string {
+	region := &gtkRegionProbe{w: probe.w}
+	if _, err := driver.commandAt("move", 120, 60); err != nil {
+		return []string{err.Error()}
+	}
+	if err := gtkRegionWait(ctx, app, region, "GDK titlebar coordinate origin", func(state gtkRegionState) bool {
+		return state.gdkPointer == state.gtkArea && state.gdkX >= 0 && state.gdkY >= 0 && !state.childPointer
+	}); err != nil {
+		return []string{err.Error()}
+	}
+	position, err := gtkRegionSnapshot(ctx, app, region)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	originX, originY := 120-int(position.gdkX), 60-int(position.gdkY)
+	if _, err := driver.command("click", "", ""); err != nil {
+		return []string{err.Error()}
+	}
+	if err := gtkSeatWait(ctx, app, probe, pointers, "initial content click", func(state gtkSeatSnapshot) bool {
+		return state.pointers == 1 && state.imeActive
+	}); err != nil {
+		return []string{err.Error()}
+	}
+	for _, symbol := range []string{"n", "i"} {
+		typeKey("pointer retention", symbol, true)
+	}
+	if len(*failures) != 0 {
+		return *failures
+	}
+	before, err := gtkSeatState(ctx, app, probe, pointers)
+	if err != nil || before.value != "anic" || !before.composing || !before.compositionActive || before.commits != 0 {
+		return []string{fmt.Sprintf("expected active uncommitted ni: state=%+v error=%v", before, err)}
+	}
+	if _, err := driver.commandAt("move", originX+120, originY+60); err != nil {
+		return []string{err.Error()}
+	}
+	if err := gtkRegionWait(ctx, app, region, "pointer over GTK titlebar", func(state gtkRegionState) bool {
+		return !state.childPointer && state.gdkPointer == state.gtkArea
+	}); err != nil {
+		return []string{err.Error()}
+	}
+	if _, err := driver.commandAt("click-at", originX+400, originY+300); err != nil {
+		return []string{err.Error()}
+	}
+	if err := gtkSeatWait(ctx, app, probe, pointers, "content action received pointer press", func(state gtkSeatSnapshot) bool {
+		return state.pointers == before.pointers+1
+	}); err != nil {
+		return []string{err.Error()}
+	}
+	after, err := gtkSeatState(ctx, app, probe, pointers)
+	if err != nil || after.commits != before.commits || after.value != before.value || !after.composing ||
+		!after.compositionActive || after.selection != before.selection || after.composition != before.composition ||
+		after.imeIdentity != before.imeIdentity || after.canUndo != before.canUndo {
+		return []string{fmt.Sprintf("content action settled unselected Fcitx preedit: before=%+v after=%+v error=%v", before, after, err)}
+	}
+	for _, symbol := range []string{"h", "a", "o"} {
+		typeKey("pointer continuation", symbol, true)
+	}
+	if len(*failures) != 0 {
+		return *failures
+	}
+	typeKey("explicit candidate selection", "space", false)
+	if err := gtkSeatWait(ctx, app, probe, pointers, "explicit Fcitx candidate committed", func(state gtkSeatSnapshot) bool {
+		return state.value == "a\u4f60\u597dc" && state.commits == 1 && state.lastEvent.CompositionPhase == text.CompositionResult &&
+			!state.composing && !state.compositionActive && state.canUndo && state.pressedKeys == 0
+	}); err != nil {
+		return append(*failures, err.Error())
+	}
+	undone := make(chan error, 1)
+	app.enqueue(func() {
+		for _, want := range []string{"ac", "abc"} {
+			if !probe.editor.Undo() || probe.editor.String() != want {
+				undone <- fmt.Errorf("candidate Undo: got %q, want %q", probe.editor.String(), want)
+				return
+			}
+		}
+		if probe.editor.CanUndo() {
+			undone <- fmt.Errorf("content click added an Undo unit")
+			return
+		}
+		undone <- nil
+	})
+	select {
+	case err := <-undone:
+		if err != nil {
+			return append(*failures, err.Error())
+		}
+	case <-ctx.Done():
+		return append(*failures, ctx.Err().Error())
+	}
+	return *failures
 }

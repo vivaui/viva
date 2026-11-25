@@ -26,11 +26,12 @@ func TestURIListsBecomeLocalPaths(t *testing.T) {
 
 // source is another X client playing the program a drag starts from.
 type source struct {
-	t          *testing.T
-	api        *xcbAPI
-	connection uintptr
-	screen     *xcbScreen
-	id         uint32
+	t           *testing.T
+	api         *xcbAPI
+	connection  uintptr
+	screen      *xcbScreen
+	id          uint32
+	beforeReply func()
 }
 
 func (s *source) message(target, kind uint32, longs ...uint32) {
@@ -50,6 +51,9 @@ func (s *source) next(selectionAtom, listAtom uint32, list string) (unsafe.Point
 		if event := s.api.pollForEvent(s.connection); event != nil {
 			if (*xcbGenericEvent)(event).ResponseType&0x7f == xcbSelectionRequest {
 				request := (*xcbSelectionRequestEvent)(event)
+				if s.beforeReply != nil {
+					s.beforeReply()
+				}
 				data := []byte(list)
 				s.api.changeProperty(s.connection, xcbPropertyReplace, request.Requestor, request.Property, listAtom, 8, uint32(len(data)), unsafe.Pointer(&data[0]))
 				notify := xcbSelectionNotifyWire{xcbSelectionNotifyEvent: xcbSelectionNotifyEvent{
@@ -93,11 +97,24 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 		t.Skip("no X server")
 	}
 	events := make(chan platform.FileDropEvent, 8)
+	redrawn := make(chan struct{}, 1)
 	done := make(chan error, 1)
 	go func() {
+		dropped := false
 		done <- Run(platform.Config{
 			Title: "drop", Width: 300, Height: 200,
+			Waker: &platform.Waker{},
+			OnRedraw: func() (platform.Frame, error) {
+				if dropped {
+					select {
+					case redrawn <- struct{}{}:
+					default:
+					}
+				}
+				return platform.Frame{}, nil
+			},
 			OnFileDrop: func(event platform.FileDropEvent) (platform.Frame, bool, error) {
+				dropped = event.Phase == platform.FileDropDrop
 				events <- event
 				return platform.Frame{}, event.Phase != platform.FileDropLeave, nil
 			},
@@ -165,6 +182,7 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 		t.Fatalf("hover = %+v", hover)
 	}
 
+	src.beforeReply = func() { src.message(target.id, target.redrawAtom) }
 	src.message(target.id, drop, src.id, 0, 0)
 	flags, ok = src.reply(finished, selection, uriList, list)
 	if !ok || flags&1 == 0 {
@@ -173,6 +191,11 @@ func TestAFileDragFromAnotherClientIsAcceptedAndDropped(t *testing.T) {
 	dropped := <-events
 	if dropped.Phase != platform.FileDropDrop || !reflect.DeepEqual(dropped.Paths, []string{"/tmp/a b.txt", "/tmp/dir"}) {
 		t.Fatalf("drop = %+v", dropped)
+	}
+	select {
+	case <-redrawn:
+	case <-time.After(2 * time.Second):
+		t.Error("redraw sent during the drop selection transfer was lost")
 	}
 
 	// A drag that leaves ends the hover.

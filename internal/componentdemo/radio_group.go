@@ -136,7 +136,7 @@ func (state *State) paintRadioGroup(canvas *gfx.Canvas, theme gfx.Theme, size gf
 		}
 		radios := func() {
 			for index, plan := range plans {
-				ui.RadioID(c, radioGroupItem.At(index), &page.plan, plan, plan)
+				ui.Radio(c, &page.plan, plan, plan, ui.WithID(radioGroupItem.At(index)))
 			}
 		}
 		if horizontal {

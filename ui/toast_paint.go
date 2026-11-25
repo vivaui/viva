@@ -5,6 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/vivaui/viva/components"
+	"github.com/vivaui/viva/gfx"
 )
 
 // Toasts paints the toasts of t where t.Position says, over everything
@@ -19,6 +20,9 @@ func Toasts(c C, t *Toaster) {
 	if canvas == nil || len(t.GetToasts()) == 0 {
 		return
 	}
+	// The Toaster owns the policy; the queue below is its running state.
+	queue := t.QueuePtr()
+	queue.Timeout, queue.Limit = t.Timeout, t.Limit
 	now := ClockEpoch.Add(canvas.Now())
 	// A press on a close or an action button, delivered here.
 	if id, ok := canvas.ClickTarget(); ok {
@@ -30,7 +34,7 @@ func Toasts(c C, t *Toaster) {
 		}
 	}
 	for {
-		id, ok := t.QueuePtr().Expire(now)
+		id, ok := queue.Expire(now)
 		if !ok {
 			break
 		}
@@ -42,7 +46,7 @@ func Toasts(c C, t *Toaster) {
 		if item.GetShown() {
 			continue
 		}
-		evicted, ok := t.QueuePtr().Add(t.ID(item.GetN()), now, item.Kind == ToastLoading)
+		evicted, ok := queue.AddFor(t.ID(item.GetN()), now, item.Kind == ToastLoading, item.GetTimeout())
 		item.SetShown(ok)
 		if at, inside := evicted.In(t.GetScope()); inside {
 			// The queue was full: the oldest goes, which is ahead of this one.
@@ -62,16 +66,20 @@ func Toasts(c C, t *Toaster) {
 	for i := len(t.GetToasts()) - 1; i >= 0; i-- {
 		item := &t.GetToasts()[i]
 		if held {
-			t.QueuePtr().Pause(t.ID(item.GetN()), now)
+			queue.Pause(t.ID(item.GetN()), now)
 		} else {
-			t.QueuePtr().Resume(t.ID(item.GetN()), now)
+			queue.Resume(t.ID(item.GetN()), now)
+		}
+		var dismiss gfx.ID
+		if !item.GetHideClose() {
+			dismiss = t.GetScope().At(int(item.GetN())*3 + ToastClose)
 		}
 		toast := components.SonnerToast{
 			Snapshot: components.ToastSnapshot{
 				Title: item.GetTitle(), Description: item.GetDescription(), Type: toastKindComponent(item.Kind),
 				SwipeX: t.SwipeX(ToastID(item.GetN())),
 			},
-			Scope: t.ID(item.GetN()), DismissID: t.GetScope().At(int(item.GetN())*3 + ToastClose),
+			Scope: t.ID(item.GetN()), DismissID: dismiss,
 		}
 		if item.GetAction() != "" {
 			toast.ActionID, toast.ActionLabel = t.GetScope().At(int(item.GetN())*3+ToastAction), item.GetAction()
@@ -79,9 +87,9 @@ func Toasts(c C, t *Toaster) {
 		t.SetStack(append(t.GetStack(), toast))
 	}
 	components.PaintSonner(canvas, c.GetF().Palette, c.GetF().GetBounds(), t.GetStack(), components.SonnerOptions{
-		Layer: ToastLayer, Expanded: held || t.Expanded, Position: components.ToastPosition(t.Position),
+		Layer: ToastLayer, Expanded: held || t.Expanded, Position: components.ToastPosition(t.Position), Limit: t.Limit,
 	})
-	if deadline, ok := t.QueuePtr().NextDeadline(); ok {
+	if deadline, ok := queue.NextDeadline(); ok {
 		canvas.RequestFrameIn(max(deadline.Sub(now), time.Millisecond))
 	}
 }

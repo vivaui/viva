@@ -96,7 +96,7 @@ func TestPagePopoverAnimatesLikeTheComponentsPopover(t *testing.T) {
 	newClock := newParityClock()
 	view := func(c ui.C) {
 		slot := ui.Slot(c).Absolute().Left(anchor.X).Top(anchor.Y).Size(anchor.Width, anchor.Height)
-		ui.PopoverWith(c, slot, &open, ui.PopoverSpec{
+		ui.Popover(c, slot, &open, ui.PopoverSpec{
 			Scope: gfx.Item(7), Side: components.PopoverBottom, Align: ui.Start, Offset: 2, Width: width,
 		}, func() {
 			ui.Slot(c).FillWidth().Height(bodyHeight)
@@ -150,13 +150,13 @@ func TestPagePopoverAnimatesLikeTheComponentsPopover(t *testing.T) {
 // Instant is the one difference kept from the components options: a list that
 // appears under the cursor as the user types has no entrance, so the page
 // paints it at its place on the first frame and asks for no next frame.
-func TestPagePopoverWithInstantAppearsAtOnce(t *testing.T) {
+func TestPagePopoverInstantAppearsAtOnce(t *testing.T) {
 	theme := gfx.LightTheme()
 	open := true
 	clock := newParityClock()
 	view := func(c ui.C) {
 		slot := ui.Slot(c).Absolute().Left(100).Top(100).Size(40, 20)
-		ui.PopoverWith(c, slot, &open, ui.PopoverSpec{
+		ui.Popover(c, slot, &open, ui.PopoverSpec{
 			Scope: gfx.Item(7), Side: components.PopoverBottom, Align: ui.Start, Offset: 2, Width: 200, Instant: true,
 		}, func() {
 			ui.Slot(c).FillWidth().Height(120)

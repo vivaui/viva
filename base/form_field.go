@@ -205,7 +205,7 @@ func (state *FormFieldState) paintMessage(d *DrawContext) {
 //
 //	email := ui.ID(c)
 //	ui.Label(c, "Work email").Required().LabelFor(email)
-//	ui.TextFieldID(c, email, &m.email, "Work email", "")
+//	ui.TextField(c, &m.email, "Work email", "", ui.WithID(email))
 //
 // Its width is the words' (plus the marker when Required is called); a later
 // Width, FillWidth or Grow may size it as any element. A disabled Label is

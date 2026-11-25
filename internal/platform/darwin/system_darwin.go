@@ -38,6 +38,8 @@ type OpenFileOptions struct {
 
 type OpenDirectoryOptions struct {
 	Title string
+	// InitialDirectory is the starting folder. Empty uses the platform default.
+	InitialDirectory string
 }
 
 type SaveFileOptions struct {
@@ -249,6 +251,7 @@ func OpenFiles(options OpenFileOptions) ([]string, bool, error) {
 	var nativeError *C.char
 	status := C.viva_system_open_files(
 		title,
+		nil,
 		nativeStringPointer(nativeExtensions),
 		C.size_t(len(nativeExtensions)),
 		C.int(systemBoolInt(options.AllowMultiple)),
@@ -278,9 +281,14 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 		return "", false, err
 	}
 	defer C.free(unsafe.Pointer(title))
+	directory, err := systemCString("initial directory", options.InitialDirectory)
+	if err != nil {
+		return "", false, err
+	}
+	defer C.free(unsafe.Pointer(directory))
 	var result C.viva_system_string_array
 	var nativeError *C.char
-	status := C.viva_system_open_files(title, nil, 0, 0, 1, &result, &nativeError)
+	status := C.viva_system_open_files(title, directory, nil, 0, 0, 1, &result, &nativeError)
 	if status == 1 {
 		return "", true, nil
 	}

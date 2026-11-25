@@ -88,7 +88,7 @@ func (field *Field) ensure() *text.Editor {
 // made, as the field is kept there.
 //
 //	m.searchField.Bind(&m.search)
-//	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
+//	ui.TextField(c, &m.searchField, "Search", "", ui.WithID(m.searchID))
 func (field *Field) Bind(editor *text.Editor) {
 	if editor == nil {
 		panic("ui: Field.Bind needs an editor")
@@ -117,7 +117,7 @@ func (field *Field) SetText(Value string) {
 // The page shows the selection in the next paint.
 //
 //	m.preview.Select(0, 6)
-//	ui.TextFieldID(c, id, &m.preview, "Preview", "").ReadOnly(true)
+//	ui.TextField(c, &m.preview, "Preview", "", ui.WithID(id)).ReadOnly(true)
 func (field *Field) Select(start, end int) {
 	field.ensure().SetSelection(text.Range{Start: start, End: end})
 }
@@ -191,7 +191,7 @@ func (b Box) Submitted() bool {
 // OnKey gives the field a handler for the keys pressed while it has the
 // keyboard, before the page routes them anywhere else: a search field whose Up
 // and Down move a list below it, and whose Escape closes it. The handler is a
-// chain on the TextField or TextFieldID box:
+// chain on the TextField box:
 //
 //	search := ui.TextField(c, &m.query, "Search", "")
 //	search.OnKey(func(event gfx.KeyEvent) gfx.EventResult {
@@ -239,7 +239,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 			return b
 		}
 	}
-	panic("ui: OnKey must be chained on a TextField or TextFieldID")
+	panic("ui: OnKey must be chained on a TextField")
 }
 
 // Fields answers Config.TextInput for the fields: the platform asks which editor

@@ -130,7 +130,7 @@ func (state *linuxWindowState) handleDragMessage(message *xcbClientEvent) error 
 			win.sendDragReply(source, atoms.finished, false, 0)
 			return nil
 		}
-		text, ok, err := readSelection(win.api, win.connection, win.id, atoms.selection, atoms.uriList, atoms.dropProperty)
+		text, ok, err := win.readDropSelection()
 		paths := []string(nil)
 		if err == nil && ok {
 			paths = parseURIList(text)
@@ -148,6 +148,18 @@ func (state *linuxWindowState) handleDragMessage(message *xcbClientEvent) error 
 		return err
 	}
 	return nil
+}
+
+func (win *window) readDropSelection() (string, bool, error) {
+	api, connection, requestor, selection, owner, err := openSelectionRequest("XdndSelection")
+	if err != nil {
+		return "", false, err
+	}
+	defer closeClipboardRequest()
+	if owner == xcbAtomNone {
+		return "", false, nil
+	}
+	return readSelection(api, connection, requestor, selection, win.xdnd.uriList, win.xdnd.dropProperty)
 }
 
 // dragTypeList reads the types the source offers when there are more than three.

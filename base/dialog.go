@@ -54,7 +54,7 @@ func (f *Frame) resolveDialogFocus() {
 // Dialog declares a dialog on a page whose targets and layer the application
 // names itself: DialogSpec.Scope, DismissID, CloseID and Layer keep the
 // identities the application dispatches, as they do for frame.Dialog. Most
-// dialogs use Modal or ModalWith; use Dialog when the application owns those
+// dialogs use Modal; use Dialog when the application owns those
 // targets and the dialog's layer. Header declares controls in the title row,
 // Body the content and Footer the buttons.
 func Dialog(c C, spec DialogSpec) Box {

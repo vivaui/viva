@@ -154,8 +154,9 @@ func install(options InstallOptions, quit func()) error {
 
 // installPayload replaces the application's files from a staged payload: the
 // executable and the folders beside it that a patch wrote. The installer and
-// its uninstaller are not run, so shortcuts, registry entries and anything
-// else the installer owns stay as they are. A writable install directory is
+// its uninstaller are not run, so shortcuts and the other registry entries the
+// installer owns stay as they are; only its Add or Remove Programs entry is
+// brought up to date with the new version. A writable install directory is
 // required; a machine-wide installation under Program Files is refused before
 // anything changes.
 func installPayload(options InstallOptions, quit func()) error {
@@ -195,7 +196,7 @@ func installPayload(options InstallOptions, quit func()) error {
 		return fmt.Errorf("update: staging the payload: %w", err)
 	}
 	options.report("replacing")
-	if err := startPayload(os.Getpid(), staged, installDir, executable, options.Args); err != nil {
+	if err := startPayload(os.Getpid(), staged, installDir, executable, options.Version, options.Args); err != nil {
 		_ = os.RemoveAll(staged)
 		return fmt.Errorf("update: start the update helper: %w", err)
 	}
@@ -224,8 +225,8 @@ var startPayload = startPayloadHelper
 // process to exit, copies the staged files over the installation and starts
 // the new program. It moves every file it replaces to a same-volume backup until
 // the new version has started, and restores them if it fails.
-func startPayloadHelper(parentPID int, payload, installDir, executable string, args []string) error {
-	name, arguments := helperCommand(payloadHelperScript(parentPID, payload, installDir, executable, args))
+func startPayloadHelper(parentPID int, payload, installDir, executable, version string, args []string) error {
+	name, arguments := helperCommand(payloadHelperScript(parentPID, payload, installDir, executable, version, args))
 	command := exec.Command(name, arguments...)
 	command.SysProcAttr = helperSysProcAttr()
 	if err := command.Start(); err != nil {
@@ -236,14 +237,17 @@ func startPayloadHelper(parentPID int, payload, installDir, executable string, a
 }
 
 // payloadHelperScript builds the script the payload helper runs. Every path is
-// a PowerShell single-quoted literal.
-func payloadHelperScript(parentPID int, payload, installDir, executable string, args []string) string {
+// a PowerShell single-quoted literal. A version, when there is one, is written
+// to the installer's Add or Remove Programs entry once the new files are in
+// place.
+func payloadHelperScript(parentPID int, payload, installDir, executable, version string, args []string) string {
 	var script strings.Builder
 	script.WriteString("$ErrorActionPreference = 'Stop'\n")
 	fmt.Fprintf(&script, "$parent = %d\n", parentPID)
 	fmt.Fprintf(&script, "$payload = %s\n", powerShellQuote(payload))
 	fmt.Fprintf(&script, "$dir = %s\n", powerShellQuote(installDir))
 	fmt.Fprintf(&script, "$exe = %s\n", powerShellQuote(executable))
+	fmt.Fprintf(&script, "$version = %s\n", powerShellQuote(strings.TrimLeft(version, "vV")))
 	script.WriteString("$backup = Join-Path $dir ('.viva-update-' + [guid]::NewGuid().ToString('N'))\n")
 	script.WriteString("$created = New-Object System.Collections.ArrayList\n")
 	script.WriteString("$temps = New-Object System.Collections.ArrayList\n")
@@ -259,6 +263,30 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("    }\n  }\n")
 	script.WriteString("  foreach ($rel in $created) { Remove-Item -LiteralPath (Join-Path $dir $rel) -Force -ErrorAction SilentlyContinue }\n")
 	script.WriteString("  foreach ($tmp in $temps) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }\n")
+	script.WriteString("}\n")
+	// The NSIS installer wrote DisplayVersion and EstimatedSize once and the
+	// payload path never runs it, so a package manager that detects the
+	// installed version through that entry (winget) would offer the update
+	// again. The entry is found by its InstallLocation, in the user hive and the
+	// machine hive alike; one that cannot be written, as a machine-wide
+	// installation's cannot be by a user process, is left alone, and a failure
+	// here never undoes an update that has already worked.
+	script.WriteString("function Register {\n")
+	script.WriteString("  if (-not $version) { return }\n")
+	script.WriteString("  try {\n")
+	script.WriteString("    $bytes = (Get-ChildItem -LiteralPath $dir -Recurse -File -Force | Where-Object { -not $_.FullName.StartsWith($backup, [StringComparison]::OrdinalIgnoreCase) } | Measure-Object -Property Length -Sum).Sum\n")
+	script.WriteString("    $kilobytes = [int][math]::Ceiling($bytes / 1024)\n")
+	script.WriteString("    foreach ($hive in 'HKCU:', 'HKLM:') {\n")
+	script.WriteString("      Get-ChildItem -LiteralPath ($hive + '\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall') -ErrorAction SilentlyContinue | ForEach-Object {\n")
+	script.WriteString("        if (([string]$_.GetValue('InstallLocation')).TrimEnd('\\') -ieq $dir.TrimEnd('\\')) {\n")
+	script.WriteString("          try {\n")
+	script.WriteString("            Set-ItemProperty -LiteralPath $_.PSPath -Name 'DisplayVersion' -Value $version -ErrorAction Stop\n")
+	script.WriteString("            Set-ItemProperty -LiteralPath $_.PSPath -Name 'EstimatedSize' -Value $kilobytes -Type DWord -ErrorAction Stop\n")
+	script.WriteString("          } catch {}\n")
+	script.WriteString("        }\n")
+	script.WriteString("      }\n")
+	script.WriteString("    }\n")
+	script.WriteString("  } catch {}\n")
 	script.WriteString("}\n")
 	// The payload is the helper's own copy (stagePayloadDir): it is deleted on every
 	// way out, so a failed update leaves nothing behind either.
@@ -312,6 +340,7 @@ func payloadHelperScript(parentPID int, payload, installDir, executable string, 
 	script.WriteString("\n")
 	script.WriteString("  Start-Sleep -Seconds 2\n")
 	script.WriteString("  if ($p.HasExited -and $p.ExitCode -ne 0) { Restore; Launch; Discard; exit 1 }\n")
+	script.WriteString("  Register\n")
 	script.WriteString("} catch { Restore; Launch; Discard; exit 1 }\n")
 	script.WriteString("Remove-Item -Recurse -Force $backup -ErrorAction SilentlyContinue\n")
 	script.WriteString("Discard\n")

@@ -1,0 +1,58 @@
+---
+import { readAPI, resolveAPISymbol, type APIFunc, type APIType } from '../lib/api';
+import { apiZh } from '../lib/api-zh';
+import { siteText } from '../lib/site';
+import type { Locale } from '../lib/i18n';
+import ComponentAPIGroup from './ComponentAPIGroup.astro';
+
+// The API table under a component page. The page's catalog entry names the
+// symbols; every name, type and description here comes from the generated
+// api.json, so a renamed argument or a stale default cannot survive the build.
+// The page API (ui.*) is the primary table; the canvas recipe (components) is
+// folded below it, because the documentation's first call surface is the page.
+interface Props { symbols: string[]; locale: Locale }
+const { symbols, locale } = Astro.props;
+const text = siteText(locale);
+const data = readAPI();
+const zh = (key: string) => (locale === 'zh' ? apiZh[key] : undefined);
+
+type FunctionEntry = { func: APIFunc; owner?: APIType; kind: 'function' | 'constructor' | 'method' };
+type TypeEntry = { type: APIType; synopsis: string };
+type Group = { pkg: string; types: TypeEntry[]; funcs: FunctionEntry[] };
+const groups: Group[] = [];
+for (const symbol of symbols) {
+  const resolved = resolveAPISymbol(data, symbol);
+  if (!resolved) {
+    throw new Error(`The component page names unknown API symbol ${symbol}`);
+  }
+  let group = groups.find(entry => entry.pkg === resolved.pkg.name);
+  if (!group) {
+    group = { pkg: resolved.pkg.name, types: [], funcs: [] };
+    groups.push(group);
+  }
+  if (resolved.type) {
+    group.types.push({
+      type: resolved.type,
+      synopsis: zh(`${resolved.pkg.name}.${resolved.type.name}`) ?? resolved.type.synopsis,
+    });
+  }
+  if (resolved.func) group.funcs.push({ func: resolved.func, owner: resolved.owner, kind: resolved.kind as 'function' | 'constructor' | 'method' });
+}
+const pageGroups = groups.filter(group => group.pkg !== 'components');
+const canvasGroups = groups.filter(group => group.pkg === 'components');
+---
+
+<section class="doc-section component-api" aria-labelledby="api">
+  <h2 id="api">{text.apiTable}</h2>
+  {pageGroups.map(group => <div class="component-api-group">
+    <h3><code class="component-api-package">{group.pkg}</code><span class="component-api-group-label">{text.apiPageGroup}</span></h3>
+    <ComponentAPIGroup {group} {locale} />
+  </div>)}
+  {canvasGroups.length > 0 && <details class="component-api-canvas">
+    <summary><code class="component-api-package">components</code><span class="component-api-group-label">{text.apiCanvasGroup}</span></summary>
+    <p class="component-api-note">{text.apiCanvasNote}</p>
+    {canvasGroups.map(group => <div class="component-api-group">
+      <ComponentAPIGroup {group} {locale} />
+    </div>)}
+  </details>}
+</section>

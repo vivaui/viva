@@ -38,8 +38,16 @@ func findType(t *testing.T, data APIData, pkg, name string) APIType {
 
 func TestAPIDocumentsTheRealExportedSurface(t *testing.T) {
 	data := loadTestAPI(t)
-	if len(data.Packages) != len(apiPackages) {
-		t.Fatalf("packages = %d, want %d", len(data.Packages), len(apiPackages))
+	root, err := findRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := apiPackagePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Packages) != len(paths) {
+		t.Fatalf("packages = %d, want %d", len(data.Packages), len(paths))
 	}
 	config := findType(t, data, "app", "Config")
 	for _, want := range []string{"Paint func(canvas *gfx.Canvas, size gfx.Size)", "OnPointer func(event gfx.PointerEvent) gfx.EventResult", "Invalidator *Invalidator"} {
@@ -108,7 +116,14 @@ func TestDocLinksResolveToDocumentedSymbolsOnly(t *testing.T) {
 		"github.com/vivaui/viva/gfx.Canvas.Hovered": "ui/Canvas#method-Hovered",
 		"github.com/vivaui/viva/app.RunCanvas":      "app#func-RunCanvas",
 	}
-	converter := docConverter{importPath: "github.com/vivaui/viva/app", index: index}
+	converter := docConverter{
+		importPath: "github.com/vivaui/viva/app",
+		index:      index,
+		packages: map[string]string{
+			"app": "github.com/vivaui/viva/app",
+			"gfx": "github.com/vivaui/viva/gfx",
+		},
+	}
 	blocks := converter.blocks("RunCanvas uses a [Config] and a [gfx.Canvas]; see [gfx.Canvas.Hovered] and [Missing].\n\n\tcode := block()\n\nThen:\n\n  - one\n  - two\n")
 	if len(blocks) != 4 || blocks[0].Kind != "paragraph" || blocks[1].Kind != "code" || blocks[2].Kind != "paragraph" || blocks[3].Kind != "list" || len(blocks[3].Items) != 2 {
 		t.Fatalf("blocks = %+v", blocks)

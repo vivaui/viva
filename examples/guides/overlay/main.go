@@ -24,7 +24,7 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
+		ui.Popover(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
@@ -35,7 +35,7 @@ func (m *model) page(c ui.C) {
 
 		// A modal dims the page and keeps the keyboard while dialogOpen is true:
 		// Escape, a press on the dim and the close button set it to false.
-		ui.ModalWith(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
+		ui.Modal(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
 			if ui.Button(c, "Cancel").Outline().Clicked() {
 				m.dialogOpen = false
 			}

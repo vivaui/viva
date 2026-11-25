@@ -23,7 +23,7 @@ func TestAWheelOverAPopoverStaysInThePanel(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			projects := ui.Button(c, "Projects")
-			ui.PopoverWith(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
+			ui.Popover(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
 				list = ui.Scroll(c).FillWidth().MaxHeight(150).Children(func() {
 					for range 20 {
 						ui.Slot(c).Height(30)
@@ -89,7 +89,7 @@ func TestATableInAPopoverTakesTheWheelAndTheTableUnderItDoesNot(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			projects := ui.Button(c, "Projects")
-			ui.PopoverWith(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
+			ui.Popover(c, projects, &open, ui.PopoverSpec{Width: 200}, func() {
 				panelTable = ui.Table(c, &inner, ui.TableSpec{
 					Columns: []components.TableColumn{{}}, Rows: gfx.Item(1).Scope(), Source: &rows,
 				}).FillWidth().Height(150)
@@ -139,7 +139,7 @@ func TestAWheelOverAModalLeavesThePageUnderIt(t *testing.T) {
 				}
 			})
 		})
-		ui.Modal(c, &open, "Rename", func() { ui.Text(c, "A short body") }, nil)
+		ui.Modal(c, &open, "Rename", ui.ModalSpec{}, func() { ui.Text(c, "A short body") }, nil)
 	})
 	page := area.ScrollState()
 	r := area.Rect()
@@ -300,7 +300,7 @@ func TestDialogKeepsTheWheelFromIndependentRoutesBehindIt(t *testing.T) {
 			open := true
 			d := openPage(t, func(c ui.C) {
 				boxes[0] = declare(c, 0).Fill()
-				ui.Modal(c, &open, "Details", func() {
+				ui.Modal(c, &open, "Details", ui.ModalSpec{}, func() {
 					boxes[1] = declare(c, 1).FillWidth().Height(150).Shrink(0)
 				}, nil)
 			})
@@ -350,7 +350,7 @@ func TestPopoverWheelFallbackBelongsOnlyToScrollAt(t *testing.T) {
 	d := openPageWith(t, ui.PageConfig{View: func(c ui.C) {
 		ui.Column(c).Fill().Children(func() {
 			anchor := ui.Button(c, "Projects")
-			ui.Popover(c, anchor, &open, func() {
+			ui.Popover(c, anchor, &open, ui.PopoverSpec{Align: ui.Start}, func() {
 				if manual {
 					area = ui.ScrollAt(c, 0)
 				} else {

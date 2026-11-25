@@ -96,7 +96,7 @@ func TestTableIsPaintedLikeTheComponent(t *testing.T) {
 			var view View
 			view.Draw(flexed, theme, gfx.Rect{Width: 320, Height: height}, func(f *Frame) {
 				f.Column().Children(func() {
-					f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns, Headers: titles, Source: &data}).Height(height)
+					f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(tableColumns, titles, nil), Source: &data}).Height(height)
 				})
 			})
 			table := components.BeginTable(direct, theme, gfx.Rect{Width: 320, Height: height}, tableColumns)
@@ -125,8 +125,11 @@ func TestTableSpecTypographyMatchesTheComponent(t *testing.T) {
 	view.Draw(flexed, theme, gfx.Rect{Width: 240, Height: height}, func(f *Frame) {
 		f.Column().Children(func() {
 			f.Table(&state, TableSpec{
-				Rows: tableScope, Columns: columns, Headers: titles, Source: &data,
-				FontSize: size, CellPadding: padding,
+				Rows:        tableScope,
+				Columns:     titledColumns(columns, titles, nil),
+				Source:      &data,
+				FontSize:    size,
+				CellPadding: padding,
 			}).Height(height)
 		})
 	})
@@ -153,8 +156,11 @@ func TestTableSpecFontSizeSizesTheSortArrow(t *testing.T) {
 	view.Draw(canvas, theme, gfx.Rect{Width: 240, Height: 160}, func(f *Frame) {
 		f.Column().Children(func() {
 			f.Table(&state, TableSpec{
-				Rows: tableScope, Header: headerScope, Columns: columns, Headers: cells,
-				Sortable: sortable, Source: &data, FontSize: size,
+				Rows:     tableScope,
+				Header:   headerScope,
+				Columns:  titledColumns(columns, cells, sortable),
+				Source:   &data,
+				FontSize: size,
 			}).Height(160)
 		})
 	})
@@ -197,7 +203,7 @@ func TestTableInAScrollAreaPaintsOnlyTheRowsOnScreen(t *testing.T) {
 		view.Draw(Surface, theme, gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
-					table = f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns[:2], Headers: []string{"A", "B"}, Source: rows})
+					table = f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(tableColumns[:2], []string{"A", "B"}, nil), Source: rows})
 				})
 			})
 		})
@@ -237,7 +243,7 @@ func TestTableWithAHeightScrollsItsRowsUnderTheHeader(t *testing.T) {
 		var view View
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 			f.Column().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns[:2], Headers: []string{"A", "B"}, Source: rows}).Height(200)
+				f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(tableColumns[:2], []string{"A", "B"}, nil), Source: rows}).Height(200)
 			})
 		})
 		return canvas
@@ -279,7 +285,7 @@ func TestTableHeaderClicksSortAndShowTheArrow(t *testing.T) {
 		var view View
 		view.Draw(Surface, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 			f.Column().Children(func() {
-				tbl := f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: tableColumns[:2], Headers: []string{"Name", "N"}, Sortable: []bool{true, false}, Source: &data})
+				tbl := f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: titledColumns(tableColumns[:2], []string{"Name", "N"}, []bool{true, false}), Source: &data})
 				if c, ok := tbl.HeaderClicked(); ok {
 					column = c
 				}
@@ -341,12 +347,13 @@ func TestTableAllocatesNothingOnceWarm(t *testing.T) {
 	rows := &countingRows{n: 10000}
 	var state TableState
 	state.SortBy(1)
+	columns := titledColumns(tableColumns, tableTitles, allSortable)
 	run := func() {
 		canvas.Reset()
 		view.Draw(canvas, theme, gfx.Rect{Width: 500, Height: 400}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
-					f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: tableColumns, Headers: tableTitles, Sortable: allSortable, Striped: true, Source: rows})
+					f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: columns, Striped: true, Source: rows})
 				})
 			})
 		})
@@ -372,7 +379,7 @@ func BenchmarkTenThousandRowTable(b *testing.B) {
 		view.Draw(canvas, theme, gfx.Rect{Width: 800, Height: 600}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
-					f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns, Headers: tableTitles, Source: rows})
+					f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(tableColumns, tableTitles, nil), Source: rows})
 				})
 			})
 		})
@@ -391,7 +398,7 @@ func TestTableKeysMoveTheSelectionAndScrollItIntoView(t *testing.T) {
 		var view View
 		view.Draw(canvas, theme, gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
 			f.Column().Children(func() {
-				f.Table(&state, TableSpec{Rows: tableScope, Columns: tableColumns[:2], Headers: []string{"A", "B"}, Source: rows}).Height(200)
+				f.Table(&state, TableSpec{Rows: tableScope, Columns: titledColumns(tableColumns[:2], []string{"A", "B"}, nil), Source: rows}).Height(200)
 			})
 		})
 		return canvas
@@ -451,7 +458,7 @@ func TestTableInAScrollAreaKeepsItsHeaderAndKeysScrollTheArea(t *testing.T) {
 			f.Column().Fill().Children(func() {
 				f.ScrollArea(listID).Grow(1).Children(func() {
 					f.Text("above the table").Height(40)
-					f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: tableColumns[:2], Headers: []string{"A", "B"}, Sortable: []bool{true, true}, Source: rows})
+					f.Table(&state, TableSpec{Rows: tableScope, Header: headerScope, Columns: titledColumns(tableColumns[:2], []string{"A", "B"}, []bool{true, true}), Source: rows})
 				})
 			})
 		})

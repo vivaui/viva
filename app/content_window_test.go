@@ -85,6 +85,15 @@ func TestContentWindowReportsFrameAndMinimizeState(t *testing.T) {
 		if content.Minimized() {
 			t.Fatal("a new content window reports minimized")
 		}
+		content.SetConcealed(true)
+		content.Show()
+		if !content.window.Hidden() || content.Closed() {
+			t.Fatal("a concealed document must stay open and hidden")
+		}
+		content.SetConcealed(false)
+		if content.window.Hidden() {
+			t.Fatal("previously visible document remained hidden")
+		}
 		host.windows[0].config.OnMinimize(true)
 		if !content.Minimized() {
 			t.Fatal("minimize state did not follow the window")

@@ -33,8 +33,8 @@ func (n *Node) markAttr(a uint8) { n.attrs |= a }
 func (f *Frame) checkAttributesOf(n *Node) {
 	name := kindAttributeName(n)
 	if n.Kind == kindTable && int(n.Aux) < len(WidgetsOf(f).tables) {
-		if spec := &WidgetsOf(f).tables[n.Aux].spec; len(spec.Columns) == 0 && len(spec.Headers) == 0 {
-			f.badAttribute(n, name, "rows without Columns or Headers", "a Table lays its cells out in its columns; give it Headers (the columns share its width) or Columns")
+		if spec := &WidgetsOf(f).tables[n.Aux].spec; len(spec.Columns) == 0 {
+			f.badAttribute(n, name, "rows without Columns", "a Table lays its cells out in its columns; give it Columns")
 		}
 	}
 	if n.Flags&FlagChildren != 0 && !f.attributeChildContainer(n) {

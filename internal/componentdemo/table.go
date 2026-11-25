@@ -23,13 +23,12 @@ table.Caption("Click any data row to see its interactive feedback.")`, PageSnipp
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Width: 0, Alignment: style.TableAlignRight},
+    {Title: "Item", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "Status", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "Amount", Width: 0, Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
 ui.Text(c, "Total · 3 items · ¥ 4,540").Muted()
@@ -39,13 +38,12 @@ ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`, Page
     {"性能审计", "待付款", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Width: 0, Alignment: style.TableAlignRight},
+    {Title: "项目", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "状态", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "金额", Width: 0, Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
     Source:  &bills,
 })
 ui.Text(c, "合计 · 3 项 · ¥ 4,540").Muted()
@@ -118,13 +116,12 @@ table.Caption("Item is left-aligned, status centered, amount right-aligned.")`, 
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Alignment: style.TableAlignRight},
+    {Title: "Item", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "Status", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "Amount", Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
 ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
@@ -133,13 +130,12 @@ ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted
     {"性能审计", "待付款", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Alignment: style.TableAlignRight},
+    {Title: "项目", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "状态", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "金额", Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
     Source:  &bills,
 })
 ui.Text(c, "项目左对齐，状态居中，金额右对齐。").Muted()`},
@@ -187,7 +183,6 @@ type tableDemo struct {
 	rows    [3][3]string
 	source  ui.TableRows
 	columns []style.TableColumn
-	headers []string
 	footer  string
 	caption string
 }
@@ -205,14 +200,9 @@ func tableDemoFor(state *State) *tableDemo {
 			{state.Text("性能审计", "Performance audit"), state.Text("待付款", "Unpaid"), "¥ 1,280"},
 		},
 		columns: []style.TableColumn{
-			{Width: 112, Alignment: style.TableAlignLeft},
-			{Width: 88, Alignment: style.TableAlignCenter},
-			{Width: 0, Alignment: style.TableAlignRight},
-		},
-		headers: []string{
-			state.Text("项目", "Item"),
-			state.Text("状态", "Status"),
-			state.Text("金额", "Amount"),
+			{Title: state.Text("项目", "Item"), Width: 112, Alignment: style.TableAlignLeft},
+			{Title: state.Text("状态", "Status"), Width: 88, Alignment: style.TableAlignCenter},
+			{Title: state.Text("金额", "Amount"), Width: 0, Alignment: style.TableAlignRight},
 		},
 		footer:  state.Text("合计 · 3 项 · ¥ 4,540", "Total · 3 items · ¥ 4,540"),
 		caption: state.Text("点击任意数据行以查看交互反馈。", "Click any data row to see its interactive feedback."),
@@ -240,7 +230,6 @@ func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
 		spec := ui.TableSpec{
 			Columns: demo.columns,
-			Headers: demo.headers,
 			Source:  &demo.source,
 		}
 		if state.exampleID == "overflow" {

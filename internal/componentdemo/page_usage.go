@@ -25,7 +25,7 @@ var pageUsage = map[string]string{
 	"alert-dialog":  `ui.AlertDialog(c, &m.confirm, ui.AlertDialogSpec{Title: "Delete?", ActionLabel: "Delete", CancelLabel: "Cancel"})`,
 	"drawer":        `ui.Drawer(c, &m.open, "Host", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
 	"sheet":         `ui.Drawer(c, &m.open, "Details", ui.DrawerSpec{Side: ui.DrawerRight}, body, footer)`,
-	"popover":       `ui.PopoverWith(c, anchor, &m.open, ui.PopoverSpec{Title: "Details"}, body)`,
+	"popover":       `ui.Popover(c, anchor, &m.open, ui.PopoverSpec{Title: "Details"}, body)`,
 	"dropdown-menu": `ui.Menu(c, anchor, &m.open, func(menu *ui.MenuItems) { menu.Item("Rename") })`,
 	"context-menu":  `ui.ContextMenu(c, row, func(menu *ui.MenuItems) { menu.Item("Delete") })`,
 	"table": `bills := ui.TableRows{
@@ -34,9 +34,8 @@ var pageUsage = map[string]string{
     {"性能审计", "待付款", "¥ 1,280"},
 }
 ui.Table(c, &m.table, ui.TableSpec{
-    Rows: rows, Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
-    Source: &bills,
+    Rows: rows, Source: &bills,
+    Columns: []ui.TableColumn{{Title: "项目", Width: 112}, {Title: "状态", Width: 88}, {Title: "金额"}},
 })`,
 	"list":              `ui.List(c, &m.list, len(rows), func(row ui.ListRow) { _ = row })`,
 	"tree":              `ui.Tree(c, &m.tree, len(rows), func(i int) string { return rows[i] }, func(i int) {})`,

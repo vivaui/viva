@@ -69,4 +69,10 @@
 // contain it) and start the process with VIVA_HEADLESS=1. RunCanvas then serves
 // the line protocol documented on Serve on standard input and output instead
 // of opening a window.
+//
+// On a dual-GPU Intel Mac, offscreen Metal can render black with the system
+// default device. Set VIVA_HEADLESS_METAL_DEVICE=low-power for screenshots to
+// use the integrated GPU instead; unset or "default" keeps the system device,
+// and any other value is ignored with a warning. The option only affects the
+// macOS headless renderer, not windows in a release build.
 package headless

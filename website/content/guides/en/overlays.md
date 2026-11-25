@@ -41,7 +41,7 @@ func (m *model) page(c ui.C) {
 		// A popover hangs off its anchor while menuOpen is true. A press outside it
 		// or Escape closes it, and the press goes on to what is under the pointer;
 		// the focus goes back to the anchor.
-		ui.PopoverWith(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
+		ui.Popover(c, actions, &m.menuOpen, ui.PopoverSpec{Width: 180, Align: ui.Start}, func() {
 			if ui.Button(c, "New file").Ghost().Clicked() {
 				m.menuOpen, m.status = false, "Created"
 			}
@@ -52,7 +52,7 @@ func (m *model) page(c ui.C) {
 
 		// A modal dims the page and keeps the keyboard while dialogOpen is true:
 		// Escape, a press on the dim and the close button set it to false.
-		ui.ModalWith(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
+		ui.Modal(c, &m.dialogOpen, "Delete file?", ui.ModalSpec{Description: "This cannot be undone.", Width: 400}, nil, func() {
 			if ui.Button(c, "Cancel").Outline().Clicked() {
 				m.dialogOpen = false
 			}
@@ -73,7 +73,7 @@ func main() {
 
 ## Popovers
 
-`ui.Popover(c, anchor, &open, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `ui.PopoverWith` takes a `ui.PopoverSpec` for the side, the alignment, the width, the padding of its content and the margin it keeps from the window's edges (8 unless set) and `Instant` to open without the entrance motion, as a list appearing under the cursor as the user types. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
+`ui.Popover(c, anchor, &open, spec, body)` shows the panel `body` declares, hanging off `anchor`, while `open` is true, with shadcn's popover look. `spec` is a `ui.PopoverSpec`, whose zero value is the plain panel, for the side, the alignment, the width, the padding of its content and the margin it keeps from the window's edges (8 unless set) and `Instant` to open without the entrance motion, as a list appearing under the cursor as the user types. It opens below the anchor and flips above it when there is no room. Keep the trigger's `Box` (`actions := ui.Button(c, ...)`) to anchor to it.
 
 A press outside the panel or Escape sets `open` to false. The press then goes on to what is under the pointer, as a web popover's does, so one click on another button both closes the menu and presses that button. A press on the anchor only closes the panel, so a trigger that toggles `open` does not open it again in the same click. The focus goes back to where it was when the panel opened. `Popover` reports the paint that closed it; a panel that must stay open sets `open` back to true there.
 
@@ -87,7 +87,7 @@ The example's test checks all of it: a press at the far corner closes the menu, 
 
 ## Dialogs
 
-`ui.Modal(c, &open, title, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `ui.ModalWith` takes a `ui.ModalSpec` for a description, a size or no close button.
+`ui.Modal(c, &open, title, spec, body, footer)` dims the window, paints a centered surface with the title and a close button, and keeps the keyboard while `open` is true. The title is required: it is the dialog's name for assistive technology. `body` declares the content and `footer` the buttons, which sit against the right edge in the order given; either may be nil, and the surface is as tall as the body needs. Escape, a press on the dim and the close button set `open` to false. The first control in the body takes the focus as the dialog opens (`ModalSpec.InitialFocus` names another), and the focus goes back to the control that opened it as it closes. `spec` is a `ui.ModalSpec`, whose zero value is the plain dialog, for a description, a size or no close button.
 
 `ui.Dialog(c, ui.DialogSpec{...})` is the application-named form of the same dialog: `Scope` is the focus scope, `DismissID` the identity the dim and Escape report, `CloseID` the corner button's, and `InitialFocusID` the control that takes the focus. `dialog.Header(fn)` declares controls in the title row, `Body` the content and `Footer` the buttons; `Dismissed()` is true in the paint that delivers one of those clicks.
 

@@ -6,21 +6,18 @@ import "github.com/vivaui/viva/gfx"
 // 16 pixel circle that is filled with the primary color and holds a dot while *value is
 // option, and the label after it. A click sets *value to option (RadioBase's rules), and
 // the focus moving onto it with the arrow keys of a RadioGroup chooses it, as a native
-// radio group does. Name it with c.Key when the options are reordered; Hit gives it the
-// application's identity.
+// radio group does. Name it with c.Key when the options are reordered; WithID gives it
+// an identity the application already names, so an initial focus, the application's own
+// routing or a test can address it.
 //
 //	ui.Radio(c, &m.plan, Monthly, "Monthly")
-func Radio[T comparable](c C, Value *T, option T, Label string) Box {
-	return radio(c, c.page.ControlID(pkRadio), Value, option, Label)
-}
-
-// RadioID is Radio for an option the application already names, as TextFieldID is for
-// TextField: id is the option's identity in the page's Tree, so an initial focus, the
-// application's own routing or a test can address it.
-//
-//	ui.RadioID(c, hitKeepParent, &m.ungroup, false, "Keep hosts in the parent")
-func RadioID[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {
-	return radio(c, ID, Value, option, Label)
+//	ui.Radio(c, &m.ungroup, false, "Keep hosts in the parent", ui.WithID(hitKeepParent))
+func Radio[T comparable](c C, Value *T, option T, Label string, opts ...Option) Box {
+	id := namedBy("Radio", opts)
+	if id.IsZero() {
+		id = c.page.ControlID(pkRadio)
+	}
+	return radio(c, id, Value, option, Label)
 }
 
 func radio[T comparable](c C, ID gfx.ID, Value *T, option T, Label string) Box {

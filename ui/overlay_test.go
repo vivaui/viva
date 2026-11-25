@@ -74,7 +74,7 @@ func (m *dialogOverlayModel) View(c ui.C) {
 	}).Children(func() {
 		ui.Button(c, "Overlay")
 	})
-	ui.Modal(c, &m.open, "Settings", func() {
+	ui.Modal(c, &m.open, "Settings", ui.ModalSpec{}, func() {
 		ui.Button(c, "Inside")
 	}, nil)
 }

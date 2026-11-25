@@ -1,0 +1,14 @@
+---
+import { apiHref, type DocInline as Inline } from '../lib/api';
+import type { Locale } from '../lib/i18n';
+
+// One paragraph's inline runs, for a table cell. The full block renderer
+// (ApiDoc) is for prose; a cell holds at most one sentence.
+interface Props { parts: Inline[]; locale: Locale }
+const { parts, locale } = Astro.props;
+---
+
+{parts.map(part => {
+  const content = part.code ? <code>{part.text}</code> : part.italic ? <em>{part.text}</em> : part.text;
+  return part.href ? <a href={apiHref(locale, part.href)}>{content}</a> : content;
+})}
