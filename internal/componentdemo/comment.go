@@ -8,7 +8,7 @@ import (
 )
 
 var commentComponent = Component{
-	ID: "comment", Title: "Comment", Category: "Data display", Summary: "评论：头像、作者与时间、正文、操作按钮和嵌套回复。",
+	ID: "comment", Title: "Comment", Category: "Data Display", Summary: "评论：头像、作者与时间、正文、操作按钮和嵌套回复。",
 	Source: "ui/comment/comment.go", paint: (*State).paintComment,
 	Examples: []Example{
 		{ID: "default", Title: "带回复的评论", Description: "操作是页面自己的按钮，回复是页面在 Replies 里继续声明的评论，任意深度都是同一个函数。", Snippet: `comment.View(c, comment.Spec{
