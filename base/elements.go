@@ -207,13 +207,13 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 // application's key and focus routing can target it. The list's options keep the
 // page's own identities.
 func Select[T comparable](c C, Value *T, choices []T, Label func(T) string, opts ...Option) Box {
-	return selectOf(c, Value, choices, Label, nil, false, namedBy("Select", opts))
+	return selectOf(c, Value, choices, Label, nil, false, namedBy("Select", opts), groupsOf(opts))
 }
 
 // selectOf is Select, or SelectBase when base is set: the same control without
 // the theme's look. icons are indexed by option like the labels; nil is the
 // select without icons.
-func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
+func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID, groups []SelectGroup) Box {
 	p := c.page
 	scope := p.BoundScope(pkSelect, unsafe.Pointer(Value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
@@ -225,6 +225,9 @@ func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, ic
 		b = c.f.Select(scope, state, labels, selected)
 	}
 	b.Icons(icons)
+	if len(groups) > 0 {
+		b.optionGroups(groups)
+	}
 	state.trigger = ID
 	p.selects = append(p.selects, state)
 	if p.keyRoute == nil {

@@ -426,6 +426,9 @@ func ID(c C) gfx.ID { return base.ID(c) }
 // WithID names a control with an identity the application holds; see base.WithID.
 func WithID(id gfx.ID) Option { return base.WithID(id) }
 
+// SelectGroups puts group headings in a Select's list; see base.SelectGroups.
+func SelectGroups(groups []SelectGroup) Option { return base.SelectGroups(groups) }
+
 // MaxLength caps a text control at n runes; see base.MaxLength.
 func MaxLength(n int) Option { return base.MaxLength(n) }
 

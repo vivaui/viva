@@ -50,6 +50,11 @@ type SelectState struct {
 	// frame the list opens in.
 	listMaxWidth  float32
 	listMaxHeight float32
+
+	// Buffers OptionGroups builds its rows in, kept so a warm paint allocates nothing.
+	rowLabels   []string
+	rowDisabled []bool
+	rowOption   []int
 }
 
 // ListMaxWidth caps the width of an open Select's list: zero keeps the list's
@@ -366,6 +371,13 @@ type SelectDecl struct {
 	Visible  int   // how many options the list shows at once
 	layer    uint16
 	rects    int32 // where the rows of this frame's list start in frame.widgets.rows
+	// grouped is true after OptionGroups: labels, selected and disabled are then rows, the
+	// options with a heading row before the first of each group. rowOption is the option
+	// each row stands for, -1 for a heading, and optDisabled the caller's DisabledOptions,
+	// indexed by option.
+	grouped     bool
+	rowOption   []int
+	optDisabled []bool
 	// asked, pick and picked keep what Picked found, so asking again in the same
 	// paint reports the same option and does not open or close the list twice.
 	asked  bool
@@ -544,6 +556,11 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 	switch n.Kind {
 	case kindSelect:
 		d := &WidgetsOf(b.f).selects[n.Aux]
+		d.optDisabled = disabled
+		if d.grouped {
+			d.rowsDisabled()
+			return b
+		}
 		d.disabled, d.state.disabled = disabled, disabled
 	case kindSegmented:
 		if len(disabled) == 0 {
@@ -561,6 +578,110 @@ func (b Box) DisabledOptions(disabled []bool) Box {
 		d.options = w.choices[first:len(w.choices):len(w.choices)]
 	}
 	return b
+}
+
+// SelectGroup is a group of a Select's options: Label heads the options from index From
+// of the choices up to the next group's From (or the end); see SelectGroups.
+type SelectGroup struct {
+	Label string
+	From  int
+}
+
+// optionGroups is SelectGroups' work: it rewrites the select's labels, selection and
+// disabled flags as rows with a heading before each group, and keeps the mapping back to
+// the options. It runs where the select is made, before Picked reads the click, since
+// the rows decide which part of the list a press landed on.
+func (b Box) optionGroups(groups []SelectGroup) Box {
+	n := b.N()
+	if len(groups) == 0 {
+		return b
+	}
+	d := &WidgetsOf(b.f).selects[n.Aux]
+	s := d.state
+	options := d.labels
+	s.rowLabels, s.rowOption = s.rowLabels[:0], s.rowOption[:0]
+	next, selectedRow := 0, -1
+	for i, label := range options {
+		for next < len(groups) && groups[next].From <= i {
+			if groups[next].From == i {
+				s.rowLabels, s.rowOption = append(s.rowLabels, groups[next].Label), append(s.rowOption, -1)
+			}
+			next++
+		}
+		if i == d.selected {
+			selectedRow = len(s.rowLabels)
+		}
+		s.rowLabels, s.rowOption = append(s.rowLabels, label), append(s.rowOption, i)
+	}
+	d.grouped, d.rowOption = true, s.rowOption
+	d.labels, d.selected = s.rowLabels, selectedRow
+	s.labels, s.selected = s.rowLabels, selectedRow
+	d.rowsDisabled()
+	b.f.resizeSelectList(d)
+	return b
+}
+
+// rowsDisabled makes the rows' disabled flags from the caller's, with every heading disabled.
+func (d *SelectDecl) rowsDisabled() {
+	s := d.state
+	s.rowDisabled = s.rowDisabled[:0]
+	for _, option := range d.rowOption {
+		s.rowDisabled = append(s.rowDisabled, option < 0 || OptionDisabled(d.optDisabled, option))
+	}
+	d.disabled, s.disabled = s.rowDisabled, s.rowDisabled
+}
+
+// optionOf is the option a row stands for: the row itself when the list has no groups.
+func (d *SelectDecl) optionOf(row int) int {
+	if !d.grouped {
+		return row
+	}
+	if row < 0 || row >= len(d.rowOption) {
+		return -1
+	}
+	return d.rowOption[row]
+}
+
+// rowOf is the row of an option, or -1.
+func (d *SelectDecl) rowOf(option int) int {
+	for row, o := range d.rowOption {
+		if o == option {
+			return row
+		}
+	}
+	return -1
+}
+
+// OptionAt is the option row stands for, and -1 for a heading, for the styled painting
+// layer: the rows are what the list is made of.
+func (d *SelectDecl) OptionAt(row int) int { return d.optionOf(row) }
+
+// IsHeading reports whether row is a group heading.
+func (d *SelectDecl) IsHeading(row int) bool { return d.grouped && d.optionOf(row) < 0 }
+
+// resizeSelectList sets the window and the size of an open list for the rows it has now.
+func (f *Frame) resizeSelectList(d *SelectDecl) {
+	count := len(d.labels)
+	d.Visible = selectRows(count, f.bounds.Height)
+	if d.state.listMaxHeight > 0 {
+		d.Visible = min(d.Visible, listRowsForHeight(count, d.state.listMaxHeight))
+	}
+	d.state.Visible = d.Visible
+	if d.state.Open && count > 0 {
+		d.state.First = min(max(d.state.First, 0), count-d.Visible)
+		height := float32(selectPad + selectItem*d.Visible)
+		if d.Visible < count {
+			height += 2 * selectArrow
+		}
+		widest := d.state.WidestOption(f.Surface, d.labels, f.Palette.Metrics.FontSizeM)
+		width := selectListWidth(widest)
+		if d.state.listMaxWidth > 0 {
+			width = min(width, d.state.listMaxWidth)
+		}
+		if d.popup >= 0 {
+			Box{f: f, i: d.popup, gen: f.gen}.Size(width, height)
+		}
+	}
 }
 
 // Hint is the description assistive technology reads after a Select's name and value, for
@@ -596,7 +717,7 @@ func (b Box) Picked() (int, bool) {
 func (d *SelectDecl) pickIn() (int, bool) {
 	if chosen := d.state.chosen; chosen > 0 {
 		d.state.chosen, d.state.Open = 0, false
-		return chosen - 1, true
+		return d.optionOf(chosen - 1), true
 	}
 	canvas := d.Surface
 	count := len(d.labels)
@@ -614,7 +735,7 @@ func (d *SelectDecl) pickIn() (int, bool) {
 	switch {
 	case index < count:
 		d.state.Open = false
-		return index, true
+		return d.optionOf(index), true
 	case index == count: // the trigger, when it is the page's own
 		d.state.Open = !d.state.Open
 		if d.state.Open {
@@ -686,8 +807,15 @@ func (f *Frame) SelectPart(n *Node, i int) Rect {
 		return Rect{}
 	}
 	d := &WidgetsOf(f).selects[n.Aux]
-	if d.rects < 0 || i < 0 || i >= len(d.labels) {
+	if d.rects < 0 || i < 0 || i >= len(d.labels) && !d.grouped {
 		return Rect{}
+	}
+	if d.grouped {
+		row := d.rowOf(i)
+		if row < 0 {
+			return Rect{}
+		}
+		i = row
 	}
 	return WidgetsOf(f).rows[int(d.rects)+i]
 }
