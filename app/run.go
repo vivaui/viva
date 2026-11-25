@@ -33,6 +33,7 @@ func Run(config Config) error {
 		Maximized:         normalized.Maximized,
 		WindowMode:        platform.WindowMode(normalized.WindowMode),
 		WindowMaterials:   normalized.windowMaterials(),
+		Transparent:       normalized.Transparent,
 		TitlebarHeight:    normalized.TitlebarHeight,
 		TrafficLightScale: normalized.TrafficLightScale,
 		ClearColor: platform.Color{

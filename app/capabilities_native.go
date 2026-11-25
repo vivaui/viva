@@ -37,9 +37,12 @@ func nativeCapabilities() Capabilities {
 		CapabilitySystemProxy |
 		capabilityFileDrag
 	if runtime.GOOS == "darwin" {
-		capabilities |= CapabilityNativeAppearance | CapabilityTransparentWindow
+		capabilities |= CapabilityNativeAppearance
 	} else {
 		capabilities |= CapabilityWindowMaximize
+	}
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		capabilities |= CapabilityTransparentWindow
 	}
 	return Capabilities(capabilities)
 }

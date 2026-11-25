@@ -425,6 +425,7 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 		return nil, err
 	}
 	state.installFrame()
+	state.applyTransparent()
 	if config.SetFrameInterval != nil {
 		// Present(1) in WM_PAINT blocks until the display takes the frame, so
 		// the display paces the window; the runtime needs no interval of its own.
