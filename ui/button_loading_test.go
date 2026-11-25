@@ -56,3 +56,37 @@ func TestLoadingButtonRepaintsWithoutAllocating(t *testing.T) {
 		t.Fatalf("%v allocations a repaint", allocs)
 	}
 }
+
+// A busy switch does not flip its bound value, keeps its look, and paints the
+// spinner on its thumb.
+func TestLoadingSwitchHoldsItsValueAndSpins(t *testing.T) {
+	on, loading := false, false
+	d := openPage(t, func(c ui.C) { ui.Switch(c, &on, "Forwarding").Loading(loading) })
+	idle := len(d.driver.Snapshot().Primitives)
+	d.click("Forwarding")
+	if !on {
+		t.Fatal("an idle switch did not flip")
+	}
+	loading = true
+	d.repaint()
+	if busy := len(d.driver.Snapshot().Primitives); busy <= idle {
+		t.Fatalf("a busy switch paints %d primitives, an idle one %d; want the spinner's spokes in addition", busy, idle)
+	}
+	d.click("Forwarding")
+	if !on {
+		t.Fatal("a press on a busy switch flipped its value")
+	}
+	if d.hit("Forwarding").Disabled {
+		t.Fatal("a busy switch is announced as disabled")
+	}
+}
+
+func TestLoadingSwitchRepaintsWithoutAllocating(t *testing.T) {
+	on := true
+	d := openPage(t, func(c ui.C) { ui.Switch(c, &on, "Forwarding").Loading(true) })
+	d.repaint()
+	d.repaint()
+	if allocs := testing.AllocsPerRun(100, d.repaint); allocs != 0 {
+		t.Fatalf("%v allocations a repaint", allocs)
+	}
+}

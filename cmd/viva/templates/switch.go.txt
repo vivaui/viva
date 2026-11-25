@@ -101,6 +101,8 @@ func (switchControl Switch) Disabled() Switch {
 type SwitchResult struct {
 	canvas *gfx.Canvas
 	id     gfx.ID
+	// Thumb is where the thumb was painted, for a caller that draws on it.
+	Thumb gfx.Rect
 }
 
 // Clicked reports whether this paint is delivering a click on the control.
@@ -200,9 +202,8 @@ func (switchControl Switch) Paint() SwitchResult {
 	inset := 1 * scale
 	thumbX := gfx.Lerp(switchControl.bounds.X+inset, switchControl.bounds.X+switchControl.bounds.Width-thumbSize-inset, progress)
 	thumbY := switchControl.bounds.Y + (switchControl.bounds.Height-thumbSize)/2
-	switchControl.canvas.Rounded(gfx.Rect{
-		X: thumbX, Y: thumbY, Width: thumbSize, Height: thumbSize,
-	}, thumbSize/2, thumb)
+	result.Thumb = gfx.Rect{X: thumbX, Y: thumbY, Width: thumbSize, Height: thumbSize}
+	switchControl.canvas.Rounded(result.Thumb, thumbSize/2, thumb)
 
 	if !switchControl.id.IsZero() {
 		hitBounds := gfx.Rect{
