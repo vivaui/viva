@@ -4,6 +4,7 @@ package componentdemo
 // documentation site shows it above the examples; a component without an entry
 // is a canvas recipe, used inside ui.Control/Draw or copied by viva add.
 var pageUsage = map[string]string{
+	"expandable-text": `m.about.View(c, m.description, typography.Spec{Rows: 3, Expandable: true}).FillWidth()`,
 	"labeled-divider": `divider.View(c, "or", divider.Spec{})`,
 	"popconfirm":      `m.remove.View(c, trigger, popconfirm.Spec{Title: "Remove build-01?", Danger: true})`,
 	"editable-tabs":   `m.strip.View(c, "Sessions", &m.active, editabletabs.Spec{Tabs: m.tabs, Addable: true}).FillWidth()`,
