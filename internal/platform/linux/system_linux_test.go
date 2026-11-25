@@ -8,12 +8,96 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func TestClipboardWaitRetriesOnlyInterruptedPoll(test *testing.T) {
+	selection := xcbSelectionNotifyEvent{ResponseType: xcbSelectionNotify, Requestor: 2, Selection: 3, Target: 4}
+	property := xcbPropertyEvent{ResponseType: xcbPropertyNotify, Window: 2, Atom: 5}
+	for _, wait := range []struct {
+		name  string
+		event unsafe.Pointer
+		run   func(*xcbAPI) error
+	}{
+		{"selection", unsafe.Pointer(&selection), func(api *xcbAPI) error {
+			event, err := waitForSelection(api, 1, 2, 3, 4, time.Second)
+			if err == nil && event != unsafe.Pointer(&selection) {
+				return errors.New("wait did not return the selection reply")
+			}
+			return err
+		}},
+		{"chunk", unsafe.Pointer(&property), func(api *xcbAPI) error {
+			return waitForNewValue(api, 1, 2, 5, &pollFD{FD: 1, Events: xcbPollInput})
+		}},
+	} {
+		for _, failure := range []struct {
+			name  string
+			errno int32
+			retry bool
+		}{
+			{"interrupted", int32(syscall.EINTR), true},
+			{"bad descriptor", int32(syscall.EBADF), false},
+		} {
+			test.Run(wait.name+"/"+failure.name, func(test *testing.T) {
+				calls := 0
+				api := &xcbAPI{
+					fileDescriptor:     func(uintptr) int32 { return 1 },
+					connectionHasError: func(uintptr) int32 { return 0 },
+					errnoLocation:      func() *int32 { return &failure.errno },
+					free:               func(unsafe.Pointer) {},
+					pollForEvent: func(uintptr) unsafe.Pointer {
+						if calls == 2 {
+							return wait.event
+						}
+						return nil
+					},
+					poll: func(*pollFD, uintptr, int32) int32 {
+						calls++
+						if calls == 1 {
+							return -1
+						}
+						return 1
+					},
+				}
+				err := wait.run(api)
+				if failure.retry && (err != nil || calls != 2) {
+					test.Fatalf("interrupted wait returned %v after %d polls; want the reply after a retry", err, calls)
+				}
+				if !failure.retry && (err == nil || calls != 1) {
+					test.Fatalf("invalid descriptor returned %v after %d polls; want an immediate error", err, calls)
+				}
+			})
+		}
+	}
+}
+
+func TestClipboardInterruptedReplyRetainsDeadline(test *testing.T) {
+	errno := int32(syscall.EINTR)
+	calls := 0
+	api := &xcbAPI{
+		fileDescriptor:     func(uintptr) int32 { return 1 },
+		connectionHasError: func(uintptr) int32 { return 0 },
+		pollForEvent:       func(uintptr) unsafe.Pointer { return nil },
+		errnoLocation:      func() *int32 { return &errno },
+		poll: func(_ *pollFD, _ uintptr, timeout int32) int32 {
+			calls++
+			if calls > 1 {
+				test.Fatal("wait repeated a poll after the original deadline")
+			}
+			time.Sleep(time.Duration(timeout+2) * time.Millisecond)
+			return -1
+		},
+	}
+	_, err := waitForSelection(api, 1, 2, 3, 4, 25*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "did not respond") {
+		test.Fatalf("wait returned %v after the original deadline; want a timeout", err)
+	}
+}
 
 func TestClipboardHandoffWaitsOnlyJustAfterFocus(t *testing.T) {
 	win := &window{}
