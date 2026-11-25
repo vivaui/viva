@@ -117,6 +117,22 @@ func (o *output) chord(character rune) {
 
 const trace = "Exception in thread \"main\" java.lang.IllegalStateException: boom"
 
+func TestScrollToPaintsTheRequestedLineImmediately(t *testing.T) {
+	lines := make([]string, 128)
+	for i := range lines {
+		lines[i] = "output"
+	}
+	o := openOutput(t, lines...)
+	for _, target := range []int{115, 4} {
+		if _, visible := o.view.PointOf(textview.Point{Line: target}); visible {
+			t.Fatalf("line %d was already visible", target)
+		}
+		o.view.ScrollTo(target)
+		o.must(o.driver.Paint())
+		o.at(target, 0)
+	}
+}
+
 // A drag selects from where it was pressed to where it was released, across lines, and
 // Primary+C copies exactly that text; a click selects nothing and Escape drops a selection.
 func TestDragAcrossLinesCopiesTheTextBetween(t *testing.T) {
