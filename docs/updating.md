@@ -366,8 +366,10 @@ warning.
   message; the application keeps running the old version and can offer the
   update again.
 - **Windows patches replace the application's files.** The installer's
-  uninstaller, shortcuts and registry entries are not changed; a release that
-  adds or removes files needs the full installer. A machine-wide installation
+  uninstaller, shortcuts and file associations are not changed, but its Add or
+  Remove Programs entry gets the new `DisplayVersion` and `EstimatedSize`, so a
+  package manager still sees the installed version; a release that adds or
+  removes files needs the full installer. A machine-wide installation
   under `Program Files` is not writable and reports `ErrNotWritable`.
 - **No update service.** The package checks a URL the application names. It does
   not host, stage, roll out or force anything.

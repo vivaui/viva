@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 	"unsafe"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 func TestInstallRejectsNonNSISFormat(t *testing.T) {
@@ -216,7 +218,7 @@ func TestWinTrustStructLayout(t *testing.T) {
 }
 
 func TestPayloadHelperScriptKeepsABackupAndRestores(t *testing.T) {
-	script := payloadHelperScript(1234, `C:\Temp\O'Brien\payload`, `C:\Apps\Motty`, `C:\Apps\Motty\motty.exe`, []string{"--flag", "a b"})
+	script := payloadHelperScript(1234, `C:\Temp\O'Brien\payload`, `C:\Apps\Motty`, `C:\Apps\Motty\motty.exe`, "v1.2.3", []string{"--flag", "a b"})
 	for _, want := range []string{
 		"$parent = 1234",
 		`$payload = 'C:\Temp\O''Brien\payload'`,
@@ -286,7 +288,7 @@ func TestInstallPayloadHandsTheHelperACopyTheCallerMayDelete(t *testing.T) {
 	}
 	var started string
 	previous := startPayload
-	startPayload = func(_ int, staged, _, _ string, _ []string) error {
+	startPayload = func(_ int, staged, _, _, _ string, _ []string) error {
 		started = staged
 		return nil
 	}
@@ -325,7 +327,7 @@ func TestInstallPayloadDeletesItsCopyWhenTheHelperDoesNotStart(t *testing.T) {
 	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, filepath.Base(executable)))
 	var started string
 	previous := startPayload
-	startPayload = func(_ int, staged, _, _ string, _ []string) error {
+	startPayload = func(_ int, staged, _, _, _ string, _ []string) error {
 		started = staged
 		return errors.New("no helper")
 	}
@@ -359,7 +361,7 @@ func TestPayloadHelperRelaunchesTheOldVersionWithoutAPayload(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "started")
 	t.Setenv("VIVA_UPDATE_START_MARKER", marker)
 	missing := filepath.Join(t.TempDir(), "gone")
-	script := payloadHelperScript(999999, missing, install, filepath.Join(install, "app.exe"), []string{"-test.run=^TestPayloadHelperProcess$"})
+	script := payloadHelperScript(999999, missing, install, filepath.Join(install, "app.exe"), "", []string{"-test.run=^TestPayloadHelperProcess$"})
 	runPayloadHelper(t, script, 1)
 	waitForMarker(t, marker)
 	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
@@ -448,7 +450,7 @@ func TestPayloadHelperReplacesTheApplication(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(stale, "app.exe"), []byte("stale"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), "", nil)
 	runPayloadHelper(t, script, 0)
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Errorf("a previous update's backup survived the next update: %v", err)
@@ -475,12 +477,72 @@ func TestPayloadHelperReplacesTheApplication(t *testing.T) {
 	}
 }
 
+// uninstallEntry creates a per-user Add or Remove Programs entry the way the
+// NSIS installer writes one and removes it when the test ends.
+func uninstallEntry(t *testing.T, name, location string) registry.Key {
+	t.Helper()
+	path := `Software\Microsoft\Windows\CurrentVersion\Uninstall\` + name
+	key, _, err := registry.CreateKey(registry.CURRENT_USER, path, registry.SET_VALUE|registry.QUERY_VALUE)
+	if err != nil {
+		t.Skipf("the per-user registry is not writable: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = key.Close()
+		_ = registry.DeleteKey(registry.CURRENT_USER, path)
+	})
+	if err := key.SetStringValue("DisplayVersion", "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := key.SetStringValue("InstallLocation", location); err != nil {
+		t.Fatal(err)
+	}
+	if err := key.SetDWordValue("EstimatedSize", 1); err != nil {
+		t.Fatal(err)
+	}
+	return key
+}
+
+func TestPayloadHelperBringsTheInstallersRegistrationUpToDate(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	ours := uninstallEntry(t, "viva-update-test-ours", install+`\`)
+	other := uninstallEntry(t, "viva-update-test-other", filepath.Join(t.TempDir(), "elsewhere"))
+
+	runPayloadHelper(t, payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), "v2.0.0", nil), 0)
+
+	if version, _, err := ours.GetStringValue("DisplayVersion"); err != nil || version != "2.0.0" {
+		t.Errorf("DisplayVersion = %q, %v; want the installed version 2.0.0", version, err)
+	}
+	if size, _, err := ours.GetIntegerValue("EstimatedSize"); err != nil || size <= 1 {
+		t.Errorf("EstimatedSize = %d, %v; want the size of the new files", size, err)
+	}
+	if version, _, err := other.GetStringValue("DisplayVersion"); err != nil || version != "1.0.0" {
+		t.Errorf("an entry for another installation changed: %q, %v", version, err)
+	}
+}
+
+func TestPayloadHelperWithoutAVersionLeavesTheRegistrationAlone(t *testing.T) {
+	payload := t.TempDir()
+	install := t.TempDir()
+	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), filepath.Join(install, "app.exe"))
+	copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
+	ours := uninstallEntry(t, "viva-update-test-unversioned", install)
+
+	runPayloadHelper(t, payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), "", nil), 0)
+
+	if version, _, err := ours.GetStringValue("DisplayVersion"); err != nil || version != "1.0.0" {
+		t.Errorf("DisplayVersion = %q, %v; want it untouched without a version", version, err)
+	}
+}
+
 func TestStartPayloadHelperInstallsWithoutOutputPipes(t *testing.T) {
 	payload, install := t.TempDir(), t.TempDir()
 	executable := filepath.Join(install, "app.exe")
 	copyWindowsFile(t, systemExecutable(t, "cmd.exe"), executable)
 	want := copyWindowsFile(t, systemExecutable(t, "whoami.exe"), filepath.Join(payload, "app.exe"))
-	if err := startPayloadHelper(999999, payload, install, executable, nil); err != nil {
+	if err := startPayloadHelper(999999, payload, install, executable, "", nil); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(15 * time.Second)
@@ -531,7 +593,7 @@ func TestPayloadHelperReplacesARunningExecutable(t *testing.T) {
 		}
 	}
 
-	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), nil)
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), "", nil)
 	runPayloadHelper(t, script, 0)
 	got, err := os.ReadFile(filepath.Join(install, "app.exe"))
 	if err != nil {
@@ -571,7 +633,7 @@ func TestPayloadHelperRollsBackAFailedStart(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(payload, "new.dll"), []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), []string{"-test.run=^TestPayloadHelperProcess$"})
+	script := payloadHelperScript(999999, payload, install, filepath.Join(install, "app.exe"), "", []string{"-test.run=^TestPayloadHelperProcess$"})
 	runPayloadHelper(t, script, 1)
 	if data, err := os.ReadFile(marker); err != nil || string(data) != "started" {
 		t.Fatalf("updated application did not start: marker=%q, %v", data, err)
