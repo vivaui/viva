@@ -69,7 +69,7 @@ func (win *window) pointerPosition() (x, y int, ok bool) {
 		return 0, 0, false
 	}
 	defer win.api.free(unsafe.Pointer(reply))
-	return int(reply.RootX), int(reply.RootY), reply.SameScreen != 0
+	return int(reply.RootX), int(reply.RootY), true
 }
 
 type queryKeymapReply struct {

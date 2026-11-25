@@ -18,13 +18,19 @@ func (item *statusItem) setVersion() {
 }
 
 func (item *statusItem) SetHover(handler func(platform.StatusHover)) bool {
-	if !item.version4 || item.removed.Load() {
+	if item.removed.Load() {
 		return false
 	}
 	if handler != nil {
+		if !item.version4 {
+			return false
+		}
 		if _, ok := item.visibleTrayAnchor(item.application.status.window); !ok {
 			return false
 		}
+	} else if item.hover == nil {
+		// Disabling is idempotent even on shells without paired hover events.
+		return true
 	}
 	item.endHover()
 	previous := item.hover

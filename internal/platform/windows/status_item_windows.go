@@ -246,8 +246,11 @@ func (item *statusItem) data() notifyIconData {
 	}
 	if item.hover != nil {
 		data.Flags &^= notifyShowTip
+		// NIF_TIP must remain set: an empty szTip replaces the shell's cached
+		// text, including when SetTooltip runs while a preview is enabled.
+	} else {
+		copyUTF16(data.Tip[:], item.tooltip)
 	}
-	copyUTF16(data.Tip[:], item.tooltip)
 	return data
 }
 

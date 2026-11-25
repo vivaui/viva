@@ -9,21 +9,22 @@ import (
 const statusPreviewLeaveDelay = 220 * time.Millisecond
 
 // StatusPreview describes the content of a non-activating status item preview.
-// Viva sets the window mode and anchor. Opened receives nil if opening fails.
+// Viva sets the window mode and anchor. Opened receives the window or the error
+// from opening it, so the application can release content it prepared on failure.
 type StatusPreview struct {
 	Config Config
-	Opened func(*Window)
+	Opened func(*Window, error)
 }
 
-// StatusHoverControl is the optional part of StatusItemControl used by hosts
+// statusHoverControl is the optional part of StatusItemControl used by hosts
 // that report native pointer entry and exit. Transitions run on the event loop.
-type StatusHoverControl interface {
+type statusHoverControl interface {
 	SetStatusHover(func(anchor StatusAnchor, entered bool)) bool
 }
 
-// StatusMenuControl is the optional part of StatusItemControl used by hosts
+// statusMenuControl is the optional part of StatusItemControl used by hosts
 // that cache the native menu outside the application.
-type StatusMenuControl interface{ RefreshMenu() }
+type statusMenuControl interface{ RefreshMenu() }
 
 // SetHoverPreview shows build's window when the pointer rests on the icon.
 // Call it on the event loop. Passing nil disables the preview and closes it.
@@ -34,15 +35,18 @@ func (item *StatusItem) SetHoverPreview(build func() StatusPreview) bool {
 	if item == nil || item.removed.Load() {
 		return false
 	}
-	host, ok := item.control.(StatusHoverControl)
-	if !ok {
-		return false
-	}
 	if build == nil {
 		if preview := item.preview.Swap(nil); preview != nil {
 			preview.close()
 		}
-		return host.SetStatusHover(nil)
+		if host, ok := item.control.(statusHoverControl); ok {
+			return host.SetStatusHover(nil)
+		}
+		return true
+	}
+	host, ok := item.control.(statusHoverControl)
+	if !ok {
+		return false
 	}
 	if preview := item.preview.Load(); preview != nil {
 		preview.build = build
@@ -66,7 +70,7 @@ func (item *StatusItem) SetHoverPreview(build func() StatusPreview) bool {
 // change. Call it on the event loop. Hosts that build on each open do nothing.
 func (item *StatusItem) RefreshMenu() {
 	if item != nil && !item.removed.Load() {
-		if menu, ok := item.control.(StatusMenuControl); ok {
+		if menu, ok := item.control.(statusMenuControl); ok {
 			menu.RefreshMenu()
 		}
 	}
@@ -121,10 +125,10 @@ func (p *statusPreview) hover(anchor StatusAnchor, entered bool) {
 			closed()
 		}
 	}
-	window, _ := p.item.application.OpenWindow(cfg, nil)
+	window, err := p.item.application.OpenWindow(cfg, nil)
 	p.window = window
 	if spec.Opened != nil {
-		spec.Opened(window)
+		spec.Opened(window, err)
 	}
 }
 

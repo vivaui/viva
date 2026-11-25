@@ -106,7 +106,7 @@ func TestPanelAndOriginAreScaledToDevicePixels(t *testing.T) {
 	}
 }
 
-func TestTrayPanelUsesX11PixelsForScaledActivation(t *testing.T) {
+func TestTrayPanelPreservesHostAnchorAtScale(t *testing.T) {
 	if os.Getenv("VIVA_TEST_NOTIFICATION_XVFB") != "1" {
 		t.Skip("requires a private Xvfb server")
 	}
@@ -129,13 +129,13 @@ func TestTrayPanelUsesX11PixelsForScaledActivation(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		x, y int32
-		want platform.ScreenRect
 	}{
-		{"logical", 600, 660, pointer},
-		{"nearby logical hint", 590, 650, pointer},
-		{"device", 900, 990, pointer},
-		{"omitted", 0, 0, pointer},
-		{"distinct", 200, 20, platform.ScreenRect{X: 200, Y: 20}},
+		{"keyboard near pointer after scaling", 600, 660},
+		{"nearby host point", 590, 650},
+		{"pointer point", 900, 990},
+		{"screen origin", 0, 0},
+		{"other monitor", -600, 660},
+		{"distinct", 200, 20},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var anchor platform.ScreenRect
@@ -150,10 +150,11 @@ func TestTrayPanelUsesX11PixelsForScaledActivation(t *testing.T) {
 			args.Int32(test.x)
 			args.Int32(test.y)
 			item.(*linuxStatusItem).handleMethod(&dbus.Message{Member: "Activate", Signature: "ii", Body: args.Bytes()})
-			if anchor != test.want {
-				t.Fatalf("activation anchor = %+v, want %+v", anchor, test.want)
+			want := platform.ScreenRect{X: float32(test.x), Y: float32(test.y)}
+			if anchor != want {
+				t.Fatalf("activation anchor = %+v, want the host's point %+v", anchor, want)
 			}
-			if test.name != "logical" {
+			if test.name != "keyboard near pointer after scaling" {
 				return
 			}
 			panel, err := a.OpenWindow(platform.Config{
@@ -162,10 +163,11 @@ func TestTrayPanelUsesX11PixelsForScaledActivation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer panel.Close()
 			popup := panel.(*nativeWindow).state.win
 			x, y := popup.contentOrigin()
-			if int(x)+int(popup.width)/2 != int(pointer.X) || int(y)+int(popup.height) != int(pointer.Y)-platform.PanelGap {
-				t.Fatalf("panel at %d,%d (%dx%d) does not sit above the tray click at %+v", x, y, popup.width, popup.height, pointer)
+			if int(x)+int(popup.width)/2 != int(want.X) || int(y)+int(popup.height) != int(want.Y)-platform.PanelGap {
+				t.Fatalf("panel at %d,%d (%dx%d) does not sit above the host anchor %+v", x, y, popup.width, popup.height, want)
 			}
 		})
 	}

@@ -60,38 +60,6 @@ func monotonicNow() int64 { return int64(time.Since(processStart)) }
 
 const panelDismissWindow = 350 * time.Millisecond
 
-// statusClickAnchor confirms a StatusNotifier coordinate hint against the X11
-// pointer. A host using logical pixels can otherwise put the panel on the
-// wrong monitor. Keep a distinct hint, such as an icon activated by keyboard.
-func (application *linuxApplication) statusClickAnchor(anchor platform.ScreenRect) platform.ScreenRect {
-	if len(application.windows) == 0 {
-		return anchor
-	}
-	win := application.windows[0].win
-	x, y, ok := win.pointerPosition()
-	if !ok {
-		return anchor
-	}
-	pointer := platform.ScreenRect{X: float32(x), Y: float32(y)}
-	if anchor == (platform.ScreenRect{}) {
-		return pointer
-	}
-	scale := win.displayScale()
-	if scale <= 1 {
-		return anchor
-	}
-	monitor, _ := monitorAt(win.placementMonitors(), x, y)
-	originX, originY := float32(monitor.X), float32(monitor.Y)
-	scaledX := originX + (anchor.X-originX)*scale
-	scaledY := originY + (anchor.Y-originY)*scale
-	// An icon-center hint can differ from the click by half a tray button.
-	tolerance := 16 * float64(scale)
-	if math.Abs(float64(scaledX-pointer.X)) <= tolerance && math.Abs(float64(scaledY-pointer.Y)) <= tolerance {
-		return pointer
-	}
-	return anchor
-}
-
 // panelOrigin is where a panel's window is created: beside its anchor, or in the
 // middle of the screen without one.
 func (win *window) panelOrigin(config platform.Config) (x, y int16) {
@@ -396,10 +364,9 @@ var dialStatus = func() (statusConnection, error) { return dbus.DialSession() }
 // statusNotifier is the application's connection to the session bus and the
 // icons it has registered with the desktop's StatusNotifier host.
 type statusNotifier struct {
-	clickAnchor func(platform.ScreenRect) platform.ScreenRect
-	conn        statusConnection
-	items       map[string]*linuxStatusItem // by the bus name each is registered under
-	post        func(command uint32)        // wakes the event loop from another goroutine
+	conn  statusConnection
+	items map[string]*linuxStatusItem // by the bus name each is registered under
+	post  func(command uint32)        // wakes the event loop from another goroutine
 	// pending is the registration call in flight to each watcher, by the serial
 	// the call was sent with. The host may answer it long after it was sent,
 	// while the icon already serves the properties the host asks for.
@@ -446,9 +413,6 @@ func (services *desktopServices) AddStatusItem(config platform.StatusItemConfig)
 		}
 		services.status = &statusNotifier{
 			conn: conn, items: make(map[string]*linuxStatusItem), pending: make(map[uint32]pendingRegistration), post: services.host.post,
-		}
-		if host, ok := services.host.(*linuxApplication); ok {
-			services.status.clickAnchor = host.statusClickAnchor
 		}
 		services.host.rebuildPoll()
 	}
@@ -781,11 +745,10 @@ func (item *linuxStatusItem) handleMethod(call *dbus.Message) {
 		return
 	}
 	dismissed := time.Duration(monotonicNow()-panelDismissedAt.Load()) < panelDismissWindow
-	// The host reports a point rather than the bounds of the icon.
+	// Use the host's point unchanged. Activate does not identify a coordinate
+	// scale or input device: proximity to the pointer cannot distinguish a
+	// keyboard activation from a host using logical pixels.
 	anchor := platform.ScreenRect{X: float32(x), Y: float32(y)}
-	if item.notifier.clickAnchor != nil {
-		anchor = item.notifier.clickAnchor(anchor)
-	}
 	item.onClick(platform.StatusClick{
 		Button:         button,
 		Anchor:         anchor,
