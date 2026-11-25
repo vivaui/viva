@@ -424,6 +424,12 @@ func ID(c C) gfx.ID { return base.ID(c) }
 // WithID names a control with an identity the application holds; see base.WithID.
 func WithID(id gfx.ID) Option { return base.WithID(id) }
 
+// MaxLength caps a text control at n runes; see base.MaxLength.
+func MaxLength(n int) Option { return base.MaxLength(n) }
+
+// ShowCount shows the rune count at the end of a text field; see base.ShowCount.
+func ShowCount() Option { return base.ShowCount() }
+
 func NewPage(config PageConfig) *Page { useTooltip(); return base.NewPage(config) }
 
 func Shortcut(c C, modifiers gfx.Modifiers, key string) bool {
