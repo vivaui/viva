@@ -80,7 +80,6 @@ func runPackage(arguments []string, output, errorOutput io.Writer) error {
 	})
 	flags.StringVar(&sign.identity, "sign-identity", "", "macOS: sign with this identity (default $APPLE_SIGNING_IDENTITY); - signs ad hoc, for this Mac only")
 	flags.StringVar(&sign.entitlements, "entitlements", "", "macOS: entitlements property list to sign with (default [mac] entitlements)")
-	flags.StringVar(&sign.provisionProfile, "provision-profile", "", "macOS: optional authorized .provisionprofile (default $APPLE_PROVISION_PROFILE)")
 	flags.BoolVar(&sign.notarize, "notarize", false, "macOS: require notarization (it happens anyway when the credentials are in the environment)")
 	flags.BoolVar(&sign.skip, "no-sign", false, "do not sign or notarize even if the environment is set up to")
 	flags.StringVar(&sign.signCommand, "sign-command", "", "windows: a command that signs {file} in place, for a key in a token or a signing service (default $WINDOWS_SIGN_COMMAND)")

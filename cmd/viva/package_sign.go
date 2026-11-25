@@ -33,16 +33,11 @@ import (
 
 // macSigning is what a package run was asked to sign and notarize.
 type macSigning struct {
-	identity            string
-	keychain            string // keychain holding the identity, or empty for the search list
-	entitlements        string
-	notarize            bool
-	notary              []string // credential arguments for notarytool; may hold a password
-	provisionProfile    string
-	profileData         []byte
-	profileTeam         string
-	profileCertificates [][]byte
-	profileDirectory    string
+	identity     string
+	keychain     string // keychain holding the identity, or empty for the search list
+	entitlements string
+	notarize     bool
+	notary       []string // credential arguments for notarytool; may hold a password
 }
 
 func (signing macSigning) signs() bool { return signing.identity != "" }
@@ -88,11 +83,10 @@ func firstLines(text string, count int) string {
 
 // signingOptions are the command line's say in signing.
 type signingOptions struct {
-	identity         string
-	entitlements     string
-	provisionProfile string
-	notarize         bool
-	skip             bool
+	identity     string
+	entitlements string
+	notarize     bool
+	skip         bool
 	// signCommand is the Windows custom sign command (see package_winsign.go).
 	signCommand string
 }
@@ -102,7 +96,7 @@ type signingOptions struct {
 func resolveSigning(options signingOptions, environment func(string) string, manifestEntitlements string) (macSigning, error) {
 	var signing macSigning
 	if options.skip {
-		if options.notarize || options.identity != "" || options.provisionProfile != "" {
+		if options.notarize || options.identity != "" {
 			return signing, errors.New("--no-sign cannot be combined with --sign-identity or --notarize")
 		}
 		return signing, nil
@@ -118,13 +112,6 @@ func resolveSigning(options signingOptions, environment func(string) string, man
 	signing.entitlements = options.entitlements
 	if signing.entitlements == "" {
 		signing.entitlements = manifestEntitlements
-	}
-	signing.provisionProfile = options.provisionProfile
-	if signing.provisionProfile == "" {
-		signing.provisionProfile = environment("APPLE_PROVISION_PROFILE")
-	}
-	if signing.provisionProfile != "" && (!signing.signs() || signing.adHoc()) {
-		return signing, errors.New("a provisioning profile needs a real signing identity; ad hoc or unsigned packages cannot use restricted keychain entitlements")
 	}
 	signing.notary = notaryCredentials(environment)
 	if options.notarize {
@@ -283,9 +270,6 @@ func (signing macSigning) signPath(run toolRunner, path string, bundle bool) err
 	}
 	if bundle {
 		_, err := run("codesign", "--verify", "--strict", "--deep", path)
-		if err == nil && len(signing.profileData) != 0 {
-			err = signing.verifyProfileSignature(run, path)
-		}
 		return err
 	}
 	_, err := run("codesign", "--verify", "--strict", path)
