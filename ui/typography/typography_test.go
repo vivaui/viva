@@ -1,3 +1,5 @@
+//go:build !js
+
 package typography_test
 
 import (

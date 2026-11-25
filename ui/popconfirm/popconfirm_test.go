@@ -1,3 +1,5 @@
+//go:build !js
+
 package popconfirm_test
 
 import (

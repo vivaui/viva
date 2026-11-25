@@ -1,3 +1,5 @@
+//go:build !js
+
 package editabletabs_test
 
 import (
