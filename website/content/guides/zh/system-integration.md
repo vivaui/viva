@@ -149,6 +149,116 @@ func main() {
 }
 ```
 
+## 托盘预览
+
+`StatusItem.SetHoverPreview` 让应用提供一个小窗口，Viva 负责成对的进入、离开事件、锚定和延迟关闭。通过 `StatusPreview.Opened` 接收打开错误，在失败时释放已经准备的页面。应用状态变化后调用 `RefreshMenu`，让缓存菜单的 Linux 宿主刷新内容。
+
+Windows 支持可见任务栏图标的悬停，macOS 支持状态栏按钮。Linux 的 StatusNotifier 协议不提供成对悬停事件，因此需要保留点击或菜单入口。X11 原样使用宿主给出的激活点；协议没有标明坐标单位，缩放桌面上的宿主若给出逻辑坐标，浮层仍可能偏移，不能通过鼠标距离猜测缩放或键盘激活。Wayland 定位由合成器决定。需要实机验证的边界见[平台一致性记录](https://github.com/vivaui/viva/blob/main/docs/conformance.md#status-previews)。
+
+执行 `go run ./examples/guides/status-preview` 可以运行完整示例。
+
+<!-- example: status-preview/main.go -->
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"runtime"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/ui"
+)
+
+// AppKit must start on the process's main thread.
+func init() { runtime.LockOSThread() }
+
+func main() {
+	if err := app.RunApplication(run); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(application *app.Application) error {
+	var main, preview *app.Window
+	var tray *app.StatusItem
+	var wake, previewWake app.Invalidator
+	unread := 1
+	show := func() {
+		if preview != nil {
+			preview.Close()
+		}
+		main.Show()
+	}
+	build := func() app.StatusPreview {
+		page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+			ui.Column(c).Fill().Pad(12).Gap(8).Children(func() {
+				ui.Text(c, fmt.Sprintf("%d unread messages", unread))
+				if ui.Button(c, "Open application").Clicked() {
+					c.Canvas().AfterPaint(show)
+				}
+			})
+		}})
+		config := ui.Configure(page, app.Config{
+			Title: "Unread messages", Width: 240, Height: 96, Invalidator: &previewWake,
+			OnClosed: func() { preview = nil },
+		})
+		return app.StatusPreview{Config: config, Opened: func(window *app.Window, err error) {
+			if err != nil {
+				page.Close()
+				log.Printf("open status preview: %v", err)
+				return
+			}
+			preview = window
+		}}
+	}
+	var err error
+	main, err = ui.OpenWindow(application, app.Config{Title: "Status preview", Width: 400, Height: 180, Invalidator: &wake}, ui.PageConfig{
+		View: func(c ui.C) {
+			ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+				ui.Text(c, fmt.Sprintf("%d unread messages", unread))
+				if ui.Button(c, "Add a message").Clicked() {
+					unread++
+					previewWake.Invalidate()
+					if tray != nil {
+						// Linux hosts cache their menu. Notify them when its text changes.
+						tray.RefreshMenu()
+					}
+				}
+			})
+		},
+	})
+	if err != nil {
+		return err
+	}
+	tray, err = application.AddStatusItem(app.StatusItemConfig{
+		Tooltip: "Status preview", Icon: app.StatusIcon{Size: 1, RGBA: []byte{70, 130, 210, 255}, Template: true},
+		OnClick: func(click app.StatusClick) {
+			if click.PanelDismissed {
+				return
+			}
+			// Click remains available on hosts without paired hover events.
+			spec := build()
+			spec.Config.WindowMode, spec.Config.Anchor = app.WindowPanel, click.Anchor
+			window, err := application.OpenWindow(spec.Config, nil)
+			spec.Opened(window, err)
+		},
+		Menu: func() []app.MenuItem {
+			return []app.MenuItem{
+				{Title: fmt.Sprintf("%d unread messages", unread), ID: "unread", OnSelect: show},
+				{Title: "Quit", OnSelect: application.Quit},
+			}
+		},
+	})
+	if err != nil {
+		log.Printf("status area unavailable; main window remains usable: %v", err)
+		return nil
+	}
+	tray.SetHoverPreview(build)
+	return nil
+}
+```
+
 ## 值得了解的边界
 
 - Linux 上的文件对话框、URL 分发和通知，会在用户请求时启动已安装的桌面工具。Viva 不捆绑 GTK、Qt 或 D-Bus 栈。
