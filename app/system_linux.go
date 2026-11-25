@@ -84,7 +84,7 @@ func nativeOpenFiles(options OpenFileOptions) ([]string, error) {
 }
 
 func nativeOpenDirectory(options OpenDirectoryOptions) (string, error) {
-	path, canceled, err := linuxplatform.OpenDirectory(linuxplatform.OpenDirectoryOptions{Title: options.Title})
+	path, canceled, err := linuxplatform.OpenDirectory(linuxplatform.OpenDirectoryOptions{Title: options.Title, InitialDirectory: options.InitialDirectory})
 	if canceled {
 		return "", ErrCanceled
 	}

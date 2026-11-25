@@ -2,6 +2,8 @@
 
 #import "core.h"
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
 #include "cursor_owner_darwin.h"
 #include "label_geometry.h"
 #include "main_menu_darwin.h"
@@ -5340,7 +5342,28 @@ int viva_unregister_font_file(const char *path) {
     _size = size;
     _scale = MAX(scale, 1.0);
     _clear = clear;
-    _device = MTLCreateSystemDefaultDevice();
+    /* The default stays the system device, which is what a window uses. On
+     * dual-GPU Intel Macs where offscreen Metal renders black with that device,
+     * VIVA_HEADLESS_METAL_DEVICE=low-power opts into the integrated GPU. */
+    const char *deviceOption = getenv("VIVA_HEADLESS_METAL_DEVICE");
+    BOOL preferLowPower = deviceOption != NULL && strcmp(deviceOption, "low-power") == 0;
+    if (deviceOption != NULL && !preferLowPower && strcmp(deviceOption, "default") != 0) {
+        fprintf(stderr, "viva: ignoring VIVA_HEADLESS_METAL_DEVICE=%s (expected default or low-power)\n",
+                deviceOption);
+    }
+    if (preferLowPower) {
+        NSArray<id<MTLDevice>> *devices = MTLCopyAllDevices();
+        for (id<MTLDevice> candidate in devices) {
+            if (candidate.isLowPower) {
+                _device = [candidate retain];
+                break;
+            }
+        }
+        [devices release];
+    }
+    if (_device == nil) {
+        _device = MTLCreateSystemDefaultDevice();
+    }
     _queue = _device != nil ? [_device newCommandQueue] : nil;
     if (_queue == nil || library == NULL || length == 0) {
         [self release];

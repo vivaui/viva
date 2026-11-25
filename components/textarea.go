@@ -274,7 +274,12 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			if snapshot.Disabled {
 				selectedColor.Alpha *= 0.50
 			}
-			canvas.Label(line, labelBounds, gfx.TextStyle{Size: fontSize, Weight: weight, Color: selectedColor})
+			selectedStyle := gfx.TextStyle{Size: fontSize, Weight: weight, Color: selectedColor}
+			if snapshot.PaintLine != nil {
+				snapshot.PaintLine(canvas, line, labelBounds, selectedStyle)
+			} else {
+				canvas.Label(line, labelBounds, selectedStyle)
+			}
 			canvas.Unclip()
 		}
 	}

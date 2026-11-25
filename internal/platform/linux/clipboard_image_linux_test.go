@@ -131,8 +131,19 @@ func TestClipboardImageAfterExternalOwnerReplacesCachedText(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Do not pump the window's pending SelectionClear event.
-	if owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom); err != nil || owner == win.id {
-		t.Fatalf("external owner did not claim the clipboard: %d, %v", owner, err)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		owner, err := selectionOwner(win.api, win.connection, win.clipboardAtom)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if owner != xcbAtomNone && owner != win.id {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatalf("external owner did not claim the clipboard: %d", owner)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	got, err := ClipboardImagePNG()
 	if err != nil || !bytes.Equal(got, picture) {

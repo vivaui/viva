@@ -275,6 +275,8 @@ func (v *View) Declare(c ui.C, spec Spec) ui.Box {
 				state.Content = max(state.Content, height)
 				target := spec.PadY + float32(index)*v.lineH - (state.Viewport-v.lineH)/2
 				state.ScrollTo(min(max(target, 0), max(state.Content-state.Viewport, 0)))
+				// The area was declared before the request. Lay out this paint at the new offset.
+				outer.N().Scroll = state.Offset
 			}
 		}
 		height = max(height, state.Viewport)

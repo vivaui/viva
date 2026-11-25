@@ -58,6 +58,8 @@ type OpenFileOptions struct {
 
 type OpenDirectoryOptions struct {
 	Title string
+	// InitialDirectory is the starting folder. Empty uses the platform default.
+	InitialDirectory string
 }
 
 type SaveFileOptions struct {
@@ -552,6 +554,9 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 		if err := configureFileDialog(dialog, options.Title, nil, flags); err != nil {
 			return err
 		}
+		if err := setFileDialogDirectory(dialog, options.InitialDirectory); err != nil {
+			return err
+		}
 		status := uint32(comCall1(dialog, 3, dialogOwner()))
 		if status == dialogCanceled {
 			canceled = true
@@ -569,6 +574,29 @@ func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
 		return err
 	})
 	return path, canceled, err
+}
+
+func setFileDialogDirectory(dialog uintptr, directory string) error {
+	if directory == "" {
+		return nil
+	}
+	name, err := syscall.UTF16PtrFromString(directory)
+	if err != nil {
+		return err
+	}
+	itemInterface := guid{Data1: 0x43826d1e, Data2: 0xe718, Data3: 0x42ee, Data4: [8]byte{0xbc, 0x55, 0xa1, 0xe2, 0x61, 0xc3, 0x7b, 0xfe}}
+	var item uintptr
+	status, _, _ := shell.NewProc("SHCreateItemFromParsingName").Call(
+		uintptr(unsafe.Pointer(name)), 0, uintptr(unsafe.Pointer(&itemInterface)), uintptr(unsafe.Pointer(&item)),
+	)
+	if err := hresult(status); err != nil {
+		return fmt.Errorf("windows: create initial directory shell item: %w", err)
+	}
+	defer release(&item)
+	if err := hresult(comCall1(dialog, 12, item)); err != nil {
+		return fmt.Errorf("windows: set initial directory: %w", err)
+	}
+	return nil
 }
 
 func SaveFile(options SaveFileOptions) (string, bool, error) {
