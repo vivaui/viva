@@ -102,12 +102,16 @@ type webKit struct {
 	actionRequest               func(action uintptr) uintptr
 	actionUserGesture           func(action uintptr) int32
 	actionRedirect              func(action uintptr) int32 // 2.20, nil before
-	uriRequestURI               func(request uintptr) uintptr
-	downloadRequest             func(download uintptr) uintptr
-	downloadWebView             func(download uintptr) uintptr
-	downloadSetDestination      func(download uintptr, destination *byte)
-	downloadAllowOverwrite      func(download uintptr, allow int32)
-	downloadCancel              func(download uintptr)
+	// Web Inspector; nil when the library lacks one, and a page then has no developer tools.
+	setDeveloperExtras     func(settings uintptr, enabled int32)
+	viewInspector          func(view uintptr) uintptr
+	inspectorShow          func(inspector uintptr)
+	uriRequestURI          func(request uintptr) uintptr
+	downloadRequest        func(download uintptr) uintptr
+	downloadWebView        func(download uintptr) uintptr
+	downloadSetDestination func(download uintptr, destination *byte)
+	downloadAllowOverwrite func(download uintptr, allow int32)
+	downloadCancel         func(download uintptr)
 	// viewNetworkSession is 2.40; before it the context's download-started is used instead.
 	viewNetworkSession func(view uintptr) uintptr
 	// downloadDestinationPath says set_destination takes a path (2.40 and later) rather than a URI,
@@ -213,6 +217,9 @@ func loadWebKit(g *gtkLibrary) (*webKit, error) {
 		g.lookup(&k.schemeCORS, "webkit_security_manager_register_uri_scheme_as_cors_enabled")
 		// A redirect is not a user gesture even when the request that led to it was one.
 		g.lookup(&k.actionRedirect, "webkit_navigation_action_is_redirect")
+		g.lookup(&k.setDeveloperExtras, "webkit_settings_set_enable_developer_extras")
+		g.lookup(&k.viewInspector, "webkit_web_view_get_inspector")
+		g.lookup(&k.inspectorShow, "webkit_web_inspector_show")
 		g.lookup(&k.viewNetworkSession, "webkit_web_view_get_network_session")
 		k.free = g.symbol("g_free")
 		if !g.lookup(&k.contextEphemeral, "webkit_web_context_new_ephemeral") ||

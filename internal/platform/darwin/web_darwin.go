@@ -255,6 +255,20 @@ func (page *darwinWeb) Focus() {
 	}
 }
 
+// ShowDevTools opens Web Inspector for the page. A WebKit without the inspector SPI still leaves the
+// page inspectable, and says it could not open the inspector itself.
+func (page *darwinWeb) ShowDevTools() error {
+	if !page.usable() {
+		return fmt.Errorf("darwin: the web view with id %d is closed", page.id)
+	}
+	if C.viva_web_show_dev_tools(page.native) == 0 {
+		return fmt.Errorf("%w: this WebKit cannot open Web Inspector from the application; the page is inspectable from its context menu or Safari's Develop menu", platform.ErrWebViewUnsupported)
+	}
+	return nil
+}
+
+var _ platform.WebDevTools = (*darwinWeb)(nil)
+
 func (page *darwinWeb) Close() {
 	if !page.usable() {
 		return
