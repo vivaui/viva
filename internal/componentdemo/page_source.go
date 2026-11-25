@@ -69,7 +69,7 @@ var pageSource = map[string]string{
 	"hover-card":        "ui/hovercard/hovercard.go",
 	"avatar-editor":     "ui/avatareditor/avatareditor.go",
 	"reorder-grid":      "ui/reordergrid/reordergrid.go",
-	"alert":             "base/box.go",
+	"alert":             "ui/alert/alert.go",
 	"aspect-ratio":      "ui/aspectratio/aspectratio.go",
 	"attachment":        "ui/attachment/attachment.go",
 	"avatar":            "ui/avatar/avatar.go",

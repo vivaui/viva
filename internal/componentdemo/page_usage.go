@@ -86,7 +86,7 @@ ui.Table(c, &m.table, ui.TableSpec{
 	"hover-card":        `hovercard.View(c, "@viva-framework", &m.hoverCard)`,
 	"avatar-editor":     `m.avatarEditor.View(c, "Image crop").FillWidth().MaxWidth(440)`,
 	"reorder-grid":      `m.reorderGrid.View(c, "Host order").FillWidth().Height(220)`,
-	"alert":             `ui.Row(c).FillWidth().Pad(14).Gap(10).Background(c.Theme().Card).Border(1, c.Theme().Border).Children(func() { ui.Text(c, "Sync complete").Bold() })`,
+	"alert":             `m.notice.View(c, alert.Spec{Status: ui.StatusWarning, Title: "Host key changed", Closable: true}).FillWidth()`,
 	"aspect-ratio":      `aspectratio.View(c, "16:9 release preview", m.media, func() { ui.Text(c, "16:9 release preview").Muted() })`,
 	"attachment":        `m.attachment.View(c, "product-demo.mov").FillWidth()`,
 	"avatar":            `m.avatar.View(c, "Skyler").Size(64, 64)`,
