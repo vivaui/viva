@@ -135,6 +135,7 @@ const chineseComponentNames: Record<string, string> = {
   'scroll-area': '滚动区域',
   separator: '分隔线',
   breadcrumb: '面包屑',
+  'editable-tabs': '可编辑标签页',
   menubar: '菜单栏',
   'navigation-menu': '导航菜单',
   pagination: '分页',
