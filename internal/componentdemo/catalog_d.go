@@ -9,5 +9,6 @@ var groupDComponents = []Component{
 	inputNumberComponent,
 	rateComponent,
 	stepsComponent,
+	timePickerComponent,
 	timelineComponent,
 }
