@@ -22,9 +22,14 @@ func paintTableRows(f *Frame, t *TableDecl, rows Rect, First, Last int, top, con
 		w.SetCells(make([]string, len(t.GetSpec().Columns)))
 	}
 	cells := w.GetCells()[:len(t.GetSpec().Columns)]
+	lead := t.GetLead()
 	for row := First; row < Last; row++ {
 		for column := range cells {
-			cells[column] = t.GetSpec().Source.Cell(row, column)
+			if column < lead {
+				cells[column] = "" // the column of checkboxes has no text
+				continue
+			}
+			cells[column] = t.GetSpec().Source.Cell(row, column-lead)
 		}
 		if t.GetSpec().Striped && row%2 == 1 {
 			stripe := f.Palette.Muted
@@ -38,6 +43,9 @@ func paintTableRows(f *Frame, t *TableDecl, rows Rect, First, Last int, top, con
 			id = gfx.ID{}
 		}
 		table.RowState(id, cells, components.TableRowState{Selected: row == t.GetState().Selected()})
+		if lead > 0 && !id.IsZero() {
+			paintRowCheckbox(f, t, row, Rect{X: rows.X, Y: top + float32(row)*rowHeight, Width: t.GetSpec().Columns[0].Width, Height: rowHeight})
+		}
 	}
 }
 
@@ -103,8 +111,9 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 	cells := components.TableCellBounds(t.GetSpec().Columns, bounds, base.WidgetsOf(f).GetRects()[:0])
 	base.WidgetsOf(f).SetRectsCells(cells[:0])
 	hover := f.Palette.Hover
+	lead := t.GetLead()
 	for column, cell := range cells {
-		if column < len(t.GetSpec().Columns) && t.GetSpec().Columns[column].Sortable && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column) {
+		if column >= lead && column < len(t.GetSpec().Columns) && t.GetSpec().Columns[column].Sortable && !t.GetSpec().Header.IsZero() && canvas.Hovered() == t.GetSpec().Header.At(column-lead) {
 			canvas.Fill(cell, hover)
 		}
 	}
@@ -125,12 +134,15 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 	if fontSize <= 0 {
 		fontSize = metrics.FontSizeM
 	}
+	if lead > 0 && len(cells) > 0 {
+		paintHeaderCheckbox(f, t, cells[0])
+	}
 	for column, cell := range cells {
-		if column >= len(t.GetSpec().Columns) || !t.GetSpec().Columns[column].Sortable || t.GetSpec().Header.IsZero() {
+		if column < lead || column >= len(t.GetSpec().Columns) || !t.GetSpec().Columns[column].Sortable || t.GetSpec().Header.IsZero() {
 			continue
 		}
 		title := t.GetSpec().Columns[column].Title
-		if isSorted && sorted == column {
+		if isSorted && sorted == column-lead {
 			arrow := "↑"
 			if descending {
 				arrow = "↓"
@@ -146,6 +158,39 @@ func paintTableHeaderRow(f *Frame, t *TableDecl, r Rect, headerHeight, rowHeight
 			}
 			canvas.LabelCenter(arrow, Rect{X: x, Y: cell.Y, Width: 12, Height: cell.Height}, gfx.TextStyle{Size: fontSize, Weight: gfx.WeightMedium, Color: f.Palette.MutedForeground})
 		}
-		canvas.HitWithLabel(t.GetSpec().Header.At(column), cell, title)
+		canvas.HitWithLabel(t.GetSpec().Header.At(column-lead), cell, title)
 	}
+}
+
+// checkSize is the side of a table's checkbox.
+const checkSize = 16
+
+// paintRowCheckbox paints the checkbox of a row in the cell of the column of
+// checkboxes; a click on it was applied where the table was declared.
+func paintRowCheckbox(f *Frame, t *TableDecl, row int, cell Rect) {
+	canvas := f.Surface
+	id := base.CheckID(canvas, t.GetSpec().Rows, row)
+	label := t.GetSpec().SelectRowLabel
+	if label == "" {
+		label = "Select row"
+	}
+	box := Rect{X: cell.X + (cell.Width-checkSize)/2, Y: cell.Y + (cell.Height-checkSize)/2, Width: checkSize, Height: checkSize}
+	components.BeginCheckbox(canvas, f.Palette, id, box, t.GetSpec().Checked.Has(row)).Label(label).Paint()
+}
+
+// paintHeaderCheckbox paints the checkbox of the header: ticked when every row is,
+// mixed when some are.
+func paintHeaderCheckbox(f *Frame, t *TableDecl, cell Rect) {
+	canvas := f.Surface
+	id := base.HeaderCheckID(canvas, t.GetSpec().Rows)
+	label := t.GetSpec().SelectAllLabel
+	if label == "" {
+		label = "Select all rows"
+	}
+	box := Rect{X: cell.X + (cell.Width-checkSize)/2, Y: cell.Y + (cell.Height-checkSize)/2, Width: checkSize, Height: checkSize}
+	checkbox := components.BeginCheckbox(canvas, f.Palette, id, box, t.AllChecked()).Label(label)
+	if t.SomeChecked() && !t.AllChecked() {
+		checkbox = checkbox.Indeterminate()
+	}
+	checkbox.Paint()
 }

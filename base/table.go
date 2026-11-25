@@ -48,6 +48,17 @@ type TableSpec struct {
 	// width still fits. It applies to the preferred width and to painting.
 	FitHeadings bool
 	Source      TableSource
+	// Checked, when set, gives the table a leading column of checkboxes, one for each
+	// row, and a checkbox in the header that checks or clears every row: the rows
+	// checked are the keys of the Selection, the application's to read and to change.
+	// It is separate from the row the user has selected (TableState.Selected), as the
+	// ticks of a file list are from its highlighted row. The column is not one of
+	// Columns: the indexes of Source.Cell, Header and TableState.SortBy stay those of
+	// Columns.
+	Checked *Selection
+	// SelectAllLabel and SelectRowLabel are the accessible names of the header's
+	// checkbox and of a row's, "Select all rows" and "Select row" when empty.
+	SelectAllLabel, SelectRowLabel string
 	// RowHeight is the height of every row, header included; zero takes the
 	// theme's TableRowHeight and TableHeaderHeight.
 	RowHeight float32
@@ -117,12 +128,19 @@ type TableState struct {
 	selected int32 // 1 + the row, or 0
 	// changed is a selection the user made, reported by Changed in the paint
 	// changedAt: the one a click is delivered in, or the one after a key.
-	changed          bool
-	changedAt        uint32
-	sortColumn       int32 // 1 + the column, or 0
-	descending       bool
-	reveal           bool      // scroll the selected row into view at the next paint
-	rows, page       int32     // as of the last paint: how many rows, how many fit at once
+	changed    bool
+	changedAt  uint32
+	sortColumn int32 // 1 + the column, or 0
+	descending bool
+	reveal     bool  // scroll the selected row into view at the next paint
+	rows, page int32 // as of the last paint: how many rows, how many fit at once
+	lead       int32 // 1 when the last paint had a column of checkboxes in front
+	// checkedChanged is whether the paint being declared delivered a tick or untick:
+	// see CheckedChanged.
+	checkedChanged bool
+	// checkDone is the checkbox whose click this paint has already applied, so a
+	// table painted in two passes (frozen columns) applies it once.
+	checkDone        gfx.ID
 	rowFirst, rowEnd int32     // the declared source rows: rowFirst <= i < rowEnd
 	scope            gfx.Scope // the rows' identities, to tell a key meant for the table
 	// cellLefts are the painted columns' left edges and the last column's right
@@ -243,6 +261,12 @@ type TableDecl struct {
 	// and paints from. It keeps its capacity across frames, so a warm table
 	// fits no heading into a new allocation.
 	columns []style.TableColumn
+	// lead is 1 when the table has a column of checkboxes in front of its Columns,
+	// and userColumns the Columns the application declared, which spec.Columns
+	// follows from with that column in front. withLead is the buffer it is built in.
+	lead        int
+	userColumns []style.TableColumn
+	withLead    []style.TableColumn
 	// even is a table none of whose columns has a width: its columns share its
 	// width equally, the last taking what rounding leaves.
 	even bool
@@ -289,18 +313,22 @@ func (f *Frame) Table(state *TableState, spec TableSpec) Box {
 	if spec.Source != nil {
 		rows = max(spec.Source.Len(), 0)
 	}
-	decl := TableDecl{spec: spec, state: state, rows: rows}
+	decl := TableDecl{spec: spec, state: state, rows: rows, userColumns: spec.Columns}
+	state.checkedChanged, state.checkDone = false, gfx.ID{}
 	if index < cap(*decls) {
 		// Reuse the titles, and the fitted columns of a table that fits or shares,
 		// of this table from the last paint even though the fit itself waits for
 		// the element's FontSize in resolveTables.
 		last := &(*decls)[:cap(*decls)][index]
-		decl.titles = last.titles
+		decl.titles, decl.withLead = last.titles, last.withLead
 		if spec.FitHeadings || tableColumnsShare(spec.Columns) {
 			decl.columns = last.columns
 		}
 	}
 	*decls = append(*decls, decl)
+	if spec.Checked != nil {
+		f.applyCheckClick(&(*decls)[index])
+	}
 	return b
 }
 
@@ -314,6 +342,7 @@ func (f *Frame) resolveTables() {
 			continue
 		}
 		decl := &(*decls)[n.Aux]
+		decl.spec.Columns = decl.userColumns
 		decl.fontSize = decl.spec.FontSize
 		if n.FontSet {
 			decl.fontSize = n.FontSize
@@ -330,15 +359,37 @@ func (f *Frame) resolveTables() {
 			// the declared ones are left as the application wrote them.
 			decl.columns = append(decl.columns[:0], decl.spec.Columns...)
 			decl.spec.Columns, decl.even = decl.columns, true
+			decl.addLead()
 			continue
 		}
 		if !decl.spec.FitHeadings || f.Surface == nil || len(decl.spec.Columns) == 0 {
+			decl.addLead()
 			continue
 		}
 		decl.columns = append(decl.columns[:0], decl.spec.Columns...)
 		fitTableHeadings(f.Surface, f.Palette, decl.columns, decl.fontSize, decl.spec.CellPadding)
 		decl.spec.Columns = decl.columns
+		decl.addLead()
 	}
+}
+
+// tableCheckWidth is the width of the column of checkboxes.
+const tableCheckWidth = 40
+
+// addLead puts the column of checkboxes in front of the columns and the title
+// that goes with it in front of the titles, for a table given Checked.
+func (t *TableDecl) addLead() {
+	t.lead = 0
+	if t.spec.Checked == nil {
+		return
+	}
+	t.lead = 1
+	t.withLead = append(t.withLead[:0], style.TableColumn{Width: tableCheckWidth, Alignment: style.TableAlignCenter})
+	t.withLead = append(t.withLead, t.spec.Columns...)
+	t.spec.Columns = t.withLead
+	t.titles = append(t.titles, "")
+	copy(t.titles[1:], t.titles)
+	t.titles[0] = ""
 }
 
 // fitTableHeadings widens each fixed-width column of columns that is narrower
@@ -469,8 +520,10 @@ func (f *Frame) paintTable(n *Node) {
 	// and never inside a ScrollArea, whose viewport (sideways or not) owns the
 	// table's width; such a table is only ever clipped.
 	if t.even {
-		share := float32(math.Floor(float64(r.Width / float32(len(t.spec.Columns)))))
-		for i := range t.spec.Columns[:len(t.spec.Columns)-1] {
+		// The columns after the column of checkboxes share what it leaves.
+		room := r.Width - tableColumnsWidth(t.spec.Columns[:t.lead])
+		share := float32(math.Floor(float64(room / float32(len(t.spec.Columns)-t.lead))))
+		for i := t.lead; i < len(t.spec.Columns)-1; i++ {
 			t.spec.Columns[i].Width = share
 		}
 	}
@@ -532,7 +585,7 @@ func (f *Frame) paintTable(n *Node) {
 	frozenWidth := float32(0)
 	frozenColumns := 0
 	if sideways {
-		frozenColumns = frozenColumnCount(t.spec.Columns, t.spec.FrozenColumns)
+		frozenColumns = frozenColumnCount(t.spec.Columns, t.spec.FrozenColumns+min(t.lead, t.spec.FrozenColumns))
 		frozenWidth = frozenColumnsWidth(t.spec.Columns, frozenColumns)
 		if frozenWidth <= 0 || frozenWidth >= body.Width {
 			frozenWidth, frozenColumns = 0, 0

@@ -139,6 +139,34 @@ ui.Table(c, &m.table, ui.TableSpec{
     Source:  &bills,
 })
 ui.Text(c, "项目左对齐，状态居中，金额右对齐。").Muted()`},
+		{ID: "checked", Title: "勾选列", Description: "Checked 在最左加一列复选框，表头复选框全选或清空，部分勾选时为半选；勾选与选中行互不影响，列索引仍是 Columns 的。", Snippet: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`, PageSnippet: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`, PageSnippetZh: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
 headings := []string{"Item", "Status", "Amount"}
 components.FitTableHeadings(canvas, theme, columns, headings)
@@ -180,6 +208,7 @@ ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Mu
 // warm paint allocates nothing.
 type tableDemo struct {
 	state   ui.TableState
+	checked ui.Selection
 	rows    [3][3]string
 	source  ui.TableRows
 	columns []style.TableColumn
@@ -234,6 +263,10 @@ func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 		}
 		if state.exampleID == "overflow" {
 			spec.FitHeadings = true
+		}
+		if state.exampleID == "checked" {
+			spec.Checked = &demo.checked
+			spec.SelectAllLabel, spec.SelectRowLabel = state.Text("全选", "Select all rows"), state.Text("选择此行", "Select row")
 		}
 		table := ui.Table(c, &demo.state, spec)
 		if state.exampleID == "selection" {

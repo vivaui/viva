@@ -515,6 +515,7 @@ func (m *model) page(c ui.C) {
 
   A header cell is clickable only where the column is `Sortable`; a `Title` alone draws a heading nobody can click, and a table none of whose columns has a `Title` has no header row. In a
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
+  `Checked: &m.checked` (a `ui.Selection` of row numbers kept in the model) puts a column of checkboxes in front of the columns, with a header checkbox that ticks every row, clears them and shows mixed while some are ticked; `state.CheckedChanged()` reports a tick in the paint that delivered it. The ticks are separate from the selected row, and `Source.Cell`, `HeaderClicked` and `CellRect` keep the indexes of `Columns`.
   its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
   for assistive technology, `ScrollbarSize` sets its thickness (else the page's `PageConfig.ScrollbarSize`) and
   `ScrollbarGutter` keeps a strip beside the columns for it. An application painting its own vertical bar sets
