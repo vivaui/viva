@@ -414,11 +414,13 @@ const (
 	// get_DocumentTitle 48 (add_DocumentTitleChanged is 46, remove_DocumentTitleChanged 47). The
 	// load's end is NavigationCompleted 15 on that same interface, and a failed one is told apart
 	// through its event args below.
-	viewGetCanGoBack      = 38
-	viewGetCanGoForward   = 39
-	viewGetDocumentTitle  = 48
-	viewAddWebResourceReq = 55
-	viewAddResourceFilter = 57
+	viewGetCanGoBack     = 38
+	viewGetCanGoForward  = 39
+	viewGetDocumentTitle = 48
+	// OpenDevToolsWindow follows RemoveHostObjectFromScript 50.
+	viewOpenDevToolsWindow = 51
+	viewAddWebResourceReq  = 55
+	viewAddResourceFilter  = 57
 	// ICoreWebView2_4 adds DownloadStarting after every ICoreWebView2_3 method.
 	viewAddDownloadStarting = 75
 	messageTryGetString     = 5
