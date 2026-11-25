@@ -41,6 +41,9 @@ type Size = base.Size
 type Point = base.Point
 type Theme = base.Theme
 
+// SliderMark is a value of a Slider's range marked on its track; see Box.Marks.
+type SliderMark = base.SliderMark
+
 // Option is a setting a control takes after its fixed arguments, as WithID.
 type Option = base.Option
 

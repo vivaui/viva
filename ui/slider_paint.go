@@ -10,7 +10,12 @@ func paintSlider(f *Frame, n *Node) {
 	f.SettleSlider(n)
 	d := &base.WidgetsOf(f).GetSliders()[n.Aux]
 	s := d.GetState()
-	s.SetArea(n.Rect)
+	area := n.Rect
+	if n.Natural <= 0 && hasLabelledMark(d.GetMarks()) {
+		// The words of the marks hang below the track, in the room measure gave them.
+		area.Height = min(area.Height, 16)
+	}
+	s.SetArea(area)
 	if n.Flags&FlagThemed == 0 {
 		// A SliderBase paints nothing of its own: it is the slider to the pointer, the
 		// keyboard and assistive technology, over the element's whole rectangle.
@@ -28,7 +33,7 @@ func paintSlider(f *Frame, n *Node) {
 		})
 		return
 	}
-	slider := components.BeginSlider(f.Surface, f.Palette, n.ID, n.Rect, s.Value).Range(s.GetMin(), s.GetMax()).Step(s.GetStep()).ValueText(s.ValueText())
+	slider := components.BeginSlider(f.Surface, f.Palette, n.ID, area, s.Value).Range(s.GetMin(), s.GetMax()).Step(s.GetStep()).ValueText(s.ValueText()).Marks(d.GetMarks())
 	if n.Natural > 0 {
 		slider = slider.Vertical()
 	}
@@ -40,6 +45,16 @@ func paintSlider(f *Frame, n *Node) {
 		label = "Slider"
 	}
 	slider.Paint(label)
+}
+
+// hasLabelledMark reports whether any mark has a word.
+func hasLabelledMark(marks []base.SliderMark) bool {
+	for _, mark := range marks {
+		if mark.Label != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // sliderPointer moves the slider under the pointer.
