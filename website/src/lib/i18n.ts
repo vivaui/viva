@@ -249,6 +249,105 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   'column-resize': { summary: 'A row of columns whose dividers drag to resize a neighbouring pair and double-click to fit the left column.', examples: {
     'file-list': ['File list', 'Drag a divider to move it, or double-click it to fit the column to its content.'],
   } },
+  comment: { summary: "One comment of a discussion: avatar, author and time, text, action buttons and nested replies.", examples: {
+    default: ["Comment with a reply", "The actions are the page's own buttons and the replies are comments the page declares inside Replies, so a thread of any depth is one function."],
+  } },
+  descriptions: { summary: "Key-value pairs laid out in columns, with optional borders, vertical labels and a compact size.", examples: {
+    default: ["Detail list", "Labels come first and values after, laid out in columns per row; an entry that spans columns takes several."],
+    bordered: ["Bordered", "A table look with tinted label cells; Vertical puts each label above its value."],
+  } },
+  tag: { summary: "Short labels with status colors, an outline, three sizes, a close button and a toggle form.", examples: {
+    default: ["Status and outline", "Default, success, warning and danger share ui.Status; Outlined draws only the border."],
+    interactive: ["Closable and checkable", "The close button removes a tag; a checkable tag is a switch whose state the page keeps."],
+    sizes: ["Sizes", "Small, Default and Large; the icon and the close button scale with them."],
+  } },
+  timeline: { summary: "Events in the order they happened, with a dot whose color says how each went.", examples: {
+    default: ["Event timeline", "The dot's color expresses the outcome; Pending adds a hollow dot at the end for what is still to come."],
+    labels: ["Time column", "LabelWidth lines the times up in one column."],
+  } },
+  'expandable-text': { summary: "Text clipped to a number of rows, with a button to expand it and one to copy it.", examples: {
+    default: ["Expand and copy", "Text over Rows rows ends in an ellipsis and Expandable adds an Expand button (Copyable also adds a button that puts the full text on the clipboard, not demonstrated here); whether it is clipped follows the width of the last paint."],
+  } },
+  typography: { summary: "Theme-driven roles for document text.", examples: {
+    hierarchy: ["Heading levels", "The sizes and weights of H1 to H4."],
+    content: ["Body roles", "Paragraph, lead, large and small body text."],
+    muted: ["Emphasis and muted", "Body text, emphasized text and muted notes."],
+  } },
+  alert: { summary: "A notice that stays in the page: a status icon, a title and a description, with an optional action and close button.", examples: {
+    default: ["Description", "An ordinary notice with a supporting description."],
+    variants: ["Statuses", "Default, success, warning and danger share ui.Status, with colors from the theme."],
+    actions: ["Action, close and banner", "Action and Closable add buttons to the notice, and a closed notice stays closed; Banner drops the rounded corners and side rims for the top of a page."],
+  } },
+  empty: { summary: "A centered figure, title and description for when there is nothing to show.", examples: {
+    default: ["No projects", "The icon is drawn directly above the title, with room below for a button."],
+    icon: ["Icon container", "Boxed puts the icon in a muted rounded square."],
+  } },
+  'progress-ring': { summary: "Circular progress: fills clockwise in proportion, can take a status color, or spin without end.", examples: {
+    default: ["Ring and status colors", "Segments splits a bar into parts, the first ones filled in proportion; Circle draws the bar as a ring, Status fills it in the success, warning or danger color; an Indeterminate ring turns continuously and stands still when the system asks for reduced motion."],
+  } },
+  result: { summary: "The outcome page of a task: a large status icon, a title, a description and what to do next.", examples: {
+    default: ["Success", "The status decides the icon and the color; the action area holds the next step's buttons."],
+    failure: ["Failure and warning", "Danger and warning follow the same ui.Status."],
+  } },
+  'date-picker': { summary: "Choose a date: a button shows it and opens a calendar, with a range limit and keyboard support.", examples: {
+    default: ["Choose a date", "The calendar opens on the chosen date, or today; arrow keys move, PageUp and PageDown change the month, Enter chooses."],
+    range: ["Limited range", "Dates outside Min and Max are dimmed and cannot be chosen; FirstWeekday sets the first day of the week."],
+  } },
+  'input-number': { summary: "Number entry with step buttons and arrow keys, and a configurable range and number of decimals.", examples: {
+    default: ["Number with a range", "Enter applies a typed number, and so does leaving the field; a number out of range is clamped. Up and Down step, PageUp and PageDown by ten times."],
+    decimals: ["Decimals and read only", "The decimals follow the step; ReadOnly only shows the number."],
+  } },
+  rate: { summary: "A star rating: click to choose, half stars and clearing are optional, and a read-only one only shows the score.", examples: {
+    default: ["Star rating", "Click to choose and click the chosen star to clear it; hovering previews and the arrow keys adjust."],
+    half: ["Half stars and read only", "AllowHalf takes half stars; ReadOnly only shows the score."],
+  } },
+  'select-groups': { summary: "Heading rows between the groups of a select's list.", examples: {
+    default: ["Grouped options", "SelectGroups adds a heading row before the first option of each group; a heading is not an option, so it cannot be focused, clicked or found by typing, and Picked, DisabledOptions and Icons still use the options' own indexes. Options must be sorted by group."],
+  } },
+  'slider-marks': { summary: "Ticks and text marks along a slider's track.", examples: {
+    default: ["Slider with marks", "Marks draws a dot on the track for each value and puts its text below; a horizontal slider with text grows taller to make room."],
+  } },
+  'time-picker': { summary: "Choose a time: hour and minute columns, optionally seconds, taking effect at once on click or arrow keys.", examples: {
+    default: ["Choose a time", "The wheel scrolls a column and a click chooses a number; Up and Down change the current column, Left and Right switch columns, Enter closes."],
+    seconds: ["With seconds", "Seconds adds a column; SecondStep limits the step of the seconds."],
+  } },
+  transfer: { summary: "Move items between two lists, with select-all and disabled items.", examples: {
+    default: ["Move between two lists", "Tick items and press the button between the lists to move them; the tick in a list's head ticks or clears all of it; disabled items are never ticked or moved."],
+  } },
+  upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
+    default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],
+  } },
+  card: { summary: "A uniform surface and spacing around content the caller lays out.", examples: {
+    default: ["Project summary", "The default card holds a title, a figure and a footer."],
+    compact: ["Compact card", "Size: Small reduces the padding and spacing."],
+  } },
+  'labeled-divider': { summary: "A divider with one word on it, centered or near one end.", examples: {
+    default: ["Divider with text", "A word in the middle of the line or near one end, such as the \"or\" between two ways to sign in."],
+  } },
+  anchor: { summary: "An in-page table of contents: a list of links to the sections of a long page, with a rail marking the one in view.", examples: {
+    default: ["Table of contents", "A click on a link makes the page scroll to its section and tell the control which one is current; Level indents nested headings."],
+  } },
+  breadcrumb: { summary: "Hierarchy navigation with links, a collapsed middle and the current place.", examples: {
+    default: ["Project path", "The caller owns what a link does; the last item only marks where the user is."],
+    overflow: ["Collapsed path", "Max puts the middle levels behind an ellipsis that opens a menu to choose from."],
+  } },
+  'editable-tabs': { summary: "A strip of tabs that can be closed, added and scrolled, like an editor's or a terminal's.", examples: {
+    default: ["Close and add", "A tab is as wide as its title; the \u00d7 or a middle click or Delete closes it and + adds one. The control only reports, and the page keeps the tabs; a pinned tab has no close button."],
+    overflow: ["Overflow scrolling", "A strip longer than its room scrolls with the wheel and keeps the current tab in view."],
+  } },
+  pagination: { summary: "Compact paging in which the caller keeps the current page.", examples: {
+    default: ["Page navigation", "Previous, the page numbers and Next update the current page together."],
+    pager: ["Total and jump", "Total lays out the window of page numbers itself and keeps the page in range; typing a page number and pressing Enter jumps to it."],
+    sizes: ["Rows per page", "Changing the rows per page keeps the first visible row in view."],
+    boundaries: ["Boundary states", "On the first page Previous is disabled, and the ellipsis stays."],
+  } },
+  steps: { summary: "The stages of a task in order: finished, current, not yet started and failed.", examples: {
+    default: ["Horizontal steps", "Finished steps are ticked and the current one is highlighted; a clickable strip changes the current step with a click or the keyboard."],
+    vertical: ["Vertical, dots and error", "Laid out vertically with dot markers; a current step that failed is shown in the danger color."],
+  } },
+  popconfirm: { summary: "A light confirmation next to a button: a question, an optional explanation and two answers.", examples: {
+    default: ["Confirm a delete", "The button opens the question; confirming or canceling closes it, and Esc or a click outside closes it without answering. An irreversible consequence should still use AlertDialog."],
+  } },
 };
 
 const chineseSections: Record<string, Record<string, Omit<Section, 'ID'>>> = {
