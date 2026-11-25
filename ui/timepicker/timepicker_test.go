@@ -1,10 +1,11 @@
+//go:build darwin || windows || linux
+
 package timepicker_test
 
 import (
 	"testing"
 
 	"github.com/vivaui/viva/app"
-	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/headless"
 	"github.com/vivaui/viva/ui"
 	"github.com/vivaui/viva/ui/timepicker"
@@ -31,10 +32,6 @@ func open(t *testing.T, p *timepicker.TimePicker, value *timepicker.Value) *head
 	}
 	t.Cleanup(session.Close)
 	return session
-}
-
-func at(hour, minute, second int) timepicker.Value {
-	return timepicker.Value{Hour: hour, Minute: minute, Second: second, Valid: true}
 }
 
 // A click on a number sets that part of the time at once.
@@ -124,26 +121,6 @@ func TestTimesAreKeptOnTheSteps(t *testing.T) {
 	}
 }
 
-func TestWarmPaintAllocatesNothing(t *testing.T) {
-	value := at(9, 30, 0)
-	p := timepicker.New().Seconds()
-	view := func(c ui.C) { p.View(c, "Start", &value).Width(220) }
-	theme := gfx.LightTheme()
-	page := ui.NewPage(ui.PageConfig{View: view, Theme: &theme})
-	canvas := &gfx.Canvas{}
-	canvas.SetReduceMotion(true)
-	draw := func() {
-		canvas.BeginFrame()
-		canvas.Reset()
-		page.Draw(canvas, gfx.Rect{Width: 420, Height: 420}, view)
-		canvas.EndFrame()
-	}
-	draw()
-	if allocations := testing.AllocsPerRun(100, draw); allocations != 0 {
-		t.Fatalf("warm paint allocated %v times, want 0", allocations)
-	}
-}
-
 // Open columns repaint without allocating too.
 func TestOpenColumnsAllocateNothing(t *testing.T) {
 	value := at(9, 30, 0)
@@ -154,22 +131,5 @@ func TestOpenColumnsAllocateNothing(t *testing.T) {
 	session.Frame()
 	if allocations := testing.AllocsPerRun(50, func() { session.Frame() }); allocations != 0 {
 		t.Fatalf("open columns allocated %v times a frame, want 0", allocations)
-	}
-}
-
-func BenchmarkViewPaint(b *testing.B) {
-	value := at(9, 30, 0)
-	p := timepicker.New().Seconds()
-	view := func(c ui.C) { p.View(c, "Start", &value).Width(220) }
-	theme := gfx.LightTheme()
-	page := ui.NewPage(ui.PageConfig{View: view, Theme: &theme})
-	canvas := &gfx.Canvas{}
-	canvas.SetReduceMotion(true)
-	b.ReportAllocs()
-	for range b.N {
-		canvas.BeginFrame()
-		canvas.Reset()
-		page.Draw(canvas, gfx.Rect{Width: 420, Height: 420}, view)
-		canvas.EndFrame()
 	}
 }

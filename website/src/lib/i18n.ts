@@ -168,6 +168,14 @@ const chineseComponentNames: Record<string, string> = {
   'chart-downsample': '图表降采样',
   'split-button': '分离按钮',
   list: '列表',
+  'date-picker': '日期选择器',
+  descriptions: '描述列表',
+  'input-number': '数字输入框',
+  rate: '评分',
+  steps: '步骤条',
+  'time-picker': '时间选择器',
+  timeline: '时间线',
+  transfer: '穿梭框',
 };
 
 export function componentName(locale: Locale, id: string, fallback: string): string {
