@@ -113,6 +113,13 @@ type Config struct {
 	// supplied it. Without one the panel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
+	// Transparent composites the window over the desktop: the part of the canvas
+	// left at ClearColor's alpha shows what is behind the window. It makes a
+	// ClearColor of zero mean fully transparent instead of the default fill, and
+	// is how a window asks for per-pixel transparency at creation. Ask
+	// CapabilityTransparentWindow first; where it is missing the window is
+	// opaque and takes the default fill.
+	Transparent bool
 	// WindowBorderColor is read at every paint and names the color of the
 	// border Windows 11 draws around a custom-titlebar window. The system
 	// composites that border against what is behind the window rather than
@@ -337,8 +344,11 @@ func (config Config) normalize() (Config, error) {
 		return Config{}, err
 	}
 
+	if !Supports(CapabilityTransparentWindow) {
+		config.Transparent = false
+	}
 	color := config.ClearColor
-	if color == (Color{}) && config.WindowMode != windowPreview {
+	if color == (Color{}) && config.WindowMode != windowPreview && !config.Transparent {
 		config.ClearColor = Color{Red: 0.055, Green: 0.065, Blue: 0.09, Alpha: 1}
 	} else if !validColor(color) {
 		return Config{}, fmt.Errorf("app: clear color components must be between 0 and 1")
