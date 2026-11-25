@@ -14,7 +14,7 @@ var pageUsage = map[string]string{
 	"time-picker":   `m.start.View(c, "Start", &m.startAt)`,
 	"transfer":      `m.moves.View(c, "Hosts", transfer.Spec{Items: m.hosts})`,
 	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
-	"empty":         `ui.Column(c).Fill().Center()`,
+	"empty":         `empty.View(c, empty.Spec{Title: "No projects yet"}, nil).Fill()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
 	"card":          `card.View(c, card.Spec{Title: "Native preview", Description: "Keeps nodes."}, func() { ui.Text(c, "0").Bold() }).FillWidth()`,
 	"label":         `ui.Text(c, "Name").LabelFor(fieldID)`,

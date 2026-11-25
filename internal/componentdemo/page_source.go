@@ -49,7 +49,7 @@ var pageSource = map[string]string{
 	"label":             "base/elements.go",
 	"card":              "ui/card/card.go",
 	"item":              "base/box.go",
-	"empty":             "base/box.go",
+	"empty":             "ui/empty/empty.go",
 	"bubble":            "ui/bubble.go",
 	"accordion":         "ui/disclosure.go",
 	"collapsible":       "ui/disclosure.go",
