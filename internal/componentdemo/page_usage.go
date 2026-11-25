@@ -11,6 +11,7 @@ var pageUsage = map[string]string{
 	"input-number":  `m.port.View(c, "Port", &m.portValue)`,
 	"date-picker":   `m.due.View(c, "Due date", &m.dueDate)`,
 	"time-picker":   `m.start.View(c, "Start", &m.startAt)`,
+	"transfer":      `m.moves.View(c, "Hosts", transfer.Spec{Items: m.hosts})`,
 	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,

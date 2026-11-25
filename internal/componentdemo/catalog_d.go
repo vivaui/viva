@@ -11,4 +11,5 @@ var groupDComponents = []Component{
 	stepsComponent,
 	timePickerComponent,
 	timelineComponent,
+	transferComponent,
 }
