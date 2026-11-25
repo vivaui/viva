@@ -66,3 +66,24 @@ func TestFieldWarning(t *testing.T) {
 		t.Fatal("a Field with Warning set paints no warning border")
 	}
 }
+
+// A Progress takes the color of its status for its fill, and the primary without one.
+func TestProgressStatusColorsTheFill(t *testing.T) {
+	for name, test := range map[string]struct {
+		status ui.Status
+		want   gfx.Color
+	}{
+		"default": {ui.StatusDefault, pageTheme.Primary},
+		"success": {ui.StatusSuccess, pageTheme.Success},
+		"warning": {ui.StatusWarning, pageTheme.Warning},
+		"danger":  {ui.StatusDanger, pageTheme.Danger},
+	} {
+		d := openPage(t, func(c ui.C) { ui.Progress(c, 0.5).Status(test.status).Width(200) })
+		if !hasColor(d, test.want) {
+			t.Fatalf("%s: the fill is not painted in %+v", name, test.want)
+		}
+		if test.status != ui.StatusDefault && hasColor(d, pageTheme.Primary) {
+			t.Fatalf("%s: the fill kept the primary color", name)
+		}
+	}
+}

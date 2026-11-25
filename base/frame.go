@@ -123,8 +123,9 @@ type Node struct {
 	Label                string
 	Variant              style.Variant
 	ButtonSize           style.Size
-	RowSpan              uint8 // the rows a Grid child covers; zero is one
-	OutOfFlow            uint8 // absolute positioning: see absolute.go
+	Status               style.Status // the outcome a Progress reports through its fill
+	RowSpan              uint8        // the rows a Grid child covers; zero is one
+	OutOfFlow            uint8        // absolute positioning: see absolute.go
 
 	MaxLines             int32     // a wrapped Text breaks into at most this many lines
 	LineFirst, LineCount int32     // its lines, in frame.lines

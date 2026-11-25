@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/style"
 )
 
 // progressHeight and progressWidth are what a Progress is when it is given neither.
@@ -47,6 +48,20 @@ func (b Box) Indeterminate() Box {
 	if n := b.N(); n.Kind == kindProgress {
 		n.Natural = -1
 	}
+	return b
+}
+
+// Status colors the fill of a Progress by the outcome it reports: success, warning or
+// danger take the theme's color for it in place of the primary one, and the default
+// keeps the primary. It is the same vocabulary as an alert or a tag.
+//
+//	ui.Progress(c, m.done/m.total).Status(ui.StatusSuccess)
+func (b Box) Status(status style.Status) Box {
+	n := b.N()
+	if n.Kind != kindProgress {
+		panic("ui: Status is for a Progress")
+	}
+	n.Status = status
 	return b
 }
 
