@@ -3,8 +3,10 @@
 package linux
 
 import (
+	"os"
 	"testing"
 
+	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/platform"
@@ -101,5 +103,70 @@ func TestPanelAndOriginAreScaledToDevicePixels(t *testing.T) {
 	config = platform.Config{WindowMode: platform.WindowTitled, Width: 280, Height: 200, HasOrigin: true, Origin: gfx.Point{X: 100, Y: 50.5}}
 	if x, y := win.panelOrigin(config); x != 200 || y != 101 {
 		t.Fatalf("origin 100,50.5 at 2x is %d,%d, want 200,101", x, y)
+	}
+}
+
+func TestTrayPanelUsesX11PixelsForScaledActivation(t *testing.T) {
+	if os.Getenv("VIVA_TEST_NOTIFICATION_XVFB") != "1" {
+		t.Skip("requires a private Xvfb server")
+	}
+	t.Setenv("VIVA_SCALE", "1.5")
+	t.Setenv("VIVA_SOFTWARE_RENDERING", "1")
+	services, _ := statusTestServices(t, watcherNames[0])
+	a := &linuxApplication{}
+	defer a.closeAll()
+	services.host = a
+	main, err := a.OpenWindow(platform.Config{Width: 180, Height: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	win := main.(*nativeWindow).state.win
+	pointer := platform.ScreenRect{X: 900, Y: 990}
+	var warp func(uintptr, uint32, uint32, int16, int16, uint16, uint16, int16, int16) xcbVoidCookie
+	purego.RegisterLibFunc(&warp, win.api.library, "xcb_warp_pointer")
+	warp(win.connection, xcbAtomNone, win.screen.Root, 0, 0, 0, 0, int16(pointer.X), int16(pointer.Y))
+
+	for _, test := range []struct {
+		name string
+		x, y int32
+		want platform.ScreenRect
+	}{
+		{"logical", 600, 660, pointer},
+		{"nearby logical hint", 590, 650, pointer},
+		{"device", 900, 990, pointer},
+		{"omitted", 0, 0, pointer},
+		{"distinct", 200, 20, platform.ScreenRect{X: 200, Y: 20}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var anchor platform.ScreenRect
+			item, err := services.AddStatusItem(platform.StatusItemConfig{
+				Icon: statusTestIcon(), OnClick: func(click platform.StatusClick) { anchor = click.Anchor },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer item.Remove()
+			var args dbus.Encoder
+			args.Int32(test.x)
+			args.Int32(test.y)
+			item.(*linuxStatusItem).handleMethod(&dbus.Message{Member: "Activate", Signature: "ii", Body: args.Bytes()})
+			if anchor != test.want {
+				t.Fatalf("activation anchor = %+v, want %+v", anchor, test.want)
+			}
+			if test.name != "logical" {
+				return
+			}
+			panel, err := a.OpenWindow(platform.Config{
+				Width: 180, Height: 66, WindowMode: platform.WindowPanel, HasAnchor: true, Anchor: anchor,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			popup := panel.(*nativeWindow).state.win
+			x, y := popup.contentOrigin()
+			if int(x)+int(popup.width)/2 != int(pointer.X) || int(y)+int(popup.height) != int(pointer.Y)-platform.PanelGap {
+				t.Fatalf("panel at %d,%d (%dx%d) does not sit above the tray click at %+v", x, y, popup.width, popup.height, pointer)
+			}
+		})
 	}
 }
