@@ -24,6 +24,7 @@ var pageUsage = map[string]string{
 	"anchor":          `m.toc.View(c, "On this page", anchor.Spec{Items: m.sections, Active: m.section})`,
 	"comment":         `comment.View(c, comment.Spec{Author: "Ada", Content: text}).FillWidth()`,
 	"image-preview":   `m.preview.View(c, imagepreview.Spec{Bitmap: m.bitmap, Title: "Screenshot"})`,
+	"mentions":        `m.mentions.View(c, &m.message, "Message", "", mentions.Spec{Options: m.people}).FillWidth()`,
 	"upload":          `m.upload.View(c, "Attachments", upload.Spec{Items: m.files, Multiple: true})`,
 	"toggle-group":    `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":           `empty.View(c, empty.Spec{Title: "No projects yet"}, nil).Fill()`,

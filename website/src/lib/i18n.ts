@@ -185,6 +185,7 @@ const chineseComponentNames: Record<string, string> = {
   anchor: '锚点',
   comment: '评论',
   'image-preview': '图片预览',
+  mentions: '提及',
   'labeled-divider': '带文字分隔线',
   'editable-tabs': '可编辑标签页',
   steps: '步骤条',
@@ -317,6 +318,9 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   } },
   'image-preview': { summary: "A dialog to look at a picture larger than its thumbnail: zoom, fit, actual size and drag to pan.", examples: {
     default: ["Thumbnail and preview", "The thumbnail is the page's own control and calls Open when it is pressed; the wheel, + and - zoom, 0 fits again, a drag pans and Escape closes."],
+  } },
+  mentions: { summary: "A text field that offers people or tags after a trigger such as @, and writes the chosen one in place of what was typed.", examples: {
+    default: ["Type @ to mention", "Type @ and a few letters at the start of a word and the list filters by what the labels contain; Up and Down move, Enter or Tab chooses, Escape closes, and pressing an option does not take the keyboard from the field."],
   } },
   upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
     default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],
