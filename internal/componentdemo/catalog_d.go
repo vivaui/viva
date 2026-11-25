@@ -6,4 +6,5 @@ package componentdemo
 var groupDComponents = []Component{
 	descriptionsComponent,
 	stepsComponent,
+	timelineComponent,
 }

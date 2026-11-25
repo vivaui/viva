@@ -6,6 +6,7 @@ package componentdemo
 var pageUsage = map[string]string{
 	"steps":         `steps.View(c, "Checkout", &m.step, steps.Spec{Steps: m.stages, Clickable: true})`,
 	"descriptions":  `descriptions.View(c, "Host details", descriptions.Spec{Items: m.details, Columns: 2, Bordered: true})`,
+	"timeline":      `timeline.View(c, "History", timeline.Spec{Items: m.events, Pending: "Waiting"})`,
 	"toggle-group":  `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":         `ui.Column(c).Fill().Center()`,
 	"item":          `ui.Row(c).Gap(8).FillWidth()`,
