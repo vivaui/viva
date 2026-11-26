@@ -648,6 +648,9 @@ func (x *MenuRow) GetChecked() int8 { return x.checked }
 // GetDescription reads the description of MenuRow for the styled painting layer.
 func (x *MenuRow) GetDescription() string { return x.description }
 
+// GetMnemonic reads the mnemonic of MenuRow for the styled painting layer.
+func (x *MenuRow) GetMnemonic() string { return x.mnemonic }
+
 // GetDestructive reads the destructive of MenuRow for the styled painting layer.
 func (x *MenuRow) GetDestructive() bool { return x.destructive }
 

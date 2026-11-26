@@ -27,12 +27,15 @@ func TestAnUnpaintedMenuDrawsItsOwnPartsAndKeepsItsHits(t *testing.T) {
 					rows = append(rows, parts)
 					parts.Canvas.Fill(parts.Rect, rowColor)
 				})
-			menu.Item("One")
+			menu.Item("One").Mnemonic("o")
 			menu.Item("Two")
 		})
 	})
 	if len(rows) != 2 || rows[0].Label != "One" || rows[1].Label != "Two" {
 		t.Fatalf("rows = %+v, want two actions", rows)
+	}
+	if rows[0].Mnemonic != "o" {
+		t.Fatalf("mnemonic = %q, want o", rows[0].Mnemonic)
 	}
 	if rows[0].Rect.Height <= 0 {
 		t.Errorf("the first row has no rectangle: %+v", rows[0].Rect)

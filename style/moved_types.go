@@ -14,6 +14,7 @@ type MenuItemPaint struct {
 	Theme       gfx.Theme
 	Bounds      gfx.Rect
 	Label       string
+	Mnemonic    string
 	Description string
 	Shortcut    string
 	Checked     bool

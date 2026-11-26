@@ -164,11 +164,12 @@ func BenchmarkMenuOpen(b *testing.B) {
 }
 
 type contextModel struct {
-	hosts          []string
-	connected      string
-	wrap           bool
-	open           bool
-	renames, opens int
+	hosts           []string
+	connected       string
+	wrap            bool
+	open            bool
+	connectDisabled bool
+	renames, opens  int
 }
 
 func (m *contextModel) page(c ui.C) {
@@ -176,7 +177,7 @@ func (m *contextModel) page(c ui.C) {
 		for _, h := range m.hosts {
 			row := ui.Button(c.Key(h), h)
 			ui.ContextMenu(c, row, func(menu *ui.MenuItems) {
-				if menu.Item("Connect").Clicked() {
+				if menu.Item("Connect").Mnemonic("r").Disabled(m.connectDisabled).Clicked() {
 					m.connected = h
 				}
 				if menu.Item("Rename").Keys(ui.Primary, "r").Clicked() {
@@ -227,6 +228,56 @@ func TestContextMenuOpensAtThePointer(t *testing.T) {
 	d.click("Connect")
 	if m.connected != "beta" {
 		t.Fatalf("connected %q, not the row pressed", m.connected)
+	}
+}
+
+func TestContextMenuMnemonicPrecedesLabelTypeahead(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, m.page)
+	alpha := d.hit("alpha").Bounds
+	x, y := alpha.X+5, alpha.Y+alpha.Height/2
+	if err := d.driver.ClickButton(x, y, gfx.PointerButtonSecondary); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.driver.ShortcutChord(0, 'r'); err != nil {
+		t.Fatal(err)
+	}
+	if focused := d.Focused(); focused != "Connect" {
+		t.Fatalf("mnemonic r focused %q, want Connect before Rename typeahead", focused)
+	}
+}
+
+func TestContextMenuDisabledMnemonicDoesNotCaptureKey(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}, connectDisabled: true}
+	d := openPage(t, m.page)
+	alpha := d.hit("alpha").Bounds
+	x, y := alpha.X+5, alpha.Y+alpha.Height/2
+	if err := d.driver.ClickButton(x, y, gfx.PointerButtonSecondary); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.driver.ShortcutChord(0, 'r'); err != nil {
+		t.Fatal(err)
+	}
+	if focused := d.Focused(); focused != "Rename" {
+		t.Fatalf("disabled mnemonic focused %q, want Rename via typeahead", focused)
+	}
+}
+
+func TestContextMenuMnemonicYieldsToALabelSearchInProgress(t *testing.T) {
+	m := &contextModel{hosts: []string{"alpha"}}
+	d := openPage(t, m.page)
+	alpha := d.hit("alpha").Bounds
+	if err := d.driver.ClickButton(alpha.X+5, alpha.Y+alpha.Height/2, gfx.PointerButtonSecondary); err != nil {
+		t.Fatal(err)
+	}
+	// W starts a label search; R would be the Connect mnemonic on its own.
+	for _, key := range "wr" {
+		if _, err := d.driver.ShortcutChord(0, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if focused := d.Focused(); focused == "Connect" {
+		t.Fatal("a mnemonic interrupted a label search in progress")
 	}
 }
 
