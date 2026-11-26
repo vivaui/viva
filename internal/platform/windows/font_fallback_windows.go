@@ -15,6 +15,7 @@ type unicodeRange struct{ first, last uint32 }
 // faceFallback is the font fallback a face draws the characters its family lacks with.
 type faceFallback struct {
 	face     gfx.MonoFace
+	fonts    uint32  // customFonts.revision the fallback was built against
 	fallback uintptr // an IDWriteFontFallback; 0 when it could not be made
 }
 
@@ -28,13 +29,18 @@ func (rasterizer *directRasterizer) fontFallback(face gfx.MonoFace) uintptr {
 	if len(names) == 0 {
 		return 0
 	}
+	customFonts.RLock()
+	fonts := customFonts.revision
+	customFonts.RUnlock()
 	for _, known := range rasterizer.fallbacks {
-		if known.face == face {
+		if known.face == face && known.fonts == fonts {
 			return known.fallback
 		}
 	}
 	fallback := rasterizer.buildFontFallback(names)
-	rasterizer.fallbacks = append(rasterizer.fallbacks, faceFallback{face: face, fallback: fallback})
+	// An older revision stays until the rasterizer closes: a text format made
+	// earlier may hold it, and fonts are registered before the first paint.
+	rasterizer.fallbacks = append(rasterizer.fallbacks, faceFallback{face: face, fonts: fonts, fallback: fallback})
 	return fallback
 }
 
@@ -68,7 +74,14 @@ func (rasterizer *directRasterizer) buildFontFallback(names []string) uintptr {
 	// of its own kind.
 	var addMapping func(this uintptr, ranges *unicodeRange, rangesCount uint32, names **uint16, namesCount uint32, collection uintptr, locale, base *uint16, scale float32) uintptr
 	purego.RegisterFunc(&addMapping, vtable(builder, writeBuilderAddMapping))
-	status := addMapping(builder, &everything, 1, &targets[0], uint32(len(targets)), 0, nil, nil, 1)
+	// The collection a text format is made from, the system's and the fonts the
+	// application registered, or the system's alone. A registered family is not
+	// in the system collection, so the fallback has to search this one or it is
+	// skipped as if it were not installed.
+	customFonts.RLock()
+	defer customFonts.RUnlock()
+	collection := customFonts.collection
+	status := addMapping(builder, &everything, 1, &targets[0], uint32(len(targets)), collection, nil, nil, 1)
 	runtime.KeepAlive(targets)
 	if hresult(status) != nil {
 		return 0
