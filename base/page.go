@@ -227,10 +227,11 @@ type PageConfig struct {
 	// or MaxLines, and the labels components shorten themselves, such as Table
 	// cells, Select values and menu items. It is off by default, which paints
 	// such text as before; Box.EllipsisTooltip turns it on or off for part of the
-	// page. Over the text, this tooltip takes the place of the Tooltip of the
-	// element the text is in. Only the pointer shows it, not keyboard focus; it is
-	// not in the accessibility tree, where a control keeps its complete name and
-	// value whatever its drawing shortens.
+	// page. The tooltip opens below the text, or beside the side
+	// Box.EllipsisTooltipOn gives. Over the text, this tooltip takes the place of
+	// the Tooltip of the element the text is in. Only the pointer shows it, not
+	// keyboard focus; it is not in the accessibility tree, where a control keeps
+	// its complete name and value whatever its drawing shortens.
 	EllipsisTooltips bool
 	// Invalidator wakes the window the page is drawn in when an Effect of the page
 	// finishes. Configure uses it instead of the app.Config's; a page the application

@@ -6,11 +6,25 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
-// What EllipsisTooltip set on an element; zero is what the element is inside.
+// What EllipsisTooltip and EllipsisTooltipOn set on an element, in one byte so
+// that painting checks a single field. The low bits are the switch, ellipsisTipOn
+// or ellipsisTipOff; the bits above are 1 + the side EllipsisTooltipOn gave.
+// Zero in either part follows what the element is inside.
 const (
 	ellipsisTipOn uint8 = 1 + iota
 	ellipsisTipOff
+
+	ellipsisTipSwitch    uint8 = 3
+	ellipsisTipSideShift       = 2
 )
+
+// ellipsisState is what the text being painted does with the tooltips of
+// shortened text: whether EllipsisTooltip's show, and 1 + the side every one
+// of them opens on, OverflowTooltip's too; a zero side opens them below.
+type ellipsisState struct {
+	on   bool
+	side uint8
+}
 
 // popupFrom is the element a Popup was declared in, which it takes no room in
 // but follows for EllipsisTooltip when it hangs off no element.
@@ -32,34 +46,81 @@ func (b Box) EllipsisTooltip(on bool) Box {
 	if on {
 		tip = ellipsisTipOn
 	}
-	b.f.Extra(b.i).ellipsisTip = tip
+	x := b.f.Extra(b.i)
+	x.ellipsisTip = x.ellipsisTip&^ellipsisTipSwitch | tip
 	b.f.ellipsisSet = true
 	return b
 }
 
-// setEllipsisTips sets whether what is painted next shows the tooltips
-// EllipsisTooltip describes, and returns what it was. Components see it as the
-// canvas's hover hint owner, which is zero while it is off.
-func (f *Frame) setEllipsisTips(on bool) bool {
-	was := f.ellipsisTips
-	if on != was && f.page != nil && f.Surface != nil {
-		f.ellipsisTips = on
-		var owner gfx.Scope
-		if on {
-			owner = f.page.root
+// EllipsisTooltipOn opens the tooltips of the shortened text in the element and
+// what it holds beside side of the text rather than below it, as TooltipOn does
+// for a Tooltip: those EllipsisTooltip shows and those OverflowTooltip gives. A
+// list in a sidebar on the window's left opens them to its right, over the
+// content beside it, and a status bar along the window's bottom opens them
+// above it. It does not turn them on. The nearest EllipsisTooltipOn decides, and
+// a Popup follows it as it follows EllipsisTooltip. Without room on side, a
+// tooltip opens on the opposite one.
+//
+//	ui.Column(c).EllipsisTooltipOn(ui.TooltipRight).Children(func() { … })
+func (b Box) EllipsisTooltipOn(side TooltipSide) Box {
+	b.N()
+	x := b.f.Extra(b.i)
+	x.ellipsisTip = x.ellipsisTip&ellipsisTipSwitch | (uint8(side)+1)<<ellipsisTipSideShift
+	b.f.ellipsisSet = true
+	return b
+}
+
+// under is the state inside an element given set, from state outside it.
+func (state ellipsisState) under(set uint8) ellipsisState {
+	if tip := set & ellipsisTipSwitch; tip != 0 {
+		state.on = tip == ellipsisTipOn
+	}
+	if side := set >> ellipsisTipSideShift; side != 0 {
+		state.side = side
+	}
+	return state
+}
+
+// setEllipsis sets what is painted next does with the tooltips of shortened
+// text, and returns what it did. Components see it on the canvas: as the hover
+// hint owner, which is zero while EllipsisTooltip's are off, and the hint side.
+func (f *Frame) setEllipsis(state ellipsisState) ellipsisState {
+	was := f.ellipsis
+	if state != was && f.page != nil && f.Surface != nil {
+		f.ellipsis = state
+		if state.on != was.on {
+			var owner gfx.Scope
+			if state.on {
+				owner = f.page.root
+			}
+			f.Surface.SetHoverHintOwner(owner)
 		}
-		f.Surface.SetHoverHintOwner(owner)
+		if state.side != was.side {
+			f.Surface.SetHoverHintSide(state.side)
+		}
 	}
 	return was
 }
 
-// ellipsisTipsAt reports whether element i shows the tooltips: the nearest
-// EllipsisTooltip on it or on what it is inside, or else the page's setting.
-func (f *Frame) ellipsisTipsAt(i int32) bool {
-	for steps := 0; i >= 0 && steps < len(f.Nodes); steps++ {
+// restoreHoverHints gives the canvas back the hover hint owner and side it had
+// before the frame painted, those of the page whose pane holds this one.
+func (f *Frame) restoreHoverHints(owner gfx.Scope, side uint8) {
+	f.Surface.SetHoverHintOwner(owner)
+	f.Surface.SetHoverHintSide(side)
+}
+
+// ellipsisAt is the state element i paints in: the nearest EllipsisTooltip and
+// EllipsisTooltipOn on it or on what it is inside, or else the page's setting.
+func (f *Frame) ellipsisAt(i int32) ellipsisState {
+	var tip, side uint8
+	for steps := 0; i >= 0 && steps < len(f.Nodes) && (tip == 0 || side == 0); steps++ {
 		n := &f.Nodes[i]
-		if tip := f.Exts[n.Ext].ellipsisTip; tip != 0 {
-			return tip == ellipsisTipOn
+		set := f.Exts[n.Ext].ellipsisTip
+		if tip == 0 {
+			tip = set & ellipsisTipSwitch
+		}
+		if side == 0 {
+			side = set >> ellipsisTipSideShift
 		}
 		switch {
 		case n.Parent >= 0:
@@ -70,7 +131,8 @@ func (f *Frame) ellipsisTipsAt(i int32) bool {
 			i = f.popupParent(i)
 		}
 	}
-	return f.page != nil && f.page.config.EllipsisTooltips
+	state := ellipsisState{on: f.page != nil && f.page.config.EllipsisTooltips}
+	return state.under(tip | side<<ellipsisTipSideShift)
 }
 
 // popupParent is the element Popup i was declared in, or -1 for the root and

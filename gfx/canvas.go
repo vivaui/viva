@@ -699,6 +699,7 @@ type Canvas struct {
 	hoverHints  []HoverHint
 
 	hoverHintOwner Scope
+	hoverHintSide  uint8
 	// hitTexts holds the text geometry of the hits that declared any, in
 	// declaration order; Hit.Text is one more than the entry's index.
 	hitTexts     []HitText
@@ -1036,7 +1037,7 @@ func (canvas *Canvas) Reset() {
 	canvas.runs = canvas.runs[:0]
 	canvas.hits = canvas.hits[:0]
 	canvas.hoverHints = canvas.hoverHints[:0]
-	canvas.hoverHintOwner = 0
+	canvas.hoverHintOwner, canvas.hoverHintSide = 0, 0
 	canvas.hitTexts = canvas.hitTexts[:0]
 	canvas.clips = canvas.clips[:0]
 	canvas.overlayClips = canvas.overlayClips[:0]

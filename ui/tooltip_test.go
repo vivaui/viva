@@ -375,6 +375,220 @@ func TestEllipsisTooltipSettingRedeclaresAMemo(t *testing.T) {
 	}
 }
 
+// tipBounds is where the tooltip of shortened text shows: its one line.
+func tipBounds(t *testing.T, d *pageDriver) gfx.Rect {
+	t.Helper()
+	for _, label := range d.driver.Snapshot().Labels {
+		if label.Layer == ui.TooltipLayer {
+			return label.Bounds
+		}
+	}
+	t.Fatal("no tooltip")
+	return gfx.Rect{}
+}
+
+// beside reports whether tip lies wholly on side of text.
+func beside(tip, text gfx.Rect, side ui.TooltipSide) bool {
+	switch side {
+	case ui.TooltipTop:
+		return tip.Y+tip.Height <= text.Y
+	case ui.TooltipRight:
+		return tip.X >= text.X+text.Width
+	case ui.TooltipLeft:
+		return tip.X+tip.Width <= text.X
+	}
+	return tip.Y >= text.Y+text.Height
+}
+
+// The page under the pointer and the bounds of the hint the pointer rests on.
+func hoveredHint(t *testing.T, d *pageDriver) gfx.Rect {
+	t.Helper()
+	hint := d.page.HoveredText()
+	if hint.Text == "" {
+		t.Fatal("no shortened text under the pointer")
+	}
+	return hint.Bounds
+}
+
+// openSidesPage opens a page large enough for a tooltip on every side of text
+// in its middle.
+func openSidesPage(t *testing.T, tips bool, View func(ui.C)) *pageDriver {
+	t.Helper()
+	return openPageWith(t, ui.PageConfig{View: View, EllipsisTooltips: tips}, app.Config{Width: 1200, Height: 900})
+}
+
+// EllipsisTooltipOn opens the tooltip beside the side it names, below by
+// default, and on the opposite side where its own has no room.
+func TestEllipsisTooltipOn(t *testing.T) {
+	const full = "Complete filename before the suffix.txt"
+	for _, side := range []ui.TooltipSide{ui.TooltipTop, ui.TooltipRight, ui.TooltipBottom, ui.TooltipLeft} {
+		var text ui.Box
+		d := openSidesPage(t, true, func(c ui.C) {
+			ui.Column(c).Pad(400).EllipsisTooltipOn(side).Children(func() {
+				text = ui.Text(c, full).Width(80).Ellipsis()
+			})
+		})
+		if err := d.driver.Move(center(text.Rect())); err != nil {
+			t.Fatal(err)
+		}
+		if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, side) {
+			t.Fatalf("side %d: the tooltip %v is not beside its text %v", side, tip, at)
+		}
+	}
+	var plain, top ui.Box
+	d := openSidesPage(t, true, func(c ui.C) {
+		ui.Column(c).Pad(4).EllipsisTooltipOn(ui.TooltipTop).Children(func() {
+			top = ui.Text(c, full).Width(80).Ellipsis()
+		})
+		ui.Column(c).Pad(400).Children(func() { plain = ui.Text(c, full).Width(80).Ellipsis() })
+	})
+	if err := d.driver.Move(center(top.Rect())); err != nil {
+		t.Fatal(err)
+	}
+	if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, ui.TooltipBottom) {
+		t.Fatalf("with no room above, the tooltip %v is not below its text %v", tip, at)
+	}
+	if err := d.driver.Move(center(plain.Rect())); err != nil {
+		t.Fatal(err)
+	}
+	if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, ui.TooltipBottom) {
+		t.Fatalf("without EllipsisTooltipOn, the tooltip %v is not below its text %v", tip, at)
+	}
+}
+
+// The side follows the subtree apart from the switch: EllipsisTooltip keeps the
+// side from further out, the nearest EllipsisTooltipOn wins, either order on one
+// element sets both, and the side alone turns nothing on.
+func TestEllipsisTooltipOnFollowsTheSubtree(t *testing.T) {
+	var alone, kept, nearer, reversed ui.Box
+	d := openSidesPage(t, false, func(c ui.C) {
+		ui.Column(c).Pad(400).Gap(40).EllipsisTooltipOn(ui.TooltipRight).Children(func() {
+			alone = ui.Text(c, "Alone: complete filename before the suffix.txt").Width(80).Ellipsis()
+			ui.Row(c).EllipsisTooltip(true).Children(func() {
+				kept = ui.Text(c, "Kept: complete filename before the suffix.txt").Width(80).Ellipsis()
+			})
+			ui.Row(c).EllipsisTooltip(true).EllipsisTooltipOn(ui.TooltipTop).Children(func() {
+				nearer = ui.Text(c, "Nearer: complete filename before the suffix.txt").Width(80).Ellipsis()
+			})
+			ui.Row(c).EllipsisTooltipOn(ui.TooltipLeft).EllipsisTooltip(true).Children(func() {
+				reversed = ui.Text(c, "Reversed: complete filename before the suffix.txt").Width(80).Ellipsis()
+			})
+		})
+	})
+	wants := []struct {
+		at   gfx.Rect
+		side ui.TooltipSide
+	}{{kept.Rect(), ui.TooltipRight}, {nearer.Rect(), ui.TooltipTop}, {reversed.Rect(), ui.TooltipLeft}}
+	if err := d.driver.Move(center(alone.Rect())); err != nil {
+		t.Fatal(err)
+	}
+	if got := textTooltip(d); got != "" {
+		t.Fatalf("EllipsisTooltipOn alone turned the tooltip on: %q", got)
+	}
+	for _, want := range wants {
+		if err := d.driver.Move(center(want.at)); err != nil {
+			t.Fatal(err)
+		}
+		if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, want.side) {
+			t.Fatalf("side %d: the tooltip %v is not beside its text %v", want.side, tip, at)
+		}
+	}
+}
+
+// A Select's list opens its tooltips on the side of the Select, and a Popup
+// placed by a rectangle on the side of the element it was declared in.
+func TestEllipsisTooltipOnInAPopup(t *testing.T) {
+	const full = "A complete configuration name far too long for the trigger, and for the list that opens below it, which the window cannot hold either, so the list shortens it with an ellipsis and the tooltip shows the rest"
+	value := full
+	var overlay ui.Box
+	d := openSidesPage(t, true, func(c ui.C) {
+		ui.Column(c).Pad(400).Children(func() {
+			ui.Select(c, &value, []string{full, "Short"}, nil).Width(112).EllipsisTooltipOn(ui.TooltipTop)
+		})
+		ui.Column(c).EllipsisTooltipOn(ui.TooltipRight).Children(func() {
+			ui.Overlay(c, ui.OverlaySpec{Bounds: gfx.Rect{X: 300, Y: 540, Width: 200, Height: 40}}).Children(func() {
+				overlay = ui.Text(c, "Overlay: complete filename before the suffix.txt").Width(80).Ellipsis()
+			})
+		})
+	})
+	if err := d.driver.Move(center(overlay.Rect())); err != nil {
+		t.Fatal(err)
+	}
+	if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, ui.TooltipRight) {
+		t.Fatalf("the overlay's tooltip %v is not right of its text %v", tip, at)
+	}
+	trigger := selectTrigger(d)
+	if err := d.driver.Click(center(trigger.Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	d.repaint()
+	var row gfx.Hit
+	for _, hit := range d.driver.Snapshot().Hits {
+		if hit.Label == full && hit.Role != gfx.RoleCombobox {
+			row = hit
+		}
+	}
+	if row.Bounds.Width == 0 {
+		t.Fatal("the list did not open")
+	}
+	if err := d.driver.Move(row.Bounds.X+30, row.Bounds.Y+row.Bounds.Height/2); err != nil {
+		t.Fatal(err)
+	}
+	if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, ui.TooltipTop) {
+		t.Fatalf("the list row's tooltip %v is not above its text %v", tip, at)
+	}
+}
+
+// OverflowTooltip opens beside the side EllipsisTooltipOn gives, on a page that
+// leaves EllipsisTooltips off.
+func TestOverflowTooltipOpensOnTheEllipsisSide(t *testing.T) {
+	const full = "Trust all projects in /workspace/long-directory/projects"
+	checked := false
+	d := openSidesPage(t, false, func(c ui.C) {
+		ui.Column(c).Pad(400).EllipsisTooltipOn(ui.TooltipLeft).Children(func() {
+			ui.Checkbox(c, &checked, "Trust /workspace/…/projects").OverflowTooltip(full)
+		})
+	})
+	if err := d.driver.Move(center(d.hit("Trust /workspace/…/projects").Bounds)); err != nil {
+		t.Fatal(err)
+	}
+	if tip, at := tipBounds(t, d), hoveredHint(t, d); !beside(tip, at, ui.TooltipLeft) {
+		t.Fatalf("the tooltip %v is not left of its text %v", tip, at)
+	}
+}
+
+// A Memo's copy is painted again when the side around it changed.
+func TestEllipsisTooltipOnRedeclaresAMemo(t *testing.T) {
+	const full = "Complete filename before the suffix.txt"
+	side := ui.TooltipRight
+	var text ui.Box
+	d := openSidesPage(t, true, func(c ui.C) {
+		ui.Column(c).Pad(400).EllipsisTooltipOn(side).Children(func() {
+			ui.Memo(c, 1, func() { text = ui.Text(c, full).Width(80).Ellipsis() })
+		})
+	})
+	at := text.Rect() // a copied Memo declares no Box
+	d.repaint()       // the Memo is copied from here on
+	if err := d.driver.Move(center(at)); err != nil {
+		t.Fatal(err)
+	}
+	if tip := tipBounds(t, d); !beside(tip, at, ui.TooltipRight) {
+		t.Fatalf("the tooltip %v is not right of its text %v", tip, at)
+	}
+	if err := d.driver.Move(10, 10); err != nil {
+		t.Fatal(err)
+	}
+	side = ui.TooltipLeft
+	d.repaint()
+	d.repaint()
+	if err := d.driver.Move(center(at)); err != nil {
+		t.Fatal(err)
+	}
+	if tip := tipBounds(t, d); !beside(tip, at, ui.TooltipLeft) {
+		t.Fatalf("a copied Memo kept the old side: the tooltip %v is not left of its text %v", tip, at)
+	}
+}
+
 func TestOverflowTooltipKeepsCheckboxCaptionClickable(t *testing.T) {
 	const full = "Trust all projects in /workspace/long-directory/projects"
 	checked := false

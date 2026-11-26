@@ -14,13 +14,14 @@ func (f *Frame) PaintChild(i int32) {
 	f.paintElement(i)
 }
 
-// paintWithEllipsisTip paints element i under the EllipsisTooltip it sets,
-// for its subtree only. The setting is restored here, not by a deferred call
-// in paintElement, whose other defers would stop being open-coded.
+// paintWithEllipsisTip paints element i under the EllipsisTooltip and
+// EllipsisTooltipOn it sets, for its subtree only. The setting is restored
+// here, not by a deferred call in paintElement, whose other defers would stop
+// being open-coded.
 func (f *Frame) paintWithEllipsisTip(i int32) {
-	was := f.setEllipsisTips(f.Exts[f.Nodes[i].Ext].ellipsisTip == ellipsisTipOn)
+	was := f.setEllipsis(f.ellipsis.under(f.Exts[f.Nodes[i].Ext].ellipsisTip))
 	f.paintElement(i)
-	f.setEllipsisTips(was)
+	f.setEllipsis(was)
 }
 
 func (f *Frame) paintElement(i int32) {
@@ -407,7 +408,7 @@ func (f *Frame) paintText(n *Node) {
 				f.paintStrike(line, bounds, style, alignment)
 			}
 		}
-		if n.TextDecor&textTruncated != 0 && f.ellipsisTips && f.Exts[n.Ext].overflowTip == "" {
+		if n.TextDecor&textTruncated != 0 && f.ellipsis.on && f.Exts[n.Ext].overflowTip == "" {
 			r.Height = min(r.Height, float32(n.LineCount)*lh)
 			f.Surface.HoverHint(f.page.root, r, n.Text)
 		}

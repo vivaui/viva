@@ -15,10 +15,20 @@ const TooltipLayer = 1000
 // leaves the enclosing row's pointer, focus and accessibility unchanged. Giving
 // it is the caller's opt-in, so it shows whatever PageConfig.EllipsisTooltips
 // says. Text truncated by Ellipsis or MaxLines supplies its complete value
-// itself where the page or an EllipsisTooltip turned the tooltips on.
+// itself where the page or an EllipsisTooltip turned the tooltips on. The
+// tooltip opens below, or beside the side the nearest EllipsisTooltipOn gives.
 func (b Box) OverflowTooltip(text string) Box {
 	b.f.Extra(b.i).overflowTip = text
 	return b
+}
+
+// HoverHintSide is the side the tooltip of a hint the page painted opens on:
+// the one EllipsisTooltipOn gave the text, or below.
+func HoverHintSide(hint gfx.HoverHint) TooltipSide {
+	if hint.Side == 0 {
+		return TooltipBottom
+	}
+	return TooltipSide(hint.Side - 1)
 }
 
 // HoveredText returns this page's visible truncation hint under the pointer, as
@@ -75,7 +85,8 @@ const (
 // TooltipOn opens the element's Tooltip beside side rather than below it: an
 // information icon at the end of a label shows its tip to its right, where the
 // tip covers neither the label nor the rows under it. Without room on side, the
-// tip opens on the opposite one.
+// tip opens on the opposite one. The tooltips of shortened text take their side
+// from EllipsisTooltipOn instead.
 //
 //	ui.Button(c, "").Icon(info).Tooltip("Applies to new terminals").TooltipOn(ui.TooltipRight)
 func (b Box) TooltipOn(side TooltipSide) Box {

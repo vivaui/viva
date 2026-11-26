@@ -13,6 +13,7 @@ func TestHoverHintFollowsReplayAndRewind(t *testing.T) {
 	canvas.BeginFrame()
 	start := canvas.Mark()
 	canvas.HitWithLabel(Item(1), Rect{Width: 100, Height: 40}, "row")
+	canvas.SetHoverHintSide(2)
 	canvas.HoverHint(owner, Rect{X: 10, Y: 10, Width: 60, Height: 20}, "Complete filename.txt")
 	span := canvas.SpanSince(start)
 	canvas.EndFrame()
@@ -20,12 +21,16 @@ func TestHoverHintFollowsReplayAndRewind(t *testing.T) {
 	canvas.Reset()
 	canvas.BeginFrame()
 	canvas.HitWithLabel(Item(2), Rect{X: 200, Width: 30, Height: 30}, "other")
+	canvas.HoverHint(owner, Rect{X: 200, Width: 30, Height: 30}, "Other complete filename.txt")
+	if hint := canvas.HoverHintAt(owner, 210, 10); hint.Side != 0 {
+		t.Fatalf("Reset kept the side of the last frame: %+v", hint)
+	}
 	mark := canvas.Mark()
 	if _, ok := canvas.ReplayAt(span, 0, 50); !ok {
 		t.Fatal("the unchanged row could not be replayed")
 	}
-	if hint := canvas.HoverHintAt(owner, 20, 65); hint.Text != "Complete filename.txt" || hint.Bounds.Y != 60 {
-		t.Fatalf("replayed row lost its tooltip: %+v", hint)
+	if hint := canvas.HoverHintAt(owner, 20, 65); hint.Text != "Complete filename.txt" || hint.Bounds.Y != 60 || hint.Side != 2 {
+		t.Fatalf("replayed row lost its tooltip or its side: %+v", hint)
 	}
 	if hint := canvas.HoverHintAt(owner, 20, 15); hint.Text != "" {
 		t.Fatal("the tooltip stayed at the row's old position")
@@ -39,6 +44,7 @@ func TestHoverHintFollowsReplayAndRewind(t *testing.T) {
 func TestHoverHintIsMountedAndClippedWithEmbeddedText(t *testing.T) {
 	var child, page Canvas
 	owner := child.Tree().Feature("page")
+	child.SetHoverHintSide(3)
 	child.HoverHint(owner, Rect{Width: 80, Height: 20}, "Complete filename.txt", Item(1))
 	child.HitWithLabel(Item(1), Rect{Width: 80, Height: 20}, "row")
 	mount := testMount(&page, 1)
@@ -46,8 +52,8 @@ func TestHoverHintIsMountedAndClippedWithEmbeddedText(t *testing.T) {
 	page.Embed(&child, Point{X: 100, Y: 100}, mount)
 	page.Unclip()
 	mounted := page.Tree().Mount(mount, owner)
-	if hint := page.HoverHintAt(mounted, 110, 110); hint.Text != "Complete filename.txt" || hint.Bounds != (Rect{X: 100, Y: 100, Width: 40, Height: 20}) {
-		t.Fatalf("embedded text lost its full value or clip: %+v", hint)
+	if hint := page.HoverHintAt(mounted, 110, 110); hint.Text != "Complete filename.txt" || hint.Bounds != (Rect{X: 100, Y: 100, Width: 40, Height: 20}) || hint.Side != 3 {
+		t.Fatalf("embedded text lost its full value, clip or side: %+v", hint)
 	}
 	if page.HoverHintAt(mounted, 150, 110).Text != "" || page.HoverHintAt(owner, 110, 110).Text != "" {
 		t.Fatal("the embedded tooltip escaped its clip or page owner")

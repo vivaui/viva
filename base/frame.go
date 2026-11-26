@@ -224,7 +224,7 @@ type Extra struct {
 	Draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
 	overflowTip   string           // full text already shortened by the application
-	ellipsisTip   uint8            // EllipsisTooltip: ellipsisTipOn or ellipsisTipOff; zero follows what the element is inside
+	ellipsisTip   uint8            // EllipsisTooltip's switch and EllipsisTooltipOn's side (see ellipsis_tooltip.go); zero follows what the element is inside
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
@@ -281,8 +281,8 @@ type Frame struct {
 	Stops                           []gfx.GradientStop // their stops, in the order declared
 	paintStops                      []gfx.GradientStop // the stops of the gradient being painted, faded
 	Opacity                         float32            // the product of the opacities of the elements being painted
-	ellipsisTips                    bool               // what is being painted shows the tooltips of EllipsisTooltip
-	ellipsisSet                     bool               // an element was given EllipsisTooltip: End works out each Popup's
+	ellipsis                        ellipsisState      // what the text being painted does with the tooltips of shortened text
+	ellipsisSet                     bool               // an element was given EllipsisTooltip or EllipsisTooltipOn: End works out each Popup's
 	popupLayer                      uint16             // the canvas layer the Popups are painted on
 	nativeMark                      int                // how many native views the canvas had when the page began
 	Binds                           []bindDecl         // the bound controls, see bind.go
@@ -439,12 +439,12 @@ func (f *Frame) End() {
 	f.reportSplitters()
 	if f.page != nil {
 		// Truncated text shows its complete value only where the page or an
-		// EllipsisTooltip turned the tooltips on; components read it from the
-		// canvas's hover hint owner.
-		previous := f.Surface.SetHoverHintOwner(0)
-		defer f.Surface.SetHoverHintOwner(previous)
-		f.ellipsisTips = false
-		f.setEllipsisTips(f.page.config.EllipsisTooltips)
+		// EllipsisTooltip turned the tooltips on, beside the side EllipsisTooltipOn
+		// gave; components read both from the canvas.
+		previous, side := f.Surface.SetHoverHintOwner(0), f.Surface.SetHoverHintSide(0)
+		defer f.restoreHoverHints(previous, side)
+		f.ellipsis = ellipsisState{}
+		f.setEllipsis(ellipsisState{on: f.page.config.EllipsisTooltips})
 	}
 	f.PaintChild(0)
 	f.raiseOverNativeViews()
@@ -453,11 +453,11 @@ func (f *Frame) End() {
 	}
 	for _, index := range f.Floats {
 		if f.ellipsisSet {
-			f.setEllipsisTips(f.ellipsisTipsAt(index))
+			f.setEllipsis(f.ellipsisAt(index))
 		}
 		f.PaintChild(index)
 	}
-	f.ellipsisTips = false
+	f.ellipsis = ellipsisState{}
 	if f.popupLayer != 0 {
 		f.Surface.PopLayer()
 	}

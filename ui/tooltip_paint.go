@@ -3,6 +3,7 @@ package ui
 import (
 	"time"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 )
@@ -38,7 +39,7 @@ func paintTooltip(f *Frame) {
 				return
 			}
 			components.BeginTooltip(f.Surface, f.Palette, f.GetBounds(), text.Bounds,
-				components.TooltipOptions{Layer: TooltipLayer, Side: components.TooltipBottom}).Paint(text.Text)
+				components.TooltipOptions{Layer: TooltipLayer, Side: base.HoverHintSide(text)}).Paint(text.Text)
 			return
 		}
 	}

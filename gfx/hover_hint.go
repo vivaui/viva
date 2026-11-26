@@ -3,10 +3,13 @@ package gfx
 // HoverHint is a noninteractive description of text hidden by truncation. It
 // has no pointer target, tab stop or accessibility control. Owner is the page
 // that paints its tooltip; bounds are clipped and move with the painted text.
+// Side is what SetHoverHintSide set when the hint was declared: where its page
+// opens the tooltip, in the page's own numbering.
 type HoverHint struct {
 	Owner  Scope
 	Bounds Rect
 	Text   string
+	Side   uint8
 	target ID
 	layer  uint16
 	scope  ID
@@ -29,7 +32,7 @@ func (canvas *Canvas) HoverHint(owner Scope, bounds Rect, text string, target ..
 		return
 	}
 	hint := HoverHint{
-		Owner: owner, Bounds: bounds, Text: text, layer: canvas.currentLayer(),
+		Owner: owner, Bounds: bounds, Text: text, Side: canvas.hoverHintSide, layer: canvas.currentLayer(),
 		scope: canvas.currentFocusScope(), hitAt: uint32(len(canvas.hits)),
 	}
 	if len(target) > 0 {
@@ -53,8 +56,18 @@ func (canvas *Canvas) SetHoverHintOwner(owner Scope) Scope {
 // reads it.
 func (canvas *Canvas) HoverHintOwner() Scope { return canvas.hoverHintOwner }
 
+// SetHoverHintSide sets the Side of the hints declared next, every hint of
+// whatever owner, and returns the previous one to restore. The page that owns a
+// hint gives it the edge its tooltip opens beside; zero after Reset.
+func (canvas *Canvas) SetHoverHintSide(side uint8) uint8 {
+	previous := canvas.hoverHintSide
+	canvas.hoverHintSide = side
+	return previous
+}
+
 // SameText reports whether two hints describe the same visible text. Changes
-// to unrelated pointer targets do not restart the tooltip's delay.
+// to unrelated pointer targets do not restart the tooltip's delay, nor does a
+// new Side, which only moves the tooltip.
 func (hint HoverHint) SameText(other HoverHint) bool {
 	return hint.Owner == other.Owner && hint.Bounds == other.Bounds && hint.Text == other.Text &&
 		hint.layer == other.layer && hint.scope == other.scope && hint.target == other.target
