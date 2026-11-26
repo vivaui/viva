@@ -68,6 +68,12 @@ type textChange struct {
 // thread, where native input and painting run. Read a string snapshot there
 // before starting background work; the returned string remains valid after edits.
 type Editor struct {
+	// OnDeleteAtEdge runs when DeleteBackward finds nothing before the caret to
+	// remove (forward false) or DeleteForward finds nothing after it (forward
+	// true): Backspace in an empty field, which a tag input takes as "remove the
+	// last tag". It runs on the event-loop thread; nil leaves the key a no-op.
+	OnDeleteAtEdge func(forward bool)
+
 	runes  runeStore
 	anchor int
 	caret  int
@@ -442,6 +448,9 @@ func (editor *Editor) DeleteBackward() bool {
 	editor.releaseCompositionHistory()
 	caret := editor.caret
 	if caret == 0 {
+		if editor.OnDeleteAtEdge != nil {
+			editor.OnDeleteAtEdge(false)
+		}
 		return false
 	}
 	start := editor.runes.Prev(caret)
@@ -466,6 +475,9 @@ func (editor *Editor) DeleteForward() bool {
 	editor.releaseCompositionHistory()
 	caret := editor.caret
 	if caret == editor.runes.Len() {
+		if editor.OnDeleteAtEdge != nil {
+			editor.OnDeleteAtEdge(true)
+		}
 		return false
 	}
 	end := editor.runes.Next(caret)

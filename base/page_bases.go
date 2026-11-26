@@ -132,8 +132,8 @@ func SelectBase[T comparable](c C, Value *T, choices []T, Label func(T) string) 
 }
 
 // TextFieldBase is TextField without a look: the editable text, with no padding,
-// background, border or corners of its own.
-func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
-	b, _ := textFieldOf(c, Value, Label, placeholder, true, gfx.ID{}, nil)
+// background, border or corners of its own. It takes the options of TextField.
+func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
+	b, _ := textFieldOf(c, Value, Label, placeholder, true, namedBy("TextFieldBase", opts), opts)
 	return b
 }

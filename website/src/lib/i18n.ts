@@ -187,6 +187,10 @@ const chineseComponentNames: Record<string, string> = {
   'image-preview': '图片预览',
   mentions: '提及',
   tour: '引导',
+  statistic: '统计数值',
+  'input-tag': '标签输入',
+  autocomplete: '自动补全',
+  indicator: '角标',
   'labeled-divider': '带文字分隔线',
   'editable-tabs': '可编辑标签页',
   steps: '步骤条',
@@ -325,6 +329,18 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   } },
   tour: { summary: "A guided tour: a note beside one control of the page at a time, with the rest of the window dimmed around it.", examples: {
     default: ["Step by step", "The page names the control of each step with Target as it declares it and declares View last; only Finish counts as finishing, while Skip, Escape and a press outside just leave."],
+  } },
+  statistic: { summary: "One number as a reading: a muted title and a large value, with decimals, digit groups, a prefix and a suffix.", examples: {
+    default: ["Number readings", "Only the number itself; Precision sets the decimals, Group adds digit groups, Status colors the value, and NaN or an infinity shows as a dash."],
+  } },
+  'input-tag': { summary: "Enter several short values as tags: Enter or a comma adds one, Backspace in the empty field removes the last.", examples: {
+    default: ["Enter several values", "The control only reports what was added and removed and the page keeps the list; a duplicate, a blank or a value past the limit is refused and the field shows its invalid look."],
+  } },
+  autocomplete: { summary: "A text field that suggests completions while typing, with the value still free text.", examples: {
+    default: ["Suggestions and free text", "Up and Down move, Enter or Tab chooses, Escape closes; with nothing highlighted Enter is left to the page, and text outside the options is kept. Unlike a Combobox the value is not limited to the options."],
+  } },
+  indicator: { summary: "A count or a dot pinned to the corner of a control, such as an unread count.", examples: {
+    default: ["Count and dot", "A count above Max reads \"Max+\" and zero shows nothing unless ShowZero is set; Dot uses a small dot instead. The mark takes no room, so the control does not move."],
   } },
   upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
     default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],

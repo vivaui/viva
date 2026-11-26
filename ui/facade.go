@@ -287,9 +287,9 @@ func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Opt
 	return base.TextField(c, Value, Label, placeholder, opts...)
 }
 
-func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
+func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
-	return base.TextFieldBase(c, Value, Label, placeholder)
+	return base.TextFieldBase(c, Value, Label, placeholder, opts...)
 }
 
 func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {

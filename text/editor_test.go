@@ -640,3 +640,22 @@ func TestArrowKeysAreMonotonicOnTheScreenInMixedText(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteAtTheEdgeIsReportedOnlyWhenNothingIsRemoved(t *testing.T) {
+	var editor Editor
+	var edges []bool
+	editor.OnDeleteAtEdge = func(forward bool) { edges = append(edges, forward) }
+	if editor.DeleteBackward() || editor.DeleteForward() {
+		t.Fatal("an empty editor deleted something")
+	}
+	if len(edges) != 2 || edges[0] || !edges[1] {
+		t.Fatalf("edges = %v, want [false true]", edges)
+	}
+	editor.Insert("ab")
+	editor.DeleteBackward()
+	editor.SetSelection(Range{Start: 0, End: 0})
+	editor.DeleteForward()
+	if len(edges) != 2 {
+		t.Fatalf("a delete that removed text was reported as an edge: %v", edges)
+	}
+}
