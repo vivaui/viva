@@ -62,6 +62,7 @@ func nativeFileRefFromPath(path string) (platform.FileRef, bool) {
 	return &nativeFileRef{path: path, info: info}, true
 }
 
+func (file *nativeFileRef) Path() string { return file.path }
 func (file *nativeFileRef) Name() string { return file.info.Name() }
 func (file *nativeFileRef) Size() int64  { return file.info.Size() }
 func (file *nativeFileRef) MIME() string { return "" }
