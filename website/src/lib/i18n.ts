@@ -187,6 +187,7 @@ const chineseComponentNames: Record<string, string> = {
   'image-preview': '图片预览',
   mentions: '提及',
   tour: '引导',
+  'overflow-list': '折叠列表',
   statistic: '统计数值',
   'input-tag': '标签输入',
   autocomplete: '自动补全',
@@ -341,6 +342,9 @@ const englishComponents: Record<string, { summary: string; examples: Record<stri
   } },
   indicator: { summary: "A count or a dot pinned to the corner of a control, such as an unread count.", examples: {
     default: ["Count and dot", "A count above Max reads \"Max+\" and zero shows nothing unless ShowZero is set; Dot uses a small dot instead. The mark takes no room, so the control does not move."],
+  } },
+  'overflow-list': { summary: "A row of icon actions that shows as many as fit and puts the rest in a More menu.", examples: {
+    default: ["Folding with the width", "The same actions at three widths: those that fit stay in the row, the rest move from the end into the More menu with their disabled state kept; Min keeps at least that many in the row."],
   } },
   upload: { summary: "File upload: drop or choose files, with a list showing progress, retry on failure and removal.", examples: {
     default: ["Drop or choose files", "The control only chooses and shows; the page does the transfer and tells the control how far each file is through Status and Progress."],

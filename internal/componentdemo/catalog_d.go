@@ -27,6 +27,7 @@ var groupDComponents = []Component{
 	imagePreviewComponent,
 	mentionsComponent,
 	tourComponent,
+	overflowListComponent,
 	statisticComponent,
 	inputTagComponent,
 	autocompleteComponent,

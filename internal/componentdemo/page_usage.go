@@ -30,6 +30,7 @@ var pageUsage = map[string]string{
 	"input-tag":       `m.hosts.View(c, "Allowed hosts", m.allowed, inputtag.Spec{}).FillWidth()`,
 	"autocomplete":    `m.host.View(c, &m.hostField, "Host", "", autocomplete.Spec{Options: m.known})`,
 	"indicator":       `indicator.View(c, "Inbox", indicator.Spec{Count: m.unread}, func() { ui.Button(c, "Inbox") })`,
+	"overflow-list":   `m.tools.View(c, "Actions", overflowlist.Spec{Items: m.actions}).FillWidth()`,
 	"upload":          `m.upload.View(c, "Attachments", upload.Spec{Items: m.files, Multiple: true})`,
 	"toggle-group":    `m.toggleGroup.View(c, "Text alignment")`,
 	"empty":           `empty.View(c, empty.Spec{Title: "No projects yet"}, nil).Fill()`,
