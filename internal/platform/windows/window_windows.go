@@ -641,9 +641,10 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			return state.calcSize(first, second)
 		}
 	case wmDPIChanged:
-		if !state.scaleFixed {
-			state.scale = float32(uint16(first>>16)) / 96
+		if dpi := uint16(first >> 16); !state.scaleFixed && dpi > 0 {
+			state.scale = float32(dpi) / 96
 		}
+		state.configureClicks()
 		// Restoring the initial position can cross monitors before the
 		// renderer is ready. Keep that monitor's scale for the first frame;
 		// placement already owns the bounds and must not trigger a paint yet.
@@ -873,7 +874,6 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.serviceResize()
 		return 0
 	case wmDPIChanged:
-		state.configureClicks()
 		state.accessibility.setScale(state.scale)
 		bounds := (*rect)(pointer(second))
 		resizes := state.resizeEvents
