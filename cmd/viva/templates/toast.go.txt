@@ -17,14 +17,19 @@ const (
 
 // ToastOptions contains stable action and overlay identities.
 type ToastOptions struct {
+	// Layer is the canvas layer the toast is painted on.
 	Layer uint16
+	// Scope groups the toast's identities and its focus.
 	Scope gfx.ID
 	// DismissID names the close button and the Escape target. Zero paints no
 	// close button and leaves Escape to the page.
-	DismissID   gfx.ID
-	ActionID    gfx.ID
+	DismissID gfx.ID
+	// ActionID names the action button; zero paints none.
+	ActionID gfx.ID
+	// ActionLabel is the action button's text; empty paints none.
 	ActionLabel string
-	Disabled    bool
+	// Disabled dims the toast and disables its action and close button.
+	Disabled bool
 	// Position is where the toast sits; the zero value is the bottom right.
 	Position ToastPosition
 

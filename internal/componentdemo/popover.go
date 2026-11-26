@@ -24,7 +24,7 @@ trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
 }
-ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+ui.Popover(c, trigger, &open, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
     Scope: m.scope, DismissID: m.dismissID,
@@ -33,7 +33,7 @@ trigger := ui.Button(c, "Open details").Outline().Self(ui.Start)
 if trigger.Clicked() {
     open = !open
 }
-ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+ui.Popover(c, trigger, &open, ui.PopoverSpec{
     Title: "Native surface",
     Description: "Clamped to the current viewport without timers.",
     Scope: m.scope, DismissID: m.dismissID,
@@ -55,7 +55,7 @@ if trigger.Clicked() {
     open = !open
 }
 enabled := false
-ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+ui.Popover(c, trigger, &open, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
     Scope: m.scope, DismissID: m.dismissID,
@@ -73,7 +73,7 @@ if trigger.Clicked() {
     open = !open
 }
 enabled := false
-ui.PopoverWith(c, trigger, &open, ui.PopoverSpec{
+ui.Popover(c, trigger, &open, ui.PopoverSpec{
     Title: "Build status",
     Description: "The stable host owns this overlay state.",
     Scope: m.scope, DismissID: m.dismissID,
@@ -112,7 +112,7 @@ func (state *State) paintPopover(canvas *gfx.Canvas, theme gfx.Theme, size gfx.S
 		if state.exampleID == "custom-body" {
 			title, description = "Build status", "The stable host owns this overlay state."
 		}
-		ui.PopoverWith(c, trigger, &demo.open, ui.PopoverSpec{
+		ui.Popover(c, trigger, &demo.open, ui.PopoverSpec{
 			Title: title, Description: description,
 			Scope: popoverScope, DismissID: popoverDismiss,
 		}, func() {

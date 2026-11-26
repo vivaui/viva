@@ -2,8 +2,7 @@ package windows
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
+	"os"
 	"testing"
 	"unsafe"
 )
@@ -28,7 +27,18 @@ func TestFileDialogInitialDirectory(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !strings.EqualFold(filepath.Clean(got), filepath.Clean(directory)) {
+		// The temporary directory may be named in its 8.3 short form (RUNNER~1) while
+		// the shell reports the long one: they are the same folder when the file
+		// system says so, whatever the spelling.
+		gotInfo, err := os.Stat(got)
+		if err != nil {
+			return err
+		}
+		wantInfo, err := os.Stat(directory)
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(gotInfo, wantInfo) {
 			return fmt.Errorf("dialog folder = %q; want %q", got, directory)
 		}
 		return nil

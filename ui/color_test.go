@@ -120,7 +120,7 @@ func TestColorPickerDraftFollowsTheDragBeforeApply(t *testing.T) {
 	}
 }
 
-// ColorPickerID names the trigger with the application's identity, so a row's
+// A ColorPicker given WithID names the trigger with the application's identity, so a row's
 // words can be its label: clicking them opens the panel.
 func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 	var state ui.ColorPickerState
@@ -133,7 +133,7 @@ func TestColorPickerKeepsTheApplicationID(t *testing.T) {
 		ui.Row(c).Children(func() {
 			words := ui.Text(c, "Accent").LabelFor(id)
 			_ = words
-			ui.ColorPickerID(c, id, &state, &color, "Accent")
+			ui.ColorPicker(c, &state, &color, "Accent", ui.WithID(id))
 		})
 	})
 	var trigger gfx.Rect

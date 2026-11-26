@@ -11,9 +11,11 @@ import (
 // content and close policy; the helper owns UI-thread delivery and lifetime.
 // It is suitable for document viewers, inspectors and detached tool panels.
 type ContentWindow struct {
-	window       *Window
-	invalidator  Invalidator
-	closeRequest func(func())
+	window         *Window
+	invalidator    Invalidator
+	closeRequest   func(func())
+	concealed      bool
+	restoreVisible bool
 }
 
 // OpenContentWindow opens a resizable system window. Call it on the application
@@ -53,7 +55,24 @@ func (content *ContentWindow) Invalidate() {
 	}
 }
 func (content *ContentWindow) Show() {
-	if content != nil {
+	if content != nil && !content.concealed {
+		content.window.Show()
+	}
+}
+
+// SetConcealed temporarily hides the native window and suppresses Show requests.
+// Restoring visibility preserves closed windows and unsaved editor contents.
+// Call on the UI thread, for example when locking all of an application's windows.
+func (content *ContentWindow) SetConcealed(conceal bool) {
+	if content.Closed() || content.concealed == conceal {
+		return
+	}
+	content.concealed = conceal
+	if conceal {
+		content.restoreVisible = !content.window.Hidden()
+		content.window.Hide()
+	} else if content.restoreVisible {
+		content.restoreVisible = false
 		content.window.Show()
 	}
 }

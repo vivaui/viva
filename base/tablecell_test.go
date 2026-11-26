@@ -56,7 +56,8 @@ var cellColumns = []components.TableColumn{{Width: 120}, {Width: 90}, {Width: 10
 func TestTableCellsAreWhereTheRowsWerePainted(t *testing.T) {
 	const width, height = float32(400), float32(300)
 	table := newCellTable(20, TableSpec{
-		Rows: tableScope, Columns: cellColumns, Headers: []string{"A", "B", "C"},
+		Rows:    tableScope,
+		Columns: titledColumns(cellColumns, []string{"A", "B", "C"}, nil),
 	})
 	table.paint(gfx.Rect{Width: width, Height: height})
 	rowH := components.TableRowHeight(gfx.LightTheme())
@@ -163,7 +164,7 @@ func TestTableCellsDoNotCrossTables(t *testing.T) {
 // A frozen column answers where the band was pinned, and a column scrolling
 // under it keeps its scrolled place; the frozen ones do not move with OffsetX.
 func TestFrozenColumnCellsStayPinned(t *testing.T) {
-	table := newCellTable(20, TableSpec{Rows: tableScope, Columns: wideSixColumns, Headers: sixTitles, FrozenColumns: 2})
+	table := newCellTable(20, TableSpec{Rows: tableScope, Columns: titledColumns(wideSixColumns, sixTitles, nil), FrozenColumns: 2})
 	table.paint(gfx.Rect{Width: 400, Height: 300})
 	frozen, ok := table.state.CellRect(0, 0)
 	if !ok || frozen.X != 0 || frozen.Width != 120 {
@@ -187,7 +188,7 @@ func TestFrozenColumnCellsStayPinned(t *testing.T) {
 // the area's last paint put them, which is a window coordinate, and the header
 // keeps its height above them.
 func TestTableCellsInAScrollAreaFollowTheArea(t *testing.T) {
-	table := newCellTable(1000, TableSpec{Rows: tableScope, Columns: cellColumns, Headers: []string{"A", "B", "C"}})
+	table := newCellTable(1000, TableSpec{Rows: tableScope, Columns: titledColumns(cellColumns, []string{"A", "B", "C"}, nil)})
 	rowH, headH := components.TableRowHeight(gfx.LightTheme()), components.TableHeaderHeight(gfx.LightTheme())
 	paint := func() {
 		canvas := testCanvas()

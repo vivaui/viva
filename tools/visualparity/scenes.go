@@ -133,13 +133,16 @@ func tableScene() *scene {
 		{"db-replica", "Running", "15 ms"}, {"cache", "Stopped", "-"}, {"build-agent-long-name", "Running", "103 ms"},
 		{"监控服务器", "运行中", "7 ms"},
 	}
-	columns := []components.TableColumn{{Width: 200}, {Width: 120}, {Alignment: components.TableAlignRight}}
+	columns := []components.TableColumn{
+		{Title: "Name", Width: 200, Sortable: true},
+		{Title: "State", Width: 120, Sortable: true},
+		{Title: "Latency", Alignment: components.TableAlignRight, Sortable: true},
+	}
 	return &scene{name: "table", width: 560, height: 360, build: func(c ui.C, theme gfx.Theme) {
 		ui.Column(c).Pad(24).Gap(12).Children(func() {
 			ui.Text(c, "Servers").FontSize(theme.Metrics.FontSizeL).Bold()
 			ui.Table(c, &state, ui.TableSpec{
-				Rows: scopeRows, Header: scopeHeads, Columns: columns,
-				Headers: []string{"Name", "State", "Latency"}, Sortable: []bool{true, true, true}, Source: &data,
+				Rows: scopeRows, Header: scopeHeads, Columns: columns, Source: &data,
 			}).FillWidth()
 		})
 	}}

@@ -14,8 +14,7 @@ func TestTableElementTextStyleReachesHeaderAndCells(t *testing.T) {
 	theme := gfx.LightTheme()
 	ink := gfx.Color{Red: 1, Alpha: 1}
 	spec := TableSpec{
-		Columns: []style.TableColumn{{Width: 120}},
-		Headers: []string{"Name"},
+		Columns: []style.TableColumn{{Title: "Name", Width: 120}},
 		Source:  &countingRows{n: 2},
 	}
 	paint := func(declare func(f *Frame) Box) ([]gfx.Text, Rect) {
@@ -54,8 +53,7 @@ func TestTableElementTextStyleReachesHeaderAndCells(t *testing.T) {
 // The element's FontSize replaces the spec's, rather than adding to it.
 func TestTableElementFontSizeWinsOverTheSpec(t *testing.T) {
 	spec := TableSpec{
-		Columns:  []style.TableColumn{{Width: 120}},
-		Headers:  []string{"Name"},
+		Columns:  []style.TableColumn{{Title: "Name", Width: 120}},
 		Source:   &countingRows{n: 1},
 		FontSize: 12,
 	}

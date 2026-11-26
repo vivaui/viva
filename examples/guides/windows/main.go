@@ -30,7 +30,7 @@ func (state *notes) page(c ui.C) {
 					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
-		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
+		ui.Modal(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
 			Description: "The note has not been saved.", Width: 400, NoClose: true,
 		}, nil, func() {
 			if ui.Button(c, "Keep editing").Outline().Clicked() {

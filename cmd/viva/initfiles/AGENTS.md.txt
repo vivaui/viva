@@ -43,7 +43,7 @@ The loop for every change:
 | A table with sortable columns | Tables | `ui.Table`, `ui.TableSpec`, `ui.TableRows`, `components.TableColumn` |
 | Tabs or a navigation strip | Tabs and select | `ui.Tabs`, `ui.Choice`, a `switch` on the value |
 | A tree, a file tree, a gallery, a calendar grid | Lists, trees and scrolling | `ui.Tree`, `ui.TreeState`, `ui.Grid`, `ui.Flow` |
-| A dialog, menu, popup, drawer or dashboard | Menus, dialogs and popups | `ui.Modal`, `ui.ModalWith`, `ui.Dialog`, `ui.Menu`, `ui.PopoverWith`, `ui.Drawer` |
+| A dialog, menu, popup, drawer or dashboard | Menus, dialogs and popups | `ui.Modal`, `ui.Dialog`, `ui.Menu`, `ui.Popover`, `ui.Drawer` |
 | Animation, a progress bar, a timer, a media player | Animation and time | `c.Canvas().Now()`, `c.Canvas().RequestFrame()`, `ui.Progress`, `ui.Spinner` |
 | Light/dark, a color picker, custom colors | The theme | `gfx.LightTheme()`, `gfx.DarkTheme()`, `PageConfig.Theme`, `c.Theme()` |
 | A split pane, a divider, drag and drop | Keys, drag and the mouse | `ui.Splitter`, `ui.DragState`, `.DragSource`, `.DropTarget` |
@@ -91,8 +91,8 @@ func (m *model) page(c ui.C) {
 		})
 		if ui.Button(c, "Save").Clicked() { m.save() }
 	})
-	ui.Modal(c, &m.confirm, "Delete host?", func() { /* body */ }, func() { /* footer buttons */ })
-	ui.Popover(c, anchorBox, &m.menuOpen, func() { /* the panel */ })
+	ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{}, func() { /* body */ }, func() { /* footer buttons */ })
+	ui.Popover(c, anchorBox, &m.menuOpen, ui.PopoverSpec{}, func() { /* the panel */ })
 }
 ```
 
@@ -131,6 +131,8 @@ func (m *model) page(c ui.C) {
   `ui.Row(c).Clip().Children(func() { ui.Row(c).Width(900).ScrollWith(&m.list).Children(titles) })`.
 - A tree: keep a `ui.TreeState` with `Node` describing each visible row, `ui.Tree(c, &m.tree, n, label, nil)`,
   then `m.tree.Toggled()` (open or close that branch, give the tree its new rows) and `m.tree.Chosen()`.
+  To load a branch's children on demand, answer `Toggled()` by fetching and set `TreeNode.Loading` on that row
+  until they arrive: it shows a spinner in place of the chevron and takes no second press.
   Typing the start of a name moves to that row. To drag rows, set `m.tree.CanDrop = func(from, to int,
   where ui.TreeDrop) bool` (`TreeDropBefore`, `TreeDropInside`, `TreeDropAfter`) and read `m.tree.Dropped()`;
   change the rows in `c.After`, since the paint that reports the drop is declaring them.
@@ -168,21 +170,26 @@ func (m *model) page(c ui.C) {
 - A row a menu cannot say: `menu.ContentPage(40, func(c ui.C, bounds ui.Rect) { ui.ColorSwatch(c, ...) })` declares page controls
   in a row of their own (the keyboard passes over it); `menu.Content(height, paint)` is the canvas painter for a row
   the page cannot declare.
-- `ui.SelectID(c, id, &m.size, choices, nil)` is `ui.Select` for a control the application names: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
+- `ui.Select(c, &m.size, choices, nil, ui.WithID(id))` names a control the application holds an identity for: a row's words can be its `LabelFor`, and the application's key and focus routing can target it.
+- `ui.TextField(c, &m.title, "Title", "", ui.MaxLength(80), ui.ShowCount())` caps a text control at 80 runes and shows "n/80" at the end of a `TextField` (it takes the place of an `Action`); `ui.MaxLength` also takes a `TextArea`. A model-kept `ui.Field` uses `Field.Restrict(accept, maxRunes)`.
+- `.Warning(m.port == "22")` on a `TextField` or `TextArea` paints the warning border (the theme's `Warning` color) for a value that needs a look but did not fail; a field marked `Invalid` keeps its destructive border over it. A model-kept `ui.Field` sets `Field.Warning`; `inputgroup.Group.Warning(bool)` does the same for a group.
+- `ui.Progress(c, m.done/m.total).Status(ui.StatusSuccess)` fills a progress bar in the theme's color for the outcome (success, warning or danger) instead of the primary one; it is the status vocabulary an alert and a tag use. `.Circle()` draws the progress as a ring that fills clockwise (64 across unless sized; `Indeterminate()` makes it a turning arc), `ui.Progress(c, m.done/m.total).Circle().Size(80, 80)`. `.Segments(5)` draws the bar as five separate segments with the first ones filled for the fraction, for work that comes in stages.
+- `ui.Button(c, "Connect").Loading(m.connecting).Clicked()` marks a button busy: a spinner takes the place of its icon (or stands before its label), the button keeps its look and delivers no press while it is on, so the work cannot start twice. `ui.Switch(c, &m.forwarding, "Forwarding").Loading(m.applying)` does the same for a switch: the spinner turns on the thumb and the bound value is not flipped while it is on.
+- `ui.Slider(c, &m.quality).Range(0, 100).Step(25).Marks(m.marks)` puts a dot on the track at each `ui.SliderMark{Value, Label}` and the label under it (a horizontal slider with a labelled mark is taller by the room the words take); keep the `[]ui.SliderMark` in the model.
+- `ui.Select(c, &m.host, m.hosts, nil, ui.SelectGroups(m.groups))` puts a heading row before the first option of each `ui.SelectGroup{Label, From}`; the choices must be in group order. A heading is not an option (no focus, click or type-ahead), and `Picked`, `DisabledOptions` and `Icons` keep the choices' own indexes.
 - Color choices: `ui.ColorSwatch(c, color, chosen, "Red")` is a radio (`.Flush()` fills its border with the color, `.TabStop(chosen)` makes one swatch the Tab stop, `ColorSwatchID` keeps an application identity); `ui.ColorPicker(c, &m.picker, &m.color, "Accent")` opens a panel to pick one, `.Draft()` follows the drag before Apply and `.Applied()` says a choice was committed.
 - A side panel: `ui.Drawer(c, &m.open, "Title", ui.DrawerSpec{Side: ui.DrawerLeft, Size: 320}, body, footer)`;
   an empty title gives the body the whole panel, `NonModal` keeps the keyboard on the page, `Swipe` adds a
   handle that a drag toward the edge closes it by (past half its size, or thrown).
-- A modal dialog: declare it while it is open, `ui.Modal(c, &m.confirm, "Delete host?", body, footer)`; the title is
+- A modal dialog: declare it while it is open, `ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{}, body, footer)`; the title is
   required because it names the dialog for screen readers, and `body`/`footer` may be nil. It is centered over a scrim,
   keeps the keyboard while open and gives it back as it closes; a press on the scrim, the close button and Escape set
-  `m.confirm` to false. `ui.ModalWith(c, &m.confirm, "Delete host?", ui.ModalSpec{Description: "...", Width: 400}, body, footer)`
+  `m.confirm` to false. `ui.Modal(c, &m.confirm, "Delete host?", ui.ModalSpec{Description: "...", Width: 400}, body, footer)`
   adds a description, a size, `NoClose` or `InitialFocus`. For a dialog whose identities the application names itself, use
   `ui.Dialog(c, ui.DialogSpec{...})`: `Scope`, `DismissID`, `CloseID` and `InitialFocusID` are yours, `.Header(fn)`,
   `.Body(fn)` and `.Footer(fn)` declare it, and `.Dismissed()` reports the closing click. Do not write an Escape handler
   for any of these; they dismiss themselves.
-- A popup of your own: `ui.Popover(c, anchor, &m.open, body)` or
-  `ui.PopoverWith(c, anchor, ui.PopoverSpec{Width: 220, Align: ui.Start}, &m.open, body)`; it opens off its anchor,
+- A popup of your own: `ui.Popover(c, anchor, &m.open, ui.PopoverSpec{Width: 220, Align: ui.Start}, body)`; it opens off its anchor,
   flips when there is no room, closes on Escape or an outside press, and gives the focus back. A floating region that
   is none of these is `ui.Overlay(c, ui.OverlaySpec{Band: ui.LayerPaneChrome, Bounds: r})` (or `ui.LayerDrag` for a
   drag ghost): it takes no room, paints after the page and below Viva's menus and dialogs, and its children are page
@@ -190,7 +197,7 @@ func (m *model) page(c ui.C) {
   `Slot` and a `Hit`; the page's overlays keep the pointer, focus and dismissal a popup needs. A component author who
   declares the underlying popup places it with `Beside(rect, gap, align)` or `BesideBox(box, gap, align)` to the right
   of an anchor (a submenu), `BesideLeft`/`BesideLeftBox` to its left, and `Within(rect)` to keep it inside a region
-  instead of the window; `ui.PopoverWith`'s `Side` is the application-level form of the same placement.
+  instead of the window; `ui.Popover`'s `Side` is the application-level form of the same placement.
   `Below`/`BelowBox` and `Above`/`AboveBox` place below and above.
 
 ### Choices, toasts and shortcuts
@@ -225,7 +232,9 @@ func (m *model) page(c ui.C) {
   `ui/columnresize`, `ui/reordergrid`. Navigation and overlays: `ui/command`, `ui/menubar`, `ui/navigationmenu`,
   `ui/sidebar`, `ui/hovercard`. Data and inputs: `ui/avatar`, `ui/avatareditor`, `ui/attachment`, `ui/metriccard`,
   `ui/marker`, `ui/skeleton`, `ui/aspectratio`, `ui/questionnaire`, `ui/messagescroller`, `ui/message`,
-  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`.
+  `ui/inputgroup`, `ui/inputotp`, `ui/multiselect`, `ui/hierarchypicker`, `ui/buttongroup`, `ui/togglegroup`,
+  `ui/steps`, `ui/descriptions`, `ui/timeline`, `ui/rate`, `ui/inputnumber`, `ui/datepicker`, `ui/timepicker`,
+  `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`, `ui/editabletabs`, `ui/popconfirm`, `ui/divider`, `ui/typography`, `ui/validate`, `ui/upload`, `ui/anchor`, `ui/comment`, `ui/imagepreview`, `ui/mentions`, `ui/tour`.
 - For read-only selectable output, keep a `textview.View` in the model and call
   `m.output.Declare(c, textview.Spec{Source: lines, Scroll: true})`. The caller owns the
   lines, spans and actions; `ui/textview` owns selection and drawing without an editing model.
@@ -307,6 +316,11 @@ func (m *model) page(c ui.C) {
   `ui.Control`'s `Draw`, a part (a card of a custom grid) is a source or target of the same state with
   `d.DragSource(&m.drag, part, r)` and `d.DropTarget(&m.drag, part, r, accept, drop)`, declared beside
   `d.Canvas.Hit(part, r)`; a target part needs no `Hit`.
+- Files dragged from the system land on a box declared with `.DropFiles(&m.drop)`, a `ui.FileDropState` in the
+  model: `m.drop.Over()` paints the highlight while files are over it, and `m.drop.Dropped()` returns the files
+  (and their paths, empty in a browser) once. `ui.OpenFiles(c, options, done)` is the system's picker, answering
+  with files that read the same way; `ui.FilePath(file)` is a file's path where there is one. For a whole upload
+  area with a file list, use `ui/upload`, `ui/anchor`, `ui/comment`, `ui/imagepreview`, `ui/mentions`, `ui/tour`.
 - For a divider between two panes, use `ui.Splitter` (see "Keys, drag and the mouse"), not a `DragState`.
 
 ## Mistakes that compile (and how each is reported)
@@ -502,18 +516,19 @@ func (m *model) page(c ui.C) {
   from the state when the spec leaves them zero:
 
   ```go
-  columns := []components.TableColumn{
-      {Width: 160},
-      {}, // no width: the last column takes the rest
+  columns := []ui.TableColumn{
+      {Title: "Name", Width: 160, Sortable: true},
+      {Title: "Age", Sortable: true}, // no width: the last column takes the rest
   }
-  t := ui.Table(c, &m.table, ui.TableSpec{Headers: []string{"Name", "Age"},
-      Sortable: []bool{true, true}, Source: &m.data, Striped: true, Columns: columns})
+  t := ui.Table(c, &m.table, ui.TableSpec{Source: &m.data, Striped: true, Columns: columns})
   if i, ok := t.RowClicked(); ok { m.table.Select(i) }       // Selected() is the row or -1, ClearSort() unsorts
   if col, ok := t.HeaderClicked(); ok { m.table.SortBy(col); m.sortData() } // Sort() returns (column, descending, ok)
   ```
 
-  A header cell is clickable only where `Sortable[c]` is true; `Headers` alone draws a title nobody can click. In a
+  A header cell is clickable only where the column is `Sortable`; a `Title` alone draws a heading nobody can click, and a table none of whose columns has a `Title` has no header row. In a
   `ui.Scroll` the table is as tall as its rows and only visible rows are read; with `Height`, `Fill` or `Grow` it scrolls
+  `Checked: &m.checked` (a `ui.Selection` of row numbers kept in the model) puts a column of checkboxes in front of the columns, with a header checkbox that ticks every row, clears them and shows mixed while some are ticked; `state.CheckedChanged()` reports a tick in the paint that delivered it. The ticks are separate from the selected row, and `Source.Cell`, `HeaderClicked` and `CellRect` keep the indexes of `Columns`.
+  A column with `Filterable: true` gets a funnel button at the end of its heading (`Filtered: true` paints it as on); `table.FilterClicked()` reports a press on it as the column's index, and `state.HeaderRect(column)` is where to anchor the choice of what to show, for instance a `ui.MenuAt`. The application filters its own rows.
   its rows under a fixed header and draws its own hover bars: `Scrollbar` names the bar's hit, `ScrollbarLabel` names it
   for assistive technology, `ScrollbarSize` sets its thickness (else the page's `PageConfig.ScrollbarSize`) and
   `ScrollbarGutter` keeps a strip beside the columns for it. An application painting its own vertical bar sets
@@ -681,7 +696,7 @@ err := app.RunApplication(func(a *app.Application) error {
 
 Colors, all `gfx.Color`: `Background`, `Foreground`, `Card`, `CardForeground`, `CardElevated`, `Popover`,
 `PopoverForeground`, `Muted`, `MutedForeground`, `Border`, `Hover`, `Input`, `Primary`, `PrimaryForeground`,
-`Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, and
+`Selection`, `SelectionForeground`, `Secondary`, `SecondaryForeground`, `Accent`, `AccentForeground`, `Ring`, `Success`, `Danger`, `DangerForeground`, `Warning` (the warning status color; `Theme.WarningColor` falls back to `Danger` when a hand-built theme leaves it zero), and
 `Chart` (an array of five). There is no `Surface`, `Text` or `Error`: use `Card`, `Foreground`, `Danger`.
 A `gfx.Color` is `{Red, Green, Blue, Alpha float32}` with each in 0..1 (so `gfx.Color{Alpha: 0.5}` is a black scrim);
 it has `Mix(other, t)`, `Over(backdrop)` and `WithAlpha(a)`, and no `R` or `A`. To write a color of your own, `gfx.RGB24(0x0a84ff)`

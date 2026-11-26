@@ -115,9 +115,11 @@ func TestTableHideHoverScrollbarsOmitsOnlyTheAnonymousVerticalThumb(t *testing.T
 			view := func(c ui.C) {
 				ui.Column(c).Children(func() {
 					table = ui.Table(c, &state, ui.TableSpec{
-						Columns: []components.TableColumn{{Width: 120}, {Width: 120}, {Width: 120}, {Width: 120}},
-						Headers: []string{"A", "B", "C", "D"}, Rows: gfx.Item(1).Scope(), Source: &rows,
-						ScrollbarSize: 10, ScrollbarGutter: test.gutter,
+						Columns:             titledColumns([]components.TableColumn{{Width: 120}, {Width: 120}, {Width: 120}, {Width: 120}}, []string{"A", "B", "C", "D"}, nil),
+						Rows:                gfx.Item(1).Scope(),
+						Source:              &rows,
+						ScrollbarSize:       10,
+						ScrollbarGutter:     test.gutter,
 						HideHoverScrollbars: test.hide,
 					}).Size(320, 200)
 				})
@@ -212,11 +214,14 @@ func TestTableScrollsItselfWithAHoverBarInItsGutter(t *testing.T) {
 	view := func(c ui.C) {
 		ui.Column(c).Fill().Pad(20).Children(func() {
 			table = ui.Table(c, &tableState, ui.TableSpec{
-				Rows: rowScope, Header: gfx.Item(2).Scope(),
-				Columns: []components.TableColumn{{Width: 200}, {Width: 0}},
-				Headers: []string{"Name", "State"}, Source: &rows,
-				Scrollbar: gfx.Item(900), ScrollbarLabel: "Table rows",
-				ScrollbarSize: 10, ScrollbarGutter: 10,
+				Rows:            rowScope,
+				Header:          gfx.Item(2).Scope(),
+				Columns:         titledColumns([]components.TableColumn{{Width: 200}, {Width: 0}}, []string{"Name", "State"}, nil),
+				Source:          &rows,
+				Scrollbar:       gfx.Item(900),
+				ScrollbarLabel:  "Table rows",
+				ScrollbarSize:   10,
+				ScrollbarGutter: 10,
 			}).Size(400, 160)
 		})
 	}

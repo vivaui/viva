@@ -10,8 +10,11 @@ import (
 // first two frozen: 240 pinned at the left edge, 480 scrolling past them.
 func frozenSpec(state *TableState, rows TableSource) TableSpec {
 	return TableSpec{
-		Rows: tableScope, Header: headerScope, Columns: wideSixColumns, Headers: sixTitles,
-		Sortable: allSortableSix, Source: rows, FrozenColumns: 2,
+		Rows:          tableScope,
+		Header:        headerScope,
+		Columns:       titledColumns(wideSixColumns, sixTitles, allSortableSix),
+		Source:        rows,
+		FrozenColumns: 2,
 	}
 }
 
@@ -254,12 +257,12 @@ func TestFrozenTableAllocatesNothingOnceWarm(t *testing.T) {
 	var state TableState
 	canvas := testCanvas()
 	var view View
+	spec := frozenSpec(&state, rows)
+	spec.Scrollbar, spec.HorizontalScrollbar = gfx.Item(900), gfx.Item(901)
 	paint := func() {
 		canvas.Reset()
 		view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 400, Height: 300}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
-				spec := frozenSpec(&state, rows)
-				spec.Scrollbar, spec.HorizontalScrollbar = gfx.Item(900), gfx.Item(901)
 				f.Table(&state, spec).Fill()
 			})
 		})

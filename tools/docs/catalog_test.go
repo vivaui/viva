@@ -105,7 +105,7 @@ func TestCatalogAndExportUseActualGoSource(t *testing.T) {
 func manifestFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, directory := range []string{"app", "ui", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
+	for _, directory := range []string{"app", "ui", "base", "gfx", "components", "internal", "cmd/component-preview", "cmd/viva/templates", "tools/docs"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -453,7 +453,7 @@ func TestPageUsageIsPageLevel(t *testing.T) {
 func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 	packages := map[string]bool{
 		"ui": true, "base": true, "gfx": true, "window": true, "text": true,
-		"style": true, "strings": true, "utf8": true, "time": true, "math": true,
+		"style": true, "strings": true, "slices": true, "utf8": true, "time": true, "math": true,
 		"codeeditor": true, "chart": true, "calendar": true,
 		"carousel": true, "multiselect": true, "hierarchypicker": true,
 		"markdown": true, "columnresize": true,
@@ -461,6 +461,31 @@ func TestPageSnippetsHaveNoUndeclaredNames(t *testing.T) {
 		"sidebar":         true,
 		"marker":          true,
 		"metriccard":      true,
+		"typography":      true,
+		"divider":         true,
+		"popconfirm":      true,
+		"editabletabs":    true,
+		"pagination":      true,
+		"result":          true,
+		"empty":           true,
+		"card":            true,
+		"breadcrumb":      true,
+		"tag":             true,
+		"alert":           true,
+		"steps":           true,
+		"descriptions":    true,
+		"timeline":        true,
+		"rate":            true,
+		"inputnumber":     true,
+		"datepicker":      true,
+		"timepicker":      true,
+		"transfer":        true,
+		"upload":          true,
+		"anchor":          true,
+		"comment":         true,
+		"imagepreview":    true,
+		"mentions":        true,
+		"tour":            true,
 		"questionnaire":   true,
 		"inputotp":        true,
 		"inputgroup":      true,
@@ -633,7 +658,32 @@ func TestModelFreePageSnippetsCompile(t *testing.T) {
 		"skeleton": "github.com/vivaui/viva/ui/skeleton", "inputgroup": "github.com/vivaui/viva/ui/inputgroup",
 		"inputotp": "github.com/vivaui/viva/ui/inputotp", "questionnaire": "github.com/vivaui/viva/ui/questionnaire",
 		"metriccard": "github.com/vivaui/viva/ui/metriccard", "marker": "github.com/vivaui/viva/ui/marker",
-		"sidebar": "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
+		"typography":   "github.com/vivaui/viva/ui/typography",
+		"divider":      "github.com/vivaui/viva/ui/divider",
+		"popconfirm":   "github.com/vivaui/viva/ui/popconfirm",
+		"editabletabs": "github.com/vivaui/viva/ui/editabletabs",
+		"pagination":   "github.com/vivaui/viva/ui/pagination",
+		"result":       "github.com/vivaui/viva/ui/result",
+		"empty":        "github.com/vivaui/viva/ui/empty",
+		"card":         "github.com/vivaui/viva/ui/card",
+		"breadcrumb":   "github.com/vivaui/viva/ui/breadcrumb",
+		"tag":          "github.com/vivaui/viva/ui/tag",
+		"alert":        "github.com/vivaui/viva/ui/alert",
+		"steps":        "github.com/vivaui/viva/ui/steps",
+		"descriptions": "github.com/vivaui/viva/ui/descriptions",
+		"timeline":     "github.com/vivaui/viva/ui/timeline",
+		"rate":         "github.com/vivaui/viva/ui/rate",
+		"inputnumber":  "github.com/vivaui/viva/ui/inputnumber",
+		"datepicker":   "github.com/vivaui/viva/ui/datepicker",
+		"timepicker":   "github.com/vivaui/viva/ui/timepicker",
+		"transfer":     "github.com/vivaui/viva/ui/transfer",
+		"upload":       "github.com/vivaui/viva/ui/upload",
+		"anchor":       "github.com/vivaui/viva/ui/anchor",
+		"comment":      "github.com/vivaui/viva/ui/comment",
+		"imagepreview": "github.com/vivaui/viva/ui/imagepreview",
+		"mentions":     "github.com/vivaui/viva/ui/mentions",
+		"tour":         "github.com/vivaui/viva/ui/tour",
+		"sidebar":      "github.com/vivaui/viva/ui/sidebar", "multiselect": "github.com/vivaui/viva/ui/multiselect",
 		"hierarchypicker": "github.com/vivaui/viva/ui/hierarchypicker",
 	}
 	wordM := regexp.MustCompile(`\bm\b`)

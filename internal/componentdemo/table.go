@@ -23,13 +23,12 @@ table.Caption("Click any data row to see its interactive feedback.")`, PageSnipp
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Width: 0, Alignment: style.TableAlignRight},
+    {Title: "Item", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "Status", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "Amount", Width: 0, Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
 ui.Text(c, "Total · 3 items · ¥ 4,540").Muted()
@@ -39,13 +38,12 @@ ui.Text(c, "Click any data row to see its interactive feedback.").Muted()`, Page
     {"性能审计", "待付款", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Width: 0, Alignment: style.TableAlignRight},
+    {Title: "项目", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "状态", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "金额", Width: 0, Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
     Source:  &bills,
 })
 ui.Text(c, "合计 · 3 项 · ¥ 4,540").Muted()
@@ -118,13 +116,12 @@ table.Caption("Item is left-aligned, status centered, amount right-aligned.")`, 
     {"Performance audit", "Unpaid", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Alignment: style.TableAlignRight},
+    {Title: "Item", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "Status", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "Amount", Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"Item", "Status", "Amount"},
     Source:  &bills,
 })
 ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted()`, PageSnippetZh: `bills := ui.TableRows{
@@ -133,16 +130,56 @@ ui.Text(c, "Item is left-aligned, status centered, amount right-aligned.").Muted
     {"性能审计", "待付款", "¥ 1,280"},
 }
 columns := []style.TableColumn{
-    {Width: 112, Alignment: style.TableAlignLeft},
-    {Width: 88, Alignment: style.TableAlignCenter},
-    {Alignment: style.TableAlignRight},
+    {Title: "项目", Width: 112, Alignment: style.TableAlignLeft},
+    {Title: "状态", Width: 88, Alignment: style.TableAlignCenter},
+    {Title: "金额", Alignment: style.TableAlignRight},
 }
 ui.Table(c, &m.table, ui.TableSpec{
     Columns: columns,
-    Headers: []string{"项目", "状态", "金额"},
     Source:  &bills,
 })
 ui.Text(c, "项目左对齐，状态居中，金额右对齐。").Muted()`},
+		{ID: "checked", Title: "勾选列", Description: "Checked 在最左加一列复选框，表头复选框全选或清空，部分勾选时为半选；勾选与选中行互不影响，列索引仍是 Columns 的。", Snippet: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`, PageSnippet: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`, PageSnippetZh: `// m.checked is a ui.Selection kept in the model: the rows ticked.
+ui.Table(c, &m.table, ui.TableSpec{
+    Columns: m.columns,
+    Source:  &m.bills,
+    Checked: &m.checked,
+})
+if m.table.CheckedChanged() {
+    // the user ticked or unticked a row, or the header's checkbox
+}
+// m.checked.Has(row) says whether a row is ticked; m.checked.Len() how many.`},
+		{ID: "filter", Title: "列过滤按钮", Description: "Filterable 在表头末尾加漏斗按钮，Filtered 表示该列已过滤；按钮被按下时 FilterClicked 报告列，用 HeaderRect 定位应用自己的筛选菜单。", Snippet: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`, PageSnippet: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`, PageSnippetZh: `// m.columns has Filterable set on the Status column, and Filtered while its filter is on.
+table := ui.Table(c, &m.table, ui.TableSpec{Columns: m.columns, Source: &m.bills})
+if column, ok := table.FilterClicked(); ok {
+    // open a choice anchored at m.table.HeaderRect(column); the application filters its rows
+}`},
 		{ID: "overflow", Title: "溢出与表头", Description: "放不下的单元格以省略号结尾；FitTableHeadings 让定宽列至少放得下自己的表头。", Snippet: `columns := []components.TableColumn{{Width: 96}, {Width: 40}, {Alignment: components.TableAlignRight}}
 headings := []string{"Item", "Status", "Amount"}
 components.FitTableHeadings(canvas, theme, columns, headings)
@@ -184,12 +221,14 @@ ui.Text(c, "项目被省略号截断；状态列已长到放得下表头。").Mu
 // warm paint allocates nothing.
 type tableDemo struct {
 	state   ui.TableState
-	rows    [3][3]string
-	source  ui.TableRows
-	columns []style.TableColumn
-	headers []string
-	footer  string
-	caption string
+	checked ui.Selection
+	// filterColumns is the columns with the filter button set, kept so a warm paint allocates nothing.
+	filterColumns []style.TableColumn
+	rows          [3][3]string
+	source        ui.TableRows
+	columns       []style.TableColumn
+	footer        string
+	caption       string
 }
 
 var tableDemos = map[*State]*tableDemo{}
@@ -205,14 +244,9 @@ func tableDemoFor(state *State) *tableDemo {
 			{state.Text("性能审计", "Performance audit"), state.Text("待付款", "Unpaid"), "¥ 1,280"},
 		},
 		columns: []style.TableColumn{
-			{Width: 112, Alignment: style.TableAlignLeft},
-			{Width: 88, Alignment: style.TableAlignCenter},
-			{Width: 0, Alignment: style.TableAlignRight},
-		},
-		headers: []string{
-			state.Text("项目", "Item"),
-			state.Text("状态", "Status"),
-			state.Text("金额", "Amount"),
+			{Title: state.Text("项目", "Item"), Width: 112, Alignment: style.TableAlignLeft},
+			{Title: state.Text("状态", "Status"), Width: 88, Alignment: style.TableAlignCenter},
+			{Title: state.Text("金额", "Amount"), Width: 0, Alignment: style.TableAlignRight},
 		},
 		footer:  state.Text("合计 · 3 项 · ¥ 4,540", "Total · 3 items · ¥ 4,540"),
 		caption: state.Text("点击任意数据行以查看交互反馈。", "Click any data row to see its interactive feedback."),
@@ -240,13 +274,28 @@ func (state *State) paintTable(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 	state.drawPage(canvas, theme, size, 620, state.Text("Table · 账单", "Table · Bills"), func(c ui.C) {
 		spec := ui.TableSpec{
 			Columns: demo.columns,
-			Headers: demo.headers,
 			Source:  &demo.source,
 		}
 		if state.exampleID == "overflow" {
 			spec.FitHeadings = true
 		}
+		if state.exampleID == "filter" {
+			// The status column's filter is on once its button is pressed.
+			columns := append(demo.filterColumns[:0], demo.columns...)
+			columns[1].Filterable, columns[1].Filtered = true, state.flags&1 != 0
+			spec.Columns = columns
+			demo.filterColumns = columns
+		}
+		if state.exampleID == "checked" {
+			spec.Checked = &demo.checked
+			spec.SelectAllLabel, spec.SelectRowLabel = state.Text("全选", "Select all rows"), state.Text("选择此行", "Select row")
+		}
 		table := ui.Table(c, &demo.state, spec)
+		if state.exampleID == "filter" {
+			if _, ok := table.FilterClicked(); ok {
+				state.flags ^= 1
+			}
+		}
 		if state.exampleID == "selection" {
 			if row, ok := table.RowClicked(); ok {
 				demo.state.Select(row)

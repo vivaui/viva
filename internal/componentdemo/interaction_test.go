@@ -196,7 +196,13 @@ func TestEditorOnlyResolvesEditablePlatformInput(t *testing.T) {
 					continue
 				}
 				editor, ok := state.Editor(hit.ID)
-				want := (hit.Role == gfx.RoleTextField || component.editable != nil && hit.Role == gfx.RoleCombobox) && !hit.Disabled && !hit.ReadOnly
+				// A combobox is a text field of the example only where the example has an
+				// editable field; a select in an example without one is not editable.
+				editableExample := false
+				if component.editable != nil {
+					_, editableExample = component.editable(example.ID)
+				}
+				want := (hit.Role == gfx.RoleTextField || editableExample && hit.Role == gfx.RoleCombobox) && !hit.Disabled && !hit.ReadOnly
 				if ok != want || (editor != nil) != want {
 					t.Fatalf("%s/%s: incorrect editor resolution for %+v", component.ID, example.ID, hit)
 				}

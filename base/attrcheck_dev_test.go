@@ -21,8 +21,7 @@ func (r *devTableRows) Len() int                    { return r.n }
 func (r *devTableRows) Cell(row, column int) string { return "r" }
 
 var devTableSpec = TableSpec{
-	Columns: []style.TableColumn{{Width: 80}},
-	Headers: []string{"Name"},
+	Columns: titledColumns([]style.TableColumn{{Width: 80}}, []string{"Name"}, nil),
 	Source:  &devTableRows{n: 1},
 }
 
@@ -201,5 +200,5 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 func TestATableWithoutColumnsIsReported(t *testing.T) {
 	expectAttributePanic(t, func(f *Frame) {
 		f.Table(&TableState{}, TableSpec{Rows: tree.Sub(page, tree.Name("attr-table")), Source: &devTableRows{n: 1}})
-	}, "Table", "rows without Columns or Headers")
+	}, "Table", "rows without Columns")
 }

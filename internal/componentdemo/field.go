@@ -113,7 +113,7 @@ func (state *State) paintField(canvas *gfx.Canvas, theme gfx.Theme, size gfx.Siz
 			}
 		}
 		ui.FormField(c, form, "Work email").Children(func() {
-			ui.TextFieldID(c, fieldInput, field, "Work email", "").ReadOnly(!state.editing)
+			ui.TextField(c, field, "Work email", "", ui.WithID(fieldInput)).ReadOnly(!state.editing)
 		})
 	})
 }

@@ -51,6 +51,7 @@ type Group struct {
 	blockEnd    components.InputGroupSlot
 
 	small     bool
+	warning   bool
 	multiline bool
 	readOnly  bool
 	actionID  gfx.ID
@@ -163,6 +164,13 @@ func (g *Group) Spinner(phase components.SpinnerPhase) *Group {
 // Multiline makes the field several rows tall, as a textarea is.
 func (g *Group) Multiline() *Group {
 	g.multiline = true
+	return g
+}
+
+// Warning paints the group with the warning border, for a value that needs a look
+// but did not fail; Warning(false) takes it away. The field's Invalid wins over it.
+func (g *Group) Warning(warning bool) *Group {
+	g.warning = warning
 	return g
 }
 
@@ -282,7 +290,7 @@ func (g *Group) draw(d *ui.DrawContext) {
 	input := g.field.Snapshot(d.Frame, id, g.label, g.placeholder)
 	snapshot := components.InputGroupSnapshot{
 		ID: id, Label: g.label, Value: input.Value, Placeholder: g.placeholder,
-		Disabled: input.Disabled, Invalid: input.Invalid, Secure: input.Secure,
+		Disabled: input.Disabled, Invalid: input.Invalid, Warning: g.warning, Secure: input.Secure,
 		Focused: input.Focused, Multiline: g.multiline, ReadOnly: g.readOnly,
 		HideEditorText: true, ShowCaret: input.ShowCaret, Caret: input.Caret,
 		SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,

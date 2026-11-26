@@ -9,7 +9,9 @@ import (
 // are ordered newest first. Layer is the oldest toast's layer; each newer toast
 // receives the next layer so collapsed cards composite correctly.
 type SonnerOptions struct {
-	Layer    uint16
+	// Layer is the oldest toast's layer; each newer toast receives the next.
+	Layer uint16
+	// Expanded lays the stack out with a gap instead of a peek.
 	Expanded bool
 	// Limit is how many of the newest toasts show; the zero value is Base UI's 3.
 	// Older ones are not painted.

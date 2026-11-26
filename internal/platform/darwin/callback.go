@@ -112,6 +112,13 @@ func deliverPointer(state *runState, view unsafe.Pointer, event PointerEvent) {
 	if err == nil {
 		err = presentFrame(state, view, frame, false)
 	}
+	if err == nil && event.Kind == PointerDown && event.Button == gfx.PointerButtonSecondary && state.takeTextMenu != nil {
+		// The press is delivered and its frame is on the screen: the system's menu for
+		// a text field opens now, as AppKit's own views open theirs from the press.
+		if request, ok := state.takeTextMenu(); ok {
+			err = showTextMenu(state, view, request)
+		}
+	}
 	if err != nil {
 		state.err = err
 		C.viva_view_close(view)

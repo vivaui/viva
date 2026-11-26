@@ -25,8 +25,10 @@ func TestTableFitHeadingsGrowsFixedColumnsToTheirHeadings(t *testing.T) {
 	view.Draw(testCanvas(), theme, gfx.Rect{Width: 500, Height: 200}, func(f *Frame) {
 		f.Column().Fill().Children(func() {
 			f.Table(&state, TableSpec{
-				Rows: tableScope, Columns: columns, Headers: headings,
-				Source: &source, FitHeadings: true,
+				Rows:        tableScope,
+				Columns:     titledColumns(columns, headings, nil),
+				Source:      &source,
+				FitHeadings: true,
 			})
 		})
 	})
@@ -59,6 +61,7 @@ func TestTableFitHeadingsAllocatesNothingOnceWarm(t *testing.T) {
 	theme := gfx.LightTheme()
 	columns := []style.TableColumn{{Width: 12}, {Width: 12}, {Width: 0}}
 	headings := []string{"Long heading", "B", "C"}
+	titled := titledColumns(columns, headings, nil)
 	source := TableRows{{"a", "b", "c"}}
 	var state TableState
 	var view View
@@ -68,8 +71,10 @@ func TestTableFitHeadingsAllocatesNothingOnceWarm(t *testing.T) {
 		view.Draw(canvas, theme, gfx.Rect{Width: 400, Height: 200}, func(f *Frame) {
 			f.Column().Fill().Children(func() {
 				f.Table(&state, TableSpec{
-					Rows: tableScope, Columns: columns, Headers: headings,
-					Source: &source, FitHeadings: true,
+					Rows:        tableScope,
+					Columns:     titled,
+					Source:      &source,
+					FitHeadings: true,
 				})
 			})
 		})
@@ -77,5 +82,34 @@ func TestTableFitHeadingsAllocatesNothingOnceWarm(t *testing.T) {
 	run()
 	if allocs := testing.AllocsPerRun(100, run); allocs != 0 {
 		t.Fatalf("a warm table that fits its headings allocates %v times a frame, want 0", allocs)
+	}
+}
+
+// A table none of whose columns has a width shares its own width between them, and
+// leaves the columns the application declared as it wrote them.
+func TestTableSharedColumnsLeaveTheDeclaredOnesAlone(t *testing.T) {
+	columns := []style.TableColumn{{Title: "A"}, {Title: "B"}, {Title: "C"}}
+	source := TableRows{{"a", "b", "c"}}
+	var state TableState
+	var view View
+	canvas := testCanvas()
+	view.Draw(canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 200}, func(f *Frame) {
+		f.Column().Fill().Children(func() {
+			f.Table(&state, TableSpec{Rows: tableScope, Columns: columns, Source: &source})
+		})
+	})
+	for i, column := range columns {
+		if column.Width != 0 {
+			t.Fatalf("column %d was given a width of %v in the application's slice", i, column.Width)
+		}
+	}
+	cells := map[float32]bool{}
+	for _, text := range canvas.Texts() {
+		if text.Value == "a" || text.Value == "b" || text.Value == "c" {
+			cells[text.Bounds.X] = true
+		}
+	}
+	if len(cells) != 3 {
+		t.Fatalf("the three cells of the row start at %d distinct positions, want 3", len(cells))
 	}
 }

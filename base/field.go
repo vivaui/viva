@@ -1,6 +1,7 @@
 package base
 
 import (
+	"strconv"
 	"unicode/utf8"
 
 	"github.com/vivaui/viva/gfx"
@@ -32,6 +33,10 @@ type Field struct {
 	// border and ring components.Input gives an invalid input. It is the application's
 	// to set and clear, as Secure is; it changes the look only.
 	Invalid bool
+	// Warning paints the field with the warning border: a value that needs a look but
+	// did not fail. Invalid wins over it. It is the application's to set and clear, as
+	// Invalid is; it changes the look only.
+	Warning bool
 	// Disabled paints the field dimmed and takes it out of the Tab order and the pointer's
 	// reach, as components.Input does for a disabled input. It is the application's to set
 	// and clear, as Secure is.
@@ -52,7 +57,16 @@ type Field struct {
 	Alignment gfx.Alignment
 
 	editor *text.Editor
-	ID     gfx.ID
+	// accept and maxRunes are what Restrict last set on the editor, kept so a cap
+	// from MaxLength changes the one without losing the other.
+	accept   func(rune) bool
+	maxRunes int
+	// count is the "n/max" words ShowCount shows, made when the numbers change.
+	count struct {
+		runes, max int
+		text       string
+	}
+	ID gfx.ID
 	// input is the stable TextInput the platform provider hands out. Returning
 	// a fresh one on every repaint allocated once per focused frame.
 	input window.TextInput
@@ -73,6 +87,37 @@ type Field struct {
 	rows bool
 }
 
+// Restrict limits what edits may put into the field: accept reports whether a rune
+// may be typed (nil accepts every rune) and maxRunes caps the length of the text
+// (zero or less means no cap), as text.Editor.Restrict does. Set it where the model
+// is made; a field bound to a string takes ui.MaxLength instead.
+//
+//	m.port.Restrict(func(r rune) bool { return r >= '0' && r <= '9' }, 5)
+func (field *Field) Restrict(accept func(rune) bool, maxRunes int) {
+	field.accept, field.maxRunes = accept, max(maxRunes, 0)
+	field.ensure().Restrict(field.accept, field.maxRunes)
+}
+
+// limit sets the cap of the field from ui.MaxLength, leaving what Restrict accepts.
+func (field *Field) limit(maxRunes int) {
+	if maxRunes != field.maxRunes {
+		field.Restrict(field.accept, maxRunes)
+	}
+}
+
+// countText is the words of the count: the runes the field holds, and the cap.
+func (field *Field) countText() string {
+	runes := field.ensure().RuneCount()
+	if field.count.text == "" || field.count.runes != runes || field.count.max != field.maxRunes {
+		field.count.runes, field.count.max = runes, field.maxRunes
+		field.count.text = strconv.Itoa(runes)
+		if field.maxRunes > 0 {
+			field.count.text += "/" + strconv.Itoa(field.maxRunes)
+		}
+	}
+	return field.count.text
+}
+
 func (field *Field) ensure() *text.Editor {
 	if field.editor == nil {
 		field.editor = text.NewEditor("")
@@ -88,7 +133,7 @@ func (field *Field) ensure() *text.Editor {
 // made, as the field is kept there.
 //
 //	m.searchField.Bind(&m.search)
-//	ui.TextFieldID(c, m.searchID, &m.searchField, "Search", "")
+//	ui.TextField(c, &m.searchField, "Search", "", ui.WithID(m.searchID))
 func (field *Field) Bind(editor *text.Editor) {
 	if editor == nil {
 		panic("ui: Field.Bind needs an editor")
@@ -117,7 +162,7 @@ func (field *Field) SetText(Value string) {
 // The page shows the selection in the next paint.
 //
 //	m.preview.Select(0, 6)
-//	ui.TextFieldID(c, id, &m.preview, "Preview", "").ReadOnly(true)
+//	ui.TextField(c, &m.preview, "Preview", "", ui.WithID(id)).ReadOnly(true)
 func (field *Field) Select(start, end int) {
 	field.ensure().SetSelection(text.Range{Start: start, End: end})
 }
@@ -137,6 +182,25 @@ func (f *Frame) Field(field *Field, ID gfx.ID, Label, placeholder string) Box {
 //	f.FieldBase(&m.cell, cellID, "Cell", "").Pad(8).Border(2, theme.Primary).Radius(0)
 func (f *Frame) FieldBase(field *Field, ID gfx.ID, Label, placeholder string) Box {
 	return f.InputBase(field.Snapshot(f, ID, Label, placeholder))
+}
+
+// Warning paints a TextField or TextArea with the warning border (the theme's Warning
+// color) in place of the input border, for a value that needs a look but did not fail;
+// Warning(false) takes it away. A field marked Invalid keeps its destructive border
+// over it. A *Field sets Field.Warning where the model is made.
+//
+//	ui.TextField(c, &m.port, "Port", "").Warning(m.port == "22")
+func (b Box) Warning(warning bool) Box {
+	n := b.N()
+	switch n.Kind {
+	case kindInput:
+		WidgetsOf(b.f).inputs[n.Aux].Warning = warning
+	case kindTextarea:
+		WidgetsOf(b.f).textareas[n.Aux].Warning = warning
+	default:
+		panic("ui: Warning is for a TextField or TextArea")
+	}
+	return b
 }
 
 // ReadOnly makes the TextField or TextArea of the box read-only:
@@ -191,7 +255,7 @@ func (b Box) Submitted() bool {
 // OnKey gives the field a handler for the keys pressed while it has the
 // keyboard, before the page routes them anywhere else: a search field whose Up
 // and Down move a list below it, and whose Escape closes it. The handler is a
-// chain on the TextField or TextFieldID box:
+// chain on the TextField box:
 //
 //	search := ui.TextField(c, &m.query, "Search", "")
 //	search.OnKey(func(event gfx.KeyEvent) gfx.EventResult {
@@ -239,7 +303,7 @@ func (b Box) OnKey(handler func(gfx.KeyEvent) gfx.EventResult) Box {
 			return b
 		}
 	}
-	panic("ui: OnKey must be chained on a TextField or TextFieldID")
+	panic("ui: OnKey must be chained on a TextField")
 }
 
 // Fields answers Config.TextInput for the fields: the platform asks which editor
@@ -270,7 +334,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 	focused := f.Surface != nil && f.Surface.Focused() == ID
 	selection := editor.Selection()
 	snapshot := InputSnapshot{
-		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Disabled: field.Disabled, ReadOnly: field.ReadOnly, Hint: field.Hint,
+		ID: ID, Label: Label, Value: value, Placeholder: placeholder, Secure: field.Secure, Invalid: field.Invalid, Warning: field.Warning, Disabled: field.Disabled, ReadOnly: field.ReadOnly, Hint: field.Hint,
 		Alignment: field.Alignment,
 		Focused:   focused,
 		// The field paints its own text, caret, selection and composition, and the
@@ -313,7 +377,7 @@ func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Bo
 	field.rows = true
 	return f.Textarea(TextareaSnapshot{
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
-		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid,
+		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid, Warning: input.Warning,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
 		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
 		SelectionRanges:  input.SelectionRanges,

@@ -115,20 +115,17 @@ type ColorPickerLook struct {
 // hex field); Cancel, Escape and a press outside leave it as it was. A transparent
 // *color is no color, which Clear sets. The box is the 32 pixel trigger; Applied
 // reports a change. RoundTrigger, TriggerIcon, NoColor and PanelLabels change how it
-// looks, and ShowAlpha adds an opacity bar and #RRGGBBAA input.
+// looks, and ShowAlpha adds an opacity bar and #RRGGBBAA input. WithID names a
+// trigger the application already names: the picker keeps its state by identity, so
+// it takes the id when it is made, and a row's words can then be its LabelFor, as for
+// any control the application names. A ColorSwatch, which keeps none, is named with
+// Hit instead.
 //
 //	ui.ColorPicker(c, &m.picker, &m.accent, "Accent")
+//	ui.ColorPicker(c, &m.picker, &m.accent, "Accent", ui.WithID(m.accentID))
 //	if m.picker.Applied() { m.save() }
-func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string) Box {
-	return colorPicker(c, gfx.ID{}, state, Color, Label)
-}
-
-// ColorPickerID is ColorPicker for a trigger the application already names: the picker
-// keeps its state by identity, so it takes the id when it is made. A row's words can then
-// be its LabelFor, as for any control the application names. A ColorSwatch, which keeps
-// none, is named with Hit instead.
-func ColorPickerID(c C, ID gfx.ID, state *ColorPickerState, Color *Color, Label string) Box {
-	return colorPicker(c, ID, state, Color, Label)
+func ColorPicker(c C, state *ColorPickerState, Color *Color, Label string, opts ...Option) Box {
+	return colorPicker(c, namedBy("ColorPicker", opts), state, Color, Label)
 }
 
 func colorPicker(c C, ID gfx.ID, s *ColorPickerState, Color *Color, Label string) Box {

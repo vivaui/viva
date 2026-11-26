@@ -41,5 +41,6 @@ func nativeCapabilities() Capabilities {
 	} else {
 		capabilities |= CapabilityWindowMaximize
 	}
+	capabilities |= capabilityTransparentWindow
 	return Capabilities(capabilities)
 }

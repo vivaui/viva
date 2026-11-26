@@ -1,0 +1,13 @@
+---
+import { type DocBlock } from '../lib/api';
+import type { Locale } from '../lib/i18n';
+import DocInline from './DocInline.astro';
+
+// One API row's description: a hand-written translation when the page has
+// one, otherwise the first paragraph of the generated English doc comment.
+interface Props { text?: string; blocks: DocBlock[]; locale: Locale }
+const { text, blocks, locale } = Astro.props;
+const parts = blocks.find(block => block.kind === 'paragraph')?.text ?? [];
+---
+
+{text ? text : <DocInline {parts} {locale} />}

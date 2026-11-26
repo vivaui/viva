@@ -25,6 +25,7 @@
     --viva-accent-border: #e4e4e7;
     --viva-error: #b91c1c;
     --viva-success: #15803d;
+    --viva-type: #3b62c9;
     --viva-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     --viva-radius: 8px;
     --viva-header-height: 56px;
@@ -45,6 +46,7 @@
     --viva-accent-border: #27272a;
     --viva-error: #f87171;
     --viva-success: #4ade80;
+    --viva-type: #93b8ff;
     color-scheme: dark;
   }
   html { overscroll-behavior-y: none; }
@@ -188,6 +190,39 @@
   .section-intro { margin: 10px 0 18px; font-size: 15px; }
   .example-section { margin-top: 36px; }
   .example-summary { margin: 8px 0 16px; font-size: 15px; }
+  .component-api-group { margin-top: 34px; }
+  .component-api-group > h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .component-api-package { display: inline-flex; align-items: center; padding: 4px 9px; border: 1px solid var(--viva-border); border-radius: 999px; background: var(--viva-surface); color: var(--viva-doc-secondary); font-size: 12px; font-weight: 500; }
+  .component-api-group-label { color: var(--viva-muted); font-size: 12px; font-weight: 400; }
+  .component-api-canvas { margin-top: 34px; padding: 0 18px 18px; border: 1px solid var(--viva-border); border-radius: 8px; }
+  .component-api-canvas > summary { display: flex; align-items: center; gap: 8px; margin: 0 -18px; padding: 14px 18px; cursor: pointer; list-style: none; }
+  .component-api-canvas > summary::-webkit-details-marker { display: none; }
+  .component-api-canvas > summary::before { content: '▸'; color: var(--viva-muted); font-size: 11px; }
+  .component-api-canvas[open] > summary { margin-bottom: 14px; border-bottom: 1px solid var(--viva-border); }
+  .component-api-canvas[open] > summary::before { content: '▾'; }
+  .component-api-note { margin: 0 0 6px; color: var(--viva-muted); font-size: 13px; }
+  .component-api-canvas .component-api-group { margin-top: 18px; }
+  .component-api-type { margin-top: 24px; }
+  .component-api-type h4 { margin-bottom: 4px; font-size: 17px; }
+  .component-api-type h4 code { font-size: inherit; }
+  .component-api-synopsis { margin-top: 0; color: var(--viva-doc-secondary); font-size: 14px; }
+  .component-api-caption { margin: 22px 0 0; color: var(--viva-muted); font-size: 12px; font-weight: 500; }
+  .component-api-table { width: 100%; margin-top: 10px; border: 1px solid var(--viva-border); border-radius: 8px; border-collapse: separate; border-spacing: 0; table-layout: fixed; overflow: hidden; font-size: 14px; }
+  .component-api-table th, .component-api-table td { padding: 10px 14px; vertical-align: top; }
+  .component-api-table thead { background: var(--viva-surface); }
+  .component-api-table th { color: var(--viva-muted); font-size: 12px; font-weight: 500; }
+  .component-api-table tbody td { border-top: 1px solid var(--viva-border); }
+  .component-api-table tbody td:first-child { color: var(--viva-text); font-weight: 500; }
+  .component-api-table.fields td:nth-child(2) { color: var(--viva-muted); }
+  .component-api-type-link { color: var(--viva-type); }
+  .component-api-type-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .component-api-table.fields th:nth-child(1), .component-api-table.fields td:nth-child(1) { width: 22%; }
+  .component-api-table.fields th:nth-child(2), .component-api-table.fields td:nth-child(2) { width: 22%; }
+  .component-api-table.calls th:nth-child(1), .component-api-table.calls td:nth-child(1) { width: 18%; }
+  .component-api-table.calls th:nth-child(2), .component-api-table.calls td:nth-child(2) { width: 42%; }
+  .component-api-table td code { overflow-wrap: normal; word-break: normal; }
+  .component-api-table.fields td:nth-child(2) code { white-space: nowrap; }
+  .component-api-table.calls td:nth-child(2) code { font-size: 12px; line-height: 1.55; }
   .example-demo { border: 1px solid var(--viva-border); border-radius: 12px; overflow: hidden; background: var(--viva-background); }
   .example-toolbar { position: relative; display: flex; align-items: center; height: 38px; padding: 0 12px; border-bottom: 1px solid var(--viva-border); background: var(--viva-surface); }
   .window-dots { display: flex; align-items: center; gap: 7px; }

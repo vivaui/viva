@@ -14,12 +14,65 @@ with its own predecessor, not with whatever the application is on.
 ## Incompatible changes
 
 Newest first. This guide covers the incompatible changes documented here from
-v0.2.2 through v0.6.0 and in v0.6.8, including package moves as well as removed
-members and changed signatures. Read every entry newer than the application's
-current version, together with the corresponding [release notes](releases/). For
-a target between or newer than those, also check its intervening release notes;
-this page is not a promise that other releases only add API. Releases before v0.2.2 are not
-covered: the release-note archive begins there.
+v0.2.2 through v0.6.0 and in v0.6.8 and v0.6.9, including package moves as well
+as removed members and changed signatures. Read every entry newer than the
+application's current version, together with the corresponding [release
+notes](releases/). For a target between or newer than those, also check its
+intervening release notes; this page is not a promise that other releases only
+add API. Releases before v0.2.2 are not covered: the release-note archive begins
+there.
+
+### v0.6.9 - `app.StartFileDrag` no longer reports the effect
+
+`StartFileDrag` returns only an error: the effect the target took is the
+platform's own and is not reported, because the Windows drag blocks until the
+drop while macOS and Linux return once the drag is running. Code that read the
+effect must stop reading it.
+
+### v0.6.9 - `ui.Configure` routes files dragged from the system
+
+`ui.Configure` now sets the window's `OnFileDrop`: it gives the files to the
+`FileDropState` area (`Box.DropFiles`) under them, then to the `OnFileDrop` you
+passed when no area is there. An application that sets its own `OnFileDrop` and
+declares no area sees the same events as before. `ui.Host` has an `OnFileDrop`
+field for a host that calls `Page.Attach` itself.
+
+### v0.6.9 - a `ui.Table` column carries its own title and sort flag
+
+`TableSpec.Headers` and `TableSpec.Sortable` are removed; each `TableColumn` has a
+`Title` and a `Sortable` instead, so adding, dropping or reordering a column is one
+edit rather than three slices that must stay the same length.
+
+- `Columns: cols, Headers: []string{"Name", "Age"}, Sortable: []bool{true, false}`
+  becomes `Columns: []ui.TableColumn{{Title: "Name", Width: 160, Sortable: true},
+  {Title: "Age"}}`.
+- A table none of whose columns has a `Title` has no header row.
+- A table given `Headers` and no `Columns` shared its width between the columns.
+  Write one `TableColumn{Title: ...}` per column, with no `Width`: a table none of
+  whose columns has a width shares its own width equally, and leaves the slice you
+  declared as you wrote it.
+- `components.Table` is unchanged: it still takes `Header(headings)` separately and
+  ignores `Title` and `Sortable`.
+
+### v0.6.9 - identity options and required specs
+
+The `...ID` and `...With` twins of a control are removed; each control has one
+function.
+
+- `ui.TextFieldID`, `ui.TextAreaID`, `ui.RadioID`, `ui.SelectID` and
+  `ui.ColorPickerID` are removed. The identity goes at the end of the plain
+  function as an option, which is optional and costs no allocation:
+  `ui.TextFieldID(c, id, &m.query, "Search", "")` becomes
+  `ui.TextField(c, &m.query, "Search", "", ui.WithID(id))`, and the others
+  move `id` the same way. A `*string` given to `ui.TextArea` can now be named too.
+- `ui.PopoverWith` is now `ui.Popover`, and `ui.ModalWith` is now `ui.Modal`; both
+  take their spec before the body, as `ui.Drawer` does. The old plain forms gain a
+  spec: `ui.Modal(c, &open, title, body, footer)` becomes
+  `ui.Modal(c, &open, title, ui.ModalSpec{}, body, footer)`, and
+  `ui.Popover(c, anchor, &open, body)` becomes
+  `ui.Popover(c, anchor, &open, ui.PopoverSpec{Align: ui.Start}, body)`. The plain
+  popover lined up with the anchor's start; a zero `PopoverSpec` centers it, so
+  write `Align: ui.Start` to keep the old look.
 
 ### v0.6.8 - `ui.Run` takes a `PageConfig`, and four more signatures
 

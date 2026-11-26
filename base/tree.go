@@ -14,6 +14,10 @@ type TreeNode struct {
 	Depth              int
 	Branch, Expanded   bool
 	Selected, Disabled bool
+	// Loading shows a spinner in place of the branch's chevron while the
+	// application fetches its children, and takes no press on it: the application
+	// sets it when it starts, answering Toggled, and clears it with the children.
+	Loading bool
 	// Height is this row's height; zero uses TreeState.RowHeight, or the
 	// theme's control height when that is zero too. It is read with the
 	// description of the row, so a tree of compact and full rows needs no

@@ -408,7 +408,7 @@ func TestEveryComponentPageSurvivesBeingOperated(t *testing.T) {
 // through the platform text service. The rest of the text-entry family is a
 // fixed snapshot; this list failing means one of them stopped (or started)
 // being editable and the gallery page should say so.
-var editableComponents = []string{"code-diff", "code-editor", "code-merge", "field", "form", "input", "input-group", "input-otp", "textarea"}
+var editableComponents = []string{"code-diff", "code-editor", "code-merge", "field", "form", "input", "input-group", "input-number", "input-otp", "mentions", "pagination", "textarea"}
 
 func editableHits(driver *app.Driver) []gfx.Hit {
 	var fields []gfx.Hit

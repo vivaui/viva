@@ -32,6 +32,7 @@ type SliderGeometry struct {
 // with ValueAt (the pointer events of the held thumb carry it, with capture while
 // it is dragged) and a key into one with SliderKeyDown, and passes the result back.
 type Slider struct {
+	marks     []SliderMark
 	canvas    *gfx.Canvas
 	theme     gfx.Theme
 	id        gfx.ID
@@ -44,6 +45,16 @@ type Slider struct {
 	step      float32
 	vertical  bool
 	disabled  bool
+}
+
+// SliderMark is a value marked on the track, with a word under it when it has a label.
+type SliderMark = base.SliderMark
+
+// Marks puts a dot on the track at each mark's value and its label under the track.
+// The labels hang below bounds, so the caller leaves room for them.
+func (slider Slider) Marks(marks []SliderMark) Slider {
+	slider.marks = marks
+	return slider
 }
 
 // BeginSlider starts a single-thumb 0..100 slider declaration.
@@ -147,6 +158,7 @@ func (slider Slider) Paint(label string) SliderGeometry {
 		activeRadius = geometry.Active.Width / 2
 	}
 	slider.canvas.Rounded(geometry.Active, activeRadius, activeColor)
+	slider.paintMarks(geometry, trackColor)
 
 	for index := 0; index < slider.ThumbCount(); index++ {
 		_, id, thumbDisabled := slider.thumb(index)
@@ -188,6 +200,41 @@ func (slider Slider) Paint(label string) SliderGeometry {
 		}
 	}
 	return geometry
+}
+
+// paintMarks draws a dot on the track at each mark, light over the filled part and dark
+// over the rest, and the labels of the marks under the track.
+func (slider Slider) paintMarks(geometry SliderGeometry, trackColor gfx.Color) {
+	if len(slider.marks) == 0 {
+		return
+	}
+	origin, extent := slider.travel()
+	_, end := slider.activeFractions()
+	const dot = float32(4)
+	over := slider.theme.PrimaryForeground
+	rest := slider.theme.MutedForeground
+	if slider.disabled {
+		over.Alpha *= 0.50
+		rest.Alpha *= 0.50
+	}
+	for _, mark := range slider.marks {
+		fraction := slider.fraction(mark.Value)
+		color := rest
+		if fraction <= end {
+			color = over
+		}
+		if slider.vertical {
+			y := origin + extent*(1-fraction)
+			slider.canvas.Rounded(gfx.Rect{X: geometry.Track.X + (geometry.Track.Width-dot)/2, Y: y - dot/2, Width: dot, Height: dot}, dot/2, color)
+			continue
+		}
+		x := origin + extent*fraction
+		slider.canvas.Rounded(gfx.Rect{X: x - dot/2, Y: geometry.Track.Y + (geometry.Track.Height-dot)/2, Width: dot, Height: dot}, dot/2, color)
+		if mark.Label != "" {
+			label := gfx.Rect{X: x - 48, Y: geometry.Bounds.Y + geometry.Bounds.Height + 2, Width: 96, Height: slider.theme.Metrics.FontSizeS + 6}
+			slider.canvas.LabelCenter(mark.Label, label, gfx.TextStyle{Size: slider.theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: rest})
+		}
+	}
 }
 
 func (slider Slider) geometry() SliderGeometry {

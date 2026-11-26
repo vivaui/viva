@@ -32,6 +32,8 @@ export interface Page extends Nav {
   Revision: string;
   /** The Go file the examples call: components/<id>.go, or ui/list.go for a page-layer control. */
   Source: string;
+  /** The API symbols this page summarizes, as "package.Name". */
+  api?: string[];
   All: Nav[];
   Examples: Demo[];
   InstallCommand: string;

@@ -62,7 +62,7 @@ func TestPageLabelLabelsForItsControl(t *testing.T) {
 	d := openPage(t, func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(8).Children(func() {
 			ui.Label(c, "Work email").Required().LabelFor(control)
-			ui.TextFieldID(c, control, &field, "Work email", "")
+			ui.TextField(c, &field, "Work email", "", ui.WithID(control))
 		})
 	})
 	for _, hit := range d.driver.Snapshot().Hits {

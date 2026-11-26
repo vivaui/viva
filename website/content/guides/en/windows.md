@@ -79,7 +79,7 @@ Hosts without the capability return an error wrapping `app.ErrUnsupported`.
 
 ## A complete example
 
-The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `ui.Row` padded by `c.TitlebarInsets()`, so the title never runs under the window buttons, and the confirmation is a `ui.ModalWith` declared only while a close is pending:
+The program below opens a custom-title-bar window with a Settings button that opens a second window, and refuses to close while a note is unsaved. The strip along the top is an ordinary `ui.Row` padded by `c.TitlebarInsets()`, so the title never runs under the window buttons, and the confirmation is a `ui.Modal` declared only while a close is pending:
 
 <!-- example: windows/main.go -->
 ```go
@@ -115,7 +115,7 @@ func (state *notes) page(c ui.C) {
 					ui.PageConfig{View: func(c ui.C) { ui.Text(c, "Settings").FontSize(20).Bold() }})
 			}
 		})
-		ui.ModalWith(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
+		ui.Modal(c, &state.confirmClosing, "Discard changes?", ui.ModalSpec{
 			Description: "The note has not been saved.", Width: 400, NoClose: true,
 		}, nil, func() {
 			if ui.Button(c, "Keep editing").Outline().Clicked() {

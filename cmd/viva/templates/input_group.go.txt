@@ -102,7 +102,7 @@ func PaintInputGroup(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snaps
 	layout.Control = gfx.Rect{X: row.X + startWidth, Y: row.Y, Width: inputGroupMax(0, row.Width-startWidth-endWidth), Height: row.Height}
 
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Warning: snapshot.Warning, Disabled: snapshot.Disabled})
 	inputGroupPaintSlot(canvas, theme, layout.BlockStart, snapshot.BlockStart, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.BlockEnd, snapshot.BlockEnd, true, false, snapshot.Disabled)
 	inputGroupPaintSlot(canvas, theme, layout.InlineStart, snapshot.InlineStart, false, true, snapshot.Disabled)

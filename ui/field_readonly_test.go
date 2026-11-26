@@ -77,8 +77,8 @@ func TestPageTextAreaStateAndReadOnly(t *testing.T) {
 	disabled.Disabled = true
 	view := func(c ui.C) {
 		ui.Column(c).Pad(16).Gap(8).Children(func() {
-			ui.TextAreaID(c, gfx.Item(1), &invalid, "Invalid", "").Height(104)
-			ui.TextAreaID(c, gfx.Item(2), &disabled, "Disabled", "").Height(104)
+			ui.TextArea(c, &invalid, "Invalid", "", ui.WithID(gfx.Item(1))).Height(104)
+			ui.TextArea(c, &disabled, "Disabled", "", ui.WithID(gfx.Item(2))).Height(104)
 		})
 	}
 	page := ui.NewPage(ui.PageConfig{View: view})

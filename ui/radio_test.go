@@ -30,13 +30,13 @@ func TestRadioGroupChoosesByClickAndArrows(t *testing.T) {
 	}
 }
 
-func TestRadioIDKeepsTheApplicationsIdentity(t *testing.T) {
+func TestRadioWithIDKeepsTheApplicationsIdentity(t *testing.T) {
 	id := gfx.Item(41)
 	ungroup := false
 	d := openPage(t, func(c ui.C) {
 		ui.RadioGroup(c).Children(func() {
-			ui.RadioID(c, gfx.Item(40), &ungroup, false, "Keep")
-			ui.RadioID(c, id, &ungroup, true, "Ungroup")
+			ui.Radio(c, &ungroup, false, "Keep", ui.WithID(gfx.Item(40)))
+			ui.Radio(c, &ungroup, true, "Ungroup", ui.WithID(id))
 		})
 	})
 	d.click("Ungroup")
