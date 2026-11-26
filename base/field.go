@@ -27,7 +27,10 @@ import (
 //	f.Field(&m.password, passwordID, "Password", "")
 //	m.name.Text()                       // what was typed
 type Field struct {
-	// Secure shows bullets instead of the text and keeps it out of accessibility.
+	// Secure shows bullets instead of the text and keeps it out of accessibility,
+	// the clipboard and the platform's suggestions: a password. It is the
+	// application's to set and clear, as Invalid is to be cleared; in a field
+	// declared as a FieldArea the bullets are its rows, a line break kept.
 	Secure bool
 	// Invalid paints the field as one whose value is wrong, with the destructive
 	// border and ring components.Input gives an invalid input. It is the application's
@@ -366,7 +369,8 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 // FieldArea is Field in several rows, with the shadcn textarea look: the same
 // editor, focus and platform editing, Enter starting a new line, long lines wrapped
 // and the rows scrolled to follow the caret. Give it a Height (it is one row tall
-// otherwise). It has no Submitted: Enter is a new line.
+// otherwise). It has no Submitted: Enter is a new line. A Secure field is a
+// password's here too: the rows are its bullets (TextareaSnapshot.Secure).
 //
 //	f.FieldArea(&m.notes, notesID, "Notes", "Anything to add").Height(120)
 func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Box {
@@ -379,7 +383,8 @@ func (f *Frame) FieldArea(field *Field, ID gfx.ID, Label, placeholder string) Bo
 		ID: input.ID, Label: input.Label, Value: input.Value, DisplayValue: input.Value, Placeholder: placeholder,
 		Hint: input.Hint, Disabled: input.Disabled, ReadOnly: input.ReadOnly, Invalid: input.Invalid, Warning: input.Warning,
 		Focused: input.Focused, HideEditorText: true, ShowCaret: input.ShowCaret, Layout: field.area,
-		Caret: input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
+		Secure: input.Secure,
+		Caret:  input.Caret, SelectionStart: input.SelectionStart, SelectionEnd: input.SelectionEnd,
 		SelectionRanges:  input.SelectionRanges,
 		CompositionStart: input.CompositionStart, CompositionEnd: input.CompositionEnd,
 	})

@@ -50,6 +50,15 @@ type TextareaSnapshot struct {
 	Disabled     bool
 	ReadOnly     bool
 	Invalid      bool
+	// Secure makes it a password field, as InputSnapshot.Secure does for a
+	// single-line one: the value is never exposed, DisplayValue is ignored, and
+	// the box paints one bullet in place of each rune of Value, a line break
+	// kept. With a Layout the bullets are the rows it keeps between paints and,
+	// by their rows, the caret, the selection and a press land where they do for
+	// text; the offsets Layout reports stay offsets into Value. Without one the
+	// box paints a run of bullets for each row from its first, and no caret or
+	// selection.
+	Secure bool
 	// Warning paints the field with the warning border; Invalid wins over it.
 	Warning       bool
 	Focused       bool
@@ -93,6 +102,7 @@ type TextareaSnapshot struct {
 	// painting: the selections of a multi-selection editor (see
 	// text.Editor.SelectionSpansInto), as byte offsets into Value in order and
 	// non-overlapping. Collapsed ones paint nothing; only the primary has Caret.
+	// A Secure box paints its one selection only.
 	SelectionRanges  []text.Span
 	CompositionStart int
 	CompositionEnd   int
@@ -134,6 +144,9 @@ const (
 //     input-method window where the caret is;
 //   - ContentHeight sizes a box that grows with its text.
 //
+// The text and its byte offsets stay the application's throughout, for a Secure
+// box too (see Conceal); the layout knows only where they fall on the screen.
+//
 // The zero value is ready. It is not safe for concurrent use, and one layout
 // serves one textarea.
 type TextareaLayout struct {
@@ -144,6 +157,9 @@ type TextareaLayout struct {
 	size   float32
 	width  float32 // the width rows were wrapped to
 	fonts  uint32  // the canvas's FontGeneration the rows were measured in
+	// concealed is the secret whose rows these are while the box is a Secure
+	// one; off, the rows are the text's own.
+	concealed concealedText
 	// exact tells for each row whether the canvas wrapped it (Show) or it is still
 	// the estimate Fit made; estimated counts the estimated ones.
 	exact     []bool
@@ -177,17 +193,85 @@ type TextareaLayout struct {
 	UpstreamCaret int
 }
 
+// concealedText is a layout's memory of a Secure box: the bullets its rows are
+// made of, kept while the text they stand for is the same, so a steady paint
+// builds nothing. Off are both strings dropped, so a layout keeps no secret it
+// does not show.
+type concealedText struct {
+	on      bool
+	value   string // the text the application holds
+	bullets string // what its rows are made of
+}
+
+// Conceal makes the layout one whose rows are bullets, for a Secure box: Fit is
+// given the text the application holds as it always is and lays one bullet out
+// in place of each of its runes, a line break kept; RowsText and RowsOffset tell
+// what was painted. The offsets Show, Move and OffsetAt take and answer stay
+// offsets into that text. Conceal(false) lays the text out as it is again.
+func (layout *TextareaLayout) Conceal(secure bool) {
+	if layout.concealed.on == secure {
+		return
+	}
+	layout.concealed = concealedText{on: secure}
+	layout.fitted = false
+}
+
+// RowsText is the text the layout's rows index, once it is fitted: the text it
+// was fitted to, or the bullets it lays out for it while it conceals.
+func (layout *TextareaLayout) RowsText() string { return layout.text }
+
+// RowsOffset is offset into RowsText of offset, an offset into the text the
+// layout was last fitted to.
+func (layout *TextareaLayout) RowsOffset(offset int) int {
+	return layout.rowOffset(offset)
+}
+
+// rows is the text Fit lays out for value: value, or the bullets it stands for
+// while the layout conceals.
+func (layout *TextareaLayout) rows(value string) string {
+	c := &layout.concealed
+	if !c.on {
+		return value
+	}
+	if value != c.value {
+		c.value, c.bullets = value, text.Bullets(value)
+	}
+	return c.bullets
+}
+
+// rowOffset is an offset into the value in the rows' terms: where its bullet
+// starts. A layout that shows the text itself maps nothing.
+func (layout *TextareaLayout) rowOffset(offset int) int {
+	if !layout.concealed.on {
+		return offset
+	}
+	return text.BulletOffset(layout.concealed.value, offset)
+}
+
+// textOffset is an offset into the rows in the value's terms.
+func (layout *TextareaLayout) textOffset(offset int) int {
+	if !layout.concealed.on {
+		return offset
+	}
+	return text.ValueOffset(layout.concealed.value, offset)
+}
+
 // Semantics returns a normalized, allocation-free semantic snapshot. It does
-// not claim that a platform bridge exposes selection or invalid state yet.
+// not claim that a platform bridge exposes selection or invalid state yet. A
+// Secure box has no value to report.
 func (snapshot TextareaSnapshot) Semantics() TextareaSemantics {
 	display := snapshot.DisplayValue
-	if display == "" {
+	if display == "" || snapshot.Secure {
 		display = snapshot.Value
 	}
 	selectionStart, selectionEnd := textareaRange(display, snapshot.SelectionStart, snapshot.SelectionEnd)
 	compositionStart, compositionEnd := textareaRange(display, snapshot.CompositionStart, snapshot.CompositionEnd)
+	value := snapshot.Value
+	if snapshot.Secure {
+		value = ""
+	}
 	return TextareaSemantics{
-		ID: snapshot.ID, Label: snapshot.Label, Value: snapshot.Value, Hint: snapshot.Hint,
+		ID: snapshot.ID, Label: snapshot.Label, Value: value, Hint: snapshot.Hint,
 		Focused: snapshot.Focused && !snapshot.Disabled, Disabled: snapshot.Disabled,
 		ReadOnly: snapshot.ReadOnly, Invalid: snapshot.Invalid,
 		SelectionStart: selectionStart, SelectionEnd: selectionEnd,
@@ -195,9 +279,10 @@ func (snapshot TextareaSnapshot) Semantics() TextareaSemantics {
 	}
 }
 
-// layoutText is the text a Layout lays out: the one the box paints.
+// LayoutText is the text a Layout lays out: the one the box paints. A Secure box
+// paints the bullets of its Value, so DisplayValue, ignored there, is not it.
 func (snapshot TextareaSnapshot) LayoutText() string {
-	if snapshot.DisplayValue != "" {
+	if snapshot.DisplayValue != "" && !snapshot.Secure {
 		return snapshot.DisplayValue
 	}
 	return snapshot.Value
@@ -296,7 +381,7 @@ func (layout *TextareaLayout) OffsetAt(point gfx.Point) (int, bool) {
 	row = max(0, min(row, len(layout.Rows)-1))
 	offset, upstream := layout.offsetInRow(row, point.X-layout.Content.X)
 	layout.setUpstream(offset, upstream)
-	return offset, true
+	return layout.textOffset(offset), true
 }
 
 // CaretBounds is the row the caret was painted on, one pixel wide, in window
@@ -306,33 +391,37 @@ func (layout *TextareaLayout) CaretBounds() (gfx.Rect, bool) {
 	return layout.Caret, layout.Painted && layout.CaretShown
 }
 
-// Move returns the byte offset of text that movement leads to from caret, laid
+// Move returns the byte offset of value that movement leads to from caret, laid
 // out as the last paint laid it out. Up on the first row goes to the start of
 // the text and Down on the last to its end. It records the column of a run of
 // vertical moves and where a caret at the end of a wrapped row is drawn, so call
-// it for every movement and then put the caret at the offset it returns.
-func (layout *TextareaLayout) Move(text string, caret int, movement TextareaMovement) int {
-	caret = textareaBoundary(text, caret)
+// it for every movement and then put the caret at the offset it returns. For a
+// layout that conceals, the rows are the bullets' and the offset it returns is
+// into the value.
+func (layout *TextareaLayout) Move(value string, caret int, movement TextareaMovement) int {
+	at := textareaBoundary(value, caret)
+	rows := layout.rows(value)
 	switch movement {
 	case TextareaMoveTextStart:
-		return layout.arrive(0, false)
+		return layout.textOffset(layout.arrive(0, false))
 	case TextareaMoveTextEnd:
-		return layout.arrive(len(text), false)
+		return layout.textOffset(layout.arrive(len(rows), false))
 	}
 	if !layout.Painted || layout.canvas == nil {
-		return caret
+		return at
 	}
-	layout.Fit(layout.canvas, text, layout.size, layout.width, layout.wrap)
+	layout.Fit(layout.canvas, value, layout.size, layout.width, layout.wrap)
+	caret = layout.rowOffset(at)
 	row := layout.RowOf(caret)
 	switch movement {
 	case TextareaMoveLineStart:
-		return layout.arrive(layout.Rows[row].Start, false)
+		return layout.textOffset(layout.arrive(layout.Rows[row].Start, false))
 	case TextareaMoveLineEnd:
 		end, upstream := layout.rowEnd(row)
-		return layout.arrive(end, upstream)
+		return layout.textOffset(layout.arrive(end, upstream))
 	case TextareaMoveUp, TextareaMoveDown, TextareaMovePageUp, TextareaMovePageDown:
 	default:
-		return caret
+		return at
 	}
 	step := 1
 	if movement == TextareaMovePageUp || movement == TextareaMovePageDown {
@@ -351,14 +440,14 @@ func (layout *TextareaLayout) Move(text string, caret int, movement TextareaMove
 	case target < 0:
 		offset = 0
 	case target >= len(layout.Rows):
-		offset = len(text)
+		offset = len(rows)
 	default:
 		offset, upstream = layout.offsetInRow(target, layout.goal)
 	}
 	goal := layout.goal
-	offset = layout.arrive(offset, upstream)
+	layout.arrive(offset, upstream)
 	layout.goal, layout.goalCaret, layout.goalActive = goal, offset, true
-	return offset
+	return layout.textOffset(offset)
 }
 
 // arrive notes where the caret ended up and returns it.
@@ -372,8 +461,9 @@ func (layout *TextareaLayout) setUpstream(offset int, upstream bool) {
 	layout.Upstream, layout.UpstreamCaret = upstream, offset
 }
 
-// Fit lays text out in rows at width unless they already are, and keeps what it
-// laid them out with for the events that follow.
+// Fit lays value out in rows at width unless they already are, and keeps what it
+// laid them out with for the events that follow. For a layout that conceals, the
+// rows are those of the bullets it shows for value (Conceal).
 //
 // The rows are estimated with the reference metrics (gfx.WrapRowEstimate), which shape
 // nothing, and Show wraps the ones the box shows with the canvas: opening a long text
@@ -382,10 +472,12 @@ func (layout *TextareaLayout) setUpstream(offset int, upstream bool) {
 // paragraphs an edit touched are laid out again: the rows before them are kept and the
 // rows after them move by the length the edit added or removed. Other fonts, a size or
 // a width lay the whole text out again.
-func (layout *TextareaLayout) Fit(canvas *gfx.Canvas, text string, size, width float32, wrap bool) {
+func (layout *TextareaLayout) Fit(canvas *gfx.Canvas, value string, size, width float32, wrap bool) {
 	fonts := canvas.FontGeneration()
 	same := layout.fitted && layout.canvas == canvas && layout.fonts == fonts && layout.wrap == wrap && layout.size == size && layout.width == width
 	layout.canvas = canvas
+	// The rows are the value's, or the bullets a concealed layout shows for it.
+	text := layout.rows(value)
 	if same && layout.text == text {
 		return
 	}
@@ -551,6 +643,7 @@ func (layout *TextareaLayout) rowAt(offset int) int {
 // that moved since the last paint is kept in view as Follow keeps it. Content and
 // LineHeight are the box's for this paint.
 func (layout *TextareaLayout) Show(caret int) {
+	caret = layout.rowOffset(caret) // the rows are the bullets' while it conceals
 	moved := !layout.FollowedValid || layout.followed != caret || layout.followedRow != layout.RowOf(caret)
 	for {
 		layout.Follow(caret, layout.RowOf(caret))

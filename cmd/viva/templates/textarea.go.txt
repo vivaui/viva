@@ -1,8 +1,11 @@
 package {{PACKAGE}}
 
 import (
+	"unicode/utf8"
+
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/text"
 )
 
 // TextareaCommandForKey maps only keys owned by a multiline editor. Text
@@ -55,10 +58,14 @@ func PaintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.
 }
 
 func paintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.Rect, snapshot TextareaSnapshot, focused bool) {
+	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
 	top := min(max(snapshot.InsetTop, 0), max(area.Height, 0))
 	content := gfx.Rect{X: area.X, Y: area.Y + top, Width: textareaMax(0, area.Width-snapshot.InsetRight), Height: textareaMax(0, area.Height-top-snapshot.InsetBottom)}
+	// A Secure box shows what its Value is, as bullets: DisplayValue is not its.
 	display := snapshot.DisplayValue
-	if display == "" {
+	if display == "" || snapshot.Secure {
 		display = snapshot.Value
 	}
 	layout := snapshot.Layout
@@ -72,6 +79,7 @@ func paintTextareaContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, area gfx.
 		options := gfx.HitOptions{
 			Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 			Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Multiline: true, Invalid: snapshot.Invalid,
+			Secure:     snapshot.Secure,
 			TextBounds: content, TextSize: textareaHitSize(theme, snapshot), TextColor: theme.Foreground,
 		}
 		if snapshot.HideEditorText {
@@ -154,9 +162,15 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 	if snapshot.Disabled {
 		color.Alpha *= 0.50
 	}
+	// concealed is a Secure box that keeps no rows: it shows a run of bullets for
+	// each row of its text, from the first, and no caret, selection or composition.
+	concealed := snapshot.Secure && snapshot.Layout == nil
+	caret := textareaBoundary(value, snapshot.Caret)
 	selectionStart, selectionEnd := textareaRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	compositionStart, compositionEnd := textareaRange(value, snapshot.CompositionStart, snapshot.CompositionEnd)
-	caret := textareaBoundary(value, snapshot.Caret)
+	// In the text's terms until the layout has said what its rows are made of.
+	offsets := [5]int{caret, selectionStart, selectionEnd, compositionStart, compositionEnd}
+	selectionRanges := snapshot.SelectionRanges
 	width := bounds.Width
 	if snapshot.NoWrap {
 		width = 0
@@ -167,10 +181,20 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 	rows := textareaRows{canvas: canvas, text: value, size: fontSize, width: width}
 	var scroll float32
 	if layout != nil {
-		layout.Fit(canvas, snapshot.LayoutText(), fontSize, bounds.Width, !snapshot.NoWrap)
+		// The rows may be those of the bullets a Secure box shows for the text. The
+		// caret, the selection and the composition are read on them, and a secret
+		// has one selection to paint.
+		layout.Conceal(snapshot.Secure)
+		layout.Fit(canvas, value, fontSize, bounds.Width, !snapshot.NoWrap)
+		rows.text = layout.RowsText()
+		rowsOffsets(layout, &offsets)
+		if snapshot.Secure {
+			selectionRanges = nil
+		}
+		value = rows.text
 		layout.Content, layout.LineHeight = bounds, lineHeight
 		if !placeholderShown {
-			layout.Show(caret)
+			layout.Show(caret) // in the offsets of the text the application holds
 			rows.layout, rows.index = layout, int(layout.Scroll/lineHeight)
 			scroll = layout.Scroll
 		} else {
@@ -180,6 +204,8 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 		layout.Painted = true
 	}
 
+	// Now in those of the rows.
+	caret, selectionStart, selectionEnd, compositionStart, compositionEnd = offsets[0], offsets[1], offsets[2], offsets[3], offsets[4]
 	upstream := layout != nil && !placeholderShown && layout.Upstream && layout.UpstreamCaret == caret
 	// Rows wrap by the reference metrics and the platform draws them with its own
 	// advances, a pixel or three wider at the end of a full row: the clip, and the
@@ -201,7 +227,8 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			break
 		}
 		// A row that wrapped does not draw the spaces left hanging at its end.
-		line := value[row.Start:row.End]
+		raw := value[row.Start:row.End]
+		line := raw
 		if after == row.End {
 			line = trimTrailingSpaces(line)
 		}
@@ -212,8 +239,12 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 		if origin == lineBounds.X {
 			labelBounds.Width += overhang // see clip
 		}
+		if concealed {
+			paintBullets(canvas, snapshot, utf8.RuneCountInString(raw), labelBounds, style)
+			continue
+		}
 		var selections []gfx.Rect
-		var ranges [4]gfx.Rect
+		var lineSelections [4]gfx.Rect
 		// At a wrap, the end of one row is the start of the next: the caret is drawn on
 		// the next unless it got to the end of the first by going there.
 		holdsCaret := caret >= row.Start && (after < 0 || caret < after)
@@ -224,16 +255,16 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			holdsCaret = false
 		}
 		if !placeholderShown {
-			if len(snapshot.SelectionRanges) > 0 {
+			if len(selectionRanges) > 0 {
 				// A multi-selection editor paints every selection; two on one row
 				// show as two bands, and every row a range crosses gets its part.
-				selections = ranges[:0]
-				for _, span := range snapshot.SelectionRanges {
+				selections = lineSelections[:0]
+				for _, span := range selectionRanges {
 					start, end := textareaRange(value, span.Start, span.End)
 					selections = textareaLineRanges(canvas, selections, labelBounds, origin, line, fontSize, row.Start, lineEnd, start, end)
 				}
 			} else {
-				selections = textareaLineRanges(canvas, ranges[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, selectionStart, selectionEnd)
+				selections = textareaLineRanges(canvas, lineSelections[:0], labelBounds, origin, line, fontSize, row.Start, lineEnd, selectionStart, selectionEnd)
 			}
 			selectionColor, _ := selectionColors(theme)
 			if snapshot.Disabled {
@@ -260,11 +291,7 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 			// An empty box has its caret at the start, in front of the hint.
 			textareaPlaceCaret(canvas, theme, layout, lineBounds, origin, focused && snapshot.ShowCaret && !snapshot.Disabled)
 		}
-		if snapshot.PaintLine != nil {
-			snapshot.PaintLine(canvas, line, labelBounds, style)
-		} else {
-			canvas.Label(line, labelBounds, style)
-		}
+		paintTextareaLine(canvas, snapshot, line, labelBounds, style)
 		for _, selection := range selections {
 			if selection.Width <= 0 {
 				continue
@@ -275,15 +302,54 @@ func textareaPaintRows(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, val
 				selectedColor.Alpha *= 0.50
 			}
 			selectedStyle := gfx.TextStyle{Size: fontSize, Weight: weight, Color: selectedColor}
-			if snapshot.PaintLine != nil {
-				snapshot.PaintLine(canvas, line, labelBounds, selectedStyle)
-			} else {
-				canvas.Label(line, labelBounds, selectedStyle)
-			}
+			paintTextareaLine(canvas, snapshot, line, labelBounds, selectedStyle)
 			canvas.Unclip()
 		}
 	}
 	canvas.Unclip()
+}
+
+// rowsOffsets moves the caret, selection and composition offsets into the rows'
+// terms in place, each distinct one once: the caret of a collapsed selection is
+// its end, and most of the time nothing is being composed.
+func rowsOffsets(layout *TextareaLayout, offsets *[5]int) {
+	raw := *offsets
+	for i, offset := range raw {
+		same := -1
+		for j, before := range raw[:i] {
+			if before == offset {
+				same = j
+				break
+			}
+		}
+		if same >= 0 {
+			offsets[i] = offsets[same]
+		} else {
+			offsets[i] = layout.RowsOffset(offset)
+		}
+	}
+}
+
+// paintTextareaLine paints one row as the box wants it: by its own line painter, or by the canvas.
+func paintTextareaLine(canvas *gfx.Canvas, snapshot TextareaSnapshot, line string, bounds gfx.Rect, style gfx.TextStyle) {
+	if snapshot.PaintLine != nil {
+		snapshot.PaintLine(canvas, line, bounds, style)
+		return
+	}
+	canvas.Label(line, bounds, style)
+}
+
+// paintBullets paints one row of the concealed box that keeps no rows: count
+// bullets from the row's start, in runs of a constant so a long row builds nothing.
+func paintBullets(canvas *gfx.Canvas, snapshot TextareaSnapshot, count int, bounds gfx.Rect, style gfx.TextStyle) {
+	const bullet = len(text.Bullet)
+	for count > 0 && bounds.Width > 0 {
+		run := inputBullets[:min(count, len(inputBullets)/bullet)*bullet]
+		paintTextareaLine(canvas, snapshot, run, bounds, style)
+		advance := canvas.TextWidthStyle(run, style)
+		bounds.X, bounds.Width = bounds.X+advance, bounds.Width-advance
+		count -= len(run) / bullet
+	}
 }
 
 // textareaPlaceCaret records where the caret is for the runtime and paints it

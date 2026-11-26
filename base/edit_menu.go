@@ -72,14 +72,14 @@ func (p *Page) declareEditMenu(c C, entry editMenuEntry, labels EditMenuLabels) 
 		return
 	}
 	n := entry.box.N()
-	var readOnly, disabled bool
+	var readOnly, disabled, secure bool
 	switch n.Kind {
 	case kindInput:
 		snapshot := &WidgetsOf(entry.box.f).inputs[n.Aux]
-		readOnly, disabled = snapshot.ReadOnly, snapshot.Disabled
+		readOnly, disabled, secure = snapshot.ReadOnly, snapshot.Disabled, snapshot.Secure
 	case kindTextarea:
 		snapshot := &WidgetsOf(entry.box.f).textareas[n.Aux]
-		readOnly, disabled = snapshot.ReadOnly, snapshot.Disabled
+		readOnly, disabled, secure = snapshot.ReadOnly, snapshot.Disabled, snapshot.Secure
 	default:
 		return
 	}
@@ -110,7 +110,7 @@ func (p *Page) declareEditMenu(c C, entry editMenuEntry, labels EditMenuLabels) 
 		_, composing := editor.Composition()
 		selected := selection.Start != selection.End && editor.SelectionCount() == 1 && !composing
 		editable := !readOnly && !composing
-		if !field.Secure {
+		if !secure {
 			if menu.Item(labels.Cut).Keys(Primary, "x").Disabled(!selected || !editable).Clicked() && chosen() {
 				if SetClipboardText != nil && SetClipboardText(selectedText(editor, selection)) == nil {
 					editor.Paste("")

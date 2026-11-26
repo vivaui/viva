@@ -111,7 +111,9 @@ func (m *model) page(c ui.C) {
 
 ## 密码字段
 
-在 `ui.TextField` 上调用 `.Secure()`（或在 `ui.Field` 上设置 `Secure`，或设置 `InputSnapshot.Secure`）。组件为每个字符画一个圆点，永远不会把值暴露给无障碍树，运行时也会遮住平台文本服务绘制的内容。
+在 `ui.TextField` 上调用 `.Secure()`（或在 `ui.Field` 上设置 `Secure`，或设置 `InputSnapshot.Secure`）。组件为每个字符画一个圆点，永远不会把值暴露给无障碍树，编辑菜单和键盘都没有剪切与复制，运行时也会遮住平台文本服务绘制的内容。
+
+`ui.TextArea` 同样可以成为密码字段：在它上面调用 `.Secure()`，或在其 `ui.Field` 上设置 `Secure`（或设置 `TextareaSnapshot.Secure`）。多行文本区域在圆点之间保留换行，所以它的行、光标、选区和点击定位都与显示文本时一致，`TextareaLayout` 报告的偏移量仍是值里的偏移量。一份密钥大小的机密只在文本变化时重建一次圆点，稳定状态下绘制零分配。没有 `Layout` 时，这样的框从第一行起为每行画一段圆点，不画光标和选区。
 
 ## 多行与附加元素
 

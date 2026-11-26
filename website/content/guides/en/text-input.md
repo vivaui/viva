@@ -111,7 +111,9 @@ For work independent of a page key, capture the text before launching the worker
 
 ## Password fields
 
-Call `.Secure()` on the `ui.TextField` (or set `Secure` on a `ui.Field`, or `InputSnapshot.Secure`). The component paints one bullet per character, never exposes the value to the accessibility tree, and the runtime masks what the platform text service draws.
+Call `.Secure()` on the `ui.TextField` (or set `Secure` on a `ui.Field`, or `InputSnapshot.Secure`). The component paints one bullet per character, never exposes the value to the accessibility tree, Cut and Copy are off for it in the edit menu and from the keyboard, and the runtime masks what the platform text service draws.
+
+A `ui.TextArea` is a password field the same way: `.Secure()` on it, or `Secure` on its `ui.Field` (or `TextareaSnapshot.Secure`). It keeps its line breaks between the bullets, so its rows, its caret, a selection and a press land where they do for the text, and the offsets its `TextareaLayout` reports stay offsets into the value. A secret the size of a key costs one build of its bullets per edit, and a steady paint allocates nothing. Without a `Layout` such a box paints a run of bullets for each of its rows from the first, and no caret or selection.
 
 ## Several lines and addons
 

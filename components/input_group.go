@@ -388,12 +388,13 @@ func inputGroupPaintButton(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect,
 // and the selection look all match) or Textarea (several rows).
 func inputGroupPaintControl(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snapshot InputGroupSnapshot, focused bool) {
 	if snapshot.Multiline {
+		// Its rows are those of the bullets it shows while it is a password field.
 		display := snapshot.DisplayValue
-		if display == "" {
+		if display == "" || snapshot.Secure {
 			display = snapshot.Value
 		}
 		textareaPaintRows(canvas, theme, content, display, snapshot.Placeholder, TextareaSnapshot{
-			Disabled: snapshot.Disabled, ShowCaret: snapshot.ShowCaret, Caret: snapshot.Caret,
+			Disabled: snapshot.Disabled, ShowCaret: snapshot.ShowCaret, Caret: snapshot.Caret, Secure: snapshot.Secure,
 			SelectionStart: snapshot.SelectionStart, SelectionEnd: snapshot.SelectionEnd,
 			CompositionStart: snapshot.CompositionStart, CompositionEnd: snapshot.CompositionEnd,
 		}, focused)

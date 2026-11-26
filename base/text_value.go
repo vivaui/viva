@@ -137,14 +137,19 @@ func (b Box) NavigationKeys() Box {
 
 // Secure shows the field's text as bullets and keeps it out of accessibility, the
 // clipboard and the platform's suggestions: a password. It is Field.Secure for a
-// field bound to a string.
+// field bound to a string, for a TextField as for the rows of a TextArea.
 //
 //	ui.TextField(c, &m.password, "Password", "").Secure()
+//	ui.TextArea(c, &m.privateKey, "Private key", "").Secure()
 func (b Box) Secure() Box {
 	n := b.N()
-	if n.Kind != kindInput {
-		panic("ui: Secure is for a TextField")
+	switch n.Kind {
+	case kindInput:
+		WidgetsOf(b.f).inputs[n.Aux].Secure = true // what the field paints and the platform is told
+	case kindTextarea:
+		WidgetsOf(b.f).textareas[n.Aux].Secure = true
+	default:
+		panic("ui: Secure is for a TextField or TextArea")
 	}
-	WidgetsOf(b.f).inputs[n.Aux].Secure = true // what the field paints and the platform is told
 	return b
 }
