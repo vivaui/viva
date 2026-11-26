@@ -78,10 +78,22 @@ func (label LabelPainter) Paint(text string) {
 
 // labelEllipsis keeps the complete value alongside the fitted label. Its
 // control may declare its hit after painting; that hit still owns the pointer.
+// The hint is dropped where the page leaves its ellipsis tooltips off.
 func labelEllipsis(canvas *gfx.Canvas, value string, bounds gfx.Rect, style gfx.TextStyle, target gfx.ID) {
 	shown := canvas.FitLine(value, style.Size, style.Weight, bounds.Width)
 	canvas.Label(shown, bounds, style)
 	if shown != "" && shown != value {
 		canvas.HoverHint(0, bounds, value, target)
 	}
+}
+
+// labelOrEllipsis draws a value a control has always clipped at the edge of its
+// bounds, as Label does. Where the page shows ellipsis tooltips it ends the value
+// with an ellipsis instead, as labelEllipsis does, since the hint shows the rest.
+func labelOrEllipsis(canvas *gfx.Canvas, value string, bounds gfx.Rect, style gfx.TextStyle, target gfx.ID) {
+	if canvas.HoverHintOwner().IsZero() {
+		canvas.Label(value, bounds, style)
+		return
+	}
+	labelEllipsis(canvas, value, bounds, style, target)
 }

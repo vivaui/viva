@@ -82,7 +82,7 @@ func (f *Frame) Wrap(Value string) Box { return f.Paragraph(Value, math.MaxInt32
 
 // MaxLines makes a Text a paragraph of at most n lines, the last ending with an
 // ellipsis when the text needs more (n of one is Ellipsis); n of zero or less
-// takes as many lines as the width needs.
+// takes as many lines as the width needs. EllipsisTooltip shows what it cut.
 func (b Box) MaxLines(n int) Box {
 	node := b.N()
 	node.Flags |= flagWrap

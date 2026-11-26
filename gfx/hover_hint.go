@@ -40,12 +40,18 @@ func (canvas *Canvas) HoverHint(owner Scope, bounds Rect, text string, target ..
 
 // SetHoverHintOwner sets the page whose text components are painting and returns
 // the previous owner, to restore after a nested page. A zero owner disables
-// automatic hints for components painted outside a Page.
+// automatic hints: for components painted outside a Page, and where the page
+// leaves its EllipsisTooltips off.
 func (canvas *Canvas) SetHoverHintOwner(owner Scope) Scope {
 	previous := canvas.hoverHintOwner
 	canvas.hoverHintOwner = owner
 	return previous
 }
+
+// HoverHintOwner is the page SetHoverHintOwner set, zero when automatic hints
+// are off. A component that shortens text only when the hint can show the rest
+// reads it.
+func (canvas *Canvas) HoverHintOwner() Scope { return canvas.hoverHintOwner }
 
 // SameText reports whether two hints describe the same visible text. Changes
 // to unrelated pointer targets do not restart the tooltip's delay.

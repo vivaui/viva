@@ -5,7 +5,21 @@ import (
 	controlstyle "github.com/vivaui/viva/style"
 )
 
+// PaintChild paints element i and what it holds.
 func (f *Frame) PaintChild(i int32) {
+	// An EllipsisTooltip changes the setting for the element's subtree only.
+	// It is restored here, not by a deferred call in paintElement, whose other
+	// defers would stop being open-coded.
+	if tip := f.Exts[f.Nodes[i].Ext].ellipsisTip; tip != 0 {
+		was := f.setEllipsisTips(tip == ellipsisTipOn)
+		f.paintElement(i)
+		f.setEllipsisTips(was)
+		return
+	}
+	f.paintElement(i)
+}
+
+func (f *Frame) paintElement(i int32) {
 	n := &f.Nodes[i]
 	if !n.FocusScope.IsZero() {
 		// A menu's page controls paint in the menu's focus scope, so a press on
@@ -383,7 +397,7 @@ func (f *Frame) paintText(n *Node) {
 				f.paintStrike(line, bounds, style, alignment)
 			}
 		}
-		if n.TextDecor&textTruncated != 0 && f.page != nil && f.Exts[n.Ext].overflowTip == "" {
+		if n.TextDecor&textTruncated != 0 && f.ellipsisTips && f.Exts[n.Ext].overflowTip == "" {
 			r.Height = min(r.Height, float32(n.LineCount)*lh)
 			f.Surface.HoverHint(f.page.root, r, n.Text)
 		}

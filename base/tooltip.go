@@ -12,8 +12,10 @@ const TooltipLayer = 1000
 // OverflowTooltip supplies the complete value when an application shortened
 // the displayed text itself, possibly across several highlighted labels. Call
 // it only when content was omitted. Unlike Tooltip it declares no control and
-// leaves the enclosing row's pointer, focus and accessibility unchanged. Text
-// truncated by Ellipsis or MaxLines supplies its complete value automatically.
+// leaves the enclosing row's pointer, focus and accessibility unchanged. Giving
+// it is the caller's opt-in, so it shows whatever PageConfig.EllipsisTooltips
+// says. Text truncated by Ellipsis or MaxLines supplies its complete value
+// itself where the page or an EllipsisTooltip turned the tooltips on.
 func (b Box) OverflowTooltip(text string) Box {
 	b.f.Extra(b.i).overflowTip = text
 	return b
@@ -34,6 +36,8 @@ func (p *Page) PointerDown() bool { return p != nil && p.pointerDown }
 // pointer rests on it, and is its description for assistive technology: what an
 // icon-only button needs. The tip hides on a press and stays hidden until the
 // pointer leaves. The element is a control, or a container given an identity.
+// While the pointer is over shortened text inside the element whose complete
+// value EllipsisTooltip or OverflowTooltip shows, that tip shows instead.
 //
 //	ui.Button(c, "").Icon(trash).Tooltip("Delete")
 func (b Box) Tooltip(Text string) Box {

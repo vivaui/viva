@@ -31,13 +31,15 @@ func TestEllipsizedChipKeepsItsFullLabelAndRemoveButton(t *testing.T) {
 	if err := h.drv.Move(text.X+2, text.Y+text.Height/2); err != nil {
 		t.Fatal(err)
 	}
-	var tip string
-	for _, label := range h.drv.Snapshot().Labels {
-		if label.Layer == ui.TooltipLayer {
-			tip += label.Value
-		}
+	if tip := h.tooltip(); tip != "" {
+		t.Fatalf("chip tooltip %q with the tooltips off", tip)
 	}
-	if tip != full {
+	h.tips = true
+	h.repaint()
+	if err := h.drv.Move(text.X+3, text.Y+text.Height/2); err != nil {
+		t.Fatal(err)
+	}
+	if tip := h.tooltip(); tip != full {
 		t.Fatalf("chip tooltip %q, want %q", tip, full)
 	}
 	if err := h.drv.Click(center(h.hit(h.rem.At(0)).Bounds)); err != nil {
@@ -58,6 +60,17 @@ type harness struct {
 	inv   *app.Invalidator
 	opts  gfx.Scope
 	rem   gfx.Scope
+	tips  bool // the picker is given EllipsisTooltip(true)
+}
+
+func (h *harness) tooltip() string {
+	var tip string
+	for _, label := range h.drv.Snapshot().Labels {
+		if label.Layer == ui.TooltipLayer {
+			tip += label.Value
+		}
+	}
+	return tip
 }
 
 func open(t *testing.T) *harness {
@@ -73,6 +86,9 @@ func open(t *testing.T) *harness {
 		h.box = h.pick.View(c, multiselect.Spec{
 			Label: "Tags", Placeholder: "Add a tag", Options: h.opts, Removes: h.rem,
 		}).Width(260)
+		if h.tips {
+			h.box.EllipsisTooltip(true)
+		}
 	}})
 	h.inv = new(app.Invalidator)
 	var err error

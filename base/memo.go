@@ -127,6 +127,7 @@ type memoEntry struct {
 	cell       any      // *memoCell[T] of the value the part was last declared with
 	themeEpoch uint32   // the page's theme when the part was last painted
 	Opacity    float32  // the inherited opacity then
+	tips       bool     // whether EllipsisTooltip's tooltips were on then
 	scale      float32  // the canvas's pixel scale then
 	fonts      uint32   // the canvas's font generation then
 	epoch      uint32   // the paint the part was last declared or copied in
@@ -205,7 +206,7 @@ func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
 	canvas := f.Surface
 	rect := f.Nodes[i].Rect
 	if box.copy {
-		if entry.themeEpoch != p.themeEpoch || entry.Opacity != f.Opacity {
+		if entry.themeEpoch != p.themeEpoch || entry.Opacity != f.Opacity || entry.tips != f.ellipsisTips {
 			entry.stale = true
 			p.retry = true
 			return true
@@ -231,7 +232,7 @@ func (p *Page) memoPaint(f *Frame, i int32, before bool) bool {
 	entry.Span = canvas.SpanSince(box.before)
 	entry.listens = len(canvas.HitsSince(box.before)) > 0
 	entry.Rect, entry.bounds, entry.painted, entry.stale = rect, f.bounds, true, false
-	entry.themeEpoch, entry.Opacity = p.themeEpoch, f.Opacity
+	entry.themeEpoch, entry.Opacity, entry.tips = p.themeEpoch, f.Opacity, f.ellipsisTips
 	hovered, pressed, focused := canvas.Hovered(), canvas.Pressed(), canvas.Focused()
 	for _, hit := range canvas.HitsSince(box.before) {
 		if !hit.ID.IsZero() && (hit.ID == hovered || hit.ID == pressed || hit.ID == focused) {
