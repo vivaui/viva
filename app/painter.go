@@ -1757,13 +1757,9 @@ func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 				break
 			}
 			if *current != *previous {
-				if current.ID.IsZero() {
-					// Zero-ID hits (containers such as headings, groups and live regions)
-					// cannot be tracked by ID in dirty; fall back to the full mirror so
-					// bounds, label or role updates reach the accessibility payload.
-					fast = false
-					break
-				}
+				// A zero ID is tracked like any other: it marks every zero-ID
+				// node (headings, groups, live regions) for a rebuild below, and
+				// matches nothing for an occluder or drag region, which has none.
 				known := false
 				for _, id := range dirty {
 					if id == current.ID {
