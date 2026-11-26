@@ -568,3 +568,51 @@ func TestStoreUpdatesKeepABackendInStep(t *testing.T) {
 		}
 	}
 }
+
+// Deleting most of a large page gives back the batch scratch that page needed,
+// once the page left is small.
+func TestStoreReleasesTheScratchOfAPageThatShrank(t *testing.T) {
+	graph := scene.NewWithCapacity(20_001)
+	ids := make([]scene.ID, 0, 20_000)
+	for index := 0; index < 20_000; index++ {
+		id, _ := graph.AddRectangle(graph.Root(), scene.Rect{X: float32(index)}, scene.Color{Alpha: 1})
+		ids = append(ids, id)
+	}
+	var store Store
+	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range ids[1:] {
+		graph.Remove(id)
+	}
+	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
+		t.Fatal(err)
+	}
+	if cap(store.deleted) > 4096 {
+		t.Fatalf("the store keeps %d scratch for a one-shape page", cap(store.deleted))
+	}
+}
+
+// A page that stays large keeps the scratch its batches use, so its next large
+// batch does not allocate again.
+func TestStoreKeepsTheScratchOfAPageThatStaysLarge(t *testing.T) {
+	graph := scene.NewWithCapacity(20_001)
+	ids := make([]scene.ID, 0, 20_000)
+	for index := 0; index < 20_000; index++ {
+		id, _ := graph.AddRectangle(graph.Root(), scene.Rect{X: float32(index)}, scene.Color{Alpha: 1})
+		ids = append(ids, id)
+	}
+	var store Store
+	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range ids[:10_000] {
+		graph.Remove(id)
+	}
+	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
+		t.Fatal(err)
+	}
+	if cap(store.deleted) < 10_000 {
+		t.Fatalf("the store dropped the scratch of a %d-instance page: %d", len(store.Rectangles()), cap(store.deleted))
+	}
+}

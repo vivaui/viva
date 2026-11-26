@@ -92,8 +92,8 @@ type Store struct {
 	instanceBySlot []uint32
 	rectangles     []Rectangle
 	// order is the paint order one rebuild computes for the new batch; scratch
-	// is the walk stack. Both are reused, so their capacity tracks the largest
-	// page rather than the number of rebuilds.
+	// is the walk stack. Both are reused from batch to batch; releaseScratch
+	// gives back what a past large batch left in them.
 	order   []scene.ID
 	scratch []scene.ID
 	// deleted collects the instances a batch removes, and linking is the walk
@@ -101,6 +101,37 @@ type Store struct {
 	deleted []int
 	linking []int
 	root    scene.ID
+}
+
+// releaseScratch gives back the batch scratch a page that just shrank no longer
+// needs, so a one-off peak does not stay for the rest of the session. The
+// scratch holds nothing between batches and only ever looks oversized after
+// the page shrinks, so this runs then and costs other frames nothing; a page
+// that stays large keeps what its batches use and never reallocates.
+func (store *Store) releaseScratch() {
+	page := len(store.rectangles)
+	if oversized(cap(store.order), page) {
+		store.order = make([]scene.ID, 0, max(page, minScratch))
+	}
+	if oversized(cap(store.scratch), page) {
+		store.scratch = make([]scene.ID, 0, max(page, minScratch))
+	}
+	if oversized(cap(store.deleted), page) {
+		store.deleted = make([]int, 0, max(page, minScratch))
+	}
+	if oversized(cap(store.linking), page) {
+		store.linking = make([]int, 0, max(page, minScratch))
+	}
+}
+
+// minScratch is the capacity batch scratch is given back at; trimAt is the
+// capacity below which it is never released.
+const minScratch, trimAt = 64, 4096
+
+// oversized is the retention rule for batch scratch: past trimAt, it keeps at
+// most four times the page it serves.
+func oversized(capacity, page int) bool {
+	return capacity > trimAt && page*4 < capacity
 }
 
 // Rectangles returns the current ordered rectangle instances. The result is
@@ -380,6 +411,7 @@ func (store *Store) compact() int {
 	}
 	store.rectangles = store.rectangles[:write]
 	store.reindexFrom(first)
+	store.releaseScratch()
 	return first
 }
 
