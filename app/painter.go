@@ -1756,7 +1756,10 @@ func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 				fast = false
 				break
 			}
-			if *current != *previous && !current.ID.IsZero() {
+			if *current != *previous {
+				// A zero ID is tracked like any other: it marks every zero-ID
+				// node (headings, groups, live regions) for a rebuild below, and
+				// matches nothing for an occluder or drag region, which has none.
 				known := false
 				for _, id := range dirty {
 					if id == current.ID {
