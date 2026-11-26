@@ -65,10 +65,11 @@ func TestHoverHintIsMountedAndClippedWithEmbeddedText(t *testing.T) {
 }
 
 // BenchmarkHoverHintAt is a page asking for the tooltip under the pointer once
-// a frame: a table whose every row is a hit holding shortened text. On the first
-// row's text the query passes every hint and every hit painted after the row;
-// beside the text it passes every hint alone; with the tooltips off the page
-// declares no hints at all.
+// a frame: a table whose every row is a hit holding shortened text. Over a row's
+// text the query passes every hint and then every hit, since a hit painted
+// before the text on a higher layer still covers it, so every row costs the
+// same; beside the text no hint holds the pointer and the query passes the hints
+// alone; with the tooltips off the page declares no hints at all.
 func BenchmarkHoverHintAt(b *testing.B) {
 	for _, rows := range []int{100, 1000, 10000} {
 		var canvas Canvas
@@ -94,7 +95,7 @@ func BenchmarkHoverHintAt(b *testing.B) {
 			x, y   float32
 			want   string
 		}{
-			{"on the first row's text", &canvas, owner, 20, 10, "Complete filename.txt"},
+			{"on a row's text", &canvas, owner, 20, 10, "Complete filename.txt"},
 			{"beside the text", &canvas, owner, 300, 10, ""},
 			{"tooltips off", &off, offOwner, 20, 10, ""},
 		} {
