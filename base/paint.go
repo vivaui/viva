@@ -7,16 +7,20 @@ import (
 
 // PaintChild paints element i and what it holds.
 func (f *Frame) PaintChild(i int32) {
-	// An EllipsisTooltip changes the setting for the element's subtree only.
-	// It is restored here, not by a deferred call in paintElement, whose other
-	// defers would stop being open-coded.
-	if tip := f.Exts[f.Nodes[i].Ext].ellipsisTip; tip != 0 {
-		was := f.setEllipsisTips(tip == ellipsisTipOn)
-		f.paintElement(i)
-		f.setEllipsisTips(was)
+	if f.Exts[f.Nodes[i].Ext].ellipsisTip != 0 {
+		f.paintWithEllipsisTip(i)
 		return
 	}
 	f.paintElement(i)
+}
+
+// paintWithEllipsisTip paints element i under the EllipsisTooltip it sets,
+// for its subtree only. The setting is restored here, not by a deferred call
+// in paintElement, whose other defers would stop being open-coded.
+func (f *Frame) paintWithEllipsisTip(i int32) {
+	was := f.setEllipsisTips(f.Exts[f.Nodes[i].Ext].ellipsisTip == ellipsisTipOn)
+	f.paintElement(i)
+	f.setEllipsisTips(was)
 }
 
 func (f *Frame) paintElement(i int32) {
@@ -227,7 +231,13 @@ func (f *Frame) paintElement(i int32) {
 		f.runDraw(n, hooks.under)
 	}
 	for c := n.First; c >= 0; c = f.Nodes[c].Next {
-		f.PaintChild(c)
+		// PaintChild written out: it does not inline, and this loop paints
+		// nearly every element.
+		if f.Exts[f.Nodes[c].Ext].ellipsisTip != 0 {
+			f.paintWithEllipsisTip(c)
+		} else {
+			f.paintElement(c)
+		}
 	}
 	if n.OutOfFlow&absChildren != 0 {
 		f.paintAbsolute(i)
