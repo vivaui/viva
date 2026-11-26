@@ -32,6 +32,7 @@ extern void vivaStatusItemClicked(
 );
 extern void vivaStatusItemUpdateMenu(uintptr_t callbackHandle);
 extern void vivaStatusItemMenuChosen(uintptr_t callbackHandle, int id);
+extern void vivaStatusItemHovered(uintptr_t callbackHandle, int entered, float x, float y, float width, float height);
 
 enum {
     VIVA_STATUS_BUTTON_PRIMARY = 1,
@@ -75,10 +76,13 @@ static NSImage *viva_status_image(viva_status_icon icon) {
     NSStatusItem *_item;
     uintptr_t _callbackHandle;
     NSMenu *_menu;
+    NSTrackingArea *_tracking;
+    NSString *_tooltip;
 }
 - (instancetype)initWithTooltip:(NSString *)tooltip icon:(viva_status_icon)icon callbackHandle:(uintptr_t)callbackHandle hasMenu:(BOOL)hasMenu;
 - (BOOL)setIcon:(viva_status_icon)icon;
 - (void)setTooltip:(NSString *)tooltip;
+- (void)trackHover:(BOOL)enabled;
 - (void)remove;
 - (void)setMenuEntries:(const viva_menu_entry *)entries count:(int)count;
 - (void)menuChosen:(NSMenuItem *)sender;
@@ -99,7 +103,7 @@ static NSImage *viva_status_image(viva_status_icon icon) {
     _callbackHandle = callbackHandle;
     _item = [[[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength] retain];
     _item.button.image = image;
-    _item.button.toolTip = tooltip;
+    [self setTooltip:tooltip];
     if (hasMenu) {
         _menu = [[NSMenu alloc] initWithTitle:@""];
         _menu.autoenablesItems = NO;
@@ -115,6 +119,7 @@ static NSImage *viva_status_image(viva_status_icon icon) {
 
 - (void)dealloc {
     [self remove];
+    [_tooltip release];
     [super dealloc];
 }
 
@@ -128,10 +133,49 @@ static NSImage *viva_status_image(viva_status_icon icon) {
 }
 
 - (void)setTooltip:(NSString *)tooltip {
-    _item.button.toolTip = tooltip;
+    NSString *text = [tooltip copy];
+    [_tooltip release];
+    _tooltip = text;
+    if (_tracking == nil) {
+        _item.button.toolTip = _tooltip;
+    }
+}
+
+- (void)trackHover:(BOOL)enabled {
+    if ((_tracking != nil) == enabled) {
+        return;
+    }
+    NSStatusBarButton *button = _item.button;
+    if (enabled) {
+        _tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+            options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+            owner:self userInfo:nil];
+        [button addTrackingArea:_tracking];
+    } else {
+        [button removeTrackingArea:_tracking];
+        [_tracking release];
+        _tracking = nil;
+    }
+    button.toolTip = enabled ? nil : _tooltip;
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    if (_tracking == nil || event.trackingArea != _tracking || _callbackHandle == 0) {
+        return;
+    }
+    NSStatusBarButton *button = _item.button;
+    NSRect anchor = [button.window convertRectToScreen:[button convertRect:button.bounds toView:nil]];
+    vivaStatusItemHovered(_callbackHandle, 1, anchor.origin.x, anchor.origin.y, anchor.size.width, anchor.size.height);
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    if (_tracking != nil && event.trackingArea == _tracking && _callbackHandle != 0) {
+        vivaStatusItemHovered(_callbackHandle, 0, 0, 0, 0, 0);
+    }
 }
 
 - (void)remove {
+    [self trackHover:NO];
     if (_item != nil) {
         _item.menu = nil;
         if (_menu != nil) {
@@ -286,6 +330,10 @@ void viva_status_item_set_tooltip(void *item, const char *tooltip) {
     @autoreleasepool {
         [(VivaStatusItem *)item setTooltip:tooltip != NULL ? [NSString stringWithUTF8String:tooltip] : @""];
     }
+}
+
+void viva_status_item_track_hover(void *item, int enabled) {
+    [(VivaStatusItem *)item trackHover:enabled != 0];
 }
 
 /* Takes the item off the bar and forgets it. Called on the event-loop thread. */

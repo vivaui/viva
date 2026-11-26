@@ -372,11 +372,30 @@ func (application *Application) AddStatusItem(config StatusItemConfig) (*StatusI
 	if err := config.Icon.validate(); err != nil {
 		return nil, err
 	}
+	item := &StatusItem{application: application}
+	dismiss := func() {
+		if preview := item.preview.Load(); preview != nil {
+			preview.close()
+		}
+	}
+	if click := config.OnClick; click != nil {
+		config.OnClick = func(event StatusClick) {
+			dismiss()
+			click(event)
+		}
+	}
+	if menu := config.Menu; menu != nil {
+		config.Menu = func() []MenuItem {
+			dismiss()
+			return menu()
+		}
+	}
 	control, err := application.host.AddStatusItem(config)
 	if err != nil {
 		return nil, err
 	}
-	return &StatusItem{control: control}, nil
+	item.control = control
+	return item, nil
 }
 
 // SetDockBadge marks the application's Dock icon with text, the red badge macOS

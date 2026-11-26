@@ -3,8 +3,10 @@
 package linux
 
 import (
+	"os"
 	"testing"
 
+	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/dbus"
 	"github.com/vivaui/viva/internal/platform"
@@ -16,6 +18,20 @@ func testItem() *linuxStatusItem {
 		copy(pixels[index:], []byte{10, 20, 30, 255})
 	}
 	return &linuxStatusItem{name: "org.kde.StatusNotifierItem-1-1", tooltip: "Sessions", icon: platform.StatusIcon{Size: 4, RGBA: pixels}}
+}
+
+func TestStatusPreviewDisableWithoutLinuxHoverEvents(t *testing.T) {
+	item := testItem()
+	if item.SetHover(func(platform.StatusHover) {}) {
+		t.Fatal("StatusNotifier unexpectedly supplies paired hover events")
+	}
+	if !item.SetHover(nil) || !item.SetHover(nil) {
+		t.Fatal("disabling unsupported hover must still succeed")
+	}
+	item.removed.Store(true)
+	if item.SetHover(nil) {
+		t.Fatal("a removed item unexpectedly accepted a setter")
+	}
 }
 
 func TestStatusItemPropertiesDecodeAsTheirDeclaredTypes(t *testing.T) {
@@ -101,5 +117,72 @@ func TestPanelAndOriginAreScaledToDevicePixels(t *testing.T) {
 	config = platform.Config{WindowMode: platform.WindowTitled, Width: 280, Height: 200, HasOrigin: true, Origin: gfx.Point{X: 100, Y: 50.5}}
 	if x, y := win.panelOrigin(config); x != 200 || y != 101 {
 		t.Fatalf("origin 100,50.5 at 2x is %d,%d, want 200,101", x, y)
+	}
+}
+
+func TestTrayPanelPreservesHostAnchorAtScale(t *testing.T) {
+	if os.Getenv("VIVA_TEST_NOTIFICATION_XVFB") != "1" {
+		t.Skip("requires a private Xvfb server")
+	}
+	t.Setenv("VIVA_SCALE", "1.5")
+	t.Setenv("VIVA_SOFTWARE_RENDERING", "1")
+	services, _ := statusTestServices(t, watcherNames[0])
+	a := &linuxApplication{}
+	defer a.closeAll()
+	services.host = a
+	main, err := a.OpenWindow(platform.Config{Width: 180, Height: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	win := main.(*nativeWindow).state.win
+	pointer := platform.ScreenRect{X: 900, Y: 990}
+	var warp func(uintptr, uint32, uint32, int16, int16, uint16, uint16, int16, int16) xcbVoidCookie
+	purego.RegisterLibFunc(&warp, win.api.library, "xcb_warp_pointer")
+	warp(win.connection, xcbAtomNone, win.screen.Root, 0, 0, 0, 0, int16(pointer.X), int16(pointer.Y))
+
+	for _, test := range []struct {
+		name string
+		x, y int32
+	}{
+		{"keyboard near pointer after scaling", 600, 660},
+		{"nearby host point", 590, 650},
+		{"pointer point", 900, 990},
+		{"screen origin", 0, 0},
+		{"other monitor", -600, 660},
+		{"distinct", 200, 20},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var anchor platform.ScreenRect
+			item, err := services.AddStatusItem(platform.StatusItemConfig{
+				Icon: statusTestIcon(), OnClick: func(click platform.StatusClick) { anchor = click.Anchor },
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer item.Remove()
+			var args dbus.Encoder
+			args.Int32(test.x)
+			args.Int32(test.y)
+			item.(*linuxStatusItem).handleMethod(&dbus.Message{Member: "Activate", Signature: "ii", Body: args.Bytes()})
+			want := platform.ScreenRect{X: float32(test.x), Y: float32(test.y)}
+			if anchor != want {
+				t.Fatalf("activation anchor = %+v, want the host's point %+v", anchor, want)
+			}
+			if test.name != "keyboard near pointer after scaling" {
+				return
+			}
+			panel, err := a.OpenWindow(platform.Config{
+				Width: 180, Height: 66, WindowMode: platform.WindowPanel, HasAnchor: true, Anchor: anchor,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer panel.Close()
+			popup := panel.(*nativeWindow).state.win
+			x, y := popup.contentOrigin()
+			if int(x)+int(popup.width)/2 != int(want.X) || int(y)+int(popup.height) != int(want.Y)-platform.PanelGap {
+				t.Fatalf("panel at %d,%d (%dx%d) does not sit above the host anchor %+v", x, y, popup.width, popup.height, want)
+			}
+		})
 	}
 }

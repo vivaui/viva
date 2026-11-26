@@ -183,6 +183,16 @@ func (object *Object) refresh() change {
 	return difference
 }
 
+// Refresh rebuilds a menu after an application update and returns the
+// signals needed by hosts that keep a layout between opens.
+func (object *Object) Refresh() Result {
+	change := object.refresh()
+	if change.layout {
+		return Result{LayoutUpdated: object.revision}
+	}
+	return Result{ItemsUpdated: change.items}
+}
+
 // writeItemsUpdated writes the body of ItemsPropertiesUpdated for the entries
 // these ids name: every property of each as it is now, and no removals.
 func (object *Object) writeItemsUpdated(e *dbus.Encoder, byWire map[int32]int, entries []platform.MenuEntry, ids []int32) {

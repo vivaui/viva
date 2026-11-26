@@ -688,6 +688,21 @@ func (item *linuxStatusItem) handleMenu(call *dbus.Message) {
 		return
 	}
 	conn.Reply(call, result.Signature, result.Body)
+	item.publishMenu(result)
+}
+
+func (item *linuxStatusItem) SetHover(handler func(platform.StatusHover)) bool {
+	return handler == nil && !item.removed.Load()
+}
+
+func (item *linuxStatusItem) RefreshMenu() {
+	if !item.removed.Load() && item.menu != nil {
+		item.publishMenu(item.menu.Refresh())
+	}
+}
+
+func (item *linuxStatusItem) publishMenu(result dbusmenu.Result) {
+	conn := item.notifier.conn
 	if result.LayoutUpdated != 0 {
 		// A host that kept the ids of the last layout is told, the way the
 		// interface says, that the menu it is showing was rebuilt and that its
@@ -732,10 +747,13 @@ func (item *linuxStatusItem) handleMethod(call *dbus.Message) {
 		return
 	}
 	dismissed := time.Duration(monotonicNow()-panelDismissedAt.Load()) < panelDismissWindow
-	// The host reports where the click was, not the icon's rectangle.
+	// Use the host's point unchanged. Activate does not identify a coordinate
+	// scale or input device: proximity to the pointer cannot distinguish a
+	// keyboard activation from a host using logical pixels.
+	anchor := platform.ScreenRect{X: float32(x), Y: float32(y)}
 	item.onClick(platform.StatusClick{
 		Button:         button,
-		Anchor:         platform.ScreenRect{X: float32(x), Y: float32(y)},
+		Anchor:         anchor,
 		PanelDismissed: dismissed,
 	})
 }

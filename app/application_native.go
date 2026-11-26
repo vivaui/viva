@@ -273,3 +273,12 @@ func (item nativeStatusItem) SetIcon(icon StatusIcon) error {
 }
 func (item nativeStatusItem) SetTooltip(tooltip string) { item.item.SetTooltip(tooltip) }
 func (item nativeStatusItem) Remove()                   { item.item.Remove() }
+func (item nativeStatusItem) SetStatusHover(handler func(StatusAnchor, bool)) bool {
+	if handler == nil {
+		return item.item.SetHover(nil)
+	}
+	return item.item.SetHover(func(event platform.StatusHover) {
+		handler(StatusAnchor{rect: event.Anchor, set: event.Entered}, event.Entered)
+	})
+}
+func (item nativeStatusItem) RefreshMenu() { item.item.RefreshMenu() }

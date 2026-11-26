@@ -32,6 +32,8 @@ const (
 	wmContextMenu = 0x007b
 	ninSelect     = 0x0400
 	ninKeySelect  = 0x0401
+	ninPopupOpen  = 0x0406
+	ninPopupClose = 0x0407
 
 	notifySetVersion = 4
 	notifyVersion4   = 4
@@ -148,6 +150,9 @@ type statusItem struct {
 	tooltip     string
 	onClick     func(platform.StatusClick)
 	menu        func() []platform.MenuItem
+	hover       func(platform.StatusHover)
+	hovering    bool
+	version4    bool
 	removed     atomic.Bool
 }
 
@@ -176,9 +181,7 @@ func (application *windowsApplication) AddStatusItem(config platform.StatusItemC
 		destroyIcon.Call(icon)
 		return nil, err
 	}
-	version := item.data()
-	version.Version = notifyVersion4
-	shellNotifyIcon.Call(notifySetVersion, uintptr(unsafe.Pointer(&version)))
+	item.setVersion()
 	status.items[item.id] = item
 	return item, nil
 }
@@ -241,7 +244,13 @@ func (item *statusItem) data() notifyIconData {
 		CallbackMessage: wmStatusNotify,
 		Icon:            item.icon,
 	}
-	copyUTF16(data.Tip[:], item.tooltip)
+	if item.hover != nil {
+		data.Flags &^= notifyShowTip
+		// NIF_TIP must remain set: an empty szTip replaces the shell's cached
+		// text, including when SetTooltip runs while a preview is enabled.
+	} else {
+		copyUTF16(data.Tip[:], item.tooltip)
+	}
 	return data
 }
 
@@ -276,10 +285,12 @@ func (item *statusItem) SetIcon(icon platform.StatusIcon) error {
 	}
 	previous := item.icon
 	item.icon = handle
-	if err := item.notify(notifyModify); err != nil {
+	data := item.data()
+	data.Flags = notifyIcon
+	if ok, _, callErr := shellNotifyIcon.Call(notifyModify, uintptr(unsafe.Pointer(&data))); ok == 0 {
 		item.icon = previous
 		destroyIcon.Call(handle)
-		return err
+		return windowsCallError("update the status item icon", callErr)
 	}
 	destroyIcon.Call(previous)
 	return nil
@@ -375,9 +386,8 @@ func statusProc(window, kind, first, second uintptr) (result uintptr) {
 		for _, item := range status.items {
 			if !item.removed.Load() {
 				item.notify(notifyAdd)
-				version := item.data()
-				version.Version = notifyVersion4
-				shellNotifyIcon.Call(notifySetVersion, uintptr(unsafe.Pointer(&version)))
+				item.endHover()
+				item.setVersion()
 			}
 		}
 		return 0
@@ -391,7 +401,18 @@ func (status *statusState) notified(window, anchor, packed uintptr) {
 	event := uint32(packed) & 0xffff
 	id := uint32(packed>>16) & 0xffff
 	item := status.items[id]
-	if item == nil || item.removed.Load() || item.onClick == nil && item.menu == nil {
+	if item == nil || item.removed.Load() {
+		return
+	}
+	switch event {
+	case ninPopupOpen:
+		item.beginHover(window)
+		return
+	case ninPopupClose:
+		item.endHover()
+		return
+	}
+	if item.onClick == nil && item.menu == nil {
 		return
 	}
 	button, ok := statusButton(event)
@@ -427,12 +448,19 @@ func statusButton(event uint32) (gfx.PointerButton, bool) {
 // anchor is the icon's rectangle on the screen, in pixels. When the shell cannot
 // say, the click position it reported stands in for it.
 func (item *statusItem) anchor(window, click uintptr) platform.ScreenRect {
-	identifier := notifyIconIdentifier{Size: uint32(unsafe.Sizeof(notifyIconIdentifier{})), Window: window, ID: item.id}
-	var bounds rect
-	if status, _, _ := notifyIconGetRect.Call(uintptr(unsafe.Pointer(&identifier)), uintptr(unsafe.Pointer(&bounds))); int32(uint32(status)) >= 0 && bounds.Right > bounds.Left {
-		return platform.ScreenRect{X: float32(bounds.Left), Y: float32(bounds.Top), Width: float32(bounds.Right - bounds.Left), Height: float32(bounds.Bottom - bounds.Top)}
+	if anchor, ok := item.iconRect(window); ok {
+		return anchor
 	}
 	return platform.ScreenRect{X: float32(int16(click)), Y: float32(int16(click >> 16))}
+}
+
+func (item *statusItem) iconRect(window uintptr) (platform.ScreenRect, bool) {
+	identifier := notifyIconIdentifier{Size: uint32(unsafe.Sizeof(notifyIconIdentifier{})), Window: window, ID: item.id}
+	var bounds rect
+	if status, _, _ := notifyIconGetRect.Call(uintptr(unsafe.Pointer(&identifier)), uintptr(unsafe.Pointer(&bounds))); int32(uint32(status)) >= 0 && bounds.Right > bounds.Left && bounds.Bottom > bounds.Top {
+		return platform.ScreenRect{X: float32(bounds.Left), Y: float32(bounds.Top), Width: float32(bounds.Right - bounds.Left), Height: float32(bounds.Bottom - bounds.Top)}, true
+	}
+	return platform.ScreenRect{}, false
 }
 
 // Quit closes every window, close requests notwithstanding, and ends the loop.

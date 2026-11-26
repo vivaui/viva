@@ -32,6 +32,7 @@ desktop session.
 | A panel opens, paints and closes from another goroutine | `WindowPanel` is a window kind of its own on each backend |
 | A notification paints without pointer input and returns to idle | a notification may open while the pointer stays on another window |
 | A status item can be added, changed and removed (SKIP where the desktop has no status area) | `AddStatusItem` and its setters on three different APIs |
+| A status preview opens without activation and closes after leaving both surfaces. A host without paired pointer events keeps normal activation and menu behavior. | `TestStatusPreviewCrossesGapAndClosesOnce`, `TestStatusPreviewWithoutHoverControlLeavesIconUsable` |
 | `Quit` ends the loop though windows refuse to close, even as the last-used window closes | the loop must end whatever the windows say |
 
 It was written after the status-icon work, and each check is something a real
@@ -86,6 +87,33 @@ Not failures; the API reports what the platform can say.
 | New icon with a full bar | hidden by the system, notably next to the notch | shown in the overflow flyout until promoted | up to the host |
 | Corner radius of a panel | the layer's | the system's on Windows 11 (`DWMWA_WINDOW_CORNER_PREFERENCE`, set in the code, not yet checked on screen), square on Windows 10 | square |
 | Shadow and round corners of a custom-titlebar window | the system's | the system's | drawn by Viva where the desktop composites ("Window frame on Linux"). GNOME/Mutter does not advertise synchronized resize, so on a drag the inset margin can lag at the dragged edge there; otherwise flat and square |
+
+### Status previews
+
+`examples/guides/status-preview` uses `SetHoverPreview`, handles an opening error,
+keeps click activation as a fallback, and calls `RefreshMenu` after its state
+changes. Optional host methods are discovered structurally; applications do not
+need to name a separate hover or menu control interface.
+
+- Windows clears the native tooltip with `NIF_TIP` and an empty `szTip` while a
+  preview is enabled, and restores the latest text when disabled. Visible taskbar
+  icons support paired Shell events; the Explorer overflow area keeps click and
+  menu activation. The tooltip transition and overflow still need real-taskbar
+  checks; native message tests alone do not prove what Explorer draws.
+- macOS reports entry and exit through the status button's `NSTrackingArea`.
+- Linux StatusNotifier has no paired hover events. The host owns its tooltip;
+  applications can open a panel from activation or a menu. X11 uses the host's
+  activation point unchanged, including zero and negative coordinates. The
+  protocol gives no scale or input-source flag, so pointer proximity must not
+  be used to guess device pixels or rewrite keyboard activation. A host sending
+  logical coordinates on a scaled X11 desktop may place the panel incorrectly.
+  Kylin/UKUI, UOS, mixed-DPI physical monitors, and native Wayland need desktop
+  verification; single-screen Xvfb does not validate those hosts. On native
+  Wayland the compositor controls top-level placement.
+
+`BenchmarkStatusPreview` measures registration, duplicate entry, open/close and
+menu refresh with an in-memory host. These numbers include app bookkeeping, not
+native window creation or compositor latency.
 
 ## Not done, and why
 

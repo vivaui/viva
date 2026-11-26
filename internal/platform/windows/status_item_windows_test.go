@@ -23,6 +23,38 @@ func TestStatusItemAsksTheShellForTheStandardTooltip(t *testing.T) {
 	}
 }
 
+func TestStatusPreviewClearsAndRestoresTheShellTooltip(t *testing.T) {
+	application := &windowsApplication{status: &statusState{window: 1}}
+	item := &statusItem{application: application, tooltip: "Unread conversations"}
+	item.hover = func(platform.StatusHover) {}
+	for _, text := range []string{"Unread conversations", "New sender"} {
+		item.tooltip = text
+		data := item.data()
+		if data.Flags&notifyTip == 0 || data.Flags&notifyShowTip != 0 || data.Tip[0] != 0 {
+			t.Fatalf("preview must send NIF_TIP and an empty szTip: flags=%#x tip=%q", data.Flags, syscall.UTF16ToString(data.Tip[:]))
+		}
+	}
+	item.hover = nil
+	data := item.data()
+	if data.Flags&notifyTip == 0 || data.Flags&notifyShowTip == 0 || syscall.UTF16ToString(data.Tip[:]) != "New sender" {
+		t.Fatalf("disabling preview did not restore the current tooltip: flags=%#x tip=%q", data.Flags, syscall.UTF16ToString(data.Tip[:]))
+	}
+}
+
+func TestStatusPreviewDisableDoesNotRequireVersion4(t *testing.T) {
+	item := &statusItem{}
+	if item.SetHover(func(platform.StatusHover) {}) {
+		t.Fatal("a shell without version 4 unexpectedly accepted native hover")
+	}
+	if !item.SetHover(nil) || !item.SetHover(nil) {
+		t.Fatal("disabling an unsupported hover must still succeed")
+	}
+	item.removed.Store(true)
+	if item.SetHover(nil) {
+		t.Fatal("a removed item unexpectedly accepted a setter")
+	}
+}
+
 // Exercise the notification dispatcher, not only its button decoder. A menu
 // must not swallow primary activation when the application also has a callback.
 func TestStatusNotificationRoutesActivationAndContextMenu(t *testing.T) {

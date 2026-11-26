@@ -766,3 +766,22 @@ func TestAReadThatRebuildsAChangedMenuAnnouncesIt(t *testing.T) {
 		t.Fatalf("the answering read announced revision %d", again.LayoutUpdated)
 	}
 }
+
+func TestRefreshPublishesChangedMenuWithoutWaitingForAHostRequest(t *testing.T) {
+	var chosen []string
+	sessions := []string{"alpha"}
+	object := newSessionMenu(&chosen, &sessions)
+	layoutIDs(t, object)
+	sessions = append(sessions, "beta")
+	update := object.Refresh()
+	if update.LayoutUpdated == 0 {
+		t.Fatal("a new entry must invalidate the host's menu")
+	}
+	layout := object.Call(layoutCall(0, -1))
+	if revision := dbus.NewDecoder(succeeded(t, layout)).Uint32(); revision != update.LayoutUpdated {
+		t.Fatalf("layout revision %d, announced %d", revision, update.LayoutUpdated)
+	}
+	if update := object.Refresh(); update.LayoutUpdated != 0 || len(update.ItemsUpdated) != 0 {
+		t.Fatal("an unchanged menu must not send another signal")
+	}
+}

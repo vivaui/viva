@@ -25,6 +25,7 @@ type nativeStatusItem struct {
 	handle         cgo.Handle
 	removed        atomic.Bool
 	onClick        func(platform.StatusClick)
+	hover          func(platform.StatusHover)
 	menu           func() []platform.MenuItem
 	currentEntries []platform.MenuEntry
 }
@@ -82,6 +83,27 @@ func (item *nativeStatusItem) SetTooltip(tooltip string) {
 func (item *nativeStatusItem) Remove() {
 	if !item.removed.Swap(true) {
 		C.viva_application_post_status_remove(item.token)
+	}
+}
+
+func (item *nativeStatusItem) SetHover(handler func(platform.StatusHover)) bool {
+	if item.removed.Load() {
+		return false
+	}
+	item.hover = handler
+	C.viva_status_item_track_hover(item.token, C.int(boolInt(handler != nil)))
+	return true
+}
+
+func (item *nativeStatusItem) RefreshMenu() {}
+
+//export vivaStatusItemHovered
+func vivaStatusItemHovered(handle C.uintptr_t, entered C.int, x, y, width, height C.float) {
+	item := cgo.Handle(handle).Value().(*nativeStatusItem)
+	if !item.removed.Load() && item.hover != nil {
+		item.hover(platform.StatusHover{
+			Entered: entered != 0, Anchor: platform.ScreenRect{X: float32(x), Y: float32(y), Width: float32(width), Height: float32(height)},
+		})
 	}
 }
 

@@ -46,6 +46,8 @@ const (
 	// bottom-right of the pointer monitor's work area without taking keyboard
 	// focus. Mark the parts the user may drag with gfx.Canvas.MoveRegion or
 	// ui.Box.MovesWindow and save Frame's X and Y for Config.Origin.
+	// On Windows and macOS, an Anchor takes precedence over Origin and
+	// places the notification beside the status item.
 	// On native Wayland, the compositor decides placement, stacking and
 	// keyboard focus. Use SendNotification for a system-managed notification.
 	WindowNotification WindowMode = WindowMode(platform.WindowNotification)
@@ -109,8 +111,8 @@ type Config struct {
 	// change. Nil, or a zero field, takes a color that suits ClearColor. Use
 	// TitlebarInsets to keep your own content clear of the buttons.
 	WindowControls func() WindowControlsStyle
-	// Anchor is where a WindowPanel opens: beside the status item whose click
-	// supplied it. Without one the panel is centered on the screen.
+	// Anchor places a WindowPanel or WindowNotification beside a status item.
+	// Without one, a WindowPanel is centered on the screen.
 	Anchor     StatusAnchor
 	ClearColor Color
 	// Transparent composites the window over the desktop: the part of the canvas

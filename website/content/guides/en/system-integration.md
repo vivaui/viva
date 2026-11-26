@@ -149,6 +149,126 @@ func main() {
 }
 ```
 
+## Status item previews
+
+`StatusItem.SetHoverPreview` lets an application supply a small window while Viva
+owns paired pointer events, anchoring and delayed close. Handle the error passed
+to `StatusPreview.Opened` to release prepared content if the window cannot open.
+Call `RefreshMenu` when application state changes; Linux hosts may cache menus.
+
+Windows supports hover on visible taskbar icons, macOS on status bar buttons.
+Linux's StatusNotifier protocol does not provide paired hover events, so keep a
+click or menu fallback. X11 uses the activation point supplied by the host. Its
+coordinate units are not specified: a host sending logical coordinates on a
+scaled desktop may misplace the panel. Do not infer a coordinate scale or a
+keyboard activation from the pointer's proximity. Wayland placement belongs to
+the compositor. See [conformance boundaries](https://github.com/vivaui/viva/blob/main/docs/conformance.md#status-previews)
+for what still needs verification on physical desktops.
+
+Run `go run ./examples/guides/status-preview` to try the complete example.
+
+<!-- example: status-preview/main.go -->
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"runtime"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/ui"
+)
+
+// AppKit must start on the process's main thread.
+func init() { runtime.LockOSThread() }
+
+func main() {
+	if err := app.RunApplication(run); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(application *app.Application) error {
+	var main, preview *app.Window
+	var tray *app.StatusItem
+	var wake, previewWake app.Invalidator
+	unread := 1
+	show := func() {
+		if preview != nil {
+			preview.Close()
+		}
+		main.Show()
+	}
+	build := func() app.StatusPreview {
+		page := ui.NewPage(ui.PageConfig{View: func(c ui.C) {
+			ui.Column(c).Fill().Pad(12).Gap(8).Children(func() {
+				ui.Text(c, fmt.Sprintf("%d unread messages", unread))
+				if ui.Button(c, "Open application").Clicked() {
+					c.Canvas().AfterPaint(show)
+				}
+			})
+		}})
+		config := ui.Configure(page, app.Config{
+			Title: "Unread messages", Width: 240, Height: 96, Invalidator: &previewWake,
+			OnClosed: func() { preview = nil },
+		})
+		return app.StatusPreview{Config: config, Opened: func(window *app.Window, err error) {
+			if err != nil {
+				page.Close()
+				log.Printf("open status preview: %v", err)
+				return
+			}
+			preview = window
+		}}
+	}
+	var err error
+	main, err = ui.OpenWindow(application, app.Config{Title: "Status preview", Width: 400, Height: 180, Invalidator: &wake}, ui.PageConfig{
+		View: func(c ui.C) {
+			ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+				ui.Text(c, fmt.Sprintf("%d unread messages", unread))
+				if ui.Button(c, "Add a message").Clicked() {
+					unread++
+					previewWake.Invalidate()
+					if tray != nil {
+						// Linux hosts cache their menu. Notify them when its text changes.
+						tray.RefreshMenu()
+					}
+				}
+			})
+		},
+	})
+	if err != nil {
+		return err
+	}
+	tray, err = application.AddStatusItem(app.StatusItemConfig{
+		Tooltip: "Status preview", Icon: app.StatusIcon{Size: 1, RGBA: []byte{70, 130, 210, 255}, Template: true},
+		OnClick: func(click app.StatusClick) {
+			if click.PanelDismissed {
+				return
+			}
+			// Click remains available on hosts without paired hover events.
+			spec := build()
+			spec.Config.WindowMode, spec.Config.Anchor = app.WindowPanel, click.Anchor
+			window, err := application.OpenWindow(spec.Config, nil)
+			spec.Opened(window, err)
+		},
+		Menu: func() []app.MenuItem {
+			return []app.MenuItem{
+				{Title: fmt.Sprintf("%d unread messages", unread), ID: "unread", OnSelect: show},
+				{Title: "Quit", OnSelect: application.Quit},
+			}
+		},
+	})
+	if err != nil {
+		log.Printf("status area unavailable; main window remains usable: %v", err)
+		return nil
+	}
+	tray.SetHoverPreview(build)
+	return nil
+}
+```
+
 ## Boundaries worth knowing
 
 - Linux file dialogs and notifications use the desktop's portal and notification service over D-Bus, and start an installed desktop utility only on a desktop without them; URL dispatch always does. Viva does not bundle GTK or Qt.
