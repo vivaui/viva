@@ -2171,3 +2171,6 @@ func (x *Widgets) SetRectsCells(v []Rect) { x.rects = v }
 // GetButtonLook reads the look the recipe gave the themed button being painted, for the
 // styled painting layer that paints its content.
 func (x *Frame) GetButtonLook() style.ButtonLook { return x.buttonPainted }
+
+// GetMarks reads the marks of SliderDecl for the styled painting layer.
+func (d *SliderDecl) GetMarks() []SliderMark { return d.marks }

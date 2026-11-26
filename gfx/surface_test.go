@@ -70,6 +70,34 @@ func TestSurfaceUpdateChangesOnlyTheTilesItTouches(t *testing.T) {
 	}
 }
 
+// Pixel reads the retained picture itself, so an application can work out
+// what is under one point of it without painting. The value is what Update
+// stored, including the opaque alpha it gives every source.
+func TestSurfacePixelReadsWhatUpdateStored(t *testing.T) {
+	var surface Surface
+	if _, _, _, _, ok := surface.Pixel(0, 0); ok {
+		t.Fatal("an empty surface has a pixel")
+	}
+	surface.Resize(300, 300) // the tiles meet at 256
+	surface.Update(0, 0, 300, 300, patch(300, 300, 10, 20, 30), 300*4)
+	for _, point := range [][2]int{{0, 0}, {255, 255}, {256, 0}, {0, 256}, {256, 256}, {299, 299}} {
+		blue, green, red, alpha, ok := surface.Pixel(point[0], point[1])
+		if !ok || blue != 10 || green != 20 || red != 30 || alpha != 255 {
+			t.Fatalf("pixel %v = %d,%d,%d,%d (%v)", point, blue, green, red, alpha, ok)
+		}
+	}
+	for _, point := range [][2]int{{-1, 0}, {0, -1}, {300, 0}, {0, 300}, {300, 300}} {
+		if _, _, _, _, ok := surface.Pixel(point[0], point[1]); ok {
+			t.Fatalf("pixel %v is outside the picture", point)
+		}
+	}
+	// A later Update changes what the same point reads.
+	surface.Update(257, 257, 1, 1, patch(1, 1, 1, 2, 3), 4)
+	if blue, _, _, _, _ := surface.Pixel(257, 257); blue != 1 {
+		t.Fatalf("updated pixel blue = %d", blue)
+	}
+}
+
 func TestSurfaceUpdateReadsASubrectangleOfALargerSource(t *testing.T) {
 	var surface Surface
 	surface.Resize(300, 300)

@@ -132,6 +132,20 @@ func (surface *Surface) Update(x, y, width, height int, pix []byte, stride int) 
 	}
 }
 
+// Pixel returns the color of the picture at (x, y) as blue, green, red and
+// alpha bytes, straight (not multiplied by alpha), and whether (x, y) is
+// inside the picture. It reads the retained tiles, so it is exactly what Update
+// last stored: the picture a renderer has, not one it is about to paint.
+func (surface *Surface) Pixel(x, y int) (blue, green, red, alpha byte, ok bool) {
+	if x < 0 || y < 0 || x >= surface.width || y >= surface.height {
+		return 0, 0, 0, 0, false
+	}
+	edge := surface.edge
+	tile := &surface.tiles[(y/edge)*surface.columns+x/edge]
+	at := ((y%edge)*tile.width + x%edge) * 4
+	return tile.pix[at], tile.pix[at+1], tile.pix[at+2], tile.pix[at+3], true
+}
+
 // Draw paints the whole picture scaled to bounds. Each tile's edges are rounded
 // to whole pixels on the way, so neighbours meet exactly at any scale: no seam
 // of the background shows between them and no pixel is drawn twice.

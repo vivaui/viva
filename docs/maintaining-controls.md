@@ -53,7 +53,7 @@ Opt-in page packages live under `ui/<name>` (`ui/codeeditor`, `ui/textview`, `ui
 `ui/metriccard`, `ui/marker`, `ui/sidebar`, `ui/buttongroup`,
 `ui/togglegroup`, `ui/multiselect`,
 `ui/hierarchypicker`, `ui/steps`, `ui/descriptions`, `ui/timeline`, `ui/rate`,
-`ui/inputnumber`, `ui/datepicker`, `ui/timepicker`, `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`, `ui/editabletabs`).
+`ui/inputnumber`, `ui/datepicker`, `ui/timepicker`, `ui/transfer`, `ui/alert`, `ui/tag`, `ui/breadcrumb`, `ui/card`, `ui/empty`, `ui/result`, `ui/pagination`, `ui/editabletabs`, `ui/popconfirm`, `ui/divider`, `ui/typography`, `ui/validate`, `ui/upload`, `ui/anchor`, `ui/comment`, `ui/imagepreview`, `ui/mentions`, `ui/tour`).
 They import only the public `base`, `components`, `gfx`, `ui` and `window`
 packages, plus the focused `text` editor for editor-like controls and the root
 `markdown` parser for the Markdown view. They own stable handlers, and are never

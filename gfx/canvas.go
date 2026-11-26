@@ -1191,6 +1191,30 @@ func (canvas *Canvas) DrawBitmapShaded(bitmap Bitmap, source, bounds Rect, radiu
 // layer, so that translucent surfaces let it show through. It is not clipped and
 // belongs to no layer. At most one backdrop is meaningful; with several, they
 // stack in the order given. Invalid or empty bitmaps are ignored.
+// DrawBitmapPixels paints bitmap with its top-left corner on the device pixel
+// nearest origin, one bitmap pixel to one device pixel, and returns the logical
+// rectangle it covers. It is DrawBitmapRegion for a picture whose pixels are the
+// screen's, as Surface.DrawPixels is for a surface: the canvas must know the
+// display scale (SetPixelScale), and without it a device pixel is taken to be
+// half a logical one.
+func (canvas *Canvas) DrawBitmapPixels(bitmap Bitmap, origin Point) Rect {
+	scale := canvas.PixelScale()
+	if scale <= 0 {
+		scale = 1
+	}
+	left, top := deviceEdge(origin.X, scale), deviceEdge(origin.Y, scale)
+	covered := Rect{
+		X: float32(left) / scale, Y: float32(top) / scale,
+		Width: float32(bitmap.Width) / scale, Height: float32(bitmap.Height) / scale,
+	}
+	before := len(canvas.images)
+	canvas.DrawBitmap(bitmap, covered)
+	if len(canvas.images) > before {
+		canvas.images[before].DevicePixels = true
+	}
+	return covered
+}
+
 func (canvas *Canvas) DrawBackdrop(bitmap Bitmap, source, bounds Rect) {
 	before := len(canvas.images)
 	canvas.DrawBitmapRegion(bitmap, source, bounds)

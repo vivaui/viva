@@ -9,6 +9,7 @@ type Option struct {
 	maxRunes int
 	count    bool
 	plain    bool // WithoutEditMenu
+	groups   []SelectGroup
 }
 
 // WithID names the control with an identity the application already holds, so the
@@ -17,6 +18,26 @@ type Option struct {
 //
 //	ui.TextField(c, &m.query, "Search", "", ui.WithID(m.searchID))
 func WithID(id gfx.ID) Option { return Option{id: id} }
+
+// SelectGroups puts a heading row in a Select's list before the first option of each
+// group, for options that belong in sets ("Recent", "All hosts"). The choices must be in
+// group order; a group whose From is past the last option is left out. A heading is not an
+// option: it takes no focus, no click and no type-ahead, and the indexes DisabledOptions,
+// Icons and Part use stay the choices' own. The slice is the caller's, read until the
+// paint ends; keep it in the model.
+//
+//	ui.Select(c, &m.host, hosts, hostName, ui.SelectGroups(m.groups))
+func SelectGroups(groups []SelectGroup) Option { return Option{groups: groups} }
+
+// groupsOf is the groups opts give a Select.
+func groupsOf(opts []Option) []SelectGroup {
+	for _, o := range opts {
+		if len(o.groups) > 0 {
+			return o.groups
+		}
+	}
+	return nil
+}
 
 // MaxLength caps a TextField or TextArea at n runes: what is typed, pasted or
 // composed beyond it is cut off the end, and text already longer is left alone,
