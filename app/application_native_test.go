@@ -54,3 +54,20 @@ func TestResultWindowForwardsSetTitle(t *testing.T) {
 		t.Fatalf("wrapped unsupported window error = %v", err)
 	}
 }
+
+func TestResultWindowForwardsSetDecorated(t *testing.T) {
+	native := &decorationTestControl{decorated: true}
+	window := &Window{control: resultWindow{WindowControl: native}}
+	called := false
+	if err := window.SetDecorated(false, func(error) { called = true }); err != nil || native.decorated || native.done == nil || called {
+		t.Fatalf("decorations did not reach the native control: %v", err)
+	}
+	native.done(nil)
+	if !called {
+		t.Fatal("native completion did not reach caller")
+	}
+	unsupported := &Window{control: resultWindow{WindowControl: &fakeWindow{}}}
+	if err := unsupported.SetDecorated(false, func(error) {}); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("wrapped unsupported native error = %v", err)
+	}
+}

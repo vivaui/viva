@@ -49,6 +49,7 @@ type gtkLibrary struct {
 	windowResize         func(window uintptr, width, height int32)
 	windowMove           func(window uintptr, x, y int32)
 	windowSetDecorated   func(window uintptr, decorated int32)
+	windowGetDecorated   func(window uintptr) int32
 	windowSetGeometry    func(window, widget uintptr, geometry *gdkGeometry, mask uint32)
 	windowSetTypeHint    func(window uintptr, hint int32)
 	windowSkipTaskbar    func(window uintptr, skip int32)
@@ -86,6 +87,7 @@ type gtkLibrary struct {
 	widgetQueueDraw      func(widget uintptr)
 	widgetQueueDrawArea  func(widget uintptr, x, y, width, height int32)
 	widgetGetWindow      func(widget uintptr) uintptr
+	widgetGetMapped      func(widget uintptr) int32
 	widgetAddEvents      func(widget uintptr, events int32)
 	widgetSetEvents      func(widget uintptr, events int32)
 	widgetSetSize        func(widget uintptr, width, height int32)
@@ -157,7 +159,7 @@ type gtkLibrary struct {
 	gdkEventSourceDevice func(event uintptr) uintptr
 	gdkDeviceSource      func(device uintptr) int32
 	gdkScreenDefault     func() uintptr
-	gdkDisplayName       func(display uintptr) uintptr
+	gdkDisplayName       func(display uintptr) *byte
 	gdkDisplaySeat       func(display uintptr) uintptr
 	gdkMonitorAtPoint    func(display uintptr, x, y int32) uintptr
 	gdkMonitorAtIndex    func(display uintptr, index int32) uintptr
@@ -355,6 +357,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.windowResize, "gtk_window_resize")
 	b(&g.windowMove, "gtk_window_move")
 	b(&g.windowSetDecorated, "gtk_window_set_decorated")
+	b(&g.windowGetDecorated, "gtk_window_get_decorated")
 	b(&g.windowSetGeometry, "gtk_window_set_geometry_hints")
 	b(&g.windowSetTypeHint, "gtk_window_set_type_hint")
 	b(&g.windowSkipTaskbar, "gtk_window_set_skip_taskbar_hint")
@@ -389,6 +392,7 @@ func (g *gtkLibrary) bindAll() {
 	b(&g.widgetQueueDraw, "gtk_widget_queue_draw")
 	b(&g.widgetQueueDrawArea, "gtk_widget_queue_draw_area")
 	b(&g.widgetGetWindow, "gtk_widget_get_window")
+	b(&g.widgetGetMapped, "gtk_widget_get_mapped")
 	b(&g.widgetAddEvents, "gtk_widget_add_events")
 	b(&g.widgetSetEvents, "gtk_widget_set_events")
 	b(&g.widgetSetSize, "gtk_widget_set_size_request")

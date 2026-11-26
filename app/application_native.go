@@ -144,6 +144,14 @@ func (window resultWindow) SetAlwaysOnTop(enabled bool) error {
 	return control.SetAlwaysOnTop(enabled)
 }
 
+func (window resultWindow) SetDecorated(decorated bool, done func(error)) error {
+	control, ok := window.WindowControl.(decorationControl)
+	if !ok {
+		return platform.ErrWindowDecorationUnsupported
+	}
+	return control.SetDecorated(decorated, done)
+}
+
 func (window resultWindow) MoveTo(origin gfx.Point) {
 	if control, ok := window.WindowControl.(platform.WindowMover); ok {
 		control.MoveTo(origin)

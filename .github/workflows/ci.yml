@@ -392,6 +392,8 @@ jobs:
         run: go test ./internal/platform/windows -run '^TestATerminalGetsEditingKeysAndChordsAsRawKeys$' -count=1 -v
       - name: Native window and grouped taskbar icons
         run: go test ./internal/platform/windows -run '^TestWindowIconUpdatesOnTheWindowThread$' -count=1 -v
+      - name: Native window decoration changes
+        run: go test ./internal/platform/windows -run '^TestNativeWindowDecoration' -count=1 -v -timeout=90s
       - name: Non-activating desktop notification
         env:
           VIVA_TEST_NOTIFICATION_DESKTOP: '1'
@@ -423,6 +425,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: windows-11-arm
+    env:
+      VIVA_SOFTWARE_RENDERING: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -434,6 +438,8 @@ jobs:
         run: |
           if ((go env GOARCH) -ne 'arm64') { throw 'Expected native ARM64 Go' }
           go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|RegisteredFontDrawsFallbackCharacters)$' -count=1 -v
+      - name: Native ARM64 window decoration changes
+        run: go test ./internal/platform/windows -run '^TestNativeWindowDecoration' -count=1 -v -timeout=90s
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,

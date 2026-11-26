@@ -97,7 +97,7 @@ static VivaAppDelegate *windowDelegate(int mode, uintptr_t handle) {
 int main(void) {
     @autoreleasepool {
         [DockTestApplication sharedApplication];
-        NSWindow *frameless = [[VivaFramelessWindow alloc]
+        NSWindow *frameless = [[VivaWorkspaceWindow alloc]
             initWithContentRect:NSMakeRect(0, 0, 320, 200)
                       styleMask:NSWindowStyleMaskBorderless
                         backing:NSBackingStoreBuffered

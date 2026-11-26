@@ -48,6 +48,7 @@ type gtkWindow struct {
 	cairoSurface  uintptr
 
 	frame       atomic.Pointer[gfx.Rect]
+	decoration  gtkDecorationState
 	maximized   bool
 	fullscreen  atomic.Bool
 	minimized   bool
@@ -204,6 +205,10 @@ func (a *gtkApplication) OpenWindow(config platform.Config) (platform.Window, er
 	}
 	for _, signal := range []string{"key-press-event", "key-release-event", "focus-in-event", "focus-out-event", "window-state-event", "configure-event"} {
 		g.connect(w.toplevel, signal, cb.event, data)
+	}
+	if !a.wayland && config.WindowMode == platform.WindowTitled {
+		g.widgetAddEvents(w.toplevel, gdkPropertyChangeMask)
+		g.connect(w.toplevel, "property-notify-event", cb.event, data)
 	}
 	if config.OnFileDrop != nil {
 		const actionCopy = 1 << 1
@@ -476,6 +481,7 @@ func (w *gtkWindow) cleanup() {
 		return
 	}
 	w.closed = true
+	w.closeDecoration()
 	for _, v := range w.views {
 		v.release()
 	}
@@ -772,6 +778,9 @@ func (w *gtkWindow) reportFrame() {
 		return
 	}
 	w.syncFullscreen()
+	if w.decoration.changing {
+		return
+	}
 
 	window := w.g.widgetGetWindow(w.area)
 	if window == 0 {

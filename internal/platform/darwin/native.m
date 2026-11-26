@@ -3540,15 +3540,15 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
 
 /* A frameless workspace still owns keyboard focus and the application's main
  * window role. A plain borderless NSWindow declines both by default. */
-@interface VivaFramelessWindow : NSWindow
+@interface VivaWorkspaceWindow : NSWindow
 @end
 
-@implementation VivaFramelessWindow
+@implementation VivaWorkspaceWindow
 - (BOOL)canBecomeKeyWindow {
-    return YES;
+    return (self.styleMask & NSWindowStyleMaskTitled) == 0 || [super canBecomeKeyWindow];
 }
 - (BOOL)canBecomeMainWindow {
-    return YES;
+    return (self.styleMask & NSWindowStyleMaskTitled) == 0 || [super canBecomeMainWindow];
 }
 @end
 
@@ -3620,6 +3620,10 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
     NSMutableArray<NSView *> *_titlebarWatched; /* views whose frame changes re-center the traffic lights */
     BOOL _fullscreenTarget;
     BOOL _fullscreenTransition;
+    BOOL _changingDecoration;
+    NSWindowStyleMask _decoratedStyle;
+    BOOL _decoratedTitlebarTransparent;
+    NSWindowTitleVisibility _decoratedTitleVisibility;
     BOOL _alwaysOnTop;
     BOOL _closeInterceptEnabled;
     BOOL _fileDropEnabled;
@@ -3660,6 +3664,7 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
 - (void)hideWindow;
 - (void)showWindow;
 - (void)setFullscreen:(BOOL)fullscreen;
+- (int)changeDecoration:(BOOL)decorated;
 - (void)setWindowTitle:(NSString *)title;
 - (void)setAlwaysOnTop:(BOOL)enabled;
 - (BOOL)isFullscreen;
@@ -3786,12 +3791,9 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
         style |= NSWindowStyleMaskFullSizeContentView;
     }
 
-    Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [NSWindow class];
+    Class windowClass = _windowMode == VIVA_WINDOW_PANEL ? [VivaPanel class] : [VivaWorkspaceWindow class];
     if (_windowMode == VIVA_WINDOW_PREVIEW || _windowMode == VIVA_WINDOW_NOTIFICATION) {
         windowClass = [VivaPreview class];
-    }
-    if (_windowMode == VIVA_WINDOW_FRAMELESS) {
-        windowClass = [VivaFramelessWindow class];
     }
     _window = [[windowClass alloc] initWithContentRect:frame
                                              styleMask:style
@@ -4176,7 +4178,7 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
  * pixels. A live drag reports every intermediate position. */
 - (void)reportFrameChange {
     if (!_frameEventsEnabled || !_running || _callbackHandle == 0 || _window == nil ||
-        _fullscreenTransition || [self isFullscreen]) {
+        _changingDecoration || _fullscreenTransition || [self isFullscreen]) {
         return;
     }
     double frame[4];
@@ -4216,6 +4218,79 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
 
 - (BOOL)isFullscreen {
     return (_window.styleMask & NSWindowStyleMaskFullScreen) != 0;
+}
+
+- (int)changeDecoration:(BOOL)decorated {
+    if (!_running || !_window.isVisible || _window.isMiniaturized) {
+        return 0;
+    }
+    if ((_windowMode != VIVA_WINDOW_TITLED && _windowMode != VIVA_WINDOW_CUSTOM_TITLEBAR) ||
+        _fullscreenTransition || [self isFullscreen]) {
+        return -1;
+    }
+    if (_changingDecoration || _window.inLiveResize) {
+        return 0;
+    }
+    NSWindowStyleMask before = _window.styleMask;
+    if (((before & NSWindowStyleMaskTitled) != 0) == decorated) {
+        return 1;
+    }
+    NSWindowStyleMask after = decorated ? _decoratedStyle :
+        before & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView);
+    if (decorated && (after & NSWindowStyleMaskTitled) == 0) {
+        return -1;
+    }
+
+    NSRect frame = _window.frame;
+    NSRect content = [_window contentRectForFrameRect:frame];
+    NSView *view = _window.contentView;
+    NSResponder *responder = [_window.firstResponder retain];
+    NSInteger number = _window.windowNumber;
+    NSInteger level = _window.level;
+    BOOL key = _window.isKeyWindow;
+    BOOL main = _window.isMainWindow;
+    BOOL transparent = _window.titlebarAppearsTransparent;
+    NSWindowTitleVisibility title = _window.titleVisibility;
+
+    // AppKit sends intermediate move/resize notices when rebuilding the chrome.
+    // The application should never persist those rectangles as its placement.
+    _changingDecoration = YES;
+    _window.styleMask = after;
+    if (decorated) {
+        _window.titlebarAppearsTransparent = _decoratedTitlebarTransparent;
+        _window.titleVisibility = _decoratedTitleVisibility;
+        if (_title != nil) _window.title = _title;
+    }
+    if (!NSEqualRects([_window contentRectForFrameRect:_window.frame], content)) {
+        [_window setFrame:[_window frameRectForContentRect:content] display:NO];
+    }
+    if (_window.firstResponder != responder) [_window makeFirstResponder:responder];
+    BOOL applied = _running && _window.isVisible && _window.styleMask == after &&
+        _window.windowNumber == number && _window.level == level &&
+        _window.contentView == view && _window.firstResponder == responder &&
+        _window.isKeyWindow == key && _window.isMainWindow == main &&
+        NSEqualRects([_window contentRectForFrameRect:_window.frame], content);
+    if (applied && !decorated) {
+        _decoratedStyle = before;
+        _decoratedTitlebarTransparent = transparent;
+        _decoratedTitleVisibility = title;
+    } else if (!applied && _running) {
+        _window.styleMask = before;
+        _window.titlebarAppearsTransparent = transparent;
+        _window.titleVisibility = title;
+        if (_title != nil) _window.title = _title;
+        if (_window.level != level) _window.level = level;
+        if (!NSEqualRects(_window.frame, frame)) [_window setFrame:frame display:NO];
+        if (key && !_window.isKeyWindow) [_window makeKeyWindow];
+        if (main && !_window.isMainWindow) [_window makeMainWindow];
+        if (_window.firstResponder != responder) [_window makeFirstResponder:responder];
+    }
+    if (_windowMode == VIVA_WINDOW_CUSTOM_TITLEBAR && _running) {
+        [self keepTrafficLightsCentered];
+    }
+    _changingDecoration = NO;
+    [responder release];
+    return applied ? 1 : -2;
 }
 
 - (void)setWindowTitle:(NSString *)title {
@@ -5021,6 +5096,11 @@ int viva_application_set_always_on_top(void *window, int enabled) {
         dispatch_sync(dispatch_get_main_queue(), work);
     }
     return found;
+}
+
+// Only called by the Go main-queue callback.
+int viva_application_change_decoration(void *window, int decorated) {
+    return [viva_find_window(window) changeDecoration:decorated != 0];
 }
 
 void viva_application_show_window(void *window) {

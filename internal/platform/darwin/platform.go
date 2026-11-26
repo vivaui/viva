@@ -15,6 +15,7 @@ import "C"
 import (
 	"fmt"
 	"runtime/cgo"
+	"sync"
 	"sync/atomic"
 	"unicode/utf8"
 	"unsafe"
@@ -149,6 +150,7 @@ func (window *nativeWindow) SetAlwaysOnTop(enabled bool) error {
 
 type runState struct {
 	application    *nativeApplication
+	window         *nativeWindow
 	callbackHandle cgo.Handle
 	onClosed       func()
 	waker          *platform.Waker
@@ -206,8 +208,33 @@ type nativeApplication struct {
 }
 
 type nativeWindow struct {
-	token  unsafe.Pointer
-	closed atomic.Bool
+	token        unsafe.Pointer
+	closed       atomic.Bool
+	mode         WindowMode
+	decorationMu sync.Mutex
+	decoration   *decorationRequest
+}
+
+type decorationRequest struct {
+	done func(error)
+}
+
+func (window *nativeWindow) finishDecoration(request *decorationRequest, err error) {
+	window.decorationMu.Lock()
+	pending := window.decoration
+	if request != nil && pending != request {
+		window.decorationMu.Unlock()
+		return
+	}
+	window.decoration = nil
+	var done func(error)
+	if pending != nil {
+		done, pending.done = pending.done, nil
+	}
+	window.decorationMu.Unlock()
+	if done != nil {
+		done(err)
+	}
 }
 
 func (window *nativeWindow) Close() {
@@ -483,7 +510,8 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 			C.viva_web_ready_later(C.uintptr_t(state.callbackHandle))
 		}
 	}
-	return &nativeWindow{token: token}, nil
+	state.window = &nativeWindow{token: token, mode: config.WindowMode}
+	return state.window, nil
 }
 
 func nativeStatusError(status C.int) error {

@@ -408,6 +408,7 @@ int viva_application_set_fullscreen(void *window, int fullscreen);
 int viva_application_set_title(void *window, const char *title);
 int viva_application_fullscreen(void *window);
 int viva_application_set_always_on_top(void *window, int enabled);
+int viva_application_change_decoration(void *window, int decorated);
 int viva_application_run(void);
 void viva_application_close_all(void);
 void viva_application_close_window(void *window);
