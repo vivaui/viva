@@ -1,6 +1,9 @@
 package gfx
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestHoverHintFollowsReplayAndRewind(t *testing.T) {
 	var canvas Canvas
@@ -52,5 +55,51 @@ func TestHoverHintIsMountedAndClippedWithEmbeddedText(t *testing.T) {
 	page.Block(Rect{X: 100, Y: 100, Width: 40, Height: 20})
 	if page.HoverHintAt(mounted, 110, 110).Text != "" {
 		t.Fatal("covered text still showed its tooltip")
+	}
+}
+
+// BenchmarkHoverHintAt is a page asking for the tooltip under the pointer once
+// a frame: a table whose every row is a hit holding shortened text. On the first
+// row's text the query passes every hint and every hit painted after the row;
+// beside the text it passes every hint alone; with the tooltips off the page
+// declares no hints at all.
+func BenchmarkHoverHintAt(b *testing.B) {
+	for _, rows := range []int{100, 1000, 10000} {
+		var canvas Canvas
+		owner := canvas.Tree().Feature("page")
+		canvas.Reset()
+		canvas.BeginFrame()
+		for index := range rows {
+			y := float32(index) * 24
+			canvas.HitWithLabel(Item(index+1), Rect{Y: y, Width: 400, Height: 24}, "row")
+			canvas.HoverHint(owner, Rect{X: 8, Y: y + 4, Width: 160, Height: 16}, "Complete filename.txt")
+		}
+		var off Canvas
+		offOwner := off.Tree().Feature("page")
+		off.Reset()
+		off.BeginFrame()
+		for index := range rows {
+			off.HitWithLabel(Item(index+1), Rect{Y: float32(index) * 24, Width: 400, Height: 24}, "row")
+		}
+		for _, run := range []struct {
+			name   string
+			canvas *Canvas
+			owner  Scope
+			x, y   float32
+			want   string
+		}{
+			{"on the first row's text", &canvas, owner, 20, 10, "Complete filename.txt"},
+			{"beside the text", &canvas, owner, 300, 10, ""},
+			{"tooltips off", &off, offOwner, 20, 10, ""},
+		} {
+			b.Run(fmt.Sprintf("rows=%d/%s", rows, run.name), func(b *testing.B) {
+				b.ReportAllocs()
+				for b.Loop() {
+					if hint := run.canvas.HoverHintAt(run.owner, run.x, run.y); hint.Text != run.want {
+						b.Fatalf("hint %q, want %q", hint.Text, run.want)
+					}
+				}
+			})
+		}
 	}
 }
