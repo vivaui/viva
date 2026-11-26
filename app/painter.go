@@ -1655,6 +1655,7 @@ func sameRegionHit(published, current *gfx.Hit) bool {
 		published.BlockSurface == current.BlockSurface &&
 		published.Container == current.Container &&
 		published.IsLabel == current.IsLabel &&
+		published.Presentational == current.Presentational &&
 		published.Backdrop == current.Backdrop &&
 		published.MovesWindow == current.MovesWindow &&
 		published.PassSecondary == current.PassSecondary &&
@@ -1757,7 +1758,7 @@ func (painter *painter) diffHits() *hitDiff {
 		}
 		if diff.patchable {
 			diff.patchable = now.ID == was.ID && now.IsLabel == was.IsLabel &&
-				now.Block == was.Block && now.MovesWindow == was.MovesWindow &&
+				now.Presentational == was.Presentational && now.Block == was.Block && now.MovesWindow == was.MovesWindow &&
 				now.Backdrop == was.Backdrop
 			// A zero ID is tracked like any other: it marks every zero-ID node
 			// (headings, groups, live regions) for a rebuild, and matches nothing
@@ -1834,7 +1835,7 @@ func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 	for index := range canvasHits {
 		hit := &canvasHits[index]
 		switch {
-		case hit.Block, hit.MovesWindow:
+		case hit.Block, hit.MovesWindow, hit.Presentational:
 		case hit.IsLabel:
 			labelled = true
 			switch {

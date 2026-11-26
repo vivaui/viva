@@ -227,6 +227,8 @@ type Extra struct {
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
 	highlight     int32            // 1 + the index of this text's query in frame.highlights; zero is none
+	textArea      int32            // 1 + the index of the TextSelectionArea the element is in frame.textAreas, or 0
+	unselectable  bool             // Unselectable: the element's texts take no part in the area they are in
 	focusOrder    FocusOrder       // FocusOrder: how the group chooses the next member; nil is its axis
 	layout        Layout           // CustomLayout: who measures and places the children
 	swatchFlush   bool             // a ColorSwatch fills its border with its color
@@ -300,10 +302,20 @@ type Frame struct {
 	Lines            []string
 	highlights       []textHighlight
 	paintHighlightFn func(*Frame, *Node, string, Rect, gfx.TextStyle, gfx.Alignment)
-	controls         any                 // the layer above's control declarations: see widgetsOf
-	Ellipses         []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
-	Wraps            []wrapCache         // the full line sets of wrapped texts, kept between frames
-	wrapCursor       int
+	// textAreas are the TextSelectionAreas of the paint; area is the one being
+	// painted, whose texts are collected unless areaSkip says a control or an
+	// Unselectable element they are in keeps them out. lineAt is where the next line
+	// of the text being collected is looked for in its source, and selectionSpans
+	// reuses the spans of a selected line.
+	textAreas      []*TextSelectionState
+	area           *TextSelectionState
+	areaSkip       int32
+	lineAt         int
+	selectionSpans []gfx.TextSpan
+	controls       any                 // the layer above's control declarations: see widgetsOf
+	Ellipses       []gfx.EllipsisCache // the cut-off ends of wrapped texts, kept between frames
+	Wraps          []wrapCache         // the full line sets of wrapped texts, kept between frames
+	wrapCursor     int
 	// tails is how long each reused slice that holds pointers was when the last
 	// frame ended: what lies past its length up to there is the last frame's,
 	// cleared by releaseTail so a page that shrank does not keep it reachable.
@@ -353,6 +365,9 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	f.Surface, f.Palette, f.bounds, f.done = Surface, Palette, bounds, false
 	f.Nodes = f.Nodes[:0]
 	f.Lines = f.Lines[:0]
+	clear(f.textAreas)
+	f.textAreas = f.textAreas[:0]
+	f.area, f.areaSkip = nil, 0
 	clear(f.highlights)
 	f.highlights = f.highlights[:0]
 	f.Exts = append(f.Exts[:0], Extra{})

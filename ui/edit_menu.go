@@ -15,7 +15,7 @@ type EditMenuLabels = base.EditMenuLabels
 // application gives a ContextMenu of its own.
 func WithoutEditMenu() Option { return base.WithoutEditMenu() }
 
-var installEditMenu sync.Once
+var installEditMenu, installPrimarySelection sync.Once
 
 // useEditMenu installs the menu painter and the system clipboard the edit menu of
 // a TextField or TextArea needs.

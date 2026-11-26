@@ -1,4 +1,4 @@
-package components
+package base
 
 import (
 	"math"
@@ -9,7 +9,7 @@ import (
 
 // TextPoint is a place in a run of painted texts that a selection can cross:
 // Surface numbers the text in reading order, from 0, and Offset is a byte
-// offset in that text, as MarkdownView.OffsetAt reports it.
+// offset in that text, as MarkdownView.OffsetAt or a TextSelectionArea reports it.
 type TextPoint struct {
 	Surface int
 	Offset  int
@@ -36,6 +36,50 @@ type TextSelection struct {
 	Anchor   TextPoint
 	Focus    TextPoint
 	dragging bool
+}
+
+// TextRange is the selected part of one text, in byte offsets: of a Text in a
+// TextSelectionArea, of the rendered text of a MarkdownView. Anchor is where the
+// user began and Focus is where the pointer is now; either may be ahead of the
+// other. Range clamps and orders them against the text, so a selection that was
+// made before the text changed still copies the part that is there.
+type TextRange struct {
+	Anchor, Focus int
+}
+
+// Range returns the selected bytes, ordered and clamped to text. Clamping snaps
+// both ends back to the start of the rune they point into, because a selection
+// kept while a streaming message shortened can land inside a multi-byte
+// character; without the snap SelectedText would return invalid UTF-8.
+func (s TextRange) Range(text []byte) (start, end int) {
+	start, end = s.Anchor, s.Focus
+	if start > end {
+		start, end = end, start
+	}
+	start = snapRune(text, min(max(start, 0), len(text)))
+	end = snapRune(text, min(max(end, 0), len(text)))
+	return start, end
+}
+
+// rangeIn is Range for a text held as a string.
+func (s TextRange) rangeIn(text string) (start, end int) {
+	start, end = s.Anchor, s.Focus
+	if start > end {
+		start, end = end, start
+	}
+	start = snapRune(text, min(max(start, 0), len(text)))
+	end = snapRune(text, min(max(end, 0), len(text)))
+	return start, end
+}
+
+// snapRune moves offset back to the leading byte of the rune it points into.
+// Offsets that are already at a boundary, including len(text), are returned as
+// they are.
+func snapRune[T string | []byte](text T, offset int) int {
+	for offset > 0 && offset < len(text) && text[offset]&0xC0 == 0x80 {
+		offset--
+	}
+	return offset
 }
 
 // TextSelectionResult says what Pointer did with an event.
@@ -152,28 +196,28 @@ func (selection *TextSelection) Pointer(event gfx.PointerEvent, at func(gfx.Poin
 // selection begins or ends only the part on its side. Within one surface the
 // Anchor and the Focus keep the order the drag gave them, so a drag upward is
 // not turned round on each paint. The offsets of a surface the selection runs
-// past the end of are larger than its text; MarkdownSelection clamps them.
-func (selection *TextSelection) In(surface int) MarkdownSelection {
+// past the end of are larger than its text; TextRange.Range clamps them.
+func (selection *TextSelection) In(surface int) TextRange {
 	if selection.Empty() {
-		return MarkdownSelection{}
+		return TextRange{}
 	}
 	first, last := selection.Anchor, selection.Focus
 	if last.before(first) {
 		first, last = last, first
 	}
 	if surface < first.Surface || surface > last.Surface {
-		return MarkdownSelection{}
+		return TextRange{}
 	}
 	if first.Surface == last.Surface {
-		return MarkdownSelection{Anchor: selection.Anchor.Offset, Focus: selection.Focus.Offset}
+		return TextRange{Anchor: selection.Anchor.Offset, Focus: selection.Focus.Offset}
 	}
 	switch surface {
 	case first.Surface:
-		return MarkdownSelection{Anchor: first.Offset, Focus: math.MaxInt}
+		return TextRange{Anchor: first.Offset, Focus: math.MaxInt}
 	case last.Surface:
-		return MarkdownSelection{Anchor: 0, Focus: last.Offset}
+		return TextRange{Anchor: 0, Focus: last.Offset}
 	}
-	return MarkdownSelection{Anchor: 0, Focus: math.MaxInt}
+	return TextRange{Anchor: 0, Focus: math.MaxInt}
 }
 
 // Text is the selected text of surfaces texts in reading order, with separator
@@ -181,7 +225,7 @@ func (selection *TextSelection) In(surface int) MarkdownSelection {
 // clipboard. text gives the text of one surface for the part In reports for it;
 // surfaces with nothing selected are skipped and add no separator. It returns ""
 // for an empty selection.
-func (selection *TextSelection) Text(surfaces int, separator string, text func(surface int, part MarkdownSelection) string) string {
+func (selection *TextSelection) Text(surfaces int, separator string, text func(surface int, part TextRange) string) string {
 	if selection.Empty() {
 		return ""
 	}

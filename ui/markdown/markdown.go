@@ -32,6 +32,7 @@
 package markdown
 
 import (
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/markdown"
@@ -47,7 +48,7 @@ type Style = components.MarkdownStyle
 type Look = components.MarkdownLook
 
 // Selection is a range of the rendered text, in byte offsets.
-type Selection = components.MarkdownSelection
+type Selection = base.TextRange
 
 // Code is a laid-out fenced code block.
 type Code = components.MarkdownCode

@@ -20,6 +20,22 @@ func (f *Frame) PaintChild(i int32) {
 		f.Surface.PushLayer(n.Band)
 		defer f.Surface.PopLayer()
 	}
+	if len(f.textAreas) > 0 {
+		// The texts of a TextSelectionArea are collected as it is painted, in reading
+		// order; a control inside it, or what Unselectable takes out, keeps its own.
+		if extra := &f.Exts[n.Ext]; extra.textArea != 0 {
+			area, skip := f.area, f.areaSkip
+			f.area, f.areaSkip = f.textAreas[extra.textArea-1], 0
+			f.beginTextArea(f.area)
+			defer func() {
+				f.endTextArea(f.area)
+				f.area, f.areaSkip = area, skip
+			}()
+		} else if f.area != nil && (actsOnPress(n, extra) || extra.unselectable) {
+			f.areaSkip++
+			defer func() { f.areaSkip-- }()
+		}
+	}
 	if n.Flags&flagDialog != 0 {
 		f.paintDialog(n)
 		return
@@ -50,7 +66,7 @@ func (f *Frame) PaintChild(i int32) {
 		f.Surface.BeginGlide(extra.glideIdentity(n), 0, gfx.Point{X: n.Rect.X + extra.glideScroll.X, Y: n.Rect.Y + extra.glideScroll.Y}, extra.glide)
 		defer f.Surface.EndPose()
 	}
-	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil {
+	if memo := f.Exts[n.Ext].memo; memo != 0 && f.memoFn != nil && f.area == nil {
 		if f.memoFn(f, i, true) {
 			return
 		}
@@ -371,6 +387,14 @@ func (f *Frame) paintText(n *Node) {
 			style.Direction = gfx.TextDirectionOf(n.Text)
 		}
 		lh := n.leading()
+		if f.area != nil && f.areaSkip == 0 {
+			f.beginSelectableText(n, r, style, alignment)
+			for k := int32(0); k < n.LineCount; k++ {
+				bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
+				f.addSelectableLine(n, f.Lines[n.LineFirst+k], bounds, k == n.LineCount-1)
+			}
+			f.paintSelection()
+		}
 		for k := int32(0); k < n.LineCount; k++ {
 			bounds := Rect{X: r.X, Y: r.Y + float32(k)*lh, Width: r.Width, Height: lh}
 			line := f.Lines[n.LineFirst+k]
@@ -386,6 +410,11 @@ func (f *Frame) paintText(n *Node) {
 	clipped := r.Width < n.Natural
 	if clipped {
 		f.Surface.Clip(r)
+	}
+	if f.area != nil && f.areaSkip == 0 {
+		f.beginSelectableText(n, r, style, alignment)
+		f.addSelectableLine(n, n.Text, bounds, true)
+		f.paintSelection()
 	}
 	f.paintLabel(n, n.Text, bounds, style, alignment)
 	if n.TextDecor&textStrike != 0 {

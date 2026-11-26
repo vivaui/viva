@@ -168,6 +168,7 @@ const (
 	pkDisclosure
 	pkProgress
 	pkAlertDialog
+	pkTextSelection
 	pkKinds
 )
 

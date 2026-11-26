@@ -262,3 +262,25 @@ func TestSyncSemanticsUpdatesZeroIDContainerOnIncrementalPaint(t *testing.T) {
 		t.Fatalf("stale zero-ID container accessibility node: %+v", nodes)
 	}
 }
+
+// A pointer region over painted words (a selectable text's) is no node of its own and
+// takes no focus, while the control it belongs to stays one.
+func TestPresentationalHitsAreNoAccessibilityNodes(t *testing.T) {
+	var canvas gfx.Canvas
+	config := Config{Title: "presentational", Width: 200, Height: 120}
+	config.Paint = func(canvas *gfx.Canvas, size gfx.Size) {
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 200, Height: 100}, "", gfx.HitOptions{Role: gfx.RoleGroup, SkipTab: true})
+		canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Y: 10, Width: 120, Height: 16}, "", gfx.HitOptions{
+			Role: gfx.RoleGroup, Cursor: gfx.PointerCursorText, Presentational: true,
+		})
+	}
+	painter := newTestPainter(t, &canvas, config)
+	if len(painter.accessibility) != 1 || painter.accessibility[0].ID != gfx.Item(1) {
+		t.Fatalf("accessibility = %+v", painter.accessibility)
+	}
+	for _, hit := range canvas.Hits() {
+		if hit.ID == gfx.Item(2) && (hit.Focusable || hit.Cursor != gfx.PointerCursorText) {
+			t.Fatalf("the pointer region is %+v", hit)
+		}
+	}
+}

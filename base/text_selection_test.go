@@ -1,4 +1,4 @@
-package components
+package base
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ func selectionAt(point gfx.Point) (TextPoint, bool) {
 	return TextPoint{Surface: surface, Offset: min(int(point.X), len(selectionTexts[surface]))}, true
 }
 
-func selectionText(surface int, part MarkdownSelection) string {
+func selectionText(surface int, part TextRange) string {
 	text := []byte(selectionTexts[surface])
 	start, end := part.Range(text)
 	return string(text[start:end])
@@ -25,25 +25,25 @@ func selectionText(surface int, part MarkdownSelection) string {
 
 func selectionLength(surface int) int { return len(selectionTexts[surface]) }
 
-func press(x, y float32) gfx.PointerEvent {
+func selectPress(x, y float32) gfx.PointerEvent {
 	return gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: x, Y: y}
 }
 
-func drag(x, y float32) gfx.PointerEvent {
+func selectDrag(x, y float32) gfx.PointerEvent {
 	return gfx.PointerEvent{Kind: gfx.PointerMove, Button: gfx.PointerButtonPrimary, X: x, Y: y, Captured: true}
 }
 
-func release(x, y float32) gfx.PointerEvent {
+func selectRelease(x, y float32) gfx.PointerEvent {
 	return gfx.PointerEvent{Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary, X: x, Y: y, Captured: true}
 }
 
 func TestTextSelectionDragsFromOneSurfaceIntoAnother(t *testing.T) {
 	var selection TextSelection
-	if result := selection.Pointer(press(6, 1), selectionAt); !result.Handled || !result.Changed || !selection.Dragging() {
+	if result := selection.Pointer(selectPress(6, 1), selectionAt); !result.Handled || !result.Changed || !selection.Dragging() {
 		t.Fatalf("press = %+v dragging=%v", result, selection.Dragging())
 	}
-	selection.Pointer(drag(3, 31), selectionAt)
-	result := selection.Pointer(release(5, 31), selectionAt)
+	selection.Pointer(selectDrag(3, 31), selectionAt)
+	result := selection.Pointer(selectRelease(5, 31), selectionAt)
 	if !result.Handled || selection.Dragging() {
 		t.Fatalf("release = %+v dragging=%v", result, selection.Dragging())
 	}
@@ -67,10 +67,10 @@ func TestTextSelectionDraggedBackwardCopiesTheSameText(t *testing.T) {
 func TestTextSelectionInKeepsTheDragOrderWithinOneSurface(t *testing.T) {
 	var selection TextSelection
 	selection.Select(TextPoint{Surface: 1, Offset: 4}, TextPoint{Surface: 1, Offset: 1})
-	if got := selection.In(1); got != (MarkdownSelection{Anchor: 4, Focus: 1}) {
+	if got := selection.In(1); got != (TextRange{Anchor: 4, Focus: 1}) {
 		t.Fatalf("In = %+v: a drag upward was turned round", got)
 	}
-	if got := selection.In(0); got != (MarkdownSelection{}) {
+	if got := selection.In(0); got != (TextRange{}) {
 		t.Fatalf("a surface outside the selection covers %+v", got)
 	}
 }
@@ -91,13 +91,13 @@ func TestTextSelectionCoversWholeSurfacesBetweenItsEnds(t *testing.T) {
 func TestTextSelectionPressOnNothingIsLeftToTheCaller(t *testing.T) {
 	var selection TextSelection
 	selection.Select(TextPoint{Surface: 0, Offset: 1}, TextPoint{Surface: 0, Offset: 4})
-	if result := selection.Pointer(press(0, 500), selectionAt); result.Handled || result.Changed {
+	if result := selection.Pointer(selectPress(0, 500), selectionAt); result.Handled || result.Changed {
 		t.Fatalf("press off every surface = %+v", result)
 	}
 	if selection.Empty() {
 		t.Fatal("a press the selection did not take cleared it")
 	}
-	secondary := press(1, 1)
+	secondary := selectPress(1, 1)
 	secondary.Button = gfx.PointerButtonSecondary
 	if result := selection.Pointer(secondary, selectionAt); result.Handled {
 		t.Fatalf("a secondary press = %+v", result)
@@ -106,8 +106,8 @@ func TestTextSelectionPressOnNothingIsLeftToTheCaller(t *testing.T) {
 
 func TestTextSelectionClickWithoutDragSelectsNothing(t *testing.T) {
 	var selection TextSelection
-	selection.Pointer(press(2, 1), selectionAt)
-	selection.Pointer(release(2, 1), selectionAt)
+	selection.Pointer(selectPress(2, 1), selectionAt)
+	selection.Pointer(selectRelease(2, 1), selectionAt)
 	if !selection.Empty() || selection.Dragging() || selection != (TextSelection{}) {
 		t.Fatalf("a click left %+v", selection)
 	}
@@ -115,22 +115,22 @@ func TestTextSelectionClickWithoutDragSelectsNothing(t *testing.T) {
 
 func TestTextSelectionMovesWithoutAHeldButtonDoNothing(t *testing.T) {
 	var selection TextSelection
-	selection.Pointer(press(2, 1), selectionAt)
-	hover := drag(8, 1)
+	selection.Pointer(selectPress(2, 1), selectionAt)
+	hover := selectDrag(8, 1)
 	hover.Captured = false
 	if result := selection.Pointer(hover, selectionAt); result.Handled || selection.Focus.Offset != 2 {
 		t.Fatalf("a hovering move = %+v focus=%+v", result, selection.Focus)
 	}
 	var idle TextSelection
-	if result := idle.Pointer(drag(8, 1), selectionAt); result.Handled {
+	if result := idle.Pointer(selectDrag(8, 1), selectionAt); result.Handled {
 		t.Fatalf("a move with no drag = %+v", result)
 	}
 }
 
 func TestTextSelectionKeepsWhatWasSelectedWhenThePointerLeavesTheWindow(t *testing.T) {
 	var selection TextSelection
-	selection.Pointer(press(2, 1), selectionAt)
-	selection.Pointer(drag(7, 1), selectionAt)
+	selection.Pointer(selectPress(2, 1), selectionAt)
+	selection.Pointer(selectDrag(7, 1), selectionAt)
 	exit := gfx.PointerEvent{Kind: gfx.PointerExit}
 	if result := selection.Pointer(exit, selectionAt); !result.Handled || selection.Dragging() || selection.Empty() {
 		t.Fatalf("exit = %+v selection=%+v", result, selection)
@@ -165,9 +165,9 @@ func TestTextSelectionClampFollowsTextThatChanged(t *testing.T) {
 func TestTextSelectionPointerPathDoesNotAllocate(t *testing.T) {
 	var selection TextSelection
 	allocs := testing.AllocsPerRun(100, func() {
-		selection.Pointer(press(2, 1), selectionAt)
-		selection.Pointer(drag(7, 31), selectionAt)
-		selection.Pointer(release(7, 31), selectionAt)
+		selection.Pointer(selectPress(2, 1), selectionAt)
+		selection.Pointer(selectDrag(7, 31), selectionAt)
+		selection.Pointer(selectRelease(7, 31), selectionAt)
 		_ = selection.In(1)
 	})
 	if allocs != 0 {
@@ -177,11 +177,11 @@ func TestTextSelectionPointerPathDoesNotAllocate(t *testing.T) {
 
 func BenchmarkTextSelectionDrag(b *testing.B) {
 	var selection TextSelection
-	selection.Pointer(press(2, 1), selectionAt)
+	selection.Pointer(selectPress(2, 1), selectionAt)
 	b.ReportAllocs()
 	for b.Loop() {
-		selection.Pointer(drag(7, 31), selectionAt)
-		selection.Pointer(drag(3, 11), selectionAt)
+		selection.Pointer(selectDrag(7, 31), selectionAt)
+		selection.Pointer(selectDrag(3, 11), selectionAt)
 	}
 }
 
@@ -198,13 +198,13 @@ func BenchmarkTextSelectionIn(b *testing.B) {
 
 func TestTextSelectionEndDragKeepsTheSelection(t *testing.T) {
 	var selection TextSelection
-	selection.Pointer(press(2, 1), selectionAt)
-	selection.Pointer(drag(7, 1), selectionAt)
+	selection.Pointer(selectPress(2, 1), selectionAt)
+	selection.Pointer(selectDrag(7, 1), selectionAt)
 	selection.EndDrag()
 	if selection.Dragging() || selection.Empty() {
 		t.Fatalf("EndDrag left %+v", selection)
 	}
-	if result := selection.Pointer(drag(1, 1), selectionAt); result.Handled || selection.Focus.Offset != 7 {
+	if result := selection.Pointer(selectDrag(1, 1), selectionAt); result.Handled || selection.Focus.Offset != 7 {
 		t.Fatalf("a move after EndDrag = %+v focus=%+v", result, selection.Focus)
 	}
 }

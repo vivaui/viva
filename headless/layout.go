@@ -160,14 +160,15 @@ func lineExtent(text gfx.Text, width float32) gfx.Rect {
 // innermostControl is the smallest control on text's layer that holds the middle
 // of the line. A line that runs out of its control by more than half of itself
 // belongs to no control and is not found. Opaque panels count; labels of a
-// control, which are the text's own extent, and backdrops do not.
+// control and the pointer regions of a selectable text, which are the text's own
+// extent, and backdrops do not.
 func innermostControl(hits []gfx.Hit, text gfx.Text, width float32) (gfx.Hit, bool) {
 	line := lineExtent(text, width)
 	middleY := line.Y + line.Height/2
 	var best gfx.Hit
 	found := false
 	for _, hit := range hits {
-		if hit.Layer != text.Layer || hit.IsLabel || hit.Backdrop || hit.MovesWindow || hit.Disabled && !hit.Block {
+		if hit.Layer != text.Layer || hit.IsLabel || hit.Presentational || hit.Backdrop || hit.MovesWindow || hit.Disabled && !hit.Block {
 			continue
 		}
 		bounds := hit.Bounds

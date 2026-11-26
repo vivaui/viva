@@ -57,8 +57,8 @@ func describeAccessibility(destination []accessibilityDescription, hits []gfx.Hi
 		}
 	}
 	for _, hit := range hits {
-		if hit.Block || hit.MovesWindow || hit.IsLabel {
-			continue // an occluder, a move region, or a label of another node
+		if hit.Block || hit.MovesWindow || hit.IsLabel || hit.Presentational {
+			continue // an occluder, a move region, a label of another node, or a pointer region
 		}
 		label := hit.Label
 		if name, ok := names[hit.ID]; ok {

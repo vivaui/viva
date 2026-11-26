@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/markdown"
 )
@@ -54,22 +55,22 @@ func TestMarkdownSelectionRangeClampsAndOrders(t *testing.T) {
 	const digits = "0123456789" // ASCII, so every offset is a rune boundary
 	tests := []struct {
 		name  string
-		sel   MarkdownSelection
+		sel   base.TextRange
 		text  string
 		start int
 		end   int
 	}{
-		{name: "empty", sel: MarkdownSelection{Anchor: 4, Focus: 4}, text: digits, start: 4, end: 4},
-		{name: "forward", sel: MarkdownSelection{Anchor: 2, Focus: 7}, text: digits, start: 2, end: 7},
-		{name: "reversed", sel: MarkdownSelection{Anchor: 7, Focus: 2}, text: digits, start: 2, end: 7},
-		{name: "negative", sel: MarkdownSelection{Anchor: -3, Focus: 4}, text: digits, start: 0, end: 4},
-		{name: "past the end", sel: MarkdownSelection{Anchor: 4, Focus: 99}, text: digits, start: 4, end: 10},
-		{name: "outside both ways", sel: MarkdownSelection{Anchor: -8, Focus: 99}, text: digits, start: 0, end: 10},
-		{name: "empty text", sel: MarkdownSelection{Anchor: -1, Focus: 3}, text: "", start: 0, end: 0},
-		{name: "start inside a rune", sel: MarkdownSelection{Anchor: 3, Focus: 5}, text: "a 中", start: 2, end: 5},
-		{name: "end inside a rune", sel: MarkdownSelection{Anchor: 0, Focus: 4}, text: "a 中", start: 0, end: 2},
-		{name: "both inside a rune", sel: MarkdownSelection{Anchor: 4, Focus: 3}, text: "a 中", start: 2, end: 2},
-		{name: "clamped into a rune", sel: MarkdownSelection{Anchor: 3, Focus: 6}, text: "a 中", start: 2, end: 5},
+		{name: "empty", sel: base.TextRange{Anchor: 4, Focus: 4}, text: digits, start: 4, end: 4},
+		{name: "forward", sel: base.TextRange{Anchor: 2, Focus: 7}, text: digits, start: 2, end: 7},
+		{name: "reversed", sel: base.TextRange{Anchor: 7, Focus: 2}, text: digits, start: 2, end: 7},
+		{name: "negative", sel: base.TextRange{Anchor: -3, Focus: 4}, text: digits, start: 0, end: 4},
+		{name: "past the end", sel: base.TextRange{Anchor: 4, Focus: 99}, text: digits, start: 4, end: 10},
+		{name: "outside both ways", sel: base.TextRange{Anchor: -8, Focus: 99}, text: digits, start: 0, end: 10},
+		{name: "empty text", sel: base.TextRange{Anchor: -1, Focus: 3}, text: "", start: 0, end: 0},
+		{name: "start inside a rune", sel: base.TextRange{Anchor: 3, Focus: 5}, text: "a 中", start: 2, end: 5},
+		{name: "end inside a rune", sel: base.TextRange{Anchor: 0, Focus: 4}, text: "a 中", start: 0, end: 2},
+		{name: "both inside a rune", sel: base.TextRange{Anchor: 4, Focus: 3}, text: "a 中", start: 2, end: 2},
+		{name: "clamped into a rune", sel: base.TextRange{Anchor: 3, Focus: 6}, text: "a 中", start: 2, end: 5},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -95,7 +96,7 @@ func TestMarkdownSelectionClampedMidRuneIsValidUTF8(t *testing.T) {
 		view.Layout(canvas, style, &doc, 400)
 	}
 	layout("a `中")
-	sel := MarkdownSelection{Anchor: 3, Focus: view.TextLen()}
+	sel := base.TextRange{Anchor: 3, Focus: view.TextLen()}
 	if got := view.SelectedText(sel); got != "中" {
 		t.Fatalf("SelectedText before the change = %q, want %q", got, "中")
 	}
@@ -114,7 +115,7 @@ func TestEmptyMarkdownViewHasNoTextToSelect(t *testing.T) {
 	if got := view.TextLen(); got != 0 {
 		t.Fatalf("TextLen = %d, want 0", got)
 	}
-	if got := view.SelectedText(MarkdownSelection{Anchor: -2, Focus: 5}); got != "" {
+	if got := view.SelectedText(base.TextRange{Anchor: -2, Focus: 5}); got != "" {
 		t.Fatalf("SelectedText = %q, want empty", got)
 	}
 }
@@ -125,10 +126,10 @@ func TestMarkdownSelectionUsesRenderedTextWithoutSoftWraps(t *testing.T) {
 		t.Fatalf("the paragraph did not wrap: %+v", view.pieces)
 	}
 	const want = "alpha beta gamma delta epsilon"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
-	if got := view.SelectedText(MarkdownSelection{Anchor: 11, Focus: 16}); got != "gamma" {
+	if got := view.SelectedText(base.TextRange{Anchor: 11, Focus: 16}); got != "gamma" {
 		t.Fatalf("selected %q, want gamma", got)
 	}
 }
@@ -136,7 +137,7 @@ func TestMarkdownSelectionUsesRenderedTextWithoutSoftWraps(t *testing.T) {
 func TestMarkdownSelectionHasOneBreakBetweenBlocks(t *testing.T) {
 	view, _ := layoutMarkdown(t, "first paragraph\n\nsecond paragraph", 200, MarkdownStyle{Size: 12})
 	const want = "first paragraph\nsecond paragraph"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 }
@@ -145,7 +146,7 @@ func TestMarkdownSelectionUsesVisibleInlineTextAndSpacing(t *testing.T) {
 	src := "before **bold** and `code` and a [link](https://example.com/x) after"
 	view, _ := layoutMarkdown(t, src, 200, MarkdownStyle{Size: 12})
 	const want = "before bold and code and a link after"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 }
@@ -154,7 +155,7 @@ func TestMarkdownSelectionReadsTableCellsInRenderedOrder(t *testing.T) {
 	src := "| Name | Value |\n|:--|--:|\n| ssh | shell |\n| ftp | old |\n"
 	view, _ := layoutMarkdown(t, src, 300, MarkdownStyle{Size: 12})
 	const want = "Name Value\nssh shell\nftp old"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 }
@@ -189,7 +190,7 @@ func TestFencedCodeCopiesSourceLinesWithoutVisualWraps(t *testing.T) {
 		t.Fatalf("the long code line did not wrap: %d pieces", mono)
 	}
 	want := line + "\nsecond line"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 }
@@ -197,7 +198,7 @@ func TestFencedCodeCopiesSourceLinesWithoutVisualWraps(t *testing.T) {
 func TestFencedCodeKeepsTabsAndCopiesThem(t *testing.T) {
 	view, _ := layoutMarkdown(t, "```\n\tfoo\tbar\n```\n", 300, MarkdownStyle{Size: 12})
 	const want = "\tfoo\tbar"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 	tests := []struct {
@@ -211,7 +212,7 @@ func TestFencedCodeKeepsTabsAndCopiesThem(t *testing.T) {
 		{start: 5, end: 8, want: "bar"},
 	}
 	for _, test := range tests {
-		if got := view.SelectedText(MarkdownSelection{Anchor: test.start, Focus: test.end}); got != test.want {
+		if got := view.SelectedText(base.TextRange{Anchor: test.start, Focus: test.end}); got != test.want {
 			t.Errorf("select %d..%d = %q, want %q", test.start, test.end, got, test.want)
 		}
 	}
@@ -222,7 +223,7 @@ func TestCodeChunkBoundariesDoNotSplitATab(t *testing.T) {
 	// to end before it, and the next one owns the whole tab.
 	view, _ := layoutMarkdown(t, "```\nabcde\tX\n```\n", 56, MarkdownStyle{Size: 12})
 	const want = "abcde\tX"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 	last := int32(0)
@@ -387,7 +388,7 @@ func TestMarkdownPaintsPaintedSelection(t *testing.T) {
 	selected := gfx.Color{Red: 1, Alpha: 1}
 	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
-		Look: MarkdownLook{Selection: selected}, X: 10, Y: 20, Selection: MarkdownSelection{Anchor: 0, Focus: 5},
+		Look: MarkdownLook{Selection: selected}, X: 10, Y: 20, Selection: base.TextRange{Anchor: 0, Focus: 5},
 	})
 	rects := markdownSelectionRects(&painted, selected)
 	if len(rects) != 1 {
@@ -410,7 +411,7 @@ func TestMarkdownPaintsNoSelectionForAnEmptyRange(t *testing.T) {
 	selected := gfx.Color{Red: 1, Alpha: 1}
 	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
-		Look: MarkdownLook{Selection: selected}, Selection: MarkdownSelection{Anchor: 4, Focus: 4},
+		Look: MarkdownLook{Selection: selected}, Selection: base.TextRange{Anchor: 4, Focus: 4},
 	})
 	if rects := markdownSelectionRects(&painted, selected); len(rects) != 0 {
 		t.Fatalf("empty selection painted %+v", rects)
@@ -428,7 +429,7 @@ func TestMarkdownSelectionIsClippedToVisibleLines(t *testing.T) {
 	}
 	second := view.pieces[1]
 	selected := gfx.Color{Red: 1, Alpha: 1}
-	paint := func(selection MarkdownSelection) *gfx.Canvas {
+	paint := func(selection base.TextRange) *gfx.Canvas {
 		var painted gfx.Canvas
 		view.Paint(&painted, MarkdownPaint{
 			Look: MarkdownLook{Selection: selected}, Selection: selection,
@@ -436,10 +437,10 @@ func TestMarkdownSelectionIsClippedToVisibleLines(t *testing.T) {
 		})
 		return &painted
 	}
-	if rects := markdownSelectionRects(paint(MarkdownSelection{Anchor: 0, Focus: 5}), selected); len(rects) != 0 {
+	if rects := markdownSelectionRects(paint(base.TextRange{Anchor: 0, Focus: 5}), selected); len(rects) != 0 {
 		t.Fatalf("a selection above the clip painted %+v", rects)
 	}
-	if rects := markdownSelectionRects(paint(MarkdownSelection{Anchor: 0, Focus: 12}), selected); len(rects) != 1 {
+	if rects := markdownSelectionRects(paint(base.TextRange{Anchor: 0, Focus: 12}), selected); len(rects) != 1 {
 		t.Fatalf("the visible line painted %d selection rectangles, want 1", len(rects))
 	}
 }
@@ -454,7 +455,7 @@ func TestMarkdownCodeSelectionCoversATabAsCells(t *testing.T) {
 	behind := gfx.Color{Green: 1, Alpha: 1}
 	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
-		Look: MarkdownLook{Selection: selected, CodeFill: behind}, Selection: MarkdownSelection{Anchor: 5, Focus: 6},
+		Look: MarkdownLook{Selection: selected, CodeFill: behind}, Selection: base.TextRange{Anchor: 5, Focus: 6},
 	})
 	rects := markdownSelectionRects(&painted, selected)
 	if len(rects) != 1 {
@@ -617,7 +618,7 @@ func TestMarkdownLayoutAndPaintDoNotAllocateOnceWarm(t *testing.T) {
 	canvas := markdownCanvas()
 	var view MarkdownView
 	look := MarkdownLookFor(gfx.DarkTheme())
-	selection := MarkdownSelection{Anchor: 2, Focus: 40}
+	selection := base.TextRange{Anchor: 2, Focus: 40}
 	run := func() {
 		canvas.Reset()
 		view.Layout(canvas, MarkdownStyle{Size: 13}, &doc, 400)
@@ -661,7 +662,7 @@ func TestMarkdownCandidateLineMeasurementsMatchWhatIsPainted(t *testing.T) {
 			const width = 132
 			view.Layout(nonlinearMarkdownCanvas(), MarkdownStyle{Size: 12}, &doc, width)
 			want := strings.NewReplacer("**", "", "`", "").Replace(test.src)
-			if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != want {
+			if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != want {
 				t.Fatalf("rendered text = %q, want %q", got, want)
 			}
 			for _, piece := range view.pieces {
@@ -704,7 +705,7 @@ func TestMarkdownClosingPunctuationMovesWithThePrecedingText(t *testing.T) {
 	if moved == nil || moved.x != 0 || moved.y == 0 {
 		t.Fatalf("punctuation was not moved with its preceding text: %+v", view.pieces)
 	}
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "abcdef。" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "abcdef。" {
 		t.Fatalf("rendered text = %q", got)
 	}
 }
@@ -717,7 +718,7 @@ func TestMarkdownLongClosingRunKeepsPunctuationInsideTheColumn(t *testing.T) {
 	var view MarkdownView
 	const width = 40
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12}, &doc, width)
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "abcdefg。" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "abcdefg。" {
 		t.Fatalf("rendered text = %q", got)
 	}
 	for _, piece := range view.pieces {
@@ -740,7 +741,7 @@ func TestMarkdownLongClosingRunKeepsPunctuationInsideTheColumn(t *testing.T) {
 func TestMarkdownMonoClosingRunMovesItsSuffixWithThePunctuation(t *testing.T) {
 	const width = 40
 	view, canvas := paintedMarkdown(t, "a`bcdefgh`。", width)
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "abcdefgh。" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "abcdefgh。" {
 		t.Fatalf("rendered text = %q, want %q", got, "abcdefgh。")
 	}
 	var code []*mdPiece
@@ -791,7 +792,7 @@ func TestMarkdownClosingPunctuationUsesTheJoinedShapedWidth(t *testing.T) {
 	var view MarkdownView
 	const width = 40
 	view.Layout(nonlinearMarkdownCanvas(), MarkdownStyle{Size: 12}, &doc, width)
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "xbcdef。" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "xbcdef。" {
 		t.Fatalf("rendered text = %q", got)
 	}
 	for _, piece := range view.pieces {
@@ -847,7 +848,7 @@ func TestMarkdownClosingPunctuationKeepsThePrecedingSpanStyle(t *testing.T) {
 func TestMarkdownBreakpointRewindPaintsEachPieceBackgroundAndLinkOnce(t *testing.T) {
 	src := "a**bcdef**。 [link](https://example.com)"
 	view, _ := layoutMarkdown(t, src, 40, MarkdownStyle{Size: 12})
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "abcdef。 link" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "abcdef。 link" {
 		t.Fatalf("rendered text = %q", got)
 	}
 	paintedFor := func(label string) map[string]int {
@@ -907,7 +908,7 @@ func TestMarkdownReflowKeepsShapedTextInsideTheColumn(t *testing.T) {
 				t.Errorf("at %v wide, piece %q is at %v..%v", width, p.text, p.x, p.x+p.w)
 			}
 		}
-		if got, want := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}), "端口绑定在 127.0.0.1，外部访问仍要从宿主机转发。"; got != want {
+		if got, want := view.SelectedText(base.TextRange{Focus: view.TextLen()}), "端口绑定在 127.0.0.1，外部访问仍要从宿主机转发。"; got != want {
 			t.Errorf("at %v wide, rendered text = %q, want %q", width, got, want)
 		}
 	}
@@ -920,7 +921,7 @@ func TestLongTokensWrapByCompleteUTF8Characters(t *testing.T) {
 	var view MarkdownView
 	const width = 72
 	view.Layout(nonlinearMarkdownCanvas(), MarkdownStyle{Size: 12}, &doc, width)
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != token {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != token {
 		t.Fatalf("rendered text = %q, want %q", got, token)
 	}
 	for _, p := range view.pieces {
@@ -1146,7 +1147,7 @@ func TestMarkdownStrikeOnInlineCodeCoversOnlyTheTextArea(t *testing.T) {
 func TestInlineCodeCopyDoesNotIncludeVisualPadding(t *testing.T) {
 	src := "端口绑`127.0.0.1`还是"
 	view, _ := layoutMarkdown(t, src, 220, MarkdownStyle{Size: 12})
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != "端口绑127.0.0.1还是" {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != "端口绑127.0.0.1还是" {
 		t.Errorf("copied text = %q", got)
 	}
 	var piece *mdPiece
@@ -1159,7 +1160,7 @@ func TestInlineCodeCopyDoesNotIncludeVisualPadding(t *testing.T) {
 	if piece == nil {
 		t.Fatal("no inline code piece")
 	}
-	selected := view.SelectedText(MarkdownSelection{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)})
+	selected := view.SelectedText(base.TextRange{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)})
 	if selected != "127.0.0.1" {
 		t.Errorf("selected inline code = %q", selected)
 	}
@@ -1168,7 +1169,7 @@ func TestInlineCodeCopyDoesNotIncludeVisualPadding(t *testing.T) {
 func TestMarkdownAdjacentInlineCodeAndPunctuationKeepFullFragments(t *testing.T) {
 	view, _ := layoutMarkdown(t, "`a` `bb`，前`127.0.0.1`后", 220, MarkdownStyle{Size: 12})
 	const want = "a bb，前127.0.0.1后"
-	if got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Focus: view.TextLen()}); got != want {
 		t.Fatalf("rendered text = %q, want %q", got, want)
 	}
 	for _, text := range []string{"a", "bb", "127.0.0.1"} {
@@ -1208,7 +1209,7 @@ func TestMarkdownTinyWidthsTerminateWithValidText(t *testing.T) {
 			doc.Parse(test.src)
 			var view MarkdownView
 			view.Layout(nonlinearMarkdownCanvas(), MarkdownStyle{Size: 12}, &doc, 40)
-			got := view.SelectedText(MarkdownSelection{Focus: view.TextLen()})
+			got := view.SelectedText(base.TextRange{Focus: view.TextLen()})
 			if got != test.want {
 				t.Fatalf("rendered text = %q, want %q", got, test.want)
 			}
@@ -1243,7 +1244,7 @@ func TestInlineCodeSelectionRectsStayInsideThePaddedBackground(t *testing.T) {
 	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look:      MarkdownLook{Selection: selected},
-		Selection: MarkdownSelection{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},
+		Selection: base.TextRange{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},
 	})
 	rects := markdownSelectionRects(&painted, selected)
 	if len(rects) != 1 {
@@ -1287,7 +1288,7 @@ func TestMarkdownPaintNestsItsClipAndRestoresTheCallerStack(t *testing.T) {
 	view.Layout(markdownCanvas(), MarkdownStyle{Size: 12}, &doc, 300)
 	selection := gfx.Color{Red: 1, Alpha: 1}
 	view.Paint(&canvas, MarkdownPaint{
-		Look: MarkdownLook{Selection: selection}, Selection: MarkdownSelection{Anchor: 0, Focus: view.TextLen()},
+		Look: MarkdownLook{Selection: selection}, Selection: base.TextRange{Anchor: 0, Focus: view.TextLen()},
 		X: inner.X, Y: inner.Y, Clip: inner, Links: gfx.Scope(1),
 	})
 	if clips := canvas.Clips(); len(clips) != 1 || clips[0].Bounds != outer {
@@ -1503,7 +1504,7 @@ func TestFencedCodeBlankLinesLayOut(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			view, _ := layoutMarkdown(t, test.src, 300, MarkdownStyle{Size: 12})
-			if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != test.want {
+			if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != test.want {
 				t.Fatalf("selected %q, want %q", got, test.want)
 			}
 		})
@@ -1513,7 +1514,7 @@ func TestFencedCodeBlankLinesLayOut(t *testing.T) {
 func TestFencedCodeToleratesInvalidUTF8(t *testing.T) {
 	view, _ := layoutMarkdown(t, "```\n\xff\n```\n", 300, MarkdownStyle{Size: 12})
 	const want = "\xff"
-	if got := view.SelectedText(MarkdownSelection{Anchor: 0, Focus: view.TextLen()}); got != want {
+	if got := view.SelectedText(base.TextRange{Anchor: 0, Focus: view.TextLen()}); got != want {
 		t.Fatalf("selected %q, want %q", got, want)
 	}
 }
@@ -1528,7 +1529,7 @@ func TestInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 	var painted gfx.Canvas
 	// "alpha " is six bytes, then the four bytes of the inline code.
 	view.Paint(&painted, MarkdownPaint{
-		Look: MarkdownLook{Selection: selected}, Selection: MarkdownSelection{Anchor: 6, Focus: 10},
+		Look: MarkdownLook{Selection: selected}, Selection: base.TextRange{Anchor: 6, Focus: 10},
 	})
 	rects := markdownSelectionRects(&painted, selected)
 	if len(rects) != 1 {
@@ -1757,7 +1758,7 @@ func TestHeadingInlineCodeSelectionUsesItsOwnCellWidth(t *testing.T) {
 	var painted gfx.Canvas
 	view.Paint(&painted, MarkdownPaint{
 		Look:      MarkdownLook{Selection: selected},
-		Selection: MarkdownSelection{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},
+		Selection: base.TextRange{Anchor: int(piece.plainLo), Focus: int(piece.plainHi)},
 	})
 	rects := markdownSelectionRects(&painted, selected)
 	if len(rects) != 1 {

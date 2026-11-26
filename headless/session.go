@@ -407,7 +407,7 @@ func (session *Session) CheckStrict() error {
 	ids := map[gfx.ID]bool{}
 	labels := map[string]bool{}
 	for _, hit := range hits {
-		if hit.ID.IsZero() || hit.IsLabel || hit.Backdrop || hit.Block {
+		if hit.ID.IsZero() || hit.IsLabel || hit.Presentational || hit.Backdrop || hit.Block {
 			continue
 		}
 		if ids[hit.ID] {
