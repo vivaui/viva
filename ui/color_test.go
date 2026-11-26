@@ -3,6 +3,7 @@ package ui_test
 import (
 	"testing"
 
+	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 )
@@ -59,6 +60,40 @@ func TestColorPickerAppliesATypedHex(t *testing.T) {
 	}
 	if color != gfx.RGB(255, 0, 0) {
 		t.Fatalf("applied %v, want red", color)
+	}
+}
+
+func TestColorPickerInvalidHexUsesPanelLabel(t *testing.T) {
+	for _, tc := range []struct{ name, label, want string }{
+		{"localized", "颜色格式无效", "颜色格式无效"},
+		{"default", "", "Invalid color"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var state ui.ColorPickerState
+			original := gfx.RGB(10, 20, 30)
+			color := original
+			d := openPage(t, func(c ui.C) {
+				ui.Column(c).Pad(16).Children(func() {
+					ui.ColorPicker(c, &state, &color, "Accent").PanelLabels(base.ColorPickerLabels{InvalidColor: tc.label})
+				})
+			})
+			d.click("Accent")
+			d.click("Hex color")
+			state.SetHexText("#wrong")
+			d.click("OK")
+			if !state.Open() || state.Applied() || color != original {
+				t.Fatal("invalid input changed or applied the color")
+			}
+			found := false
+			for _, label := range d.driver.Snapshot().Labels {
+				if label.Value == tc.want {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("panel did not paint validation message %q", tc.want)
+			}
+		})
 	}
 }
 
