@@ -19,6 +19,8 @@ type ColorPickerIDs struct {
 
 type ColorPickerLabels struct {
 	Color, Saturation, Hue, Alpha, Hex, Clear, Cancel, Apply string
+	// InvalidColor is the message shown for an invalid Hex value.
+	InvalidColor string
 }
 
 // ColorPickerLayout is also the input geometry. Pointer and Key update a copy
