@@ -1756,7 +1756,14 @@ func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 				fast = false
 				break
 			}
-			if *current != *previous && !current.ID.IsZero() {
+			if *current != *previous {
+				if current.ID.IsZero() {
+					// Zero-ID hits (containers such as headings, groups and live regions)
+					// cannot be tracked by ID in dirty; fall back to the full mirror so
+					// bounds, label or role updates reach the accessibility payload.
+					fast = false
+					break
+				}
 				known := false
 				for _, id := range dirty {
 					if id == current.ID {
