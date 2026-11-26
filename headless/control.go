@@ -4,6 +4,7 @@ package headless
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -92,6 +93,8 @@ import (
 //	appearance [light|dark|unknown]  read or set the system appearance the run reports
 //	clip [TEXT]                read or replace the private clipboard
 //	clipimage [PATH|clear]     read (ok image N bytes | ok none) or replace the private clipboard's image with a PNG file
+//	clipfiles [PATH...|clear]  read (ok N paths | ok none) or replace the private clipboard's files, as a file
+//	                           manager's copy does: their names are its text too, so a paste asks for files first
 //	openedurl                  report the last public OpenURL request
 //	openedpath                 report the last OpenPath request
 //	revealedpath               report the last RevealPath request
@@ -256,6 +259,23 @@ func execute(session *Session, line string) (reply string, quit bool) {
 			return finish(session.driver.QueueSaveFile("", app.ErrCanceled), "")
 		}
 		return finish(session.driver.QueueSaveFile(arguments[0], nil), "")
+	case "clipfiles":
+		switch {
+		case len(arguments) == 1 && arguments[0] == "clear":
+			session.driver.SetClipboardFiles(nil)
+			return finish(nil, "")
+		case len(arguments) == 0:
+			paths, err := app.ClipboardFiles()
+			if errors.Is(err, app.ErrNoFiles) {
+				return finish(nil, " none")
+			}
+			if err != nil {
+				return finish(err, "")
+			}
+			return finish(nil, " "+strconv.Itoa(len(paths))+" paths")
+		}
+		session.driver.SetClipboardFiles(arguments)
+		return finish(nil, "")
 	case "move", "down", "up", "click", "dblclick", "rightclick":
 		if command == "rightclick" && len(arguments) == 1 {
 			return finish(session.RightClickLabel(arguments[0]), "")
