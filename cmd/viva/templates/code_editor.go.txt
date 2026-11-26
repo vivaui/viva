@@ -58,12 +58,15 @@ type CodeEditorFoldRange struct {
 }
 
 // CodeEditorFoldMarker adds a disclosure button to a visible logical line.
-// The caller owns its ID and handles clicks. Markers must be sorted by Line.
+// The caller owns its ID and handles clicks. PlaceholderID, when nonzero,
+// exposes the inline "..." badge on a folded header line as a button too.
+// Markers must be sorted by Line.
 type CodeEditorFoldMarker struct {
-	Line      int
-	ID        gfx.ID
-	Collapsed bool
-	Label     string
+	Line          int
+	ID            gfx.ID
+	PlaceholderID gfx.ID
+	Collapsed     bool
+	Label         string
 }
 
 // CodeEditorMaxHighlightedLine is the longest line, in bytes, that is handed to
@@ -713,6 +716,47 @@ func (editor *CodeEditor) Paint(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.
 		}
 		canvas.Unclip()
 	}
+	if len(editor.folds) > 0 && len(snapshot.FoldMarkers) != 0 {
+		canvas.Clip(content)
+		markerIndex := 0
+		if firstRow < len(editor.rows) {
+			firstLine := int(editor.rows[firstRow].line)
+			markerIndex = sort.Search(len(snapshot.FoldMarkers), func(i int) bool { return snapshot.FoldMarkers[i].Line >= firstLine })
+		}
+		left := content.X - editor.scrollX
+		for index := firstRow; index < len(editor.rows); index++ {
+			y := content.Y + float32(index)*lineHeight - editor.scrollY
+			if y >= content.Y+content.Height {
+				break
+			}
+			row := editor.rows[index]
+			if editor.softWrapped(index) || !editor.isFoldHeader(int(row.line)) {
+				continue
+			}
+			for markerIndex < len(snapshot.FoldMarkers) && snapshot.FoldMarkers[markerIndex].Line < int(row.line) {
+				markerIndex++
+			}
+			if markerIndex >= len(snapshot.FoldMarkers) || snapshot.FoldMarkers[markerIndex].Line != int(row.line) {
+				continue
+			}
+			marker := snapshot.FoldMarkers[markerIndex]
+			if marker.PlaceholderID.IsZero() {
+				continue
+			}
+			badge := foldBadgeRect(row, y, left, cellWidth, lineHeight, cellHeight)
+			if badge.X+badge.Width <= content.X || badge.X >= content.X+content.Width {
+				continue
+			}
+			label := marker.Label
+			if label == "" {
+				label = "Expand fold"
+			}
+			canvas.HitWithOptions(marker.PlaceholderID, badge, label, gfx.HitOptions{
+				Role: gfx.RoleButton, Cursor: gfx.PointerCursorHand, Disabled: snapshot.Disabled,
+			})
+		}
+		canvas.Unclip()
+	}
 	if !snapshot.ScrollbarID.IsZero() {
 		area := BeginScrollArea(canvas, theme, gfx.Rect{X: bounds.X + bounds.Width - codeEditorBarSize - 1, Y: content.Y, Width: 10, Height: content.Height},
 			gfx.Size{Width: 10, Height: float32(len(editor.rows)) * lineHeight}).Offset(0, editor.scrollY).VerticalScrollbar(snapshot.ScrollbarID, snapshot.Label, "")
@@ -1052,6 +1096,9 @@ func (paint *codePaint) row(index int, y float32) {
 		(paint.value[rowEnd] == '\n' || paint.value[rowEnd] == '\r' && rowEnd+1 < len(paint.value) && paint.value[rowEnd+1] == '\n') {
 		paint.lineEnding(row, y, left)
 	}
+	if !editor.softWrapped(index) && editor.isFoldHeader(int(row.line)) {
+		paint.foldBadge(row, y, left)
+	}
 	if paint.showWrapSymbol && editor.softWrapped(index) {
 		paint.wrapSymbol(y)
 	}
@@ -1059,6 +1106,45 @@ func (paint *codePaint) row(index int, y float32) {
 	if !paint.deferOverlays {
 		paint.overlays(index, y)
 	}
+}
+
+func (editor *CodeEditor) isFoldHeader(line int) bool {
+	if len(editor.folds) == 0 {
+		return false
+	}
+	index := sort.Search(len(editor.folds), func(i int) bool { return editor.folds[i].Header >= line })
+	return index < len(editor.folds) && editor.folds[index].Header == line
+}
+
+func foldBadgeRect(row codeRow, y, left, cellWidth, lineHeight, cellHeight float32) gfx.Rect {
+	width := max(float32(18), cellWidth*3.5)
+	height := max(float32(12), cellHeight-2)
+	return gfx.Rect{
+		X:      left + float32(row.cells)*cellWidth + cellWidth*0.5,
+		Y:      y + (lineHeight-height)/2,
+		Width:  width,
+		Height: height,
+	}
+}
+
+func (paint *codePaint) foldBadge(row codeRow, y, left float32) {
+	badge := foldBadgeRect(row, y, left, paint.cellWidth, paint.lineHeight, paint.cellHeight)
+	bg := paint.muted
+	bg.Alpha *= 0.16
+	fg := paint.muted
+	if paint.editor.disabled {
+		bg.Alpha *= 0.5
+		fg.Alpha *= 0.5
+	}
+	paint.canvas.Rounded(badge, 3, bg)
+	textBounds := gfx.Rect{
+		X:      badge.X + max(0, (badge.Width-paint.cellWidth*3)/2),
+		Y:      y + (paint.lineHeight-paint.cellHeight)/2,
+		Width:  paint.cellWidth * 3,
+		Height: paint.cellHeight,
+	}
+	runs := [1]gfx.TextRun{{Column: 0, Bytes: 3, Cells: 3, Color: fg}}
+	paint.canvas.LabelRuns("...", textBounds, gfx.TextStyle{Size: paint.size, Color: fg, Mono: true, MonoFace: paint.face}, paint.cellWidth, runs[:])
 }
 
 func (paint *codePaint) wrapSymbol(y float32) {
