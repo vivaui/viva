@@ -185,16 +185,29 @@ func TestRepaintReleasesFocusWhenThePaintAsksWithoutChangingHits(t *testing.T) {
 
 // A page that formats its labels every frame declares the same text in a new
 // allocation each time: that is an unchanged hit list, which keeps the repaint on
-// the path that skips the semantic mirror.
-func TestSameHitsComparesLabelsByText(t *testing.T) {
+// the path that skips the semantic mirror. Changed words still reach it.
+func TestRepaintComparesLabelsByText(t *testing.T) {
+	page := &hitGatePage{label: "Clicked 3 times", bounds: gfx.Rect{Width: 80, Height: 20}}
 	fresh := func(text string) string { return string([]byte(text)) }
-	published := []gfx.Hit{{ID: gfx.Item(1), Label: fresh("Clicked 3 times"), Value: fresh("3")}}
-	current := []gfx.Hit{{ID: gfx.Item(1), Label: fresh("Clicked 3 times"), Value: fresh("3")}}
-	if !sameHits(published, current) {
-		t.Fatal("the same labels in new allocations compared as a change")
+	config := Config{Title: "gate", Width: 200, Height: 80, Paint: page.paint}
+	var canvas gfx.Canvas
+	painter := newTestPainter(t, &canvas, config)
+
+	page.label = fresh("Clicked 3 times")
+	frame, err := painter.repaint()
+	if err != nil {
+		t.Fatal(err)
 	}
-	current[0].Label = fresh("Clicked 4 times")
-	if sameHits(published, current) {
+	if frame.Accessibility != nil {
+		t.Fatal("the same label in a new allocation republished the accessibility payload")
+	}
+
+	page.label = fresh("Clicked 4 times")
+	frame, err = painter.repaint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Accessibility == nil || painter.accessibility[0].Label != "Clicked 4 times" {
 		t.Fatal("a changed label compared as unchanged")
 	}
 }
