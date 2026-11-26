@@ -218,9 +218,9 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 				labelWidth = maxLabelWidth
 			}
 
-			combobox.canvas.Label(combobox.canvas.FitLine(item.Label, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+			combobox.canvas.LabelEllipsis(item.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
 				Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
-			})
+			}, item.ID)
 
 			detailX := bounds.X + 8 + labelWidth + 8
 			detailWidth := comboboxMax(0, bounds.X+8+contentWidth-detailX)
@@ -229,9 +229,9 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 				if item.Disabled {
 					detailColor.Alpha *= .5
 				}
-				combobox.canvas.Label(combobox.canvas.FitLine(item.Detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+				combobox.canvas.LabelEllipsis(item.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
 					Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
-				})
+				}, item.ID)
 			}
 		}
 		if item.Selected {
@@ -454,9 +454,9 @@ func (combobox Combobox) paintInput() {
 		if labelWidth > maxLabelWidth {
 			labelWidth = maxLabelWidth
 		}
-		canvas.Label(canvas.FitLine(options.Value, sizeM, gfx.WeightRegular, labelWidth), gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+		canvas.LabelEllipsis(options.Value, gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
 			Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
-		})
+		}, options.InputID)
 		detailX := bounds.X + inset + labelWidth + 8
 		detailWidth := comboboxMax(0, bounds.X+inset+availableWidth-detailX)
 		if detailWidth > 0 {
@@ -464,12 +464,12 @@ func (combobox Combobox) paintInput() {
 			if options.Disabled {
 				detailColor.Alpha *= 0.50
 			}
-			canvas.Label(canvas.FitLine(options.Detail, sizeS, gfx.WeightRegular, detailWidth), gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+			canvas.LabelEllipsis(options.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
 				Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
-			})
+			}, options.InputID)
 		}
 	} else if options.Query == "" || options.InputID.IsZero() || canvas.Focused() != options.InputID || options.Disabled {
-		canvas.Label(canvas.FitLine(value, combobox.theme.Metrics.FontSizeM, gfx.WeightRegular, availableWidth), textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground})
+		canvas.LabelEllipsis(value, textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground}, options.InputID)
 	}
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, bounds, options.Label, gfx.HitOptions{

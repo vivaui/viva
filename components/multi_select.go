@@ -93,7 +93,11 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 			break
 		}
 		chip := gfx.Rect{X: x, Y: bounds.Y + (bounds.Height-22)/2, Width: width, Height: 22}
-		paintComboboxChip(canvas, theme, chip, ComboboxChip{RemoveID: o.RemoveIDs.At(i), Label: canvas.FitLine(label, theme.Metrics.FontSizeS, gfx.WeightMedium, width-30), Value: value, Disabled: o.Disabled})
+		shown := canvas.FitLine(label, theme.Metrics.FontSizeS, gfx.WeightMedium, width-30)
+		paintComboboxChip(canvas, theme, chip, ComboboxChip{RemoveID: o.RemoveIDs.At(i), Label: shown, Value: value, Disabled: o.Disabled})
+		if shown != "" && shown != label {
+			canvas.HoverHint(0, gfx.Rect{X: chip.X + comboboxChipPad, Y: chip.Y, Width: chip.Width - comboboxChipPad - comboboxChipRemove, Height: chip.Height}, label)
+		}
 		x += width + 5
 	}
 	if layout.Hidden > 0 {
@@ -180,8 +184,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 				}
 				label = text
 			}
-			label = canvas.FitLine(label, theme.Metrics.FontSizeM, gfx.WeightRegular, max(row.Width-38, 0))
-			canvas.Label(label, gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color})
+			canvas.LabelEllipsis(label, gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color}, id)
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}

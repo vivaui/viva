@@ -223,6 +223,8 @@ type Extra struct {
 	memo          int32            // 1 + the index the element's cache has with whoever declared it (memoFn), or 0
 	Draws         int32            // 1 + the index of the element's Draw and DrawOver callbacks in frame.draws, or 0 for none
 	tooltip       string           // what Tooltip says over the element; empty for none
+	overflowTip   string           // full text already shortened by the application
+	ellipsisTip   uint8            // EllipsisTooltip's switch and EllipsisTooltipOn's side (see ellipsis_tooltip.go); zero follows what the element is inside
 	tooltipSide   uint8            // 1 + the TooltipSide TooltipOn opens the element's tip on; 0 is below
 	addons        int32            // 1 + the index of the field's icon and button in frame.addons, or 0
 	focusGroup    FocusAxis        // FocusGroup: the arrow keys that move the focus between the controls inside; zero is none
@@ -267,6 +269,7 @@ type Frame struct {
 	Images                          []gfx.Bitmap       // what each Image element draws, indexed by its aux
 	Exts                            []Extra            // exts[0] is never written: an element without extras points at it
 	Floats                          []int32            // the Popups, which belong to no container
+	popupFrom                       []popupFrom        // where each Popup was declared, in declaration order
 	hidden                          []int32            // the elements Hide was called on, taken out of the page at End
 	States                          []stateLooks       // what Hover, Pressed and Focus declared, by element
 	Draws                           []drawHooks        // what Draw and DrawOver declared, by element
@@ -280,6 +283,8 @@ type Frame struct {
 	Stops                           []gfx.GradientStop // their stops, in the order declared
 	paintStops                      []gfx.GradientStop // the stops of the gradient being painted, faded
 	Opacity                         float32            // the product of the opacities of the elements being painted
+	ellipsis                        ellipsisState      // what the text being painted does with the tooltips of shortened text
+	ellipsisSet                     bool               // an element was given EllipsisTooltip or EllipsisTooltipOn: End works out each Popup's
 	popupLayer                      uint16             // the canvas layer the Popups are painted on
 	nativeMark                      int                // how many native views the canvas had when the page began
 	Binds                           []bindDecl         // the bound controls, see bind.go
@@ -376,6 +381,8 @@ func (View *View) Begin(Surface *gfx.Canvas, Palette Theme, bounds Rect) *Frame 
 	clear(f.Binds) // a binding holds pointers into the model: not past the frame
 	f.Binds = f.Binds[:0]
 	f.Floats = f.Floats[:0]
+	f.popupFrom = f.popupFrom[:0]
+	f.ellipsisSet = false
 	f.hidden = f.hidden[:0]
 	f.States, f.Gradients, f.Stops = f.States[:0], f.Gradients[:0], f.Stops[:0]
 	clear(f.Draws) // a callback holds what it captured: not past the frame it was declared in
@@ -445,19 +452,35 @@ func (f *Frame) End() {
 	f.reportScrolls()
 	f.Scrolls.sweep()
 	f.reportSplitters()
+	if f.page != nil {
+		// Truncated text shows its complete value only where the page or an
+		// EllipsisTooltip turned the tooltips on, beside the side EllipsisTooltipOn
+		// gave; components read both from the canvas.
+		previous, side := f.Surface.SetHoverHintOwner(0), f.Surface.SetHoverHintSide(0)
+		defer f.restoreHoverHints(previous, side)
+		f.ellipsis = ellipsisState{}
+		f.setEllipsis(ellipsisState{on: f.page.config.EllipsisTooltips})
+	}
 	f.PaintChild(0)
 	f.raiseOverNativeViews()
 	if f.popupLayer != 0 {
 		f.Surface.PushLayer(f.popupLayer)
 	}
 	for _, index := range f.Floats {
+		if f.ellipsisSet {
+			f.setEllipsis(f.ellipsisAt(index))
+		}
 		f.PaintChild(index)
 	}
+	f.ellipsis = ellipsisState{}
 	if f.popupLayer != 0 {
 		f.Surface.PopLayer()
 	}
-	if f.tooltips {
-		f.paintTooltipFn(f)
+	if f.page != nil {
+		f.page.hoverText = f.page.hoverTextOn(f.Surface)
+	}
+	if f.tooltips || f.page != nil {
+		f.paintTooltip()
 	} else if f.paintTooltipFn != nil {
 		f.tooltip = nil
 	}
@@ -495,6 +518,7 @@ func (f *Frame) trim() {
 	f.Draws = trimFlexCapacity(f.Draws)
 	f.Binds = trimFlexCapacity(f.Binds)
 	f.Floats = trimFlexCapacity(f.Floats)
+	f.popupFrom = trimFlexCapacity(f.popupFrom)
 	f.hidden = trimFlexCapacity(f.hidden)
 	f.Lines = trimFlexCapacity(f.Lines)
 	f.Ellipses = trimFlexCapacity(f.Ellipses)
@@ -573,6 +597,7 @@ func (f *Frame) Popup() Box {
 	b := f.Box(kindContainer)
 	f.Parent = saved
 	f.Floats = append(f.Floats, b.i)
+	f.popupFrom = append(f.popupFrom, popupFrom{popup: b.i, from: saved})
 	return b
 }
 

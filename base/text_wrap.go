@@ -11,16 +11,17 @@ import (
 // that did not change can append the saved lines instead of measuring every
 // prefix again.
 type wrapCache struct {
-	Text     string
-	Size     float32
-	Weight   float32
-	mono     bool
-	italic   bool
-	Face     gfx.MonoFace
-	width    float32
-	MaxLines int
-	Lines    []string
-	filled   bool
+	Text      string
+	Size      float32
+	Weight    float32
+	mono      bool
+	italic    bool
+	Face      gfx.MonoFace
+	width     float32
+	MaxLines  int
+	Lines     []string
+	filled    bool
+	truncated bool
 }
 
 // wrapText appends the lines of a wrapped Text, breaking them as gfx.Canvas.WrapLines
@@ -51,10 +52,17 @@ func (f *Frame) wrapText(dst []string, n *Node) []string {
 	if wrapped.filled && wrapped.Text == n.Text && wrapped.Size == n.FontSize && wrapped.Weight == n.Weight &&
 		wrapped.mono == mono && wrapped.italic == italic && wrapped.Face == face &&
 		wrapped.width == width && wrapped.MaxLines == maxLines {
+		if wrapped.truncated {
+			n.TextDecor |= textTruncated
+		}
 		return append(dst, wrapped.Lines...)
 	}
 	start := len(dst)
 	dst = f.Surface.WrapLinesStyle(dst, n.Text, n.textStyle(), width, maxLines, cache)
+	wrapped.truncated = cache.Truncated()
+	if wrapped.truncated {
+		n.TextDecor |= textTruncated
+	}
 	wrapped.Text, wrapped.Size, wrapped.Weight, wrapped.mono, wrapped.italic, wrapped.Face = n.Text, n.FontSize, n.Weight, mono, italic, face
 	wrapped.width, wrapped.MaxLines = width, maxLines
 	wrapped.Lines = append(wrapped.Lines[:0], dst[start:]...)
@@ -74,7 +82,7 @@ func (f *Frame) Wrap(Value string) Box { return f.Paragraph(Value, math.MaxInt32
 
 // MaxLines makes a Text a paragraph of at most n lines, the last ending with an
 // ellipsis when the text needs more (n of one is Ellipsis); n of zero or less
-// takes as many lines as the width needs.
+// takes as many lines as the width needs. EllipsisTooltip shows what it cut.
 func (b Box) MaxLines(n int) Box {
 	node := b.N()
 	node.Flags |= flagWrap

@@ -5,7 +5,26 @@ import (
 	controlstyle "github.com/vivaui/viva/style"
 )
 
+// PaintChild paints element i and what it holds.
 func (f *Frame) PaintChild(i int32) {
+	if f.Exts[f.Nodes[i].Ext].ellipsisTip != 0 {
+		f.paintWithEllipsisTip(i)
+		return
+	}
+	f.paintElement(i)
+}
+
+// paintWithEllipsisTip paints element i under the EllipsisTooltip and
+// EllipsisTooltipOn it sets, for its subtree only. The setting is restored
+// here, not by a deferred call in paintElement, whose other defers would stop
+// being open-coded.
+func (f *Frame) paintWithEllipsisTip(i int32) {
+	was := f.setEllipsis(f.ellipsis.under(f.Exts[f.Nodes[i].Ext].ellipsisTip))
+	f.paintElement(i)
+	f.setEllipsis(was)
+}
+
+func (f *Frame) paintElement(i int32) {
 	n := &f.Nodes[i]
 	if !n.FocusScope.IsZero() {
 		// A menu's page controls paint in the menu's focus scope, so a press on
@@ -195,6 +214,10 @@ func (f *Frame) PaintChild(i int32) {
 		}
 	}
 
+	if extra.overflowTip != "" && f.page != nil {
+		canvas.HoverHint(f.page.root, r, extra.overflowTip, n.ID)
+	}
+
 	// A Text and an Icon draw with their color, which is the one the looks give.
 	color := n.Color
 	n.Color = fade(style.Color, f.Opacity)
@@ -225,7 +248,13 @@ func (f *Frame) PaintChild(i int32) {
 		f.runDraw(n, hooks.under)
 	}
 	for c := n.First; c >= 0; c = f.Nodes[c].Next {
-		f.PaintChild(c)
+		// PaintChild written out: it does not inline, and this loop paints
+		// nearly every element.
+		if f.Exts[f.Nodes[c].Ext].ellipsisTip != 0 {
+			f.paintWithEllipsisTip(c)
+		} else {
+			f.paintElement(c)
+		}
 	}
 	if n.OutOfFlow&absChildren != 0 {
 		f.paintAbsolute(i)
@@ -402,6 +431,10 @@ func (f *Frame) paintText(n *Node) {
 			if n.TextDecor&textStrike != 0 {
 				f.paintStrike(line, bounds, style, alignment)
 			}
+		}
+		if n.TextDecor&textTruncated != 0 && f.ellipsis.on && f.Exts[n.Ext].overflowTip == "" {
+			r.Height = min(r.Height, float32(n.LineCount)*lh)
+			f.Surface.HoverHint(f.page.root, r, n.Text)
 		}
 		return
 	}

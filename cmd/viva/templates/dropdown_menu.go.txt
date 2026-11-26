@@ -907,6 +907,9 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 	canvas.Label(label, gfx.Rect{X: bounds.X + left, Y: labelY, Width: labelWidth, Height: labelHeight}, gfx.TextStyle{
 		Size: theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 	})
+	if label != "" && label != item.Label {
+		canvas.HoverHint(0, gfx.Rect{X: bounds.X + left, Y: labelY, Width: labelWidth, Height: labelHeight}, item.Label, item.ID)
+	}
 	if item.Description != "" {
 		color := theme.MutedForeground
 		if active {
@@ -914,10 +917,9 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		}
 		color = dropdownMenuOpacity(color, item.Disabled)
 		width := max(0, bounds.Width-left-right-menu.hitInset)
-		value := canvas.FitLine(item.Description, theme.Metrics.FontSizeS, gfx.WeightRegular, width)
-		canvas.Label(value, gfx.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, gfx.TextStyle{
+		canvas.LabelEllipsis(item.Description, gfx.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, gfx.TextStyle{
 			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: color,
-		})
+		}, item.ID)
 	}
 	menu.declareItemHit(bounds, item)
 }

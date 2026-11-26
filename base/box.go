@@ -430,6 +430,8 @@ func (b Box) MonoFace(Face gfx.MonoFace) Box {
 
 // Ellipsis keeps a Text to one line and ends it with an ellipsis when it does not
 // fit the width it gets, instead of clipping it. It is Paragraph(value, 1).
+// A page with EllipsisTooltips, or an EllipsisTooltip on the Text or around it,
+// shows the complete value in a tooltip while the pointer rests on the text.
 func (b Box) Ellipsis() Box {
 	n := b.N()
 	n.Flags |= flagWrap

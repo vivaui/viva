@@ -41,8 +41,9 @@ const (
 // face describes the text rather than the element, so they have a byte of their own
 // (Node.TextDecor).
 const (
-	textItalic uint8 = 1 << iota // Italic: the face gfx.StyledTextEngine shapes
-	textStrike                   // Strike: one line through the middle of each line
+	textItalic    uint8 = 1 << iota // Italic: the face gfx.StyledTextEngine shapes
+	textStrike                      // Strike: one line through the middle of each line
+	textTruncated                   // layout omitted text at MaxLines; no new Node storage
 )
 
 // flagRequired marks a page Label that appends the field title's required

@@ -424,6 +424,9 @@ func (table *Table) paintRow(id gfx.ID, cells []string, state TableRowState, kin
 			})
 		}
 		if text != "" {
+			if text != value {
+				table.canvas.HoverHint(0, textBounds, value, id)
+			}
 			table.canvas.Clip(textBounds)
 			tableLabel(table.canvas, text, textBounds, column.Alignment, style)
 			table.canvas.Unclip()
@@ -954,6 +957,9 @@ func (table *Table) paintSortableHeaderCell(
 	style := gfx.TextStyle{Size: size, Weight: gfx.WeightMedium, Color: color}
 	if !interactive {
 		label := canvas.FitLine(cell.Label, size, gfx.WeightMedium, textBounds.Width)
+		if label != "" && label != cell.Label {
+			canvas.HoverHint(0, textBounds, cell.Label, cell.ID)
+		}
 		painted := tableTextCell{
 			bounds: textBounds, textLo: field.lo, textHi: field.hi,
 			contentLo: field.contentLo, contentHi: field.contentHi,
@@ -976,6 +982,9 @@ func (table *Table) paintSortableHeaderCell(
 	}
 	const iconSize, gap = tableSortIconSize, tableSortIconGap
 	label := canvas.FitLine(cell.Label, size, gfx.WeightMedium, max(textBounds.Width-iconSize-gap, 0))
+	if label != "" && label != cell.Label {
+		canvas.HoverHint(0, textBounds, cell.Label, cell.ID)
+	}
 	labelWidth := min(canvas.TextWidthWeight(label, size, gfx.WeightMedium), max(textBounds.Width-iconSize-gap, 0))
 	groupWidth := min(labelWidth+gap+iconSize, max(textBounds.Width, 0))
 	switch column.Alignment {

@@ -62,7 +62,7 @@ func (canvas *Canvas) BeginPose(id ID, slot uint8, pose Pose, motion Motion, piv
 		entry:      -1,
 		rectangles: len(canvas.rectangles), triangles: len(canvas.triangles), images: len(canvas.images),
 		texts: len(canvas.texts), runs: len(canvas.runs), shadows: len(canvas.shadows),
-		hits: len(canvas.hits), order: canvas.order,
+		hits: len(canvas.hits), hoverHints: len(canvas.hoverHints), order: canvas.order,
 		pose: poseTarget{pose: pose, pivot: pivot},
 	}
 	if state.active && !id.IsZero() {

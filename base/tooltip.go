@@ -9,10 +9,56 @@ import (
 // popovers, menus and dialogs.
 const TooltipLayer = 1000
 
+// OverflowTooltip supplies the complete value when an application shortened
+// the displayed text itself, possibly across several highlighted labels. Call
+// it only when content was omitted. Unlike Tooltip it declares no control and
+// leaves the enclosing row's pointer, focus and accessibility unchanged. Giving
+// it is the caller's opt-in, so it shows whatever PageConfig.EllipsisTooltips
+// says. Text truncated by Ellipsis or MaxLines supplies its complete value
+// itself where the page or an EllipsisTooltip turned the tooltips on. The
+// tooltip opens below, or beside the side the nearest EllipsisTooltipOn gives.
+func (b Box) OverflowTooltip(text string) Box {
+	b.f.Extra(b.i).overflowTip = text
+	return b
+}
+
+// HoverHintSide is the side the tooltip of a hint the page painted opens on:
+// the one EllipsisTooltipOn gave the text, or below.
+func HoverHintSide(hint gfx.HoverHint) TooltipSide {
+	if hint.Side == 0 {
+		return TooltipBottom
+	}
+	return TooltipSide(hint.Side - 1)
+}
+
+// HoveredText returns this page's visible truncation hint under the pointer, as
+// the page's last paint or pointer event found it.
+func (p *Page) HoveredText() gfx.HoverHint {
+	if p == nil {
+		return gfx.HoverHint{}
+	}
+	return p.hoverText
+}
+
+// hoverTextOn looks up the page's hint under the pointer among those surface
+// holds. A page looks once per paint, before the tooltip, and once per pointer
+// event; HoveredText returns what it found.
+func (p *Page) hoverTextOn(surface *gfx.Canvas) gfx.HoverHint {
+	if !p.pointerIn || surface == nil {
+		return gfx.HoverHint{}
+	}
+	return surface.HoverHintAt(p.root, p.pointer.X, p.pointer.Y)
+}
+
+// PointerDown reports a held pointer button, including a press on plain text.
+func (p *Page) PointerDown() bool { return p != nil && p.pointerDown }
+
 // Tooltip names what the element does in a tip that appears beside it while the
 // pointer rests on it, and is its description for assistive technology: what an
 // icon-only button needs. The tip hides on a press and stays hidden until the
 // pointer leaves. The element is a control, or a container given an identity.
+// While the pointer is over shortened text inside the element whose complete
+// value EllipsisTooltip or OverflowTooltip shows, that tip shows instead.
 //
 //	ui.Button(c, "").Icon(trash).Tooltip("Delete")
 func (b Box) Tooltip(Text string) Box {
@@ -39,7 +85,8 @@ const (
 // TooltipOn opens the element's Tooltip beside side rather than below it: an
 // information icon at the end of a label shows its tip to its right, where the
 // tip covers neither the label nor the rows under it. Without room on side, the
-// tip opens on the opposite one.
+// tip opens on the opposite one. The tooltips of shortened text take their side
+// from EllipsisTooltipOn instead.
 //
 //	ui.Button(c, "").Icon(info).Tooltip("Applies to new terminals").TooltipOn(ui.TooltipRight)
 func (b Box) TooltipOn(side TooltipSide) Box {

@@ -52,8 +52,13 @@ type EllipsisCache struct {
 	width      float32
 	result     string
 	filled     bool
+	truncated  bool   // the most recent wrapping stopped at its line limit
 	generation uint32 // the canvas's FontGeneration when result was cut
 }
+
+// Truncated reports whether the last WrapLinesCached or WrapLinesStyle call
+// using cache omitted text. A literal ellipsis in the input is not truncation.
+func (cache *EllipsisCache) Truncated() bool { return cache != nil && cache.truncated }
 
 // WrapLinesCached is WrapLines that takes the ellipsized last line from cache when
 // it is the one wanted, and stores it there when it is not. A nil cache builds the
@@ -106,6 +111,9 @@ func (canvas *Canvas) widthIn(value string, font lineFont) float32 {
 
 // wrapLines is WrapLinesStyle in font.
 func (canvas *Canvas) wrapLines(dst []string, value string, font lineFont, width float32, maxLines int, cache *EllipsisCache) []string {
+	if cache != nil {
+		cache.truncated = false
+	}
 	if maxLines <= 0 || width <= 0 {
 		return dst
 	}
@@ -122,6 +130,9 @@ func (canvas *Canvas) wrapLines(dst []string, value string, font lineFont, width
 				break
 			}
 			if last {
+				if cache != nil {
+					cache.truncated = true
+				}
 				return append(dst, canvas.ellipsizeCached(line, font, width, cache))
 			}
 			cut := breakPoint(line, fit)
