@@ -644,6 +644,22 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		if state.customFrame() {
 			return state.calcSize(first, second)
 		}
+	case wmDPIChanged:
+		if dpi := uint16(first >> 16); !state.scaleFixed && dpi > 0 {
+			state.scale = float32(dpi) / 96
+		}
+		state.configureClicks()
+		// Restoring the initial position can cross monitors before the
+		// renderer is ready. Keep that monitor's scale for the first frame and
+		// take the suggested bounds: placement sized the window at the old
+		// monitor's scale. Nothing is painted or resized yet.
+		if !state.ready {
+			if !state.placingNotification {
+				bounds := (*rect)(pointer(second))
+				setWindowPosition.Call(window, 0, uintptr(bounds.Left), uintptr(bounds.Top), uintptr(bounds.Right-bounds.Left), uintptr(bounds.Bottom-bounds.Top), 0x14)
+			}
+			return 0
+		}
 	}
 	if !state.ready {
 		result, _, _ = defaultWindowProc.Call(window, kind, first, second)
@@ -867,10 +883,6 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.serviceResize()
 		return 0
 	case wmDPIChanged:
-		if !state.scaleFixed {
-			state.scale = float32(uint16(first>>16)) / 96
-		}
-		state.configureClicks()
 		state.accessibility.setScale(state.scale)
 		bounds := (*rect)(pointer(second))
 		resizes := state.resizeEvents
