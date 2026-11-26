@@ -183,3 +183,48 @@ func TestControlClipimageFeedsTheAppsClipboardImageReads(t *testing.T) {
 		t.Fatalf("copying text leaves the image: %q", reply)
 	}
 }
+
+// A script's clipfiles is the file manager's copy: the app reads the paths, and
+// the paste the run performs delivers the names as text, which is what an
+// app asks the files about before it inserts text.
+func TestControlClipfilesFeedsTheAppsClipboardFileReads(t *testing.T) {
+	session, err := Open(app.Config{}, nil, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+
+	if reply, _ := execute(session, "clipfiles"); reply != "ok none\n" {
+		t.Fatalf("a fresh run has files on the clipboard: %q", reply)
+	}
+	first, second := filepath.Join(t.TempDir(), "notes.txt"), filepath.Join(t.TempDir(), "report.pdf")
+	os.WriteFile(first, []byte("plan\n"), 0o600)
+	if reply, _ := execute(session, "clipfiles "+strconv.Quote(first)+" "+strconv.Quote(second)); reply != "ok\n" {
+		t.Fatalf("clipfiles reply = %q", reply)
+	}
+	if reply, _ := execute(session, "clipfiles"); reply != "ok 2 paths\n" {
+		t.Fatalf("clipfiles query = %q", reply)
+	}
+	paths, err := app.ClipboardFiles()
+	if err != nil || len(paths) != 2 || paths[0] != first || paths[1] != second {
+		t.Fatalf("ClipboardFiles = %q, %v", paths, err)
+	}
+	if names := session.driver.Clipboard(); names != "notes.txt\nreport.pdf" {
+		t.Fatalf("the copied files' names are not the clipboard's text: %q", names)
+	}
+	if reply, _ := execute(session, "clipfiles clear"); reply != "ok\n" {
+		t.Fatalf("clipfiles clear = %q", reply)
+	}
+	if _, err := app.ClipboardFiles(); err != app.ErrNoFiles {
+		t.Fatalf("files survive clipfiles clear: %v", err)
+	}
+	if reply, _ := execute(session, "clipfiles "+strconv.Quote(first)); reply != "ok\n" {
+		t.Fatalf("clipfiles reply = %q", reply)
+	}
+	if reply, _ := execute(session, "clip note.txt"); reply != "ok \"note.txt\"\n" {
+		t.Fatalf("clip = %q", reply)
+	}
+	if _, err := app.ClipboardFiles(); err != app.ErrNoFiles {
+		t.Fatalf("copying text leaves the files: %v", err)
+	}
+}
