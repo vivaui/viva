@@ -10,6 +10,22 @@
 // here.
 package style
 
+// Status is the outcome a control reports through color: the one vocabulary an
+// alert, a tag and a field share, so a state is written the same way wherever it
+// shows.
+type Status uint8
+
+const (
+	// StatusDefault is no outcome: the neutral look. It is the zero value.
+	StatusDefault Status = iota
+	// StatusSuccess is something that went well.
+	StatusSuccess
+	// StatusWarning is something that needs attention but has not failed.
+	StatusWarning
+	// StatusDanger is something that failed or is wrong.
+	StatusDanger
+)
+
 // Variant selects a control's look among the design system's variants.
 type Variant uint8
 

@@ -26,6 +26,8 @@ type State struct {
 	ReadOnly bool
 	// Invalid is a value that failed validation.
 	Invalid bool
+	// Warning is a value that needs attention but did not fail. Invalid wins over it.
+	Warning bool
 	// Checked is a checkbox, switch or toggle that is on.
 	Checked bool
 	// Mixed is a checkbox between on and off. It takes precedence over Checked.

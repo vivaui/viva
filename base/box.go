@@ -81,7 +81,7 @@ func (b Box) Clicked() bool {
 	if n.Ext != 0 && b.f.Exts[n.Ext].bind != 0 {
 		b.f.settleFn(b.f, b.i) // a bound value is written before the caller reads it
 	}
-	return b.f.Surface != nil && n.Flags&flagVeto == 0 && b.f.Surface.Clicked(n.ID) && !b.f.Disabled(n)
+	return b.f.Surface != nil && n.Flags&flagVeto == 0 && !n.Loading && b.f.Surface.Clicked(n.ID) && !b.f.Disabled(n)
 }
 
 // Hit makes the element's whole rectangle a pointer target named id, with the
@@ -481,6 +481,23 @@ func (b Box) Small() Box {
 }
 func (b Box) Large() Box    { b.N().ButtonSize = style.SizeLarge; return b }
 func (b Box) IconOnly() Box { b.N().ButtonSize = style.SizeIcon; return b }
+
+// Loading marks a Button or a Switch as busy with what pressing it started: on a button
+// a spinner takes the place of its icon, or stands before its label when it has none; on
+// a switch it turns on the thumb. Presses are not delivered, and a bound value is not
+// flipped, while it is on, so a second press cannot start the work twice. The control
+// keeps its look, unlike Disabled, which dims it. Loading(false) is the ordinary control.
+//
+//	ui.Button(c, "Connect").Loading(m.connecting).Clicked()
+//	ui.Switch(c, &m.forwarding, "Forwarding").Loading(m.applying)
+func (b Box) Loading(loading bool) Box {
+	n := b.N()
+	if n.Kind != KindButton && n.Kind != kindSwitch {
+		panic("ui: Loading is for a Button or a Switch")
+	}
+	n.Loading = loading
+	return b
+}
 
 // SwitchRecipe gives one Switch its own look, as ButtonRecipe does a Button,
 // winning over the page's Styles.Switch. Start from components.SwitchRecipe.

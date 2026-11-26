@@ -46,6 +46,29 @@ func TestTreeDisabledDisclosureAndSteadyPaintAreAllocationFree(t *testing.T) {
 	}
 }
 
+// A branch whose children are being fetched shows a spinner in place of its
+// chevron and takes no press on it, so a second press cannot start a second fetch.
+func TestTreeLoadingBranchHasASpinnerAndNoDisclosureHit(t *testing.T) {
+	var canvas gfx.Canvas
+	loading := func() {
+		canvas.Reset()
+		tree := BeginTree(&canvas, gfx.LightTheme(), gfx.Rect{Width: 300, Height: 200})
+		tree.Item(TreeItem{ID: gfx.Item(1), DisclosureID: gfx.Item(2), Label: "Remote", Branch: true, Loading: true, Phase: 3})
+	}
+	loading()
+	for _, hit := range canvas.Hits() {
+		if hit.ID == gfx.Item(2) {
+			t.Fatalf("a loading branch declares its disclosure: %+v", hit)
+		}
+	}
+	if len(canvas.Rectangles()) == 0 {
+		t.Fatal("a loading branch paints no spinner")
+	}
+	if allocations := testing.AllocsPerRun(100, loading); allocations != 0 {
+		t.Fatalf("loading tree paint allocations = %v", allocations)
+	}
+}
+
 func BenchmarkTreePaint(b *testing.B) {
 	var canvas gfx.Canvas
 	theme := gfx.DarkTheme()

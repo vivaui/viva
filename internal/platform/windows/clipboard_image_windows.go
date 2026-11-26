@@ -36,8 +36,8 @@ func SetClipboardImage(png []byte) error {
 	if err != nil {
 		return err
 	}
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	owner := activeOwnerWindow()
 	if err := openClipboardForWrite(owner); err != nil {
 		return err

@@ -7,7 +7,7 @@ import (
 )
 
 // Configure returns base with the page's Tree, Paint, TextInput, OnScroll,
-// OnKey, OnShortcut and OnPointer:
+// OnKey, OnShortcut, OnPointer and OnFileDrop:
 //
 //   - Tree: base's is adopted when the page was given none; a different one panics.
 //   - Paint paints view over the whole window.
@@ -17,6 +17,8 @@ import (
 //     what they leave to base's.
 //   - OnKey, OnShortcut and OnPointer give a DragState its drag, a Shortcut its
 //     chord and a Control its own events, then base's the rest.
+//   - OnFileDrop gives files dragged from the system to the FileDropState area
+//     under them, then base's when no area is there.
 //
 // Configure gives the page an Invalidator when neither PageConfig.Invalidator
 // nor base has one, for the page's Effects and, with FollowSystemTheme, the
@@ -32,13 +34,21 @@ func Configure(page *Page, base app.Config) app.Config {
 		panic("ui: Configure: the app.Config has another Tree than the page's; give NewPage the window's Tree")
 	}
 	config := base
+	if config.TextMenu == nil && !page.GetConfig().CanvasMenus {
+		// The system's menu for a text field, in the words the page keeps.
+		if config.TextMenu = page.GetConfig().EditMenu; config.TextMenu == nil {
+			config.TextMenu = new(gfx.TextMenuLabels)
+		}
+	}
 	host := Host{
 		Tree: config.Tree, Paint: config.Paint, TextInput: config.TextInput,
 		OnScroll: config.OnScroll, OnKey: config.OnKey, OnShortcut: config.OnShortcut, OnPointer: config.OnPointer,
+		OnFileDrop: config.OnFileDrop,
 	}
 	page.Attach(&host)
 	config.Tree, config.Paint, config.TextInput = host.Tree, host.Paint, host.TextInput
 	config.OnScroll, config.OnKey, config.OnShortcut, config.OnPointer = host.OnScroll, host.OnKey, host.OnShortcut, host.OnPointer
+	config.OnFileDrop = host.OnFileDrop
 	concrete, _ := page.GetConfig().Invalidator.(*app.Invalidator)
 	if concrete == nil {
 		concrete = base.Invalidator

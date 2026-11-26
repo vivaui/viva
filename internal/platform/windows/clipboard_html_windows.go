@@ -28,8 +28,8 @@ func SetClipboardHTML(html, alt string) error {
 		binary.LittleEndian.PutUint16(text[index*2:], unit)
 	}
 	block := cfHTML(html)
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	owner := activeOwnerWindow()
 	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
 		return windowsCallError("open clipboard", callErr)

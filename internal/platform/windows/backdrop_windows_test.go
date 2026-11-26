@@ -23,6 +23,20 @@ func TestBackdropUnconfiguredKeepsOrdinaryRenderer(t *testing.T) {
 	}
 }
 
+// A transparent window is composed by DirectComposition, since only a premultiplied swap chain
+// lets the clear color's alpha reach the desktop; one that did not ask keeps the ordinary renderer.
+func TestTransparentWindowIsComposed(t *testing.T) {
+	state := &windowState{window: 1}
+	state.config.Transparent = true
+	if state.backdropWindowStyle() != wsExNoRedirectionBitmap {
+		t.Fatal("a transparent window needs the composition style")
+	}
+	state.configureBackdropRenderer()
+	if !state.renderer.usesComposition() {
+		t.Fatal("a transparent window did not select the composition renderer")
+	}
+}
+
 // A window that did not ask for a material is not changed by the messages that would update one:
 // they go on to the ordinary window procedure, and the power broadcast is not swallowed.
 func TestBackdropMessagesLeaveAnUnconfiguredWindowAlone(t *testing.T) {

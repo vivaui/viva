@@ -799,9 +799,11 @@ type Canvas struct {
 	afterPaint                  []func()
 	// pointer is the pointer event the event pass is delivering; consumed records
 	// that a control took it; listensForPointer that the last paint asked.
-	pointer           PointerEvent
-	hasPointer        bool
-	consumed          bool
+	pointer    PointerEvent
+	hasPointer bool
+	consumed   bool
+	// nativeTextMenu is whether the window shows the system's text menu.
+	nativeTextMenu    bool
 	listensForPointer bool
 	initialFocus      ID
 	// focusRequest asks the runtime to focus one hit even without a trap, as a
@@ -1196,6 +1198,30 @@ func (canvas *Canvas) DrawBitmapShaded(bitmap Bitmap, source, bounds Rect, radiu
 // layer, so that translucent surfaces let it show through. It is not clipped and
 // belongs to no layer. At most one backdrop is meaningful; with several, they
 // stack in the order given. Invalid or empty bitmaps are ignored.
+// DrawBitmapPixels paints bitmap with its top-left corner on the device pixel
+// nearest origin, one bitmap pixel to one device pixel, and returns the logical
+// rectangle it covers. It is DrawBitmapRegion for a picture whose pixels are the
+// screen's, as Surface.DrawPixels is for a surface: the canvas must know the
+// display scale (SetPixelScale), and without it a device pixel is taken to be
+// half a logical one.
+func (canvas *Canvas) DrawBitmapPixels(bitmap Bitmap, origin Point) Rect {
+	scale := canvas.PixelScale()
+	if scale <= 0 {
+		scale = 1
+	}
+	left, top := deviceEdge(origin.X, scale), deviceEdge(origin.Y, scale)
+	covered := Rect{
+		X: float32(left) / scale, Y: float32(top) / scale,
+		Width: float32(bitmap.Width) / scale, Height: float32(bitmap.Height) / scale,
+	}
+	before := len(canvas.images)
+	canvas.DrawBitmap(bitmap, covered)
+	if len(canvas.images) > before {
+		canvas.images[before].DevicePixels = true
+	}
+	return covered
+}
+
 func (canvas *Canvas) DrawBackdrop(bitmap Bitmap, source, bounds Rect) {
 	before := len(canvas.images)
 	canvas.DrawBitmapRegion(bitmap, source, bounds)
@@ -2379,6 +2405,14 @@ func (canvas *Canvas) PointerIn(list Scope) (int, PointerEvent, bool) {
 	}
 	return index, canvas.pointer, true
 }
+
+// SetNativeTextMenu records that the window shows the system's own menu for a
+// secondary press on a text field, so a page does not draw one too. The runtime
+// sets it from the window; it is not reset between paints.
+func (canvas *Canvas) SetNativeTextMenu(native bool) { canvas.nativeTextMenu = native }
+
+// NativeTextMenu reports whether the window shows the system's own text menu.
+func (canvas *Canvas) NativeTextMenu() bool { return canvas.nativeTextMenu }
 
 // Consume says the control took the pointer event being delivered: the runtime
 // does not also treat it as a click, and repaints. It does nothing outside the

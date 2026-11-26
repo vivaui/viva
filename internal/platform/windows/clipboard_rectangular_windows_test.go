@@ -2,6 +2,7 @@ package windows
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"syscall"
@@ -13,6 +14,37 @@ import (
 	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/text"
 )
+
+func TestColumnClipboardNativeReadsFromWorkerGoroutines(t *testing.T) {
+	columnClipboardWindow(t)
+	const value = "\u00e9\r\n\u6f22\r\n"
+	if err := SetClipboardRectangularText(value); err != nil {
+		t.Fatal(err)
+	}
+	const readers = 4
+	done := make(chan error, readers)
+	for range readers {
+		go func() {
+			for range 32 {
+				if got, rectangular, err := ClipboardTextWithFormat(); err != nil || got != value || !rectangular {
+					done <- fmt.Errorf("worker read %q, rectangular=%v, error=%v", got, rectangular, err)
+					return
+				}
+				runtime.Gosched()
+				if got, err := ClipboardText(); err != nil || got != value {
+					done <- fmt.Errorf("worker text read %q: %v", got, err)
+					return
+				}
+			}
+			done <- nil
+		}()
+	}
+	for range readers {
+		if err := <-done; err != nil {
+			t.Error(err)
+		}
+	}
+}
 
 func columnClipboardWindow(t *testing.T) *windowState {
 	t.Helper()

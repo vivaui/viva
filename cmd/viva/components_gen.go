@@ -175,4 +175,5 @@ var componentRequires = map[string][]string{
 	"toggle":                  {"button"},
 	"toggle-group":            {"button", "button-group", "direction", "toggle"},
 	"tooltip":                 {"dialog", "popover"},
+	"tree":                    {"spinner"},
 }

@@ -198,6 +198,7 @@ type portalFileRequest struct {
 	multiple, directory bool
 	filters             []portalFilter
 	currentName         string
+	currentFolder       string
 	checkboxLabel       string
 	checkboxChecked     bool
 }
@@ -240,6 +241,16 @@ func encodeFileRequest(request portalFileRequest, token string) []byte {
 				encoder.EndArray(patterns)
 			}
 			encoder.EndArray(list)
+		})
+	}
+	if request.currentFolder != "" {
+		option("current_folder", "ay", func() {
+			folder := encoder.BeginArray(1)
+			for index := 0; index < len(request.currentFolder); index++ {
+				encoder.Byte(request.currentFolder[index])
+			}
+			encoder.Byte(0)
+			encoder.EndArray(folder)
 		})
 	}
 	if request.currentName != "" {

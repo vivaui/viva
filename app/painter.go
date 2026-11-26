@@ -135,9 +135,17 @@ type painter struct {
 	// presents immediately sets it; the headless driver does not.
 	coalesceInput    bool
 	setClipboardText func(string)
-	clipboardText    func() string
-	setCursor        func(Cursor) error
-	setCursorImage   func(*gfx.CursorImage) error
+	// clipboardReader reads the system clipboard's text, for a menu's Paste.
+	clipboardReader func() (string, error)
+	// textMenu is the words of the system's text menu; nil asks for none.
+	textMenu *TextMenuLabels
+	// textMenuNative is whether the window can show the system's text menu.
+	textMenuNative bool
+	// textMenuAt is the press that asked for the menu, until it is taken.
+	textMenuAt     *pointToMenu
+	clipboardText  func() string
+	setCursor      func(Cursor) error
+	setCursorImage func(*gfx.CursorImage) error
 	// cursorImage is the picture shown while cursor is CursorImage.
 	cursorImage *gfx.CursorImage
 }
@@ -166,6 +174,7 @@ func newPainterWithClock(canvas *gfx.Canvas, config *Config, clock func() time.D
 		onFileDrop:      config.OnFileDrop,
 		onResize:        config.OnResize,
 		textInput:       config.TextInput,
+		textMenu:        config.TextMenu,
 		canvas:          canvas,
 		size:            gfx.Size{Width: float32(config.Width), Height: float32(config.Height)},
 		frame:           framebuild.New(canvas),
@@ -244,6 +253,20 @@ func (painter *painter) pointerEvent(event platform.PointerEvent) (platform.Fram
 // pointerInput is pointerEvent for a press the runtime reads as it comes: a
 // mouse's or a pen's, or a finger's once touchEvent decided it is a press.
 func (painter *painter) pointerInput(event platform.PointerEvent) (platform.Frame, error) {
+	handled := false
+	frame, err := painter.pointerInputOf(event, &handled)
+	if err != nil || handled {
+		return frame, err
+	}
+	if menuFrame, menuErr, asked := painter.requestTextMenu(event); asked {
+		return menuFrame, menuErr
+	}
+	return frame, err
+}
+
+// pointerInputOf is pointerInput, and says in handled whether the application
+// took the press.
+func (painter *painter) pointerInputOf(event platform.PointerEvent, handled *bool) (platform.Frame, error) {
 	if event.Kind == platform.PointerDown {
 		painter.tap.Cancel()
 		painter.pointerOutside = false
@@ -281,6 +304,7 @@ func (painter *painter) pointerInput(event platform.PointerEvent) (platform.Fram
 		(event.Button == gfx.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
 			event.Button == gfx.PointerButtonPrimary && painter.focus.Router().PassesPrimary(event.X, event.Y))
 	result, focusChanged, edgeChanged := painter.pointerStep(event)
+	*handled = result.Handled
 	if passes {
 		if !result.Handled && painter.deliverClick(painter.pointer.Hovered(), pointerClickInfo(event)) {
 			result.Handled = true
@@ -293,6 +317,7 @@ func (painter *painter) pointerInput(event platform.PointerEvent) (platform.Fram
 			focusChanged, edgeChanged = focusChanged || again, edgeChanged || edgeAgain
 		}
 		result.Repaint = true
+		*handled = result.Handled
 	}
 
 	switch event.Kind {
@@ -1731,7 +1756,10 @@ func (painter *painter) syncSemantics(incremental bool) (changed bool) {
 				fast = false
 				break
 			}
-			if *current != *previous && !current.ID.IsZero() {
+			if *current != *previous {
+				// A zero ID is tracked like any other: it marks every zero-ID
+				// node (headings, groups, live regions) for a rebuild below, and
+				// matches nothing for an occluder or drag region, which has none.
 				known := false
 				for _, id := range dirty {
 					if id == current.ID {

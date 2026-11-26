@@ -69,6 +69,7 @@ func (s *SliderState) ValueText() string {
 }
 
 type SliderDecl struct {
+	marks   []SliderMark
 	state   *SliderState
 	settled bool // the pointer and the range have been dealt with in this frame
 	changed bool // the user changed the value in this frame
@@ -114,6 +115,40 @@ func (f *Frame) SliderBase(ID gfx.ID, state *SliderState) Box {
 	return b
 }
 
+// SliderMark is a value of a Slider's range that is marked on its track, with a word
+// under it when Label is not empty.
+type SliderMark struct {
+	Value float32
+	Label string
+}
+
+// markLabelRoom is the height a Slider gets below its track when a mark has a label.
+const markLabelRoom = 22
+
+// Marks puts a dot on the track of a Slider at each value of marks, and the word of a
+// mark under it, for a range whose values mean something ("Low", "High", the stops of
+// a step). A horizontal Slider with a labeled mark is taller by the room the words
+// take; a vertical one is marked with dots only. Keep the slice in the model: a slice
+// made in each paint allocates in each paint.
+//
+//	ui.Slider(c, &m.quality).Range(0, 100).Step(25).Marks(m.marks)
+func (b Box) Marks(marks []SliderMark) Box {
+	if n := b.N(); n.Kind == kindSlider {
+		WidgetsOf(b.f).sliders[n.Aux].marks = marks
+	}
+	return b
+}
+
+// hasMarkLabels reports whether any mark has a word.
+func hasMarkLabels(marks []SliderMark) bool {
+	for _, mark := range marks {
+		if mark.Label != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // Range sets the least and the greatest value of a Slider.
 func (b Box) Range(least, greatest float32) Box {
 	if n := b.N(); n.Kind == kindSlider {
@@ -153,6 +188,9 @@ func (f *Frame) MeasureSlider(n *Node) {
 		n.Pref = [2]float32{sliderThickness, sliderLength}
 	} else {
 		n.Pref = [2]float32{sliderLength, sliderThickness}
+		if hasMarkLabels(WidgetsOf(f).sliders[n.Aux].marks) {
+			n.Pref[1] += markLabelRoom
+		}
 	}
 }
 

@@ -207,13 +207,13 @@ func Tabs[T comparable](c C, Value *T, tabs []T, Label func(T) string) Box {
 // application's key and focus routing can target it. The list's options keep the
 // page's own identities.
 func Select[T comparable](c C, Value *T, choices []T, Label func(T) string, opts ...Option) Box {
-	return selectOf(c, Value, choices, Label, nil, false, namedBy("Select", opts))
+	return selectOf(c, Value, choices, Label, nil, false, namedBy("Select", opts), groupsOf(opts))
 }
 
 // selectOf is Select, or SelectBase when base is set: the same control without
 // the theme's look. icons are indexed by option like the labels; nil is the
 // select without icons.
-func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID) Box {
+func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, icons []gfx.Icon, Base bool, ID gfx.ID, groups []SelectGroup) Box {
 	p := c.page
 	scope := p.BoundScope(pkSelect, unsafe.Pointer(Value))
 	state := stateIn[SelectState](p, scope, "select") // its open list follows its value
@@ -225,6 +225,9 @@ func selectOf[T comparable](c C, Value *T, choices []T, Label func(T) string, ic
 		b = c.f.Select(scope, state, labels, selected)
 	}
 	b.Icons(icons)
+	if len(groups) > 0 {
+		b.optionGroups(groups)
+	}
 	state.trigger = ID
 	p.selects = append(p.selects, state)
 	if p.keyRoute == nil {
@@ -290,13 +293,19 @@ func Table(c C, state *TableState, spec TableSpec) Box {
 //	ui.TextField(c, &m.name, "Name", "Your name")
 //	ui.TextField(c, &m.query, "Search", "", ui.WithID(m.searchID))
 func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
-	return textFieldOf(c, Value, Label, placeholder, false, namedBy("TextField", opts))
+	b, field := textFieldOf(c, Value, Label, placeholder, false, namedBy("TextField", opts), opts)
+	if hasEditMenu(opts) {
+		c.page.addEditMenu(c, b, field, false)
+	}
+	return b
 }
 
 // textFieldOf is TextField, or TextFieldBase when base is set.
-func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool, named gfx.ID) Box {
+func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool, named gfx.ID, opts []Option) (Box, *Field) {
 	p := c.page
 	field, id := namedFieldOf(p, pkField, Value, named)
+	maxRunes, count := limitsOf(opts)
+	field.limit(maxRunes)
 	var b Box
 	if Base {
 		b = c.f.FieldBase(field, id, Label, placeholder)
@@ -304,8 +313,11 @@ func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool
 		b = c.f.Field(field, id, Label, placeholder)
 	}
 	c.f.bindField(b, field)
+	if count {
+		b.Addons().SetEnd(InputGroupSlot{Kind: InputGroupSlotText, Text: field.countText()})
+	}
 	p.fields = append(p.fields, fieldEntry{ID: id, field: field, box: b.i})
-	return b
+	return b, field
 }
 
 // TextArea adds a text field of several rows editing field: Enter starts a new
@@ -317,12 +329,17 @@ func textFieldOf[T TextValue](c C, Value T, Label, placeholder string, Base bool
 func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	p := c.page
 	field, id := namedFieldOf(p, pkArea, Value, namedBy("TextArea", opts))
+	maxRunes, _ := limitsOf(opts)
+	field.limit(maxRunes)
 	b := c.f.FieldArea(field, id, Label, placeholder)
 	c.f.bindField(b, field)
 	if p.areaKey == nil {
 		p.keyRoute, p.areaKey = (*Page).RouteKey, (*Field).Key // Up and Down by row
 	}
 	p.fields = append(p.fields, fieldEntry{ID: id, field: field, box: b.i})
+	if hasEditMenu(opts) {
+		p.addEditMenu(c, b, field, true)
+	}
 	return b
 }
 

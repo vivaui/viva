@@ -5156,6 +5156,60 @@ void viva_view_render_sync(void *view) {
     }
 }
 
+// VivaTextMenuTarget receives the row chosen from a text menu.
+@interface VivaTextMenuTarget : NSObject
+@property(nonatomic) int chosen;
+- (void)choose:(NSMenuItem *)item;
+@end
+
+@implementation VivaTextMenuTarget
+- (void)choose:(NSMenuItem *)item {
+    self.chosen = (int)item.tag;
+}
+@end
+
+// viva_text_menu_key is the key equivalent AppKit shows beside a command, as its
+// own text fields' menus do.
+static NSString *viva_text_menu_key(int command) {
+    switch (command) {
+    case 1: return @"x";
+    case 2: return @"c";
+    case 3: return @"v";
+    case 4: return @"a";
+    default: return @"";
+    }
+}
+
+int viva_view_popup_text_menu(void *view, int count, const int *commands, const char *const *titles,
+                              const int *disabled, double x, double y) {
+    if (view == NULL || count <= 0) {
+        return 0;
+    }
+    @autoreleasepool {
+        VivaMetalView *target = (VivaMetalView *)view;
+        VivaTextMenuTarget *chosen = [[[VivaTextMenuTarget alloc] init] autorelease];
+        NSMenu *menu = [[[NSMenu alloc] initWithTitle:@""] autorelease];
+        menu.autoenablesItems = NO;
+        for (int index = 0; index < count; index++) {
+            if (commands[index] == 0) {
+                [menu addItem:[NSMenuItem separatorItem]];
+                continue;
+            }
+            NSString *title = [NSString stringWithUTF8String:titles[index] != NULL ? titles[index] : ""];
+            NSMenuItem *item = [[[NSMenuItem alloc] initWithTitle:title action:@selector(choose:)
+                                                    keyEquivalent:viva_text_menu_key(commands[index])] autorelease];
+            item.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+            item.tag = commands[index];
+            item.target = chosen;
+            item.enabled = disabled[index] == 0;
+            [menu addItem:item];
+        }
+        NSPoint location = NSMakePoint(x, target.bounds.size.height - y);
+        [menu popUpMenuPositioningItem:nil atLocation:location inView:target];
+        return chosen.chosen;
+    }
+}
+
 void viva_view_close(void *view) {
     if (view == NULL) {
         return;

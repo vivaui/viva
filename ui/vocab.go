@@ -25,10 +25,27 @@ const (
 	ExtraLarge = base.ExtraLarge // from 1600: wide screens
 )
 
+// Status is the outcome a control reports through color, one vocabulary for an
+// alert, a tag and a field.
+type Status = style.Status
+
+const (
+	StatusDefault = style.StatusDefault
+	StatusSuccess = style.StatusSuccess
+	StatusWarning = style.StatusWarning
+	StatusDanger  = style.StatusDanger
+)
+
 type Rect = base.Rect
 type Size = base.Size
 type Point = base.Point
 type Theme = base.Theme
+
+// SelectGroup is a group of a Select's options with a heading; see Box.OptionGroups.
+type SelectGroup = base.SelectGroup
+
+// SliderMark is a value of a Slider's range marked on its track; see Box.Marks.
+type SliderMark = base.SliderMark
 
 // Option is a setting a control takes after its fixed arguments, as WithID.
 type Option = base.Option

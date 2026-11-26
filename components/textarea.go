@@ -28,7 +28,7 @@ func PaintTextarea(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapsho
 		return bounds
 	}
 	focused := !snapshot.Disabled && (snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID)
-	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Warning: snapshot.Warning, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
 	area := gfx.Rect{X: bounds.X + inset, Y: bounds.Y + textareaPadY, Width: textareaMax(0, bounds.Width-2*inset), Height: textareaMax(0, bounds.Height-2*textareaPadY)}
 	paintTextareaContent(canvas, theme, bounds, area, snapshot, focused)

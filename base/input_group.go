@@ -94,6 +94,8 @@ type InputGroupSnapshot struct {
 	Disabled     bool
 	ReadOnly     bool
 	Invalid      bool
+	// Warning paints the group with the warning border; Invalid wins over it.
+	Warning bool
 	// Secure makes a single-line control a password field, as for
 	// InputSnapshot.Secure.
 	Secure        bool

@@ -143,3 +143,51 @@ func TestCodeEditorHiddenOffsetTakesTheFoldHeaderRow(t *testing.T) {
 		t.Fatalf("visible offset y = %v, ok = %v, want %v", got, ok, want)
 	}
 }
+
+func TestCodeEditorFoldedHeaderDrawsEllipsisBadgeAndExposesPlaceholderHit(t *testing.T) {
+	value := "abcdefghijabcdefghij\ninside\nafter"
+	fixture := newCodeFixture(value)
+	fixture.bounds.Width = fixture.widthFor(12) + codeEditorBarSize
+	fixture.snapshot.Wrap = true
+	fixture.snapshot.FoldGutter = true
+	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 1}}
+	fixture.snapshot.FoldMarkers = []CodeEditorFoldMarker{
+		{Line: 0, ID: gfx.Item(30), PlaceholderID: gfx.Item(31), Collapsed: true, Label: "Expand block"},
+	}
+	fixture.paint()
+
+	ellipsisCount := 0
+	for _, item := range fixture.canvas.Texts() {
+		if item.Value == "..." {
+			ellipsisCount++
+		}
+	}
+	if ellipsisCount != 1 {
+		t.Fatalf("ellipsis label count = %d, want 1", ellipsisCount)
+	}
+
+	hits := map[gfx.ID]gfx.Hit{}
+	for _, hit := range fixture.canvas.Hits() {
+		hits[hit.ID] = hit
+	}
+	badgeHit, ok := hits[gfx.Item(31)]
+	if !ok || badgeHit.Role != gfx.RoleButton || badgeHit.Label != "Expand block" {
+		t.Fatalf("placeholder hit = %+v, ok=%v", badgeHit, ok)
+	}
+	if badgeHit.Bounds.X <= fixture.editor.content.X || badgeHit.Bounds.Y < fixture.editor.content.Y+fixture.editor.lineHeight {
+		t.Fatalf("placeholder badge expected on second wrapped row of header, got %+v", badgeHit.Bounds)
+	}
+}
+
+func TestCodeEditorFoldEllipsisSteadyPaintDoesNotAllocate(t *testing.T) {
+	fixture := newCodeFixture("head\ninside\nafter")
+	fixture.snapshot.FoldGutter = true
+	fixture.snapshot.FoldedLines = []CodeEditorFoldRange{{Header: 0, LastLine: 1}}
+	fixture.snapshot.FoldMarkers = []CodeEditorFoldMarker{
+		{Line: 0, ID: gfx.Item(30), PlaceholderID: gfx.Item(31), Collapsed: true},
+	}
+	fixture.paint()
+	if allocations := testing.AllocsPerRun(50, fixture.paint); allocations != 0 {
+		t.Fatalf("steady fold-ellipsis paint allocated %g times", allocations)
+	}
+}

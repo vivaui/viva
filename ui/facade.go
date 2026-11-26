@@ -283,6 +283,7 @@ func Pagination(c C, Items []PaginationItem) Box { usePagination(); return base.
 
 func TextField[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
+	useEditMenu()
 	return base.TextField(c, Value, Label, placeholder, opts...)
 }
 
@@ -293,6 +294,7 @@ func TextFieldBase[T TextValue](c C, Value T, Label, placeholder string) Box {
 
 func TextArea[T TextValue](c C, Value T, Label, placeholder string, opts ...Option) Box {
 	useField()
+	useEditMenu()
 	return base.TextArea(c, Value, Label, placeholder, opts...)
 }
 
@@ -423,6 +425,15 @@ func ID(c C) gfx.ID { return base.ID(c) }
 
 // WithID names a control with an identity the application holds; see base.WithID.
 func WithID(id gfx.ID) Option { return base.WithID(id) }
+
+// SelectGroups puts group headings in a Select's list; see base.SelectGroups.
+func SelectGroups(groups []SelectGroup) Option { return base.SelectGroups(groups) }
+
+// MaxLength caps a text control at n runes; see base.MaxLength.
+func MaxLength(n int) Option { return base.MaxLength(n) }
+
+// ShowCount shows the rune count at the end of a text field; see base.ShowCount.
+func ShowCount() Option { return base.ShowCount() }
 
 func NewPage(config PageConfig) *Page { useTooltip(); return base.NewPage(config) }
 
