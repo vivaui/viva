@@ -41,6 +41,29 @@ func (canvas *Canvas) HoverHint(owner Scope, bounds Rect, text string, target ..
 	canvas.hoverHints = append(canvas.hoverHints, hint)
 }
 
+// LabelEllipsis draws value fitted to bounds.Width with an ellipsis and keeps
+// the complete value as a hover hint when shortened. The hint is dropped where
+// the page leaves its ellipsis tooltips off.
+func (canvas *Canvas) LabelEllipsis(value string, bounds Rect, style TextStyle, target ...ID) {
+	shown := canvas.FitLine(value, style.Size, style.Weight, bounds.Width)
+	canvas.Label(shown, bounds, style)
+	if shown != "" && shown != value {
+		canvas.HoverHint(0, bounds, value, target...)
+	}
+}
+
+// LabelOrEllipsis draws a value a control has always clipped at the edge of its
+// bounds, as Label does. Where the page shows ellipsis tooltips it ends the
+// value with an ellipsis instead, as LabelEllipsis does, since the hint shows
+// the rest.
+func (canvas *Canvas) LabelOrEllipsis(value string, bounds Rect, style TextStyle, target ...ID) {
+	if canvas.hoverHintOwner.IsZero() {
+		canvas.Label(value, bounds, style)
+		return
+	}
+	canvas.LabelEllipsis(value, bounds, style, target...)
+}
+
 // SetHoverHintOwner sets the page whose text components are painting and returns
 // the previous owner, to restore after a nested page. A zero owner disables
 // automatic hints: for components painted outside a Page, and where the page

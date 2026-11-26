@@ -372,7 +372,7 @@ func (selectControl Select) paintTrigger() {
 			if options.Weight > 0 {
 				weight = options.Weight
 			}
-			labelOrEllipsis(canvas, value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+			canvas.LabelOrEllipsis(value, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 				Size: textSize, Weight: weight, Color: foreground,
 			}, options.TriggerID)
 		}
@@ -403,7 +403,7 @@ func (selectControl *Select) paintItem(bounds gfx.Rect, item SelectItem) {
 			textX += SelectIconSpan
 			textWidth -= SelectIconSpan
 		}
-		labelOrEllipsis(selectControl.canvas, item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
+		selectControl.canvas.LabelOrEllipsis(item.Label, gfx.Rect{X: textX, Y: bounds.Y, Width: selectMax(0, textWidth), Height: bounds.Height}, gfx.TextStyle{
 			Size: selectControl.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground,
 		}, item.ID)
 		if item.Selected {

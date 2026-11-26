@@ -917,7 +917,7 @@ func (menu *menuSurface) paintItem(bounds gfx.Rect, item menuItem) {
 		}
 		color = dropdownMenuOpacity(color, item.Disabled)
 		width := max(0, bounds.Width-left-right-menu.hitInset)
-		labelEllipsis(canvas, item.Description, gfx.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, gfx.TextStyle{
+		canvas.LabelEllipsis(item.Description, gfx.Rect{X: bounds.X + left, Y: descriptionY, Width: width, Height: descriptionHeight}, gfx.TextStyle{
 			Size: theme.Metrics.FontSizeS, Weight: gfx.WeightRegular, Color: color,
 		}, item.ID)
 	}

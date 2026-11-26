@@ -218,7 +218,7 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 				labelWidth = maxLabelWidth
 			}
 
-			labelEllipsis(combobox.canvas, item.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+			combobox.canvas.LabelEllipsis(item.Label, gfx.Rect{X: bounds.X + 8, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
 				Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
 			}, item.ID)
 
@@ -229,7 +229,7 @@ func (combobox *Combobox) AddItem(item ComboboxItem) gfx.Rect {
 				if item.Disabled {
 					detailColor.Alpha *= .5
 				}
-				labelEllipsis(combobox.canvas, item.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+				combobox.canvas.LabelEllipsis(item.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
 					Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
 				}, item.ID)
 			}
@@ -454,7 +454,7 @@ func (combobox Combobox) paintInput() {
 		if labelWidth > maxLabelWidth {
 			labelWidth = maxLabelWidth
 		}
-		labelEllipsis(canvas, options.Value, gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
+		canvas.LabelEllipsis(options.Value, gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: labelWidth, Height: bounds.Height}, gfx.TextStyle{
 			Size: sizeM, Weight: gfx.WeightRegular, Color: foreground,
 		}, options.InputID)
 		detailX := bounds.X + inset + labelWidth + 8
@@ -464,12 +464,12 @@ func (combobox Combobox) paintInput() {
 			if options.Disabled {
 				detailColor.Alpha *= 0.50
 			}
-			labelEllipsis(canvas, options.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
+			canvas.LabelEllipsis(options.Detail, gfx.Rect{X: detailX, Y: bounds.Y, Width: detailWidth, Height: bounds.Height}, gfx.TextStyle{
 				Size: sizeS, Weight: gfx.WeightRegular, Color: detailColor,
 			}, options.InputID)
 		}
 	} else if options.Query == "" || options.InputID.IsZero() || canvas.Focused() != options.InputID || options.Disabled {
-		labelEllipsis(canvas, value, textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground}, options.InputID)
+		canvas.LabelEllipsis(value, textRect, gfx.TextStyle{Size: combobox.theme.Metrics.FontSizeM, Weight: gfx.WeightRegular, Color: foreground}, options.InputID)
 	}
 	if !options.InputID.IsZero() {
 		canvas.HitWithOptions(options.InputID, bounds, options.Label, gfx.HitOptions{

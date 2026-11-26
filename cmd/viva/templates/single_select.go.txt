@@ -264,18 +264,18 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 func paintLabelAndDetail(canvas *gfx.Canvas, theme gfx.Theme, x, y, width, height float32, label, detail string, color gfx.Color, disabled bool, target gfx.ID) {
 	sizeM, sizeS := theme.Metrics.FontSizeM, theme.Metrics.FontSizeS
 	if detail == "" {
-		labelEllipsis(canvas, label, gfx.Rect{X: x, Y: y, Width: width, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
+		canvas.LabelEllipsis(label, gfx.Rect{X: x, Y: y, Width: width, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
 		return
 	}
 	labelWidth := min(canvas.TextWidthWeight(label, sizeM, gfx.WeightRegular), max(width-40, 0))
-	labelEllipsis(canvas, label, gfx.Rect{X: x, Y: y, Width: labelWidth, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
+	canvas.LabelEllipsis(label, gfx.Rect{X: x, Y: y, Width: labelWidth, Height: height}, gfx.TextStyle{Size: sizeM, Color: color}, target)
 	detailX := x + labelWidth + singleSelectDetailGap
 	if detailWidth := max(x+width-detailX, 0); detailWidth > 0 {
 		muted := theme.MutedForeground
 		if disabled {
 			muted.Alpha *= .5
 		}
-		labelEllipsis(canvas, detail, gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted}, target)
+		canvas.LabelEllipsis(detail, gfx.Rect{X: detailX, Y: y, Width: detailWidth, Height: height}, gfx.TextStyle{Size: sizeS, Color: muted}, target)
 	}
 }
 

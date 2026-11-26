@@ -184,7 +184,7 @@ func PaintMultiSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *M
 				}
 				label = text
 			}
-			labelEllipsis(canvas, label, gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color}, id)
+			canvas.LabelEllipsis(label, gfx.Rect{X: row.X + 8, Y: row.Y, Width: max(row.Width-38, 0), Height: row.Height}, gfx.TextStyle{Size: theme.Metrics.FontSizeM, Color: color}, id)
 			if choice.Selected {
 				paintCheck(canvas, gfx.Rect{X: row.X + row.Width - 25, Y: row.Y, Width: 16, Height: row.Height}, 14, color)
 			}
