@@ -11,10 +11,11 @@ import (
 // system, sorted and without duplicates. An application offers them to the user
 // and gives the chosen one to gfx.MonoFamily to draw terminal text in it.
 //
-// What counts as monospace follows the platform. macOS and Windows measure
-// each family and offer every one whose printable ASCII characters share one
-// advance width, including coding families that do not set the fixed-pitch
-// flag; the other platforms list what the system declares fixed-pitch.
+// What counts as monospace follows the platform. macOS, Windows and Linux
+// measure each family and offer every one whose printable ASCII characters
+// share one advance width, including coding families that do not set the
+// fixed-pitch flag; Linux without Pango, and the other platforms, list what the
+// system declares fixed-pitch.
 //
 // The list is read from the system on every call and takes a moment, since a
 // family is measured rather than taken at its word, so it is for a settings

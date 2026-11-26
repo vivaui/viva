@@ -25,7 +25,7 @@ func TestMonospaceFamiliesIncludeFixedPitchAndExcludeProportional(t *testing.T) 
 	}
 }
 
-func TestFamilyMeasuresMonoRejectsProportionalAndMissingFamilies(t *testing.T) {
+func TestFamilyMeasuresMonoRejectsProportionalFamilies(t *testing.T) {
 	services, err := newTextServices()
 	if err != nil {
 		t.Skipf("no Pango on this machine: %v", err)
@@ -40,14 +40,11 @@ func TestFamilyMeasuresMonoRejectsProportionalAndMissingFamilies(t *testing.T) {
 		t.Fatalf("familyMeasuresMono(%q) = false, want true", mono[0])
 	}
 	all := FontFamilies()
-	for _, proportional := range []string{"DejaVu Sans", "Ubuntu", "Sans"} {
-		if proportional == "Sans" || slices.Contains(all, proportional) {
-			if familyMeasuresMono(services, proportional) {
-				t.Errorf("familyMeasuresMono(%q) = true, want false", proportional)
-			}
+	for _, proportional := range []string{"DejaVu Sans", "Ubuntu"} {
+		// An unknown name is not tested: fontconfig answers it with the
+		// default font, which is monospace on some systems.
+		if slices.Contains(all, proportional) && familyMeasuresMono(services, proportional) {
+			t.Errorf("familyMeasuresMono(%q) = true, want false", proportional)
 		}
-	}
-	if familyMeasuresMono(services, "VivaNonExistentFontFamily12345") {
-		t.Error("familyMeasuresMono(nonexistent) = true, want false")
 	}
 }
