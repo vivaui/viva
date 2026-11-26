@@ -7,32 +7,39 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/bidi"
 	"github.com/vivaui/viva/internal/grapheme"
 )
 
 // runeStore is the editor's text: what Range, Caret and Selection count in runes,
 // held as UTF-8 in leaves of about leafBytes bytes (ADR 0092). Each leaf knows how
-// many runes, UTF-16 units and newlines it holds, and running totals over the
-// leaves turn a rune index into a byte offset, a UTF-16 offset or a line in a
-// binary search and a walk inside one leaf. An edit rewrites the leaves it
-// touches, not the text after it. The editor reads and changes the text only
-// through these methods.
+// many runes, UTF-16 units, newlines and characters that need bidirectional
+// processing it holds, and running totals over the leaves turn a rune index into
+// a byte offset, a UTF-16 offset or a line in a binary search and a walk inside
+// one leaf. An edit rewrites the leaves it touches, not the text after it. The
+// editor reads and changes the text only through these methods.
 type runeStore struct {
 	leaves []storeLeaf
 	// sums[i] is the totals before leaf i, valid for i <= summed; an edit lowers
 	// summed to the first leaf it touched and sums are made again from there
 	// when next asked for.
-	sums       []storeSums
-	summed     int
-	total      storeSums
-	cursor     storeCursor
-	scratch    []byte
-	boundaries []rune
+	sums   []storeSums
+	summed int
+	total  storeSums
+	// bidi is how many characters of the text bidi.NeedsBidiRune reports, the
+	// sum of the leaves' counts. No running total of it is kept: it only ever
+	// answers whether the whole text has one.
+	bidi   int
+	cursor storeCursor
+	// read is the leaf storeText read last.
+	read    int
+	scratch []byte
 }
 
 type storeLeaf struct {
 	text  []byte
 	sizes storeSums
+	bidi  int
 }
 
 type storeSums struct{ runes, bytes, units, newlines int }
@@ -60,6 +67,7 @@ func newRuneStore(value string) (store runeStore, valid bool) {
 	}
 	for index := range store.leaves {
 		store.total.add(store.leaves[index].sizes)
+		store.bidi += store.leaves[index].bidi
 	}
 	return store, valid
 }
@@ -72,6 +80,11 @@ func (store *runeStore) Bytes() int { return store.total.bytes }
 
 // Newlines is how many newline runes the text holds.
 func (store *runeStore) Newlines() int { return store.total.newlines }
+
+// NeedsBidi reports whether the text holds a character that can need
+// bidirectional processing (bidi.NeedsBidiRune). Text without one is read left
+// to right throughout, so a caller can skip the bidi algorithm for every line.
+func (store *runeStore) NeedsBidi() bool { return store.bidi > 0 }
 
 // At is the rune at index.
 func (store *runeStore) At(index int) rune {
@@ -261,45 +274,88 @@ func (store *runeStore) Line(index int) int {
 var newline = []byte{'\n'}
 
 // Next is the grapheme cluster boundary after start; Prev the one before end.
-// A cluster is found in a window of the runes around it, with the context on
-// both sides the rules read, widened for a cluster longer than the window.
+// The rules read the leaves in place, with as much context on either side as
+// they ask for.
 func (store *runeStore) Next(start int) int {
-	// Between two ASCII runes other than CR LF there is always a boundary.
-	if start >= 0 && start < store.Len() && store.At(start) < utf8.RuneSelf {
-		if start+1 == store.Len() {
-			return start + 1
-		}
-		if next := store.At(start + 1); next < utf8.RuneSelf && (next != '\n' || store.At(start) != '\r') {
-			return start + 1
-		}
+	if start >= store.Len() {
+		return store.Len()
 	}
-	for width := 64; ; width *= 4 {
-		from, to := max(start-width, 0), min(start+width, store.Len())
-		store.boundaries = store.AppendSlice(store.boundaries[:0], from, to)
-		next := grapheme.NextRunes(store.boundaries, start-from) + from
-		if next < to || to == store.Len() {
-			return next
-		}
-	}
+	start = max(start, 0)
+	text := store.graphemeText()
+	from := store.ByteOffset(start)
+	return start + text.runes(from, grapheme.NextIn(text, from))
 }
 
 func (store *runeStore) Prev(end int) int {
-	if end > 0 && end <= store.Len() && store.At(end-1) < utf8.RuneSelf {
-		if end == 1 {
-			return 0
-		}
-		if previous := store.At(end - 2); previous < utf8.RuneSelf && (previous != '\r' || store.At(end-1) != '\n') {
-			return end - 1
-		}
+	if end <= 0 {
+		return 0
 	}
-	for width := 64; ; width *= 4 {
-		from, to := max(end-width, 0), min(end+width, store.Len())
-		store.boundaries = store.AppendSlice(store.boundaries[:0], from, to)
-		previous := grapheme.PrevRunes(store.boundaries, end-from) + from
-		if previous > from || from == 0 {
-			return previous
-		}
+	end = min(end, store.Len())
+	text := store.graphemeText()
+	to := store.ByteOffset(end)
+	return end - text.runes(grapheme.PrevIn(text, to), to)
+}
+
+// storeText is the store read as a grapheme.Source: offsets are byte offsets
+// in the text, and the store's read leaf is the one last read, so the runes the
+// rules read around one place cost no search. Leaves are cut on rune boundaries
+// and hold valid UTF-8, so a rune never spans two of them.
+type storeText runeStore
+
+func (store *runeStore) graphemeText() *storeText {
+	store.sum(len(store.leaves))
+	return (*storeText)(store)
+}
+
+func (text *storeText) Len() int { return text.total.bytes }
+
+func (text *storeText) At(offset int) (rune, int) {
+	bytes := text.find(offset)[offset-text.sums[text.read].bytes:]
+	if bytes[0] < utf8.RuneSelf {
+		return rune(bytes[0]), 1
 	}
+	return utf8.DecodeRune(bytes)
+}
+
+func (text *storeText) Before(offset int) (rune, int) {
+	bytes := text.find(offset - 1)[:offset-text.sums[text.read].bytes]
+	if last := bytes[len(bytes)-1]; last < utf8.RuneSelf {
+		return rune(last), 1
+	}
+	return utf8.DecodeLastRune(bytes)
+}
+
+// find makes the read leaf the one holding byte offset and returns its text. The rules
+// walk from a place to its neighbours, so the leaf last read and the ones beside
+// it are tried before a search.
+func (text *storeText) find(offset int) []byte {
+	sums, leaves := text.sums, text.leaves
+	holds := func(leaf int) bool {
+		return leaf >= 0 && leaf < len(leaves) && sums[leaf].bytes <= offset && offset < sums[leaf+1].bytes
+	}
+	switch {
+	case holds(text.read):
+	case holds(text.read + 1):
+		text.read++
+	case holds(text.read - 1):
+		text.read--
+	default:
+		text.read = sort.Search(len(leaves), func(i int) bool { return sums[i+1].bytes > offset })
+	}
+	return leaves[text.read].text
+}
+
+// runes counts the runes in bytes [from, to), both offsets of rune starts.
+func (text *storeText) runes(from, to int) int {
+	count := 0
+	for from < to {
+		leaf := text.find(from)
+		begin := text.sums[text.read].bytes
+		piece := leaf[from-begin : min(len(leaf), to-begin)]
+		count += utf8.RuneCount(piece)
+		from += len(piece)
+	}
+	return count
 }
 
 // Replace makes runes [start, end) replacement.
@@ -313,6 +369,7 @@ func (store *runeStore) Replace(start, end int, replacement []rune) {
 		store.leaves = splitLeaves(encoded)
 		for index := range store.leaves {
 			store.total.add(store.leaves[index].sizes)
+			store.bidi += store.leaves[index].bidi
 		}
 		return
 	}
@@ -323,12 +380,15 @@ func (store *runeStore) Replace(start, end int, replacement []rune) {
 		// only leaf stays when it is emptied, ready for the next text.
 		leaf := &store.leaves[first]
 		if size := len(leaf.text) - (endOffset - startOffset) + len(encoded); (size > 0 || len(store.leaves) == 1) && size <= 2*leafBytes {
-			removed, added := measure(leaf.text[startOffset:endOffset]), measure(encoded)
+			removed, removedBidi := measure(leaf.text[startOffset:endOffset])
+			added, addedBidi := measure(encoded)
 			leaf.text = slices.Replace(leaf.text, startOffset, endOffset, encoded...)
 			leaf.sizes.sub(removed)
 			leaf.sizes.add(added)
+			leaf.bidi += addedBidi - removedBidi
 			store.total.sub(removed)
 			store.total.add(added)
+			store.bidi += addedBidi - removedBidi
 			store.edited(first, startOffset)
 			return
 		}
@@ -347,9 +407,11 @@ func (store *runeStore) Replace(start, end int, replacement []rune) {
 	made := splitLeaves(buffer)
 	for index := first; index < last; index++ {
 		store.total.sub(store.leaves[index].sizes)
+		store.bidi -= store.leaves[index].bidi
 	}
 	for index := range made {
 		store.total.add(made[index].sizes)
+		store.bidi += made[index].bidi
 	}
 	store.leaves = slices.Replace(store.leaves, first, last, made...)
 	store.edited(first, 0)
@@ -381,25 +443,36 @@ func splitLeaves[T string | []byte](text T) []storeLeaf {
 			size++
 		}
 		chunk := append([]byte(nil), text[:size]...)
-		leaves = append(leaves, storeLeaf{text: chunk, sizes: measure(chunk)})
+		sizes, bidi := measure(chunk)
+		leaves = append(leaves, storeLeaf{text: chunk, sizes: sizes, bidi: bidi})
 		text = text[size:]
 	}
 	return leaves
 }
 
-// measure counts text's runes, bytes, UTF-16 units and newlines.
-func measure(text []byte) storeSums {
-	sizes := storeSums{bytes: len(text)}
+// measure counts text's runes, bytes, UTF-16 units and newlines, and the
+// characters in it that need bidirectional processing.
+func measure(text []byte) (sizes storeSums, bidiRunes int) {
+	sizes = storeSums{bytes: len(text)}
 	for i := 0; i < len(text); {
+		if c := text[i]; c < utf8.RuneSelf {
+			sizes.runes++
+			sizes.units++
+			if c == '\n' {
+				sizes.newlines++
+			}
+			i++
+			continue
+		}
 		r, size := utf8.DecodeRune(text[i:])
 		sizes.runes++
 		sizes.units += utf16Len(r)
-		if r == '\n' {
-			sizes.newlines++
+		if bidi.NeedsBidiRune(r) {
+			bidiRunes++
 		}
 		i += size
 	}
-	return sizes
+	return sizes, bidiRunes
 }
 
 func (sums *storeSums) sub(other storeSums) {

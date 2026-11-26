@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/vivaui/viva/internal/uniprops"
 )
 
 type conformCase struct {
@@ -220,6 +222,24 @@ func TestNeedsBidiAgrees(t *testing.T) {
 	}
 	if NeedsBidi("hello") || !NeedsBidi("א") || !NeedsBidi("a⁦") {
 		t.Error("NeedsBidi basics")
+	}
+}
+
+// NeedsBidiRune skips whole ranges without a table lookup; every character it
+// answers must agree with its bidi class, and a string of it with NeedsBidi.
+func TestNeedsBidiRuneMatchesTheClasses(t *testing.T) {
+	for r := rune(0); r <= utf8.MaxRune; r++ {
+		want := false
+		switch uniprops.Bidi(r) {
+		case cR, cAL, cAN, cLRE, cLRO, cRLE, cRLO, cPDF, cLRI, cRLI, cFSI, cPDI:
+			want = true
+		}
+		if got := NeedsBidiRune(r); got != want {
+			t.Fatalf("NeedsBidiRune(%U) = %v, want %v", r, got, want)
+		}
+		if utf8.ValidRune(r) && NeedsBidi(string(r)) != want {
+			t.Fatalf("NeedsBidi(%U) = %v, want %v", r, !want, want)
+		}
 	}
 }
 

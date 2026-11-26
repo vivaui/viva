@@ -47,19 +47,23 @@ func propOf(r rune) prop {
 	return prop{gb: gb, incb: incb, pict: pict}
 }
 
-// text abstracts a string or a rune slice; at and before return the rune
-// starting at or ending at an index and its width.
-type text interface {
-	size() int
-	at(i int) (rune, int)
-	before(i int) (rune, int)
+// Source is text the rules read a rune at a time: a string, a rune slice, or
+// text held in pieces that NextIn and PrevIn read in place. Offsets are whatever
+// the source counts (bytes, runes) from 0 to Len. At is the rune starting at
+// offset i and its width, Before the rune ending at i; a rune that is not a
+// scalar value, such as a byte that is not UTF-8 reported as -1, is a cluster of
+// its own and behaves like a Control character.
+type Source interface {
+	Len() int
+	At(i int) (rune, int)
+	Before(i int) (rune, int)
 }
 
 type strText string
 
-func (s strText) size() int { return len(s) }
+func (s strText) Len() int { return len(s) }
 
-func (s strText) at(i int) (rune, int) {
+func (s strText) At(i int) (rune, int) {
 	if c := s[i]; c < utf8.RuneSelf {
 		return rune(c), 1
 	}
@@ -70,7 +74,7 @@ func (s strText) at(i int) (rune, int) {
 	return r, n
 }
 
-func (s strText) before(i int) (rune, int) {
+func (s strText) Before(i int) (rune, int) {
 	if c := s[i-1]; c < utf8.RuneSelf {
 		return rune(c), 1
 	}
@@ -83,11 +87,11 @@ func (s strText) before(i int) (rune, int) {
 
 type runeText []rune
 
-func (s runeText) size() int { return len(s) }
+func (s runeText) Len() int { return len(s) }
 
-func (s runeText) at(i int) (rune, int) { return s[i], 1 }
+func (s runeText) At(i int) (rune, int) { return s[i], 1 }
 
-func (s runeText) before(i int) (rune, int) { return s[i-1], 1 }
+func (s runeText) Before(i int) (rune, int) { return s[i-1], 1 }
 
 // Context states of the forward scan.
 const (
@@ -177,15 +181,15 @@ func (s *scan) joins(p prop) bool {
 	return false
 }
 
-func next[T text](t T, from int) int {
-	n := t.size()
+func next[T Source](t T, from int) int {
+	n := t.Len()
 	if from >= n {
 		return n
 	}
 	if from < 0 {
 		from = 0
 	}
-	r, w := t.at(from)
+	r, w := t.At(from)
 	i := from + w
 	if i >= n {
 		return n
@@ -193,7 +197,7 @@ func next[T text](t T, from int) int {
 	var s scan
 	s.start(propOf(r))
 	for i < n {
-		r, w = t.at(i)
+		r, w = t.At(i)
 		p := propOf(r)
 		if !s.joins(p) {
 			return i
@@ -206,9 +210,9 @@ func next[T text](t T, from int) int {
 
 // breakBefore reports whether there is a boundary at i, 0 < i < size, which
 // must be on a character boundary; it reads only what precedes and follows i.
-func breakBefore[T text](t T, i int) bool {
-	ar, aw := t.before(i)
-	br, _ := t.at(i)
+func breakBefore[T Source](t T, i int) bool {
+	ar, aw := t.Before(i)
+	br, _ := t.At(i)
 	a, b := propOf(ar), propOf(br)
 	var s scan
 	// Reconstruct the context the forward scan would hold after a.
@@ -217,7 +221,7 @@ func breakBefore[T text](t T, i int) bool {
 	case a.gb == uniprops.GBRegionalIndicator && b.gb == uniprops.GBRegionalIndicator:
 		s.ri = 1
 		for j := i - aw; j > 0; {
-			r, w := t.before(j)
+			r, w := t.Before(j)
 			if propOf(r).gb != uniprops.GBRegionalIndicator {
 				break
 			}
@@ -227,7 +231,7 @@ func breakBefore[T text](t T, i int) bool {
 	case a.gb == uniprops.GBZWJ && b.pict:
 		s.pict = pictNone
 		for j := i - aw; j > 0; {
-			r, w := t.before(j)
+			r, w := t.Before(j)
 			q := propOf(r)
 			if q.pict {
 				s.pict = pictZWJ
@@ -243,7 +247,7 @@ func breakBefore[T text](t T, i int) bool {
 		j := i - aw
 		if a.incb != uniprops.InCBConsonant {
 			for j > 0 {
-				r, w := t.before(j)
+				r, w := t.Before(j)
 				q := propOf(r)
 				if q.incb == uniprops.InCBLinker {
 					linked = true
@@ -260,28 +264,28 @@ func breakBefore[T text](t T, i int) bool {
 	return !s.joins(b)
 }
 
-func boundary[T text](t T, i int) bool {
-	n := t.size()
+func boundary[T Source](t T, i int) bool {
+	n := t.Len()
 	if i <= 0 || i >= n {
 		return i == 0 || i == n
 	}
 	return breakBefore(t, i)
 }
 
-func prev[T text](t T, end int) int {
-	n := t.size()
+func prev[T Source](t T, end int) int {
+	n := t.Len()
 	if end > n {
 		end = n
 	}
 	if end <= 0 {
 		return 0
 	}
-	_, w := t.before(end)
+	_, w := t.Before(end)
 	for i := end - w; i > 0; i -= w {
 		if breakBefore(t, i) {
 			return i
 		}
-		_, w = t.before(i)
+		_, w = t.Before(i)
 	}
 	return 0
 }
@@ -343,6 +347,14 @@ func NextRunes(r []rune, from int) int {
 
 // PrevRunes is Prev for a rune slice.
 func PrevRunes(r []rune, end int) int { return prev(runeText(r), end) }
+
+// NextIn is Next for a Source, for text that is not one string or rune slice.
+// It reads only the runes the rules need around from, so a source held in
+// pieces is read where it is, with every rune of context the rules ask for.
+func NextIn[S Source](s S, from int) int { return next(s, from) }
+
+// PrevIn is Prev for a Source (see NextIn).
+func PrevIn[S Source](s S, end int) int { return prev(s, end) }
 
 // BoundaryRunes is Boundary for a rune slice.
 func BoundaryRunes(r []rune, i int) bool { return boundary(runeText(r), i) }

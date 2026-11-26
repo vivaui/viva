@@ -34,6 +34,9 @@ func (editor *Editor) stepRight(caret int) int {
 // to the boundary with the next place along the screen; boundaries drawn at the same place
 // are one stop.
 func (editor *Editor) visualStep(caret, direction int) (int, bool) {
+	if !editor.runes.NeedsBidi() {
+		return 0, false // no line of the text reads other than left to right
+	}
 	lineStart, lineEnd := editor.runes.LineStart(caret), editor.runes.LineEnd(caret)
 	lineOffset := editor.runes.ByteOffset(lineStart)
 	line := editor.String()[lineOffset:editor.runes.ByteOffset(lineEnd)]

@@ -96,12 +96,25 @@ func NeedsBidi(text string) bool {
 			i += 3 // U+3000..U+AFFF likewise
 		default:
 			r, w := utf8.DecodeRuneInString(text[i:])
-			switch uniprops.Bidi(r) {
-			case cR, cAL, cAN, cLRE, cLRO, cRLE, cRLO, cPDF, cLRI, cRLI, cFSI, cPDI:
+			if NeedsBidiRune(r) {
 				return true
 			}
 			i += w
 		}
+	}
+	return false
+}
+
+// NeedsBidiRune reports whether r is one of the characters NeedsBidi looks for:
+// text holding none of them needs no bidirectional processing. Text kept in
+// pieces counts them as it changes instead of scanning for them.
+func NeedsBidiRune(r rune) bool {
+	if r < 0x0580 || r >= 0x3000 && r < 0xB000 {
+		return false // see NeedsBidi: no relevant class below U+0580 or in U+3000..U+AFFF
+	}
+	switch uniprops.Bidi(r) {
+	case cR, cAL, cAN, cLRE, cLRO, cRLE, cRLO, cPDF, cLRI, cRLI, cFSI, cPDI:
+		return true
 	}
 	return false
 }

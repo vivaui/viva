@@ -8,6 +8,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/vivaui/viva/internal/bidi"
 	"github.com/vivaui/viva/internal/grapheme"
 )
 
@@ -15,7 +16,7 @@ import (
 // boundaries and with text that is not UTF-8, and checks every way the editor
 // reads the store against the runes.
 func TestRuneStoreAgreesWithRunes(t *testing.T) {
-	alphabet := []rune{'a', 'b', ' ', '\n', '\r', 'é', '中', '😀', 0x301, 0x200d, 0x1f3fd, 0xd800, -1, utf8.MaxRune + 1}
+	alphabet := []rune{'a', 'b', ' ', '\n', '\r', 'é', '中', '😀', 0x301, 0x200d, 0x1f3fd, 0x1f1e8, 'א', 0x2067, 0xd800, -1, utf8.MaxRune + 1}
 	random := rand.New(rand.NewSource(1))
 	piece := func(limit int) []rune {
 		runes := make([]rune, random.Intn(limit))
@@ -55,6 +56,9 @@ func TestRuneStoreAgreesWithRunes(t *testing.T) {
 		}
 		if store.Newlines() != countLabelLF(want) {
 			t.Fatalf("step %d: %d newlines, want %d", step, store.Newlines(), countLabelLF(want))
+		}
+		if store.NeedsBidi() != bidi.NeedsBidi(string(want)) {
+			t.Fatalf("step %d: NeedsBidi = %v for %q", step, store.NeedsBidi(), string(want))
 		}
 		for probe := 0; probe < 8; probe++ {
 			index := random.Intn(len(want) + 1)
@@ -108,6 +112,26 @@ func TestRuneStoreAgreesWithRunes(t *testing.T) {
 			// Keep the text from growing without bound while it crosses leaves.
 			store.Replace(0, len(want)/2, nil)
 			want = want[len(want)/2:]
+		}
+	}
+}
+
+// A cluster's boundaries can depend on every rune before it: whether a
+// regional indicator ends a flag is the parity of the whole run. Next and Prev
+// read the leaves in place, so a run longer than a leaf answers as the runes do.
+func TestRuneStoreClustersReadTheWholeContext(t *testing.T) {
+	run := []rune(strings.Repeat("\U0001F1E8", 3*leafBytes/4+1))
+	run = append([]rune("a"), run...)
+	store, _ := newRuneStore(string(run))
+	if len(store.leaves) < 2 {
+		t.Fatalf("the run fits one leaf (%d bytes)", store.Bytes())
+	}
+	for index := 0; index <= len(run); index++ {
+		if got, want := store.Next(index), grapheme.NextRunes(run, index); got != want {
+			t.Fatalf("cluster after %d ends at %d, want %d", index, got, want)
+		}
+		if got, want := store.Prev(index), grapheme.PrevRunes(run, index); got != want {
+			t.Fatalf("cluster before %d starts at %d, want %d", index, got, want)
 		}
 	}
 }
