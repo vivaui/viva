@@ -397,8 +397,8 @@ jobs:
         env:
           VIVA_WINDOWS_CLIPBOARD: '1'
         run: go test ./internal/platform/windows -run '^TestColumnClipboardNative' -count=1 -v -timeout=2m
-      - name: Native Direct2D text origins and hidden labels
-        run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText)$' -count=1 -v
+      - name: Native Direct2D text origins, hidden labels and font fallback
+        run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText|RegisteredFontDrawsFallbackCharacters)$' -count=1 -v
       - name: Promised file drag
         run: go test ./internal/platform/windows -run '^Test(ThePromiseDataObject|ThePromiseStream|ThePromiseEnumerator|PromiseNames)' -count=1 -v
       # The installer contracts, including WinVerifyTrust's struct layout, only
@@ -423,10 +423,10 @@ jobs:
           go-version-file: go.mod
           architecture: arm64
           cache: true
-      - name: Native ARM64 Direct2D text origins
+      - name: Native ARM64 Direct2D text origins and font fallback
         run: |
           if ((go env GOARCH) -ne 'arm64') { throw 'Expected native ARM64 Go' }
-          go test ./internal/platform/windows -run '^TestDirectTextLayoutOriginByValue$' -count=1 -v
+          go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|RegisteredFontDrawsFallbackCharacters)$' -count=1 -v
 
   # A noise-tolerant benchmark regression gate for the pure-Go paths: the base
   # revision and the pull request run the same benchmarks on the same runner,
