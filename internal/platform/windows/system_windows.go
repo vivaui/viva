@@ -121,6 +121,17 @@ var notificationMu sync.Mutex
 var notificationWindow uintptr
 var notificationAdded bool
 
+// Win32 associates an open clipboard with the calling thread, not the process.
+func lockClipboardThread() {
+	clipboardMu.Lock()
+	runtime.LockOSThread()
+}
+
+func unlockClipboardThread() {
+	runtime.UnlockOSThread()
+	clipboardMu.Unlock()
+}
+
 var callNotifyIcon = func(operation uintptr, data *notifyIconData) (uintptr, uintptr, error) {
 	return shellNotifyIcon.Call(operation, uintptr(unsafe.Pointer(data)))
 }
@@ -131,8 +142,8 @@ var saveDialogClass = guid{Data1: 0xc0b4e2f3, Data2: 0xba21, Data3: 0x4773, Data
 var saveDialogInterface = guid{Data1: 0x84bccd23, Data2: 0x5fde, Data3: 0x4cdb, Data4: [8]byte{0xae, 0xa4, 0xaf, 0x64, 0xb8, 0x3d, 0x78, 0xab}}
 
 func ClipboardText() (string, error) {
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	available, _, _ := clipboardFormatAvailable.Call(clipboardUnicodeText)
 	if available == 0 {
 		return "", nil
@@ -221,8 +232,8 @@ func activeOwnerWindow() uintptr {
 // ClipboardImagePNG returns the clipboard's image as PNG bytes: the registered
 // "PNG" format as it is, otherwise CF_DIBV5 or CF_DIB converted.
 func ClipboardImagePNG() ([]byte, error) {
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	if !HasClipboardImage() {
 		return nil, platform.ErrNoClipboardImage
 	}
@@ -281,8 +292,8 @@ const maxClipboardFileListBytes = 16 << 20
 // ClipboardFiles returns the paths of the files the clipboard holds: the
 // CF_HDROP list Explorer leaves there after a copy.
 func ClipboardFiles() ([]string, error) {
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	if available, _, _ := clipboardFormatAvailable.Call(clipboardHDrop); available == 0 {
 		return nil, platform.ErrNoClipboardFiles
 	}
@@ -348,8 +359,8 @@ func setClipboardText(value string, rectangular bool) error {
 	if err != nil {
 		return fmt.Errorf("windows: encode clipboard text: %w", err)
 	}
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	var columnFormat, borlandFormat, columnMarker, borlandMarker uintptr
 	if rectangular {
 		columnFormat, borlandFormat, err = rectangularClipboardFormats()
@@ -430,8 +441,8 @@ func SetClipboardFiles(paths []string) error {
 	if err != nil {
 		return fmt.Errorf("windows: encode clipboard file names: %w", err)
 	}
-	clipboardMu.Lock()
-	defer clipboardMu.Unlock()
+	lockClipboardThread()
+	defer unlockClipboardThread()
 	owner := activeOwnerWindow()
 	if opened, _, callErr := openClipboard.Call(owner); opened == 0 {
 		return windowsCallError("open clipboard", callErr)

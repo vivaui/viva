@@ -393,6 +393,10 @@ jobs:
         env:
           VIVA_NATIVE_GLOBAL_SHORTCUT_TEST: '1'
         run: go test ./internal/platform/windows -run '^TestNativeGlobalShortcutRegistration$' -count=1 -v
+      - name: Native Windows clipboard transactions
+        env:
+          VIVA_WINDOWS_CLIPBOARD: '1'
+        run: go test ./internal/platform/windows -run '^TestColumnClipboardNative' -count=1 -v -timeout=2m
       - name: Native Direct2D text origins and hidden labels
         run: go test ./internal/platform/windows -run '^Test(DirectTextLayoutOriginByValue|HiddenNativeEditorDoesNotDrawColorEmoji|TextEngineRasterizesProportionalText)$' -count=1 -v
       - name: Promised file drag
