@@ -63,7 +63,10 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 		options.Scope = s.GetHandlers().GetParts().At(8)
 		options.Hex = s.HexPtr().Snapshot(c.GetF(), ids.Hex, labels.Hex, "#3B82F6")
 		if s.GetInvalid() {
-			options.Error = "Invalid color"
+			options.Error = labels.InvalidColor
+			if options.Error == "" {
+				options.Error = "Invalid color"
+			}
 		}
 	}
 	picker := components.BeginColorPicker(canvas, *d.Theme, d.Rect, options)
