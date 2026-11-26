@@ -771,10 +771,15 @@ func OpenFiles(options OpenFileOptions) ([]string, bool, error) {
 	return paths, false, nil
 }
 
+func directoryPortalRequest(options OpenDirectoryOptions, parent string) portalFileRequest {
+	return portalFileRequest{
+		method: "OpenFile", parent: parent, title: options.Title, directory: true,
+		currentFolder: options.InitialDirectory,
+	}
+}
+
 func OpenDirectory(options OpenDirectoryOptions) (string, bool, error) {
-	paths, canceled, err := portalChoose(portalFileRequest{
-		method: "OpenFile", parent: portalParent(), title: options.Title, directory: true,
-	})
+	paths, canceled, err := portalChoose(directoryPortalRequest(options, portalParent()))
 	if !errors.Is(err, errServiceMissing) {
 		return firstPath(paths), canceled, singlePathError(paths, canceled, err, "open directory")
 	}
