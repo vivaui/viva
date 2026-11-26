@@ -56,13 +56,15 @@ func TestContinueTraversalKeyPublishesOneConsistentFrame(t *testing.T) {
 	if count >= base {
 		t.Fatalf("the popup did not close: %d -> %d", base, count)
 	}
-	// The platform still holds base rectangles. A frame that carries a different
-	// number of them has to say so with a rebuild.
-	if len(frame.Rectangles) != base && !frame.Update.Rebuild {
-		t.Fatalf("frame does not match the platform's base: base=%d frame=%d update=%+v", base, len(frame.Rectangles), frame.Update)
+	// The platform still holds base rectangles. A frame that carries fewer has
+	// to say so: a rebuild, or a shrink whose range runs to the new end, which
+	// every backend applies to the base and then truncates.
+	update := frame.Update
+	if len(frame.Rectangles) != count {
+		t.Fatalf("frame carries %d rectangles, the renderer holds %d", len(frame.Rectangles), count)
 	}
-	if !frame.Update.Rebuild || frame.Update.Count != count {
-		t.Fatalf("update = %+v, want a rebuild of all %d rectangles", frame.Update, count)
+	if !update.Rebuild && (!update.Shrink || update.First > count || update.First+update.Count != count) {
+		t.Fatalf("update = %+v cannot take the platform from %d rectangles to %d", update, base, count)
 	}
 }
 

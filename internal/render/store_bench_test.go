@@ -28,10 +28,10 @@ func BenchmarkStoreAppendTail(b *testing.B) {
 	}
 }
 
-// Deleting one instance from a large page still rebuilds every instance,
-// because the backends keep a store sized to the count. Measure that fallback
-// so an incremental delete can be compared against it.
-func BenchmarkStoreDeleteRebuild(b *testing.B) {
+// Deleting one instance from the middle of a large page and appending another
+// in the same batch compacts the list and sends the suffix from the deleted
+// instance, rather than re-flattening the page.
+func BenchmarkStoreDeleteAndAppend(b *testing.B) {
 	graph := scene.NewWithCapacity(10_001)
 	var id scene.ID
 	for index := 0; index < 10000; index++ {
@@ -56,8 +56,8 @@ func BenchmarkStoreDeleteRebuild(b *testing.B) {
 		}
 		id = next
 		update, err := store.Apply(graph.DrainChanges(nil))
-		if err != nil || !update.Rebuild {
-			b.Fatalf("delete update = %+v, err %v", update, err)
+		if err != nil || update.Rebuild {
+			b.Fatalf("delete and append update = %+v, err %v", update, err)
 		}
 	}
 }

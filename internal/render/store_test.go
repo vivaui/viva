@@ -1,6 +1,8 @@
 package render
 
 import (
+	"math/rand"
+	"slices"
 	"testing"
 
 	"github.com/vivaui/viva/internal/scene"
@@ -167,8 +169,9 @@ func TestStoreAcceptsSuccessorUpsertQueuedBeforeItsPredecessorsDelete(t *testing
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
-	if !update.Rebuild {
-		t.Fatalf("update = %+v, want a rebuild after a delete", update)
+	// Everything from the deleted instance on moved, and the list is shorter.
+	if update != (Update{First: 1, Count: 2, Shrink: true}) {
+		t.Fatalf("update = %+v, want the suffix from the deleted instance, shrunk", update)
 	}
 	rectangles := store.Rectangles()
 	if len(rectangles) != 3 || rectangles[0].ID != kept || rectangles[1].ID != successor || rectangles[2].ID != tail {
@@ -375,7 +378,8 @@ func TestStoreDeletesOneShapeAndInsertsAnotherBeforeIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !update.Rebuild {
+	// One instance left and one took its place: the suffix from there, same length.
+	if update != (Update{First: 1, Count: 2}) {
 		t.Fatalf("delete plus insert update = %+v", update)
 	}
 	rectangles := store.Rectangles()
@@ -428,5 +432,139 @@ func TestStoreDeletesNonContiguousInstancesInOrder(t *testing.T) {
 	got := store.Rectangles()
 	if len(got) != 2 || got[0].ID != second || got[1].ID != fourth {
 		t.Fatalf("remaining = %+v", got)
+	}
+}
+
+// storeModel is the tree a random test builds alongside a scene: the paint
+// order the store must end each batch in is its depth-first walk.
+type storeModel struct {
+	id       scene.ID
+	group    bool
+	color    scene.Color
+	children []*storeModel
+}
+
+func (model *storeModel) walk(visit func(parent, node *storeModel)) {
+	for _, child := range model.children {
+		visit(model, child)
+		if child.group {
+			child.walk(visit)
+		}
+	}
+}
+
+// TestStoreUpdatesKeepABackendInStep applies random batches of appends,
+// insertions, deletions, recolors and groups, and checks after each one that
+// the store holds the scene's paint order and that a backend which applies only
+// the reported Update (rebuild, or a range that may grow the list or be cut
+// short with Shrink) holds exactly the store's instances.
+func TestStoreUpdatesKeepABackendInStep(t *testing.T) {
+	random := rand.New(rand.NewSource(7))
+	graph := scene.New()
+	root := &storeModel{id: graph.Root(), group: true}
+	var store Store
+	var backend []Rectangle
+	color := func() scene.Color { return scene.Color{Red: float32(random.Intn(1000)), Alpha: 1} }
+	pick := func(groups bool) (parent, node *storeModel, index int) {
+		var parents, nodes []*storeModel
+		root.walk(func(p, n *storeModel) {
+			if groups || !n.group {
+				parents, nodes = append(parents, p), append(nodes, n)
+			}
+		})
+		if len(nodes) == 0 {
+			return nil, nil, -1
+		}
+		at := random.Intn(len(nodes))
+		return parents[at], nodes[at], slices.Index(parents[at].children, nodes[at])
+	}
+	groupOf := func() *storeModel {
+		groups := []*storeModel{root}
+		root.walk(func(_, n *storeModel) {
+			if n.group {
+				groups = append(groups, n)
+			}
+		})
+		return groups[random.Intn(len(groups))]
+	}
+	for batch := 0; batch < 3000; batch++ {
+		for operations := 1 + random.Intn(5); operations > 0; operations-- {
+			switch random.Intn(6) {
+			case 0, 1: // insert a shape after a random sibling, or first
+				parent := groupOf()
+				at := random.Intn(len(parent.children) + 1)
+				previous := scene.ID(0)
+				if at > 0 {
+					previous = parent.children[at-1].id
+				}
+				shade := color()
+				id, ok := graph.InsertRoundedRectangle(parent.id, previous, scene.Rect{Width: 1}, shade, 0)
+				if !ok {
+					t.Fatal("insert failed")
+				}
+				parent.children = slices.Insert(parent.children, at, &storeModel{id: id, color: shade})
+			case 2: // remove a shape or a whole group
+				if parent, node, index := pick(true); node != nil {
+					if !graph.Remove(node.id) {
+						t.Fatal("remove failed")
+					}
+					parent.children = slices.Delete(parent.children, index, index+1)
+				}
+			case 3, 4: // recolor a shape
+				if _, node, _ := pick(false); node != nil {
+					node.color.Red++ // a change, which the scene queues
+					if !graph.SetRectangle(node.id, scene.Rect{Width: 1}, node.color) {
+						t.Fatal("recolor failed")
+					}
+				}
+			case 5: // a group holding a few shapes, at the end of the page
+				id, ok := graph.AddGroup(graph.Root())
+				if !ok {
+					t.Fatal("group failed")
+				}
+				group := &storeModel{id: id, group: true}
+				for count := random.Intn(3); count > 0; count-- {
+					shade := color()
+					child, _ := graph.AddRectangle(id, scene.Rect{Width: 1}, shade)
+					group.children = append(group.children, &storeModel{id: child, color: shade})
+				}
+				root.children = append(root.children, group)
+			}
+		}
+
+		update, err := store.Apply(graph.DrainChanges(nil))
+		if err != nil {
+			t.Fatalf("batch %d: %v", batch, err)
+		}
+		rectangles := store.Rectangles()
+		switch {
+		case update.Rebuild:
+			backend = append(backend[:0], rectangles...)
+		case update.Count > 0 || update.Shrink:
+			if end := update.First + update.Count; end > len(backend) {
+				backend = append(backend, make([]Rectangle, end-len(backend))...)
+			}
+			copy(backend[update.First:], rectangles[update.First:update.First+update.Count])
+			if update.Shrink {
+				backend = backend[:len(rectangles)]
+			}
+		}
+		if !slices.Equal(backend, rectangles) {
+			t.Fatalf("batch %d: update %+v left the backend with %d instances, the store %d", batch, update, len(backend), len(rectangles))
+		}
+		var want []*storeModel
+		root.walk(func(_, n *storeModel) {
+			if !n.group {
+				want = append(want, n)
+			}
+		})
+		if len(rectangles) != len(want) {
+			t.Fatalf("batch %d: %d instances, want %d", batch, len(rectangles), len(want))
+		}
+		for index, node := range want {
+			if rectangles[index].ID != node.id || rectangles[index].Color != node.color {
+				t.Fatalf("batch %d: instance %d is %d %v, want %d %v", batch, index, rectangles[index].ID, rectangles[index].Color, node.id, node.color)
+			}
+		}
 	}
 }

@@ -83,6 +83,10 @@ type node struct {
 // this batch and has no instance until the batch finishes flattening it.
 const freshInstance = uint32(1) << 31
 
+// unlinked marks, while a batch links its new nodes, the slot of a new node not
+// linked yet; the rest of the entry is the index of its change in the batch.
+const unlinked = uint32(1) << 30
+
 type Store struct {
 	nodes          []node
 	instanceBySlot []uint32
@@ -92,6 +96,10 @@ type Store struct {
 	// page rather than the number of rebuilds.
 	order   []scene.ID
 	scratch []scene.ID
+	// deleted collects the instances a batch removes, and linking is the walk
+	// stack of the new nodes a batch links; both are reused like order.
+	deleted []int
+	linking []int
 	root    scene.ID
 }
 
@@ -111,9 +119,11 @@ func (store *Store) Apply(changes []scene.Change) (Update, error) {
 		return store.deleteBatch(changes)
 	}
 
-	oldCount := len(store.rectangles)
 	structureChanged := false
-	deleted := false
+	// shrunk is the first instance a delete in the batch removed; the update
+	// then runs from there to the end of the list, as a delete-only batch's.
+	shrunk := -1
+	before := len(store.rectangles)
 	// appended collects new shape nodes whose insertion may be a pure append
 	// after the last instance. If the chain holds, the store can append them
 	// without rebuilding (and re-uploading) the whole instance list.
@@ -122,51 +132,96 @@ func (store *Store) Apply(changes []scene.Change) (Update, error) {
 	// rebuild resolves their geometry from this batch instead of the rectangles
 	// the store already holds.
 	var inserted []uint32
-	appendOnly := oldCount > 0
 
 	// Deletes are applied before upserts. The scene relinks a deleted node's
 	// successor without reporting that successor, so an upsert of it (queued
 	// earlier in the same batch for another reason, such as a new color) carries
 	// the post-delete previous sibling. Applied in queue order it would see the
 	// stale link and be rejected as a structural mutation, dropping the rest of
-	// the batch.
+	// the batch. The deleted instances leave the list before anything is
+	// inserted, so every index below is one in the list the batch ends with.
+	store.deleted = store.deleted[:0]
 	for _, change := range changes {
 		switch change.Operation {
 		case scene.OperationDelete:
-			if err := store.remove(change.ID); err != nil {
+			if err := store.removeInstance(change.ID); err != nil {
 				return Update{}, err
 			}
 			structureChanged = true
-			deleted = true
-			appendOnly = false
 		case scene.OperationUpsert:
 		default:
 			return Update{}, fmt.Errorf("render: unsupported operation %d", change.Operation)
 		}
 	}
+	if len(store.deleted) > 0 {
+		shrunk = store.compact()
+	}
+	oldCount := len(store.rectangles)
+	appendOnly := oldCount > 0
 
 	// New nodes are linked before changed ones are applied. The scene reports a
 	// node's current neighbours, so an existing node's upsert queued before the
 	// insert of its new predecessor already names that predecessor, which the
-	// store only learns of when it reaches the insert.
+	// store only learns of when it reaches the insert. A new node can likewise
+	// name a parent or previous sibling that is new too and queued after it (a
+	// shape inserted between a new one and its predecessor), so every new node
+	// is marked first and each is linked after the new nodes it names. Parents
+	// and previous siblings form a tree and lists, so the walk ends; a batch
+	// that names a cycle is rejected.
+	fresh := 0
 	for index, change := range changes {
 		if change.Operation != scene.OperationUpsert || store.exists(change.ID) {
 			continue
 		}
-		if _, _, err := store.upsert(change); err != nil {
-			return Update{}, err
+		slot, ok := change.ID.Slot()
+		if !ok {
+			return Update{}, fmt.Errorf("render: invalid node ID %d", change.ID)
 		}
-		if change.Kind != scene.KindGroup {
+		store.ensureSlots(slot)
+		store.instanceBySlot[slot] = unlinked | uint32(index)
+		fresh++
+	}
+	for index := 0; fresh > 0 && index < len(changes); index++ {
+		if store.unlinkedChange(changes, changes[index].ID) < 0 {
+			continue
+		}
+		stack := append(store.linking[:0], index)
+		for len(stack) > 0 {
+			if len(stack) > len(changes) {
+				return Update{}, fmt.Errorf("render: node %d is placed after or inside itself", changes[stack[0]].ID)
+			}
+			top := stack[len(stack)-1]
+			change := changes[top]
+			if dependency := store.unlinkedChange(changes, change.Parent); dependency >= 0 {
+				stack = append(stack, dependency)
+				continue
+			}
+			if dependency := store.unlinkedChange(changes, change.PreviousSibling); dependency >= 0 {
+				stack = append(stack, dependency)
+				continue
+			}
+			stack = stack[:len(stack)-1]
+			if store.unlinkedChange(changes, change.ID) < 0 {
+				continue // linked already, as the dependency of another
+			}
+			if _, _, err := store.upsert(change); err != nil {
+				return Update{}, err
+			}
+			fresh--
 			slot, _ := change.ID.Slot()
-			store.instanceBySlot[slot] = freshInstance | uint32(len(inserted))
-			inserted = append(inserted, uint32(index))
+			store.instanceBySlot[slot] = 0
+			if change.Kind != scene.KindGroup {
+				store.instanceBySlot[slot] = freshInstance | uint32(len(inserted))
+				inserted = append(inserted, uint32(top))
+			}
+			structureChanged = true
+			if change.Kind == scene.KindGroup || change.Parent != store.root {
+				appendOnly = false
+			} else {
+				appended = append(appended, change)
+			}
 		}
-		structureChanged = true
-		if change.Kind == scene.KindGroup || change.Parent != store.root {
-			appendOnly = false
-		} else {
-			appended = append(appended, change)
-		}
+		store.linking = stack
 	}
 
 	first := oldCount
@@ -217,13 +272,13 @@ func (store *Store) Apply(changes []scene.Change) (Update, error) {
 			if first > oldCount {
 				first = oldCount
 			}
-		case !deleted && len(appended) > 0 && oldCount > 0:
+		case len(appended) > 0 && len(appended) == len(inserted) && oldCount > 0:
 			// Insertions in the middle of the page move the tail of paint
 			// order, but the scene's neighbour links say exactly where each
 			// new shape goes. Splicing it in and renumbering the slots after
 			// it costs one shift of the instance list instead of re-flattening
-			// and re-uploading the whole page. Deletions still rebuild,
-			// because every backend's retained store is sized to the count.
+			// and re-uploading the whole page. A shape inserted inside a group
+			// is placed by the rebuild below.
 			for _, change := range appended {
 				at := 0
 				if change.PreviousSibling != 0 {
@@ -248,12 +303,20 @@ func (store *Store) Apply(changes []scene.Change) (Update, error) {
 			if last < len(store.rectangles)-1 {
 				last = len(store.rectangles) - 1
 			}
+		case len(appended) == 0 && len(inserted) == 0 && shrunk >= 0:
+			// Only deletes, alongside changes to shapes that stay.
 		default:
 			if err := store.rebuild(changes, inserted); err != nil {
 				return Update{}, err
 			}
 			return Update{Count: len(store.rectangles), Rebuild: true}, nil
 		}
+	}
+	if shrunk >= 0 {
+		// Everything after the first removed instance moved: send it all, and
+		// let a backend truncate when the list ended shorter than it began.
+		first = min(first, shrunk)
+		return Update{First: first, Count: len(store.rectangles) - first, Shrink: len(store.rectangles) < before}, nil
 	}
 	if last < first {
 		return Update{}, nil
@@ -275,31 +338,49 @@ func changesAreDeletes(changes []scene.Change) bool {
 }
 
 func (store *Store) deleteBatch(changes []scene.Change) (Update, error) {
-	var instances []int
+	store.deleted = store.deleted[:0]
 	for _, change := range changes {
-		slot, ok := change.ID.Slot()
-		if !ok || int(slot) >= len(store.nodes) {
-			return Update{}, fmt.Errorf("render: delete references invalid node %d", change.ID)
-		}
-		if instance := store.instanceIndex(slot, change.ID); instance >= 0 {
-			instances = append(instances, instance)
-		}
-		if err := store.remove(change.ID); err != nil {
+		if err := store.removeInstance(change.ID); err != nil {
 			return Update{}, err
 		}
 	}
-	if len(instances) == 0 {
+	if len(store.deleted) == 0 {
 		return Update{}, nil
 	}
-	slices.Sort(instances)
-	first := instances[0]
-	for index := len(instances) - 1; index >= 0; index-- {
-		at := instances[index]
-		copy(store.rectangles[at:], store.rectangles[at+1:])
-		store.rectangles = store.rectangles[:len(store.rectangles)-1]
-	}
-	store.reindexFrom(first)
+	first := store.compact()
 	return Update{First: first, Count: len(store.rectangles) - first, Shrink: true}, nil
+}
+
+// removeInstance removes node id and notes its instance, if it has one, in
+// deleted for compact.
+func (store *Store) removeInstance(id scene.ID) error {
+	slot, ok := id.Slot()
+	if !ok || int(slot) >= len(store.nodes) {
+		return fmt.Errorf("render: delete references invalid node %d", id)
+	}
+	if instance := store.instanceIndex(slot, id); instance >= 0 {
+		store.deleted = append(store.deleted, instance)
+	}
+	return store.remove(id)
+}
+
+// compact drops the instances in deleted from the list in one pass, renumbers
+// the slots after the first of them, and returns it.
+func (store *Store) compact() int {
+	slices.Sort(store.deleted)
+	first := store.deleted[0]
+	write, next := first, 0
+	for read := first; read < len(store.rectangles); read++ {
+		if next < len(store.deleted) && store.deleted[next] == read {
+			next++
+			continue
+		}
+		store.rectangles[write] = store.rectangles[read]
+		write++
+	}
+	store.rectangles = store.rectangles[:write]
+	store.reindexFrom(first)
+	return first
 }
 
 // rectangleOf is the render instance a scene change describes.
@@ -329,6 +410,24 @@ func (store *Store) reindexFrom(index int) {
 			store.instanceBySlot[slot] = uint32(position + 1)
 		}
 	}
+}
+
+// unlinkedChange is the index in changes of the new node id when the batch has
+// not linked it yet, or -1.
+func (store *Store) unlinkedChange(changes []scene.Change, id scene.ID) int {
+	slot, ok := id.Slot()
+	if !ok || int(slot) >= len(store.nodes) || store.nodes[slot].alive {
+		return -1
+	}
+	encoded := store.instanceBySlot[slot]
+	if encoded&unlinked == 0 || encoded&freshInstance != 0 {
+		return -1
+	}
+	index := int(encoded &^ unlinked)
+	if index >= len(changes) || changes[index].ID != id {
+		return -1
+	}
+	return index
 }
 
 // exists reports whether the store already holds the node with this identity.
