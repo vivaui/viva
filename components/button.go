@@ -633,7 +633,18 @@ type ButtonContent struct {
 	IconOnly bool
 	// Underlined underlines the label, as a hovered link is.
 	Underlined bool
+	// PaintLoading, when set, paints the loading indicator in the place of the icon (or
+	// before the label when there is none), at Phase and in Color, with Theme. The
+	// button does not know what the indicator looks like: a page gives the one of
+	// package components' Spinner, so the recipe does not depend on its file.
+	PaintLoading ButtonLoadingPainter
+	Phase        uint8
+	Theme        *gfx.Theme
 }
+
+// ButtonLoadingPainter paints a button's loading indicator in bounds. Give it a
+// function, not a closure made in each paint, which would allocate.
+type ButtonLoadingPainter func(canvas *gfx.Canvas, theme *gfx.Theme, bounds gfx.Rect, color gfx.Color, phase uint8)
 
 // PaintButtonContent paints a button's icon and label centered in area and returns the
 // hint an icon-only button gives assistive technology, which is its label. It is the
@@ -645,7 +656,8 @@ func PaintButtonContent(canvas *gfx.Canvas, area gfx.Rect, content ButtonContent
 	}
 	look := buttonStyle{foreground: content.Color, underlined: content.Underlined}
 	label := content.Label
-	if len(content.Icon.Commands) == 0 && len(content.Icon.Layers) == 0 {
+	loading := content.PaintLoading != nil
+	if len(content.Icon.Commands) == 0 && len(content.Icon.Layers) == 0 && !loading {
 		paintButtonLabel(canvas, label, area, content.FontSize, content.Weight, look)
 		return ""
 	}
@@ -655,7 +667,9 @@ func PaintButtonContent(canvas *gfx.Canvas, area gfx.Rect, content ButtonContent
 		width = min(area.Width, width+content.Gap+canvas.TextWidthWeight(label, content.FontSize, content.Weight))
 	}
 	x := area.X + (area.Width-width)/2
-	if size > 0 {
+	if size > 0 && loading {
+		content.PaintLoading(canvas, content.Theme, gfx.Rect{X: x, Y: area.Y + (area.Height-size)/2, Width: size, Height: size}, content.Color, content.Phase)
+	} else if size > 0 {
 		canvas.DrawIconTransformed(
 			content.Icon,
 			gfx.Rect{X: x, Y: area.Y + (area.Height-size)/2, Width: size, Height: size},

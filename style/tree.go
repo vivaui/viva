@@ -17,4 +17,8 @@ type TreeItem struct {
 	// Dragging marks the row being dragged: it keeps its chosen fill but gives
 	// up its focus ring, which otherwise reads as the drop target.
 	Dragging bool
+	// Loading shows a spinner in place of a branch's chevron: its children are
+	// being fetched. Phase is the spinner's frame, 0 to 7.
+	Loading bool
+	Phase   uint8
 }

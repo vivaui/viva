@@ -21,6 +21,14 @@ a target between or newer than those, also check its intervening release notes;
 this page is not a promise that other releases only add API. Releases before v0.2.2 are not
 covered: the release-note archive begins there.
 
+### Unreleased - `ui.Configure` routes files dragged from the system
+
+`ui.Configure` now sets the window's `OnFileDrop`: it gives the files to the
+`FileDropState` area (`Box.DropFiles`) under them, then to the `OnFileDrop` you
+passed when no area is there. An application that sets its own `OnFileDrop` and
+declares no area sees the same events as before. `ui.Host` has an `OnFileDrop`
+field for a host that calls `Page.Attach` itself.
+
 ### Unreleased - a `ui.Table` column carries its own title and sort flag
 
 `TableSpec.Headers` and `TableSpec.Sortable` are removed; each `TableColumn` has a

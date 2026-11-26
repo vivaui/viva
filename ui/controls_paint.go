@@ -173,7 +173,13 @@ func paintSwitch(f *Frame, v ControlView, n *Node) {
 	if disabled {
 		control = control.Disabled()
 	}
-	control.Paint()
+	result := control.Paint()
+	if n.Loading && result.Thumb.Width > 0 {
+		spinner := f.Palette
+		spinner.Foreground = f.Palette.MutedForeground
+		size := result.Thumb.Width * 0.75
+		components.PaintSpinner(canvas, spinner, Rect{X: result.Thumb.X + (result.Thumb.Width-size)/2, Y: result.Thumb.Y + (result.Thumb.Height-size)/2, Width: size, Height: size}, components.SpinnerPhase(buttonSpinnerPhase(f, n)))
+	}
 }
 
 func paintInputGroup(f *Frame, v ControlView) {
@@ -352,6 +358,9 @@ func measureWidgetNode(f *Frame, n *Node) { f.MeasureWidget(n) }
 
 func measureProgressNode(f *Frame, n *Node) {
 	n.Pref = [2]float32{ProgressWidth, ProgressHeight}
+	if n.Circle {
+		n.Pref = [2]float32{ProgressRing, ProgressRing}
+	}
 }
 
 func measureSpinnerNode(f *Frame, n *Node) { n.Pref = [2]float32{16, 16} }
@@ -386,7 +395,7 @@ func measureButton(f *Frame, n *Node) [2]float32 {
 		return [2]float32{height, height} // an icon button is as wide as it is tall
 	}
 	width := n.PadX() + f.Surface.TextWidthWeight(n.Label, fontSize, buttonWeight(n))
-	if icon := f.Exts[n.Ext].GetIcon(); len(icon.Commands) > 0 || len(icon.Layers) > 0 {
+	if icon := f.Exts[n.Ext].GetIcon(); len(icon.Commands) > 0 || len(icon.Layers) > 0 || n.Loading {
 		width += style.ButtonIconExtent(height)
 		if n.Label != "" {
 			width += n.Gap
@@ -428,7 +437,7 @@ func paintButton(f *Frame, n *Node) {
 	area := buttonContentArea(f, n)
 	room := f.ContentRect(n)
 	need := f.Surface.TextWidthWeight(n.Label, fontSize, buttonWeight(n))
-	if icon := extra.GetIcon(); len(icon.Commands) != 0 || len(icon.Layers) != 0 {
+	if icon := extra.GetIcon(); len(icon.Commands) != 0 || len(icon.Layers) != 0 || n.Loading {
 		need += style.ButtonIconExtent(n.Rect.Height)
 		if n.Label != "" {
 			need += n.Gap
@@ -442,7 +451,36 @@ func paintButton(f *Frame, n *Node) {
 		Label: n.Label, Icon: extra.GetIcon(), IconTransform: extra.GetIconTransform(),
 		FontSize: fontSize, Weight: buttonWeight(n), Color: n.Color, Gap: n.Gap, Height: n.Rect.Height,
 		IconOnly: iconOnly, Underlined: f.GetButtonLook().Underlined,
+		PaintLoading: buttonLoading(n), Phase: buttonSpinnerPhase(f, n), Theme: &f.Palette,
 	})
+}
+
+// buttonSpinnerPhase is the frame of the indicator of a busy button: it turns while the
+// button is on screen and holds still when the system asks for reduced motion.
+func buttonSpinnerPhase(f *Frame, n *Node) uint8 {
+	if !n.Loading || f.Surface.ReduceMotion() {
+		return 0
+	}
+	if f.Visible(n) {
+		f.Surface.RequestFrameIn(SpinnerStep)
+	}
+	return uint8(f.Surface.Now() / SpinnerStep % 8)
+}
+
+// buttonLoading is the painter of a busy button's indicator, nil for an idle one.
+func buttonLoading(n *Node) components.ButtonLoadingPainter {
+	if !n.Loading {
+		return nil
+	}
+	return paintButtonSpinner
+}
+
+// paintButtonSpinner is the Spinner of package components, in the color of the button's
+// label.
+func paintButtonSpinner(canvas *gfx.Canvas, theme *gfx.Theme, bounds gfx.Rect, color gfx.Color, phase uint8) {
+	spinner := *theme
+	spinner.Foreground = color
+	components.PaintSpinner(canvas, spinner, bounds, components.SpinnerPhase(phase))
 }
 
 func paintInput(f *Frame, n *Node) {

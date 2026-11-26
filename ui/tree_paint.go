@@ -19,6 +19,7 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 	item := components.TreeItem{
 		ID: s.GetRows().At(key), Label: s.GetRowLabel()(i), Depth: uint8(min(max(depth, 0), 31)),
 		Branch: node.Branch, Expanded: node.Expanded, Selected: node.Selected, Disabled: node.Disabled,
+		Loading: node.Branch && node.Loading,
 	}
 	if node.Branch {
 		item.DisclosureID = s.GetChevrons().At(key)
@@ -27,7 +28,7 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 		if canvas.Clicked(item.ID) {
 			s.SetChosenIndex(i)
 		}
-		if node.Branch && canvas.Clicked(item.DisclosureID) {
+		if node.Branch && !node.Loading && canvas.Clicked(item.DisclosureID) {
 			s.SetToggledIndex(i)
 		}
 	}
@@ -58,10 +59,27 @@ func treeStateDraw(s *TreeState, d *DrawContext) {
 			continue
 		}
 		tree := components.BeginTree(d.Canvas, *d.Theme, d.Rect).RowHeight(d.Rect.Height).Indent(s.IndentValue(d.Theme)).SelectedColor(s.SelectedColor)
-		tree.Item(row.GetItem())
+		item := row.GetItem()
+		if item.Loading {
+			item.Phase = spinnerPhase(d)
+		}
+		tree.Item(item)
 		if s.DragPtr().GetActive() {
 			s.DragOver(row, d)
 		}
 		return
 	}
+}
+
+// spinnerPhase is the frame of the indicator of a branch whose children are being
+// fetched: it turns while the row is on screen and holds still when the system asks
+// for reduced motion.
+func spinnerPhase(d *DrawContext) uint8 {
+	if d.Canvas.ReduceMotion() {
+		return 0
+	}
+	if d.Frame.Visible(d.Node) {
+		d.Canvas.RequestFrameIn(SpinnerStep)
+	}
+	return uint8(d.Canvas.Now() / SpinnerStep % 8)
 }

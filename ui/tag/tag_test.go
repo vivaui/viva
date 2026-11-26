@@ -1,3 +1,5 @@
+//go:build !js
+
 package tag_test
 
 import (

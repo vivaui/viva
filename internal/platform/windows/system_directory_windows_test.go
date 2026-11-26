@@ -9,11 +9,7 @@ import (
 
 func TestFileDialogInitialDirectory(t *testing.T) {
 	directory := t.TempDir()
-	want, err := os.Stat(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = withSTA(func() error {
+	err := withSTA(func() error {
 		dialog, err := createFileDialog(&openDialogClass, &openDialogInterface)
 		if err != nil {
 			return err
@@ -31,12 +27,18 @@ func TestFileDialogInitialDirectory(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		actual, err := os.Stat(got)
+		// The temporary directory may be named in its 8.3 short form (RUNNER~1) while
+		// the shell reports the long one: they are the same folder when the file
+		// system says so, whatever the spelling.
+		gotInfo, err := os.Stat(got)
 		if err != nil {
-			return fmt.Errorf("stat dialog folder %q: %w", got, err)
+			return err
 		}
-		// The shell can expand a short path to its long name.
-		if !os.SameFile(actual, want) {
+		wantInfo, err := os.Stat(directory)
+		if err != nil {
+			return err
+		}
+		if !os.SameFile(gotInfo, wantInfo) {
 			return fmt.Errorf("dialog folder = %q; want %q", got, directory)
 		}
 		return nil

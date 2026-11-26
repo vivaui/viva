@@ -1,3 +1,5 @@
+//go:build !js
+
 package datepicker_test
 
 import (

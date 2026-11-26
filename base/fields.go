@@ -13,14 +13,17 @@ type InputSnapshot struct {
 	// the ordinary direction-dependent start alignment, which is left-to-right
 	// for Latin text. AlignRight suits a numeric field. The label, caret,
 	// selection, composition and platform editor all take the same alignment.
-	Alignment       gfx.Alignment
-	Value           string
-	DisplayValue    string
-	Placeholder     string
-	Hint            string
-	Disabled        bool
-	ReadOnly        bool
-	Invalid         bool
+	Alignment    gfx.Alignment
+	Value        string
+	DisplayValue string
+	Placeholder  string
+	Hint         string
+	Disabled     bool
+	ReadOnly     bool
+	Invalid      bool
+	// Warning paints the field with the warning border: something to look at, not a
+	// failure. Invalid wins over it.
+	Warning         bool
 	Secure          bool
 	Focused         bool
 	PlatformEditing bool

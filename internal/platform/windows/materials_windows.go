@@ -1,6 +1,10 @@
 package windows
 
-import "github.com/vivaui/viva/internal/platform"
+import (
+	"unsafe"
+
+	"github.com/vivaui/viva/internal/platform"
+)
 
 type backdropState struct {
 	backdropStyle                         platform.BackdropStyle
@@ -20,6 +24,11 @@ func (state *windowState) backdropWindowStyle() uintptr {
 		return wsExNoRedirectionBitmap
 	}
 	if state.config.WindowBackdrop != nil && nativeBackdropAPI() != backdropUnavailable {
+		return wsExNoRedirectionBitmap
+	}
+	// A transparent window is composed by DirectComposition from a premultiplied
+	// swap chain, which is what lets the clear color's alpha reach the desktop.
+	if state.config.Transparent {
 		return wsExNoRedirectionBitmap
 	}
 	return 0
@@ -80,5 +89,31 @@ func (renderer *renderer) initializeComposition(software bool) bool {
 func (renderer *renderer) releaseComposition() {
 	for _, object := range [...]*uintptr{&renderer.compositionVisual, &renderer.compositionTarget, &renderer.compositionDevice} {
 		release(object)
+	}
+}
+
+var dwmEnableBlurBehind = dwm.NewProc("DwmEnableBlurBehindWindow")
+
+// dwmBlurBehind is DWM_BLURBEHIND.
+type dwmBlurBehind struct {
+	Flags                 uint32
+	Enable                int32
+	Region                uintptr
+	TransitionOnMaximized int32
+}
+
+// applyTransparent lets the swap chain's alpha reach the desktop. Without a
+// DWM composition attribute the window is composed against an opaque white
+// sheet; an enabled blur-behind with an empty region turns that sheet off and
+// blurs nothing.
+func (state *windowState) applyTransparent() {
+	if !state.config.Transparent || !state.renderer.composition || dwmEnableBlurBehind.Find() != nil {
+		return
+	}
+	empty, _, _ := createRectRgn.Call(0, 0, ^uintptr(0), ^uintptr(0))
+	blur := dwmBlurBehind{Flags: 1 | 2, Enable: 1, Region: empty} // DWM_BB_ENABLE | DWM_BB_BLURREGION
+	dwmEnableBlurBehind.Call(state.window, uintptr(unsafe.Pointer(&blur)))
+	if empty != 0 {
+		deleteObject.Call(empty)
 	}
 }

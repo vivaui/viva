@@ -25,3 +25,10 @@ func useEditMenu() {
 		base.ClipboardText, base.SetClipboardText = app.ClipboardText, app.SetClipboardText
 	})
 }
+
+// SetClipboardText puts text on the system clipboard, for a button that copies a
+// value (a fingerprint, a command): call it where the press is read. It returns the
+// platform's error when the clipboard cannot be written.
+//
+//	if ui.Button(c, "Copy").Clicked() { _ = ui.SetClipboardText(m.fingerprint) }
+func SetClipboardText(text string) error { return app.SetClipboardText(text) }

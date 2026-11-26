@@ -37,7 +37,7 @@ func PaintInput(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, snapshot I
 	}
 
 	focused := snapshot.Focused || !snapshot.ID.IsZero() && canvas.Focused() == snapshot.ID
-	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Disabled: snapshot.Disabled})
+	paintTextEntrySurface(canvas, &theme, bounds, gfx.State{Focused: focused, Invalid: snapshot.Invalid, Warning: snapshot.Warning, Disabled: snapshot.Disabled})
 	inset := theme.Metrics.TextInsetX()
 	content := gfx.Rect{X: bounds.X + inset, Y: bounds.Y, Width: inputMax(0, bounds.Width-2*inset), Height: bounds.Height}
 	paintInputContent(canvas, theme, bounds, content, snapshot, focused)
@@ -350,10 +350,11 @@ func textEntryDark(theme *gfx.Theme) bool { return theme.Background.Red < 0.5 }
 //   - border-input and a transparent fill, dark:bg-input/30 (hover input/50);
 //   - focus: the border alone turns the accent color; there is no halo around
 //     the control, which would wash the field and crowd its neighbors;
-//   - invalid: border-destructive, which also wins over the focus color;
+//   - invalid: border-destructive, which also wins over the focus color; warning is
+//     the same with the theme's warning color, and invalid wins over it;
 //   - disabled: opacity-50 on all of it.
 //
-// Only Hovered, Focused, Invalid and Disabled of state are read. It is a pure function:
+// Only Hovered, Focused, Invalid, Warning and Disabled of state are read. It is a pure function:
 // the same theme and state give the same look, and nothing is painted.
 func TextEntryRecipe(theme gfx.Theme, state gfx.State) TextEntryLook {
 	return textEntryRecipe(&theme, state)
@@ -395,6 +396,8 @@ func textEntryTokens(theme *gfx.Theme, state gfx.State) (border, fill gfx.Color)
 	}
 	if state.Invalid {
 		border = theme.Danger
+	} else if state.Warning {
+		border = theme.WarningColor()
 	}
 	if state.Disabled {
 		border.Alpha *= 0.50

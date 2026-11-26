@@ -25,6 +25,15 @@ func (file FileRef) Name() string {
 	return file.ref.Name()
 }
 
+// Path is the file's absolute path on a native target, and empty where the
+// platform grants access to the contents only, as a browser does.
+func (file FileRef) Path() string {
+	if located, ok := file.ref.(interface{ Path() string }); ok {
+		return located.Path()
+	}
+	return ""
+}
+
 // Size is the file's length in bytes.
 func (file FileRef) Size() int64 {
 	if file.ref == nil {

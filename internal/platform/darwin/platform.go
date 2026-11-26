@@ -494,6 +494,10 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 		return nil, nativeStatusError(C.viva_application_last_status())
 	}
 	application.windows++
+	if config.Transparent && config.OnTransparentChange != nil {
+		// The Metal layer and the window turn non-opaque for any clear alpha below one.
+		config.OnTransparentChange(config.ClearColor.Alpha < 1)
+	}
 	setApplicationIcon(config.Icon)
 	if config.SetFrameInterval != nil {
 		// Metal's nextDrawable blocks once both drawables are in flight, so the
