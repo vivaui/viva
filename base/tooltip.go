@@ -21,12 +21,23 @@ func (b Box) OverflowTooltip(text string) Box {
 	return b
 }
 
-// HoveredText returns this page's visible truncation hint under the pointer.
+// HoveredText returns this page's visible truncation hint under the pointer, as
+// the page's last paint or pointer event found it.
 func (p *Page) HoveredText() gfx.HoverHint {
-	if p == nil || !p.pointerIn || p.View.Frame == nil || p.View.Frame.Surface == nil {
+	if p == nil {
 		return gfx.HoverHint{}
 	}
-	return p.View.Frame.Surface.HoverHintAt(p.root, p.pointer.X, p.pointer.Y)
+	return p.hoverText
+}
+
+// hoverTextOn looks up the page's hint under the pointer among those surface
+// holds. A page looks once per paint, before the tooltip, and once per pointer
+// event; HoveredText returns what it found.
+func (p *Page) hoverTextOn(surface *gfx.Canvas) gfx.HoverHint {
+	if !p.pointerIn || surface == nil {
+		return gfx.HoverHint{}
+	}
+	return surface.HoverHintAt(p.root, p.pointer.X, p.pointer.Y)
 }
 
 // PointerDown reports a held pointer button, including a press on plain text.

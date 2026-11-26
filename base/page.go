@@ -318,7 +318,7 @@ type Page struct {
 	pointer     gfx.Point             // where the pointer was at the last pointer event
 	pointerIn   bool                  // a pointer event put it there, and no exit has taken it away
 	hoverArea   gfx.ID                // the scroll area or self-scrolling table the pointer is on
-	hoverText   gfx.HoverHint         // changes wake a page even when text has no pointer target
+	hoverText   gfx.HoverHint         // the hint under the pointer at the last paint or pointer event; changes wake a page even when text has no pointer target
 	pointerDown bool
 	selects     []*SelectState // the Selects of the last paint, which Wheel scrolls
 	labels      []string       // scratch for Choice's labels
@@ -615,7 +615,10 @@ func (p *Page) onPointer(event gfx.PointerEvent) gfx.EventResult {
 		p.hoverArea = p.hoverPlaceAt(p.pointer.X, p.pointer.Y)
 	}
 	entered := wasArea != p.hoverArea
-	text := p.HoveredText()
+	var text gfx.HoverHint
+	if p.View.Frame != nil {
+		text = p.hoverTextOn(p.View.Frame.Surface)
+	}
 	textChanged := !text.SameText(p.hoverText)
 	p.hoverText = text
 	var result gfx.EventResult
@@ -883,7 +886,6 @@ func (p *Page) paintOnce(Surface *gfx.Canvas, bounds Rect, View func(C)) {
 	View(&p.ctx)
 	p.declareEditMenus(&p.ctx)
 	f.End()
-	p.hoverText = p.HoveredText()
 	if p.settleContainers() {
 		p.retry = true
 	}

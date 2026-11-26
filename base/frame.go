@@ -461,6 +461,9 @@ func (f *Frame) End() {
 	if f.popupLayer != 0 {
 		f.Surface.PopLayer()
 	}
+	if f.page != nil {
+		f.page.hoverText = f.page.hoverTextOn(f.Surface)
+	}
 	if f.tooltips || f.page != nil {
 		f.paintTooltip()
 	} else if f.paintTooltipFn != nil {
