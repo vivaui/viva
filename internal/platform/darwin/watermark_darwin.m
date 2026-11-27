@@ -39,7 +39,7 @@ static void watermarkReleaseTile(void *info) {
 // 8-bit components, so use bounded linear sRGB to match the canvas color values.
 static CGContextRef watermarkCreateTileContext(size_t width, size_t height) {
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceLinearSRGB);
-    CGContextRef context = CGBitmapContextCreate(NULL, width, height, 8, 0, space, kCGImageAlphaPremultipliedLast);
+    CGContextRef context = CGBitmapContextCreate(NULL, width, height, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(space);
     return context;
 }
