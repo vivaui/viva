@@ -377,6 +377,8 @@ jobs:
       # on Windows.
       - name: directory picker initial location
         run: go test ./internal/platform/windows ./app -run '^Test(FileDialogInitialDirectory|DriverInterceptsOpenDirectory)$' -count=1 -v
+      - name: Native directory watches
+        run: go test ./internal/filewatch -count=1 -timeout=1m
       - name: Material contracts and controls (WARP)
         run: go test ./internal/platform/windows ./ui ./components ./headless ./app -run 'Test(Backdrop|WindowBackdrop|OpeningMaximized|Notification|TaskbarCreated|CompositionClear|CompositionFallback|CompositionCreation|CustomBackdrop|AcrylicAccent|LegacyAcrylic|RoundedOutline|Translucent|MonospaceFamilies|FontWeights|(The)?MonoWeights|(The)?InterfaceWeights|EveryListedFamilyResolves|EngineReportsTheFontsUnderline|AlwaysOnTop|SaveDialogCheckbox|FileIcon|NativeStructureABI|ResizePresents|WindowSwapChain|LiveResize|FlipWindowResize|RedrawWaits|ContinuousRedraw|NoOpFrame|SameSize|ZeroSize|ResizeTimer|RedrawQueue|NativeRedrawMessage|CompositionSupersededFrame|DragPreview|QueuedMenuKeysLeaveTerminalCompositionWithItsOwner|MenuKeysPreserveSystemChordsAndShift|TerminalMenuStopsCapturingWhenWindowLosesFocus|DisabledIMEOffersMenuShortcutDuringComposition)' -count=1 -v
       - name: Offscreen incremental frame pixels
