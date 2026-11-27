@@ -10,6 +10,91 @@ import (
 	"github.com/vivaui/viva/internal/platform/darwin"
 )
 
+func TestCodeEditorCoreTextCarriesBidiOverrideAcrossSoftBreak(t *testing.T) {
+	testCodeEditorBidiOverrideAcrossSoftBreak(t, darwin.SharedTextEngine())
+}
+
+func TestCodeEditorCoreTextShapesShortRowsOfLongParagraph(t *testing.T) {
+	const prefix = "\u05d0\u05d1 "
+	f := newCodeFixture(prefix + strings.Repeat("abc ", 1200))
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionRTL
+	f.bounds.Width = f.widthFor(24)
+	f.paint()
+	if at, ok := f.editor.MoveHorizontal(f.snapshot.Value, 0, false); !ok || at != 2 {
+		t.Fatalf("visual Left on the first short row = %d, %t; want the next Hebrew boundary at byte 2", at, ok)
+	}
+	row := f.editor.rows[1]
+	if _, ok := f.editor.MoveHorizontal(f.snapshot.Value, int(row.start), true); !ok {
+		t.Fatal("a Latin continuation lost the paragraph's forced RTL layout")
+	}
+}
+
+func TestCodeEditorCoreTextKeepsLongUnwrappedBidiGeometry(t *testing.T) {
+	value := strings.Repeat("\u05d0\u05d1", 2048) + "abc"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionRTL
+	f.paint()
+	before, shown := f.editor.CaretBounds()
+	if !shown || f.editor.ScrollX() < f.editor.MaxScrollX()/2 {
+		t.Fatalf("RTL line start did not reveal the right end: caret %+v, scroll %g of %g", before, f.editor.ScrollX(), f.editor.MaxScrollX())
+	}
+	if at, ok := f.editor.MoveHorizontal(value, 0, false); !ok || at != 2 {
+		t.Fatalf("Left on the long RTL line = %d, %v; want byte 2", at, ok)
+	}
+	f.snapshot.Caret = 2
+	f.paint()
+	after, shown := f.editor.CaretBounds()
+	if !shown || after.X >= before.X {
+		t.Fatalf("Left moved from %+v to %+v", before, after)
+	}
+}
+
+func TestCodeEditorCoreTextVisibleSymbolsKeepRTLGeometry(t *testing.T) {
+	const line = "\u05d0 \t\u05d1"
+	f := newCodeFixture(line + "\n\n")
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Direction = true, gfx.DirectionRTL
+	marker := gfx.RGB(33, 104, 171)
+	f.snapshot.InvisibleColor = marker
+	f.paint()
+	before, ok := f.editor.CaretBounds()
+	if !ok || before.X <= f.bounds.X+f.bounds.Width/2 {
+		t.Fatalf("expected a right-aligned RTL caret: %+v", before)
+	}
+	rowLabel := f.canvas.Texts()[0].Bounds
+	f.snapshot.ShowWhitespace, f.snapshot.ShowEOL = true, true
+	f.paint()
+	if caret, shown := f.editor.CaretBounds(); !shown || !near(caret.X, before.X) {
+		t.Fatalf("showing symbols moved the RTL caret from %+v to %+v", before, caret)
+	}
+	marks := f.fills(marker)
+	if len(marks) != 4 {
+		t.Fatalf("wanted one space dot and one tab arrow: %+v", marks)
+	}
+	for _, mark := range marks {
+		if mark.X <= rowLabel.X || mark.X+mark.Width >= rowLabel.X+rowLabel.Width {
+			t.Fatalf("whitespace mark painted outside the shaped run: %+v, row %+v", mark, rowLabel)
+		}
+	}
+	if marks[2].X >= marks[1].X+marks[1].Width/2 || marks[3].X != marks[2].X {
+		t.Fatalf("tab arrow does not point left: %+v", marks[1:])
+	}
+	var endings []gfx.Rect
+	for _, label := range f.canvas.Texts() {
+		if label.Value == "LF" {
+			endings = append(endings, label.Bounds)
+		}
+	}
+	if len(endings) != 2 || endings[0].X+endings[0].Width >= rowLabel.X || !near(endings[1].X+endings[1].Width, before.X-2) {
+		t.Fatalf("expected left-side LF markers for the text and empty rows: %+v", endings)
+	}
+	if caret, handled := f.editor.MoveHorizontal(f.snapshot.Value, 0, false); !handled || caret != 2 {
+		t.Fatalf("visible symbols changed visual Left: %d, %t", caret, handled)
+	}
+}
+
 func TestCodeEditorShapedHighlightSkipsClipsOutsideTheViewport(t *testing.T) {
 	const count = 120
 	const letter = "\u05d0"
@@ -204,4 +289,65 @@ func TestCodeEditorCoreTextWrapInheritsLTRBeforeHebrew(t *testing.T) {
 	if !label || !marker {
 		t.Errorf("inherited LTR label=%t, wrap marker=%t; both should paint", label, marker)
 	}
+}
+
+func TestCodeEditorCoreTextSwitchesParagraphDirection(t *testing.T) {
+	const value = "a \u05d0\u05d1"
+	f := newCodeFixture(value)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi = true
+	f.paint()
+	auto, ok := f.editor.CaretBounds()
+	if !ok {
+		t.Fatal("automatic caret missing")
+	}
+	f.snapshot.Direction = gfx.DirectionRTL
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) != 1 || labels[0].Value != "\u200f"+value {
+		t.Fatalf("forced RTL did not change the fitted paragraph: %+v", labels)
+	}
+	rtl, ok := f.editor.CaretBounds()
+	if !ok || rtl.X <= auto.X {
+		t.Fatalf("paragraph direction did not update the caret: auto=%+v RTL=%+v", auto, rtl)
+	}
+	if at, ok := f.editor.OffsetAt(gfx.Point{X: rtl.X + 0.25, Y: rtl.Y + rtl.Height/2}); !ok || at != 0 {
+		t.Errorf("clicked visual start = %d, %t; want the original byte 0", at, ok)
+	}
+	f.snapshot.Direction = gfx.DirectionLTR
+	f.paint()
+	if ltr, ok := f.editor.CaretBounds(); !ok || ltr != auto {
+		t.Errorf("switch back to LTR returned stale caret %+v, %t; want %+v", ltr, ok, auto)
+	}
+}
+
+func TestCodeEditorCoreTextForcedLTRAppliesToEveryWrappedRow(t *testing.T) {
+	const first, second = "\u05d0\u05d1 ", "\u05d2\u05d3"
+	f := newCodeFixture(first + second)
+	f.canvas.SetTextEngine(darwin.SharedTextEngine())
+	f.snapshot.ShapedBidi, f.snapshot.Wrap, f.snapshot.Direction = true, true, gfx.DirectionLTR
+	f.bounds.Width = f.widthFor(3)
+	f.paint()
+	labels := f.canvas.Texts()
+	if len(labels) != 2 || labels[0].Value != "\u200e"+first || labels[1].Value != "\u200e"+second {
+		t.Fatalf("wrapped rows did not use the forced direction: %+v", labels)
+	}
+	for _, row := range f.editor.rows {
+		carets := f.editor.shapedRow(row)
+		if len(carets) == 0 || carets[0].Offset != 0 || carets[len(carets)-1].Offset != int(row.end-row.start) {
+			t.Errorf("direction mark escaped into source offsets: %+v", carets)
+		}
+	}
+}
+
+func TestCodeEditorCoreTextRTLAlignsPaintAndPlacement(t *testing.T) {
+	testCodeEditorRTLAlignsPaintAndPlacement(t, darwin.SharedTextEngine())
+}
+
+func TestCodeEditorCoreTextRTLKeyboardSelectionAcrossWrap(t *testing.T) {
+	testCodeEditorRTLKeyboardSelectionAcrossWrap(t, darwin.SharedTextEngine())
+}
+
+func TestCodeEditorCoreTextRTLWithDefaultEditorDecorations(t *testing.T) {
+	testCodeEditorRTLWithDefaultEditorDecorations(t, darwin.SharedTextEngine())
 }

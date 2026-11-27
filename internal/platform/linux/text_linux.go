@@ -15,6 +15,7 @@ import (
 	"github.com/ebitengine/purego"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
+	"github.com/vivaui/viva/internal/textmetrics"
 	"github.com/vivaui/viva/text"
 )
 
@@ -23,6 +24,9 @@ const pangoScale = 1024
 type pangoRectangle struct {
 	X, Y, Width, Height int32
 }
+
+// cairo_matrix_t fields: xx, yx, xy, yy, x0, y0.
+var fittedItalicMatrix = [6]float64{1, 0, -0.2, 1, 0, 0}
 
 type textServices struct {
 	pango, pangoCairo, cairo, gobject uintptr
@@ -87,6 +91,7 @@ type textServices struct {
 	cairoStroke               func(uintptr)
 	cairoScale                func(uintptr, float64, float64)
 	cairoTranslate            func(uintptr, float64, float64)
+	cairoTransform            func(uintptr, *[6]float64)
 	updateLayout              func(uintptr, uintptr)
 	showLayout                func(uintptr, uintptr)
 
@@ -180,6 +185,7 @@ func loadTextAPI() (*textServices, error) {
 	purego.RegisterLibFunc(&services.cairoStroke, services.cairo, "cairo_stroke")
 	purego.RegisterLibFunc(&services.cairoScale, services.cairo, "cairo_scale")
 	purego.RegisterLibFunc(&services.cairoTranslate, services.cairo, "cairo_translate")
+	purego.RegisterLibFunc(&services.cairoTransform, services.cairo, "cairo_transform")
 	purego.RegisterLibFunc(&services.fontOptionsCreate, services.cairo, "cairo_font_options_create")
 	purego.RegisterLibFunc(&services.fontOptionsDestroy, services.cairo, "cairo_font_options_destroy")
 	purego.RegisterLibFunc(&services.fontOptionsAntialias, services.cairo, "cairo_font_options_set_antialias")
@@ -681,7 +687,10 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 			// Shape the run as one line and scale it to the cells it spans, so
 			// the font's ligatures survive without moving later runs off their
 			// columns.
-			metrics, err = services.configureLayout(piece, family, label.FontSize*scale, run.Weight, run.Italic)
+			// A bidi row may be painted through several style clips. Its italic
+			// glyphs must keep the upright layout that defines those clips.
+			slant := run.Italic && !printableASCII(piece) && textmetrics.Bidirectional(piece)
+			metrics, err = services.configureLayout(piece, family, label.FontSize*scale, run.Weight, run.Italic && !slant)
 			if err != nil {
 				services.cairoRestore(context)
 				return err
@@ -690,6 +699,9 @@ func (services *textServices) drawRuns(context uintptr, label platform.TextLabel
 				services.cairoSave(context)
 				services.cairoTranslate(context, left, baseline)
 				services.cairoScale(context, span/float64(metrics.Width), 1)
+				if slant {
+					services.cairoTransform(context, &fittedItalicMatrix)
+				}
 				services.cairoMoveTo(context, 0, -float64(metrics.Ascent))
 				// Draw the measured layout: updating it under this transform reshapes
 				// its metrics and leaks the scaled matrix into subsequent runs.
