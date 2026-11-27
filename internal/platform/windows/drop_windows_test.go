@@ -251,3 +251,59 @@ func TestAWindowThatRefusesFilesShowsTheNoDropCursor(t *testing.T) {
 		t.Fatalf("a refusing point answered effect %d", effect)
 	}
 }
+
+func TestDropTargetCallbacksGuardNullPointersAndDetachedState(t *testing.T) {
+	if got := dropQueryInterface(0, 0, 0); got != ePointer {
+		t.Fatalf("QueryInterface with nil out pointer = %#x, want E_POINTER (%#x)", got, ePointer)
+	}
+	out := uintptr(0xdeadbeef)
+	if got := dropQueryInterface(0, uintptr(unsafe.Pointer(&iidDropTarget)), uintptr(unsafe.Pointer(&out))); got != eNoInterface || out != 0 {
+		t.Fatalf("QueryInterface with nil this = (%#x, out=%#x), want (E_NOINTERFACE, 0)", got, out)
+	}
+	target := &dropTarget{refs: 1}
+	targetPtr := uintptr(unsafe.Pointer(target))
+	out = uintptr(0xdeadbeef)
+	if got := dropQueryInterface(targetPtr, 0, uintptr(unsafe.Pointer(&out))); got != eNoInterface || out != 0 {
+		t.Fatalf("QueryInterface with nil riid = (%#x, out=%#x), want (E_NOINTERFACE, 0)", got, out)
+	}
+	if got := dropAddRef(0); got != 0 {
+		t.Fatalf("AddRef(0) = %d, want 0", got)
+	}
+	if got := dropRelease(0); got != 0 {
+		t.Fatalf("Release(0) = %d, want 0", got)
+	}
+	if got := dropDragEnter(0, 0, 0, 0, 0); got != eFail {
+		t.Fatalf("DragEnter(0) = %#x, want E_FAIL", got)
+	}
+	if got := dropDragOver(0, 0, 0, 0); got != eFail {
+		t.Fatalf("DragOver(0) = %#x, want E_FAIL", got)
+	}
+	if got := dropDragLeave(0); got != eFail {
+		t.Fatalf("DragLeave(0) = %#x, want E_FAIL", got)
+	}
+	if got := dropDrop(0, 0, 0, 0, 0); got != eFail {
+		t.Fatalf("Drop(0) = %#x, want E_FAIL", got)
+	}
+	if paths := filesOf(0); len(paths) != 0 {
+		t.Fatalf("filesOf(0) = %q, want empty", paths)
+	}
+	if paths := droppedPaths(0); len(paths) != 0 {
+		t.Fatalf("droppedPaths(0) = %q, want empty", paths)
+	}
+	// A detached dropTarget (nil state or closed window) and a null effect
+	// pointer must not panic during DragEnter/DragOver/Drop.
+	data := &fakeDataObject{table: &fakeDataTable, drop: buildDrop(t, false, 0, 0, `C:\Temp\one.txt`)}
+	dataPtr := uintptr(unsafe.Pointer(data))
+	if got := dropDragEnter(targetPtr, dataPtr, 0, 0, 0); got != sOK {
+		t.Fatalf("DragEnter on detached target = %#x, want S_OK", got)
+	}
+	if got := dropDragOver(targetPtr, 0, 0, 0); got != sOK {
+		t.Fatalf("DragOver on detached target = %#x, want S_OK", got)
+	}
+	if got := dropDrop(targetPtr, dataPtr, 0, 0, 0); got != sOK {
+		t.Fatalf("Drop on detached target with nil effect = %#x, want S_OK", got)
+	}
+	if got := dropDragLeave(targetPtr); got != sOK {
+		t.Fatalf("DragLeave on detached target = %#x, want S_OK", got)
+	}
+}
