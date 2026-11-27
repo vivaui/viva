@@ -32,6 +32,9 @@ func codeCells(r rune, column, tabWidth int) int {
 	if r == '\t' {
 		return tabWidth - column%tabWidth
 	}
+	if codeBidiControl(r) {
+		return 0
+	}
 	return text.CellWidth(r)
 }
 
@@ -172,6 +175,14 @@ func (editor *CodeEditor) fitWithRepresentations(value string, cols int, wrap bo
 		if editor.text == value || editor.refit(value) {
 			return
 		}
+	}
+	if s := editor.shaping; s != nil {
+		// A refit invalidates row geometry, not the caret the viewport last
+		// followed. Keep the previous direction for configureShaping to compare.
+		clear(s.rows)
+		s.rowBytes = 0
+		s.hitValid = false
+		editor.goalActive = false
 	}
 	editor.fitted, editor.cols, editor.wrap, editor.tabWidth, editor.text = true, cols, wrap, tabWidth, value
 	editor.foldInput = append(editor.foldInput[:0], folds...)

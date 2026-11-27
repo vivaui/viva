@@ -143,15 +143,14 @@ type CodeEditorSnapshot struct {
 	// MonoFace is the fixed-pitch font the code is set in.
 	MonoFace gfx.MonoFace
 	// ShapedBidi opts grid rows into native bidi shaping where available.
-	// Representations and visual whitespace/indent markers still use the logical
-	// grid, as do editors with custom decorations. A row over 4096 bytes keeps
-	// the grid, and a platform whose text engine cannot shape a fitted
-	// monospaced run draws the grid unchanged. A wrapped continuation takes its
-	// paragraph's base direction, not the full bidi levels a strong context
-	// before the break could give it; an explicit embedding or isolate keeps the
-	// grid.
+	// Rows with represented characters use the logical grid, as do editors
+	// showing whitespace or line endings.
 	// Horizontal movement remains caller-owned.
 	ShapedBidi bool
+	// Direction sets the paragraph direction for shaped rows. Auto takes it
+	// from each logical line. RTL aligns shaped and empty rows to the right.
+	// It does not change the gutter or keyboard policy.
+	Direction gfx.TextDirection
 	// TabWidth is the width of a tab stop in cells; zero is four.
 	TabWidth int
 	// Wrap folds a line longer than the box onto several rows. Without it each
@@ -1092,9 +1091,12 @@ func (paint *codePaint) row(index int, y float32) {
 	if paint.showWhitespace {
 		paint.whitespace(row, y, left)
 	}
-	if paint.showEOL && !editor.softWrapped(index) && rowEnd < len(paint.value) &&
-		(paint.value[rowEnd] == '\n' || paint.value[rowEnd] == '\r' && rowEnd+1 < len(paint.value) && paint.value[rowEnd+1] == '\n') {
-		paint.lineEnding(row, y, left)
+	if paint.showEOL && paint.endsWithLineBreak(index, rowEnd) {
+		if rowStart == rowEnd && editor.shaping != nil && editor.shaping.direction == gfx.DirectionRTL {
+			paint.lineEnding(row, y, left+editor.shapedRowInset(row), true)
+		} else {
+			paint.lineEnding(row, y, left+float32(row.cells)*paint.cellWidth, false)
+		}
 	}
 	if !editor.softWrapped(index) && editor.isFoldHeader(int(row.line)) {
 		paint.foldBadge(row, y, left)
@@ -1163,9 +1165,10 @@ func (paint *codePaint) overlays(index int, y float32) {
 	left := editor.content.X - editor.scrollX
 	if paint.compositionEnd > paint.compositionStart && paint.compositionStart <= rowEnd && paint.compositionEnd >= rowStart {
 		if carets := editor.shapedRow(row); len(carets) != 0 {
+			shapedLeft := left + editor.shapedRowInset(row)
 			paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, paint.compositionStart-rowStart, paint.compositionEnd-rowStart)
 			for _, span := range paint.shapedSpans {
-				canvas.Fill(gfx.Rect{X: left + span.X, Y: y + paint.lineHeight - 3, Width: span.Width, Height: 1}, paint.foreground)
+				canvas.Fill(gfx.Rect{X: shapedLeft + span.X, Y: y + paint.lineHeight - 3, Width: span.Width, Height: 1}, paint.foreground)
 			}
 		} else {
 			walker := columnWalker{editor: editor, row: row, at: rowStart}
@@ -1284,23 +1287,37 @@ func (paint *codePaint) whitespace(row codeRow, y, left float32) {
 		width := displayCellsFor(character, column, paint.editor.tabWidth, representation, represented)
 		if !represented && column+width >= paint.firstColumn && column <= paint.lastColumn {
 			x := left + float32(column)*paint.cellWidth
-			centerY := y + paint.lineHeight/2
-			switch character {
-			case ' ':
-				paint.canvas.Rounded(gfx.Rect{X: x + paint.cellWidth/2 - 1, Y: centerY - 1, Width: 2, Height: 2}, 1, paint.invisibleColor)
-			case '\t':
-				end := x + float32(width)*paint.cellWidth - 3
-				paint.canvas.Fill(gfx.Rect{X: x + 2, Y: centerY, Width: max(1, end-x-2), Height: 1}, paint.invisibleColor)
-				paint.canvas.Fill(gfx.Rect{X: end - 2, Y: centerY - 2, Width: 2, Height: 1}, paint.invisibleColor)
-				paint.canvas.Fill(gfx.Rect{X: end - 2, Y: centerY + 2, Width: 2, Height: 1}, paint.invisibleColor)
-			}
+			paint.whitespaceMark(character, y, x, x+float32(width)*paint.cellWidth)
 		}
 		column += width
 		at += size
 	}
 }
 
-func (paint *codePaint) lineEnding(row codeRow, y, left float32) {
+func (paint *codePaint) whitespaceMark(character rune, y, leading, trailing float32) {
+	centerY := y + paint.lineHeight/2
+	switch character {
+	case ' ':
+		paint.canvas.Rounded(gfx.Rect{X: (leading+trailing)/2 - 1, Y: centerY - 1, Width: 2, Height: 2}, 1, paint.invisibleColor)
+	case '\t':
+		left, right := leading+2, trailing-3
+		head := right - 2
+		if leading > trailing {
+			left, right = trailing+3, leading-2
+			head = left
+		}
+		paint.canvas.Fill(gfx.Rect{X: left, Y: centerY, Width: max(1, right-left), Height: 1}, paint.invisibleColor)
+		paint.canvas.Fill(gfx.Rect{X: head, Y: centerY - 2, Width: 2, Height: 1}, paint.invisibleColor)
+		paint.canvas.Fill(gfx.Rect{X: head, Y: centerY + 2, Width: 2, Height: 1}, paint.invisibleColor)
+	}
+}
+
+func (paint *codePaint) endsWithLineBreak(index, end int) bool {
+	return !paint.editor.softWrapped(index) && end < len(paint.value) &&
+		(paint.value[end] == '\n' || paint.value[end] == '\r' && end+1 < len(paint.value) && paint.value[end+1] == '\n')
+}
+
+func (paint *codePaint) lineEnding(row codeRow, y, edge float32, rtl bool) {
 	label := paint.eolLabel
 	if int(row.line) < len(paint.eolLabels) && paint.eolLabels[row.line] != "" {
 		label = paint.eolLabels[row.line]
@@ -1308,10 +1325,15 @@ func (paint *codePaint) lineEnding(row codeRow, y, left float32) {
 	if label == "" {
 		label = "LF"
 	}
+	width := float32(len(label)) * paint.cellWidth
+	x := edge + 2
+	if rtl {
+		x = edge - 2 - width
+	}
 	paint.canvas.Label(label, gfx.Rect{
-		X:      left + float32(row.cells)*paint.cellWidth + 2,
+		X:      x,
 		Y:      y + (paint.lineHeight-paint.cellHeight)/2,
-		Width:  float32(len(label)) * paint.cellWidth,
+		Width:  width,
 		Height: paint.cellHeight,
 	}, gfx.TextStyle{Size: paint.size * 0.75, Color: paint.invisibleColor, Mono: true, MonoFace: paint.face})
 }

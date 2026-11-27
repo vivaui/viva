@@ -110,6 +110,45 @@ func TestCodeEditorIndicatorSpansUseTextGeometry(t *testing.T) {
 	}
 }
 
+func TestCodeEditorIndicatorsUseShapedSpansAndIgnoreHitAffinity(t *testing.T) {
+	f := newCodeFixture("a\u05d0\u05d1z")
+	f.canvas.SetTextEngine(shapedCodeTestEngine{gfx.ReferenceTextEngine()})
+	f.snapshot.ShapedBidi = true
+	f.snapshot.ShowCaret, f.snapshot.Focused = true, true
+	underline, point, caretColor := gfx.RGB(255, 100, 8), gfx.RGB(4, 130, 100), gfx.RGB(75, 35, 130)
+	f.snapshot.CaretColor = caretColor
+	f.snapshot.Decorations = &CodeEditorDecorations{IndicatorLayers: []CodeEditorIndicatorLayer{
+		{Spans: []text.Span{{Start: 0, End: 3}}, Color: underline},
+		{Spans: []text.Span{{Start: 1, End: 1}}, Color: point, Style: CodeEditorPointBelow},
+	}}
+	f.paint()
+	cell, _, line := f.cell()
+	left, top := f.editor.content.X, f.editor.content.Y
+	fills := f.fills(underline)
+	if len(fills) != 2 || !near(fills[0].X, left+1) || !near(fills[1].X, left+2*cell+1) ||
+		!near(fills[0].Width, cell-2) || !near(fills[1].Width, cell-2) {
+		t.Fatalf("underline did not follow two disjoint shaped spans: %+v", fills)
+	}
+	f.snapshot.Caret, _ = f.editor.OffsetAt(gfx.Point{X: left + 2.9*cell, Y: top + line/2})
+	f.paint()
+	caret, ok := f.editor.CaretBounds()
+	points := decorationTriangles(f, point)
+	if !ok || f.snapshot.Caret != 1 || !near(caret.X, left+3*cell) || len(points) != 1 ||
+		!near(points[0].Points[2].X, float32(math.Round(float64(left+cell)))+0.5) {
+		t.Fatalf("hit should use the alternate edge but the point should stay at the source boundary: caret %+v, points %+v", caret, points)
+	}
+	var carets []gfx.Rectangle
+	for _, rectangle := range f.canvas.Rectangles() {
+		if rectangle.Color == caretColor {
+			carets = append(carets, rectangle)
+		}
+	}
+	labels := f.canvas.Texts()
+	if len(labels) != 1 || len(carets) != 1 || points[0].Order <= labels[0].Order || carets[0].Order <= points[0].Order {
+		t.Errorf("want text, indicator, then a single caret: %d labels, point order %d, %d carets", len(labels), points[0].Order, len(carets))
+	}
+}
+
 func decorationTriangles(fixture *codeFixture, color gfx.Color) []gfx.Triangle {
 	var result []gfx.Triangle
 	for _, triangle := range fixture.canvas.Triangles() {

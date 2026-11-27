@@ -98,6 +98,7 @@ type textEngine struct {
 	italicCache *textcache.Cache[*shapedLine]
 	hit         hitMetrics
 	ranges      [4]hitMetrics
+	fittedGrid  directRasterizer // format and fallback cache; no rendering targets
 	// family is the family the interface's text is shaped in, "" for Segoe UI,
 	// the interface font Windows ships. Guarded by mu; a change forgets the cache.
 	family string
@@ -128,6 +129,47 @@ var _ gfx.FontWeightAware = (*textEngine)(nil)
 var _ gfx.MonoWeightAware = (*textEngine)(nil)
 var _ gfx.TextRasterizer = (*textEngine)(nil)
 var _ gfx.MonoCellEngine = (*textEngine)(nil)
+var _ gfx.FittedMonoCaretEngine = (*textEngine)(nil)
+
+func (engine *textEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	if value == "" || style.Italic || !utf8.ValidString(value) || !platform.ValidFontSize(style.Size) || !platform.ValidFontSize(span) {
+		return dst, false
+	}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	grid := &engine.fittedGrid
+	grid.engine, grid.services = engine, &engine.services
+	_, format, err := grid.gridFormat(monoFamily(style.MonoFace), style.Size, style.Weight, false, grid.fontFallback(style.MonoFace))
+	if err != nil {
+		return dst, false
+	}
+	shaped, err := grid.layoutGridRun(format, value, gfx.TextRun{Ligatures: true}, 0)
+	if err != nil {
+		return dst, false
+	}
+	defer release(&shaped.layout)
+	if !platform.ValidFontSize(shaped.metrics.WidthTrailing) {
+		return dst, false
+	}
+	var scratch [64]fittedCluster
+	clusters := scratch[:0]
+	var lead, trail, y float32
+	for at := uint32(0); at < shaped.chars; {
+		hit := &engine.hit
+		*hit = hitMetrics{}
+		if err := hresult(comCall5(shaped.layout, writeHitTestTextPosition, uintptr(at), 0, uintptr(unsafe.Pointer(&lead)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(hit)))); err != nil ||
+			hit.Position != at || hit.Length == 0 || hit.Length > shaped.chars-at {
+			return dst, false
+		}
+		end := at + hit.Length
+		if err := hresult(comCall5(shaped.layout, writeHitTestTextPosition, uintptr(at), 1, uintptr(unsafe.Pointer(&trail)), uintptr(unsafe.Pointer(&y)), uintptr(unsafe.Pointer(hit)))); err != nil {
+			return dst, false
+		}
+		clusters = append(clusters, fittedCluster{end: end, leading: lead, trailing: trail})
+		at = end
+	}
+	return appendFittedClusterCarets(dst, value, clusters, shaped.fittedOrigin(), span/shaped.metrics.WidthTrailing)
+}
 
 // RasterizeText implements gfx.TextRasterizer with the same DirectWrite/Direct2D
 // path the native label renderer uses.
