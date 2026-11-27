@@ -213,7 +213,9 @@ type nativeWindow struct {
 }
 
 // reportFrame tells the application where its content area is now, in logical
-// pixels of the window's display. It reports only changes.
+// pixels of the window's display — except WindowNotification keeps its origin
+// in physical desktop pixels, matching nativeWindow.Frame and placeNotification.
+// It reports only changes.
 func (state *windowState) reportFrame() {
 	if !state.ready || state.config.OnFrameChange == nil || state.window == 0 || state.iconic() || state.zoomed() || state.fullscreen.Load() || state.fullscreenChanging || state.decoration.changing {
 		return
@@ -230,8 +232,12 @@ func (state *windowState) reportFrame() {
 	if scale <= 0 {
 		scale = 1
 	}
+	x, y := float32(origin.X), float32(origin.Y)
+	if state.config.WindowMode != platform.WindowNotification {
+		x, y = x/scale, y/scale
+	}
 	frame := gfx.Rect{
-		X: float32(origin.X) / scale, Y: float32(origin.Y) / scale,
+		X: x, Y: y,
 		Width:  float32(client.Right-client.Left) / scale,
 		Height: float32(client.Bottom-client.Top) / scale,
 	}
@@ -881,6 +887,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		state.renderer.resizeHeadroom = false
 		state.resizeTimerInterval = 0
 		state.serviceResize()
+		state.reportFrame()
 		return 0
 	case wmDPIChanged:
 		state.accessibility.setScale(state.scale)

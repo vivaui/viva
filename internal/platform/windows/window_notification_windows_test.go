@@ -152,3 +152,66 @@ func TestNotificationNativeWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReportFrameKeepsNotificationOriginInPhysicalPixels(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	class, _ := syscall.UTF16PtrFromString("STATIC")
+	handle, _, err := createWindow.Call(0, uintptr(unsafe.Pointer(class)), 0, wsPopup, 600, 450, 300, 120, 0, 0, 0, 0)
+	if handle == 0 {
+		t.Fatal(err)
+	}
+	defer destroyWindow.Call(handle)
+
+	var origin point
+	if ok, _, _ := clientToScreen.Call(handle, uintptr(unsafe.Pointer(&origin))); ok == 0 {
+		t.Fatal("ClientToScreen failed")
+	}
+	var client rect
+	if ok, _, _ := getClientRect.Call(handle, uintptr(unsafe.Pointer(&client))); ok == 0 {
+		t.Fatal("GetClientRect failed")
+	}
+
+	const scale float32 = 1.5
+	var gotNotification gfx.Rect
+	notifState := &windowState{
+		window: handle,
+		ready:  true,
+		scale:  scale,
+		config: platform.Config{
+			WindowMode: platform.WindowNotification,
+			OnFrameChange: func(frame gfx.Rect) {
+				gotNotification = frame
+			},
+		},
+	}
+	notifState.reportFrame()
+	if gotNotification.X != float32(origin.X) || gotNotification.Y != float32(origin.Y) {
+		t.Fatalf("notification reportFrame origin = (%v, %v), want physical (%d, %d)",
+			gotNotification.X, gotNotification.Y, origin.X, origin.Y)
+	}
+	wantW := float32(client.Right-client.Left) / scale
+	wantH := float32(client.Bottom-client.Top) / scale
+	if gotNotification.Width != wantW || gotNotification.Height != wantH {
+		t.Fatalf("notification reportFrame size = (%v, %v), want logical (%v, %v)",
+			gotNotification.Width, gotNotification.Height, wantW, wantH)
+	}
+
+	var gotTitled gfx.Rect
+	titledState := &windowState{
+		window: handle,
+		ready:  true,
+		scale:  scale,
+		config: platform.Config{
+			WindowMode: platform.WindowTitled,
+			OnFrameChange: func(frame gfx.Rect) {
+				gotTitled = frame
+			},
+		},
+	}
+	titledState.reportFrame()
+	if gotTitled.X != float32(origin.X)/scale || gotTitled.Y != float32(origin.Y)/scale {
+		t.Fatalf("titled reportFrame origin = (%v, %v), want logical (%v, %v)",
+			gotTitled.X, gotTitled.Y, float32(origin.X)/scale, float32(origin.Y)/scale)
+	}
+}
