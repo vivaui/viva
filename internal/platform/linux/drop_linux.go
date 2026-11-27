@@ -123,34 +123,41 @@ func (state *linuxWindowState) handleDragMessage(message *xcbClientEvent) error 
 		}
 		return err
 	case atoms.drop:
-		source := clientLong(message, 0)
+		source, timestamp := clientLong(message, 0), clientLong(message, 2)
 		drag := state.drag
 		state.drag = xdndDrag{}
 		if source != drag.source || !drag.wantsURIs {
 			win.sendDragReply(source, atoms.finished, false, 0)
 			return nil
 		}
-		text, ok, err := win.readDropSelection()
-		paths := []string(nil)
-		if err == nil && ok {
+		var paths []string
+		// A source that refuses or stalls on XdndSelection aborts this drop
+		// rather than tearing down the target window's event loop.
+		if text, ok, err := win.readDropSelection(timestamp); err == nil && ok {
 			paths = parseURIList(text)
 		}
 		accepted := false
+		var dropErr error
 		if len(paths) > 0 {
-			frame, taken, dropErr := config.OnFileDrop(platform.FileDropEvent{Phase: platform.FileDropDrop, X: drag.x, Y: drag.y, Paths: paths})
-			accepted = taken
+			var frame platform.Frame
+			frame, accepted, dropErr = config.OnFileDrop(platform.FileDropEvent{Phase: platform.FileDropDrop, X: drag.x, Y: drag.y, Paths: paths})
 			if dropErr == nil {
 				dropErr = state.router.present(frame)
 			}
-			err = dropErr
+		} else {
+			frame, _, leaveErr := config.OnFileDrop(platform.FileDropEvent{Phase: platform.FileDropLeave})
+			if leaveErr == nil {
+				leaveErr = state.router.present(frame)
+			}
+			dropErr = leaveErr
 		}
 		win.sendDragReply(source, atoms.finished, accepted, 0)
-		return err
+		return dropErr
 	}
 	return nil
 }
 
-func (win *window) readDropSelection() (string, bool, error) {
+func (win *window) readDropSelection(timestamp uint32) (string, bool, error) {
 	api, connection, requestor, selection, owner, err := openSelectionRequest("XdndSelection")
 	if err != nil {
 		return "", false, err
@@ -159,7 +166,7 @@ func (win *window) readDropSelection() (string, bool, error) {
 	if owner == xcbAtomNone {
 		return "", false, nil
 	}
-	return readSelection(api, connection, requestor, selection, win.xdnd.uriList, win.xdnd.dropProperty)
+	return readSelectionAt(api, connection, requestor, selection, win.xdnd.uriList, win.xdnd.dropProperty, timestamp)
 }
 
 // dragTypeList reads the types the source offers when there are more than three.
@@ -213,7 +220,13 @@ func (win *window) sendDragReply(source, kind uint32, accepted bool, _ uint32) {
 	binary.LittleEndian.PutUint32(event.Data[0:], win.id)
 	if accepted {
 		binary.LittleEndian.PutUint32(event.Data[4:], 1)
-		binary.LittleEndian.PutUint32(event.Data[16:], win.xdnd.actionCopy)
+		// XDND v5 places the performed action in data.l[2] of XdndFinished and
+		// the accepted action in data.l[4] of XdndStatus.
+		if kind == win.xdnd.finished {
+			binary.LittleEndian.PutUint32(event.Data[8:], win.xdnd.actionCopy)
+		} else {
+			binary.LittleEndian.PutUint32(event.Data[16:], win.xdnd.actionCopy)
+		}
 	}
 	win.api.sendEvent(win.connection, 0, source, 0, (*byte)(unsafe.Pointer(&event)))
 	win.api.flush(win.connection)
