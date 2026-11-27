@@ -588,6 +588,20 @@ type HitOptions struct {
 	Placement TextPlacement
 }
 
+// IsZero reports whether no option is set, so a caller can tell HitWith given
+// nothing from one given options. The value cannot be compared with == for
+// that, CursorImageAt being a function.
+func (options HitOptions) IsZero() bool {
+	return options.Role == 0 && options.Cursor == 0 && options.CursorImage == nil && options.CursorImageAt == nil &&
+		options.Value == "" && options.Hint == "" && !options.Disabled && !options.FocusableWhenDisabled && !options.SecondaryWhenDisabled &&
+		!options.Checked && !options.Mixed && !options.Selected && !options.Expanded && !options.Expandable && !options.Multiline && !options.ReadOnly &&
+		!options.Invalid && !options.Secure && options.Description == "" && options.Level == 0 && options.PosInSet == 0 && options.SetSize == 0 &&
+		options.Live == 0 && options.Range == (ValueRange{}) && !options.SkipFocus && !options.SkipTab && !options.Backdrop && !options.PassSecondary &&
+		!options.PassPrimary && !options.label && !options.Presentational && !options.Autofocus &&
+		options.TextBounds == (Rect{}) && options.TextSize == 0 && options.TextWeight == 0 && options.TextColor == (Color{}) && options.TextAlignment == 0 &&
+		!options.HideNativeOverlays && !options.NavigationKeys && !options.TypeAhead && options.Placement == nil
+}
+
 // TextPlacement is what a text field that lays its own rows out tells the
 // runtime about them, painted by the last frame. Offsets are byte offsets into
 // the field's Value, which must be the text it paints.

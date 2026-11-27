@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/style"
 )
 
@@ -91,7 +90,7 @@ func (f *Frame) checkAttributesOf(n *Node) {
 		if extra.hitOut != [4]float32{} && !engineHitKind(n.Kind) {
 			f.badAttribute(n, name, "HitOutset", "the pointer region grows beyond the rectangle only for the engine's own hits; this element declares its hit itself")
 		}
-		if extra.hit != (gfx.HitOptions{}) && !engineHitKind(n.Kind) && n.Kind != kindSplitter {
+		if !extra.hit.IsZero() && !engineHitKind(n.Kind) && n.Kind != kindSplitter {
 			f.badAttribute(n, name, "HitWith", "this element declares its own hit; HitWith's options do not replace it")
 		}
 	}
