@@ -63,6 +63,9 @@ const (
 	// them. Only Windows takes them; macOS and Linux file managers read files
 	// by path and cannot ask for a paste's content later.
 	CapabilityClipboardFilePromise
+	// CapabilityNotificationActivation means an application can own cancellable
+	// system notifications and receive activation while its loop is running.
+	CapabilityNotificationActivation
 )
 
 // Capabilities is a set of platform integrations.

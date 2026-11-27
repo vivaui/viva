@@ -36,6 +36,8 @@ type WindowControl interface {
 // Host is the event loop an Application runs on. The native backends provide
 // one over their platform adapters; a development runner such as package
 // headless provides one to drive an application without a window.
+// A host may additionally implement ShowNotification(Notification,
+// NotificationEvents) (NotificationControl, error) for interactive notifications.
 type Host interface {
 	// OpenWindow creates and presents a window. closed must be called exactly
 	// once, after the window has released its resources.
@@ -248,8 +250,10 @@ type Application struct {
 	// active is the window that last became the one the user works in, which is
 	// where the application menu bar's commands take effect, as a native menu's
 	// key equivalents do.
-	active    *Window
-	openedAny bool
+	active              *Window
+	openedAny           bool
+	notifications       map[*NotificationHandle]struct{}
+	notificationsClosed bool
 }
 
 // OpenWindow creates and presents one independent retained window.
@@ -434,6 +438,7 @@ func (application *Application) SetProgress(fraction float32) {
 // goroutine.
 func (application *Application) Quit() {
 	if application != nil && application.host != nil {
+		application.closeNotifications()
 		application.host.Quit()
 	}
 }

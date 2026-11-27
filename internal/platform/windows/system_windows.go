@@ -1010,12 +1010,17 @@ func dialogOwner() uintptr {
 }
 
 func copyUTF16(destination []uint16, value string) {
-	encoded := syscall.StringToUTF16(value)
-	if len(encoded) > len(destination) {
-		encoded = encoded[:len(destination)]
-		encoded[len(encoded)-1] = 0
+	if len(destination) == 0 {
+		return
 	}
-	copy(destination, encoded)
+	encoded := syscall.StringToUTF16(value)
+	count := min(len(encoded)-1, len(destination)-1)
+	// Reserve NUL and never truncate between the two halves of a surrogate pair.
+	if count > 0 && count < len(encoded)-1 && encoded[count-1] >= 0xd800 && encoded[count-1] <= 0xdbff {
+		count--
+	}
+	copy(destination, encoded[:count])
+	destination[count] = 0
 }
 
 func windowsCallError(action string, callErr error) error {

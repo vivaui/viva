@@ -99,6 +99,9 @@ int viva_system_send_notification(
     char **error_message
 );
 
+int viva_system_show_interactive_notification(const char *identifier, const char *title, const char *body, char **error_message);
+void viva_system_remove_notification(const char *identifier);
+
 void viva_system_free(void *memory);
 void viva_system_free_string_array(viva_system_string_array values);
 
