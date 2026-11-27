@@ -263,8 +263,11 @@ func TestStoreKeepsPlaceWhenAShapeChangesKind(t *testing.T) {
 		t.Fatalf("kind change update = %+v", update)
 	}
 	if got := store.Rectangles()[1]; got.ID != flip || got.Kind != scene.KindTriangle || got.Points != points || got.Bounds != (scene.Rect{}) ||
-		got.EdgeMask != 3 || got.Coverage == nil || *got.Coverage != coverage {
+		got.EdgeMask != 3 {
 		t.Fatalf("flipped shape = %+v", got)
+	}
+	if got, ok := store.Rectangles()[1].StrokeCoverage(); !ok || got != coverage {
+		t.Fatalf("retained coverage = %v, want %+v", got, coverage)
 	}
 	updatedCoverage := coverage
 	if graph.SetTriangle(flip, points, color, 3, scene.Shade{}, &updatedCoverage) {
@@ -275,14 +278,14 @@ func TestStoreKeepsPlaceWhenAShapeChangesKind(t *testing.T) {
 	if update, err := store.Apply(graph.DrainChanges(nil)); err != nil || update != (Update{First: 1, Count: 1}) {
 		t.Fatalf("coverage update = %+v, error = %v", update, err)
 	}
-	if got := store.Rectangles()[1].Coverage; got == nil || *got != updatedCoverage {
+	if got, ok := store.Rectangles()[1].StrokeCoverage(); !ok || got != updatedCoverage {
 		t.Fatalf("retained coverage = %v, want %+v", got, updatedCoverage)
 	}
 	graph.SetRoundedRectangle(flip, scene.Rect{X: 8}, scene.Color{}, 3)
 	if _, err := store.Apply(graph.DrainChanges(nil)); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.Rectangles()[1]; got.Kind != scene.KindRectangle || got.Bounds.X != 8 || got.Radius != 3 || got.Coverage != nil {
+	if got := store.Rectangles()[1]; got.Kind != scene.KindRectangle || got.Bounds.X != 8 || got.Radius != 3 || got.hasStrokeCoverage {
 		t.Fatalf("flipped back = %+v", got)
 	}
 }

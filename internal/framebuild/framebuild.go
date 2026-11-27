@@ -572,9 +572,11 @@ func min32(a, b float32) float32 {
 func (builder *Builder) drawnBy(stored *render.Rectangle, ref shapeRef) bool {
 	if ref.triangle {
 		triangle := &builder.clippedPaths[ref.index]
+		coverage, hasCoverage := stored.StrokeCoverage()
 		return stored.Kind == scene.KindTriangle && stored.Color == scene.Color(triangle.Color) &&
-			stored.EdgeMask == triangle.EdgeMask && stored.Shade == sceneShade(*triangle) &&
-			strokeCoverageMatches(stored.Coverage, triangle.Coverage) &&
+			stored.EdgeMask == triangle.EdgeMask && stored.Shade.On == triangle.Shaded &&
+			(!triangle.Shaded || stored.Shade == sceneShade(*triangle)) &&
+			strokeCoverageMatches(coverage, hasCoverage, triangle.Coverage) &&
 			stored.Points[0] == scene.Point(triangle.Points[0]) &&
 			stored.Points[1] == scene.Point(triangle.Points[1]) &&
 			stored.Points[2] == scene.Point(triangle.Points[2])
@@ -653,8 +655,9 @@ func (builder *Builder) syncShapes() {
 // setShape makes an existing node draw a shape, whatever it drew before.
 func (builder *Builder) setShape(id scene.ID, ref shapeRef) {
 	if ref.triangle {
-		value := SceneTriangle(builder.clippedPaths[ref.index])
-		builder.graph.SetTriangle(id, value.Points, value.Color, value.EdgeMask, value.Shade, value.Coverage)
+		triangle := builder.clippedPaths[ref.index]
+		value := sceneTriangleGeometry(triangle)
+		builder.graph.SetTriangle(id, value.Points, value.Color, value.EdgeMask, value.Shade, sceneStrokeCoverage(triangle.Coverage))
 		return
 	}
 	if ref.shadow {
@@ -668,8 +671,9 @@ func (builder *Builder) setShape(id scene.ID, ref shapeRef) {
 // insertShape adds a node drawing a shape right after previous.
 func (builder *Builder) insertShape(root, previous scene.ID, ref shapeRef) scene.ID {
 	if ref.triangle {
-		value := SceneTriangle(builder.clippedPaths[ref.index])
-		id, _ := builder.graph.InsertTriangle(root, previous, value.Points, value.Color, value.EdgeMask, value.Shade, value.Coverage)
+		triangle := builder.clippedPaths[ref.index]
+		value := sceneTriangleGeometry(triangle)
+		id, _ := builder.graph.InsertTriangle(root, previous, value.Points, value.Color, value.EdgeMask, value.Shade, sceneStrokeCoverage(triangle.Coverage))
 		return id
 	}
 	if ref.shadow {
@@ -948,13 +952,14 @@ func SceneRectangle(rectangle gfx.Rectangle) render.Rectangle {
 
 // SceneTriangle converts a canvas triangle to its render instance shape.
 func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
-	var coverage *scene.StrokeCoverage
+	rectangle := sceneTriangleGeometry(triangle)
 	if source := triangle.Coverage; source != nil {
-		coverage = &scene.StrokeCoverage{EdgeMask: source.EdgeMask}
-		for index, point := range source.Points {
-			coverage.Points[index] = scene.Point(point)
-		}
+		rectangle.SetStrokeCoverage(*sceneStrokeCoverage(source))
 	}
+	return rectangle
+}
+
+func sceneTriangleGeometry(triangle gfx.Triangle) render.Rectangle {
 	return render.Rectangle{
 		Kind: scene.KindTriangle,
 		Points: [3]scene.Point{
@@ -963,7 +968,6 @@ func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
 			{X: triangle.Points[2].X, Y: triangle.Points[2].Y},
 		},
 		EdgeMask: triangle.EdgeMask,
-		Coverage: coverage,
 		Color: scene.Color{
 			Red: triangle.Color.Red, Green: triangle.Color.Green,
 			Blue: triangle.Color.Blue, Alpha: triangle.Color.Alpha,
@@ -973,9 +977,20 @@ func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
 	}
 }
 
-func strokeCoverageMatches(stored *scene.StrokeCoverage, canvas *gfx.StrokeCoverage) bool {
-	if stored == nil || canvas == nil {
-		return stored == nil && canvas == nil
+func sceneStrokeCoverage(source *gfx.StrokeCoverage) *scene.StrokeCoverage {
+	if source == nil {
+		return nil
+	}
+	coverage := &scene.StrokeCoverage{EdgeMask: source.EdgeMask}
+	for index, point := range source.Points {
+		coverage.Points[index] = scene.Point(point)
+	}
+	return coverage
+}
+
+func strokeCoverageMatches(stored scene.StrokeCoverage, hasCoverage bool, canvas *gfx.StrokeCoverage) bool {
+	if !hasCoverage || canvas == nil {
+		return !hasCoverage && canvas == nil
 	}
 	return stored.EdgeMask == canvas.EdgeMask &&
 		stored.Points[0] == scene.Point(canvas.Points[0]) &&

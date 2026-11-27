@@ -1320,7 +1320,7 @@ func (driver *Driver) Snapshot() Snapshot {
 		if rectangle.Kind == scene.KindTriangle {
 			primitive.Kind = TrianglePrimitive
 			primitive.EdgeMask = rectangle.EdgeMask
-			if source := rectangle.Coverage; source != nil {
+			if source, ok := rectangle.StrokeCoverage(); ok {
 				coverage := &gfx.StrokeCoverage{EdgeMask: source.EdgeMask}
 				for index, point := range source.Points {
 					coverage.Points[index] = gfx.Point(point)

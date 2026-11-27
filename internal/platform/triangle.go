@@ -7,7 +7,7 @@ import "github.com/vivaui/viva/internal/render"
 // the shade slots to carry its original coverage edges.
 func PackTriangleCoverage(rectangle render.Rectangle) (marker float32, shade1, shade2 [4]float32) {
 	const coverageSourceFlag = 1 << 4
-	if coverage := rectangle.Coverage; coverage != nil {
+	if coverage, ok := rectangle.StrokeCoverage(); ok {
 		a, b, c := coverage.Points[0], coverage.Points[1], coverage.Points[2]
 		return float32((rectangle.EdgeMask | coverageSourceFlag) + 1),
 			[4]float32{a.X, a.Y, b.X, b.Y},

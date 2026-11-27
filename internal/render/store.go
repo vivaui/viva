@@ -18,10 +18,11 @@ type Rectangle struct {
 	Layer  uint16
 	// EdgeMask selects the triangle edges that receive boundary feathering.
 	// scene.StrokeQuadEdgeMask also enables coverage from the opposite edge.
-	EdgeMask uint8
-	Coverage *scene.StrokeCoverage
+	EdgeMask          uint8
+	hasStrokeCoverage bool
 	// Shade, when On, gives the triangle the colors of its second and third
-	// corner; Color is the first's.
+	// corner; Color is the first's. Flat clipped strokes reuse the same
+	// slots for coverage coordinates, keeping the instance pointer-free.
 	Shade scene.Shade
 	// Shadow places and blurs a KindShadow instance: Bounds and Radius are the
 	// rectangle that casts it.
@@ -32,6 +33,28 @@ type Rectangle struct {
 	// scene: the application layer stamps it on the instance after Apply.
 	Clipped bool
 	Clip    scene.Rect
+}
+
+// SetStrokeCoverage stores a flat clipped stroke's original feathering edges.
+func (rectangle *Rectangle) SetStrokeCoverage(coverage scene.StrokeCoverage) {
+	a, b, c := coverage.Points[0], coverage.Points[1], coverage.Points[2]
+	rectangle.hasStrokeCoverage = true
+	rectangle.Shade.Colors = [2]scene.Color{
+		{Red: a.X, Green: a.Y, Blue: b.X, Alpha: b.Y},
+		{Red: c.X, Green: c.Y, Blue: float32(coverage.EdgeMask)},
+	}
+}
+
+// StrokeCoverage returns the original feathering edges of a flat clipped stroke.
+func (rectangle Rectangle) StrokeCoverage() (scene.StrokeCoverage, bool) {
+	if !rectangle.hasStrokeCoverage {
+		return scene.StrokeCoverage{}, false
+	}
+	ab, c := rectangle.Shade.Colors[0], rectangle.Shade.Colors[1]
+	return scene.StrokeCoverage{
+		Points:   [3]scene.Point{{X: ab.Red, Y: ab.Green}, {X: ab.Blue, Y: ab.Alpha}, {X: c.Red, Y: c.Green}},
+		EdgeMask: uint8(c.Blue),
+	}, true
 }
 
 // VertexColors is the color at each corner of a triangle: all Color for a flat
@@ -423,7 +446,7 @@ func rectangleOf(change scene.Change) Rectangle {
 	if change.Shape != nil {
 		shape = *change.Shape
 	}
-	return Rectangle{
+	rectangle := Rectangle{
 		ID:       change.ID,
 		Kind:     change.Kind,
 		Bounds:   change.Bounds,
@@ -431,10 +454,13 @@ func rectangleOf(change scene.Change) Rectangle {
 		Radius:   change.Radius,
 		Points:   shape.Points,
 		EdgeMask: change.EdgeMask,
-		Coverage: shape.Coverage,
 		Shade:    shape.Shade,
 		Shadow:   shape.Shadow,
 	}
+	if shape.Coverage != nil {
+		rectangle.SetStrokeCoverage(*shape.Coverage)
+	}
+	return rectangle
 }
 
 // reindexFrom repoints every slot whose instance is at or after index,
@@ -498,12 +524,14 @@ func (store *Store) upsert(change scene.Change) (bool, int, error) {
 			rectangle.Bounds = change.Bounds
 			rectangle.Color = change.Color
 			rectangle.Radius = change.Radius
-			rectangle.Coverage = nil
+			rectangle.hasStrokeCoverage = false
 			if change.Shape != nil {
 				rectangle.Points = change.Shape.Points
 				rectangle.Shade = change.Shape.Shade
 				rectangle.Shadow = change.Shape.Shadow
-				rectangle.Coverage = change.Shape.Coverage
+				if change.Shape.Coverage != nil {
+					rectangle.SetStrokeCoverage(*change.Shape.Coverage)
+				}
 			}
 			rectangle.EdgeMask = change.EdgeMask
 		}

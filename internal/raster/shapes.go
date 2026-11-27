@@ -216,7 +216,8 @@ func drawTriangle(c *Canvas, area render.Scissor, rc *render.Rectangle, scale fl
 	}
 	coveragePoints, coverageFlags := pts, rc.EdgeMask
 	coverageOrientation := orientation
-	if source := rc.Coverage; source != nil {
+	source, hasSource := rc.StrokeCoverage()
+	if hasSource {
 		coveragePoints, coverageFlags = source.Points, source.EdgeMask
 		a, b, c := coveragePoints[0], coveragePoints[1], coveragePoints[2]
 		if cross2(b.X-a.X, b.Y-a.Y, c.X-a.X, c.Y-a.Y) > 0 {
@@ -310,7 +311,7 @@ func drawTriangle(c *Canvas, area render.Scissor, rc *render.Rectangle, scale fl
 					s2 = segmentDistance(ppx, py, cx, cy, ax, ay)
 				}
 				outside := min(s0, min(s1, s2))
-				if strokeQuad && rc.Coverage == nil {
+				if strokeQuad && !hasSource {
 					outside = min(outside, segmentDistance(ppx, py, oppositeX, oppositeY, oppositeEndX, oppositeEndY))
 				}
 				inside = -outside

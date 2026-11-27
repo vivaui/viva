@@ -36,7 +36,7 @@ func ValidateRectangles(rectangles []Rectangle) error {
 			if !validTriangleEdgeMask(rectangle.EdgeMask) {
 				return fmt.Errorf("render: triangle %d has invalid edge mask %d", index, rectangle.EdgeMask)
 			}
-			if source := rectangle.Coverage; source != nil {
+			if source, ok := rectangle.StrokeCoverage(); ok {
 				if rectangle.Shade.On || rectangle.EdgeMask > 7 ||
 					source.EdgeMask&scene.StrokeQuadEdgeMask == 0 || !validTriangleEdgeMask(source.EdgeMask) {
 					return fmt.Errorf("render: triangle %d has invalid stroke coverage", index)
