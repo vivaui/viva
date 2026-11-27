@@ -47,14 +47,18 @@ func (w *gtkWindow) dragData(context uintptr, x, y int32, data uintptr, t uint32
 	success := int32(0)
 	if data != 0 {
 		if length := w.g.selectionLength(data); length > 0 {
-			raw := w.g.selectionData(data)
-			text := string(unsafeSlice(raw, int(length)))
-			if paths := parseURIList(text); len(paths) > 0 {
-				lx, ly := w.logical(float64(x), float64(y))
-				w.fileDrop(platform.FileDropEvent{Phase: platform.FileDropDrop, X: lx, Y: ly, Paths: paths})
-				success = 1
+			if raw := w.g.selectionData(data); raw != 0 {
+				text := string(unsafeSlice(raw, int(length)))
+				if paths := parseURIList(text); len(paths) > 0 {
+					lx, ly := w.logical(float64(x), float64(y))
+					w.fileDrop(platform.FileDropEvent{Phase: platform.FileDropDrop, X: lx, Y: ly, Paths: paths})
+					success = 1
+				}
 			}
 		}
+	}
+	if success == 0 {
+		w.fileDrop(platform.FileDropEvent{Phase: platform.FileDropLeave})
 	}
 	w.g.dragFinish(context, success, 0, t)
 }

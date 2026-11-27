@@ -31,6 +31,7 @@ const (
 	tymedHGlobal    = 1
 	sOK             = 0
 	eNoInterface    = 0x80004002
+	ePointer        = 0x80004003
 )
 
 var (
@@ -101,6 +102,13 @@ func newDropTable() {
 func dropOf(this uintptr) *dropTarget { return (*dropTarget)(pointer(this)) }
 
 func dropQueryInterface(this, riid, object uintptr) uintptr {
+	if object == 0 {
+		return ePointer
+	}
+	if this == 0 || riid == 0 {
+		*(*uintptr)(pointer(object)) = 0
+		return eNoInterface
+	}
 	requested := *(*guid)(pointer(riid))
 	if requested != iidUnknown && requested != iidDropTarget {
 		*(*uintptr)(pointer(object)) = 0
@@ -112,12 +120,18 @@ func dropQueryInterface(this, riid, object uintptr) uintptr {
 }
 
 func dropAddRef(this uintptr) uintptr {
+	if this == 0 {
+		return 0
+	}
 	target := dropOf(this)
 	target.refs++
 	return uintptr(target.refs)
 }
 
 func dropRelease(this uintptr) uintptr {
+	if this == 0 {
+		return 0
+	}
 	target := dropOf(this)
 	if target.refs > 0 {
 		target.refs--
@@ -133,13 +147,16 @@ func containsFiles(data uintptr) bool {
 
 // filesOf reads the paths out of a data object that offers files.
 func filesOf(data uintptr) []string {
+	if data == 0 {
+		return nil
+	}
 	format := formatEtc{Format: cfHDrop, Aspect: dvAspectContent, Index: -1, Medium: tymedHGlobal}
 	var medium storageMedium
 	if hresult(comCall2(data, 3, uintptr(unsafe.Pointer(&format)), uintptr(unsafe.Pointer(&medium)))) != nil {
 		return nil
 	}
 	defer releaseStgMedium.Call(uintptr(unsafe.Pointer(&medium)))
-	if medium.Medium != tymedHGlobal {
+	if medium.Medium != tymedHGlobal || medium.Handle == 0 {
 		return nil
 	}
 	return droppedPaths(medium.Handle)
@@ -148,15 +165,24 @@ func filesOf(data uintptr) []string {
 // point turns a screen point the shell reports (a POINTL passed by value, which
 // the calling convention packs into one register) into logical window pixels.
 func (target *dropTarget) point(packed uintptr) (x, y float32) {
+	if target == nil || target.state == nil || target.state.window == 0 {
+		return 0, 0
+	}
 	screen := point{X: int32(uint32(packed)), Y: int32(uint32(packed >> 32))}
 	screenToClient.Call(target.state.window, uintptr(unsafe.Pointer(&screen)))
 	scale := target.state.scale
+	if scale <= 0 {
+		scale = 1
+	}
 	return float32(screen.X) / scale, float32(screen.Y) / scale
 }
 
 // step tells the application one step of the drag and records whether the point
 // takes files.
 func (target *dropTarget) step(phase platform.FileDropPhase, x, y float32, paths []string) {
+	if target == nil || target.state == nil || target.state.window == 0 {
+		return
+	}
 	state := target.state
 	if state.config.OnFileDrop == nil {
 		return
@@ -167,11 +193,17 @@ func (target *dropTarget) step(phase platform.FileDropPhase, x, y float32, paths
 }
 
 func (target *dropTarget) answer(effect uintptr) {
+	if effect == 0 {
+		return
+	}
 	allowed := *(*uint32)(pointer(effect))
 	*(*uint32)(pointer(effect)) = platform.DropEffect(target.hasFiles && target.accepts, allowed)
 }
 
 func dropDragEnter(this, data, keys, packed, effect uintptr) uintptr {
+	if this == 0 {
+		return eFail
+	}
 	target := dropOf(this)
 	target.hasFiles, target.accepts = containsFiles(data), false
 	if target.hasFiles {
@@ -183,6 +215,9 @@ func dropDragEnter(this, data, keys, packed, effect uintptr) uintptr {
 }
 
 func dropDragOver(this, keys, packed, effect uintptr) uintptr {
+	if this == 0 {
+		return eFail
+	}
 	target := dropOf(this)
 	if target.hasFiles {
 		x, y := target.point(packed)
@@ -193,6 +228,9 @@ func dropDragOver(this, keys, packed, effect uintptr) uintptr {
 }
 
 func dropDragLeave(this uintptr) uintptr {
+	if this == 0 {
+		return eFail
+	}
 	target := dropOf(this)
 	if target.hasFiles {
 		target.step(platform.FileDropLeave, 0, 0, nil)
@@ -202,9 +240,15 @@ func dropDragLeave(this uintptr) uintptr {
 }
 
 func dropDrop(this, data, keys, packed, effect uintptr) uintptr {
+	if this == 0 {
+		return eFail
+	}
 	target := dropOf(this)
-	allowed := *(*uint32)(pointer(effect))
-	*(*uint32)(pointer(effect)) = 0
+	var allowed uint32
+	if effect != 0 {
+		allowed = *(*uint32)(pointer(effect))
+		*(*uint32)(pointer(effect)) = 0
+	}
 	if !target.hasFiles && !containsFiles(data) {
 		return sOK
 	}
@@ -216,7 +260,9 @@ func dropDrop(this, data, keys, packed, effect uintptr) uintptr {
 	}
 	x, y := target.point(packed)
 	target.step(platform.FileDropDrop, x, y, paths)
-	*(*uint32)(pointer(effect)) = platform.DropEffect(target.accepts, allowed)
+	if effect != 0 {
+		*(*uint32)(pointer(effect)) = platform.DropEffect(target.accepts, allowed)
+	}
 	target.accepts = false
 	return sOK
 }
@@ -286,6 +332,9 @@ func (state *windowState) closeDrop() {
 
 // droppedPaths reads the file names out of a drop handle.
 func droppedPaths(drop uintptr) []string {
+	if drop == 0 {
+		return nil
+	}
 	count, _, _ := dragQueryFile.Call(drop, 0xFFFFFFFF, 0, 0)
 	if count > maxDroppedFile {
 		count = maxDroppedFile
@@ -318,9 +367,13 @@ func (state *windowState) handleDropFiles(drop uintptr) {
 	if len(paths) == 0 {
 		return
 	}
+	scale := state.scale
+	if scale <= 0 {
+		scale = 1
+	}
 	frame, _, err := state.config.OnFileDrop(platform.FileDropEvent{
 		Phase: platform.FileDropDrop,
-		X:     float32(position.X) / state.scale, Y: float32(position.Y) / state.scale,
+		X:     float32(position.X) / scale, Y: float32(position.Y) / scale,
 		Paths: paths,
 	})
 	state.frame(frame, err)
