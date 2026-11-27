@@ -21,4 +21,8 @@ type TreeItem struct {
 	// being fetched. Phase is the spinner's frame, 0 to 7.
 	Loading bool
 	Phase   uint8
+	// Background paints a full-width, square-cornered wash behind the row
+	// (underneath indentation, disclosure arrow, hover and selection highlight)
+	// so consecutive tinted rows form one continuous band. Zero paints nothing.
+	Background gfx.Color
 }

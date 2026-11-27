@@ -77,6 +77,9 @@ func (tree *Tree) Item(item TreeItem) TreeRow {
 	hovered := enabled && tree.canvas.Hovered() == item.ID
 	focused := enabled && !item.Dragging && tree.canvas.FocusVisible() == item.ID
 	radius := tree.theme.Metrics.RadiusControl
+	if item.Background.Alpha > 0 {
+		tree.canvas.Fill(row, item.Background)
+	}
 	if item.Selected || hovered {
 		background := tree.theme.Muted
 		if item.Selected {

@@ -143,3 +143,44 @@ func TestTreeSelectedRowColourIsTheTrees(t *testing.T) {
 		t.Fatal("a zero SelectedColor did not keep the theme's Accent")
 	}
 }
+
+// Background paints a full-width, square-cornered wash behind the entire row
+// before any selection highlight so consecutive tinted rows form one continuous band.
+func TestTreeItemBackgroundPaintsFullWidthUnderSelection(t *testing.T) {
+	theme := gfx.LightTheme()
+	wash := gfx.RGBA(245, 200, 90, 0.25)
+	var canvas gfx.Canvas
+	tree := BeginTree(&canvas, theme, gfx.Rect{X: 0, Y: 0, Width: 240, Height: 64}).RowHeight(24)
+	row1 := tree.Item(TreeItem{ID: gfx.Item(1), Label: "rust", Depth: 1, Branch: true, Expanded: true, Selected: true, Background: wash})
+	row2 := tree.Item(TreeItem{ID: gfx.Item(2), Label: "crates", Depth: 2, Branch: true, Background: wash})
+
+	rects := canvas.Rectangles()
+	washIdx, selIdx := -1, -1
+	washCount := 0
+	for i, r := range rects {
+		if r.Color == wash {
+			washCount++
+			if washIdx < 0 {
+				washIdx = i
+			}
+			if r.Bounds.X != 0 || r.Bounds.Width != 240 || r.Bounds.Height != 24 {
+				t.Fatalf("wash rect did not span full row: got %+v", r.Bounds)
+			}
+			if r.Radius != 0 {
+				t.Fatalf("wash rect must be square-cornered for seamless bands, got radius %v", r.Radius)
+			}
+		}
+		if r.Color == theme.Accent && selIdx < 0 {
+			selIdx = i
+		}
+	}
+	if washCount != 2 {
+		t.Fatalf("expected 2 full-width wash rects, got %d", washCount)
+	}
+	if washIdx < 0 || selIdx < 0 || washIdx >= selIdx {
+		t.Fatalf("expected row background (%d) to paint underneath selection highlight (%d)", washIdx, selIdx)
+	}
+	if row1.Bounds.Y+row1.Bounds.Height != row2.Bounds.Y {
+		t.Fatalf("expected adjacent rows to touch seamlessly: row1=%+v row2=%+v", row1.Bounds, row2.Bounds)
+	}
+}
