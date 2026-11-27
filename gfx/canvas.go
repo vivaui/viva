@@ -124,6 +124,13 @@ var shadowLayers = [...][2]struct {
 	ShadowLG: {{ShadowStyle{OffsetY: 10, Blur: 15, Spread: -3}, 0.10}, {ShadowStyle{OffsetY: 4, Blur: 6, Spread: -4}, 0.10}},
 }
 
+// StrokeCoverage describes the uncut triangle of a stroke quad. All pieces
+// cut from the same triangle use these coordinates for edge feathering.
+type StrokeCoverage struct {
+	Points   [3]Point
+	EdgeMask uint8
+}
+
 // Triangle is one solid vector-mesh primitive. Paths are tessellated into
 // triangles so native backends need no SVG parser or general geometry engine.
 type Triangle struct {
@@ -141,7 +148,14 @@ type Triangle struct {
 	// boundary. Bit 0 is Points[0]→Points[1], bit 1 is Points[1]→Points[2],
 	// and bit 2 is Points[2]→Points[0]. Renderers feather only these edges;
 	// shared tessellation edges stay fully covered.
+	// Bit 3 marks one half of a stroke quad: the long edge is 0→1 when bit 0
+	// is set, otherwise 2→0. Its opposite boundary is parallel through the
+	// remaining point. Both boundaries constrain coverage, whichever half the
+	// quad's internal diagonal assigns a pixel to.
 	EdgeMask uint8
+	// Coverage, when present, gives a flat clipped stroke its original
+	// silhouette. Points and EdgeMask still control which pixels it owns.
+	Coverage *StrokeCoverage
 	ClipOf   Rect
 	HasClip  bool
 	// Order is where the triangle was painted among every primitive of the

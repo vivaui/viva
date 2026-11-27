@@ -34,6 +34,13 @@ func scenery(snapshot app.Snapshot) ([]render.Rectangle, []platform.TextLabel, *
 			if primitive.Shaded {
 				rectangle.Shade = scene.Shade{On: true, Colors: [2]scene.Color{scene.Color(primitive.Shade[0]), scene.Color(primitive.Shade[1])}}
 			}
+			if source := primitive.Coverage; source != nil {
+				coverage := scene.StrokeCoverage{EdgeMask: source.EdgeMask}
+				for point, position := range source.Points {
+					coverage.Points[point] = scene.Point(position)
+				}
+				rectangle.SetStrokeCoverage(coverage)
+			}
 			for point := range rectangle.Points {
 				rectangle.Points[point] = scene.Point{X: primitive.Points[point].X, Y: primitive.Points[point].Y}
 			}

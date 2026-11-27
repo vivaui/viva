@@ -46,6 +46,19 @@ type Point struct {
 	Y float32
 }
 
+// StrokeQuadEdgeMask marks a triangle as one half of a parallelogram stroke.
+// Its long edge is 0→1 when bit 0 is set, or 2→0 otherwise. The opposite edge
+// is parallel and passes through the remaining point. Both contribute to
+// coverage even though the diagonal gives each pixel to just one triangle.
+const StrokeQuadEdgeMask uint8 = 1 << 3
+
+// StrokeCoverage is the original half of a stroke quad after clipping has
+// divided it into triangles with their own geometry and edge masks.
+type StrokeCoverage struct {
+	Points   [3]Point
+	EdgeMask uint8
+}
+
 // Shade makes a triangle vary from its Color at Points[0] to Colors[0] at
 // Points[1] and Colors[1] at Points[2], linearly across its face. The zero Shade
 // leaves the triangle one flat color.
@@ -81,9 +94,10 @@ func abs32(value float32) float32 {
 // Shape is the geometry only a triangle or a shadow carries. Rectangle
 // changes leave Change.Shape nil, so the common change is small.
 type Shape struct {
-	Points [3]Point
-	Shade  Shade
-	Shadow Shadow
+	Points   [3]Point
+	Shade    Shade
+	Shadow   Shadow
+	Coverage *StrokeCoverage
 }
 
 // Change is one renderer-facing incremental scene update.
@@ -116,6 +130,7 @@ type node struct {
 	edgeMask    uint8
 	shade       Shade
 	shadow      Shadow
+	coverage    *StrokeCoverage
 	generation  uint32
 	kind        Kind
 	alive       bool
@@ -165,7 +180,7 @@ func (scene *Scene) Root() ID {
 
 // AddGroup creates a retained group below parent.
 func (scene *Scene) AddGroup(parent ID) (ID, bool) {
-	return scene.add(parent, KindGroup, Rect{}, Color{}, 0, [3]Point{}, 0, Shade{}, Shadow{})
+	return scene.add(parent, KindGroup, Rect{}, Color{}, 0, [3]Point{}, 0, Shade{}, Shadow{}, nil)
 }
 
 // AddRectangle creates a retained rectangle below parent.
@@ -175,44 +190,44 @@ func (scene *Scene) AddRectangle(parent ID, bounds Rect, color Color) (ID, bool)
 
 // AddRoundedRectangle creates a retained rounded rectangle below parent.
 func (scene *Scene) AddRoundedRectangle(parent ID, bounds Rect, color Color, radius float32) (ID, bool) {
-	return scene.add(parent, KindRectangle, bounds, color, radius, [3]Point{}, 0, Shade{}, Shadow{})
+	return scene.add(parent, KindRectangle, bounds, color, radius, [3]Point{}, 0, Shade{}, Shadow{}, nil)
 }
 
 // AddTriangle creates one retained vector-mesh triangle below parent.
-func (scene *Scene) AddTriangle(parent ID, points [3]Point, color Color, edgeMask uint8, shade Shade) (ID, bool) {
-	return scene.add(parent, KindTriangle, Rect{}, color, 0, points, edgeMask, shade, Shadow{})
+func (scene *Scene) AddTriangle(parent ID, points [3]Point, color Color, edgeMask uint8, shade Shade, coverage *StrokeCoverage) (ID, bool) {
+	return scene.add(parent, KindTriangle, Rect{}, color, 0, points, edgeMask, shade, Shadow{}, coverage)
 }
 
-func (scene *Scene) add(parent ID, kind Kind, bounds Rect, color Color, radius float32, points [3]Point, edgeMask uint8, shade Shade, shadow Shadow) (ID, bool) {
+func (scene *Scene) add(parent ID, kind Kind, bounds Rect, color Color, radius float32, points [3]Point, edgeMask uint8, shade Shade, shadow Shadow, coverage *StrokeCoverage) (ID, bool) {
 	parentNode, ok := scene.liveNode(parent)
 	if !ok {
 		return 0, false
 	}
-	return scene.insert(parent, parentNode.lastChild, kind, bounds, color, radius, points, edgeMask, shade, shadow)
+	return scene.insert(parent, parentNode.lastChild, kind, bounds, color, radius, points, edgeMask, shade, shadow, coverage)
 }
 
 // InsertRoundedRectangle creates a rounded rectangle below parent, right after
 // the child previous (the first child when previous is zero), so a shape can
 // appear in the middle of the paint order without disturbing its neighbours.
 func (scene *Scene) InsertRoundedRectangle(parent, previous ID, bounds Rect, color Color, radius float32) (ID, bool) {
-	return scene.insert(parent, previous, KindRectangle, bounds, color, radius, [3]Point{}, 0, Shade{}, Shadow{})
+	return scene.insert(parent, previous, KindRectangle, bounds, color, radius, [3]Point{}, 0, Shade{}, Shadow{}, nil)
 }
 
 // InsertShadow creates the soft shadow of a rounded rectangle below parent, right
 // after the child previous (the first child when previous is zero).
 func (scene *Scene) InsertShadow(parent, previous ID, bounds Rect, color Color, radius float32, shadow Shadow) (ID, bool) {
-	return scene.insert(parent, previous, KindShadow, bounds, color, radius, [3]Point{}, 0, Shade{}, shadow)
+	return scene.insert(parent, previous, KindShadow, bounds, color, radius, [3]Point{}, 0, Shade{}, shadow, nil)
 }
 
 // InsertTriangle creates a triangle below parent, right after the child
 // previous (the first child when previous is zero).
-func (scene *Scene) InsertTriangle(parent, previous ID, points [3]Point, color Color, edgeMask uint8, shade Shade) (ID, bool) {
-	return scene.insert(parent, previous, KindTriangle, Rect{}, color, 0, points, edgeMask, shade, Shadow{})
+func (scene *Scene) InsertTriangle(parent, previous ID, points [3]Point, color Color, edgeMask uint8, shade Shade, coverage *StrokeCoverage) (ID, bool) {
+	return scene.insert(parent, previous, KindTriangle, Rect{}, color, 0, points, edgeMask, shade, Shadow{}, coverage)
 }
 
 // insert links a new child of parent after previous. A previous that is not a
 // child of parent is rejected.
-func (scene *Scene) insert(parent, previous ID, kind Kind, bounds Rect, color Color, radius float32, points [3]Point, edgeMask uint8, shade Shade, shadow Shadow) (ID, bool) {
+func (scene *Scene) insert(parent, previous ID, kind Kind, bounds Rect, color Color, radius float32, points [3]Point, edgeMask uint8, shade Shade, shadow Shadow, coverage *StrokeCoverage) (ID, bool) {
 	parentNode, ok := scene.liveNode(parent)
 	if !ok || parentNode.kind != KindGroup {
 		return 0, false
@@ -237,6 +252,7 @@ func (scene *Scene) insert(parent, previous ID, kind Kind, bounds Rect, color Co
 	child.edgeMask = edgeMask
 	child.shade = shade
 	child.shadow = shadow
+	child.coverage = coverage
 	id := makeID(index, child.generation)
 
 	child.previous = previous
@@ -282,6 +298,7 @@ func (scene *Scene) SetRoundedRectangle(id ID, bounds Rect, color Color, radius 
 	current.edgeMask = 0
 	current.shade = Shade{}
 	current.shadow = Shadow{}
+	current.coverage = nil
 	scene.markDirty(id, current)
 	return true
 }
@@ -304,18 +321,20 @@ func (scene *Scene) SetShadow(id ID, bounds Rect, color Color, radius float32, s
 	current.edgeMask = 0
 	current.shade = Shade{}
 	current.shadow = shadow
+	current.coverage = nil
 	scene.markDirty(id, current)
 	return true
 }
 
 // SetTriangle updates one retained vector-mesh triangle. A rectangle becomes a
 // triangle in place and keeps its position in paint order.
-func (scene *Scene) SetTriangle(id ID, points [3]Point, color Color, edgeMask uint8, shade Shade) bool {
+func (scene *Scene) SetTriangle(id ID, points [3]Point, color Color, edgeMask uint8, shade Shade, coverage *StrokeCoverage) bool {
 	current, ok := scene.liveNode(id)
 	if !ok || current.kind == KindGroup {
 		return false
 	}
-	if current.kind == KindTriangle && current.points == points && current.color == color && current.edgeMask == edgeMask && current.shade == shade {
+	if current.kind == KindTriangle && current.points == points && current.color == color && current.edgeMask == edgeMask &&
+		current.shade == shade && (current.coverage == coverage || current.coverage != nil && coverage != nil && *current.coverage == *coverage) {
 		return false
 	}
 	current.kind = KindTriangle
@@ -323,6 +342,7 @@ func (scene *Scene) SetTriangle(id ID, points [3]Point, color Color, edgeMask ui
 	current.color = color
 	current.edgeMask = edgeMask
 	current.shade = shade
+	current.coverage = coverage
 	current.bounds = Rect{}
 	current.radius = 0
 	current.shadow = Shadow{}
@@ -420,7 +440,7 @@ func (scene *Scene) DrainChanges(destination []Change) []Change {
 		var shape *Shape
 		if current.kind == KindTriangle || current.kind == KindShadow {
 			scene.shapeScratch = append(scene.shapeScratch, Shape{
-				Points: current.points, Shade: current.shade, Shadow: current.shadow,
+				Points: current.points, Shade: current.shade, Shadow: current.shadow, Coverage: current.coverage,
 			})
 			shape = &scene.shapeScratch[len(scene.shapeScratch)-1]
 		}

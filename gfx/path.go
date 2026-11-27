@@ -366,7 +366,10 @@ func (canvas *Canvas) dashStrokeContours(opaque bool, half float32, cap StrokeCa
 	}
 }
 
-const triangleAllEdges = uint8(1<<3 - 1)
+const (
+	triangleAllEdges   = uint8(1<<3 - 1)
+	triangleStrokeQuad = uint8(1 << 3)
+)
 
 func canonicalEdge(a, b Point) [4]uint32 {
 	ax, ay := pointBits(a)
@@ -529,6 +532,8 @@ func mergeCollinear(destination []Point, points []Point, closed bool, epsilon fl
 // appendStrokeQuad adds one offset rectangle for the segment from→to. The long
 // sides are always visible union boundaries. A cross edge is a boundary only
 // at an open butt cap; joins and explicit cap geometry cover every other one.
+// Both triangles retain the stroke-quad flag so each fragment can account for
+// the opposite long edge, including where the internal diagonal owns its fringe.
 func (canvas *Canvas) appendStrokeQuad(from, to Point, half float32, color Color, startCap, endCap bool) {
 	dir := direction(from, to)
 	normal := Point{X: -dir.Y * half, Y: dir.X * half}
@@ -536,8 +541,8 @@ func (canvas *Canvas) appendStrokeQuad(from, to Point, half float32, color Color
 	b := Point{X: to.X + normal.X, Y: to.Y + normal.Y}
 	c := Point{X: to.X - normal.X, Y: to.Y - normal.Y}
 	d := Point{X: from.X - normal.X, Y: from.Y - normal.Y}
-	firstMask := uint8(1 << 0)
-	secondMask := uint8(1 << 2)
+	firstMask := triangleStrokeQuad | 1<<0
+	secondMask := triangleStrokeQuad | 1<<2
 	if startCap {
 		firstMask |= 1 << 2
 	}

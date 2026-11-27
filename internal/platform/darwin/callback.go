@@ -1233,15 +1233,13 @@ func updateLabels(view unsafe.Pointer, labels []TextLabel) error {
 // layout: float4 bounds, float4 color, float4 style, float4 shade1, float4
 // shade2. A shadow keeps its blur in the third style value and its offset and
 // spread in shade1 (see the Metal vertex shader). Triangles reuse the slot as bounds=(p0, p1), style=(p2.x, layer, p2.y,
-// edgeMask+1), color, shade1 and shade2 being the colors of p0, p1 and p2. Zero
-// continues to identify rectangles while values 1..8 identify triangles and
-// their three independently feathered boundary edges.
+// edgeFlags+1). PackTriangleCoverage defines the shade slots and edge flags.
 func makeNativeRectangle(rectangle render.Rectangle) C.viva_rectangle {
 	if rectangle.Kind == scene.KindTriangle {
-		colors := rectangle.VertexColors()
+		marker, shade1, shade2 := platform.PackTriangleCoverage(rectangle)
 		return C.viva_rectangle{
-			shade1_red: C.float(colors[1].Red), shade1_green: C.float(colors[1].Green), shade1_blue: C.float(colors[1].Blue), shade1_alpha: C.float(colors[1].Alpha),
-			shade2_red: C.float(colors[2].Red), shade2_green: C.float(colors[2].Green), shade2_blue: C.float(colors[2].Blue), shade2_alpha: C.float(colors[2].Alpha),
+			shade1_red: C.float(shade1[0]), shade1_green: C.float(shade1[1]), shade1_blue: C.float(shade1[2]), shade1_alpha: C.float(shade1[3]),
+			shade2_red: C.float(shade2[0]), shade2_green: C.float(shade2[1]), shade2_blue: C.float(shade2[2]), shade2_alpha: C.float(shade2[3]),
 			x:             C.float(rectangle.Points[0].X),
 			y:             C.float(rectangle.Points[0].Y),
 			width:         C.float(rectangle.Points[1].X),
@@ -1253,7 +1251,7 @@ func makeNativeRectangle(rectangle render.Rectangle) C.viva_rectangle {
 			corner_radius: C.float(rectangle.Points[2].X),
 			reserved0:     C.float(rectangle.Layer),
 			reserved1:     C.float(rectangle.Points[2].Y),
-			reserved2:     C.float(rectangle.EdgeMask + 1),
+			reserved2:     C.float(marker),
 		}
 	}
 	native := C.viva_rectangle{

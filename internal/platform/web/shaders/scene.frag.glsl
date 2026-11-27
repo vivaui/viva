@@ -6,7 +6,7 @@ in vec4 vColor;
 in vec2 vLocal;
 in vec2 vSize;
 in float vRadius;
-in vec2 vFragment;
+flat in vec2 vCoverageC;
 in vec2 vTriangleA;
 in vec2 vTriangleB;
 in vec2 vTriangleC;
@@ -19,6 +19,8 @@ uniform float uPixelSize;
 out vec4 outColor;
 
 #define boundedTriangleFlag (1u << 8)
+#define strokeQuadEdgeMask (1u << 3)
+#define coverageSourceFlag (1u << 4)
 
 float edgeDistance(vec2 point, vec2 from, vec2 to) {
     vec2 edge = to - from;
@@ -82,7 +84,8 @@ void main() {
         float area = (vTriangleB.x - vTriangleA.x) * (vTriangleC.y - vTriangleA.y) -
             (vTriangleB.y - vTriangleA.y) * (vTriangleC.x - vTriangleA.x);
         float orientation = area > 0.0 ? 1.0 : -1.0;
-        uint edgeMask = (vTriangleMask & ~boundedTriangleFlag) - 1u;
+        uint edgeFlags = (vTriangleMask & ~boundedTriangleFlag) - 1u;
+        uint edgeMask = edgeFlags & 7u;
         // Marked edges are supporting lines: only their half-pixel neighborhood
         // of the triangle itself is coverage. Without this cut a sliver paints
         // its lines across the window.
@@ -121,18 +124,47 @@ void main() {
                 }
             }
         }
-        float distance0 = (edgeMask & 1u) != 0u ? orientation * edgeDistance(p, vTriangleA, vTriangleB) : 1e6;
-        float distance1 = (edgeMask & 2u) != 0u ? orientation * edgeDistance(p, vTriangleB, vTriangleC) : 1e6;
-        float distance2 = (edgeMask & 4u) != 0u ? orientation * edgeDistance(p, vTriangleC, vTriangleA) : 1e6;
-        float inside = min(distance0, min(distance1, distance2));
-        if (inside < 0.0) {
-            // Acute offset-line miters must not paint beyond the actual ends.
-            float s0 = (edgeMask & 1u) != 0u ? segmentDistance(p, vTriangleA, vTriangleB) : 1e6;
-            float s1 = (edgeMask & 2u) != 0u ? segmentDistance(p, vTriangleB, vTriangleC) : 1e6;
-            float s2 = (edgeMask & 4u) != 0u ? segmentDistance(p, vTriangleC, vTriangleA) : 1e6;
-            inside = -min(s0, min(s1, s2));
+        // The clipped face owns the sample. Its original outline determines
+        // the feathering, even when clipping removed every silhouette edge.
+        vec2 coverageA = vTriangleA, coverageB = vTriangleB, coverageC = vTriangleC;
+        uint coverageFlags = edgeFlags;
+        float coverageSign = orientation;
+        if ((edgeFlags & coverageSourceFlag) != 0u) {
+            coverageA = vLocal;
+            coverageB = vSize;
+            coverageC = vCoverageC;
+            coverageFlags = uint(vRadius + 0.5);
+            coverageSign = cross2(coverageB - coverageA, coverageC - coverageA) > 0.0 ? 1.0 : -1.0;
         }
-        float coverage = edgeMask == 0u ? 1.0 : clamp(0.5 + inside / pixel, 0.0, 1.0);
+        uint coverageMask = coverageFlags & 7u;
+        float distance0 = (coverageMask & 1u) != 0u ? coverageSign * edgeDistance(p, coverageA, coverageB) : 1e6;
+        float distance1 = (coverageMask & 2u) != 0u ? coverageSign * edgeDistance(p, coverageB, coverageC) : 1e6;
+        float distance2 = (coverageMask & 4u) != 0u ? coverageSign * edgeDistance(p, coverageC, coverageA) : 1e6;
+        float inside = min(distance0, min(distance1, distance2));
+        bool strokeQuad = (coverageFlags & strokeQuadEdgeMask) != 0u;
+        vec2 oppositeStart, oppositeEnd;
+        if (strokeQuad) {
+            // The shared diagonal decides ownership, but coverage depends on both long edges.
+            bool firstHalf = (coverageMask & 1u) != 0u;
+            vec2 from = firstHalf ? coverageA : coverageC;
+            vec2 to = firstHalf ? coverageB : coverageA;
+            oppositeStart = firstHalf ? coverageC : coverageB;
+            oppositeEnd = oppositeStart + (to - from);
+            float primary = firstHalf ? distance0 : distance2;
+            inside = min(inside, coverageSign * edgeDistance(oppositeStart, from, to) - primary);
+        }
+        if (inside < 0.0) {
+            // Use the visible edge segments for the outward fringe. A clipped
+            // stroke's original edges may extend beyond the cut.
+            bool clippedStroke = (edgeFlags & coverageSourceFlag) != 0u;
+            uint fringeMask = clippedStroke ? edgeMask : coverageMask;
+            float s0 = (fringeMask & 1u) != 0u ? segmentDistance(p, vTriangleA, vTriangleB) : 1e6;
+            float s1 = (fringeMask & 2u) != 0u ? segmentDistance(p, vTriangleB, vTriangleC) : 1e6;
+            float s2 = (fringeMask & 4u) != 0u ? segmentDistance(p, vTriangleC, vTriangleA) : 1e6;
+            float opposite = strokeQuad && !clippedStroke ? segmentDistance(p, oppositeStart, oppositeEnd) : 1e6;
+            inside = -min(min(s0, s1), min(s2, opposite));
+        }
+        float coverage = coverageMask == 0u ? 1.0 : clamp(0.5 + inside / pixel, 0.0, 1.0);
         vec4 shade = clamp(vColor, 0.0, 1.0);
         float alpha = shade.a * coverage;
         outColor = vec4(shade.rgb * alpha, alpha);

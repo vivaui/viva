@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 )
@@ -273,10 +274,9 @@ func makeVulkanRectangleInstance(rectangle render.Rectangle) vulkanRectangleInst
 	}
 	if rectangle.Kind == scene.KindTriangle {
 		instance.Bounds = [4]float32{rectangle.Points[0].X, rectangle.Points[0].Y, rectangle.Points[1].X, rectangle.Points[1].Y}
-		instance.Style = [4]float32{rectangle.Points[2].X, float32(rectangle.Layer), rectangle.Points[2].Y, float32(rectangle.EdgeMask + 1)}
-		colors := rectangle.VertexColors()
-		instance.Shade1 = [4]float32{colors[1].Red, colors[1].Green, colors[1].Blue, colors[1].Alpha}
-		instance.Shade2 = [4]float32{colors[2].Red, colors[2].Green, colors[2].Blue, colors[2].Alpha}
+		marker, shade1, shade2 := platform.PackTriangleCoverage(rectangle)
+		instance.Style = [4]float32{rectangle.Points[2].X, float32(rectangle.Layer), rectangle.Points[2].Y, marker}
+		instance.Shade1, instance.Shade2 = shade1, shade2
 	}
 	if rectangle.Kind == scene.KindShadow && rectangle.Shadow.Blur > 0 {
 		// The casting rectangle keeps the slot's bounds and radius; the blur is the

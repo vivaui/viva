@@ -123,6 +123,7 @@ func (shape iconClipShape) eachTriangle(
 	// fixed vertex array, once per edge and per triangle.
 	var polygons [2]iconClipPolygon
 	current := 0
+	unchanged := true
 	for index := range points {
 		var weights [3]float32
 		weights[index] = 1
@@ -139,6 +140,7 @@ func (shape iconClipShape) eachTriangle(
 			to := cur.vertices[(vertex+1)%cur.count]
 			fromInside := insideIconClip(a, b, from.point, sign)
 			toInside := insideIconClip(a, b, to.point, sign)
+			unchanged = unchanged && fromInside
 			if fromInside {
 				next.add(from.point, from.boundary, from.weights)
 				if !toInside {
@@ -152,7 +154,13 @@ func (shape iconClipShape) eachTriangle(
 		}
 		current = 1 - current
 	}
-	emitIconClipTriangles(&polygons[current], emit)
+	var sourceFlags uint8
+	if unchanged {
+		// The stroke quad flag describes the original corners. A cut cannot
+		// reconstruct the opposite edge from its new corners.
+		sourceFlags = edges &^ triangleAllEdges
+	}
+	emitIconClipTriangles(&polygons[current], sourceFlags, emit)
 }
 
 // iconClipWeights interpolates barycentric weights along from→to.
@@ -192,7 +200,7 @@ func iconClipIntersection(a, b Point, from, to iconClipVertex) (Point, float64) 
 // pointer because the fan compacts the shared corner list in place, and a copy
 // of the fixed vertex array per clipped triangle is the cost that made a rounded
 // clip an order of magnitude slower than the other transforms.
-func emitIconClipTriangles(polygon *iconClipPolygon, emit func([3]Point, uint8, [3][3]float32)) {
+func emitIconClipTriangles(polygon *iconClipPolygon, sourceFlags uint8, emit func([3]Point, uint8, [3][3]float32)) {
 	count := 0
 	for index := 0; index < polygon.count; index++ {
 		next := polygon.vertices[(index+1)%polygon.count]
@@ -211,7 +219,7 @@ func emitIconClipTriangles(polygon *iconClipPolygon, emit func([3]Point, uint8, 
 		if !clipFiniteArea(a.point, b.point, c.point) || cross > -1e-5 && cross < 1e-5 {
 			continue
 		}
-		var edges uint8
+		edges := sourceFlags
 		if index == 1 && a.boundary {
 			edges |= 1
 		}

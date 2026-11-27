@@ -8,9 +8,11 @@ struct Rectangle { float4 bounds; float4 color; float4 style; float4 shade1; flo
 StructuredBuffer<Rectangle> rectangles : register(t0);
 Texture2D labelTexture : register(t1);
 SamplerState labelSampler : register(s0);
-struct Vertex { float4 position : SV_Position; float4 color : COLOR; float2 local : LOCAL; float2 size : SIZE; float radius : RADIUS; float2 uv : TEXCOORD; float2 frag : FRAG; float2 triA : TRIA; float2 triB : TRIB; float2 triC : TRIC; nointerpolation uint triangleMask : TRIMASK; };
+struct Vertex { float4 position : SV_Position; float4 color : COLOR; float2 local : LOCAL; float2 size : SIZE; float radius : RADIUS; float2 uv : TEXCOORD; nointerpolation float2 coverageC : COVERC; float2 triA : TRIA; float2 triB : TRIB; float2 triC : TRIC; nointerpolation uint triangleMask : TRIMASK; };
 // Low bits keep edgeMask+1; this bit is local to the rasterizer.
 #define boundedTriangleFlag (1u << 8)
+#define strokeQuadFlag (1u << 3)
+#define coverageSourceFlag (1u << 4)
 float2 corner(uint vertex) {
     const float2 corners[6] = {float2(0,0),float2(1,0),float2(0,1),float2(0,1),float2(1,0),float2(1,1)};
     return corners[vertex];
@@ -46,6 +48,7 @@ Vertex rectangleVertex(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
     float2 local;
     float2 size = rectangle.bounds.zw;
     float radius = rectangle.style.x;
+    float2 coverageC = 0;
     float2 triA = 0, triB = 0, triC = 0;
     uint triangleMask = 0;
     float4 color = rectangle.color;
@@ -60,7 +63,9 @@ Vertex rectangleVertex(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             rectangle.style.xz,
         };
         uint index = vertex < 3 ? vertex : 0;
-        uint edgeMask = (uint)(rectangle.style.w + 0.5) - 1;
+        uint edgeFlags = (uint)(rectangle.style.w + 0.5) - 1;
+        uint edgeMask = edgeFlags & 7u;
+        bool hasCoverageSource = (edgeFlags & coverageSourceFlag) != 0;
         uint previous = (index + 2) % 3;
         float2 ab = points[1] - points[0], ac = points[2] - points[0];
         float2 bc = points[2] - points[1];
@@ -74,7 +79,7 @@ Vertex rectangleVertex(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
         // scales because hardware snaps geometry to its own subpixel grid.
         // Above this aspect ratio the miter displacement is at most eight
         // device pixels; below it the quad avoids both overflow and overdraw.
-        bool bounded = valid && (edgeMask != 7 || abs(area) < longest2 * 0.125);
+        bool bounded = valid && (hasCoverageSource || edgeMask != 7 || abs(area) < longest2 * 0.125);
         if (!valid) {
             pixel = 0;
         } else if (bounded) {
@@ -85,18 +90,20 @@ Vertex rectangleVertex(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
             pixel = fringeVertex(points[previous], points[index], points[(index + 1) % 3], 1u << previous, 1u << index, edgeMask);
         }
         // Extrapolate corner colors so interpolation stays on the original mesh.
-        if (valid) {
+        if (valid && !hasCoverageSource) {
             float2 delta = pixel - points[0];
             color = rectangle.color + cross2(delta, ac) / area * (rectangle.shade1 - rectangle.color)
                 + cross2(ab, delta) / area * (rectangle.shade2 - rectangle.color);
         }
-        local = 0;
-        size = 0;
-        radius = 0;
+        // A clipped flat stroke sends its antialiasing face in the shade slots.
+        local = hasCoverageSource ? rectangle.shade1.xy : 0;
+        size = hasCoverageSource ? rectangle.shade1.zw : 0;
+        coverageC = hasCoverageSource ? rectangle.shade2.xy : 0;
+        radius = hasCoverageSource ? rectangle.shade2.z : 0;
         triA = points[0];
         triB = points[1];
         triC = points[2];
-        triangleMask = edgeMask + 1 + (bounded ? boundedTriangleFlag : 0);
+        triangleMask = edgeFlags + 1 + (bounded ? boundedTriangleFlag : 0);
     } else if (rectangle.style.z > 0) {
         // A soft shadow: bounds and style.x are the rounded rectangle that casts it,
         // style.z its blur, shade1 = (offset.x, offset.y, spread). The quad grows by
@@ -119,7 +126,7 @@ Vertex rectangleVertex(uint vertex : SV_VertexID, uint instance : SV_InstanceID)
     output.size = size;
     output.radius = radius;
     output.uv = corner(vertex);
-    output.frag = pixel;
+    output.coverageC = coverageC;
     output.triA = triA;
     output.triB = triB;
     output.triC = triC;
@@ -169,7 +176,8 @@ float4 rectangleFragment(Vertex input) : SV_Target {
         float area2 = (input.triB.x-input.triA.x)*(input.triC.y-input.triA.y) -
             (input.triB.y-input.triA.y)*(input.triC.x-input.triA.x);
         float sign = area2 > 0 ? 1 : -1;
-        uint edgeMask = (input.triangleMask & ~boundedTriangleFlag) - 1;
+        uint edgeFlags = (input.triangleMask & ~boundedTriangleFlag) - 1;
+        uint edgeMask = edgeFlags & 7u;
         // The actual sample, not the interpolated face: over a sliver's long
         // support the interpolant cannot say which pixel it is.
         float2 p = input.position.xy * pixelSize;
@@ -211,18 +219,48 @@ float4 rectangleFragment(Vertex input) : SV_Target {
                 }
             }
         }
-        float d0 = (edgeMask & 1u) != 0 ? sign * edgeDistance(p, input.triA, input.triB) : 1e6;
-        float d1 = (edgeMask & 2u) != 0 ? sign * edgeDistance(p, input.triB, input.triC) : 1e6;
-        float d2 = (edgeMask & 4u) != 0 ? sign * edgeDistance(p, input.triC, input.triA) : 1e6;
-        float inside = min(d0, min(d1, d2));
-        if (inside < 0) {
-            // Acute offset-line miters must not paint beyond the actual ends.
-            float s0 = (edgeMask & 1u) != 0 ? segmentDistance(p, input.triA, input.triB) : 1e6;
-            float s1 = (edgeMask & 2u) != 0 ? segmentDistance(p, input.triB, input.triC) : 1e6;
-            float s2 = (edgeMask & 4u) != 0 ? segmentDistance(p, input.triC, input.triA) : 1e6;
-            inside = -min(s0, min(s1, s2));
+        // The clipped face owns the sample. Its original outline determines
+        // the feathering, even when clipping removed every silhouette edge.
+        float2 coverageA = input.triA, coverageB = input.triB, coverageC = input.triC;
+        uint coverageFlags = edgeFlags;
+        float coverageSign = sign;
+        if ((edgeFlags & coverageSourceFlag) != 0u) {
+            coverageA = input.local;
+            coverageB = input.size;
+            coverageC = input.coverageC;
+            coverageFlags = uint(input.radius + 0.5);
+            coverageSign = cross2(coverageB - coverageA, coverageC - coverageA) > 0.0 ? 1.0 : -1.0;
         }
-        float coverage = edgeMask == 0 ? 1 : saturate(0.5 + inside / pixel);
+        uint coverageMask = coverageFlags & 7u;
+        float d0 = (coverageMask & 1u) != 0 ? coverageSign * edgeDistance(p, coverageA, coverageB) : 1e6;
+        float d1 = (coverageMask & 2u) != 0 ? coverageSign * edgeDistance(p, coverageB, coverageC) : 1e6;
+        float d2 = (coverageMask & 4u) != 0 ? coverageSign * edgeDistance(p, coverageC, coverageA) : 1e6;
+        float inside = min(d0, min(d1, d2));
+        float2 oppositeStart = 0, oppositeEnd = 0;
+        bool strokeQuad = (coverageFlags & strokeQuadFlag) != 0;
+        if (strokeQuad) {
+            // The diagonal assigns this sample to one triangle, but coverage is
+            // measured against both long edges of the original stroke quad.
+            bool firstHalf = (coverageMask & 1u) != 0;
+            float2 start = firstHalf ? coverageA : coverageC;
+            float2 end = firstHalf ? coverageB : coverageA;
+            oppositeStart = firstHalf ? coverageC : coverageB;
+            oppositeEnd = oppositeStart + (end - start);
+            float opposite = -coverageSign * edgeDistance(p, oppositeStart, oppositeEnd);
+            inside = min(inside, opposite);
+        }
+        if (inside < 0) {
+            // Use the visible edge segments for the outward fringe. A clipped
+            // stroke's original edges may extend beyond the cut.
+            bool clippedStroke = (edgeFlags & coverageSourceFlag) != 0u;
+            uint fringeMask = clippedStroke ? edgeMask : coverageMask;
+            float s0 = (fringeMask & 1u) != 0 ? segmentDistance(p, input.triA, input.triB) : 1e6;
+            float s1 = (fringeMask & 2u) != 0 ? segmentDistance(p, input.triB, input.triC) : 1e6;
+            float s2 = (fringeMask & 4u) != 0 ? segmentDistance(p, input.triC, input.triA) : 1e6;
+            float opposite = strokeQuad && !clippedStroke ? segmentDistance(p, oppositeStart, oppositeEnd) : 1e6;
+            inside = -min(opposite, min(s0, min(s1, s2)));
+        }
+        float coverage = coverageMask == 0 ? 1 : saturate(0.5 + inside / pixel);
         float4 shade = saturate(input.color);
         return float4(shade.rgb*coverage*shade.a, shade.a*coverage);
     }

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/render"
 	"github.com/vivaui/viva/internal/scene"
 )
@@ -35,18 +36,18 @@ func packInstance(dst []float32, instance render.Rectangle) {
 	for index := 0; index < 20; index++ {
 		dst[index] = 0
 	}
-	colors := instance.VertexColors()
 	setColor := func(at int, color scene.Color) {
 		dst[at], dst[at+1], dst[at+2], dst[at+3] = color.Red, color.Green, color.Blue, color.Alpha
 	}
 	switch instance.Kind {
 	case scene.KindTriangle:
 		points := instance.Points
+		marker, shade1, shade2 := platform.PackTriangleCoverage(instance)
 		dst[0], dst[1], dst[2], dst[3] = points[0].X, points[0].Y, points[1].X, points[1].Y
-		dst[8], dst[9], dst[10], dst[11] = points[2].X, float32(instance.Layer), points[2].Y, float32(instance.EdgeMask)+1
-		setColor(4, colors[0])
-		setColor(12, colors[1])
-		setColor(16, colors[2])
+		dst[8], dst[9], dst[10], dst[11] = points[2].X, float32(instance.Layer), points[2].Y, marker
+		setColor(4, instance.Color)
+		copy(dst[12:16], shade1[:])
+		copy(dst[16:20], shade2[:])
 	case scene.KindShadow:
 		dst[0], dst[1], dst[2], dst[3] = instance.Bounds.X, instance.Bounds.Y, instance.Bounds.Width, instance.Bounds.Height
 		dst[8], dst[9], dst[10], dst[11] = instance.Radius, 0, instance.Shadow.Blur, 0
