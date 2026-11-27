@@ -120,6 +120,46 @@ func TestControlTakesItsOwnInput(t *testing.T) {
 	}
 }
 
+// A Control's Handlers.Cursor is the pointer over it, kept while a press it took is
+// dragged; a part's own hit, painted over the control, keeps its cursor.
+func TestControlDeclaresItsCursor(t *testing.T) {
+	term := newConsole()
+	term.input.Cursor = gfx.PointerCursorText
+	draw := term.draw
+	term.draw = func(d *ui.DrawContext) {
+		draw(d)
+		d.Canvas.HitWithOptions(term.input.Parts().At(0), gfx.Rect{X: d.Rect.X + d.Rect.Width - 40, Y: d.Rect.Y, Width: 40, Height: 20}, "Link",
+			gfx.HitOptions{Role: gfx.RoleLink, Cursor: gfx.PointerCursorHand, SkipTab: true})
+	}
+	d := openPage(t, term.View)
+	box := d.hit("Console").Bounds
+	x, y := center(box)
+	if err := d.driver.Move(x, y); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.driver.Snapshot().Cursor; got != app.CursorText {
+		t.Fatalf("over the control the cursor is %v, want the text cursor", got)
+	}
+	if err := d.driver.Press(x, y, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(box.X+box.Width-10, y); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.driver.Snapshot().Cursor; got != app.CursorText {
+		t.Fatalf("dragging the control over its part the cursor is %v, want the press target's", got)
+	}
+	if err := d.driver.Release(box.X+box.Width-10, y, gfx.PointerButtonPrimary); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.driver.Move(box.X+box.Width-10, box.Y+10); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.driver.Snapshot().Cursor; got != app.CursorHand {
+		t.Fatalf("over the part the cursor is %v, want the hand", got)
+	}
+}
+
 func TestControlInAMemoPanics(t *testing.T) {
 	term := newConsole()
 	defer func() {

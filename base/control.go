@@ -20,6 +20,12 @@ type Handlers struct {
 	// control for. Zero is a group. RoleTextField or RoleTerminal make it a target
 	// of typing, given to Text.
 	Role gfx.Role
+	// Cursor is the pointer shown over the control while the pointer is over
+	// it, and while a press it took is still held. Zero is the platform's
+	// arrow; a control of text the user selects, such as an editor or a
+	// terminal, gives PointerCursorText. A part declared in Draw with
+	// HitWithOptions keeps the cursor of its own options.
+	Cursor gfx.PointerCursor
 	// Key receives the keys pressed while the control has the focus, or a part of it
 	// does (see Parts): named keys with their Key, and a printable key, typed with
 	// no modifier but Shift, with its Text (and Key zero), which a window offers as a
@@ -84,7 +90,7 @@ func Control(c C, Label string, h *Handlers) Box {
 	}
 	theme := &c.f.Palette
 	// What the text service is given when Text leaves it unset: the page's body text.
-	return c.f.Slot().HitWith(id, Label, gfx.HitOptions{Role: role,
+	return c.f.Slot().HitWith(id, Label, gfx.HitOptions{Role: role, Cursor: h.Cursor,
 		TextSize: theme.Metrics.FontSizeM, TextColor: theme.Foreground})
 }
 
