@@ -1458,3 +1458,256 @@ func (editor *CodeEditor) measureIndents() {
 	editor.indents = append(make([]int, 0, len(editor.rawIndents)), editor.rawIndents...)
 	resolveIndents(editor.indents, editor.rawIndents, 0, len(editor.indents))
 }
+
+// CodeEditorFoldState manages folded ranges for a CodeEditor across edits.
+// It tracks collapsed headers as lines are inserted or deleted above them and
+// caches parsed fold ranges until the document text actually changes.
+type CodeEditorFoldState struct {
+	text      string
+	synced    bool
+	ranges    []CodeEditorFoldRange
+	collapsed map[int]bool
+	foldedBuf []CodeEditorFoldRange
+	markerBuf []CodeEditorFoldMarker
+}
+
+// Reset clears cached ranges and collapsed state for a newly loaded document.
+func (state *CodeEditorFoldState) Reset() {
+	state.text = ""
+	state.synced = false
+	state.ranges = nil
+	clear(state.collapsed)
+	state.foldedBuf = state.foldedBuf[:0]
+	state.markerBuf = state.markerBuf[:0]
+}
+
+// Sync updates cached ranges only when text has changed since the last Sync.
+// Before filtering stale headers against the new ranges, it shifts existing
+// collapsed header lines across any lines inserted or deleted above them.
+func (state *CodeEditorFoldState) Sync(text string, parse func(string) []CodeEditorFoldRange) bool {
+	if state.synced && state.text == text {
+		return false
+	}
+	if state.synced && len(state.collapsed) > 0 {
+		state.adjustCollapsedForEdit(state.text, text)
+	}
+	state.text = text
+	state.synced = true
+	if parse != nil {
+		state.ranges = parse(text)
+	} else {
+		state.ranges = nil
+	}
+	state.pruneCollapsed()
+	return true
+}
+
+func (state *CodeEditorFoldState) adjustCollapsedForEdit(before, after string) {
+	prefixBytes := commonPrefixLen(before, after)
+	suffixBytes := commonSuffixLen(before[prefixBytes:], after[prefixBytes:])
+
+	oldLines := strings.Count(before, "\n") + 1
+	newLines := strings.Count(after, "\n") + 1
+	delta := newLines - oldLines
+	if delta == 0 {
+		return
+	}
+
+	prefixLines := strings.Count(before[:prefixBytes], "\n")
+	suffixStartByte := len(before) - suffixBytes
+	oldTailStart := strings.Count(before[:suffixStartByte], "\n")
+	if suffixStartByte > 0 && before[suffixStartByte-1] != '\n' {
+		oldTailStart++
+	}
+	if prefixLines > oldTailStart {
+		oldTailStart = prefixLines
+	}
+
+	next := make(map[int]bool, len(state.collapsed))
+	for header := range state.collapsed {
+		switch {
+		case header < prefixLines:
+			next[header] = true
+		case header >= oldTailStart:
+			shifted := header + delta
+			if shifted >= 0 {
+				next[shifted] = true
+			}
+		default:
+			next[header] = true
+		}
+	}
+	state.collapsed = next
+}
+
+func commonPrefixLen(a, b string) int {
+	limit := min(len(a), len(b))
+	i := 0
+	for i < limit && a[i] == b[i] {
+		i++
+	}
+	return i
+}
+
+func commonSuffixLen(a, b string) int {
+	limit := min(len(a), len(b))
+	i := 0
+	for i < limit && a[len(a)-1-i] == b[len(b)-1-i] {
+		i++
+	}
+	return i
+}
+
+func (state *CodeEditorFoldState) pruneCollapsed() {
+	if len(state.collapsed) == 0 {
+		return
+	}
+	if len(state.ranges) == 0 {
+		clear(state.collapsed)
+		return
+	}
+	valid := make(map[int]struct{}, len(state.ranges))
+	for _, r := range state.ranges {
+		valid[r.Header] = struct{}{}
+	}
+	for header := range state.collapsed {
+		if _, ok := valid[header]; !ok {
+			delete(state.collapsed, header)
+		}
+	}
+}
+
+// HasRanges reports whether any foldable block exists.
+func (state *CodeEditorFoldState) HasRanges() bool {
+	return len(state.ranges) > 0
+}
+
+// IsCollapsed reports whether header line is currently collapsed.
+func (state *CodeEditorFoldState) IsCollapsed(line int) bool {
+	return state.collapsed[line]
+}
+
+// RangeForHeader returns the fold range starting at line, if any.
+func (state *CodeEditorFoldState) RangeForHeader(line int) (CodeEditorFoldRange, bool) {
+	for _, r := range state.ranges {
+		if r.Header == line {
+			return r, true
+		}
+	}
+	return CodeEditorFoldRange{}, false
+}
+
+// Toggle flips the collapsed state of a valid header line.
+func (state *CodeEditorFoldState) Toggle(line int) bool {
+	if _, ok := state.RangeForHeader(line); !ok {
+		return false
+	}
+	if state.collapsed == nil {
+		state.collapsed = make(map[int]bool)
+	}
+	if state.collapsed[line] {
+		delete(state.collapsed, line)
+	} else {
+		state.collapsed[line] = true
+	}
+	return true
+}
+
+// SetCollapsed explicitly sets the collapsed state of a valid header line.
+func (state *CodeEditorFoldState) SetCollapsed(line int, collapsed bool) bool {
+	if _, ok := state.RangeForHeader(line); !ok {
+		return false
+	}
+	if state.collapsed[line] == collapsed {
+		return false
+	}
+	if collapsed {
+		if state.collapsed == nil {
+			state.collapsed = make(map[int]bool)
+		}
+		state.collapsed[line] = true
+	} else {
+		delete(state.collapsed, line)
+	}
+	return true
+}
+
+// UnfoldAll expands every collapsed block.
+func (state *CodeEditorFoldState) UnfoldAll() bool {
+	if len(state.collapsed) == 0 {
+		return false
+	}
+	clear(state.collapsed)
+	return true
+}
+
+// UnfoldContaining expands any collapsed block whose hidden lines include line.
+func (state *CodeEditorFoldState) UnfoldContaining(line int) bool {
+	if len(state.collapsed) == 0 {
+		return false
+	}
+	changed := false
+	for _, r := range state.ranges {
+		if state.collapsed[r.Header] && line > r.Header && line <= r.LastLine {
+			delete(state.collapsed, r.Header)
+			changed = true
+		}
+	}
+	return changed
+}
+
+// FoldContainingAt returns the header of the innermost foldable range covering line.
+func (state *CodeEditorFoldState) FoldContainingAt(line int) (int, bool) {
+	bestHeader := -1
+	bestSpan := int(^uint(0) >> 1)
+	for _, r := range state.ranges {
+		if line >= r.Header && line <= r.LastLine {
+			span := r.LastLine - r.Header
+			if span < bestSpan {
+				bestSpan = span
+				bestHeader = r.Header
+			}
+		}
+	}
+	return bestHeader, bestHeader >= 0
+}
+
+// Snapshot builds non-overlapping FoldedLines and sorted FoldMarkers slices
+// backed by reusable internal buffers.
+func (state *CodeEditorFoldState) Snapshot(
+	collapseLabel, expandLabel string,
+	foldID, badgeID func(line int) gfx.ID,
+) ([]CodeEditorFoldRange, []CodeEditorFoldMarker) {
+	if len(state.ranges) == 0 {
+		return nil, nil
+	}
+	state.foldedBuf = state.foldedBuf[:0]
+	state.markerBuf = state.markerBuf[:0]
+	coveredUntil := -1
+	for _, r := range state.ranges {
+		collapsed := state.collapsed[r.Header]
+		label := collapseLabel
+		if collapsed {
+			label = expandLabel
+		}
+		var id, placeholderID gfx.ID
+		if foldID != nil {
+			id = foldID(r.Header)
+		}
+		if collapsed && badgeID != nil {
+			placeholderID = badgeID(r.Header)
+		}
+		state.markerBuf = append(state.markerBuf, CodeEditorFoldMarker{
+			Line:          r.Header,
+			ID:            id,
+			PlaceholderID: placeholderID,
+			Collapsed:     collapsed,
+			Label:         label,
+		})
+		if collapsed && r.Header > coveredUntil {
+			state.foldedBuf = append(state.foldedBuf, r)
+			coveredUntil = r.LastLine
+		}
+	}
+	return state.foldedBuf, state.markerBuf
+}
