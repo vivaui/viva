@@ -797,6 +797,25 @@ func (painter *painter) releaseKeys() bool {
 	return repaint
 }
 
+// endPress ends a press the platform took for itself, as it does when the
+// activation goes away or the window manager starts a drag of its own: the
+// button's release will go to whoever holds the pointer now, so the application
+// is told the pointer is gone instead of keeping a press that can never end.
+// It reports whether a press was ended, for the caller to repaint.
+func (painter *painter) endPress() bool {
+	if painter.pointer.PressTarget().IsZero() {
+		return false
+	}
+	painter.pointerOutside = false
+	painter.onSurface = false
+	painter.pointer.Exit()
+	if painter.onPointer != nil {
+		response := painter.onPointer(gfx.PointerEvent{Kind: gfx.PointerExit, Viewport: painter.size})
+		painter.applyEventResult(response)
+	}
+	return true
+}
+
 // focusLostHandler is what a window hands the platform for the loss of the
 // keyboard: it releases the keys that were down, since their releases will go
 // to whatever window has the keyboard now.
@@ -820,6 +839,11 @@ func (painter *painter) deactivateHandler() platform.DeactivateHandler {
 func (painter *painter) deactivate() (platform.Frame, error) {
 	painter.tap.Cancel()
 	repaint := painter.releaseKeys()
+	// The activation takes the pointer too: a press that was down belongs to
+	// whoever has the pointer now, and its release will never reach this window.
+	if painter.endPress() {
+		repaint = true
+	}
 	if painter.onDeactivate != nil {
 		response := painter.onDeactivate()
 		repaint = painter.applyEventResult(response) || response.Repaint || repaint
@@ -832,7 +856,13 @@ func (painter *painter) deactivate() (platform.Frame, error) {
 
 func (painter *painter) focusLost() (platform.Frame, error) {
 	painter.tap.Cancel()
-	if !painter.releaseKeys() {
+	repaint := painter.releaseKeys()
+	// A window manager's grab (Alt+Tab, a compositor gesture) takes the
+	// pointer's release with the keyboard's, so a press it interrupts ends here.
+	if painter.endPress() {
+		repaint = true
+	}
+	if !repaint {
 		return platform.Frame{}, nil
 	}
 	return painter.repaint()

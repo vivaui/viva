@@ -214,6 +214,18 @@ func (router eventRouter) pointerExit() error {
 	return router.presentFrame(frame, err)
 }
 
+// pointerCancel reports that the window manager took the press for itself when it
+// started a move or a resize: no release will follow, so the application must end
+// the press here. It is a cancel, not an exit: an exit only says the pointer left
+// the window, and a press keeps the pointer until its button comes up.
+func (router eventRouter) pointerCancel() error {
+	if router.config.OnPointer == nil {
+		return nil
+	}
+	frame, err := router.config.OnPointer(platform.PointerEvent{Kind: platform.PointerCancel})
+	return router.presentFrame(frame, err)
+}
+
 func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bool) error {
 	key := keymap.key(event.Detail)
 	modifiers := xcbModifiers(event.State)

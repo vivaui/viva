@@ -175,6 +175,19 @@ func (w *gtkWindow) pointerExit() {
 	}
 }
 
+// pointerCancel reports that the platform took the press for itself, as the
+// window manager does when it starts moving the window: no release will follow,
+// so the application must end the press here. It is a cancel, not an exit: an
+// exit only says the pointer left the window, and a press keeps the pointer
+// until its button comes up.
+func (w *gtkWindow) pointerCancel() {
+	w.pointer.over = false
+	if w.config.OnPointer != nil {
+		frame, err := w.config.OnPointer(platform.PointerEvent{Kind: platform.PointerCancel})
+		w.present(frame, err)
+	}
+}
+
 func (w *gtkWindow) pointerButton(e *gdkEventButton, dx, dy float64) uintptr {
 	down := e.Type == gdkButtonPress
 	x, y := w.logical(e.X+dx, e.Y+dy)
@@ -360,7 +373,7 @@ func (w *gtkWindow) beginMove() {
 	pointer.pending = false
 	if pointer.pendingDelivery {
 		// The application had the press; the window manager takes the release.
-		w.pointerExit()
+		w.pointerCancel()
 	}
 	w.g.windowBeginMove(w.toplevel, pointer.pendingButton, int32(pointer.pendingX), int32(pointer.pendingY), pointer.pendingTime)
 }

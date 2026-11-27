@@ -1167,7 +1167,7 @@ func (state *linuxWindowState) handleEvent(event unsafe.Pointer) (bool, error) {
 		win.sourceDragMotion(inputEvent)
 		consumed, cancelled := win.dragMotion(inputEvent)
 		if cancelled {
-			if err := router.pointerExit(); err != nil {
+			if err := router.pointerCancel(); err != nil {
 				return false, err
 			}
 		}

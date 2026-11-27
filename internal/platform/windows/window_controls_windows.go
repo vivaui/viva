@@ -351,11 +351,12 @@ func (state *windowState) dragCaption(x, y int32) {
 	sendMessage.Call(state.window, wmNCLButtonDown, htCaption, uintptr(uint16(screen.X))|uintptr(uint16(screen.Y))<<16)
 }
 
-// cancelPress tells the application its press is over. The application is told
-// the pointer left, the same event a window sees when the pointer leaves it.
+// cancelPress tells the application its press is over. It is a cancel, not an
+// exit: an exit only says the pointer left the window, and a press keeps the
+// pointer until its button comes up.
 func (state *windowState) cancelPress() {
 	if state.config.OnPointer != nil {
-		frame, err := state.config.OnPointer(platform.PointerEvent{Kind: platform.PointerExit})
+		frame, err := state.config.OnPointer(platform.PointerEvent{Kind: platform.PointerCancel})
 		state.frame(frame, err)
 	}
 }
