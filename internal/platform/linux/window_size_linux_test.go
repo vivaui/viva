@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/platform"
 	"github.com/vivaui/viva/internal/platform/windowframe"
 )
 
@@ -79,5 +80,63 @@ func TestSetSizeCommandIgnoresMinimizedWindows(t *testing.T) {
 	}
 	if configured {
 		t.Fatal("minimized window was resized")
+	}
+}
+
+// An unanchored notification resizes around the screen corner it sits in, and
+// an anchored or non-notification window keeps its origin.
+func TestSetSizeCommandKeepsNotificationCornerPinned(t *testing.T) {
+	const screenWidth, screenHeight = 1000, 600
+	var gotMask uint16
+	var got [4]uint32
+	win := &window{
+		id:     7,
+		screen: &xcbScreen{Root: 1, WidthPixels: screenWidth, HeightPixels: screenHeight},
+		width:  100,
+		height: 100,
+		api: &xcbAPI{
+			translateCoordinates: func(uintptr, uint32, uint32, int16, int16) xcbTranslateCookie {
+				return xcbTranslateCookie{}
+			},
+			translateCoordinatesReply: func(uintptr, xcbTranslateCookie, *unsafe.Pointer) *xcbTranslateReply {
+				return &xcbTranslateReply{DstX: 880, DstY: 480}
+			},
+			free: func(unsafe.Pointer) {},
+			changeProperty: func(uintptr, uint8, uint32, uint32, uint32, uint8, uint32, unsafe.Pointer) xcbVoidCookie {
+				return xcbVoidCookie{}
+			},
+			configureWindow: func(_ uintptr, _ uint32, mask uint16, values *uint32) xcbVoidCookie {
+				gotMask = mask
+				copy(got[:], unsafe.Slice(values, 4))
+				return xcbVoidCookie{}
+			},
+			flush: func(uintptr) int32 { return 1 },
+		},
+	}
+	win.storeScale(1)
+	data := make([]byte, 12)
+	binary.LittleEndian.PutUint32(data[0:4], commandSetSize)
+	binary.LittleEndian.PutUint32(data[4:8], 200)
+	binary.LittleEndian.PutUint32(data[8:12], 150)
+
+	state := &linuxWindowState{win: win}
+	state.config.WindowMode = platform.WindowNotification
+	if err := state.command(commandSetSize, data); err != nil {
+		t.Fatal(err)
+	}
+	if want := uint16(xcbConfigWindowX | xcbConfigWindowY | xcbConfigWindowWidth | xcbConfigWindowHeight); gotMask != want {
+		t.Fatalf("configure mask = %#x, want %#x", gotMask, want)
+	}
+	// The window's right and bottom edges stay where they were.
+	if right, bottom := got[0]+got[2], got[1]+got[3]; right != 980 || bottom != 580 {
+		t.Fatalf("resized frame = %v, right/bottom = %d/%d, want 980/580", got, right, bottom)
+	}
+
+	state.config.HasAnchor = true
+	if err := state.command(commandSetSize, data); err != nil {
+		t.Fatal(err)
+	}
+	if want := uint16(xcbConfigWindowWidth | xcbConfigWindowHeight); gotMask != want {
+		t.Fatalf("anchored configure mask = %#x, want size only", gotMask)
 	}
 }

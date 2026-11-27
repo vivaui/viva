@@ -201,6 +201,34 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 			min(deviceLength(width, win.displayScale())+2*margin, 65535),
 			min(deviceLength(height, win.displayScale())+2*margin, 65535),
 		}
+		var area platform.ScreenRect
+		if win.screen != nil {
+			area = platform.ScreenRect{Width: float32(win.screen.WidthPixels), Height: float32(win.screen.HeightPixels)}
+		}
+		if state.config.WindowMode == platform.WindowNotification && !state.config.HasAnchor && area.Width > 0 && area.Height > 0 {
+			originX, originY := win.rootOrigin()
+			monitors := win.placementMonitors()
+			if monitor, ok := monitorAt(monitors, int(originX)+int(win.width)/2, int(originY)+int(win.height)/2); ok && monitor.Width > 0 && monitor.Height > 0 {
+				work, haveWork := win.workArea()
+				usable := usableArea(monitorRect(monitor), work, haveWork)
+				area = platform.ScreenRect{X: float32(usable.x), Y: float32(usable.y), Width: float32(usable.width), Height: float32(usable.height)}
+			}
+			cur := platform.ScreenRect{X: float32(originX), Y: float32(originY), Width: float32(win.width), Height: float32(win.height)}
+			next := platform.ResizeNotificationFrame(cur, area, float32(size[0]), float32(size[1]))
+			nx, ny := clampInt16(int(math.Round(float64(next.X)))), clampInt16(int(math.Round(float64(next.Y))))
+			nw, nh := uint32(max(1, int(math.Round(float64(next.Width))))), uint32(max(1, int(math.Round(float64(next.Height)))))
+			var hints [18]uint32
+			hints[0] = sizeHintUSPosition | sizeHintPPosition | sizeHintPMinSize | sizeHintPMaxSize
+			hints[1], hints[2] = uint32(int32(nx)), uint32(int32(ny))
+			hints[3], hints[4] = nw, nh
+			hints[5], hints[6], hints[7], hints[8] = nw, nh, nw, nh
+			win.api.changeProperty(win.connection, xcbPropertyReplace, win.id, xcbAtomWMNormalHints, xcbAtomWMSizeHints, 32, uint32(len(hints)), unsafe.Pointer(&hints[0]))
+			values := [4]uint32{uint32(int32(nx)), uint32(int32(ny)), nw, nh}
+			win.api.configureWindow(win.connection, win.id,
+				xcbConfigWindowX|xcbConfigWindowY|xcbConfigWindowWidth|xcbConfigWindowHeight, &values[0])
+			win.api.flush(win.connection)
+			break
+		}
 		win.api.configureWindow(win.connection, win.id,
 			xcbConfigWindowWidth|xcbConfigWindowHeight, &size[0])
 		win.api.flush(win.connection)
