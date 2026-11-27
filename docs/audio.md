@@ -1,4 +1,4 @@
-# Audio output
+# Audio
 
 `audio` plays PCM on the system's default output device. It exists for a
 stream an application receives from elsewhere — a remote desktop's sound, a
@@ -28,9 +28,34 @@ discarded. It is safe to call more than once.
 - It has no volume control. The stream follows the system's output volume and
   mute, which is what a remote desktop wants: the machine's own controls stay
   authoritative.
-- It does not capture the microphone. Audio input is a separate capability and
-  is not implemented.
 - It does not exist on WebAssembly. `Open` returns `ErrUnsupported`.
+
+## Microphone capture
+
+`audio.OpenInput` captures the system's default input device as the same
+16-bit little-endian PCM. `Input` implements `io.ReadCloser`; nothing is opened
+until it is called, and `Close` joins the capture goroutine and releases the
+device. If the reader stalls, the oldest quarter-second is dropped rather than
+blocking the device. Targets without a backend return `ErrInputUnsupported`.
+
+Opening the microphone is a privacy decision the operating system gates, so an
+application declares it:
+
+- **macOS** asks the user once per application. The bundle must carry
+  `NSMicrophoneUsageDescription`, and a hardened-runtime build must be signed
+  with `com.apple.security.device.audio-input`. Both are project settings, not
+  code: put the usage string under `[mac.info]` and the entitlement in the
+  property list that `[mac] entitlements` points to. Without them macOS can
+  terminate the process or deliver silence, and `OpenInput` reports success
+  either way, so a capture of all zeros means the permission is missing, not
+  that the microphone is quiet.
+- **Windows** gates desktop applications with Settings > Privacy > Microphone;
+  when access is off the device delivers silence.
+- **Linux** has no per-application prompt; a sandbox such as Flatpak grants
+  access through its portal.
+
+An application should say why it listens before it calls `OpenInput`, and
+should not open the device before the user asks for sound.
 
 ## Backends
 

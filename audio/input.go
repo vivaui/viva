@@ -34,6 +34,9 @@ type Input struct {
 // OpenInput opens the default input device for format. It returns
 // ErrInputUnsupported when the platform, the system library, or the system's
 // default input device cannot capture.
+//
+// Denied microphone access is not an error: macOS and Windows deliver silence.
+// docs/audio.md lists what a macOS bundle must declare.
 func OpenInput(format Format) (*Input, error) {
 	if err := format.valid(); err != nil {
 		return nil, err
