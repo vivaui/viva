@@ -1252,6 +1252,11 @@ int viva_system_play_sound(uint8_t sound, char **error_message) {
     return status;
 }
 
+// Standalone native fixtures do not link the Go callback bridge.
+extern void vivaSystemNotificationActivated(char *) __attribute__((weak_import));
+extern int vivaSystemNotificationIsActive(char *) __attribute__((weak_import));
+extern void vivaSystemNotificationFailed(char *, char *, int) __attribute__((weak_import));
+
 @interface VivaNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
 @end
 
@@ -1271,6 +1276,16 @@ int viva_system_play_sound(uint8_t sound, char **error_message) {
 #pragma clang diagnostic pop
     }
 }
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+       didReceiveNotificationResponse:(UNNotificationResponse *)response
+       withCompletionHandler:(void (^)(void))completionHandler {
+    if ([response.actionIdentifier isEqualToString:UNNotificationDefaultActionIdentifier] &&
+        vivaSystemNotificationActivated != NULL) {
+        vivaSystemNotificationActivated((char *)response.notification.request.identifier.UTF8String);
+    }
+    completionHandler();
+}
+
 @end
 
 static VivaNotificationDelegate *viva_notification_delegate(void) {
@@ -1404,6 +1419,84 @@ int viva_system_send_notification(
             [failure release];
             return -1;
         }
+        return 0;
+    }
+}
+
+static BOOL viva_interactive_notification_active(NSString *identifier) {
+    return vivaSystemNotificationIsActive != NULL && vivaSystemNotificationIsActive((char *)identifier.UTF8String) != 0;
+}
+
+void viva_system_remove_notification(const char *identifier) {
+    @autoreleasepool {
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0 || identifier == NULL) return;
+        NSString *value = viva_string(identifier);
+        if (value == nil) return;
+        UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+        [center removePendingNotificationRequestsWithIdentifiers:@[value]];
+        [center removeDeliveredNotificationsWithIdentifiers:@[value]];
+    }
+}
+
+static void viva_interactive_notification_failed(NSString *identifier, NSString *message, BOOL denied) {
+    if (vivaSystemNotificationFailed != NULL) {
+        vivaSystemNotificationFailed((char *)identifier.UTF8String, (char *)message.UTF8String, denied ? 1 : 0);
+    }
+}
+
+static void viva_interactive_notification_schedule(UNUserNotificationCenter *center, NSString *identifier, NSString *title, NSString *body) {
+    if (!viva_interactive_notification_active(identifier)) return;
+    UNMutableNotificationContent *content = [[[UNMutableNotificationContent alloc] init] autorelease];
+    content.title = title;
+    content.body = body;
+    content.sound = UNNotificationSound.defaultSound;
+    UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:nil];
+    [center addNotificationRequest:request withCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            viva_interactive_notification_failed(identifier, error.localizedDescription, NO);
+        }
+        // Cancellation can race scheduling. Remove the request again after the
+        // native completion so late authorization never reinstates a retired request.
+        if (!viva_interactive_notification_active(identifier)) {
+            viva_system_remove_notification(identifier.UTF8String);
+        }
+    }];
+}
+
+int viva_system_show_interactive_notification(const char *identifier, const char *title, const char *body, char **error_message) {
+    @autoreleasepool {
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
+            viva_set_error(error_message, @"notifications require an application bundle identifier");
+            return -1;
+        }
+        NSString *key = viva_string(identifier), *notificationTitle = viva_string(title), *notificationBody = viva_string(body);
+        if (key == nil || notificationTitle == nil || notificationBody == nil) {
+            viva_set_error(error_message, @"notification text is not valid UTF-8");
+            return -1;
+        }
+        UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+        center.delegate = viva_notification_delegate();
+        [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+            if (!viva_interactive_notification_active(key)) return;
+            if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined) {
+                [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                                  completionHandler:^(BOOL allowed, NSError *error) {
+                    if (!viva_interactive_notification_active(key)) return;
+                    if (!allowed || error != nil) {
+                        viva_interactive_notification_failed(key, error.localizedDescription ?: @"notification permission was denied", !allowed);
+                        return;
+                    }
+                    viva_interactive_notification_schedule(center, key, notificationTitle, notificationBody);
+                }];
+            } else if (settings.authorizationStatus == UNAuthorizationStatusDenied) {
+                viva_interactive_notification_failed(key, @"notification permission is denied in System Settings", YES);
+            } else if (settings.authorizationStatus == UNAuthorizationStatusAuthorized ||
+                       settings.authorizationStatus == UNAuthorizationStatusProvisional) {
+                viva_interactive_notification_schedule(center, key, notificationTitle, notificationBody);
+            } else {
+                viva_interactive_notification_failed(key, @"notification authorization status is unsupported", NO);
+            }
+        }];
         return 0;
     }
 }

@@ -18,9 +18,16 @@ import (
 // start the native application from main to satisfy AppKit's main-thread requirement.
 func RunApplication(start func(*Application) error) error {
 	attendFaults()
+	var owned *Application
+	defer func() {
+		if owned != nil {
+			owned.closeNotifications()
+		}
+	}()
 	if applicationRunner != nil {
 		return applicationRunner(func(host Host) error {
 			application := &Application{host: host}
+			owned = application
 			if err := start(application); err != nil {
 				return err
 			}
@@ -35,6 +42,7 @@ func RunApplication(start func(*Application) error) error {
 	defer runtime.UnlockOSThread()
 	return runNativeApplication(func(native platform.Application) error {
 		application := &Application{host: nativeHost{native}}
+		owned = application
 		if err := start(application); err != nil {
 			return err
 		}
@@ -47,6 +55,8 @@ func RunApplication(start func(*Application) error) error {
 
 // nativeHost is the Host over a platform adapter.
 type nativeHost struct{ native platform.Application }
+
+var _ notificationHost = nativeHost{}
 
 func (host nativeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func()) (WindowControl, error) {
 	windowConfig, painter, cleanup, err := prepareNativeWindow(config, canvas)
@@ -282,3 +292,11 @@ func (item nativeStatusItem) SetStatusHover(handler func(StatusAnchor, bool)) bo
 	})
 }
 func (item nativeStatusItem) RefreshMenu() { item.item.RefreshMenu() }
+
+func (host nativeHost) ShowNotification(value Notification, events NotificationEvents) (NotificationControl, error) {
+	cancel, err := nativeShowNotification(value, events)
+	if err != nil {
+		return nil, err
+	}
+	return &nativeNotificationControl{cancel: cancel}, nil
+}

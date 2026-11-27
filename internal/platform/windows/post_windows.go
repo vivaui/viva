@@ -41,6 +41,10 @@ var (
 // wakeProc runs posted work for the wake window. A modal loop dispatches the
 // wake here just as the application's own loop does.
 func wakeProc(window, kind, first, second uintptr) (result uintptr) {
+	if kind == wmNotificationActivation {
+		activateSystemNotification(window, uint32(first), uint32(second))
+		return 0
+	}
 	if kind == wmPost {
 		if application := wakeOwner.Load(); application != nil {
 			application.drainPosts()
@@ -89,6 +93,7 @@ func (application *windowsApplication) openWakeWindow() error {
 // closeWakeWindow drops the wake window; no posted work runs after it.
 func (application *windowsApplication) closeWakeWindow() {
 	if window := application.wakeWindow.Swap(0); window != 0 {
+		removeInteractiveNotifications(window)
 		destroyWindow.Call(window)
 	}
 	wakeOwner.CompareAndSwap(application, nil)
