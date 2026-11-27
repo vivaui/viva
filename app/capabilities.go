@@ -66,6 +66,9 @@ const (
 	// CapabilityNotificationActivation means an application can own cancellable
 	// system notifications and receive activation while its loop is running.
 	CapabilityNotificationActivation
+	// CapabilityWindowWatermark means native text patterns can cover canvas and
+	// embedded native views without receiving input.
+	CapabilityWindowWatermark
 )
 
 // Capabilities is a set of platform integrations.

@@ -930,6 +930,7 @@ func (w *webHost) layoutCovers(page *windowsWeb, view platform.NativeView) {
 	if sameRects(page.coverSet, w.cuts) {
 		return
 	}
+	defer w.state.raiseWatermark()
 	page.coverSet = append(page.coverSet[:0], w.cuts...)
 	origin := point{}
 	clientToScreen.Call(w.state.window, uintptr(unsafe.Pointer(&origin)))
@@ -969,6 +970,7 @@ func (w *webHost) newCover() uintptr {
 		0, 0, 1, 1, state.window, 0, state.application.instance, 0)
 	if window != 0 {
 		setLayered.Call(window, 0, 1, 2)
+		state.raiseWatermark()
 	}
 	return window
 }

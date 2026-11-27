@@ -126,3 +126,11 @@ func (content *ContentWindow) RequestClose() {
 		content.Close()
 	}
 }
+
+// SetWatermark updates the content window's native overlay, as Window.SetWatermark.
+func (content *ContentWindow) SetWatermark(value Watermark) error {
+	if content == nil || content.window == nil {
+		return fmt.Errorf("app: content window is closed")
+	}
+	return content.window.SetWatermark(value)
+}

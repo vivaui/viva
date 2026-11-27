@@ -32,5 +32,8 @@ func (state *windowState) setAlwaysOnTop(enabled bool) bool {
 		level = ^uintptr(0) // HWND_TOPMOST
 	}
 	applied, _, _ := setWindowPosition.Call(state.window, level, 0, 0, 0, 0, 0x13)
+	if applied != 0 {
+		state.raiseWatermark()
+	}
 	return applied != 0
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/internal/platform"
 )
 
 type applicationWindow struct {
@@ -26,6 +27,7 @@ type applicationWindow struct {
 	id           uint64
 	title        string
 	icon         app.WindowIcon
+	watermark    platform.Watermark
 	panel        bool
 	notification bool
 	hidden       bool
@@ -87,7 +89,11 @@ func (application *applicationSession) Post(fn func()) {
 
 // OpenWindow implements app.Host.
 func (application *applicationSession) OpenWindow(config app.Config, canvas *gfx.Canvas, closed func()) (app.WindowControl, error) {
-	entry := &applicationWindow{icon: config.Icon}
+	watermark, err := headlessWatermark(config.Watermark)
+	if err != nil {
+		return nil, err
+	}
+	entry := &applicationWindow{icon: config.Icon, watermark: watermark}
 	if config.Invalidator == nil {
 		config.Invalidator = &app.Invalidator{}
 	}
@@ -744,4 +750,25 @@ func (application *applicationSession) afterCommand(reply string) (string, bool)
 		return reply, false
 	}
 	return strings.TrimSuffix(reply, "\n") + " windows=0\n", true
+}
+
+// SetWatermark records normalized state without claiming native composition support.
+// The application lock provides the same any-goroutine contract as native controls.
+func (window *headlessWindow) SetWatermark(request app.Watermark) error {
+	value, err := headlessWatermark(request)
+	if err != nil {
+		return err
+	}
+	window.application.mu.Lock()
+	defer window.application.mu.Unlock()
+	entry := window.application.windows[window.id]
+	if entry == nil {
+		return fmt.Errorf("headless: window is closed")
+	}
+	entry.watermark = value
+	return nil
+}
+
+func headlessWatermark(value app.Watermark) (platform.Watermark, error) {
+	return platform.NormalizeWatermark(platform.Watermark{Text: value.Text, FontFamily: value.FontFamily, Color: platform.Color(value.Color), FontSize: value.FontSize, FontWeight: value.FontWeight, Angle: value.Angle, TileWidth: value.TileWidth, TileHeight: value.TileHeight, Insets: value.Insets})
 }
