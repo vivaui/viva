@@ -413,3 +413,52 @@ func paintHitTextPart(canvas *Canvas, y float32, color Color) {
 		Role: RoleTextField, TextBounds: Rect{X: 10, Y: y, Width: 80, Height: 20}, TextSize: 13, TextColor: color,
 	})
 }
+
+// A replayed hit keeps the position-dependent pointer picture it declared: the
+// sparse table it indexes into moves with the copy, past whatever the paint
+// declared before it.
+func TestReplayKeepsAPositionDependentCursorPicture(t *testing.T) {
+	picture, err := NewCursorImage(1, 1, 0, 0, 1, []byte{0, 0, 0, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	filler, err := NewCursorImage(1, 1, 0, 0, 1, []byte{255, 255, 255, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var canvas Canvas
+	canvas.KeepPrevious(true)
+	var span Span
+	paintPage(&canvas, 0, func(c *Canvas) {
+		from := c.Mark()
+		c.HitWithOptions(Item(1), Rect{Width: 10, Height: 10}, "picture", HitOptions{
+			Cursor: PointerCursorImage, CursorImageAt: func(Point) *CursorImage { return picture },
+		})
+		span = c.SpanSince(from)
+	})
+	paintPage(&canvas, 0, func(c *Canvas) {
+		c.HitWithOptions(Item(2), Rect{Width: 10, Height: 10}, "filler", HitOptions{
+			Cursor: PointerCursorImage, CursorImageAt: func(Point) *CursorImage { return filler },
+		})
+		if _, ok := c.Replay(span); !ok {
+			t.Fatal("the hit could not be replayed")
+		}
+	})
+	hits := canvas.Hits()
+	for index := range hits {
+		hit := &hits[index]
+		imageAt := canvas.CursorImageAt(hit)
+		switch hit.ID {
+		case Item(1):
+			if imageAt == nil || imageAt(Point{X: 4}) != picture {
+				t.Fatalf("the replayed picture = %v, want the one it declared", imageAt)
+			}
+			return
+		case Item(2):
+			if imageAt == nil || imageAt(Point{}) != filler {
+				t.Fatalf("the filler picture = %v", imageAt)
+			}
+		}
+	}
+	t.Fatal("the replayed hit is gone")
+}

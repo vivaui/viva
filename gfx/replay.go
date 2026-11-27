@@ -23,6 +23,7 @@ import "slices"
 type Mark struct {
 	rectangles, triangles, shadows, images, texts, runs, hits, hitTexts, nativeViews uint32
 	hoverHints                                                                       uint32
+	cursorImageAts                                                                   uint32
 	// epoch is the paint the mark was taken in.
 	epoch uint32
 	// The clip, layer and focus scope in effect at the mark: what everything the
@@ -57,7 +58,7 @@ func (canvas *Canvas) Mark() Mark {
 		shadows: uint32(len(canvas.shadows)), images: uint32(len(canvas.images)),
 		texts: uint32(len(canvas.texts)), runs: uint32(len(canvas.runs)),
 		hits: uint32(len(canvas.hits)), hitTexts: uint32(len(canvas.hitTexts)),
-		hoverHints:  uint32(len(canvas.hoverHints)),
+		cursorImageAts: uint32(len(canvas.cursorImageAts)), hoverHints: uint32(len(canvas.hoverHints)),
 		nativeViews: uint32(len(canvas.nativeViews)),
 		epoch:       canvas.previous.epoch, layer: canvas.currentLayer(), scope: canvas.currentFocusScope(),
 	}
@@ -129,11 +130,19 @@ func (canvas *Canvas) ReplayAt(span Span, dx, dy float32) (Span, bool) {
 	canvas.runs = append(canvas.runs, old.runs[f.runs:t.runs]...)
 	textBase := int32(len(canvas.hitTexts))
 	canvas.hitTexts = append(canvas.hitTexts, old.hitTexts[f.hitTexts:t.hitTexts]...)
+	cursorBase := int32(len(canvas.cursorImageAts))
+	if f.cursorImageAts < t.cursorImageAts {
+		canvas.cursorImageAts = append(canvas.cursorImageAts, old.cursorImageAts[f.cursorImageAts:t.cursorImageAts]...)
+		canvas.hasCursorImageAt = true
+	}
 	hitBase := len(canvas.hits)
 	canvas.hits = append(canvas.hits, old.hits[f.hits:t.hits]...)
 	for index := hitBase; index < len(canvas.hits); index++ {
 		if canvas.hits[index].Text != 0 {
 			canvas.hits[index].Text += textBase
+		}
+		if canvas.hits[index].CursorImageAt != 0 {
+			canvas.hits[index].CursorImageAt += cursorBase
 		}
 	}
 	canvas.nativeViews = append(canvas.nativeViews, old.nativeViews[f.nativeViews:t.nativeViews]...)
@@ -249,12 +258,14 @@ func (canvas *Canvas) Rewind(to Mark) bool {
 	if to.epoch != canvas.previous.epoch || int(to.rectangles) > len(canvas.rectangles) || int(to.triangles) > len(canvas.triangles) ||
 		int(to.shadows) > len(canvas.shadows) || int(to.images) > len(canvas.images) || int(to.texts) > len(canvas.texts) ||
 		int(to.runs) > len(canvas.runs) || int(to.hits) > len(canvas.hits) || int(to.hitTexts) > len(canvas.hitTexts) ||
+		int(to.cursorImageAts) > len(canvas.cursorImageAts) ||
 		int(to.nativeViews) > len(canvas.nativeViews) || int(to.hoverHints) > len(canvas.hoverHints) {
 		return false
 	}
 	clear(canvas.texts[to.texts:]) // their strings are not kept past the rewind
 	clear(canvas.hits[to.hits:])
 	clear(canvas.hitTexts[to.hitTexts:])
+	clear(canvas.cursorImageAts[to.cursorImageAts:])
 	clear(canvas.images[to.images:])
 	clear(canvas.hoverHints[to.hoverHints:])
 	canvas.rectangles = canvas.rectangles[:to.rectangles]
@@ -265,6 +276,8 @@ func (canvas *Canvas) Rewind(to Mark) bool {
 	canvas.runs = canvas.runs[:to.runs]
 	canvas.hits = canvas.hits[:to.hits]
 	canvas.hitTexts = canvas.hitTexts[:to.hitTexts]
+	canvas.cursorImageAts = canvas.cursorImageAts[:to.cursorImageAts]
+	canvas.hasCursorImageAt = len(canvas.cursorImageAts) > 0
 	canvas.nativeViews = canvas.nativeViews[:to.nativeViews]
 	canvas.hoverHints = canvas.hoverHints[:to.hoverHints]
 	kept := canvas.motion.hitMotions[:0]
@@ -378,16 +391,17 @@ func contains(outer, inner Rect) bool {
 
 // primitiveLists is one paint's primitives.
 type primitiveLists struct {
-	rectangles  []Rectangle
-	triangles   []Triangle
-	shadows     []Shadow
-	images      []Image
-	texts       []Text
-	runs        []TextRun
-	hits        []Hit
-	hoverHints  []HoverHint
-	hitTexts    []HitText
-	nativeViews []NativeView
+	rectangles     []Rectangle
+	triangles      []Triangle
+	shadows        []Shadow
+	images         []Image
+	texts          []Text
+	runs           []TextRun
+	hits           []Hit
+	hoverHints     []HoverHint
+	hitTexts       []HitText
+	cursorImageAts []CursorImageFunc
+	nativeViews    []NativeView
 }
 
 // extent is the rectangle everything span painted lies in, and false when it
@@ -439,7 +453,7 @@ func (lists *primitiveLists) holds(span Span) bool {
 		int(t.shadows) <= len(lists.shadows) && int(t.images) <= len(lists.images) &&
 		int(t.texts) <= len(lists.texts) && int(t.runs) <= len(lists.runs) &&
 		int(t.hits) <= len(lists.hits) && int(t.hitTexts) <= len(lists.hitTexts) && int(t.nativeViews) <= len(lists.nativeViews) &&
-		int(t.hoverHints) <= len(lists.hoverHints)
+		int(t.cursorImageAts) <= len(lists.cursorImageAts) && int(t.hoverHints) <= len(lists.hoverHints)
 }
 
 // previousPaint is the previous paint's lists, kept for Replay, and the number of
@@ -453,7 +467,7 @@ type previousPaint struct {
 
 // canvasTails is how long each pointer-holding list of a paint was when the
 // canvas last trimmed it: what lies past its length up to there is stale.
-type canvasTails struct{ images, texts, hits, hitTexts, nativeViews, hoverHints int }
+type canvasTails struct{ images, texts, hits, hitTexts, nativeViews, hoverHints, cursorImageAts int }
 
 // releaseTail clears items[len(items):*end], what an earlier paint held past this
 // one's length, and records this length. Everything past it was cleared before,
@@ -481,6 +495,7 @@ func (canvas *Canvas) rotate() {
 	canvas.runs, old.runs = old.runs[:0], canvas.runs
 	canvas.hits, old.hits = old.hits[:0], canvas.hits
 	canvas.hitTexts, old.hitTexts = old.hitTexts[:0], canvas.hitTexts
+	canvas.cursorImageAts, old.cursorImageAts = old.cursorImageAts[:0], canvas.cursorImageAts
 	canvas.nativeViews, old.nativeViews = old.nativeViews[:0], canvas.nativeViews
 	canvas.hoverHints, old.hoverHints = old.hoverHints[:0], canvas.hoverHints
 	canvas.tails, canvas.previous.tails = canvas.previous.tails, canvas.tails
@@ -498,6 +513,7 @@ func (canvas *Canvas) trimPrevious() {
 	old.runs = trimCapacity(old.runs)
 	old.hits = trimCapacity(old.hits)
 	old.hitTexts = trimCapacity(old.hitTexts)
+	old.cursorImageAts = trimCapacity(old.cursorImageAts)
 	old.nativeViews = trimCapacity(old.nativeViews)
 	old.hoverHints = trimCapacity(old.hoverHints)
 }

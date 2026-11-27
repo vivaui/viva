@@ -213,19 +213,56 @@ func TestCursorFollowsThePressTargetAndHit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hits := []gfx.Hit{
-		{ID: gfx.Item(1), Cursor: gfx.PointerCursorText},
-		{ID: gfx.Item(2), Cursor: gfx.PointerCursorImage, CursorImage: image},
-		{ID: gfx.Item(3), Cursor: gfx.PointerCursorHand, Disabled: true},
-	}
-	if cursor, got := CursorForTarget(hits, gfx.Item(1), gfx.ID{}); cursor != gfx.PointerCursorText || got != nil {
+	var canvas gfx.Canvas
+	canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Cursor: gfx.PointerCursorText})
+	canvas.HitWithOptions(gfx.Item(2), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Cursor: gfx.PointerCursorImage, CursorImage: image})
+	canvas.HitWithOptions(gfx.Item(3), gfx.Rect{Width: 10, Height: 10}, "", gfx.HitOptions{Cursor: gfx.PointerCursorHand, Disabled: true})
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(1), gfx.ID{}, gfx.Point{}); cursor != gfx.PointerCursorText || got != nil {
 		t.Fatalf("hover cursor = %v %v, want text", cursor, got)
 	}
-	if cursor, got := CursorForTarget(hits, gfx.Item(1), gfx.Item(2)); cursor != gfx.PointerCursorImage || got != image {
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(1), gfx.Item(2), gfx.Point{}); cursor != gfx.PointerCursorImage || got != image {
 		t.Fatalf("captured cursor = %v %v, want the image", cursor, got)
 	}
-	if cursor, got := CursorForTarget(hits, gfx.Item(3), gfx.ID{}); cursor != gfx.PointerCursorDefault || got != nil {
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(3), gfx.ID{}, gfx.Point{}); cursor != gfx.PointerCursorDefault || got != nil {
 		t.Fatalf("disabled cursor = %v %v, want the arrow", cursor, got)
+	}
+}
+
+// A hit whose pointer picture depends on the pointer's place is asked for the
+// picture at that place; one that answers nothing shows the arrow.
+func TestCursorAsksForAPositionDependentPicture(t *testing.T) {
+	first, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{0, 0, 0, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{255, 255, 255, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var asked []gfx.Point
+	var picture *gfx.CursorImage
+	var canvas gfx.Canvas
+	canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 100}, "", gfx.HitOptions{
+		Cursor: gfx.PointerCursorImage,
+		CursorImageAt: func(at gfx.Point) *gfx.CursorImage {
+			asked = append(asked, at)
+			return picture
+		},
+	})
+	picture = first
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(1), gfx.ID{}, gfx.Point{X: 7, Y: 9}); cursor != gfx.PointerCursorImage || got != first {
+		t.Fatalf("picture at 7,9 = %v %v, want the first", cursor, got)
+	}
+	if len(asked) != 1 || asked[0] != (gfx.Point{X: 7, Y: 9}) {
+		t.Fatalf("asked for %v, want 7,9", asked)
+	}
+	picture = second
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(1), gfx.ID{}, gfx.Point{X: 8, Y: 9}); cursor != gfx.PointerCursorImage || got != second {
+		t.Fatalf("picture at 8,9 = %v %v, want the second", cursor, got)
+	}
+	picture = nil
+	if cursor, got := CursorForTarget(&canvas, gfx.Item(1), gfx.ID{}, gfx.Point{X: 9, Y: 9}); cursor != gfx.PointerCursorDefault || got != nil {
+		t.Fatalf("picture answered nothing = %v %v, want the arrow", cursor, got)
 	}
 }
 

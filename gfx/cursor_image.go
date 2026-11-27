@@ -6,6 +6,15 @@ import "fmt"
 // desktop protocols name pointers up to 384 pixels; operating systems draw them from far less.
 const MaxCursorImageSize = 512
 
+// CursorImageFunc is the pointer picture a hit shows while the pointer is at at,
+// in the hit's own coordinates. The runtime calls it whenever the pointer moves
+// and after a paint, and hands what it returns to the system as the pointer, so
+// a picture that depends on what lies under it (a remote desktop's inverting
+// pointer) follows the pointer without repainting the window. Returning the
+// same *CursorImage keeps the same pointer, since one value is one cursor; nil
+// shows the ordinary arrow.
+type CursorImageFunc func(at Point) *CursorImage
+
 // CursorImage is a pointer the application paints itself, as a picture the system draws as its
 // own pointer: it follows the mouse with no lag, shows over the window's title bar and edges the
 // way any pointer does, and is dropped by the system when the mouse leaves. A remote desktop

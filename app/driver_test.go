@@ -1246,3 +1246,64 @@ func TestAnUnsupportedCursorImageFallsBackToTheArrow(t *testing.T) {
 		t.Fatalf("the same picture was asked for again: %v %v", shapes, err)
 	}
 }
+
+// A hit whose pointer picture depends on the pointer's place follows the pointer
+// through the system cursor, without painting the window again; a picture it
+// answers twice is one pointer and is not set again.
+func TestDriverFollowsAPositionDependentCursorImageWithoutRepainting(t *testing.T) {
+	left, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{0, 0, 0, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{255, 255, 255, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	paints := 0
+	config := Config{Title: "position cursor", Width: 200, Height: 100}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		paints++
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 200, Height: 100}, "remote", gfx.HitOptions{
+			Cursor: gfx.PointerCursorImage,
+			CursorImageAt: func(at gfx.Point) *gfx.CursorImage {
+				if at.X < 100 {
+					return left
+				}
+				return right
+			},
+		})
+	}
+	driver, err := NewDriver(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close()
+	var shown []*gfx.CursorImage
+	driver.painter.setCursorImage = func(image *gfx.CursorImage) error {
+		shown = append(shown, image)
+		return nil
+	}
+	if err := driver.Move(20, 20); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := driver.Snapshot(); snapshot.Cursor != CursorImage || snapshot.CursorImage != left {
+		t.Fatalf("over the left half: cursor %v image %p, want the left picture", snapshot.Cursor, snapshot.CursorImage)
+	}
+	painted := paints
+	if err := driver.Move(120, 20); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot := driver.Snapshot(); snapshot.CursorImage != right {
+		t.Fatalf("over the right half: image %p, want the right picture", snapshot.CursorImage)
+	}
+	if paints != painted {
+		t.Fatalf("moving the pointer painted the window %d more times, want none", paints-painted)
+	}
+	// The same picture at another place in the same half is the same pointer.
+	if err := driver.Move(130, 30); err != nil {
+		t.Fatal(err)
+	}
+	if len(shown) != 2 {
+		t.Fatalf("the pointer was set %d times, want the two pictures once each", len(shown))
+	}
+}
