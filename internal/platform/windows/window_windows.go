@@ -79,6 +79,8 @@ const (
 type windowState struct {
 	// pendingTitle is the title SetTitle asked for, applied on the window thread.
 	pendingTitle        titleRequest
+	pendingWatermark    watermarkRequest
+	watermark           *watermarkOverlay
 	pendingIcon         iconRequest
 	decoration          windowDecoration
 	fullscreen          atomic.Bool
@@ -321,6 +323,11 @@ func RunApplication(start platform.ApplicationStart) error {
 }
 
 func (application *windowsApplication) OpenWindow(config platform.Config) (platform.Window, error) {
+	watermark, err := platform.NormalizeWatermark(config.Watermark)
+	if err != nil {
+		return nil, err
+	}
+	config.Watermark = watermark
 	if err := validateTextInput(config.TextInput); err != nil {
 		return nil, err
 	}
@@ -474,6 +481,11 @@ func (application *windowsApplication) OpenWindow(config platform.Config) (platf
 			postMessage.Call(state.window, wmWebReady, 0, 0)
 		}
 	}
+	state.pendingWatermark.handle = state.window
+	if err := state.syncWatermark(); err != nil {
+		destroyWindow.Call(state.window)
+		return nil, err
+	}
 	state.testEvents()
 	return &nativeWindow{state: state}, nil
 }
@@ -529,6 +541,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		return 0
 	case wmFullscreen:
 		state.setFullscreen(first != 0)
+		return 0
+	case wmSetWatermark:
+		state.applyWatermark()
 		return 0
 	case wmChangeDecoration:
 		state.applyDecoration()
@@ -819,6 +834,7 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		}
 		return 0
 	case wmMove:
+		state.moveWatermark()
 		state.refreshResizeTimer()
 		state.reportFrame()
 		if state.web != nil {
@@ -831,12 +847,18 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 		// own state, which wmSize follows.
 		if second == 0 {
 			state.hiddenByShow = first == 0
+			if err := state.syncWatermark(); err != nil {
+				platform.ReportFault("window watermark", err)
+			}
 			state.reportVisibility()
 		}
 	case wmSize:
 		if first == 1 { // SIZE_MINIMIZED
 			if !state.minimized {
 				state.minimized = true
+				if state.watermark != nil {
+					state.watermark.suspend()
+				}
 				if state.ready && state.config.OnMinimize != nil {
 					state.config.OnMinimize(true)
 				}
@@ -911,6 +933,9 @@ func windowProc(window, kind, first, second uintptr) (result uintptr) {
 			state.resizeEvents++
 			frame, err := state.config.OnResize(state.logicalSize(int(client.Right), int(client.Bottom)))
 			state.frame(frame, err)
+		}
+		if err := state.syncWatermark(); err != nil {
+			platform.ReportFault("window watermark", err)
 		}
 		invalidateRect.Call(window, 0, 0)
 		return 0
@@ -1287,6 +1312,11 @@ func (state *windowState) presentClientSize(width, height int) {
 }
 
 func (state *windowState) layoutClientSize(width, height int) bool {
+	defer func() {
+		if err := state.syncWatermark(); err != nil {
+			platform.ReportFault("window watermark", err)
+		}
+	}()
 	if state.config.OnResize != nil {
 		state.resizeEvents++
 		frame, err := state.config.OnResize(state.logicalSize(width, height))
@@ -1383,6 +1413,14 @@ func (state *windowState) frameWithTextAndCancel(frame platform.Frame, err error
 // message loop running with no window to show, and the single-instance claim held
 // by a process nobody can see.
 func (state *windowState) destroyed(window uintptr) {
+	request := &state.pendingWatermark
+	request.mu.Lock()
+	request.handle, request.pending = 0, false
+	request.mu.Unlock()
+	if state.watermark != nil {
+		state.watermark.close()
+		state.watermark = nil
+	}
 	// Native teardown can reenter the dispatcher; retire text callbacks first.
 	state.ready = false
 	if request := state.decoration.close(); request != nil {

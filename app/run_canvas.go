@@ -27,6 +27,9 @@ func RunCanvas(config Config, canvas *gfx.Canvas) error {
 	if err != nil {
 		return err
 	}
+	if normalized.Watermark.Text != "" && !Supports(CapabilityWindowWatermark) {
+		reportUnsupportedWatermark()
+	}
 	if normalized.TextInput != nil && !nativeTextInputSupported {
 		return fmt.Errorf("%w: native text input", ErrUnsupported)
 	}
@@ -173,6 +176,7 @@ func nativeWindowConfig(normalized *Config, painter *painter) (platform.Config, 
 		closeHandler = platform.CloseRequestHandler(normalized.OnCloseRequest)
 	}
 	config := platform.Config{
+		Watermark:    normalized.Watermark.platform(),
 		Actions:      painter.windowActions(),
 		TextInput:    painter.initialTextInput(),
 		TakeTextMenu: painter.textMenuTaker(),

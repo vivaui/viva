@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	WeightLight    float32 = -0.4
 	WeightRegular  float32 = 0
 	WeightMedium   float32 = 0.15
 	WeightSemibold float32 = 0.23

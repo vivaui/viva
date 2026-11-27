@@ -1,3 +1,4 @@
+#include "watermark_darwin.h"
 #ifndef VIVA_INTERNAL_PLATFORM_DARWIN_NATIVE_H
 #define VIVA_INTERNAL_PLATFORM_DARWIN_NATIVE_H
 
@@ -304,6 +305,7 @@ enum {
 
 typedef struct {
     const char *title;
+    viva_watermark watermark;
     int width;
     int height;
     int min_width;

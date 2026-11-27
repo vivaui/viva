@@ -186,3 +186,38 @@ func TestProgressCommandReportsWhatTheIconWasAskedToShow(t *testing.T) {
 		t.Fatalf("cleared: %q", text)
 	}
 }
+
+func TestHeadlessWatermarkRecordsStateAndRejectsClosedUpdates(t *testing.T) {
+	application := newApplicationSession(Options{Scale: 1})
+	defer application.closeAll()
+	control, err := application.OpenWindow(app.Config{Title: "watermark", Width: 200, Height: 100, Watermark: app.Watermark{Text: "DRAFT"}}, nil, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	window := control.(*headlessWindow)
+	application.mu.Lock()
+	initial := application.windows[window.id].watermark
+	application.mu.Unlock()
+	if initial.Text != "DRAFT" || initial.Color.Alpha <= 0 {
+		t.Fatal("initial state was lost", initial)
+	}
+	value := app.Watermark{Text: "CONFIDENTIAL"}
+	if err := window.SetWatermark(value); err != nil {
+		t.Fatal(err)
+	}
+	invalid := value
+	invalid.Insets.Left = -1
+	if err := window.SetWatermark(invalid); err == nil {
+		t.Fatal("invalid update accepted")
+	}
+	application.mu.Lock()
+	current := application.windows[window.id].watermark
+	application.mu.Unlock()
+	if current.Text != value.Text {
+		t.Fatal("invalid update changed retained state")
+	}
+	window.Close()
+	if err := window.SetWatermark(value); err == nil {
+		t.Fatal("closed host accepted update")
+	}
+}

@@ -149,6 +149,9 @@ type Config struct {
 	// at window creation, even if it initially returns BackdropNone, allowing
 	// later material changes without rebuilding the application.
 	WindowBackdrop func() BackdropStyle
+	// Watermark is an input-transparent native overlay above all content, including
+	// web views. Unsupported native platforms ignore it; see CapabilityWindowWatermark.
+	Watermark Watermark
 	// OnBackdropChange reports API activation initially and when it changes.
 	// Windows may still substitute a solid color. Other platforms do not call
 	// it. Update paint state without blocking; a change schedules a repaint.
@@ -333,6 +336,11 @@ type StateSlot struct {
 }
 
 func (config Config) normalize() (Config, error) {
+	watermark, err := config.Watermark.normalized()
+	if err != nil {
+		return Config{}, err
+	}
+	config.Watermark = watermark
 	if config.Title == "" {
 		config.Title = defaultTitle
 	}

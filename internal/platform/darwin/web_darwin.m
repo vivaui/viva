@@ -1,5 +1,6 @@
 //go:build !ios
 
+#include "watermark_darwin.h"
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 #import <WebKit/WebKit.h>
@@ -687,6 +688,7 @@ void *viva_web_open(void *view, uint32_t id, uintptr_t handle, const char *url, 
             web.autoresizingMask = NSViewMinYMargin;
             web.hidden = YES;
             [host addSubview:web positioned:NSWindowAbove relativeTo:nil];
+            viva_raise_watermark(host);
             [web release]; // the view hierarchy owns it
         } else {
             [controller removeScriptMessageHandlerForName:@"viva"];

@@ -23,7 +23,8 @@ type Color struct {
 
 // Config contains the data needed to create a native window.
 type Config struct {
-	Title string
+	Watermark Watermark
+	Title     string
 	// Class names the application to the desktop environment where it keeps
 	// windows of one application together under a launcher entry (the X11
 	// WM_CLASS). Empty means the executable's file name.

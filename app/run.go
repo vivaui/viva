@@ -19,10 +19,14 @@ func Run(config Config) error {
 		return err
 	}
 
+	if normalized.Watermark.Text != "" && !Supports(CapabilityWindowWatermark) {
+		reportUnsupportedWatermark()
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	return runNative(platform.Config{
+		Watermark:           normalized.Watermark.platform(),
 		Title:               normalized.Title,
 		Class:               normalized.Class,
 		Icon:                normalized.Icon.platform(),

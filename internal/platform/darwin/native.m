@@ -3582,6 +3582,9 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
 @end
 
 @interface VivaAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate> {
+    viva_watermark _initialWatermark;
+    NSString *_initialWatermarkText;
+    NSString *_initialWatermarkFamily;
     NSRect _anchor;
     BOOL _hasAnchor;
     BOOL _hasOrigin;
@@ -3703,6 +3706,11 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
     self = [super init];
     if (self != nil) {
         _title = [[NSString alloc] initWithUTF8String:config.title];
+        _initialWatermark = config.watermark;
+        _initialWatermarkText = [[NSString alloc] initWithUTF8String:config.watermark.text ?: ""];
+        _initialWatermark.text = NULL;
+        _initialWatermarkFamily = [[NSString alloc] initWithUTF8String:config.watermark.font_family ?: ""];
+        _initialWatermark.font_family = NULL;
         _width = config.width;
         _height = config.height;
         _minWidth = config.min_width;
@@ -3766,6 +3774,8 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
     }
     [_titlebarWatched release];
     [_window release];
+    [_initialWatermarkText release];
+    [_initialWatermarkFamily release];
     [_title release];
     [_rectangleBuffer release];
     [_rectanglePipeline release];
@@ -3882,6 +3892,12 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
         return;
     }
     _window.contentView = view;
+    // UTF-8 pointers are borrowed only for this synchronous consumption.
+    _initialWatermark.text = _initialWatermarkText.UTF8String;
+    _initialWatermark.font_family = _initialWatermarkFamily.UTF8String;
+    viva_watermark_apply(view, _initialWatermark);
+    _initialWatermark.text = NULL;
+        _initialWatermark.font_family = NULL;
     if (_fileDropEnabled) {
         [view enableFileDrops];
     }
@@ -5880,3 +5896,20 @@ void viva_override_default_integer(const char *key, int value, int remove) {
 }
 
 #endif /* VIVA_OFFSCREEN */
+
+int viva_application_set_watermark(void *window, viva_watermark config) {
+    __block int found = 0;
+    void (^work)(void) = ^{
+        NSView *host = viva_application_window_view(window);
+        if (host != nil) {
+            viva_watermark_apply(host, config);
+            found = 1;
+        }
+    };
+    if ([NSThread isMainThread]) {
+        work();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), work);
+    }
+    return found;
+}

@@ -344,6 +344,15 @@ func onlyMoved(previous, next TextInput) bool {
 func (application *nativeApplication) SupportsDragPreview() {}
 
 func (application *nativeApplication) OpenWindow(config Config) (platform.Window, error) {
+	watermark, err := platform.NormalizeWatermark(config.Watermark)
+	if err != nil {
+		return nil, err
+	}
+	config.Watermark = watermark
+	watermarkText := C.CString(config.Watermark.Text)
+	defer C.free(unsafe.Pointer(watermarkText))
+	watermarkFamily := C.CString(config.Watermark.FontFamily)
+	defer C.free(unsafe.Pointer(watermarkFamily))
 	title := C.CString(config.Title)
 	defer C.free(unsafe.Pointer(title))
 
@@ -441,6 +450,7 @@ func (application *nativeApplication) OpenWindow(config Config) (platform.Window
 	}
 	token := C.viva_application_open_window(C.viva_window_config{
 		title:                     title,
+		watermark:                 nativeWatermark(config.Watermark, watermarkText, watermarkFamily),
 		width:                     C.int(config.Width),
 		height:                    C.int(config.Height),
 		min_width:                 C.int(config.MinWidth),

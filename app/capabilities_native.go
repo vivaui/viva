@@ -42,6 +42,6 @@ func nativeCapabilities() Capabilities {
 	} else {
 		capabilities |= CapabilityWindowMaximize
 	}
-	capabilities |= capabilityTransparentWindow | capabilityNotificationActivation
+	capabilities |= capabilityTransparentWindow | capabilityNotificationActivation | capabilityWindowWatermark
 	return Capabilities(capabilities)
 }

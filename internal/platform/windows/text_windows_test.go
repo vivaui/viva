@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -175,5 +176,11 @@ func TestSemiboldIsTheRealSemiboldFace(t *testing.T) {
 	}
 	if ratio := semibold.Width / regular.Width; ratio < 1 || ratio > 1.10 {
 		t.Errorf("semibold line is %.3f times as wide as regular, want a real semibold's 1.02 to 1.08", ratio)
+	}
+}
+
+func TestLightFontWeight(t *testing.T) {
+	if got := nativeFontWeight(gfx.WeightLight); got != 300 {
+		t.Fatalf("light weight = %d, want 300", got)
 	}
 }

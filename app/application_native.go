@@ -76,6 +76,11 @@ func (host nativeHost) OpenWindow(config Config, canvas *gfx.Canvas, closed func
 		cleanup()
 		return nil, err
 	}
+	if config.Watermark.Text != "" {
+		if _, ok := window.(nativeWatermarkControl); !ok {
+			reportUnsupportedWatermark()
+		}
+	}
 	// A command the runtime did not receive through an event handler, such as a
 	// menu action, hands its result here: the painter carries it out and the
 	// window's waker asks for the frame that shows it.
@@ -99,6 +104,7 @@ var _ fullscreenControl = resultWindow{}
 var _ alwaysOnTopControl = resultWindow{}
 var _ shortcutCapturer = resultWindow{}
 var _ titleControl = resultWindow{}
+var _ watermarkControl = resultWindow{}
 var _ windowIconControl = resultWindow{}
 var _ platform.WindowMover = resultWindow{}
 
@@ -275,6 +281,14 @@ func (host nativeHost) SetMenuBar(menus []Menu) error {
 func (host nativeHost) Quit() { host.native.Quit() }
 
 func (host nativeHost) Post(fn func()) { host.native.Post(fn) }
+
+func (window resultWindow) SetWatermark(value Watermark) error {
+	control, ok := window.WindowControl.(nativeWatermarkControl)
+	if !ok {
+		return fmt.Errorf("%w: window watermarks", ErrUnsupported)
+	}
+	return control.SetWatermark(value.platform())
+}
 
 type nativeStatusItem struct{ item platform.StatusItem }
 
