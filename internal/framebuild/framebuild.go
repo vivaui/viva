@@ -574,6 +574,7 @@ func (builder *Builder) drawnBy(stored *render.Rectangle, ref shapeRef) bool {
 		triangle := &builder.clippedPaths[ref.index]
 		return stored.Kind == scene.KindTriangle && stored.Color == scene.Color(triangle.Color) &&
 			stored.EdgeMask == triangle.EdgeMask && stored.Shade == sceneShade(*triangle) &&
+			strokeCoverageMatches(stored.Coverage, triangle.Coverage) &&
 			stored.Points[0] == scene.Point(triangle.Points[0]) &&
 			stored.Points[1] == scene.Point(triangle.Points[1]) &&
 			stored.Points[2] == scene.Point(triangle.Points[2])
@@ -653,7 +654,7 @@ func (builder *Builder) syncShapes() {
 func (builder *Builder) setShape(id scene.ID, ref shapeRef) {
 	if ref.triangle {
 		value := SceneTriangle(builder.clippedPaths[ref.index])
-		builder.graph.SetTriangle(id, value.Points, value.Color, value.EdgeMask, value.Shade)
+		builder.graph.SetTriangle(id, value.Points, value.Color, value.EdgeMask, value.Shade, value.Coverage)
 		return
 	}
 	if ref.shadow {
@@ -668,7 +669,7 @@ func (builder *Builder) setShape(id scene.ID, ref shapeRef) {
 func (builder *Builder) insertShape(root, previous scene.ID, ref shapeRef) scene.ID {
 	if ref.triangle {
 		value := SceneTriangle(builder.clippedPaths[ref.index])
-		id, _ := builder.graph.InsertTriangle(root, previous, value.Points, value.Color, value.EdgeMask, value.Shade)
+		id, _ := builder.graph.InsertTriangle(root, previous, value.Points, value.Color, value.EdgeMask, value.Shade, value.Coverage)
 		return id
 	}
 	if ref.shadow {
@@ -947,6 +948,13 @@ func SceneRectangle(rectangle gfx.Rectangle) render.Rectangle {
 
 // SceneTriangle converts a canvas triangle to its render instance shape.
 func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
+	var coverage *scene.StrokeCoverage
+	if source := triangle.Coverage; source != nil {
+		coverage = &scene.StrokeCoverage{EdgeMask: source.EdgeMask}
+		for index, point := range source.Points {
+			coverage.Points[index] = scene.Point(point)
+		}
+	}
 	return render.Rectangle{
 		Kind: scene.KindTriangle,
 		Points: [3]scene.Point{
@@ -955,6 +963,7 @@ func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
 			{X: triangle.Points[2].X, Y: triangle.Points[2].Y},
 		},
 		EdgeMask: triangle.EdgeMask,
+		Coverage: coverage,
 		Color: scene.Color{
 			Red: triangle.Color.Red, Green: triangle.Color.Green,
 			Blue: triangle.Color.Blue, Alpha: triangle.Color.Alpha,
@@ -962,6 +971,16 @@ func SceneTriangle(triangle gfx.Triangle) render.Rectangle {
 		Shade: sceneShade(triangle),
 		Layer: triangle.Layer,
 	}
+}
+
+func strokeCoverageMatches(stored *scene.StrokeCoverage, canvas *gfx.StrokeCoverage) bool {
+	if stored == nil || canvas == nil {
+		return stored == nil && canvas == nil
+	}
+	return stored.EdgeMask == canvas.EdgeMask &&
+		stored.Points[0] == scene.Point(canvas.Points[0]) &&
+		stored.Points[1] == scene.Point(canvas.Points[1]) &&
+		stored.Points[2] == scene.Point(canvas.Points[2])
 }
 
 // sceneShade is the vertex colors of a shaded triangle, and the zero Shade for a

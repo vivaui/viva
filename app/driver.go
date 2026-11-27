@@ -1123,6 +1123,8 @@ type Primitive struct {
 	Layer  uint16
 	// EdgeMask selects the boundary edges feathered for TrianglePrimitive.
 	EdgeMask uint8
+	// Coverage carries the original silhouette for a clipped stroke quad.
+	Coverage *gfx.StrokeCoverage
 	// Shaded gives a TrianglePrimitive the colors Shade[0] and Shade[1] at
 	// Points[1] and Points[2], Color being that of Points[0]; the color varies
 	// linearly between them.
@@ -1318,6 +1320,13 @@ func (driver *Driver) Snapshot() Snapshot {
 		if rectangle.Kind == scene.KindTriangle {
 			primitive.Kind = TrianglePrimitive
 			primitive.EdgeMask = rectangle.EdgeMask
+			if source := rectangle.Coverage; source != nil {
+				coverage := &gfx.StrokeCoverage{EdgeMask: source.EdgeMask}
+				for index, point := range source.Points {
+					coverage.Points[index] = gfx.Point(point)
+				}
+				primitive.Coverage = coverage
+			}
 			if rectangle.Shade.On {
 				primitive.Shaded = true
 				for index, color := range rectangle.Shade.Colors {

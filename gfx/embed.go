@@ -86,6 +86,11 @@ func (canvas *Canvas) Embed(child *Canvas, origin Point, mount Scope) {
 			triangle.Points[index].X += origin.X
 			triangle.Points[index].Y += origin.Y
 		}
+		if triangle.Coverage != nil {
+			coverage := *triangle.Coverage
+			coverage.Points = translatePoints(coverage.Points, origin)
+			triangle.Coverage = &coverage
+		}
 		triangle.Layer += layer
 		triangle.Order += orderBase
 		triangle.ClipOf, triangle.HasClip = embedClip(triangle.ClipOf, triangle.HasClip, origin, outer, hasOuter)

@@ -251,6 +251,7 @@ func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Ico
 			place.apply(cached.points[1]),
 			place.apply(cached.points[2]),
 		}
+		var coverage *StrokeCoverage
 		emit := func(points [3]Point, edges uint8, weights [3][3]float32) {
 			triangle := Triangle{
 				Points: points, Color: tint, Layer: state.layer, EdgeMask: edges,
@@ -258,6 +259,12 @@ func (canvas *Canvas) drawIconTrianglesPlaced(triangles []iconTriangle, icon Ico
 			}
 			if cached.layer >= 0 && !shadeIconTriangleAt(icon, tint, cached, weights, &triangle) {
 				return
+			}
+			if cached.edges&triangleStrokeQuad != 0 && edges&triangleStrokeQuad == 0 {
+				if coverage == nil {
+					coverage = &StrokeCoverage{Points: source, EdgeMask: cached.edges}
+				}
+				triangle.Coverage = coverage
 			}
 			triangle.Order = canvas.nextOrder()
 			canvas.triangles = append(canvas.triangles, triangle)

@@ -374,9 +374,18 @@ func (canvas *Canvas) SameAsPrevious(span, prev Span, dx, dy float32) bool {
 // part painted ignores it: the copy's place among the other primitives is
 // checked by the span it lands in, not by the numbers.
 func sameRectangle(a, b Rectangle) bool { a.Order, b.Order = 0, 0; return a == b }
-func sameTriangle(a, b Triangle) bool   { a.Order, b.Order = 0, 0; return a == b }
-func sameShadow(a, b Shadow) bool       { a.Order, b.Order = 0, 0; return a == b }
-func sameText(a, b Text) bool           { a.Order, b.Order = 0, 0; return a == b }
+func sameTriangle(a, b Triangle) bool {
+	if a.Coverage != b.Coverage {
+		if a.Coverage == nil || b.Coverage == nil || *a.Coverage != *b.Coverage {
+			return false
+		}
+		a.Coverage = b.Coverage
+	}
+	a.Order, b.Order = 0, 0
+	return a == b
+}
+func sameShadow(a, b Shadow) bool { a.Order, b.Order = 0, 0; return a == b }
+func sameText(a, b Text) bool     { a.Order, b.Order = 0, 0; return a == b }
 
 func sameImage(a, b Image) bool {
 	return a.Source == b.Source && a.Bounds == b.Bounds && a.Layer == b.Layer && a.ClipOf == b.ClipOf && a.HasClip == b.HasClip &&

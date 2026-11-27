@@ -169,6 +169,37 @@ func TestTrianglesSharingAnEdgeMeetWithoutGapOrOverlap(t *testing.T) {
 	}
 }
 
+func TestThinStrokeHasConstantCoverageAcrossItsTriangleDiagonal(t *testing.T) {
+	const scale = 1.25
+	leftTop := scene.Point{X: 2.25, Y: 4.25}
+	rightTop := scene.Point{X: 15.5, Y: 4.25}
+	rightBottom := scene.Point{X: 15.5, Y: 5}
+	leftBottom := scene.Point{X: 2.25, Y: 5}
+	for _, reverse := range []bool{false, true} {
+		a, b, c, d := leftTop, rightTop, rightBottom, leftBottom
+		if reverse {
+			a, b, c, d = c, d, a, b
+		}
+		canvas := NewCanvas(24, 12)
+		var r Rasterizer
+		r.Draw(canvas, Params{Scale: scale}, []render.Rectangle{
+			{Kind: scene.KindTriangle, Points: [3]scene.Point{a, b, d}, Color: white, EdgeMask: scene.StrokeQuadEdgeMask | 0b101},
+			{Kind: scene.KindTriangle, Points: [3]scene.Point{d, b, c}, Color: white, EdgeMask: scene.StrokeQuadEdgeMask | 0b110},
+		}, nil)
+		// The stroke covers device rows 5 and 6 at 68.75% and 25%, respectively.
+		// The stroke has constant device width even where its internal diagonal
+		// changes which triangle owns a pixel.
+		for x := 4; x <= 17; x++ {
+			if got := at(canvas, x, 5)[3]; got != 175 {
+				t.Fatalf("reversed=%t: pixel (%d,5) alpha=%d, want 175", reverse, x, got)
+			}
+			if got := at(canvas, x, 6)[3]; got != 64 {
+				t.Fatalf("reversed=%t: pixel (%d,6) alpha=%d, want 64", reverse, x, got)
+			}
+		}
+	}
+}
+
 func TestShadowIsDarkestNearItsEdgeAndHasTheCasterCutOut(t *testing.T) {
 	c := NewCanvas(80, 60)
 	var r Rasterizer

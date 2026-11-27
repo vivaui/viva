@@ -33,12 +33,38 @@ func ValidateRectangles(rectangles []Rectangle) error {
 					return fmt.Errorf("render: triangle %d point %d is non-finite", index, pointIndex)
 				}
 			}
-			if rectangle.EdgeMask > 7 {
+			if !validTriangleEdgeMask(rectangle.EdgeMask) {
 				return fmt.Errorf("render: triangle %d has invalid edge mask %d", index, rectangle.EdgeMask)
+			}
+			if source := rectangle.Coverage; source != nil {
+				if rectangle.Shade.On || rectangle.EdgeMask > 7 ||
+					source.EdgeMask&scene.StrokeQuadEdgeMask == 0 || !validTriangleEdgeMask(source.EdgeMask) {
+					return fmt.Errorf("render: triangle %d has invalid stroke coverage", index)
+				}
+				for pointIndex, point := range source.Points {
+					if !finiteFloat(point.X) || !finiteFloat(point.Y) {
+						return fmt.Errorf("render: triangle %d stroke coverage point %d is non-finite", index, pointIndex)
+					}
+				}
 			}
 		}
 	}
 	return nil
+}
+
+func validTriangleEdgeMask(mask uint8) bool {
+	if mask <= 7 {
+		return true
+	}
+	// The first half has long edge 0→1 and an optional start cap 2→0.
+	// The second has long edge 2→0 and an optional end cap 1→2.
+	switch mask {
+	case scene.StrokeQuadEdgeMask | 0b001, scene.StrokeQuadEdgeMask | 0b101,
+		scene.StrokeQuadEdgeMask | 0b100, scene.StrokeQuadEdgeMask | 0b110:
+		return true
+	default:
+		return false
+	}
 }
 
 func finiteFloat(value float32) bool {

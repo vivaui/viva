@@ -21,6 +21,12 @@ func TestCanvasCodecPreservesRetainedOutput(t *testing.T) {
 		Points: [3]gfx.Point{{X: 0, Y: 0}, {X: 12, Y: 0}, {X: 0, Y: 9}},
 		Color:  gfx.Color{Red: 1, Alpha: 0.5}, EdgeMask: 1,
 	})
+	canvas.DrawIconTransformed(gfx.Icon{
+		ViewBox: 24, Stroke: 1, Cap: gfx.CapButt,
+		Commands: []gfx.PathCommand{gfx.MoveTo(12.25, 2), gfx.LineTo(12.25, 22)},
+	}, gfx.Rect{Width: 24, Height: 24}, gfx.Color{Red: 1, Alpha: 1}, gfx.IconTransform{
+		Clip: &gfx.IconClip{Bounds: gfx.Rect{Y: 4, Width: 24, Height: 16}},
+	})
 	canvas.Elevate(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.ShadowMD)
 	canvas.Rounded(gfx.Rect{X: 1, Y: 2, Width: 80, Height: 30}, 6, gfx.Color{Red: 0.2, Green: 0.3, Blue: 0.4, Alpha: 1})
 	canvas.AppendTriangle(gfx.Triangle{

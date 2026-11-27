@@ -186,7 +186,7 @@ func TestSceneInsertsAShapeInTheMiddleOfPaintOrder(t *testing.T) {
 	if !ok {
 		t.Fatal("insert after a child failed")
 	}
-	head, ok := graph.InsertTriangle(graph.Root(), 0, [3]Point{{X: 1}}, Color{}, 5, Shade{})
+	head, ok := graph.InsertTriangle(graph.Root(), 0, [3]Point{{X: 1}}, Color{}, 5, Shade{}, nil)
 	if !ok {
 		t.Fatal("insert as the first child failed")
 	}
@@ -225,14 +225,14 @@ func TestSceneLeafChangesKindInPlace(t *testing.T) {
 	id, _ := graph.AddRectangle(graph.Root(), Rect{X: 1, Width: 5}, Color{Alpha: 1})
 	graph.DrainChanges(nil)
 
-	if !graph.SetTriangle(id, [3]Point{{X: 1}, {X: 2}, {X: 3}}, Color{Alpha: 1}, 5, Shade{}) {
+	if !graph.SetTriangle(id, [3]Point{{X: 1}, {X: 2}, {X: 3}}, Color{Alpha: 1}, 5, Shade{}, nil) {
 		t.Fatal("a rectangle did not become a triangle")
 	}
 	changes := graph.DrainChanges(nil)
 	if len(changes) != 1 || changes[0].Kind != KindTriangle || changes[0].Bounds != (Rect{}) || changes[0].Shape == nil || changes[0].Shape.Points[2].X != 3 || changes[0].EdgeMask != 5 {
 		t.Fatalf("rectangle to triangle = %+v", changes)
 	}
-	if graph.SetTriangle(id, [3]Point{{X: 1}, {X: 2}, {X: 3}}, Color{Alpha: 1}, 5, Shade{}) {
+	if graph.SetTriangle(id, [3]Point{{X: 1}, {X: 2}, {X: 3}}, Color{Alpha: 1}, 5, Shade{}, nil) {
 		t.Fatal("setting the same triangle again reported a change")
 	}
 	if !graph.SetRoundedRectangle(id, Rect{X: 9}, Color{Alpha: 1}, 2) {
@@ -242,7 +242,7 @@ func TestSceneLeafChangesKindInPlace(t *testing.T) {
 	if len(changes) != 1 || changes[0].Kind != KindRectangle || changes[0].Shape != nil || changes[0].Radius != 2 {
 		t.Fatalf("triangle to rectangle = %+v", changes)
 	}
-	if graph.SetTriangle(graph.Root(), [3]Point{}, Color{}, 0, Shade{}) || graph.SetRectangle(graph.Root(), Rect{}, Color{}) {
+	if graph.SetTriangle(graph.Root(), [3]Point{}, Color{}, 0, Shade{}, nil) || graph.SetRectangle(graph.Root(), Rect{}, Color{}) {
 		t.Fatal("a group became a shape")
 	}
 }
@@ -251,18 +251,18 @@ func TestTriangleShadeIsPublishedChangeCheckedAndClearedByARectangle(t *testing.
 	graph := New()
 	points := [3]Point{{X: 1}, {X: 2}, {X: 3}}
 	shade := Shade{On: true, Colors: [2]Color{{Red: 1, Alpha: 1}, {Blue: 1, Alpha: 1}}}
-	id, _ := graph.AddTriangle(graph.Root(), points, Color{Green: 1, Alpha: 1}, 0, shade)
+	id, _ := graph.AddTriangle(graph.Root(), points, Color{Green: 1, Alpha: 1}, 0, shade, nil)
 	changes := graph.DrainChanges(nil)
 	if changes[len(changes)-1].Shape == nil || changes[len(changes)-1].Shape.Shade != shade {
 		t.Fatalf("published shape = %+v", changes[len(changes)-1].Shape)
 	}
-	if graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade) {
+	if graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade, nil) {
 		t.Fatal("setting the same shaded triangle reported a change")
 	}
-	if !graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, Shade{}) {
+	if !graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, Shade{}, nil) {
 		t.Fatal("dropping the shade reported no change")
 	}
-	graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade)
+	graph.SetTriangle(id, points, Color{Green: 1, Alpha: 1}, 0, shade, nil)
 	graph.SetRectangle(id, Rect{Width: 4}, Color{Alpha: 1})
 	changes = graph.DrainChanges(changes[:0])
 	if len(changes) != 1 || changes[0].Shape != nil {

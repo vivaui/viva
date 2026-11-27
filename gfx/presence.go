@@ -648,6 +648,13 @@ func (transform presenceTransform) apply(canvas *Canvas, open presenceOpen, fade
 		for corner := range triangle.Points {
 			triangle.Points[corner] = transform.point(triangle.Points[corner])
 		}
+		if triangle.Coverage != nil {
+			coverage := *triangle.Coverage
+			for corner := range coverage.Points {
+				coverage.Points[corner] = transform.point(coverage.Points[corner])
+			}
+			triangle.Coverage = &coverage
+		}
 		if fade {
 			triangle.Color = transform.color(triangle.Color)
 			triangle.Shade[0] = transform.color(triangle.Shade[0])

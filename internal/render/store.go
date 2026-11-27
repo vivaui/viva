@@ -17,7 +17,9 @@ type Rectangle struct {
 	Points [3]scene.Point
 	Layer  uint16
 	// EdgeMask selects the triangle edges that receive boundary feathering.
+	// scene.StrokeQuadEdgeMask also enables coverage from the opposite edge.
 	EdgeMask uint8
+	Coverage *scene.StrokeCoverage
 	// Shade, when On, gives the triangle the colors of its second and third
 	// corner; Color is the first's.
 	Shade scene.Shade
@@ -429,6 +431,7 @@ func rectangleOf(change scene.Change) Rectangle {
 		Radius:   change.Radius,
 		Points:   shape.Points,
 		EdgeMask: change.EdgeMask,
+		Coverage: shape.Coverage,
 		Shade:    shape.Shade,
 		Shadow:   shape.Shadow,
 	}
@@ -495,10 +498,12 @@ func (store *Store) upsert(change scene.Change) (bool, int, error) {
 			rectangle.Bounds = change.Bounds
 			rectangle.Color = change.Color
 			rectangle.Radius = change.Radius
+			rectangle.Coverage = nil
 			if change.Shape != nil {
 				rectangle.Points = change.Shape.Points
 				rectangle.Shade = change.Shape.Shade
 				rectangle.Shadow = change.Shape.Shadow
+				rectangle.Coverage = change.Shape.Coverage
 			}
 			rectangle.EdgeMask = change.EdgeMask
 		}

@@ -166,8 +166,8 @@ func TestDrawPathOpaqueStrokeDoesNotFeatherItsTriangleDiagonal(t *testing.T) {
 	if len(triangles) != 2 {
 		t.Fatalf("stroke triangles = %d, want 2", len(triangles))
 	}
-	if triangles[0].EdgeMask != 1<<0|1<<2 || triangles[1].EdgeMask != 1<<1|1<<2 {
-		t.Fatalf("stroke edge masks = %03b, %03b; shared diagonal must stay opaque", triangles[0].EdgeMask, triangles[1].EdgeMask)
+	if triangles[0].EdgeMask != triangleStrokeQuad|1<<0|1<<2 || triangles[1].EdgeMask != triangleStrokeQuad|1<<1|1<<2 {
+		t.Fatalf("stroke edge masks = %04b, %04b; both halves must retain the quad while the shared diagonal stays opaque", triangles[0].EdgeMask, triangles[1].EdgeMask)
 	}
 }
 

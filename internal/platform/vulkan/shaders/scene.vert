@@ -11,6 +11,7 @@ layout(location = 4) in vec4 inShade2;
 
 // Low bits keep edgeMask+1; this bit is local to the rasterizer.
 #define boundedTriangleFlag (1u << 8)
+#define coverageSourceFlag (1u << 4)
 
 layout(push_constant) uniform Frame {
     vec2 viewport;
@@ -24,7 +25,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec2 outLocal;
 layout(location = 2) out vec2 outSize;
 layout(location = 3) out float outRadius;
-layout(location = 4) out vec2 outFragment;
+layout(location = 4) flat out vec2 outCoverageC;
 layout(location = 5) out vec2 outTriangleA;
 layout(location = 6) out vec2 outTriangleB;
 layout(location = 7) out vec2 outTriangleC;
@@ -59,6 +60,7 @@ void main() {
     vec2 localPixel;
     vec2 size = inBounds.zw;
     float radius = inStyle.x;
+    vec2 coverageC = vec2(0.0);
     vec2 triangleA = vec2(0.0);
     vec2 triangleB = vec2(0.0);
     vec2 triangleC = vec2(0.0);
@@ -67,7 +69,9 @@ void main() {
     if (inStyle.w > 0.5) {
         vec2 points[3] = vec2[](inBounds.xy, inBounds.zw, inStyle.xz);
         uint index = gl_VertexIndex < 3 ? uint(gl_VertexIndex) : 0u;
-        uint edgeMask = uint(inStyle.w + 0.5) - 1u;
+        uint edgeFlags = uint(inStyle.w + 0.5) - 1u;
+        uint edgeMask = edgeFlags & 7u;
+        bool hasCoverageSource = (edgeFlags & coverageSourceFlag) != 0u;
         uint previous = (index + 2u) % 3u;
         vec2 ab = points[1] - points[0], ac = points[2] - points[0];
         vec2 bc = points[2] - points[1];
@@ -81,7 +85,7 @@ void main() {
         // scales because hardware snaps geometry to its own subpixel grid.
         // Above this aspect ratio the miter displacement is at most eight
         // device pixels; below it the quad avoids both overflow and overdraw.
-        bool bounded = valid && (edgeMask != 7u || abs(area) < longest2 * 0.125);
+        bool bounded = valid && (hasCoverageSource || edgeMask != 7u || abs(area) < longest2 * 0.125);
         if (!valid) {
             pixel = vec2(0.0);
         } else if (bounded) {
@@ -92,18 +96,20 @@ void main() {
             pixel = fringeVertex(points[previous], points[index], points[(index + 1u) % 3u], 1u << previous, 1u << index, edgeMask);
         }
         // Extrapolate corner colors so interpolation stays on the original mesh.
-        if (valid) {
+        if (valid && !hasCoverageSource) {
             vec2 delta = pixel - points[0];
             color = inColor + cross2(delta, ac) / area * (inShade1 - inColor)
                 + cross2(ab, delta) / area * (inShade2 - inColor);
         }
-        localPixel = vec2(0.0);
-        size = vec2(0.0);
-        radius = 0.0;
+        // A clipped flat stroke sends its antialiasing face in the shade slots.
+        localPixel = hasCoverageSource ? inShade1.xy : vec2(0.0);
+        size = hasCoverageSource ? inShade1.zw : vec2(0.0);
+        coverageC = hasCoverageSource ? inShade2.xy : vec2(0.0);
+        radius = hasCoverageSource ? inShade2.z : 0.0;
         triangleA = points[0];
         triangleB = points[1];
         triangleC = points[2];
-        triangleMask = edgeMask + 1u + (bounded ? boundedTriangleFlag : 0u);
+        triangleMask = edgeFlags + 1u + (bounded ? boundedTriangleFlag : 0u);
     } else if (inStyle.z > 0.0) {
         // A soft shadow: inBounds and inStyle.x are the rounded rectangle that
         // casts it, inStyle.z its blur, inShade1 = (offset.x, offset.y, spread). The
@@ -127,7 +133,7 @@ void main() {
     outLocal = localPixel;
     outSize = size;
     outRadius = radius;
-    outFragment = pixel;
+    outCoverageC = coverageC;
     outTriangleA = triangleA;
     outTriangleB = triangleB;
     outTriangleC = triangleC;

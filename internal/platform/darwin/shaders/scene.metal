@@ -20,12 +20,15 @@ struct VertexOutput {
     float2 triA [[flat]];
     float2 triB [[flat]];
     float2 triC [[flat]];
+    float2 coverageC [[flat]];
     float pixelSize [[flat]];
     uint triangleMask [[flat]];
 };
 
 // Low bits retain edgeMask+1; this bit is local to the rasterizer varyings.
 constant uint boundedTriangleFlag = 1u << 8;
+constant uint strokeQuadEdgeMask = 1u << 3;
+constant uint coverageSourceFlag = 1u << 4;
 
 static float cross2(float2 a, float2 b) { return a.x*b.y - a.y*b.x; }
 static float segmentDistance(float2 p, float2 a, float2 b) {
@@ -68,6 +71,7 @@ vertex VertexOutput viva_rectangle_vertex(
     float2 triA = 0.0;
     float2 triB = 0.0;
     float2 triC = 0.0;
+    float2 coverageC = 0.0;
     uint triangleMask = 0;
     float4 color = instance.color;
     if (isTriangle) {
@@ -81,7 +85,9 @@ vertex VertexOutput viva_rectangle_vertex(
             instance.bounds.zw,
             instance.style.xz,
         };
-        uint edgeMask = (uint(instance.style.w + 0.5) - 1u) & 7u;
+        uint edgeFlags = uint(instance.style.w + 0.5) - 1u;
+        uint edgeMask = edgeFlags & 7u;
+        bool hasCoverageSource = (edgeFlags & coverageSourceFlag) != 0u;
         float2 ab = points[1] - points[0], ac = points[2] - points[0];
         float2 bc = points[2] - points[1];
         float area = cross2(ab, ac);
@@ -94,7 +100,7 @@ vertex VertexOutput viva_rectangle_vertex(
         // scales because hardware snaps geometry to its own subpixel grid.
         // Above this aspect ratio the miter displacement is at most eight
         // device pixels. Below it the quad avoids both overflow and overdraw.
-        bool bounded = valid && (edgeMask != 7u || abs(area) < longest2 * 0.125);
+        bool bounded = valid && (hasCoverageSource || edgeMask != 7u || abs(area) < longest2 * 0.125);
         uint index = vertexID < 3 ? vertexID : 0u;
         uint previous = (index + 2u) % 3u;
         if (!valid) {
@@ -107,18 +113,20 @@ vertex VertexOutput viva_rectangle_vertex(
             pixel = fringeVertex(points[previous], points[index], points[(index + 1u) % 3u], 1u << previous, 1u << index, edgeMask, viewportSize.z);
         }
         // Extrapolate corner colors so interpolation stays on the original mesh.
-        if (valid) {
+        if (valid && !hasCoverageSource) {
             float2 delta = pixel - points[0];
             color = instance.color + cross2(delta, ac) / area * (instance.shade1 - instance.color)
                 + cross2(ab, delta) / area * (instance.shade2 - instance.color);
         }
-        localPixel = 0.0;
-        size = 0.0;
-        radius = 0.0;
+        // A clipped flat stroke sends its antialiasing face in the shade slots.
+        localPixel = hasCoverageSource ? instance.shade1.xy : float2(0.0);
+        size = hasCoverageSource ? instance.shade1.zw : float2(0.0);
+        coverageC = hasCoverageSource ? instance.shade2.xy : float2(0.0);
+        radius = hasCoverageSource ? instance.shade2.z : 0.0;
         triA = points[0];
         triB = points[1];
         triC = points[2];
-        triangleMask = (edgeMask + 1u) | (bounded ? boundedTriangleFlag : 0u);
+        triangleMask = (edgeFlags + 1u) | (bounded ? boundedTriangleFlag : 0u);
     } else if (instance.style.z > 0.0) {
         // Shadow slots: bounds and style.x are the rounded rectangle that casts
         // the shadow, style.z its blur, shade1 = (offset.x, offset.y, spread). The
@@ -150,6 +158,7 @@ vertex VertexOutput viva_rectangle_vertex(
     output.triA = triA;
     output.triB = triB;
     output.triC = triC;
+    output.coverageC = coverageC;
     output.pixelSize = viewportSize.z;
     output.triangleMask = triangleMask;
     return output;
@@ -207,7 +216,8 @@ fragment float4 viva_rectangle_fragment(VertexOutput input [[stage_in]]) {
         float area2 = (input.triB.x - input.triA.x) * (input.triC.y - input.triA.y) -
             (input.triB.y - input.triA.y) * (input.triC.x - input.triA.x);
         float sign = area2 > 0.0 ? 1.0 : -1.0;
-        uint edgeMask = (input.triangleMask & ~boundedTriangleFlag) - 1u;
+        uint edgeFlags = (input.triangleMask & ~boundedTriangleFlag) - 1u;
+        uint edgeMask = edgeFlags & 7u;
         // Use the actual sample position, not interpolation over an acute face.
         float2 p = input.position.xy * input.pixelSize;
         float pixel = input.pixelSize;
@@ -244,18 +254,47 @@ fragment float4 viva_rectangle_fragment(VertexOutput input [[stage_in]]) {
                 }
             }
         }
-        float d0 = (edgeMask & 1u) != 0u ? sign * edgeDistance(p, input.triA, input.triB) : 1e6;
-        float d1 = (edgeMask & 2u) != 0u ? sign * edgeDistance(p, input.triB, input.triC) : 1e6;
-        float d2 = (edgeMask & 4u) != 0u ? sign * edgeDistance(p, input.triC, input.triA) : 1e6;
-        float inside = min(d0, min(d1, d2));
-        if (inside < 0.0) {
-            // Acute offset-line miters must not paint beyond the actual ends.
-            float s0 = (edgeMask & 1u) != 0u ? segmentDistance(p, input.triA, input.triB) : 1e6;
-            float s1 = (edgeMask & 2u) != 0u ? segmentDistance(p, input.triB, input.triC) : 1e6;
-            float s2 = (edgeMask & 4u) != 0u ? segmentDistance(p, input.triC, input.triA) : 1e6;
-            inside = -min(s0, min(s1, s2));
+        // The clipped face owns the sample. Its original outline determines
+        // the feathering, even when clipping removed every silhouette edge.
+        float2 coverageA = input.triA, coverageB = input.triB, coverageC = input.triC;
+        uint coverageFlags = edgeFlags;
+        float coverageSign = sign;
+        if ((edgeFlags & coverageSourceFlag) != 0u) {
+            coverageA = input.localPosition;
+            coverageB = input.size;
+            coverageC = input.coverageC;
+            coverageFlags = uint(input.radius + 0.5);
+            coverageSign = cross2(coverageB - coverageA, coverageC - coverageA) > 0.0 ? 1.0 : -1.0;
         }
-        float coverage = edgeMask == 0 ? 1.0 : saturate(0.5 + inside / pixel);
+        uint coverageMask = coverageFlags & 7u;
+        float d0 = (coverageMask & 1u) != 0u ? coverageSign * edgeDistance(p, coverageA, coverageB) : 1e6;
+        float d1 = (coverageMask & 2u) != 0u ? coverageSign * edgeDistance(p, coverageB, coverageC) : 1e6;
+        float d2 = (coverageMask & 4u) != 0u ? coverageSign * edgeDistance(p, coverageC, coverageA) : 1e6;
+        float inside = min(d0, min(d1, d2));
+        bool strokeQuad = (coverageFlags & strokeQuadEdgeMask) != 0u;
+        float2 oppositeStart, oppositeEnd;
+        if (strokeQuad) {
+            // The shared diagonal decides ownership, but coverage depends on both long edges.
+            bool firstHalf = (coverageMask & 1u) != 0u;
+            float2 from = firstHalf ? coverageA : coverageC;
+            float2 to = firstHalf ? coverageB : coverageA;
+            oppositeStart = firstHalf ? coverageC : coverageB;
+            oppositeEnd = oppositeStart + (to - from);
+            float primary = firstHalf ? d0 : d2;
+            inside = min(inside, coverageSign * edgeDistance(oppositeStart, from, to) - primary);
+        }
+        if (inside < 0.0) {
+            // Use the visible edge segments for the outward fringe. A clipped
+            // stroke's original edges may extend beyond the cut.
+            bool clippedStroke = (edgeFlags & coverageSourceFlag) != 0u;
+            uint fringeMask = clippedStroke ? edgeMask : coverageMask;
+            float s0 = (fringeMask & 1u) != 0u ? segmentDistance(p, input.triA, input.triB) : 1e6;
+            float s1 = (fringeMask & 2u) != 0u ? segmentDistance(p, input.triB, input.triC) : 1e6;
+            float s2 = (fringeMask & 4u) != 0u ? segmentDistance(p, input.triC, input.triA) : 1e6;
+            float opposite = strokeQuad && !clippedStroke ? segmentDistance(p, oppositeStart, oppositeEnd) : 1e6;
+            inside = -min(min(s0, s1), min(s2, opposite));
+        }
+        float coverage = coverageMask == 0 ? 1.0 : saturate(0.5 + inside / pixel);
         float4 shade = saturate(input.color);
         return float4(shade.rgb, shade.a * coverage);
     }
