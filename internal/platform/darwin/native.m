@@ -4527,6 +4527,15 @@ int viva_start_file_promise_drag(intptr_t drag, const viva_drag_item *items, siz
         size.height = MIN(size.height, available.size.height);
     }
     NSRect wanted = NSMakeRect(current.origin.x, NSMaxY(current) - size.height, size.width, size.height);
+    if (_windowMode == VIVA_WINDOW_NOTIFICATION && !_hasAnchor && screen != nil) {
+        NSRect work = screen.visibleFrame;
+        if (NSMidX(current) >= NSMidX(work)) {
+            wanted.origin.x = NSMaxX(current) - size.width;
+        }
+        if (NSMidY(current) <= NSMidY(work)) {
+            wanted.origin.y = current.origin.y;
+        }
+    }
     NSRect frame = [_window frameRectForContentRect:wanted];
     if (screen != nil) {
         NSRect work = screen.visibleFrame;

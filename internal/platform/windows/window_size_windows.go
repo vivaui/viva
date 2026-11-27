@@ -55,8 +55,22 @@ func (state *windowState) resizeClient(width, height int) {
 	if ok, _, _ := getMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok != 0 {
 		if ok, _, _ := getWindowRect.Call(state.window, uintptr(unsafe.Pointer(&current))); ok != 0 {
 			w, h = min(w, info.Work.Right-info.Work.Left), min(h, info.Work.Bottom-info.Work.Top)
-			x = min(max(current.Left, info.Work.Left), info.Work.Right-w)
-			y = min(max(current.Top, info.Work.Top), info.Work.Bottom-h)
+			if state.config.WindowMode == platform.WindowNotification && !state.config.HasAnchor {
+				workRect := platform.ScreenRect{
+					X: float32(info.Work.Left), Y: float32(info.Work.Top),
+					Width: float32(info.Work.Right - info.Work.Left), Height: float32(info.Work.Bottom - info.Work.Top),
+				}
+				curRect := platform.ScreenRect{
+					X: float32(current.Left), Y: float32(current.Top),
+					Width: float32(current.Right - current.Left), Height: float32(current.Bottom - current.Top),
+				}
+				next := platform.ResizeNotificationFrame(curRect, workRect, float32(w), float32(h))
+				x, y = int32(math.Round(float64(next.X))), int32(math.Round(float64(next.Y)))
+				w, h = int32(math.Round(float64(next.Width))), int32(math.Round(float64(next.Height)))
+			} else {
+				x = min(max(current.Left, info.Work.Left), info.Work.Right-w)
+				y = min(max(current.Top, info.Work.Top), info.Work.Bottom-h)
+			}
 			flags &^= noMove
 		}
 	}

@@ -18,6 +18,8 @@ import (
 // the monitors are looked at again only when the window moves.
 
 const (
+	xcbConfigWindowX      = 1 << 0
+	xcbConfigWindowY      = 1 << 1
 	xcbConfigWindowWidth  = 1 << 2
 	xcbConfigWindowHeight = 1 << 3
 	// settingsWords is the most of an XSETTINGS property that is read, in
