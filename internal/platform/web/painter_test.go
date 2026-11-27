@@ -93,6 +93,34 @@ func TestPointerFocusMatchesNativeWithoutRing(t *testing.T) {
 	}
 }
 
+func TestHandledKeyTabDoesNotRevealKeyboardFocus(t *testing.T) {
+	var canvas gfx.Canvas
+	config := Config{
+		Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+			canvas.HitWithOptions(gfx.Item(1), gfx.Rect{X: 0, Y: 0, Width: 80, Height: 40}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
+			canvas.HitWithLabel(gfx.Item(2), gfx.Rect{X: 100, Y: 0, Width: 80, Height: 40}, "Cancel")
+		},
+		OnKey: func(event gfx.KeyEvent) gfx.EventResult {
+			if event.Key == gfx.KeyTab && event.Target == gfx.Item(1) {
+				return gfx.EventResult{Handled: true}
+			}
+			return gfx.EventResult{}
+		},
+	}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 200, 100
+	painter.repaint()
+	painter.pointerEvent(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: 20, Y: 20})
+	painter.pointerEvent(gfx.PointerEvent{Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary, X: 20, Y: 20})
+	if painter.focus.Focused() != gfx.Item(1) || painter.focus.KeyboardFocus() {
+		t.Fatalf("after click: focused=%v keyboard=%v", painter.focus.Focused(), painter.focus.KeyboardFocus())
+	}
+	painter.keyDown(gfx.KeyEvent{Key: gfx.KeyTab})
+	if painter.focus.Focused() != gfx.Item(1) || painter.focus.KeyboardFocus() || !canvas.FocusVisible().IsZero() {
+		t.Fatalf("handled Tab changed focus state: focused=%v keyboard=%v visible=%v", painter.focus.Focused(), painter.focus.KeyboardFocus(), canvas.FocusVisible())
+	}
+}
+
 func TestPointerEventsCaptureTargetAndHandledSuppressesClick(t *testing.T) {
 	var canvas gfx.Canvas
 	var events [3]gfx.PointerEvent
