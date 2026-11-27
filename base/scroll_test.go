@@ -362,3 +362,26 @@ func TestScrollStateFollowingAndPrepend(t *testing.T) {
 		t.Fatal("ScrollToEnd did not reattach the follow")
 	}
 }
+
+func TestAWheelPageMovesTheAreasOwnPage(t *testing.T) {
+	var view View
+	logPage(&view, false, 20) // 600 of rows in a 100-tall area
+	state := view.ScrollState(listID)
+	window := gfx.Size{Width: 800, Height: 1000}
+	// The system asks for a screen per notch: the event's delta is a screen of
+	// the window, and the area moves a screen of its own instead.
+	if result := state.Wheel(gfx.ScrollEvent{DeltaY: 1000, Pages: 1, Viewport: window}); !result.Handled {
+		t.Fatal("a page notch was not handled")
+	}
+	if state.Offset != 100 {
+		t.Fatalf("one page notch moved the area to %v, want its own page 100, not the window's", state.Offset)
+	}
+	state.Wheel(gfx.ScrollEvent{DeltaY: 1000, Pages: 1, Viewport: window})
+	if state.Offset != 200 {
+		t.Fatalf("the second page notch left the area at %v, want 200", state.Offset)
+	}
+	state.Wheel(gfx.ScrollEvent{DeltaY: -1000, Pages: -1, Viewport: window})
+	if state.Offset != 100 {
+		t.Fatalf("a page notch up left the area at %v, want 100", state.Offset)
+	}
+}

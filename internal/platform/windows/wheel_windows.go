@@ -43,7 +43,8 @@ func (state *windowState) wheelEvent(horizontal bool, first, second uintptr) pla
 	if horizontal {
 		units, extent = state.wheel.chars, state.pageExtent(true)
 	}
-	pixels, precise := platform.WheelPixels(int(int16(first>>16)), units, extent)
+	wheelDelta := int16(first >> 16)
+	pixels, precise := platform.WheelPixels(int(wheelDelta), units, extent)
 	event := platform.ScrollEvent{
 		Modifiers: modifiers(), X: float32(position.X) / state.scale, Y: float32(position.Y) / state.scale,
 		Precise: precise,
@@ -52,6 +53,16 @@ func (state *windowState) wheelEvent(horizontal bool, first, second uintptr) pla
 		event.DeltaX = pixels
 	} else {
 		event.DeltaY = -pixels
+	}
+	if units == platform.WheelPageScroll {
+		// The system asks for whole screens, and extent is only the window's: the
+		// region the pointer is over moves Pages of its own page. A notch away
+		// from the user is up, as a negative DeltaY.
+		pages := float32(wheelDelta) / platform.WheelNotch
+		if !horizontal {
+			pages = -pages
+		}
+		event.Pages = pages
 	}
 	return event
 }

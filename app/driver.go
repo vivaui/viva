@@ -534,7 +534,7 @@ func (driver *Driver) Scroll(event gfx.ScrollEvent) error {
 	}
 	_, err := driver.painter.scroll(platform.ScrollEvent{
 		Modifiers: event.Modifiers | driver.heldModifiers(), X: event.X, Y: event.Y,
-		DeltaX: event.DeltaX, DeltaY: event.DeltaY, Precise: event.Precise,
+		DeltaX: event.DeltaX, DeltaY: event.DeltaY, Pages: event.Pages, Precise: event.Precise,
 	})
 	return err
 }

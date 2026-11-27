@@ -403,6 +403,7 @@ func encodeScrollEvent(value gfx.ScrollEvent) []byte {
 	result.f32(value.Y)
 	result.f32(value.DeltaX)
 	result.f32(value.DeltaY)
+	result.f32(value.Pages)
 	result.f32(value.Viewport.Width)
 	result.f32(value.Viewport.Height)
 	result.id(value.Target)
@@ -414,7 +415,7 @@ func decodeScrollEvent(data []byte) (gfx.ScrollEvent, error) {
 	value := decoder{data: data}
 	result := gfx.ScrollEvent{
 		Modifiers: gfx.Modifiers(value.u8()), X: value.f32(), Y: value.f32(),
-		DeltaX: value.f32(), DeltaY: value.f32(), Viewport: gfx.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Precise: value.bool(),
+		DeltaX: value.f32(), DeltaY: value.f32(), Pages: value.f32(), Viewport: gfx.Size{Width: value.f32(), Height: value.f32()}, Target: value.id(), Precise: value.bool(),
 	}
 	if err := value.finish(); err != nil {
 		return gfx.ScrollEvent{}, err

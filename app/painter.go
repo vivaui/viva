@@ -942,7 +942,7 @@ func (painter *painter) applyScroll(event platform.ScrollEvent) bool {
 	if painter.onScroll != nil {
 		response = painter.onScroll(gfx.ScrollEvent{
 			Phase: event.Phase, Modifiers: gfx.Modifiers(event.Modifiers), X: event.X, Y: event.Y,
-			DeltaX: event.DeltaX, DeltaY: event.DeltaY, Viewport: painter.size, Target: target, Precise: event.Precise,
+			DeltaX: event.DeltaX, DeltaY: event.DeltaY, Pages: event.Pages, Viewport: painter.size, Target: target, Precise: event.Precise,
 		})
 	}
 	focusChanged := painter.applyEventResult(response)

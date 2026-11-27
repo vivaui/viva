@@ -210,6 +210,14 @@ func (s *ScrollState) canScroll(dx, dy float32) bool {
 // wheelSteps is how far a scroll event moves the area, right and down. A Sideways area
 // takes the wheel with Shift held, and no horizontal delta, as a horizontal wheel.
 func (s *ScrollState) wheelSteps(event gfx.ScrollEvent) (dx, dy float32) {
+	if event.Pages != 0 {
+		// The system asks for whole screens: the area moves one of its own, not
+		// one of the window's, which the event's delta is measured in.
+		if s.sideways && event.DeltaX == 0 && event.Modifiers&gfx.ModifierShift != 0 {
+			return event.StepYIn(1, s.ViewportWidth), 0
+		}
+		return event.StepXIn(1, s.ViewportWidth), event.StepYIn(1, s.Viewport)
+	}
 	dx, dy = event.DeltaX, event.DeltaY
 	if s.sideways && dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
 		dx, dy = dy, 0

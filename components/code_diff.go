@@ -866,12 +866,16 @@ func (diff *CodeDiff) linesForValue(value string) ([]string, []int) {
 // Scroll applies a wheel or touchpad scroll to both panes. Horizontal deltas use
 // horizontal movement; Shift turns vertical delta into horizontal movement.
 func (diff *CodeDiff) Scroll(event gfx.ScrollEvent) gfx.EventResult {
-	diff.scrollX += event.DeltaX
-	if event.Modifiers&gfx.ModifierShift != 0 {
-		diff.scrollX += event.DeltaY
-	} else {
-		diff.scrollY += event.DeltaY
+	dy := event.DeltaY
+	if event.Pages != 0 {
+		dy = event.StepYIn(1, float32(diff.visibleRows)*diff.rowHeight)
 	}
+	dx := event.DeltaX
+	if event.Modifiers&gfx.ModifierShift != 0 {
+		dx, dy = dx+dy, 0 // Shift turns the vertical travel sideways
+	}
+	diff.scrollX += dx
+	diff.scrollY += dy
 	diff.clampScroll()
 	return gfx.EventResult{Handled: true, Repaint: true}
 }

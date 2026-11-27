@@ -237,7 +237,11 @@ func (t *TimePicker) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	}
 	rows, _ := t.size(column)
 	limit := max(float32(rows*rowHeight)-visibleRows*rowHeight, 0)
-	t.offsets[column] = min(max(t.offsets[column]-event.DeltaY, 0), limit)
+	step := event.DeltaY
+	if event.Pages != 0 {
+		step = event.StepYIn(rowHeight, visibleRows*rowHeight)
+	}
+	t.offsets[column] = min(max(t.offsets[column]-step, 0), limit)
 	return gfx.EventResult{Handled: true, Repaint: true}
 }
 

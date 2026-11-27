@@ -746,7 +746,12 @@ type ScrollEvent struct {
 	Y         float32
 	DeltaX    float32
 	DeltaY    float32
-	Precise   bool
+	// Pages is how many screens the gesture is, when the user's wheel setting
+	// is whole screens per notch; zero otherwise. DeltaX and DeltaY carry the
+	// same distance against the window, which is the page only for the window's
+	// own scrolling: a scroll region moves Pages of its own page instead.
+	Pages   float32
+	Precise bool
 }
 
 // ScrollHandler applies one scroll gesture and returns an optional repaint.

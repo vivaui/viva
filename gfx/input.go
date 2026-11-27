@@ -252,9 +252,16 @@ type ScrollEvent struct {
 	Y         float32
 	DeltaX    float32
 	DeltaY    float32
-	Viewport  Size
-	Target    ID
-	Precise   bool
+	// Pages is how many screens the gesture is when the system's wheel setting
+	// asks for whole screens per notch, zero otherwise, and in the same
+	// direction as the delta of its axis. DeltaX and DeltaY are that many
+	// screens of the window, which is right only for what the window scrolls:
+	// a scroll region moves Pages of its own page instead, as StepYIn and
+	// StepXIn give it.
+	Pages    float32
+	Viewport Size
+	Target   ID
+	Precise  bool
 }
 
 // ScrollPhase is what a scroll event comes from. A wheel or a touchpad is the zero value
@@ -281,13 +288,55 @@ const (
 // which the pixel scale turns into a distance far below one row, so without the
 // floor several notches would pass before anything moves. A precise delta is
 // the distance the finger moved and is returned as it is.
+//
+// It is the whole window's step. A scroll region smaller than the window takes
+// StepYIn instead, so a page notch is one of its pages and not one of the
+// window's.
 func (e ScrollEvent) StepY(unit float32) float32 {
 	return wheelStep(e.DeltaY, unit, e.Precise)
+}
+
+// StepYIn is StepY for content of unit-sized rows inside a scroll region whose
+// visible height is viewport. When the system asks for whole screens, the notch
+// moves as many of the region's pages as Pages says, rounded down to whole rows,
+// rather than the window-sized distance DeltaY carries; that is one screen of
+// the region, which is a screen of the rows a user sees in it.
+func (e ScrollEvent) StepYIn(unit, viewport float32) float32 {
+	if e.Pages == 0 || unit <= 0 || e.DeltaY == 0 {
+		return e.StepY(unit)
+	}
+	return pageStep(e.DeltaY, e.Pages, unit, viewport)
 }
 
 // StepX is StepY for DeltaX.
 func (e ScrollEvent) StepX(unit float32) float32 {
 	return wheelStep(e.DeltaX, unit, e.Precise)
+}
+
+// StepXIn is StepX for a sideways region whose visible width is viewport, as
+// StepYIn is for a tall one.
+func (e ScrollEvent) StepXIn(unit, viewport float32) float32 {
+	if e.Pages == 0 || unit <= 0 || e.DeltaX == 0 {
+		return e.StepX(unit)
+	}
+	return pageStep(e.DeltaX, e.Pages, unit, viewport)
+}
+
+// pageStep is how far pages of a region of viewport units-by-unit move it in the
+// direction of delta.
+func pageStep(delta, pages, unit, viewport float32) float32 {
+	if pages < 0 {
+		pages = -pages
+	}
+	units := float32(int(pages * viewport / unit))
+	if units < 1 {
+		units = 1
+	}
+	step := units * unit
+	if delta < 0 {
+		return -step
+	}
+	return step
 }
 
 func wheelStep(delta, unit float32, precise bool) float32 {

@@ -307,6 +307,9 @@ func (layout *TextareaLayout) Wheel(event gfx.ScrollEvent) bool {
 		return false
 	}
 	dy := event.DeltaY
+	if event.Pages != 0 {
+		dy = event.StepYIn(1, content.Height)
+	}
 	if !event.Precise && dy > 0 && dy < 24 {
 		dy = 24
 	} else if !event.Precise && dy < 0 && dy > -24 {

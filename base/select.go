@@ -103,7 +103,7 @@ func (s *SelectState) Wheel(event gfx.ScrollEvent) gfx.EventResult {
 		return gfx.EventResult{}
 	}
 	last := len(s.labels) - s.Visible
-	step := event.DeltaY / selectItem
+	step := event.StepYIn(selectItem, float32(s.Visible)*selectItem) / selectItem
 	if !event.Precise {
 		switch {
 		case event.DeltaY > 0:

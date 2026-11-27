@@ -1255,7 +1255,9 @@ func (p *Page) ListKey(event gfx.KeyEvent) (gfx.EventResult, bool) {
 func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	dx, only := event.DeltaX, event.DeltaY == 0
 	if dx == 0 && event.Modifiers&gfx.ModifierShift != 0 {
-		dx, only = event.DeltaY, true
+		// The vertical wheel turned sideways: its page is sideways too.
+		event.DeltaX, event.DeltaY = event.DeltaY, 0
+		dx, only = event.DeltaX, true
 	}
 	if dx == 0 {
 		return false, false
@@ -1264,7 +1266,7 @@ func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 	if f := p.View.Frame; f != nil {
 		panel = f.wheelPanel(event.X, event.Y)
 	}
-	dx = wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
+	step := wheelStep(dx, event.Precise) // a notch moves at least a line, as down the list
 	for _, s := range p.listStates {
 		in := &s.list
 		if s.RowWidth <= 0 || in.f == nil || !in.f.ContainsPoint(int(in.area), event.X, event.Y) || !in.f.within(in.area, panel) {
@@ -1273,6 +1275,11 @@ func (p *Page) ListWheelX(event gfx.ScrollEvent) (moved, only bool) {
 		room := s.RowWidth - in.View.Width
 		if room <= 0 {
 			continue
+		}
+		// A screen per notch is a screen of this list's width.
+		dx := step
+		if event.Pages != 0 {
+			dx = event.StepXIn(1, in.View.Width)
 		}
 		before := s.ScrollX()
 		in.scrollX = min(max(before+dx, 0), room)

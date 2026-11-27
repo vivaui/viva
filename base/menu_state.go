@@ -85,6 +85,9 @@ func (scroll *MenuScroll) Max() float32 { return scroll.MaxValue }
 // A notch of a wheel (a gesture that is not Precise) moves at least 24 pixels.
 func (scroll *MenuScroll) Wheel(event gfx.ScrollEvent) bool {
 	step := event.DeltaY
+	if event.Pages != 0 {
+		step = event.StepYIn(1, scroll.View)
+	}
 	if !event.Precise {
 		if step > 0 && step < 24 {
 			step = 24

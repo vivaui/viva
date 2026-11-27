@@ -705,7 +705,7 @@ func (editor *CodeEditor) Scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if !editor.painted {
 		return gfx.EventResult{}
 	}
-	dx, dy := event.StepX(editor.cellWidth), event.StepY(editor.lineHeight)
+	dx, dy := event.StepXIn(editor.cellWidth, editor.content.Width), event.StepYIn(editor.lineHeight, editor.content.Height)
 	if event.Modifiers&gfx.ModifierShift != 0 && dx == 0 {
 		dx, dy = dy, 0
 	}

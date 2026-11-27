@@ -200,6 +200,12 @@ func (t *EditableTabs) scroll(event gfx.ScrollEvent) gfx.EventResult {
 	if math.Abs(float64(event.DeltaY)) > math.Abs(float64(event.DeltaX)) {
 		delta = event.DeltaY
 	}
+	if event.Pages != 0 {
+		delta = event.StepXIn(1, t.width)
+		if math.Abs(float64(event.DeltaY)) > math.Abs(float64(event.DeltaX)) {
+			delta = event.StepYIn(1, t.width)
+		}
+	}
 	if delta == 0 {
 		return gfx.EventResult{}
 	}
