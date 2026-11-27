@@ -44,6 +44,10 @@ const (
 	KeyAltRight
 	KeyMetaLeft
 	KeyMetaRight
+	// KeyCapsLock is the Caps Lock key. It is a lock key, not a modifier: its
+	// press toggles a state on the platform instead of changing the key after
+	// it, so it is delivered by Key rather than through Modifiers.
+	KeyCapsLock
 )
 
 // IsModifier reports whether the key is one of the modifier keys.

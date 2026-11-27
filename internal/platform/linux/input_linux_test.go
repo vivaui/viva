@@ -36,6 +36,7 @@ func TestNormalizedKeysym(t *testing.T) {
 		{keysymKPEnd, input.KeyEnd},
 		{keysymBackspace, input.KeyBackspace},
 		{keysymKPDelete, input.KeyDelete},
+		{keysymCapsLock, input.KeyCapsLock},
 		{'A', input.KeyUnknown},
 	} {
 		if got := normalizedKeysym(test.keysym); got != test.want {

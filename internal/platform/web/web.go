@@ -1037,6 +1037,8 @@ func webKey(key string) (input.Key, bool) {
 		return input.KeyDelete, true
 	case "Insert":
 		return input.KeyInsert, true
+	case "CapsLock":
+		return input.KeyCapsLock, true
 	case "F1":
 		return input.KeyF1, true
 	case "F2":

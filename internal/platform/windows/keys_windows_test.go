@@ -342,3 +342,30 @@ func TestAModifierIsReportedOnlyWhenTheApplicationListensForTaps(t *testing.T) {
 		t.Errorf("the press and release of one key have codes %d and %d", press.Code, release.Code)
 	}
 }
+
+// Caps Lock is a key of its own: it types no character, so the text path can
+// never carry it, and a remote desktop needs the press to toggle the state on
+// the other side. It used to be the one key such a session never received.
+func TestCapsLockReachesTheApplicationAsAKey(t *testing.T) {
+	var events []platform.KeyEvent
+	state := &windowState{textEnabled: true}
+	state.textInput.Terminal = true
+	state.config.OnKey = func(event platform.KeyEvent) (platform.Frame, error) {
+		events = append(events, event)
+		return platform.Frame{}, errors.New("stop before the renderer")
+	}
+	const vkCapsLock, scanCapsLock = 0x14, 0x3a
+	if !state.keyDown(vkCapsLock, scanCapsLock<<16, 0) {
+		t.Fatal("the Caps Lock press was not consumed")
+	}
+	if len(events) != 1 || events[0].Key != input.KeyCapsLock || events[0].Text != "" || events[0].Release {
+		t.Fatalf("Caps Lock press = %+v", events)
+	}
+	events = events[:0]
+	if !state.keyUp(vkCapsLock, scanCapsLock<<16, 0) {
+		t.Fatal("the Caps Lock release was not consumed")
+	}
+	if len(events) != 1 || events[0].Key != input.KeyCapsLock || !events[0].Release {
+		t.Fatalf("Caps Lock release = %+v", events)
+	}
+}

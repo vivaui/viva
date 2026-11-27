@@ -103,6 +103,7 @@ const (
 	KeyAltRight     = gfx.KeyAltRight
 	KeyMetaLeft     = gfx.KeyMetaLeft
 	KeyMetaRight    = gfx.KeyMetaRight
+	KeyCapsLock     = gfx.KeyCapsLock
 )
 
 // Modifiers is a bitset of active keyboard modifiers.

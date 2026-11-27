@@ -1474,6 +1474,8 @@ func normalizedKey(key uintptr) input.Key {
 		return input.KeyPageDown
 	case 45:
 		return input.KeyInsert
+	case 0x14: // VK_CAPITAL
+		return input.KeyCapsLock
 	}
 	if key >= 0x70 && key <= 0x7b {
 		return input.KeyF1 + input.Key(key-0x70)

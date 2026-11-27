@@ -31,6 +31,7 @@ const (
 	keysymShiftR     = 0xffe2
 	keysymControlL   = 0xffe3
 	keysymControlR   = 0xffe4
+	keysymCapsLock   = 0xffe5
 	keysymMetaL      = 0xffe7
 	keysymMetaR      = 0xffe8
 	keysymAltL       = 0xffe9
@@ -136,6 +137,8 @@ func normalizedKeysym(keysym uint32) input.Key {
 		return input.KeyControlLeft
 	case keysymControlR:
 		return input.KeyControlRight
+	case keysymCapsLock:
+		return input.KeyCapsLock
 	case keysymAltL, keysymMetaL:
 		return input.KeyAltLeft
 	case keysymAltR, keysymMetaR, keysymLevel3:
