@@ -35,6 +35,9 @@ const (
 	Rule
 	// Table is a pipe table; its first row is the header.
 	Table
+	// Labeled is a borderless two-column label–content block. Consecutive
+	// Labeled blocks share one aligned label column.
+	Labeled
 )
 
 // Style is the inline formatting of a Span.
@@ -106,7 +109,8 @@ type Block struct {
 	// fences; for a quoted or indented block, the quote markers and the indent.
 	Start, End int
 
-	lo, hi int32 // inline spans, or table cells
+	lo, hi           int32 // inline spans, or table cells
+	labelLo, labelHi int32 // inline spans of a Labeled block's label column
 }
 
 // Document is a parsed text. The zero value is empty and ready for Parse.
@@ -120,13 +124,21 @@ type Document struct {
 	work  int // inline scanning left, see inline.go
 }
 
-// Spans returns the inline content of a Paragraph, Heading or Item. It is valid
-// until the next call to Parse.
+// Spans returns the inline content of a Paragraph, Heading, Item or Labeled
+// block's value column. It is valid until the next call to Parse or Reset.
 func (d *Document) Spans(b *Block) []Span {
 	if b.Kind == Table || b.Kind == Code || b.Kind == Rule {
 		return nil
 	}
 	return d.spans[b.lo:b.hi]
+}
+
+// LabelSpans returns the inline content of a Labeled block's label column.
+func (d *Document) LabelSpans(b *Block) []Span {
+	if b.Kind != Labeled {
+		return nil
+	}
+	return d.spans[b.labelLo:b.labelHi]
 }
 
 // Cells returns the cells of a Table, row by row: Columns cells make a row and

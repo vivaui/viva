@@ -143,29 +143,35 @@ var _ gfx.TextPlacement = (*MarkdownView)(nil)
 // Layout measures text and is the expensive half: do it when the text or the
 // width changed, and call Paint every frame.
 type MarkdownView struct {
-	pieces     []mdPiece
-	runs       []mdCodeRun
-	hl         []MarkdownCodeRun
-	scratch    []gfx.TextRun
-	selScratch []gfx.TextSpan
-	boxes      []mdBox
-	links      []mdLink
-	codes      []MarkdownCode
-	images     []mdImage
-	anchors    []MarkdownAnchor
-	atoms      []mdAtom
-	numbers    []byte
-	tabs       []byte  // code lines with their tabs spread into blanks
-	tabBound   []int32 // where each byte of a spread code line came from
-	plain      []byte  // the rendered text, for selection and copying
-	spanBase   []int32 // where each span of the current inline block starts in plain
-	measure    *gfx.Canvas
-	paintX     float32 // where the last Paint put the document
-	paintY     float32
-	painted    bool
-	bars       [markdownMaxQuote + 1]int32
-	face       gfx.MonoFace
-	height     float32
+	pieces      []mdPiece
+	runs        []mdCodeRun
+	hl          []MarkdownCodeRun
+	scratch     []gfx.TextRun
+	selScratch  []gfx.TextSpan
+	boxes       []mdBox
+	links       []mdLink
+	codes       []MarkdownCode
+	images      []mdImage
+	anchors     []MarkdownAnchor
+	atoms       []mdAtom
+	numbers     []byte
+	tabs        []byte  // code lines with their tabs spread into blanks
+	tabBound    []int32 // where each byte of a spread code line came from
+	plain       []byte  // the rendered text, for selection and copying
+	spanBase    []int32 // where each span of the current inline block starts in plain
+	blockSpans  []mdBlockSpan
+	rowSpans    []mdRowSpan
+	cellSpans   []mdCellSpan
+	tableRows   []mdTableRowSpan
+	quoteBarIdx [markdownMaxQuote][]int32
+	plainPieces []int32
+	measure     *gfx.Canvas
+	paintX      float32 // where the last Paint put the document
+	paintY      float32
+	painted     bool
+	bars        [markdownMaxQuote + 1]int32
+	face        gfx.MonoFace
+	height      float32
 }
 
 // Height is the height of the laid-out document.
@@ -190,53 +196,7 @@ func (v *MarkdownView) OffsetAt(point gfx.Point) (offset int, ok bool) {
 	if !v.painted || v.measure == nil || len(v.pieces) == 0 {
 		return 0, false
 	}
-	x, y := point.X-v.paintX, point.Y-v.paintY
-	best, bestScore := -1, float32(0)
-	var previous *mdPiece
-	for index := range v.pieces {
-		piece := &v.pieces[index]
-		if piece.plainLo < 0 {
-			continue
-		}
-		if previous != nil && previous.y == piece.y && previous.plainHi < piece.plainLo && y >= piece.y && y <= piece.y+piece.h {
-			start := previous.x + v.caretAdvance(previous, int(previous.plainHi-previous.plainLo))
-			end := piece.x + v.caretAdvance(piece, 0)
-			if end > start && x >= start && x <= end {
-				gap := int(piece.plainLo - previous.plainHi)
-				position := int(float32(gap)*(x-start)/(end-start) + 0.5)
-				return gfx.GraphemeStart(unsafe.String(unsafe.SliceData(v.plain), len(v.plain)), int(previous.plainHi)+min(max(position, 0), gap)), true
-			}
-		}
-		previous = piece
-		dx, dy := float32(0), float32(0)
-		if x < piece.x {
-			dx = piece.x - x
-		} else if x > piece.x+piece.w {
-			dx = x - piece.x - piece.w
-		}
-		if y < piece.y {
-			dy = piece.y - y
-		} else if y > piece.y+piece.h {
-			dy = y - piece.y - piece.h
-		}
-		score := dy*1_000_000 + dx
-		if best < 0 || score < bestScore {
-			best, bestScore = index, score
-		}
-	}
-	if best < 0 {
-		return 0, false
-	}
-	piece := &v.pieces[best]
-	localX := min(max(x-piece.x, 0), piece.w)
-	var local int
-	if piece.mono {
-		local = v.codeOffsetAt(piece, localX)
-	} else {
-		local = v.measure.TextOffsetAtStyle(piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
-	}
-	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
-	return int(piece.plainLo) + local, true
+	return v.offsetAtIndexed(point.X-v.paintX, point.Y-v.paintY)
 }
 
 // CaretAt returns the window rectangle for a rendered byte offset after Paint.
@@ -245,50 +205,7 @@ func (v *MarkdownView) CaretAt(offset int) (gfx.Rect, bool) {
 	if !v.painted || v.measure == nil || len(v.pieces) == 0 {
 		return gfx.Rect{}, false
 	}
-	value := unsafe.String(unsafe.SliceData(v.plain), len(v.plain))
-	offset = gfx.GraphemeStart(value, offset)
-	var chosen, before, after *mdPiece
-	for index := range v.pieces {
-		piece := &v.pieces[index]
-		if piece.plainLo < 0 {
-			continue
-		}
-		switch {
-		case offset >= int(piece.plainLo) && offset <= int(piece.plainHi):
-			if chosen == nil || piece.plainLo == int32(offset) && chosen.plainLo < int32(offset) {
-				chosen = piece
-			}
-		case int(piece.plainHi) < offset:
-			if before == nil || piece.plainHi > before.plainHi {
-				before = piece
-			}
-		case int(piece.plainLo) > offset:
-			if after == nil || piece.plainLo < after.plainLo {
-				after = piece
-			}
-		}
-	}
-	if chosen == nil {
-		if before != nil && after != nil && before.y == after.y {
-			start := before.x + v.caretAdvance(before, int(before.plainHi-before.plainLo))
-			end := after.x + v.caretAdvance(after, 0)
-			fraction := float32(offset-int(before.plainHi)) / float32(after.plainLo-before.plainHi)
-			return gfx.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
-		}
-		if before == nil && after == nil {
-			return gfx.Rect{}, false
-		}
-		if before == nil || after != nil && int(after.plainLo)-offset <= offset-int(before.plainHi) {
-			chosen = after
-			offset = int(after.plainLo)
-		} else {
-			chosen = before
-			offset = int(before.plainHi)
-		}
-	}
-	local := min(max(offset-int(chosen.plainLo), 0), int(chosen.plainHi-chosen.plainLo))
-	advance := v.caretAdvance(chosen, local)
-	return gfx.Rect{X: v.paintX + chosen.x + advance, Y: v.paintY + chosen.y, Width: 1, Height: chosen.h}, true
+	return v.caretAtIndexed(offset)
 }
 
 func (v *MarkdownView) caretAdvance(piece *mdPiece, local int) float32 {
@@ -410,6 +327,7 @@ const (
 	markdownCodePadY  = 8
 	markdownCellPadX  = 8
 	markdownCellPadY  = 5
+	markdownLabelGap  = 12
 	markdownMaxLines  = 20000 // the most lines one layout produces
 )
 
@@ -520,6 +438,10 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 	}
 	v.images = v.images[:0]
 	v.pieces, v.boxes, v.links, v.codes, v.anchors, v.numbers, v.runs, v.tabs, v.tabBound, v.plain, v.spanBase = v.pieces[:0], v.boxes[:0], v.links[:0], v.codes[:0], v.anchors[:0], v.numbers[:0], v.runs[:0], v.tabs[:0], v.tabBound[:0], v.plain[:0], v.spanBase[:0]
+	v.blockSpans, v.rowSpans, v.cellSpans, v.tableRows, v.plainPieces = v.blockSpans[:0], v.rowSpans[:0], v.cellSpans[:0], v.tableRows[:0], v.plainPieces[:0]
+	for qi := range v.quoteBarIdx {
+		v.quoteBarIdx[qi] = v.quoteBarIdx[qi][:0]
+	}
 	v.bars = [markdownMaxQuote + 1]int32{}
 	v.face = style.MonoFace
 	v.measure = canvas
@@ -530,6 +452,8 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 	body := mdFont{size: style.Size, line: style.LineHeight, weight: gfx.WeightRegular, color: mdColText}
 	y := float32(0)
 	var prev *markdown.Block
+	labeledEnd := -1
+	labeledColW := float32(0)
 	for index := range doc.Blocks {
 		if l.lines >= markdownMaxLines {
 			break
@@ -544,34 +468,75 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 			t.color = mdColMuted
 		}
 		l.blockBreak()
+		blkSpan := mdBlockSpan{kind: b.Kind, y: top, blockBox: -1, markerPiece: -1}
 		switch b.Kind {
 		case markdown.Paragraph:
 			indent := float32(0)
 			if b.Level > 0 {
 				indent = float32(b.Level-1)*markdownListStep + markdownMarkerW
 			}
+			blkSpan.rowLo = int32(len(v.rowSpans))
 			l.appendSpans(doc.Spans(b))
 			y = l.inline(doc.Spans(b), x0+indent, w-indent, y, t, markdown.AlignLeft)
+			blkSpan.rowHi = int32(len(v.rowSpans))
 		case markdown.Heading:
+			blkSpan.rowLo = int32(len(v.rowSpans))
 			l.appendSpans(doc.Spans(b))
 			y = l.inline(doc.Spans(b), x0, w, y, l.heading(b.Level, t), markdown.AlignLeft)
+			blkSpan.rowHi = int32(len(v.rowSpans))
 		case markdown.Item:
 			indent := float32(b.Level)*markdownListStep + markdownMarkerW
+			blkSpan.markerPiece = int32(len(v.pieces))
 			l.marker(b, x0+float32(b.Level)*markdownListStep, y, t)
+			blkSpan.rowLo = int32(len(v.rowSpans))
 			l.appendSpans(doc.Spans(b))
 			y = l.inline(doc.Spans(b), x0+indent, w-indent, y, t, markdown.AlignLeft)
+			blkSpan.rowHi = int32(len(v.rowSpans))
 			y = max(y, top+t.line)
 		case markdown.Code:
+			blkSpan.rowLo = int32(len(v.rowSpans))
 			y = l.code(b, x0, w, y)
+			blkSpan.rowHi = int32(len(v.rowSpans))
+			if len(v.boxes) > 0 && v.boxes[len(v.boxes)-1].kind == mdBoxCode {
+				blkSpan.blockBox = int32(len(v.boxes) - 1)
+			}
 		case markdown.Rule:
+			blkSpan.blockBox = int32(len(v.boxes))
 			v.boxes = append(v.boxes, mdBox{kind: mdBoxLine, x: x0, y: y + 6, w: w, h: 1})
 			y += 13
 		case markdown.Table:
+			blkSpan.tableRowLo = int32(len(v.tableRows))
 			y = l.table(b, x0, w, y, t)
+			blkSpan.tableRowHi = int32(len(v.tableRows))
+		case markdown.Labeled:
+			if index >= labeledEnd {
+				labelFont := t
+				labelFont.color = mdColMuted
+				maxLabel := float32(0)
+				end := index
+				for end < len(doc.Blocks) && doc.Blocks[end].Kind == markdown.Labeled && doc.Blocks[end].Quote == b.Quote {
+					if ls := doc.LabelSpans(&doc.Blocks[end]); len(ls) > 0 {
+						maxLabel = max(maxLabel, l.natural(ls, labelFont))
+					}
+					end++
+				}
+				labeledEnd = end
+				labeledColW = min(maxLabel, max(w*0.28, 48))
+			}
+			blkSpan.cellLo = int32(len(v.cellSpans))
+			y = l.labeled(b, x0, w, y, t, labeledColW)
+			blkSpan.cellHi = int32(len(v.cellSpans))
 		}
+		blkSpan.bottom = y
+		v.blockSpans = append(v.blockSpans, blkSpan)
 		l.quoteBars(b.Quote, top, y)
 		v.anchors = append(v.anchors, MarkdownAnchor{Start: b.Start, End: b.End, Top: top, Bottom: y})
 		prev = b
+	}
+	for i := range v.pieces {
+		if v.pieces[i].plainLo >= 0 {
+			v.plainPieces = append(v.plainPieces, int32(i))
+		}
 	}
 	v.height = y
 	return y
@@ -628,12 +593,52 @@ func (l *mdLayout) gap(prev, cur *markdown.Block) float32 {
 	switch {
 	case prev.Kind == markdown.Item && (cur.Kind == markdown.Item || cur.Kind == markdown.Paragraph && cur.Level > 0):
 		return float32(int(lh * 0.25))
+	case prev.Kind == markdown.Labeled && cur.Kind == markdown.Labeled:
+		return float32(int(lh * 0.25))
 	case cur.Kind == markdown.Heading:
 		return float32(int(lh * 0.75))
 	case prev.Kind == markdown.Heading:
 		return float32(int(lh * 0.3))
 	}
 	return float32(int(lh * 0.45))
+}
+
+// labeled lays out one borderless two-column label–content block.
+func (l *mdLayout) labeled(b *markdown.Block, x, width, y float32, t mdFont, labelW float32) float32 {
+	v, doc := l.v, l.doc
+	labelSpans := doc.LabelSpans(b)
+	valueSpans := doc.Spans(b)
+	labelFont := t
+	labelFont.color = mdColMuted
+	top := y
+
+	lRowLo := int32(len(v.rowSpans))
+	labelEnd := top
+	if len(labelSpans) > 0 && labelW > 0 {
+		l.appendSpans(labelSpans)
+		labelEnd = l.inline(labelSpans, x, labelW, top, labelFont, markdown.AlignLeft)
+	}
+	v.cellSpans = append(v.cellSpans, mdCellSpan{rowLo: lRowLo, rowHi: int32(len(v.rowSpans))})
+
+	if len(labelSpans) > 0 && len(valueSpans) > 0 {
+		v.plain = append(v.plain, ' ')
+	}
+
+	valX := x
+	valW := width
+	if labelW > 0 {
+		valX = x + labelW + markdownLabelGap
+		valW = max(width-labelW-markdownLabelGap, 40)
+	}
+	vRowLo := int32(len(v.rowSpans))
+	valEnd := top
+	if len(valueSpans) > 0 {
+		l.appendSpans(valueSpans)
+		valEnd = l.inline(valueSpans, valX, valW, top, t, markdown.AlignLeft)
+	}
+	v.cellSpans = append(v.cellSpans, mdCellSpan{rowLo: vRowLo, rowHi: int32(len(v.rowSpans))})
+
+	return max(max(labelEnd, valEnd), top+t.line)
 }
 
 // quoteBars keeps one bar per quote level running through the blocks inside it.
@@ -649,8 +654,10 @@ func (l *mdLayout) quoteBars(quote int, top, bottom float32) {
 			box.h = bottom - box.y
 			continue
 		}
+		boxIdx := int32(len(v.boxes))
 		v.boxes = append(v.boxes, mdBox{kind: mdBoxBar, x: float32(level-1)*markdownQuoteStep + 2, y: top, w: 3, h: bottom - top})
-		v.bars[level] = int32(len(v.boxes))
+		v.quoteBarIdx[level-1] = append(v.quoteBarIdx[level-1], boxIdx)
+		v.bars[level] = boxIdx + 1
 	}
 }
 
@@ -704,6 +711,7 @@ func (l *mdLayout) code(b *markdown.Block, x, width, y float32) float32 {
 			end, done := monoBreak(line[start:], cols)
 			end += start
 			end = codeBreak(line, bound, start, end)
+			pieceLo := int32(len(v.pieces))
 			if end > start {
 				chunk := line[start:end]
 				plainLo := int32(len(v.plain))
@@ -723,6 +731,10 @@ func (l *mdLayout) code(b *markdown.Block, x, width, y float32) float32 {
 				v.pieces = append(v.pieces, piece)
 				column += monoCells(chunk)
 			}
+			v.rowSpans = append(v.rowSpans, mdRowSpan{
+				y: y, bottom: y + height,
+				pieceLo: pieceLo, pieceHi: int32(len(v.pieces)),
+			})
 			l.lines++
 			y += height
 			start = end
@@ -986,6 +998,7 @@ func (l *mdLayout) table(b *markdown.Block, x, width, y float32, t mdFont) float
 		}
 		rowTop := y
 		rowBottom := y + 2*markdownCellPadY + t.line
+		cellLo := int32(len(v.cellSpans))
 		cx := x
 		for c := 0; c < columns; c++ {
 			cell := cells[r*columns+c]
@@ -996,16 +1009,24 @@ func (l *mdLayout) table(b *markdown.Block, x, width, y float32, t mdFont) float
 			if c > 0 {
 				v.plain = append(v.plain, ' ')
 			}
+			cRowLo := int32(len(v.rowSpans))
 			l.appendSpans(doc.CellSpans(cell))
 			end := l.inline(doc.CellSpans(cell), cx+markdownCellPadX, widths[c]-2*markdownCellPadX, rowTop+markdownCellPadY, style, cell.Align)
+			v.cellSpans = append(v.cellSpans, mdCellSpan{rowLo: cRowLo, rowHi: int32(len(v.rowSpans))})
 			rowBottom = max(rowBottom, end+markdownCellPadY)
 			cx += widths[c]
 		}
 		y = rowBottom
+		boxLo := int32(len(v.boxes))
 		if r == 0 {
 			v.boxes = append(v.boxes, mdBox{kind: mdBoxHead, x: x, y: rowTop, w: tableW, h: rowBottom - rowTop})
 		}
 		v.boxes = append(v.boxes, mdBox{kind: mdBoxLine, x: x, y: y - 1, w: tableW, h: 1})
+		v.tableRows = append(v.tableRows, mdTableRowSpan{
+			y: rowTop, bottom: rowBottom,
+			cellLo: cellLo, cellHi: int32(len(v.cellSpans)),
+			boxLo: boxLo, boxHi: int32(len(v.boxes)),
+		})
 	}
 	return y
 }
@@ -1597,16 +1618,27 @@ func (m *mdLine) endLine() {
 	}
 	// A line with an image is as tall as the tallest image, with the text along its
 	// top and a little air below the pixels so that stacked images do not touch.
+	lineTop := m.y
 	m.y += max(m.t.line, m.tall+4)
+	v.rowSpans = append(v.rowSpans, mdRowSpan{
+		y: lineTop, bottom: m.y,
+		pieceLo: int32(m.pieceP), pieceHi: int32(len(v.pieces)),
+		boxLo: int32(m.pieceB), boxHi: int32(len(v.boxes)),
+		linkLo: int32(m.pieceL), linkHi: int32(len(v.links)),
+		imageLo: int32(m.pieceI), imageHi: int32(len(v.images)),
+	})
 	m.l.lines++
 	m.reset()
 }
 
-// Paint draws the laid-out document.
+// Paint draws the laid-out document, querying the spatial index so only
+// visible blocks, quote bars, table rows, and cell visual rows are visited.
 func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 	v.paintX, v.paintY, v.painted = p.X, p.Y, true
 	look := p.Look
 	clipped := p.Clip.Height > 0
+	clipTop := p.Clip.Y - p.Y
+	clipBottom := p.Clip.Y + p.Clip.Height - p.Y
 	visible := func(y, h float32) bool {
 		return !clipped || (y+h >= p.Clip.Y && y <= p.Clip.Y+p.Clip.Height)
 	}
@@ -1616,10 +1648,12 @@ func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 		})
 		defer canvas.Unclip()
 	}
-	for _, box := range v.boxes {
+	firstBlk, lastBlk := v.visibleBlockRange(clipped, clipTop, clipBottom)
+
+	paintBox := func(box mdBox) {
 		rect := gfx.Rect{X: p.X + box.x, Y: p.Y + box.y, Width: box.w, Height: box.h}
 		if !visible(rect.Y, rect.Height) {
-			continue
+			return
 		}
 		switch box.kind {
 		case mdBoxCode:
@@ -1634,54 +1668,92 @@ func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 			canvas.Rounded(rect, 4, look.InlineCodeFill)
 		}
 	}
-	for _, image := range v.images {
-		rect := gfx.Rect{X: p.X + image.x, Y: p.Y + image.y, Width: image.w, Height: image.h}
-		if visible(rect.Y, rect.Height) {
-			canvas.DrawBitmap(image.bitmap, rect)
+
+	// Pass 1: quote bars, block/table backgrounds, and inline-code pills.
+	for level := 0; level < markdownMaxQuote; level++ {
+		for _, bi := range v.visibleQuoteBars(level, clipped, clipTop, clipBottom) {
+			paintBox(v.boxes[bi])
 		}
 	}
+	for bi := firstBlk; bi < lastBlk; bi++ {
+		blk := &v.blockSpans[bi]
+		if blk.blockBox >= 0 {
+			paintBox(v.boxes[blk.blockBox])
+		}
+		if blk.kind == markdown.Table {
+			tRows := v.tableRows[blk.tableRowLo:blk.tableRowHi]
+			rLo, rHi := visibleTableRowRange(tRows, clipped, clipTop, clipBottom)
+			for ri := rLo; ri < rHi; ri++ {
+				tr := &tRows[ri]
+				for k := tr.boxLo; k < tr.boxHi; k++ {
+					paintBox(v.boxes[k])
+				}
+			}
+		}
+	}
+	v.visitVisibleRows(firstBlk, lastBlk, clipped, clipTop, clipBottom, func(row *mdRowSpan) {
+		for k := row.boxLo; k < row.boxHi; k++ {
+			paintBox(v.boxes[k])
+		}
+	})
+
+	// Pass 2: images.
+	v.visitVisibleRows(firstBlk, lastBlk, clipped, clipTop, clipBottom, func(row *mdRowSpan) {
+		for k := row.imageLo; k < row.imageHi; k++ {
+			image := &v.images[k]
+			rect := gfx.Rect{X: p.X + image.x, Y: p.Y + image.y, Width: image.w, Height: image.h}
+			if visible(rect.Y, rect.Height) {
+				canvas.DrawBitmap(image.bitmap, rect)
+			}
+		}
+	})
+
+	// Pass 3: selection highlights.
 	start, end := p.Selection.Range(v.plain)
 	if start < end && look.Selection.Alpha > 0 {
-		for index := range v.pieces {
-			piece := &v.pieces[index]
-			if piece.plainLo < 0 {
-				continue
-			}
-			lo, hi := max(int(piece.plainLo), start), min(int(piece.plainHi), end)
-			if lo >= hi || !visible(p.Y+piece.y, piece.h) {
-				continue
-			}
-			if piece.mono {
-				from, to := lo-int(piece.plainLo), hi-int(piece.plainLo)
-				if piece.spread {
-					from, to = v.codeDisplayRange(piece, from, to)
+		v.visitVisibleRows(firstBlk, lastBlk, clipped, clipTop, clipBottom, func(row *mdRowSpan) {
+			for index := row.pieceLo; index < row.pieceHi; index++ {
+				piece := &v.pieces[index]
+				if piece.plainLo < 0 {
+					continue
 				}
-				if to > from {
-					cell := piece.cell
-					if cell <= 0 {
-						cell = 1
+				lo, hi := max(int(piece.plainLo), start), min(int(piece.plainHi), end)
+				if lo >= hi || !visible(p.Y+piece.y, piece.h) {
+					continue
+				}
+				if piece.mono {
+					from, to := lo-int(piece.plainLo), hi-int(piece.plainLo)
+					if piece.spread {
+						from, to = v.codeDisplayRange(piece, from, to)
 					}
-					x := p.X + piece.x + piece.padX + float32(monoCells(piece.text[:from]))*cell
-					width := float32(monoCells(piece.text[from:to])) * cell
-					canvas.Fill(gfx.Rect{X: x, Y: p.Y + piece.y, Width: width, Height: piece.h}, look.Selection)
+					if to > from {
+						cell := piece.cell
+						if cell <= 0 {
+							cell = 1
+						}
+						x := p.X + piece.x + piece.padX + float32(monoCells(piece.text[:from]))*cell
+						width := float32(monoCells(piece.text[from:to])) * cell
+						canvas.Fill(gfx.Rect{X: x, Y: p.Y + piece.y, Width: width, Height: piece.h}, look.Selection)
+					}
+					continue
 				}
-				continue
+				v.selScratch = canvas.TextSelectionStyle(v.selScratch[:0], piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic},
+					lo-int(piece.plainLo), hi-int(piece.plainLo))
+				for _, span := range v.selScratch {
+					canvas.Fill(gfx.Rect{X: p.X + piece.x + span.X, Y: p.Y + piece.y, Width: span.Width, Height: piece.h}, look.Selection)
+				}
 			}
-			v.selScratch = canvas.TextSelectionStyle(v.selScratch[:0], piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic},
-				lo-int(piece.plainLo), hi-int(piece.plainLo))
-			for _, span := range v.selScratch {
-				canvas.Fill(gfx.Rect{X: p.X + piece.x + span.X, Y: p.Y + piece.y, Width: span.Width, Height: piece.h}, look.Selection)
-			}
-		}
+		})
 	}
-	for index := range v.pieces {
-		piece := &v.pieces[index]
+
+	// Pass 4: text pieces (and list markers).
+	paintPiece := func(piece *mdPiece) {
 		rect := gfx.Rect{
 			X: p.X + piece.x + piece.padX, Y: p.Y + piece.y,
 			Width: piece.w - 2*piece.padX, Height: piece.h,
 		}
 		if !visible(rect.Y, rect.Height) {
-			continue
+			return
 		}
 		color := look.Text
 		switch piece.color {
@@ -1713,16 +1785,32 @@ func (v *MarkdownView) Paint(canvas *gfx.Canvas, p MarkdownPaint) {
 			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + rect.Height/2, Width: rect.Width, Height: 1}, color)
 		}
 	}
-	for index := range v.links {
-		link := &v.links[index]
-		rect := gfx.Rect{X: p.X + link.x, Y: p.Y + link.y, Width: link.w, Height: link.h}
-		if !visible(rect.Y, rect.Height) || p.Links.IsZero() {
-			continue
+	for bi := firstBlk; bi < lastBlk; bi++ {
+		if mp := v.blockSpans[bi].markerPiece; mp >= 0 {
+			paintPiece(&v.pieces[mp])
 		}
-		id := p.Links.At(p.Base + index)
-		canvas.HitWithOptions(id, rect, link.text, gfx.HitOptions{Role: gfx.RoleLink})
-		if canvas.Hovered() == id {
-			canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + link.underline, Width: rect.Width, Height: 1}, look.Link)
+	}
+	v.visitVisibleRows(firstBlk, lastBlk, clipped, clipTop, clipBottom, func(row *mdRowSpan) {
+		for index := row.pieceLo; index < row.pieceHi; index++ {
+			paintPiece(&v.pieces[index])
 		}
+	})
+
+	// Pass 5: clickable link hits & hover underlines.
+	if !p.Links.IsZero() {
+		v.visitVisibleRows(firstBlk, lastBlk, clipped, clipTop, clipBottom, func(row *mdRowSpan) {
+			for index := int(row.linkLo); index < int(row.linkHi); index++ {
+				link := &v.links[index]
+				rect := gfx.Rect{X: p.X + link.x, Y: p.Y + link.y, Width: link.w, Height: link.h}
+				if !visible(rect.Y, rect.Height) {
+					continue
+				}
+				id := p.Links.At(p.Base + index)
+				canvas.HitWithOptions(id, rect, link.text, gfx.HitOptions{Role: gfx.RoleLink})
+				if canvas.Hovered() == id {
+					canvas.Fill(gfx.Rect{X: rect.X, Y: rect.Y + link.underline, Width: rect.Width, Height: 1}, look.Link)
+				}
+			}
+		})
 	}
 }
