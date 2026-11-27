@@ -273,3 +273,17 @@ func TestButtonIsOneRectangleWhateverItIsGiven(t *testing.T) {
 		}
 	}
 }
+
+// A ghost button holds the keyboard too: its focus ring is a halo around it, and its
+// middle still shows the page rather than the ring's disc.
+func TestFocusedGhostButtonKeepsItsMiddleClear(t *testing.T) {
+	focused := func(c *gfx.Canvas) { c.SetInteraction(gfx.ID{}, gfx.ID{}, save, true) }
+	p := probeButton(t, focused, func(f *Frame) Box { return f.Button(save, "Save").Ghost() })
+	center := gfx.Point{X: p.box.X + p.box.Width/2, Y: p.box.Y + p.box.Height/2}
+	for _, rectangle := range p.canvas.Rectangles() {
+		box := rectangle.Bounds
+		if center.X > box.X && center.X < box.X+box.Width && center.Y > box.Y && center.Y < box.Y+box.Height {
+			t.Fatalf("the focus ring fills the ghost button's middle: %+v", rectangle)
+		}
+	}
+}

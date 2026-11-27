@@ -377,26 +377,7 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 			Invalid: button.state.Invalid, Disabled: button.disabled,
 		})
 	}
-	radius := look.Radius
-	if look.Shadow != gfx.ShadowNone {
-		button.canvas.Elevate(button.bounds, radius, look.Shadow) // shadow-xs
-	}
-	if look.RingWidth > 0 {
-		if look.RingOutline {
-			button.canvas.RoundedOutline(expand(button.bounds, look.RingWidth), look.RingRadius, 2, look.Ring)
-		} else {
-			button.canvas.Rounded(expand(button.bounds, look.RingWidth), look.RingRadius, look.Ring)
-		}
-	}
-	style := buttonStyle{
-		background: look.Background, foreground: look.Foreground, border: look.Border,
-		filled: look.Filled, bordered: look.Bordered, underlined: look.Underlined,
-	}
-	if style.bordered && style.filled {
-		paintBordered(button.canvas, button.theme, button.bounds, radius, style.border, style.background)
-	} else if style.filled {
-		button.canvas.Rounded(button.bounds, radius, style.background)
-	}
+	PaintButtonSurface(button.canvas, button.theme, button.bounds, look)
 	area := button.bounds
 	_, padding, _, _ := button.geometry()
 	if !iconOnly && padding > 0 {
@@ -415,8 +396,8 @@ func (button Button) paint(label string, variant ButtonVariant) ButtonResult {
 	}
 	hint := PaintButtonContent(button.canvas, area, ButtonContent{
 		Label: label, Icon: button.icon, IconTransform: button.iconTransform,
-		FontSize: fontSize, Weight: gfx.WeightMedium, Color: style.foreground,
-		Gap: buttonIconGap, Height: height, IconOnly: iconOnly, Underlined: style.underlined,
+		FontSize: fontSize, Weight: gfx.WeightMedium, Color: look.Foreground,
+		Gap: buttonIconGap, Height: height, IconOnly: iconOnly, Underlined: look.Underlined,
 	})
 	if !button.id.IsZero() {
 		button.canvas.HitWithOptions(button.id, button.bounds, label, gfx.HitOptions{
@@ -645,6 +626,45 @@ type ButtonContent struct {
 // ButtonLoadingPainter paints a button's loading indicator in bounds. Give it a
 // function, not a closure made in each paint, which would allocate.
 type ButtonLoadingPainter func(canvas *gfx.Canvas, theme *gfx.Theme, bounds gfx.Rect, color gfx.Color, phase uint8)
+
+// PaintButtonSurface paints a button's surface in bounds: its shadow, its focus
+// ring, its fill and its border, for a look the caller resolved itself with
+// ButtonRecipe or with a recipe of its own. It is the surface half of the paint
+// BeginButton does, so a control that draws content of its own on a button's
+// surface paints the same surface as a declared button; PaintButtonContent is
+// the content half.
+//
+// The focus ring is a halo that reaches RingWidth beyond bounds. Under an opaque
+// fill only the part outside the bounds can be seen, so the whole halo is painted
+// with the fill over it; a button that paints no opaque fill (ghost or link, or
+// one that is disabled) gets the halo as a line, since nothing would cover the
+// middle of the disc.
+func PaintButtonSurface(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, look ButtonLook) {
+	if canvas == nil || bounds.Width <= 0 || bounds.Height <= 0 {
+		return
+	}
+	radius := look.Radius
+	if look.Shadow != gfx.ShadowNone {
+		canvas.Elevate(bounds, radius, look.Shadow) // shadow-xs
+	}
+	if look.RingWidth > 0 {
+		halo := expand(bounds, look.RingWidth)
+		switch {
+		case look.RingOutline:
+			canvas.RoundedOutline(halo, look.RingRadius, 2, look.Ring)
+		case look.Filled && look.Background.Alpha >= 1:
+			canvas.Rounded(halo, look.RingRadius, look.Ring)
+		default:
+			canvas.RoundedOutline(halo, look.RingRadius, look.RingWidth, look.Ring)
+		}
+	}
+	switch {
+	case look.Bordered && look.Filled:
+		paintBordered(canvas, theme, bounds, radius, look.Border, look.Background)
+	case look.Filled:
+		canvas.Rounded(bounds, radius, look.Background)
+	}
+}
 
 // PaintButtonContent paints a button's icon and label centered in area and returns the
 // hint an icon-only button gives assistive technology, which is its label. It is the

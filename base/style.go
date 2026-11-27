@@ -355,9 +355,10 @@ type resolved struct {
 	// and then the line over it even where one shape could paint both.
 	borderWidth float32
 	splitBorder bool
-	// ringFilled paints the ring as a disc under the element rather than a line around
-	// it, and a nonzero ringLine is the width the line is drawn at: how a control's
-	// recipe draws its focus ring over an opaque page and over a translucent one.
+	// ringFilled paints the ring as a disc under an element whose opaque background
+	// covers its middle rather than as a line around it, and a nonzero ringLine is the
+	// width the line is drawn at: how a control's recipe draws its focus ring over an
+	// opaque page and over a translucent one.
 	ringFilled bool
 	ringLine   float32
 }
@@ -464,11 +465,14 @@ func (f *Frame) paintRing(r Rect, Radius float32, s *resolved) {
 		Radius += w
 	}
 	switch {
-	case s.ringFilled:
+	case s.ringFilled && s.Background.Alpha*f.Opacity >= 1:
+		// The surface covers the middle of the disc, leaving the halo outside it.
 		f.Surface.Rounded(outer, Radius, color)
 	case s.ringLine > 0:
 		f.Surface.RoundedOutline(outer, Radius, s.ringLine, color)
 	default:
+		// Nothing over the middle (a ghost or link button's transparent surface, or a
+		// disabled one) would cover a disc: the halo is only its line.
 		f.Surface.RoundedOutline(outer, Radius, w, color)
 	}
 }

@@ -160,11 +160,17 @@ func TestButtonFocusAndInvalidRingsUseOfficialTokensInDark(t *testing.T) {
 	if focusRing.Color != wantFocus || focusRing.Bounds != (gfx.Rect{X: 1, Y: 1, Width: 106, Height: 38}) {
 		t.Fatalf("focus ring = %+v, want Ring/50 expanded 3px", focusRing)
 	}
-	invalidRing := invalid.Rectangles()[0]
+	// The dark outline's surface is a translucent input tint, so nothing covers the
+	// middle of a ring disc: the invalid ring is the danger token drawn as a line, and
+	// the border keeps its own token.
+	ring := invalid.Triangles()
 	wantInvalid := withAlpha(theme.Danger, 0.40)
 	wantBorder := invalidBorder(&theme).Over(theme.Background)
-	if invalidRing.Color != wantInvalid || invalid.Rectangles()[1].Color != wantBorder {
-		t.Fatalf("invalid ring/border = %+v / %+v", invalidRing, invalid.Rectangles()[1])
+	if len(ring) == 0 || ring[0].Color != wantInvalid {
+		t.Fatalf("invalid ring = %+v, want the danger/40 line", ring)
+	}
+	if invalid.Rectangles()[0].Color != wantBorder {
+		t.Fatalf("invalid border = %+v, want %+v", invalid.Rectangles()[0], wantBorder)
 	}
 }
 
@@ -313,5 +319,29 @@ func TestButtonFontSizeChangesOnlyTheLabel(t *testing.T) {
 	large := BeginButton(&gfx.Canvas{}, theme, gfx.Item(1), base).Small().FontSize(20).SizeToFit("Layout").BoundsWidth()
 	if large <= small {
 		t.Errorf("a bigger label fit in %v, no wider than %v", large, small)
+	}
+}
+
+// A focused button that paints no fill keeps its middle: the focus ring is a halo
+// around the button, and a disc under it would show through the surface.
+func TestFocusedButtonRingDoesNotFillAnUnpaintedSurface(t *testing.T) {
+	theme := gfx.LightTheme()
+	bounds := gfx.Rect{X: 20, Y: 20, Width: 40, Height: 32}
+	center := gfx.Point{X: bounds.X + bounds.Width/2, Y: bounds.Y + bounds.Height/2}
+	for _, variant := range []ButtonVariant{ButtonGhost, ButtonLink} {
+		var canvas gfx.Canvas
+		BeginButton(&canvas, theme, gfx.Item(1), bounds).WithState(ButtonState{Focused: true}).paint("Open", variant)
+		if len(canvas.Triangles()) == 0 {
+			t.Fatalf("%v: a focused button drew no ring", variant)
+		}
+		for _, rectangle := range canvas.Rectangles() {
+			if rectangle.Color.Alpha <= 0 {
+				continue
+			}
+			box := rectangle.Bounds
+			if center.X > box.X && center.X < box.X+box.Width && center.Y > box.Y && center.Y < box.Y+box.Height {
+				t.Fatalf("%v: the ring fills the button's middle: %+v", variant, rectangle)
+			}
+		}
 	}
 }

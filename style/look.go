@@ -17,8 +17,8 @@ type ButtonLook struct {
 	// Shadow is the elevation under the surface; only the outline variant has one.
 	Shadow gfx.ShadowLevel
 	// Ring is the halo of a focused or invalid button, transparent with a zero RingWidth
-	// when there is none. RingOutline says it is drawn as a line over a translucent theme
-	// rather than a disc under the surface.
+	// when there is none. RingOutline says it is drawn as a line over a translucent theme.
+	// A surface with no opaque fill is not covered by a disc either, so its halo is a line.
 	Ring                  gfx.Color
 	RingWidth, RingRadius float32
 	RingOutline           bool

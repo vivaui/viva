@@ -185,21 +185,7 @@ func TestButtonRecipePaintsTheSurfaceAsTheComponentDoes(t *testing.T) {
 
 					var got gfx.Canvas
 					look := ButtonRecipe(theme, variant, state)
-					if look.Shadow != gfx.ShadowNone {
-						got.Elevate(bounds, look.Radius, look.Shadow)
-					}
-					if look.RingWidth > 0 {
-						if look.RingOutline {
-							got.RoundedOutline(expand(bounds, look.RingWidth), look.RingRadius, 2, look.Ring)
-						} else {
-							got.Rounded(expand(bounds, look.RingWidth), look.RingRadius, look.Ring)
-						}
-					}
-					if look.Bordered && look.Filled {
-						paintBordered(&got, theme, bounds, look.Radius, look.Border, look.Background)
-					} else if look.Filled {
-						got.Rounded(bounds, look.Radius, look.Background)
-					}
+					PaintButtonSurface(&got, theme, bounds, look)
 					// The underline of a hovered link belongs to the label, which this test has none of.
 					var surface []gfx.Rectangle
 					for _, r := range want.Rectangles() {

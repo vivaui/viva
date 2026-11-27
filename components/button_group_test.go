@@ -121,3 +121,30 @@ func hasRectangleColor(canvas *gfx.Canvas, color gfx.Color) bool {
 	}
 	return false
 }
+
+// A ghost action in a group holds the keyboard like any other: its focus ring is a halo
+// around it, and the disc a filled action hides under itself would fill the ghost's
+// whole surface.
+func TestFocusedGhostGroupActionKeepsItsMiddleClear(t *testing.T) {
+	options := [...]ButtonGroupOption{
+		{ID: gfx.Item(61), Label: "Save", Variant: ButtonDefault},
+		{ID: gfx.Item(62), Label: "More", Variant: ButtonGhost},
+	}
+	var canvas gfx.Canvas
+	canvas.SetInteraction(gfx.ID{}, gfx.ID{}, gfx.Item(62), true)
+	BeginButtonGroup(&canvas, gfx.LightTheme(), gfx.Rect{Width: 240}, options[:]).Paint()
+	if len(canvas.Hits()) != len(options) {
+		t.Fatalf("hits = %+v", canvas.Hits())
+	}
+	ghost := canvas.Hits()[1].Bounds
+	center := gfx.Point{X: ghost.X + ghost.Width/2, Y: ghost.Y + ghost.Height/2}
+	for _, rectangle := range canvas.Rectangles() {
+		if rectangle.Color.Alpha <= 0 {
+			continue
+		}
+		box := rectangle.Bounds
+		if center.X > box.X && center.X < box.X+box.Width && center.Y > box.Y && center.Y < box.Y+box.Height {
+			t.Fatalf("the focus ring fills the ghost action's middle: %+v", rectangle)
+		}
+	}
+}

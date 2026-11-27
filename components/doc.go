@@ -74,9 +74,10 @@
 //   - Button: `BeginButton` paints a labeled control with Default, Secondary,
 //     Outline, and Ghost variants; hover, press, and focus states, metrics-
 //     scaled geometry, and the hit declaration are built in.
-//     `ButtonRecipe` is the look of a variant in a state as plain values, and
+//     `ButtonRecipe` is the look of a variant in a state as plain values;
+//     `PaintButtonSurface` paints that look's surface alone, and
 //     `PaintButtonContent` paints a button's icon and label alone, centered in
-//     the area a surface the caller painted leaves for them.
+//     the area the surface leaves for them.
 //   - Icon hover: `IconHover` plays one short gesture after an icon-only
 //     control's pointer rests, and `Button.IconTransform` paints the resulting
 //     transform inside the button's hit region.

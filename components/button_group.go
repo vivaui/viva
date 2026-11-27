@@ -95,7 +95,16 @@ func (group ButtonGroup) Paint() ButtonGroupResult {
 		framed = framed || option.Variant == ButtonOutline || option.Variant == ButtonDestructiveOutline
 		if !group.disabled && !option.Disabled && !option.ID.IsZero() && group.canvas.FocusVisible() == option.ID {
 			ring, _ := buttonRing(&group.theme, option.Variant, false)
-			group.canvas.Rounded(expand(group.optionBounds(index, float32(count)), 3), radius+3, ring)
+			halo := expand(group.optionBounds(index, float32(count)), 3)
+			// The halo is a disc under an action that paints an opaque fill; an action
+			// with no fill of its own gets it as a line, or the disc would fill the
+			// action's whole surface.
+			style := buttonStyleFor(&group.theme, option.Variant, group.canvas.Hovered() == option.ID, group.canvas.Pressed() == option.ID)
+			if style.filled && style.background.Alpha >= 1 {
+				group.canvas.Rounded(halo, radius+3, ring)
+			} else {
+				group.canvas.RoundedOutline(halo, radius+3, 3, ring)
+			}
 		}
 	}
 	// The outline goes down first and the actions are painted inside it.
