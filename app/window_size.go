@@ -13,7 +13,9 @@ const maximumProgrammaticWindowSize = 65535
 // height logical pixels. The request is asynchronous: OnResize reports the size
 // actually granted. The window manager may adjust a request, and width and
 // height must be 1 through 65535. A maximized, minimized or fullscreen window
-// ignores it. It is safe to call from any goroutine.
+// ignores it. A WindowNotification without an anchor keeps its nearest screen
+// edges in place while it resizes instead of its top-left corner. It is safe to
+// call from any goroutine.
 //
 // Unsupported hosts return an error wrapping ErrUnsupported.
 func (window *Window) SetSize(width, height int) error {

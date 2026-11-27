@@ -201,12 +201,12 @@ func (state *linuxWindowState) command(command uint32, data []byte) error {
 			min(deviceLength(width, win.displayScale())+2*margin, 65535),
 			min(deviceLength(height, win.displayScale())+2*margin, 65535),
 		}
-		if state.config.WindowMode == platform.WindowNotification && !state.config.HasAnchor {
+		var area platform.ScreenRect
+		if win.screen != nil {
+			area = platform.ScreenRect{Width: float32(win.screen.WidthPixels), Height: float32(win.screen.HeightPixels)}
+		}
+		if state.config.WindowMode == platform.WindowNotification && !state.config.HasAnchor && area.Width > 0 && area.Height > 0 {
 			originX, originY := win.rootOrigin()
-			var area platform.ScreenRect
-			if win.screen != nil {
-				area = platform.ScreenRect{Width: float32(win.screen.WidthPixels), Height: float32(win.screen.HeightPixels)}
-			}
 			monitors := win.placementMonitors()
 			if monitor, ok := monitorAt(monitors, int(originX)+int(win.width)/2, int(originY)+int(win.height)/2); ok && monitor.Width > 0 && monitor.Height > 0 {
 				work, haveWork := win.workArea()
