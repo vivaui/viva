@@ -352,23 +352,19 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 			id, immediate = hovered, false
 		}
 	}
-	if hover.focus && hover.held.IsZero() {
-		if focused := canvas.FocusVisible(); !focused.IsZero() {
-			id, immediate = focused, true
-		}
-	}
-	if id.IsZero() {
-		hover.target, hover.shown = gfx.ID{}, gfx.ID{}
-		return false
-	}
 	hits := canvas.Hits()
 	var hit gfx.Hit
 	found := false
-	for index := len(hits) - 1; index >= 0; index-- {
-		if hits[index].ID == id && !hits[index].Block {
-			hit, found = hits[index], hits[index].Hint != ""
-			break
+	if hover.focus && hover.held.IsZero() {
+		if focused := canvas.FocusVisible(); !focused.IsZero() {
+			if focusHit, ok := hoverHintHit(hits, focused); ok {
+				id, immediate = focused, true
+				hit, found = focusHit, true
+			}
 		}
+	}
+	if !found {
+		hit, found = hoverHintHit(hits, id)
 	}
 	if !found {
 		hover.target, hover.shown = gfx.ID{}, gfx.ID{}
@@ -394,6 +390,20 @@ func (hover *HoverTooltip) Paint(canvas *gfx.Canvas, theme gfx.Theme, viewport g
 	BeginTooltip(canvas, theme, viewport, hit.Bounds, options).Paint(hit.Hint)
 	hover.shown = id
 	return true
+}
+
+// hoverHintHit returns the front-most non-blocking hit for id that declares a
+// non-empty Hint.
+func hoverHintHit(hits []gfx.Hit, id gfx.ID) (gfx.Hit, bool) {
+	if id.IsZero() {
+		return gfx.Hit{}, false
+	}
+	for index := len(hits) - 1; index >= 0; index-- {
+		if hits[index].ID == id && !hits[index].Block {
+			return hits[index], hits[index].Hint != ""
+		}
+	}
+	return gfx.Hit{}, false
 }
 
 // holdByFinger opens the tooltip of a control a finger held long enough to press it as a
