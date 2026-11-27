@@ -262,7 +262,7 @@ func TestNoArrowIsDrawnWhereTheIconsLeaveNoRoom(t *testing.T) {
 }
 
 // requireDiskImages skips a test that makes real disk images with hdiutil unless
-// VIVA_DISK_IMAGE_TESTS is set. The disk image service of a shared macOS machine fails
+// VIVA_DISK_IMAGE_TESTS is set to 1. The disk image service of a shared macOS machine fails
 // now and then whatever the code does, so these run where a change can affect how an
 // image is made (the disk-image CI job), not on every change.
 func requireDiskImages(t *testing.T) {
@@ -270,7 +270,7 @@ func requireDiskImages(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("disk images are made on macOS")
 	}
-	if os.Getenv("VIVA_DISK_IMAGE_TESTS") == "" {
+	if os.Getenv("VIVA_DISK_IMAGE_TESTS") != "1" {
 		t.Skip("makes real disk images with hdiutil; set VIVA_DISK_IMAGE_TESTS=1 to run")
 	}
 }
