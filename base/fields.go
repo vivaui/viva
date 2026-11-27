@@ -55,4 +55,10 @@ type InputSnapshot struct {
 	// Blink is the phase of the caret a field paints itself (see InputTextStyle.Mono and
 	// HideEditorText): the caret is drawn only while it is lit. Nil keeps it lit.
 	Blink *CaretBlink
+	// Scroll keeps a value too long for the field's line in view of its caret, when the
+	// component paints the line itself (see HideEditorText and InputTextStyle.Mono). A
+	// field that lets the platform editor paint its text does not need it: the platform
+	// scrolls the line for its own caret. Nil leaves the line where it is, which is where
+	// a value that fits stays.
+	Scroll *InputScroll
 }

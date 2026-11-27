@@ -24,6 +24,9 @@ type textGeometry struct {
 	alignment gfx.Alignment
 	value     string // the field's value
 	shown     string // what is drawn: the value, or one bullet per rune
+	// scroll is how far a field that paints its own line moved it left, so a point in
+	// the window is measured against the glyphs where they were drawn.
+	scroll float32
 }
 
 // focusedTextGeometry is the geometry of the focused field, false when no field with text
@@ -44,7 +47,7 @@ func (painter *painter) focusedTextGeometry() (textGeometry, bool) {
 	geometry := textGeometry{
 		canvas: painter.canvas, placement: placement, bounds: context.TextBounds,
 		style:     gfx.TextStyle{Size: context.FontSize, Weight: context.FontWeight},
-		alignment: context.Alignment, value: value, shown: value,
+		alignment: context.Alignment, value: value, shown: value, scroll: context.TextScroll,
 	}
 	if placement == nil && (context.TextBounds.Width <= 0 || context.TextBounds.Height <= 0 || context.FontSize <= 0) {
 		return textGeometry{}, false
@@ -98,7 +101,7 @@ func (geometry textGeometry) RangeRects(dst []gfx.Rect, start, end int) []gfx.Re
 }
 
 func (geometry textGeometry) origin() float32 {
-	return geometry.canvas.LabelOrigin(geometry.shown, geometry.bounds, geometry.style, geometry.alignment)
+	return geometry.canvas.LabelOrigin(geometry.shown, geometry.bounds, geometry.style, geometry.alignment) - geometry.scroll
 }
 
 // byteOffsetOfRune is the byte offset of rune index in value, clamped to its ends.
