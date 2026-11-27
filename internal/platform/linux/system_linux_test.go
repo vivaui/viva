@@ -99,6 +99,47 @@ func TestClipboardInterruptedReplyRetainsDeadline(test *testing.T) {
 	}
 }
 
+func TestReadSelectionBytesAtForwardsTimestampAndHandlesNoneTargetRefusal(t *testing.T) {
+	refusal := xcbSelectionNotifyEvent{
+		ResponseType: xcbSelectionNotify,
+		Requestor:    2,
+		Selection:    3,
+		Target:       xcbAtomNone,
+		Property:     xcbAtomNone,
+	}
+	var gotTimestamp uint32
+	delivered := false
+	api := &xcbAPI{
+		convertSelection: func(_ uintptr, _, _, _, _, timestamp uint32) xcbVoidCookie {
+			gotTimestamp = timestamp
+			return xcbVoidCookie{}
+		},
+		flush:              func(uintptr) int32 { return 1 },
+		connectionHasError: func(uintptr) int32 { return 0 },
+		fileDescriptor:     func(uintptr) int32 { return 1 },
+		free:               func(unsafe.Pointer) {},
+		pollForEvent: func(uintptr) unsafe.Pointer {
+			if delivered {
+				return nil
+			}
+			delivered = true
+			return unsafe.Pointer(&refusal)
+		},
+		poll: func(*pollFD, uintptr, int32) int32 {
+			t.Fatal("wait polled after receiving a Target=None, Property=None refusal")
+			return 0
+		},
+	}
+	const dropTime uint32 = 98765
+	data, _, accepted, err := readSelectionBytesAt(api, 1, 2, 3, 4, 5, dropTime, 1024)
+	if err != nil || accepted || len(data) != 0 {
+		t.Fatalf("readSelectionBytesAt = (%q, accepted=%v, err=%v); want refusal without error", data, accepted, err)
+	}
+	if gotTimestamp != dropTime {
+		t.Fatalf("convertSelection timestamp = %d, want %d", gotTimestamp, dropTime)
+	}
+}
+
 func TestClipboardHandoffWaitsOnlyJustAfterFocus(t *testing.T) {
 	win := &window{}
 	previous := activeWindow.Load()
