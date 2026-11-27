@@ -191,3 +191,68 @@ func TestCodeEditorFoldEllipsisSteadyPaintDoesNotAllocate(t *testing.T) {
 		t.Fatalf("steady fold-ellipsis paint allocated %g times", allocations)
 	}
 }
+
+func TestCodeEditorFoldStateFollowsEditsAboveAndCachesParse(t *testing.T) {
+	var state CodeEditorFoldState
+	parseCalls := 0
+	parse := func(src string) []CodeEditorFoldRange {
+		parseCalls++
+		lines := []string{}
+		start := 0
+		for i := 0; i <= len(src); i++ {
+			if i == len(src) || src[i] == '\n' {
+				lines = append(lines, src[start:i])
+				start = i + 1
+			}
+		}
+		var out []CodeEditorFoldRange
+		for i, line := range lines {
+			if line == "block {" && i+2 < len(lines) && lines[i+2] == "}" {
+				out = append(out, CodeEditorFoldRange{Header: i, LastLine: i + 1})
+			}
+		}
+		return out
+	}
+
+	v1 := "top = 1\nblock {\n  inside = 2\n}\n"
+	if !state.Sync(v1, parse) {
+		t.Fatal("first Sync should parse")
+	}
+	if state.Sync(v1, parse) {
+		t.Fatal("unchanged text should not re-parse")
+	}
+	if parseCalls != 1 {
+		t.Fatalf("parseCalls = %d, want 1", parseCalls)
+	}
+
+	if !state.Toggle(1) || !state.IsCollapsed(1) {
+		t.Fatal("expected line 1 to collapse")
+	}
+
+	// Insert two lines above the collapsed block; the fold must shift from line 1 to line 3.
+	v2 := "new1 = 0\nnew2 = 0\ntop = 1\nblock {\n  inside = 2\n}\n"
+	state.Sync(v2, parse)
+	if state.IsCollapsed(1) {
+		t.Fatal("stale line 1 remained collapsed after inserting lines above")
+	}
+	if !state.IsCollapsed(3) {
+		t.Fatal("expected fold to follow block header to line 3")
+	}
+
+	// Delete one line above; the fold must shift from line 3 to line 2.
+	v3 := "new1 = 0\ntop = 1\nblock {\n  inside = 2\n}\n"
+	state.Sync(v3, parse)
+	if !state.IsCollapsed(2) {
+		t.Fatal("expected fold to follow block header to line 2")
+	}
+
+	// Prepending lines before a fold at line 0 must shift it too.
+	state.Reset()
+	v0 := "block {\n  inside = 2\n}\n"
+	state.Sync(v0, parse)
+	state.Toggle(0)
+	state.Sync("header = 0\n"+v0, parse)
+	if state.IsCollapsed(0) || !state.IsCollapsed(1) {
+		t.Fatal("expected line 0 fold to shift to line 1 after prepending a line")
+	}
+}
