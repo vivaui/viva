@@ -50,8 +50,14 @@ func TestWindowsReplacingWatchedDirectoryAsksForResync(t *testing.T) {
 			if err := os.Remove(moved); err != nil {
 				t.Fatalf("remove the old root after Close: %v", err)
 			}
+			if err := os.Mkdir(moved, 0o700); err != nil {
+				t.Fatalf("reuse the old root path after Close: %v", err)
+			}
 			if err := os.RemoveAll(parent); err != nil {
 				t.Fatalf("remove the watched parent after Close: %v", err)
+			}
+			if err := os.Mkdir(parent, 0o700); err != nil {
+				t.Fatalf("reuse the watched parent path after Close: %v", err)
 			}
 		})
 	}

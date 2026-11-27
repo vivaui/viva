@@ -29,8 +29,7 @@ var (
 const (
 	fileListDirectory   = 0x0001
 	fileFlagOverlapped  = 0x40000000
-	changeDirectoryName = 0x2
-	filterChange        = 0x1 | changeDirectoryName | 0x8 | 0x10 | 0x40 // file/dir name, attributes, size, last write, creation
+	filterChange        = 0x1 | syscall.FILE_NOTIFY_CHANGE_DIR_NAME | 0x8 | 0x10 | 0x40 // file/dir name, attributes, size, last write, creation
 	shareDirectory      = syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE
 	actionAdded         = 1
 	actionRemoved       = 2
@@ -140,7 +139,7 @@ func watchRootName(dir string, path *uint16, handle syscall.Handle) rootGuard {
 	if err != nil {
 		return rootGuard{}
 	}
-	event, _, _ := procFindFirstChange.Call(uintptr(unsafe.Pointer(parentPath)), 0, changeDirectoryName)
+	event, _, _ := procFindFirstChange.Call(uintptr(unsafe.Pointer(parentPath)), 0, syscall.FILE_NOTIFY_CHANGE_DIR_NAME)
 	if syscall.Handle(event) == syscall.InvalidHandle {
 		// A caller can have access to the directory without being able to
 		// list its parent. Keep delivering the directory's own changes.
