@@ -130,6 +130,8 @@ type painter struct {
 	// pointerPresent distinguishes a pointer in the window from the initial
 	// state and the coordinates carried by an exit.
 	pointerPresent bool
+	// hoverFromLayout distinguishes an updated highlight from a pointer entry.
+	hoverFromLayout bool
 	// pointerNeedsHit marks a viewport resize, which can move the window edge
 	// across the pointer even if the page declares the same regions.
 	pointerNeedsHit bool
@@ -310,6 +312,8 @@ func (painter *painter) pointerInputOf(event platform.PointerEvent, handled *boo
 	}
 	beforeHovered, beforePressed := painter.pointer.Hovered(), painter.pointer.Pressed()
 	beforeRole, beforeSurface := painter.pointer.HoveredRole(), painter.onSurface
+	beforeHoverFromLayout := painter.hoverFromLayout && !beforeHovered.IsZero()
+	painter.hoverFromLayout = false
 	beforeFocus, beforeKeyboard := painter.focus.Focused(), painter.focus.KeyboardFocus()
 	passes := event.Kind == platform.PointerDown &&
 		(event.Button == gfx.PointerButtonSecondary && painter.focus.Router().PassesSecondary(event.X, event.Y) ||
@@ -358,6 +362,7 @@ func (painter *painter) pointerInputOf(event platform.PointerEvent, handled *boo
 
 	if painter.pointer.Hovered() == beforeHovered && painter.pointer.Pressed() == beforePressed &&
 		painter.pointer.HoveredRole() == beforeRole && painter.onSurface == beforeSurface &&
+		!beforeHoverFromLayout &&
 		painter.focus.Focused() == beforeFocus && painter.focus.KeyboardFocus() == beforeKeyboard &&
 		!focusChanged && !result.Repaint {
 		if edgeChanged {
@@ -1140,6 +1145,7 @@ func (painter *painter) settleInteraction() {
 		if painter.pointerPresent && (synced || needsPointerHit) {
 			inside := !painter.pointerOutside && painter.pointerAtInside()
 			hoverChanged = painter.updateHover(inside, false)
+			painter.hoverFromLayout = painter.hoverFromLayout || hoverChanged
 			painter.trackEdge(inside)
 		}
 		if pass == maxInteractionRepaints ||
@@ -1173,6 +1179,7 @@ func (painter *painter) paintCanvas() {
 	}
 	focused, visible := painter.focus.PaintTarget()
 	painter.canvas.SetInteraction(painter.pointer.Hovered(), painter.pointer.Pressed(), focused, visible)
+	painter.canvas.SetHoverFromLayout(painter.hoverFromLayout)
 	painter.canvas.SetHoveredRole(painter.pointer.HoveredRole())
 	painter.canvas.SetPointerOnSurface(painter.onSurface)
 	painter.canvas.SetTitlebarInsets(painter.titlebarInsets())

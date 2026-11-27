@@ -802,6 +802,9 @@ func TestStationaryPointerFollowsNewHitGeometry(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(gfx.Item(8), gfx.RoleTextField, CursorText, false)
+	if canvas.HoverCrossed() || !canvas.HoverFromLayout() {
+		t.Fatal("scrolling under the pointer should update hover without a pointer entry")
+	}
 
 	covered = true
 	if _, err := painter.repaint(); err != nil {
@@ -817,6 +820,18 @@ func TestStationaryPointerFollowsNewHitGeometry(t *testing.T) {
 	}
 	if paints != before+1 {
 		t.Fatalf("stable geometry required %d paints, want one", paints-before)
+	}
+
+	covered = false
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	check(gfx.Item(8), gfx.RoleTextField, CursorText, false)
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 11, Y: 10}); err != nil {
+		t.Fatal(err)
+	}
+	if !canvas.HoverCrossed() || canvas.HoverFromLayout() {
+		t.Fatal("moving over a laid-out hover should register its first pointer entry")
 	}
 
 	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerExit}); err != nil {

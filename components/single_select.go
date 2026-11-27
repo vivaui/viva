@@ -192,6 +192,9 @@ func PaintSingleSelect(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, s *
 	// Move the cursor before any row is painted: syncing it while the rows are
 	// drawn would tint the previous row and the new one in the same frame.
 	hovered := canvas.Hovered()
+	if canvas.HoverFromLayout() {
+		hovered = gfx.ID{}
+	}
 	if s.Hover.Entered(hovered) && !hovered.IsZero() {
 		for i := range choices {
 			if o.OptionIDs.At(i) == hovered && !choices[i].Disabled {
