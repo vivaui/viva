@@ -104,6 +104,9 @@ func PaintHierarchyMenu(canvas *gfx.Canvas, theme gfx.Theme, anchor gfx.Rect, m 
 	}
 	// Move the cursor before any row is painted, as the flat list does.
 	hovered := canvas.Hovered()
+	if canvas.HoverFromLayout() {
+		hovered = gfx.ID{}
+	}
 	level, row, onRow := 0, 0, false
 	if index, ok := hovered.In(o.OptionIDs); ok && index&0xFFFF != hierarchyBarRow {
 		level, row, onRow = index>>16, index&0xFFFF, true

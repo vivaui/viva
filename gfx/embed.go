@@ -31,6 +31,7 @@ func (canvas *Canvas) BeginEmbedded(parent *Canvas, mount Scope) {
 	canvas.iconCache = parent.icons()
 	tree := canvas.tree
 	canvas.hovered, _ = tree.Local(mount, parent.hovered)
+	canvas.hoverFromLayout = parent.hoverFromLayout
 	canvas.pressed, _ = tree.Local(mount, parent.pressed)
 	canvas.focused, _ = tree.Local(mount, parent.focused)
 	canvas.focusVisible = parent.focusVisible && !canvas.focused.IsZero()

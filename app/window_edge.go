@@ -5,10 +5,10 @@ import "github.com/vivaui/viva/internal/platform"
 // trackEdge follows which resize edge of a window with Viva-drawn controls the
 // pointer is over, and reports whether that changed. The top edge yields to a
 // control under the pointer, as it does when pressed.
-func (painter *painter) trackEdge(event platform.PointerEvent) bool {
+func (painter *painter) trackEdge(inside bool) bool {
 	next := platform.EdgeNone
-	if painter.controls != nil && event.Kind != platform.PointerExit && !painter.controls.maximized() {
-		next = platform.EdgeAt(event.X, event.Y, painter.size.Width, painter.size.Height, !painter.pointer.Hovered().IsZero())
+	if painter.controls != nil && inside && !painter.controls.maximized() {
+		next = platform.EdgeAt(painter.pointerAt.X, painter.pointerAt.Y, painter.size.Width, painter.size.Height, !painter.pointer.Hovered().IsZero())
 	}
 	changed := next != painter.edge
 	painter.edge = next
