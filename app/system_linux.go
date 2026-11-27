@@ -44,6 +44,10 @@ func nativeSetClipboardFiles(paths []string) error {
 	return linuxSystemError(linuxplatform.SetClipboardFiles(paths))
 }
 
+// nativeSetClipboardFilePromises is absent: a file manager copies the paths the
+// clipboard names, so a promise that has no path yet cannot be pasted.
+func nativeSetClipboardFilePromises([]FilePromise, func()) error { return ErrUnsupported }
+
 func nativeStartFileDrag(paths []string, allowed FileDragEffect) error {
 	return linuxSystemError(linuxplatform.StartFileDrag(paths, allowed))
 }

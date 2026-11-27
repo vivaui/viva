@@ -35,7 +35,8 @@ func nativeCapabilities() Capabilities {
 		CapabilityReduceMotion |
 		CapabilityPreventSleep |
 		CapabilitySystemProxy |
-		capabilityFileDrag
+		capabilityFileDrag |
+		capabilityClipboardFilePromise
 	if runtime.GOOS == "darwin" {
 		capabilities |= CapabilityNativeAppearance
 	} else {

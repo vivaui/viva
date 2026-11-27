@@ -1065,6 +1065,7 @@ func (driver *Driver) Clipboard() string { return driver.clipboard }
 
 // SetClipboard replaces the driver's private clipboard.
 func (driver *Driver) SetClipboard(value string) {
+	driver.releaseClipboardPromises()
 	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = value, nil, nil
 	driver.system.clipboardHTML = ""
 	driver.clipboardRectangular = false

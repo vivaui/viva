@@ -28,11 +28,16 @@ type driverSystem struct {
 	driver         *Driver
 	clipboardImage []byte   // PNG bytes; the clipboard holds this or text, never both
 	clipboardFiles []string // paths of copied files, held beside the text a file manager adds
-	clipboardHTML  string   // the rich flavour SetClipboardHTML last wrote beside the plain one
-	primary        string   // the primary selection (Linux only), private like the clipboard
-	schemes        []string // the URL schemes SetSchemeHandlers declared as registered
-	sleepMu        sync.Mutex
-	sleep          map[string]int // sleep-prevention reasons this run holds, with their counts
+	// clipboardPromises are the files put on the clipboard without producing
+	// their content (see driverSetClipboardFilePromises), and promiseReleased
+	// runs once when something else replaces them.
+	clipboardPromises []FilePromise
+	promiseReleased   func()
+	clipboardHTML     string   // the rich flavour SetClipboardHTML last wrote beside the plain one
+	primary           string   // the primary selection (Linux only), private like the clipboard
+	schemes           []string // the URL schemes SetSchemeHandlers declared as registered
+	sleepMu           sync.Mutex
+	sleep             map[string]int // sleep-prevention reasons this run holds, with their counts
 	// dragFiles and dragAllowed are what the application last asked to drag out
 	// of a driver-backed window, and dragTaken is the effect the driver's target
 	// took from them; see driverStartFileDrag. dragPromises is the same for a
@@ -119,6 +124,7 @@ func driverClipboardTextWithFormat() (string, bool, error, bool) {
 // as the plain text, replacing the image and the files. An empty html writes
 // alt as plain text only, like SetClipboard.
 func (driver *Driver) SetClipboardHTML(html, alt string) {
+	driver.releaseClipboardPromises()
 	driver.system.clipboardHTML = html
 	driver.clipboard, driver.system.clipboardImage, driver.system.clipboardFiles = alt, nil, nil
 	driver.clipboardRectangular = false
@@ -664,6 +670,7 @@ func driverClipboardImage() (png []byte, err error, handled bool) {
 // on a real clipboard. The bytes are copied. A nil or empty png empties the
 // clipboard of images. The image must be a PNG within MaxClipboardImageBytes.
 func (driver *Driver) SetClipboardImage(png []byte) error {
+	driver.releaseClipboardPromises()
 	if len(png) == 0 {
 		driver.system.clipboardImage = nil
 		return nil
@@ -701,6 +708,7 @@ func driverClipboardFiles() (paths []string, err error, handled bool) {
 // are asked for first; the image it held is gone. The paths are copied and cut
 // at MaxClipboardFiles. No paths empties the clipboard of files.
 func (driver *Driver) SetClipboardFiles(paths []string) {
+	driver.releaseClipboardPromises()
 	if len(paths) == 0 {
 		driver.system.clipboardFiles = nil
 		return
@@ -717,4 +725,53 @@ func (driver *Driver) SetClipboardFiles(paths []string) {
 	}
 	driver.clipboard, driver.system.clipboardHTML = string(names), ""
 	driver.clipboardRectangular = false
+}
+
+// driverSetClipboardFilePromises answers a driver-backed run's promise write
+// from the driver's private clipboard: the promises are recorded, so a test can
+// read them back and act as the paste, and the previous ones are released.
+func driverSetClipboardFilePromises(files []FilePromise, released func()) (error, bool) {
+	system := activeDriverSystem.Load()
+	if system == nil {
+		return nil, false
+	}
+	driver := system.driver
+	driver.releaseClipboardPromises()
+	system.clipboardPromises = append([]FilePromise(nil), files...)
+	system.promiseReleased = released
+	driver.clipboard, driver.system.clipboardHTML = "", ""
+	driver.system.clipboardImage, driver.system.clipboardFiles = nil, nil
+	driver.clipboardRectangular = false
+	return nil, true
+}
+
+// SetClipboardFilePromises replaces the driver's private clipboard with files
+// the application produces on demand, as another application promising them
+// would. The previous content, and the release callback of a previous promise,
+// are gone. The slice is copied.
+func (driver *Driver) SetClipboardFilePromises(files []FilePromise) {
+	driver.releaseClipboardPromises()
+	driver.system.clipboardPromises = append([]FilePromise(nil), files...)
+	driver.clipboard, driver.system.clipboardHTML = "", ""
+	driver.system.clipboardImage, driver.system.clipboardFiles = nil, nil
+	driver.clipboardRectangular = false
+}
+
+// ClipboardFilePromises is the promises the driver's private clipboard holds,
+// when the last copy promised files instead of naming paths. The content is
+// still the application's to produce: Open and List behave as they would for a
+// real paste.
+func (driver *Driver) ClipboardFilePromises() []FilePromise {
+	return driver.system.clipboardPromises
+}
+
+// releaseClipboardPromises drops the promised files and runs their release
+// callback, as replacing the clipboard does.
+func (driver *Driver) releaseClipboardPromises() {
+	released := driver.system.promiseReleased
+	driver.system.promiseReleased = nil
+	driver.system.clipboardPromises = nil
+	if released != nil {
+		released()
+	}
 }

@@ -113,6 +113,10 @@ type promiseDrag struct {
 	items      []promiseItem
 	descriptor uint16
 	contents   uint16
+	// released runs once when the object's last reference is gone, which for a
+	// promise put on the clipboard is when something replaced it. It is nil for
+	// a drag, whose end is DoDragDrop returning.
+	released func()
 }
 
 func (drag *promiseDrag) formatAt(index int) formatEtc {

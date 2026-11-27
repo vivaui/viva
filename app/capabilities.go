@@ -58,6 +58,11 @@ const (
 	// CapabilityTransparentWindow means Config.Transparent can composite a
 	// window over the desktop; without it the window is opaque.
 	CapabilityTransparentWindow
+	// CapabilityClipboardFilePromise means SetClipboardFilePromises can put
+	// files on the clipboard whose content is produced when the user pastes
+	// them. Only Windows takes them; macOS and Linux file managers read files
+	// by path and cannot ask for a paste's content later.
+	CapabilityClipboardFilePromise
 )
 
 // Capabilities is a set of platform integrations.

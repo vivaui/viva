@@ -39,6 +39,10 @@ func nativeClipboardFiles() ([]string, error) { return nil, ErrUnsupported }
 
 func nativeSetClipboardFiles([]string) error { return ErrUnsupported }
 
+// nativeSetClipboardFilePromises is absent: a browser's clipboard holds bytes
+// and paths the application writes now, not a promise read on paste.
+func nativeSetClipboardFilePromises([]FilePromise, func()) error { return ErrUnsupported }
+
 // nativeSetClipboardImage cannot answer synchronously: Clipboard.write returns a
 // Promise, so use SetClipboardImageAsync.
 func nativeSetClipboardImage(png []byte) error {

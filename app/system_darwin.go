@@ -22,6 +22,10 @@ func nativeClipboardFiles() ([]string, error) { return darwinplatform.ClipboardF
 
 func nativeSetClipboardFiles(paths []string) error { return darwinplatform.SetClipboardFiles(paths) }
 
+// nativeSetClipboardFilePromises is absent: Finder copies the files a
+// pasteboard names by path, so a promise that has no path yet cannot be pasted.
+func nativeSetClipboardFilePromises([]FilePromise, func()) error { return ErrUnsupported }
+
 func nativeStartFileDrag(paths []string, allowed FileDragEffect) error {
 	return darwinplatform.StartFileDrag(paths, allowed)
 }

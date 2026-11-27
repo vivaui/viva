@@ -247,6 +247,10 @@ func dataRelease(this uintptr) uintptr {
 	}
 	if data.refs == 0 && data.promise != nil {
 		unpinPromiseDrag(data)
+		if released := data.promise.released; released != nil {
+			data.promise.released = nil
+			released()
+		}
 	}
 	return uintptr(data.refs)
 }
