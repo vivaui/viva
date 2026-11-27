@@ -57,6 +57,7 @@ type painter struct {
 	keys        interaction.Keys
 	cursor      gfx.PointerCursor
 	cursorImage *gfx.CursorImage
+	pointerAt   gfx.Point
 	// again asks the runtime to render one more frame after this one: a key
 	// release delivered while the focused terminal stopped asking for releases
 	// may have changed what the application paints.
@@ -594,7 +595,7 @@ func (p *painter) syncTextInput() {
 // syncCursor gives the page the pointer the hit under it declared. A press
 // keeps its target's pointer until the button comes up, as on a desktop.
 func (p *painter) syncCursor() {
-	next, image := interaction.CursorForTarget(p.canvas.Hits(), p.pointer.Hovered(), p.pointer.PressTarget())
+	next, image := interaction.CursorForTarget(p.canvas, p.pointer.Hovered(), p.pointer.PressTarget(), p.pointerAt)
 	if next == p.cursor && image == p.cursorImage {
 		return
 	}
@@ -668,6 +669,7 @@ func (p *painter) pointerEvent(event gfx.PointerEvent) bool {
 // pointerInput is pointerEvent for a press read as it comes: a mouse's or a
 // pen's, or a finger's once touchEvent decided it is a press.
 func (p *painter) pointerInput(event gfx.PointerEvent) bool {
+	p.pointerAt = gfx.Point{X: event.X, Y: event.Y}
 	if event.Kind == gfx.PointerDown {
 		p.tap.Cancel()
 	}
@@ -718,6 +720,9 @@ func (p *painter) pointerInput(event gfx.PointerEvent) bool {
 		p.onSurface == beforeSurface &&
 		p.focus.Focused() == beforeFocus && p.focus.KeyboardFocus() == beforeKeyboard &&
 		!focusChanged && !result.Repaint && !placed {
+		if p.canvas.HasCursorImageAt() {
+			p.syncCursor()
+		}
 		return false
 	}
 	p.repaint()

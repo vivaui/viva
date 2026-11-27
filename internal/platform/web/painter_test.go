@@ -3,6 +3,7 @@
 package web
 
 import (
+	"syscall/js"
 	"testing"
 
 	"github.com/vivaui/viva/components"
@@ -173,6 +174,52 @@ func TestPointerMoveWithoutStateChangeDoesNotRepaint(t *testing.T) {
 	}
 	if paintCount != before+1 || eventCount != 3 {
 		t.Fatalf("explicit repaint counts = %d/%d, want %d/3", paintCount, eventCount, before+1)
+	}
+}
+
+func TestPointerMoveUpdatesPositionDependentCursorWithoutRepaint(t *testing.T) {
+	left, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{0, 0, 0, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := gfx.NewCursorImage(1, 1, 0, 0, 1, []byte{255, 255, 255, 255})
+	if err != nil {
+		t.Fatal(err)
+	}
+	global := js.Global()
+	oldDocument := global.Get("document")
+	if oldDocument.IsUndefined() || oldDocument.IsNull() {
+		global.Set("document", map[string]any{"documentElement": map[string]any{"style": map[string]any{}}})
+		t.Cleanup(func() { global.Set("document", oldDocument) })
+	} else {
+		style := oldDocument.Get("documentElement").Get("style")
+		oldCursor := style.Get("cursor")
+		t.Cleanup(func() { style.Set("cursor", oldCursor) })
+	}
+	var canvas gfx.Canvas
+	paints := 0
+	config := Config{Paint: func(canvas *gfx.Canvas, _ gfx.Size) {
+		paints++
+		canvas.HitWithOptions(gfx.Item(1), gfx.Rect{Width: 100, Height: 100}, "remote", gfx.HitOptions{
+			Cursor: gfx.PointerCursorImage,
+			CursorImageAt: func(at gfx.Point) *gfx.CursorImage {
+				if at.X < 50 {
+					return left
+				}
+				return right
+			},
+		})
+	}}
+	painter := newPainter(&canvas, &config)
+	painter.width, painter.height = 100, 100
+	painter.repaint()
+	painter.pointerEvent(gfx.PointerEvent{Kind: gfx.PointerMove, X: 20, Y: 20})
+	if painter.cursorImage != left {
+		t.Fatal("left half did not install the left cursor")
+	}
+	before := paints
+	if painter.pointerEvent(gfx.PointerEvent{Kind: gfx.PointerMove, X: 70, Y: 20}) || paints != before || painter.cursorImage != right {
+		t.Fatalf("moving within the hit painted %d more frames or failed to update the cursor: %p", paints-before, painter.cursorImage)
 	}
 }
 
