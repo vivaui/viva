@@ -25,9 +25,10 @@ type DirectoryChanges struct {
 // DirectoryWatch reports changes to the entries of one directory from the
 // operating system's own notification (inotify, FSEvents, ReadDirectoryChangesW).
 //
-// It does not poll and keeps no timer. An open watch holds one system
-// registration and one goroutine blocked on it; closing it releases both, and an
-// application that opens none pays nothing. A change wakes the window thread
+// It does not poll and keeps no timer. An open watch holds system registrations
+// and one goroutine blocked on them. On Windows the watch also follows changes
+// to the directory's name when the system lets it watch the parent directory.
+// Closing the watch releases these resources. A change wakes the window thread
 // through the function given at the start, which only hands the news on (for
 // example Invalidator.Invalidate, whose Config.OnWake then reads it with
 // Changes).

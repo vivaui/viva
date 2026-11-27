@@ -21,12 +21,17 @@ var (
 	procCreateEvent         = kernel32.NewProc("CreateEventW")
 	procSetEvent            = kernel32.NewProc("SetEvent")
 	procWaitMultiple        = kernel32.NewProc("WaitForMultipleObjects")
+	procFindFirstChange     = kernel32.NewProc("FindFirstChangeNotificationW")
+	procFindNextChange      = kernel32.NewProc("FindNextChangeNotification")
+	procFindCloseChange     = kernel32.NewProc("FindCloseChangeNotification")
 )
 
 const (
 	fileListDirectory   = 0x0001
 	fileFlagOverlapped  = 0x40000000
-	filterChange        = 0x1 | 0x2 | 0x8 | 0x10 | 0x40 // file/dir name, attributes, size, last write, creation
+	changeDirectoryName = 0x2
+	filterChange        = 0x1 | changeDirectoryName | 0x8 | 0x10 | 0x40 // file/dir name, attributes, size, last write, creation
+	shareDirectory      = syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE
 	actionAdded         = 1
 	actionRemoved       = 2
 	actionModified      = 3
@@ -48,6 +53,7 @@ type directoryBackend struct {
 	handle syscall.Handle
 	ioDone syscall.Handle
 	stop   syscall.Handle
+	root   rootGuard
 	done   chan struct{}
 	once   sync.Once
 	// overlapped and the read buffer are written by the system after the call
@@ -57,12 +63,15 @@ type directoryBackend struct {
 }
 
 func openBackend(dir string, w *Watch) (backend, error) {
-	path, err := syscall.UTF16PtrFromString(filepath.Clean(dir))
+	absolute, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
-	handle, err := syscall.CreateFile(path, fileListDirectory,
-		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil,
+	path, err := syscall.UTF16PtrFromString(absolute)
+	if err != nil {
+		return nil, err
+	}
+	handle, err := syscall.CreateFile(path, fileListDirectory, shareDirectory, nil,
 		syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS|fileFlagOverlapped, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "CreateFile", Path: dir, Err: err}
@@ -85,6 +94,7 @@ func openBackend(dir string, w *Watch) (backend, error) {
 		syscall.CloseHandle(handle)
 		return nil, &os.PathError{Op: "ReadDirectoryChangesW", Path: dir, Err: err}
 	}
+	b.root = watchRootName(absolute, path, handle)
 	go b.run(w)
 	return b, nil
 }
@@ -107,6 +117,51 @@ func (b *directoryBackend) close() {
 	})
 }
 
+// ReadDirectoryChangesW follows the opened directory and never reports changes
+// to that directory's own name. Watch direct directory names in its parent
+// as well. This notification is only a signal: compare file IDs to distinguish
+// a sibling change from a move or a different directory at the same path.
+type rootGuard struct {
+	event syscall.Handle
+	path  *uint16
+	info  syscall.ByHandleFileInformation
+}
+
+func watchRootName(dir string, path *uint16, handle syscall.Handle) rootGuard {
+	parent := filepath.Dir(dir)
+	if parent == dir {
+		return rootGuard{} // volume root
+	}
+	var info syscall.ByHandleFileInformation
+	if syscall.GetFileInformationByHandle(handle, &info) != nil {
+		return rootGuard{}
+	}
+	parentPath, err := syscall.UTF16PtrFromString(parent)
+	if err != nil {
+		return rootGuard{}
+	}
+	event, _, _ := procFindFirstChange.Call(uintptr(unsafe.Pointer(parentPath)), 0, changeDirectoryName)
+	if syscall.Handle(event) == syscall.InvalidHandle {
+		// A caller can have access to the directory without being able to
+		// list its parent. Keep delivering the directory's own changes.
+		return rootGuard{}
+	}
+	return rootGuard{event: syscall.Handle(event), path: path, info: info}
+}
+
+func (g *rootGuard) sameDirectory() bool {
+	h, err := syscall.CreateFile(g.path, 0, shareDirectory, nil,
+		syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(h)
+	var current syscall.ByHandleFileInformation
+	return syscall.GetFileInformationByHandle(h, &current) == nil &&
+		current.VolumeSerialNumber == g.info.VolumeSerialNumber &&
+		current.FileIndexHigh == g.info.FileIndexHigh && current.FileIndexLow == g.info.FileIndexLow
+}
+
 // issue starts the next overlapped read. The first one is made before Open
 // returns, because changes are only buffered by the system once a read has been
 // issued; later ones follow a completion, and the system keeps what happened in
@@ -127,20 +182,50 @@ func (b *directoryBackend) issue() error {
 
 func (b *directoryBackend) run(w *Watch) {
 	defer close(b.done)
-	for {
-		handles := [2]syscall.Handle{b.ioDone, b.stop}
-		which, _, _ := procWaitMultiple.Call(2, uintptr(unsafe.Pointer(&handles[0])), 0, infinite)
-		var n uint32
-		if which != waitObject0 {
-			// Stopped (or the wait failed): abandon the read and wait for the system
-			// to stop writing into the buffer before it is released.
+	pending := true
+	defer func() {
+		if pending {
+			// Wait for the system to stop writing into the buffer before it
+			// is released.
 			procCancelIoEx.Call(uintptr(b.handle), uintptr(unsafe.Pointer(&b.overlapped)))
+			var n uint32
 			procGetOverlappedResult.Call(uintptr(b.handle), uintptr(unsafe.Pointer(&b.overlapped)), uintptr(unsafe.Pointer(&n)), 1)
-			if which != waitObject0+1 {
-				w.postResync()
-			}
+		}
+	}()
+	// Stop takes priority over further changes, and root changes take
+	// priority over events that may have come from the old directory.
+	handles := []syscall.Handle{b.stop, b.ioDone}
+	if b.root.event != 0 {
+		defer procFindCloseChange.Call(uintptr(b.root.event))
+		handles = []syscall.Handle{b.stop, b.root.event, b.ioDone}
+		// The path may have changed before the parent notification was armed.
+		if !b.root.sameDirectory() {
+			w.postResync()
 			return
 		}
+	}
+	readReady := waitObject0 + uintptr(len(handles)-1)
+	for {
+		which, _, _ := procWaitMultiple.Call(uintptr(len(handles)), uintptr(unsafe.Pointer(&handles[0])), 0, infinite)
+		switch {
+		case which == waitObject0:
+			return
+		case which == readReady:
+			pending = false
+		case b.root.event != 0 && which == waitObject0+1:
+			// Rearm before looking up the path, so a change during the lookup
+			// either shows up in the lookup or signals the next wait.
+			ok, _, _ := procFindNextChange.Call(uintptr(b.root.event))
+			if ok == 0 || !b.root.sameDirectory() {
+				w.postResync()
+				return
+			}
+			continue
+		default:
+			w.postResync()
+			return
+		}
+		var n uint32
 		r, _, err := procGetOverlappedResult.Call(uintptr(b.handle), uintptr(unsafe.Pointer(&b.overlapped)), uintptr(unsafe.Pointer(&n)), 0)
 		if r == 0 {
 			if errno, ok := err.(syscall.Errno); !ok || errno != errorOperationAbort {
@@ -157,6 +242,7 @@ func (b *directoryBackend) run(w *Watch) {
 			w.postResync()
 			return
 		}
+		pending = true
 	}
 }
 

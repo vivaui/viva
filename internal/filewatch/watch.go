@@ -2,9 +2,9 @@
 // directory tree, changed, using the
 // platform's own change notification (inotify, FSEvents, ReadDirectoryChangesW).
 //
-// It does not poll. A Watch owns one operating-system registration and, while it
-// is open, one goroutine blocked on the system's wait; closing it releases both,
-// and an application that opens no Watch pays nothing. Events carry only the name
+// It does not poll. A Watch owns its operating-system registrations and, while
+// it is open, one goroutine blocked on the system's wait. Closing it releases
+// them, and an application that opens no Watch pays nothing. Events carry only the name
 // of the entry that changed: editors replace files by writing a temporary one and
 // renaming it, so the kinds the platforms report differ and none of them can be
 // trusted over looking at the entry afterwards.
