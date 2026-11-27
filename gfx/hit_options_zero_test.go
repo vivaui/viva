@@ -9,7 +9,7 @@ import (
 type placement struct{}
 
 func (placement) OffsetAt(Point) (int, bool) { return 0, false }
-func (placement) CaretBounds() (Rect, bool) { return Rect{}, false }
+func (placement) CaretBounds() (Rect, bool)  { return Rect{}, false }
 
 // setToOne makes a value of the type that is not its zero: a number at one,
 // a flag on, a word, a filled struct, a pointer, a function or an interface
