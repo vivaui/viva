@@ -767,6 +767,70 @@ func TestPointerHoverEntersAndExitsOnce(t *testing.T) {
 	}
 }
 
+func TestStationaryPointerFollowsNewHitGeometry(t *testing.T) {
+	var canvas gfx.Canvas
+	var events, paints int
+	var covered bool
+	config := Config{Title: "stationary pointer", Width: 100, Height: 100}
+	config.OnPointer = func(gfx.PointerEvent) gfx.EventResult {
+		events++
+		return gfx.EventResult{}
+	}
+	config.Paint = func(canvas *gfx.Canvas, _ gfx.Size) {
+		paints++
+		canvas.HitWithOptions(gfx.Item(7), gfx.Rect{Y: -canvas.ScrollY(), Width: 40, Height: 20}, "First", gfx.HitOptions{Cursor: gfx.PointerCursorHand})
+		canvas.HitWithOptions(gfx.Item(8), gfx.Rect{Y: 20 - canvas.ScrollY(), Width: 40, Height: 20}, "Second", gfx.HitOptions{Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText})
+		if covered {
+			canvas.BlockSurface(gfx.Rect{Width: 40, Height: 20})
+		}
+	}
+	painter := newTestPainter(t, &canvas, config)
+	check := func(target gfx.ID, role gfx.Role, cursor Cursor, onSurface bool) {
+		t.Helper()
+		if canvas.Hovered() != target || canvas.HoveredRole() != role || painter.cursor != cursor || canvas.PointerOnSurface() != onSurface {
+			t.Fatalf("painted hover = %v, role = %v, cursor = %v, surface = %v, want %v, %v, %v, %v",
+				canvas.Hovered(), canvas.HoveredRole(), painter.cursor, canvas.PointerOnSurface(), target, role, cursor, onSurface)
+		}
+	}
+	check(gfx.ID{}, 0, CursorArrow, false)
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerMove, X: 10, Y: 10}); err != nil {
+		t.Fatal(err)
+	}
+	check(gfx.Item(7), gfx.RoleButton, CursorHand, false)
+
+	if _, err := painter.scroll(platform.ScrollEvent{X: 10, Y: 10, DeltaY: 20}); err != nil {
+		t.Fatal(err)
+	}
+	check(gfx.Item(8), gfx.RoleTextField, CursorText, false)
+
+	covered = true
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	check(gfx.ID{}, 0, CursorArrow, true)
+	if events != 1 {
+		t.Fatalf("scroll and repaints sent pointer events, got %d events", events)
+	}
+	before := paints
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	if paints != before+1 {
+		t.Fatalf("stable geometry required %d paints, want one", paints-before)
+	}
+
+	if _, err := painter.pointerEvent(platform.PointerEvent{Kind: platform.PointerExit}); err != nil {
+		t.Fatal(err)
+	}
+	covered = false
+	// An exit carries no useful coordinates. A later paint must not treat
+	// its zero position as a pointer that moved onto the exposed item.
+	if _, err := painter.repaint(); err != nil {
+		t.Fatal(err)
+	}
+	check(gfx.ID{}, 0, CursorArrow, false)
+}
+
 // A drag off a surface and out of the window ends the surface state even when no
 // hit is hovered: the early return must not leave the host's copy of the flag set
 // for the next paint.
