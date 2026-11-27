@@ -720,7 +720,7 @@ func (painter *painter) key(event platform.KeyEvent) (platform.Frame, error) {
 		activated = true
 	}
 	painter.focus.Refresh()
-	if event.Key == input.KeyTab {
+	if !response.Handled && event.Key == input.KeyTab {
 		painter.focus.SetKeyboardFocus(!painter.focus.Focused().IsZero())
 	}
 	focusChanged := painter.applyEventResult(response)

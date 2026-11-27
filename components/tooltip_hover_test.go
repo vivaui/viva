@@ -117,6 +117,37 @@ func TestHoverTooltipShowsOnKeyboardFocusWhenAsked(t *testing.T) {
 	}
 }
 
+// When ShowOnFocus is enabled and the keyboard-focused control has no Hint
+// (such as a terminal or text field), hovering another control with a Hint must
+// still show that hovered control's tooltip.
+func TestHoverTooltipFallsBackToHoverWhenFocusedControlHasNoHint(t *testing.T) {
+	var hover HoverTooltip
+	hover.ShowOnFocus()
+	viewport := gfx.Rect{Width: 300, Height: 200}
+	paint := func(now time.Duration) (*gfx.Canvas, bool) {
+		var canvas gfx.Canvas
+		canvas.SetClock(func() time.Duration { return now })
+		canvas.BeginFrame()
+		canvas.HitWithOptions(gfx.Item(9), gfx.Rect{X: 0, Y: 0, Width: 200, Height: 120}, "Terminal", gfx.HitOptions{Role: gfx.RoleTerminal})
+		canvas.HitWithOptions(gfx.Item(7), gfx.Rect{X: 220, Y: 10, Width: 28, Height: 28}, "Refresh", gfx.HitOptions{Role: gfx.RoleButton, Hint: "Refresh the list"})
+		canvas.SetInteraction(gfx.Item(7), gfx.ID{}, gfx.Item(9), true)
+		painted := hover.Paint(&canvas, gfx.DarkTheme(), viewport, TooltipOptions{}, testTooltipDelay)
+		canvas.EndFrame()
+		return &canvas, painted
+	}
+
+	if _, painted := paint(0); painted {
+		t.Fatal("hovered tooltip painted before its delay while focus had no hint")
+	}
+	canvas, painted := paint(testTooltipDelay)
+	if !painted || hover.Showing() != gfx.Item(7) {
+		t.Fatalf("painted=%v showing=%v, want hovered item 7", painted, hover.Showing())
+	}
+	if _, ok := tooltipText(canvas, "Refresh the list"); !ok {
+		t.Fatalf("missing hovered tooltip text: %+v", canvas.Texts())
+	}
+}
+
 // Escape (Dismiss) and a press anywhere hide the shown tooltip until the pointer
 // leaves the control, as Base UI's tooltip dismiss does.
 func TestHoverTooltipDismissesOnEscapeAndPress(t *testing.T) {

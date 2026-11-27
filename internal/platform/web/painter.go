@@ -153,7 +153,7 @@ func (p *painter) keyDownCode(event gfx.KeyEvent, code uint32) bool {
 		activated = true
 	}
 	p.focus.Refresh()
-	if event.Key == gfx.KeyTab {
+	if !response.Handled && event.Key == gfx.KeyTab {
 		p.focus.SetKeyboardFocus(!p.focus.Focused().IsZero())
 	}
 	focusChanged := p.applyEventResult(response)
