@@ -138,6 +138,11 @@ func TestAttributesThatDoNothingReport(t *testing.T) {
 		{"Slider HitWith", []string{"Slider", "HitWith"}, func(f *Frame) {
 			f.SliderBase(gfx.Item(1), &SliderState{}).HitWith(gfx.Item(1), "Volume", gfx.HitOptions{Role: gfx.RoleButton})
 		}},
+		{"Slider HitWith cursor callback", []string{"Slider", "HitWith"}, func(f *Frame) {
+			f.SliderBase(gfx.Item(1), &SliderState{}).HitWith(gfx.Item(1), "Volume", gfx.HitOptions{
+				CursorImageAt: func(gfx.Point) *gfx.CursorImage { return nil },
+			})
+		}},
 		{"Segmented Background", []string{"Segmented", "Background"}, func(f *Frame) {
 			f.Segmented([]style.SegmentOption{{ID: gfx.Item(1), Label: "A"}}, gfx.Item(1)).Background(gfx.Color{Red: 1, Alpha: 1})
 		}},
