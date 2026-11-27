@@ -24,6 +24,9 @@ var (
 	// output that can play the stream: the package is not implemented for the
 	// platform, the system library is missing, or no default device exists.
 	ErrUnsupported = errors.New("audio: no output device is available")
+	// ErrInputUnsupported reports that this build target, or the system, has no
+	// input device that can capture audio.
+	ErrInputUnsupported = errors.New("audio: no input device is available")
 	// ErrClosed reports a Write after Close.
 	ErrClosed = errors.New("audio: output is closed")
 	// ErrFrame reports data that does not hold whole frames.

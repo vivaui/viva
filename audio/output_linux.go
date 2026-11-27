@@ -13,6 +13,7 @@ import (
 // ALSA constants (alsa/pcm.h).
 const (
 	alsaPlayback       = 0
+	alsaCapture        = 1
 	alsaNoWait         = 1 // SND_PCM_NONBLOCK, deliberately not used
 	alsaAccessRWInter  = 3 // SND_PCM_ACCESS_RW_INTERLEAVED
 	alsaFormatS16LE    = 2 // SND_PCM_FORMAT_S16_LE
@@ -35,7 +36,9 @@ type alsaAPI struct {
 	drop         func(pcm uintptr) int32
 	prepare      func(pcm uintptr) int32
 	recover      func(pcm uintptr, err int32, silent int32) int32
+	wait         func(pcm uintptr, timeout int32) int32
 	writei       func(pcm uintptr, buf unsafe.Pointer, frames uintptr) int64
+	readi        func(pcm uintptr, buf unsafe.Pointer, frames uintptr) int64
 	strerror     func(err int32) *byte
 	paramsMalloc func(params *uintptr) int32
 	paramsFree   func(params uintptr)
@@ -67,7 +70,9 @@ func openALSA() (*alsaAPI, uintptr, error) {
 	purego.RegisterLibFunc(&api.drop, library, "snd_pcm_drop")
 	purego.RegisterLibFunc(&api.prepare, library, "snd_pcm_prepare")
 	purego.RegisterLibFunc(&api.recover, library, "snd_pcm_recover")
+	purego.RegisterLibFunc(&api.wait, library, "snd_pcm_wait")
 	purego.RegisterLibFunc(&api.writei, library, "snd_pcm_writei")
+	purego.RegisterLibFunc(&api.readi, library, "snd_pcm_readi")
 	purego.RegisterLibFunc(&api.strerror, library, "snd_strerror")
 	purego.RegisterLibFunc(&api.paramsMalloc, library, "snd_pcm_hw_params_malloc")
 	purego.RegisterLibFunc(&api.paramsFree, library, "snd_pcm_hw_params_free")
