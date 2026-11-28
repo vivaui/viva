@@ -9,54 +9,71 @@ import (
 	"github.com/vivaui/viva/gfx"
 )
 
+const (
+	codeShapedMaxRowBytes       = 64 << 10
+	codeShapedCacheBytes        = 256 << 10
+	codeShapedMaxCachedRows     = 64
+	codeShapedMaxParagraphBytes = 1 << 20
+)
+
 type codeShaping struct {
 	canvas     *gfx.Canvas
 	value      string
 	style      gfx.TextStyle
+	direction  gfx.TextDirection
 	cell       float32
 	generation uint32
 	cols       int
 	tabWidth   int
 	wrap       bool
 	rows       map[int32]codeShapedRow
-	// limit is the most rows the cache keeps: the visible rows of the last
-	// paint, and never fewer than the old fixed bound. A viewport taller than
-	// that bound used to clear the cache in the middle of the paint, so every
-	// row missed again on the next frame.
-	limit    int
-	hit      gfx.TextHit
-	hitRow   int32
-	hitValid bool
-	styles   []codeShapedStyle
+	rowBytes   int
+	rowLimit   int
+	paragraphs [2]codeShapedParagraph // keep the caret's and the visible paragraph warm
+	hit        gfx.TextHit
+	hitRow     int32
+	hitValid   bool
+	styles     []codeShapedStyle
 }
 
 type codeShapedRow struct {
-	value  string
-	carets []gfx.FittedMonoCaret
+	value     string
+	carets    []gfx.FittedMonoCaret
+	direction gfx.TextDirection
+}
+
+type codeShapedParagraph struct {
+	start, end int32
+	direction  gfx.TextDirection
+	controls   bool
+	resolved   *gfx.BidiParagraph
 }
 
 func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEditorSnapshot, size, cell float32) {
-	if !snapshot.ShapedBidi || len(snapshot.Representations) != 0 || snapshot.ShowWhitespace ||
-		snapshot.ShowIndentGuides || snapshot.ShowEOL || snapshot.Decorations != nil {
+	if !snapshot.ShapedBidi {
 		editor.shaping = nil
 		return
 	}
 	style := gfx.TextStyle{Size: size, Mono: true, MonoFace: snapshot.MonoFace}
 	generation := canvas.FontGeneration()
 	s := editor.shaping
-	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.cell != cell || s.generation != generation ||
+	if (s != nil && s.direction != snapshot.Direction) || (s == nil && snapshot.Direction == gfx.DirectionRTL) {
+		editor.followedValid, editor.goalActive = false, false
+	}
+	if s == nil || s.canvas != canvas || s.value != editor.text || s.style != style || s.direction != snapshot.Direction || s.cell != cell || s.generation != generation ||
 		s.cols != editor.cols || s.tabWidth != editor.tabWidth || s.wrap != editor.wrap {
-		s = &codeShaping{canvas: canvas, value: editor.text, style: style, cell: cell, generation: generation,
-			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow)}
+		s = &codeShaping{canvas: canvas, value: editor.text, style: style, direction: snapshot.Direction, cell: cell, generation: generation,
+			cols: editor.cols, tabWidth: editor.tabWidth, wrap: editor.wrap, rows: make(map[int32]codeShapedRow),
+			paragraphs: [2]codeShapedParagraph{{start: -1}, {start: -1}}}
 		editor.shaping = s
 	}
-	limit := 64
-	if visible := int(editor.content.Height/editor.lineHeight) + 2; visible > limit {
-		limit = visible
+	s.rowLimit = codeShapedMaxCachedRows
+	if editor.lineHeight > 0 {
+		s.rowLimit = max(s.rowLimit, int(editor.content.Height/editor.lineHeight)+2)
 	}
-	s.limit = limit
-	if len(s.rows) > limit {
+	if len(s.rows) > s.rowLimit {
 		clear(s.rows)
+		s.rowBytes = 0
 	}
 	if s.hitValid && s.hit.Offset != snapshot.Caret {
 		s.hitValid = false
@@ -65,41 +82,70 @@ func (editor *CodeEditor) configureShaping(canvas *gfx.Canvas, snapshot CodeEdit
 
 func (editor *CodeEditor) shapedRow(row codeRow) []gfx.FittedMonoCaret {
 	s := editor.shaping
-	// Bound both the cost of shaping a single line and the number of cached rows.
-	if s == nil || row.end <= row.start || row.end-row.start > 4096 {
+	bytes := int(row.end - row.start)
+	if s == nil || bytes <= 0 || bytes > codeShapedMaxRowBytes {
 		return nil
 	}
 	if shaped, ok := s.rows[row.start]; ok {
 		return shaped.carets
 	}
 	shaped := editor.measureShapedRow(row)
+	// Charge for the source and any expansion (such as tabs or isolate markers).
+	bytes = max(bytes, len(shaped.value))
+	if len(s.rows) >= s.rowLimit || s.rowBytes+bytes > codeShapedCacheBytes {
+		clear(s.rows)
+		s.rowBytes = 0
+	}
 	s.rows[row.start] = shaped
+	s.rowBytes += bytes
 	return shaped.carets
 }
 
 func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	s := editor.shaping
-	value := editor.rowText(row)
-	var prefix string
-	if editor.wrap {
-		// Give each plain continuation the base direction of its logical line.
-		// Explicit embedding and isolate state cannot be reconstructed by a mark.
-		line := editor.text[row.lineStart:]
-		if len(line) > 4097 {
-			line = line[:4097]
-		}
-		if end := strings.IndexByte(line, '\n'); end >= 0 {
-			line = line[:end]
-		}
-		if len(line) > 4096 || strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069") {
-			return codeShapedRow{}
-		}
-		dir := gfx.TextDirectionOf(line)
-		if dir != gfx.TextDirectionOf(value) {
-			prefix = "\u200e"
-			if dir == gfx.DirectionRTL {
-				prefix = "\u200f"
+	source := editor.text[row.start:row.end]
+	// The representation table applies only to rows that contain one of its
+	// characters. Tab expansion alone can still be mapped to source graphemes.
+	if row.shown >= 0 && len(editor.reps) != 0 {
+		for _, character := range source {
+			if _, represented := representationOf(editor.reps, character); represented {
+				return codeShapedRow{}
 			}
+		}
+	}
+	value := editor.rowText(row)
+	direction := s.direction
+	if editor.wrap {
+		if s.paragraphs[1].start == row.lineStart {
+			s.paragraphs[0], s.paragraphs[1] = s.paragraphs[1], s.paragraphs[0]
+		}
+		p := &s.paragraphs[0]
+		if p.start != row.lineStart {
+			line, _, hardBreak := strings.Cut(editor.text[row.lineStart:], "\n")
+			if hardBreak {
+				line = strings.TrimSuffix(line, "\r")
+			}
+			paragraph := codeShapedParagraph{start: row.lineStart, end: row.lineStart + int32(len(line)), direction: s.direction,
+				controls: strings.ContainsAny(line, "\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")}
+			if paragraph.direction == gfx.DirectionAuto {
+				paragraph.direction = gfx.TextDirectionOf(line)
+			}
+			s.paragraphs[1], *p = *p, paragraph
+		}
+		if p.controls && (row.start != p.start || row.end != p.end) {
+			return editor.measureResolvedBidiRow(row, source, value, p)
+		}
+		direction = p.direction
+	}
+	var prefix string
+	switch direction {
+	case gfx.DirectionLTR:
+		if gfx.TextDirectionOf(value) == gfx.DirectionRTL {
+			prefix = "\u200e"
+		}
+	case gfx.DirectionRTL:
+		if gfx.TextDirectionOf(value) == gfx.DirectionLTR {
+			prefix = "\u200f"
 		}
 	}
 	label := prefix + value
@@ -110,7 +156,6 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 	if row.shown >= 0 || prefix != "" {
 		// Retain only source grapheme boundaries. Every byte of an expanded tab
 		// lies between the same two source offsets; the direction mark has none.
-		source := editor.text[row.start:row.end]
 		mapped := carets[:0]
 		column, rendered, at := 0, len(prefix), 0
 		for offset := 0; ; {
@@ -137,35 +182,154 @@ func (editor *CodeEditor) measureShapedRow(row codeRow) codeShapedRow {
 		}
 		carets = mapped
 	}
-	return codeShapedRow{value: label, carets: carets}
+	if direction == gfx.DirectionAuto {
+		direction = gfx.TextDirectionOf(value)
+	}
+	return codeShapedRow{value: label, carets: carets, direction: direction}
+}
+
+// measureResolvedBidiRow lays out the paragraph's resolved visual runs as
+// separate isolates. The controls in the synthesized label only steer native
+// shaping; every returned boundary still refers to the original source.
+func (editor *CodeEditor) measureResolvedBidiRow(row codeRow, source, shown string, p *codeShapedParagraph) codeShapedRow {
+	// Paragraph resolution keeps several per-rune arrays. Keep a pasted
+	// minified line from allocating them on the paint goroutine without a bound.
+	if p.end-p.start > codeShapedMaxParagraphBytes {
+		return codeShapedRow{}
+	}
+	if p.resolved == nil {
+		p.resolved = new(gfx.BidiParagraph)
+		p.resolved.Resolve(editor.text[p.start:p.end], p.direction)
+	}
+	type cluster struct {
+		offset, from, to, native int
+	}
+	clusters := make([]cluster, 0, len(source))
+	column, rendered := 0, 0
+	for at := 0; at < len(source); {
+		next, cells := editor.gridCluster(source, at, column)
+		width := next - at
+		if source[at] == '\t' {
+			width = cells
+		}
+		clusters = append(clusters, cluster{at, rendered, rendered + width, -1})
+		column, rendered, at = column+cells, rendered+width, next
+	}
+	if rendered != len(shown) {
+		return codeShapedRow{}
+	}
+	var label strings.Builder
+	label.WriteRune('\u200e')
+	start, end := int(row.start-p.start), int(row.end-p.start)
+	for _, run := range p.resolved.LineRuns(start, end, nil) {
+		first := sort.Search(len(clusters), func(i int) bool { return clusters[i].offset >= run.Start-start })
+		label.WriteRune('\u2066') // LRI: put consecutive resolved runs left to right.
+		if run.Level&1 != 0 {
+			label.WriteRune('\u202e') // RLO
+		} else {
+			label.WriteRune('\u202d') // LRO
+		}
+		for i := first; i < len(clusters) && clusters[i].offset < run.End-start; i++ {
+			c := &clusters[i]
+			c.native = label.Len()
+			character, _ := decodeAt(source, c.offset)
+			if !codeBidiControl(character) {
+				label.WriteString(shown[c.from:c.to])
+			} else {
+				c.to = c.from
+			}
+		}
+		label.WriteString("\u202c\u2069") // PDF, PDI
+	}
+	value := label.String()
+	s := editor.shaping
+	native, ok := s.canvas.FittedBidiMonoCarets(nil, value, s.style, float32(row.cells)*s.cell)
+	if !ok {
+		return codeShapedRow{}
+	}
+	boundary := func(offset int) (gfx.FittedMonoCaret, bool) {
+		i, ok := slices.BinarySearchFunc(native, offset, func(c gfx.FittedMonoCaret, offset int) int {
+			return cmp.Compare(c.Offset, offset)
+		})
+		if !ok {
+			return gfx.FittedMonoCaret{}, false
+		}
+		return native[i], true
+	}
+	carets := make([]gfx.FittedMonoCaret, len(clusters)+1)
+	for i, c := range clusters {
+		first, leftOK := boundary(c.native)
+		last, rightOK := boundary(c.native + c.to - c.from)
+		if !leftOK || !rightOK {
+			return codeShapedRow{}
+		}
+		if c.to == c.from {
+			last.Trailing = first.Leading
+		}
+		carets[i].Offset, carets[i].Leading = c.offset, first.Leading
+		carets[i+1].Trailing = last.Trailing
+	}
+	carets[0].Trailing = carets[0].Leading
+	last := &carets[len(clusters)]
+	last.Offset, last.Leading = len(source), last.Trailing
+	return codeShapedRow{value: value, carets: carets, direction: p.direction}
+}
+
+func codeBidiControl(character rune) bool {
+	return character >= '\u202a' && character <= '\u202e' || character >= '\u2066' && character <= '\u2069'
+}
+
+func (editor *CodeEditor) shapedRowInset(row codeRow) float32 {
+	if editor.shaping == nil || editor.shaping.direction != gfx.DirectionRTL {
+		return 0
+	}
+	width := editor.content.Width
+	if !editor.wrap {
+		width += editor.maxScrollX()
+	}
+	// Keep one cell beyond the rightmost caret, as the scroll range does.
+	return max(0, width-float32(row.cells+1)*editor.cellWidth)
 }
 
 func (editor *CodeEditor) shapedCaretX(row codeRow, offset int) (float32, bool) {
+	inset := editor.shapedRowInset(row)
 	if carets := editor.shapedRow(row); len(carets) != 0 {
 		s := editor.shaping
 		if s.hitValid && s.hitRow == row.start && s.hit.Offset == offset {
-			return s.hit.X, true
+			return inset + s.hit.X, true
 		}
-		local := max(0, min(offset-int(row.start), int(row.end-row.start)))
-		at, exact := slices.BinarySearchFunc(carets, local, func(caret gfx.FittedMonoCaret, local int) int {
-			return cmp.Compare(caret.Offset, local)
-		})
-		if !exact {
-			at = max(0, at-1)
-		}
-		if at == 0 {
-			return carets[0].Leading, true
-		}
-		return carets[at].Trailing, true
+		return inset + codeShapedBoundaryX(carets, offset-int(row.start)), true
+	}
+	if row.start == row.end && inset > 0 {
+		return inset, true
 	}
 	return 0, false
 }
 
+// codeShapedBoundaryX ignores hit affinity so source markers remain stationary.
+func codeShapedBoundaryX(carets []gfx.FittedMonoCaret, local int) float32 {
+	at, exact := slices.BinarySearchFunc(carets, local, func(caret gfx.FittedMonoCaret, local int) int {
+		return cmp.Compare(caret.Offset, local)
+	})
+	if !exact {
+		at = max(0, at-1)
+	}
+	if at == 0 {
+		return carets[0].Leading
+	}
+	return carets[at].Trailing
+}
+
 func (editor *CodeEditor) shapedHit(row codeRow, x float32) (gfx.TextHit, bool) {
 	carets := editor.shapedRow(row)
+	inset := editor.shapedRowInset(row)
 	if len(carets) == 0 {
+		if row.start == row.end && inset > 0 {
+			return gfx.TextHit{Offset: int(row.start)}, true
+		}
 		return gfx.TextHit{}, false
 	}
+	x -= inset
 	best := gfx.TextHit{Offset: int(row.start), X: carets[0].Leading}
 	gap := float32(-1)
 	for i := 0; i+1 < len(carets); i++ {
@@ -195,6 +359,116 @@ func (editor *CodeEditor) rememberShapedHit(row codeRow, hit gfx.TextHit) {
 	if s := editor.shaping; s != nil {
 		s.hit, s.hitRow, s.hitValid = hit, row.start, true
 	}
+}
+
+// CollapseHorizontal finds the requested visual edge of a selection contained
+// in one shaped row. False lets the caller use its usual multiline behavior.
+func (editor *CodeEditor) CollapseHorizontal(value string, start, end int, right bool) (int, bool) {
+	if editor.shaping == nil || !editor.painted || editor.text != value || len(editor.rows) == 0 || start < 0 || start >= end || end > len(value) {
+		return 0, false
+	}
+	index := editor.rowOf(start)
+	row := editor.rows[index]
+	if start < int(row.start) || end > int(row.end) {
+		return 0, false
+	}
+	carets := editor.shapedRow(row)
+	if len(carets) < 2 {
+		return 0, false
+	}
+	start, end = start-int(row.start), end-int(row.start)
+	var best gfx.TextHit
+	found := false
+	for i := 0; i+1 < len(carets) && carets[i].Offset < end; i++ {
+		from, to := carets[i], carets[i+1]
+		if to.Offset <= start || from.Leading == to.Trailing {
+			continue
+		}
+		x, offset := from.Leading, from.Offset
+		if right && to.Trailing > x || !right && to.Trailing < x {
+			x, offset = to.Trailing, to.Offset
+		}
+		if !found || right && x > best.X || !right && x < best.X {
+			best, found = gfx.TextHit{Offset: int(row.start) + offset, X: x}, true
+		}
+	}
+	if !found {
+		return 0, false
+	}
+	editor.arrive(best.Offset, best.Offset == int(row.end) && editor.softWrapped(index))
+	editor.rememberShapedHit(row, best)
+	return best.Offset, true
+}
+
+// MoveHorizontal returns the next visual byte offset on a shaped row, and
+// retains its edge for the next paint. Put the document caret at that offset;
+// the caller owns selection and edit history. False means the last paint has
+// no usable shaped geometry for the move. At a document edge it handles the
+// move and returns the current offset.
+func (editor *CodeEditor) MoveHorizontal(value string, caret int, right bool) (int, bool) {
+	if editor.shaping == nil || !editor.painted || editor.text != value || len(editor.rows) == 0 {
+		return caret, false
+	}
+	caret = gridCaretStart(value, caret)
+	index := editor.rowOf(caret)
+	row := editor.rows[index]
+	x, shaped := editor.shapedCaretX(row, caret)
+	if !shaped {
+		return caret, false
+	}
+	hit, ok := stepCodeShapedRow(editor.shapedRow(row), int(row.start), x-editor.shapedRowInset(row), right)
+	if !ok {
+		// In an RTL paragraph, its next visual row lies beyond its left edge.
+		direction := editor.shaping.rows[row.start].direction
+		if direction == gfx.DirectionAuto {
+			direction = editor.shaping.direction // an empty row has no measured run
+		}
+		if right == (direction != gfx.DirectionRTL) {
+			index++
+		} else {
+			index--
+		}
+		if index < 0 || index >= len(editor.rows) {
+			return caret, true
+		}
+		row = editor.rows[index]
+		x = -1
+		if !right {
+			x = float32(row.cells)*editor.cellWidth + 1
+		}
+		hit, ok = editor.shapedHit(row, editor.shapedRowInset(row)+x)
+		if !ok {
+			return caret, false
+		}
+	}
+	editor.arrive(hit.Offset, hit.Offset == int(row.end) && editor.softWrapped(index))
+	editor.rememberShapedHit(row, hit)
+	return hit.Offset, true
+}
+
+func stepCodeShapedRow(carets []gfx.FittedMonoCaret, start int, x float32, right bool) (gfx.TextHit, bool) {
+	var best gfx.TextHit
+	var distance float32
+	for i := 0; i+1 < len(carets); i++ {
+		lead, trail := carets[i].Leading, carets[i+1].Trailing
+		if lead == trail {
+			continue
+		}
+		// Take the far edge of the grapheme being traversed. At a bidi join
+		// the next grapheme's near edge can have the same X but another offset.
+		position, boundary := trail, i+1
+		if right == (lead > trail) {
+			position, boundary = lead, i
+		}
+		delta := position - x
+		if !right {
+			delta = -delta
+		}
+		if delta > 0.001 && (distance == 0 || delta < distance) {
+			best, distance = gfx.TextHit{Offset: start + carets[boundary].Offset, X: position}, delta
+		}
+	}
+	return best, distance > 0
 }
 
 func codeShapedSpans(dst []gfx.TextSpan, carets []gfx.FittedMonoCaret, start, end int) []gfx.TextSpan {
@@ -229,7 +503,10 @@ func codeShapedSpans(dst []gfx.TextSpan, carets []gfx.FittedMonoCaret, start, en
 
 func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gfx.FittedMonoCaret) {
 	start, end := int(row.start), int(row.end)
-	left := paint.editor.content.X - paint.editor.scrollX
+	left := paint.editor.content.X - paint.editor.scrollX + paint.editor.shapedRowInset(row)
+	if paint.showIndentGuides && paint.editor.firstOfLine(index) {
+		paint.shapedIndentGuides(row, y, left, carets)
+	}
 	fill := func(from, to int, color gfx.Color) {
 		paint.shapedSpans = codeShapedSpans(paint.shapedSpans, carets, from-start, to-start)
 		for _, span := range paint.shapedSpans {
@@ -296,10 +573,54 @@ func (paint *codePaint) shapedRow(index int, row codeRow, y float32, carets []gf
 	value := paint.editor.shaping.rows[row.start].value
 	bounds := gfx.Rect{X: left, Y: y + (paint.lineHeight-paint.cellHeight)/2, Width: float32(row.cells) * paint.cellWidth, Height: paint.cellHeight}
 	paint.shapedText(row, value, bounds, carets)
+	if paint.showWhitespace {
+		for i, caret := range carets[:len(carets)-1] {
+			character := paint.value[start+caret.Offset]
+			if character == ' ' || character == '\t' {
+				paint.whitespaceMark(rune(character), y, left+caret.Leading, left+carets[i+1].Trailing)
+			}
+		}
+	}
+	if paint.showEOL && paint.endsWithLineBreak(index, end) {
+		direction := paint.editor.shaping.rows[row.start].direction
+		edge := bounds.X + bounds.Width
+		if direction == gfx.DirectionRTL {
+			edge = bounds.X
+		}
+		paint.lineEnding(row, y, edge, direction == gfx.DirectionRTL)
+	}
 	if paint.showWrapSymbol && paint.editor.softWrapped(index) {
 		paint.wrapSymbol(y)
 	}
-	paint.overlays(index, y)
+	if !paint.deferOverlays {
+		paint.overlays(index, y)
+	}
+}
+
+func (paint *codePaint) shapedIndentGuides(row codeRow, y, left float32, carets []gfx.FittedMonoCaret) {
+	editor := paint.editor
+	if int(row.line) >= len(editor.indents) {
+		return
+	}
+	limit := min(editor.indents[row.line], int(row.cells))
+	step := editor.tabWidth
+	color := paint.invisibleColor
+	color.Alpha *= 0.5
+	source := editor.text[row.start:row.end]
+	column := 0
+	for _, caret := range carets[:len(carets)-1] {
+		if column+step > limit {
+			break
+		}
+		if column%step == 0 {
+			x := left + caret.Leading
+			if x >= editor.content.X && x+1 <= editor.content.X+editor.content.Width {
+				paint.canvas.Fill(gfx.Rect{X: x, Y: y, Width: 1, Height: paint.lineHeight}, color)
+			}
+		}
+		_, cells := editor.gridCluster(source, caret.Offset, column)
+		column += cells
+	}
 }
 
 type codeShapedStyle struct {

@@ -4,11 +4,46 @@ import (
 	"bytes"
 	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/internal/platform"
 )
+
+func TestFittedDirectWriteGridCacheEvictsLongLayouts(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	rasterizer, err := newDirectRasterizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rasterizer.close()
+	format, handle, err := rasterizer.gridFormat(monoFamily(gfx.MonoSystem), 14, 0, false, rasterizer.fontFallback(gfx.MonoSystem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := strings.Repeat("ab\u05d0 ", 6000)
+	shape := func(piece string) *gridLayout {
+		t.Helper()
+		layout, err := rasterizer.gridShaped(format, handle, piece, gfx.TextRun{Ligatures: true}, 200000, 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return layout
+	}
+	first := shape(value + "first")
+	for i := range 40 {
+		shape(fmt.Sprintf("%s%d", value, i))
+	}
+	if first.layout != 0 {
+		t.Fatal("scrolling through long rows left the first native layout cached")
+	}
+	latest := value + "39"
+	if shape(latest) != shape(latest) {
+		t.Fatal("the layout currently on screen was not reused")
+	}
+}
 
 // gridCacheLabel is a row whose runs exercise every part of the layout key:
 // plain cells, a decorated run, a ligature run and a wide character.

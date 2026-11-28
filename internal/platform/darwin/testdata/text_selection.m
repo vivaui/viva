@@ -567,6 +567,52 @@ int main(void) {
                 assert(NSMinX(endCandidate) < NSMaxX(field));
             }
         }
+        // Two visual edges may have the same logical range. A geometry-only
+        // update must move the candidate rectangle without ending marked text.
+        {
+            RecordingInputContext *context = [[RecordingInputContext alloc] init];
+            view->recordingContext = context;
+            NSString *value = @"a \u05d0\u05d1 z";
+            NSData *utf8 = [value dataUsingEncoding:NSUTF8StringEncoding];
+            [view resetText:value];
+            [view setEditing:NO];
+            viva_text_input_config config = {0};
+            config.enabled = 1;
+            config.utf8 = utf8.bytes;
+            config.utf8_length = utf8.length;
+            config.x = 40;
+            config.y = 60;
+            config.width = 300;
+            config.height = 100;
+            config.font_size = 16;
+            config.placed = 1;
+            config.selected_start = 2;
+            config.marked_start = 2;
+            config.marked_length = 2;
+            config.has_marked_text = 1;
+            config.caret_y = 85;
+            config.caret_width = 2;
+            config.caret_height = 19;
+            config.caret_x = 75;
+            assert([view updateTextInput:config] == 0);
+            for (int edge = 0; edge < 2; edge++) {
+                if (edge == 1) {
+                    config.caret_x = 130;
+                    assert(viva_view_update_text_input_keeping_composition(view, config) == 0);
+                }
+                NSRange actual = NSMakeRange(NSNotFound, 0);
+                NSRect candidate = [view firstRectForCharacterRange:NSMakeRange(2, 0) actualRange:&actual];
+                NSRect local = NSMakeRect(config.caret_x, view.bounds.size.height - config.caret_y - config.caret_height,
+                    config.caret_width, config.caret_height);
+                NSRect expected = [candidateWindow convertRectToScreen:[view convertRect:local toView:nil]];
+                assert(NSEqualRanges(actual, NSMakeRange(2, 0)) && NSEqualRects(candidate, expected));
+                assert(NSEqualRanges([view markedRange], NSMakeRange(2, 2)));
+                assert(context->discards == 0 && context->deactivations == 0);
+            }
+            assert([view updateTextInput:(viva_text_input_config){0}] == 0);
+            view->recordingContext = nil;
+            [context release];
+        }
         [candidateWindow setContentView:nil];
         [candidateWindow release];
 

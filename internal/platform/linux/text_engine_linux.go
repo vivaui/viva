@@ -107,6 +107,35 @@ var systemEngine struct {
 var _ gfx.FontFamilyAware = (*textEngine)(nil)
 var _ gfx.TextRasterizer = (*textEngine)(nil)
 var _ gfx.MonoCellEngine = (*textEngine)(nil)
+var _ gfx.FittedMonoCaretEngine = (*textEngine)(nil)
+
+// FittedMonoCarets measures the upright layout used for fitted bidi runs.
+func (engine *textEngine) FittedMonoCarets(dst []gfx.FittedMonoCaret, value string, style gfx.TextStyle, span float32) ([]gfx.FittedMonoCaret, bool) {
+	if value == "" || style.Italic || !platform.ValidFontSize(span) {
+		return dst, false
+	}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	services := engine.services
+	services.useFonts(systemFonts())
+	metrics, err := services.configureLayout(value, monoFamily(style.MonoFace), style.Size, style.Weight, false)
+	if err != nil || metrics.Width <= 0 {
+		return dst, false
+	}
+	fit := float64(span) / float64(metrics.Width) / pangoScale
+	var trailing float32
+	for at := 0; at < len(value); at = grapheme.Next(value, at) {
+		services.layoutIndexToPos(services.layout, int32(at), &engine.cell)
+		leading := float32(float64(engine.cell.X) * fit)
+		if at == 0 {
+			trailing = leading
+		}
+		dst = append(dst, gfx.FittedMonoCaret{Offset: at, Leading: leading, Trailing: trailing})
+		// A Pango cell's width is signed: a RTL cluster ends to the left.
+		trailing = float32(float64(engine.cell.X+engine.cell.Width) * fit)
+	}
+	return append(dst, gfx.FittedMonoCaret{Offset: len(value), Leading: trailing, Trailing: trailing}), true
+}
 
 // RasterizeText implements gfx.TextRasterizer using the same Pango shaped line
 // and Cairo text path as the native label renderer.

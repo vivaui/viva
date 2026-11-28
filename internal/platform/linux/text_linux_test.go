@@ -196,6 +196,41 @@ func TestRasterizeLigatureRunFitsItsCells(t *testing.T) {
 	}
 }
 
+func TestFittedPangoItalicSlantsAfterLayout(t *testing.T) {
+	const value = "ab \u0633\u0644\u0627\u0645 cd"
+	services, err := newTextServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer services.close()
+	label := platform.TextLabel{Value: value, Width: 100, Height: 36, FontSize: 22, Mono: true, CellWidth: 10,
+		Runs: []gfx.TextRun{{Bytes: int32(len(value)), Cells: 10, Color: gfx.RGB(255, 255, 255), Ligatures: true}}}
+	originalStyle, show := services.fontSetStyle, services.showLayout
+	var style int32
+	services.fontSetStyle = func(font uintptr, value int32) {
+		style = value
+		originalStyle(font, value)
+	}
+	services.showLayout = func(context, layout uintptr) {
+		if style != 0 {
+			t.Errorf("fitted layout was shaped with Pango style %d; use upright advances", style)
+		}
+		show(context, layout)
+	}
+	render := func(italic bool) []byte {
+		t.Helper()
+		label.Runs[0].Italic = italic
+		pixels, _, err := services.rasterize(label, 1, 100, 36, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return pixels
+	}
+	if bytes.Equal(render(false), render(true)) {
+		t.Fatal("fitted italic run drew the same pixels as upright text")
+	}
+}
+
 type alphaBounds struct{ minX, minY, maxX, maxY int }
 
 func rasterAlphaBounds(t *testing.T, services *textServices, label platform.TextLabel) alphaBounds {

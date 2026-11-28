@@ -40,6 +40,34 @@ func TestEnginePassesTheTextEngineContract(t *testing.T) {
 	textenginetest.Run(t, newTestEngine(t))
 }
 
+func TestFittedPangoCaretsKeepTheEdgesOfADirectionChange(t *testing.T) {
+	const prefix, value = "a\u0301\U00010437 ", "a\u0301\U00010437 \u0633\u0644\u0627\u0645 z"
+	const span, size = 108, 20
+	engine := newTestEngine(t)
+	var canvas gfx.Canvas
+	canvas.SetTextEngine(engine)
+	keep := gfx.FittedMonoCaret{Offset: -1, Leading: -1, Trailing: -1}
+	carets, ok := canvas.FittedBidiMonoCarets([]gfx.FittedMonoCaret{keep}, value, gfx.TextStyle{Size: size}, span)
+	if !ok || len(carets) != 11 || carets[0] != keep {
+		t.Fatalf("did not append fitted grapheme carets: %+v, %v", carets, ok)
+	}
+	carets = carets[1:]
+	if left, right := carets[0], carets[len(carets)-1]; left.Offset != 0 || math.Abs(float64(left.Leading)) > 0.01 ||
+		right.Offset != len(value) || math.Abs(float64(right.Trailing-span)) > 0.01 {
+		t.Errorf("fitted run edges %+v and %+v should span 0 to %d", left, right, span)
+	}
+	start, end := carets[3], carets[7]
+	if start.Offset != len(prefix) || start.Leading <= start.Trailing || end.Offset != len(value)-2 ||
+		math.Abs(float64(start.Leading-end.Leading)) > 0.01 || math.Abs(float64(start.Trailing-end.Trailing)) > 0.01 {
+		t.Errorf("unexpected edges of the Arabic run: start %+v end %+v", start, end)
+	}
+	first := carets[4].Trailing - carets[3].Leading
+	last := carets[7].Trailing - carets[6].Leading
+	if first >= 0 || last >= 0 || carets[5].Leading <= carets[7].Trailing {
+		t.Errorf("Arabic internal advances did not run right to left: %+v", carets[3:8])
+	}
+}
+
 func TestMixedDirectionHitUsesTheClickedClusterEdge(t *testing.T) {
 	engine := newTestEngine(t)
 	const prefix, first, second, tail = "ab ", "\u05d0\u05b7", "\u05d1", " cd"
