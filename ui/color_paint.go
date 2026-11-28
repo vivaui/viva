@@ -55,7 +55,7 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 	}
 	empty = empty || look.GetEmpty()
 	options := components.ColorPickerOptions{
-		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(),
+		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(), Live: s.Live(),
 		RoundTrigger: look.GetRound(), TriggerIcon: look.GetIcon(), SaturationText: s.Summary,
 		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: s.GetLayer(),
 	}
