@@ -263,11 +263,12 @@ func extractPayload(archive, goos, arch, executable string) (root, kind string, 
 			removeTree()
 			return "", "", nil, fmt.Errorf("patchgen: Linux payloads come from a .tar.gz, not %s", filepath.Base(archive))
 		}
-		if err := extractTarGz(archive, directory); err != nil {
+		executables, err := extractTarGz(archive, directory)
+		if err != nil {
 			removeTree()
 			return "", "", nil, err
 		}
-		program, err := findExecutable(directory, executable)
+		program, err := findExecutable(directory, executable, executables)
 		if err != nil {
 			removeTree()
 			return "", "", nil, err
@@ -287,30 +288,27 @@ func extractPayload(archive, goos, arch, executable string) (root, kind string, 
 	}
 }
 
-// findExecutable finds the program in an unpacked Linux archive. A named
-// executable wins; otherwise the archive must hold one executable besides
-// install.sh.
-func findExecutable(root, name string) (string, error) {
+// findExecutable finds the program in an unpacked Linux archive, among the
+// files the archive's tar headers marked executable (see extractTarGz): the
+// header is the only place that fact survives on a host whose file system does
+// not keep it, such as Windows, where every regular file reads back mode 0666.
+// A named executable wins; otherwise the archive must hold one executable
+// besides install.sh.
+func findExecutable(root, name string, executables []string) (string, error) {
 	var named, candidates []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
+	for _, entry := range executables {
+		if filepath.Base(entry) == "install.sh" {
+			continue
 		}
-		info, err := entry.Info()
-		if err != nil {
-			return err
+		path := filepath.Join(root, filepath.FromSlash(entry))
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
 		}
-		if !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 || entry.Name() == "install.sh" {
-			return nil
-		}
-		if name != "" && entry.Name() == name {
+		if name != "" && filepath.Base(entry) == name {
 			named = append(named, path)
 		}
 		candidates = append(candidates, path)
-		return nil
-	})
-	if err != nil {
-		return "", err
 	}
 	if len(named) == 1 {
 		return named[0], nil
@@ -380,56 +378,80 @@ func extractZip(archive, destination string) error {
 }
 
 // extractTarGz unpacks a tar.gz, refusing absolute paths and entries that
-// climb out of destination.
-func extractTarGz(archive, destination string) error {
+// climb out of destination. It returns the slash paths of the regular files
+// whose header carries an execution bit, in path order: see findExecutable.
+func extractTarGz(archive, destination string) ([]string, error) {
 	file, err := os.Open(archive)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer gz.Close()
 	reader := tar.NewReader(gz)
+	var marked map[string]bool
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
-			return nil
+			return sortedKeys(marked), nil
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		target, err := safeJoin(destination, header.Name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
+				return nil, err
 			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
+				return nil, err
 			}
 			output, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(header.Mode)&0o777)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, copyErr := io.Copy(output, reader)
 			closeErr := output.Close()
 			if copyErr != nil {
-				return copyErr
+				return nil, copyErr
 			}
 			if closeErr != nil {
-				return closeErr
+				return nil, closeErr
+			}
+			// The execution bits travel in the header, which is the only record
+			// of them a host without them (Windows) can consult later. A name
+			// the archive repeats is the last one's file, so keep only it.
+			if header.Mode&0o111 != 0 {
+				if marked == nil {
+					marked = map[string]bool{}
+				}
+				marked[header.Name] = true
+			} else {
+				delete(marked, header.Name)
 			}
 		default:
-			return fmt.Errorf("patchgen: %s is not a regular file or directory", header.Name)
+			return nil, fmt.Errorf("patchgen: %s is not a regular file or directory", header.Name)
 		}
 	}
+}
+
+// sortedKeys names the marked entries in path order, the order the tree walk
+// they replace reported.
+func sortedKeys(marked map[string]bool) []string {
+	names := make([]string, 0, len(marked))
+	for name := range marked {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func safeJoin(root, name string) (string, error) {
