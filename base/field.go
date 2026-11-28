@@ -76,6 +76,10 @@ type Field struct {
 	// blink is the phase of the caret when the field paints it itself, which a fixed-pitch
 	// field does (see Box.Mono): the platform draws the caret of the others.
 	blink CaretBlink
+	// scroll keeps a value longer than the field in view of its caret, which the field
+	// must do itself: it paints its own line (HideEditorText), so the platform editor
+	// that would have scrolled it draws nothing.
+	scroll InputScroll
 	// seen is the text as the field was last declared, and changed whether that
 	// declaration found it edited since the one before (Box.Changed).
 	seen    string
@@ -346,6 +350,7 @@ func (field *Field) Snapshot(f *Frame, ID gfx.ID, Label, placeholder string) Inp
 		// canvas line, which moves the value when the field gains the keyboard.
 		HideEditorText: true,
 		Blink:          &field.blink,
+		Scroll:         &field.scroll,
 	}
 	// Where the caret, the selection and the composition are: what a field that paints them
 	// itself needs, and what the platform's own presentation of them does without.

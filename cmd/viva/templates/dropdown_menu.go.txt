@@ -977,6 +977,16 @@ func (menu *menuSurface) end() {
 		if !scroll.BarID.IsZero() {
 			menu.canvas.HitWithOptions(scroll.BarID, gfx.Rect{X: menu.bounds.X + menu.bounds.Width - 2 - menuBarWidth, Y: menu.top, Width: menuBarWidth, Height: view},
 				"Scroll", gfx.HitOptions{Role: gfx.RoleSlider, SkipFocus: true})
+			// A press the pointer pass delivers to the bar drags the thumb: the
+			// press was taken here, so the runtime captured it and the moves
+			// follow wherever the pointer goes. Without this ask the bar
+			// hit-tests and paints its thumb, but nothing ever drags it. A move
+			// the pointer merely hovers with is not a drag and stays hover.
+			if event, ok := menu.canvas.PointerOn(scroll.BarID); ok &&
+				((event.Kind == gfx.PointerDown && event.Button <= gfx.PointerButtonPrimary) || (scroll.Dragging() && event.Kind != gfx.PointerDown)) {
+				scroll.Drag(event)
+				menu.canvas.Consume()
+			}
 		}
 		menu.popOverlay()
 		menu.popClip()

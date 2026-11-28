@@ -24,6 +24,9 @@ func treeStateRow(s *TreeState, i int, rowBox Box) {
 	if node.Branch {
 		item.DisclosureID = s.GetChevrons().At(key)
 	}
+	if s.RowBackground != nil {
+		item.Background = s.RowBackground(i)
+	}
 	if canvas := f.Surface; canvas != nil && !node.Disabled {
 		if canvas.Clicked(item.ID) {
 			s.SetChosenIndex(i)
