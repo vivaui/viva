@@ -43,3 +43,29 @@ func TestColorPickerLiveEditsBoundDraft(t *testing.T) {
 		t.Fatal("Escape did not retain the live edit")
 	}
 }
+
+func TestColorPickerLiveInsideDialogKeepsDraftAndOutsideAction(t *testing.T) {
+	var state ui.ColorPickerState
+	color := gfx.RGB(255, 0, 0)
+	saved := false
+	d := openPage(t, func(c ui.C) {
+		dialog := ui.Dialog(c, ui.DialogSpec{Title: "Theme editor", Width: 480, Height: 500, Layer: 600})
+		dialog.Body(func() {
+			ui.ColorPicker(c, &state, &color, "Accent").Live(true)
+		})
+		dialog.Footer(func() {
+			if ui.Button(c, "Save theme").Clicked() {
+				saved = true
+			}
+		})
+	})
+	d.click("Accent")
+	d.click("Saturation and brightness")
+	if color == gfx.RGB(255, 0, 0) {
+		t.Fatal("dialog picker did not edit draft")
+	}
+	d.click("Save theme")
+	if !saved || state.Open() {
+		t.Fatal("outside action did not save and close picker")
+	}
+}

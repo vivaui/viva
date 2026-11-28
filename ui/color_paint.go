@@ -61,6 +61,9 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 	}
 	if s.GetOpen() {
 		options.Scope = s.GetHandlers().GetParts().At(8)
+		if s.Live() {
+			options.Scope = canvas.FocusScope()
+		}
 		options.Hex = s.HexPtr().Snapshot(c.GetF(), ids.Hex, labels.Hex, "#3B82F6")
 		if s.GetInvalid() {
 			options.Error = labels.InvalidColor
