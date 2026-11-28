@@ -3,6 +3,7 @@ package carousel_test
 import (
 	"testing"
 
+	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
 	"github.com/vivaui/viva/ui/carousel"
@@ -142,6 +143,44 @@ func TestViewPaintsGeometryAndRoutesInput(t *testing.T) {
 	}
 	if result := m.page.Wheel(gfx.ScrollEvent{Target: control.ID, DeltaY: 1}); !result.Handled || m.scrolls != 1 || m.target != control.ID {
 		t.Fatalf("wheel Target = %v (result %+v after %d calls)", m.target, result, m.scrolls)
+	}
+}
+
+// An RTL state mirrors the placed slides and the controls: the selected slide
+// keeps the viewport, the first slide stands at the viewport's right edge, and
+// the previous control stands right of the viewport with the next one on its
+// left.
+func TestRTLDirectionMirrorsSlidesAndControls(t *testing.T) {
+	m := new(model)
+	m.open(t, carousel.Horizontal)
+	m.view.Direction = components.RTL
+	draw(m.page, m.canvas, m.viewPage)
+
+	geometry := m.view.Geometry()
+	if geometry.Content.Width != 960 || geometry.Offset != 320 {
+		t.Fatalf("RTL content = %+v offset %g, want 960 and 320", geometry.Content, geometry.Offset)
+	}
+	// The selected slide still fills the viewport; the first one sits entirely
+	// to the right of it and the last one entirely to its left.
+	selected := m.view.ItemBounds(geometry, 1)
+	if selected != geometry.Viewport {
+		t.Fatalf("RTL selected slide = %+v, want the viewport", selected)
+	}
+	first := m.view.ItemBounds(geometry, 0)
+	if first.X != geometry.Viewport.X+geometry.Viewport.Width || first.Width != 320 {
+		t.Fatalf("RTL first slide = %+v, want one viewport right of it", first)
+	}
+	last := m.view.ItemBounds(geometry, 2)
+	if last.X+last.Width != geometry.Viewport.X {
+		t.Fatalf("RTL last slide = %+v, want one viewport left of it", last)
+	}
+	previous := hit(t, m.canvas, "Previous slide")
+	next := hit(t, m.canvas, "Next slide")
+	if previous.Bounds.X < geometry.Viewport.X+geometry.Viewport.Width {
+		t.Fatalf("RTL previous control = %+v, want it right of the viewport", previous.Bounds)
+	}
+	if next.Bounds.X+next.Bounds.Width > geometry.Viewport.X {
+		t.Fatalf("RTL next control = %+v, want it left of the viewport", next.Bounds)
 	}
 }
 
