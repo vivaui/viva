@@ -1425,6 +1425,7 @@ func (painter *painter) focusedTextField() (TextInputContext, gfx.TextPlacement,
 		Multiline: hit.Multiline, ReadOnly: hit.ReadOnly, Secure: hit.Secure,
 		NavigationKeys: hit.NavigationKeys,
 		TextBounds:     text.Bounds, FontSize: text.Size, FontWeight: text.Weight, TextColor: text.Color, Alignment: text.Alignment,
+		TextScroll:         text.Scroll,
 		HideNativeOverlays: hit.HideNativeOverlays,
 	}
 	return context, text.Placement, index

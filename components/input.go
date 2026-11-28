@@ -93,8 +93,9 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 	if selfPainted && focused && snapshot.ShowCaret && snapshot.Blink != nil {
 		snapshot.ShowCaret = snapshot.Blink.Lit(canvas, snapshot.Caret)
 	}
+	var scroll float32
 	if !snapshot.PlatformEditing && content.Width > 0 && content.Height > 0 {
-		inputPaintText(canvas, theme, content, snapshot, focused)
+		scroll = inputPaintText(canvas, theme, content, snapshot, focused)
 	}
 	if snapshot.ID.IsZero() {
 		return
@@ -106,14 +107,29 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 		platformInk = gfx.Color{}
 	}
 	lineTop, lineHeight := inputLineBox(content, size)
+	// The line is told to the platform where it is painted: a field that scrolled it to
+	// keep its caret in view hands over that offset, so the pointer that lands in the
+	// field and the input method's window follow the glyphs the component drew. It is a
+	// separate value from TextBounds, which a native editor lays its own line out in and
+	// scrolls for its own caret; moving that box instead would scroll the line twice.
 	textBounds := gfx.Rect{X: content.X, Y: lineTop, Width: content.Width, Height: lineHeight}
 	canvas.HitWithOptions(snapshot.ID, bounds, snapshot.Label, gfx.HitOptions{
 		Role: gfx.RoleTextField, Cursor: gfx.PointerCursorText, Value: snapshot.Value, Hint: snapshot.Hint,
 		Disabled: snapshot.Disabled, ReadOnly: snapshot.ReadOnly, Secure: snapshot.Secure, Invalid: snapshot.Invalid,
 		NavigationKeys: snapshot.NavigationKeys,
 		TextBounds:     textBounds, TextSize: size, TextWeight: weight, TextColor: platformInk, TextAlignment: snapshot.Alignment,
+		TextScroll:         snapScrollText(scroll),
 		HideNativeOverlays: selfPainted,
 	})
+}
+
+// snapScrollText rounds a line's scroll to whole pixels, so the geometry the pointer is
+// mapped through does not shift by a fraction of one on every paint.
+func snapScrollText(scroll float32) float32 {
+	if scroll <= 0 {
+		return 0
+	}
+	return float32(int(scroll + 0.5))
 }
 
 // inputPaintText paints the value (or the placeholder) of a single-line field
@@ -121,7 +137,7 @@ func paintInputContent(canvas *gfx.Canvas, theme gfx.Theme, bounds, content gfx.
 // character, and the offsets of the snapshot, which index the real text, are
 // mapped onto the bullets. InputGroup paints its embedded single-line control
 // through the same function, so the two cannot drift apart.
-func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snapshot InputSnapshot, focused bool) {
+func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snapshot InputSnapshot, focused bool) float32 {
 	display := snapshot.DisplayValue
 	if display == "" {
 		display = snapshot.Value
@@ -137,10 +153,10 @@ func inputPaintText(canvas *gfx.Canvas, theme gfx.Theme, content gfx.Rect, snaps
 		snapshot.CompositionStart = inputMaskOffset(snapshot.Value, snapshot.CompositionStart)
 		snapshot.CompositionEnd = inputMaskOffset(snapshot.Value, snapshot.CompositionEnd)
 	}
-	inputPaintLine(canvas, theme, content, display, snapshot.Placeholder, snapshot, focused)
+	return inputPaintLine(canvas, theme, content, display, snapshot.Placeholder, snapshot, focused)
 }
 
-func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) {
+func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value, placeholder string, snapshot InputSnapshot, focused bool) float32 {
 	textStyle := snapshot.Text.TextStyle(&theme)
 	fontSize, ink := textStyle.Size, textStyle.Color
 	color := ink
@@ -159,9 +175,15 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 	placeholderShown := snapshot.Value == "" && snapshot.DisplayValue == ""
 	style := textStyle
 	style.Color = color
+	// A value longer than the field is moved left so its caret stays in view, as a
+	// native single-line field scrolls it. Only a field that paints its own line needs
+	// this: the platform editor scrolls the line it paints for its own caret.
+	scroll := inputFollowScroll(canvas, bounds, value, textStyle, snapshot, placeholderShown)
+	line := bounds
+	line.X -= scroll
 	// The caret, selection and composition share the glyphs' origin and follow
 	// the visual order of mixed text (a selection may be several stretches).
-	origin := canvas.LabelOrigin(value, bounds, style, snapshot.Alignment)
+	origin := canvas.LabelOrigin(value, line, style, snapshot.Alignment)
 	var ranges [4]gfx.Rect
 	selectionStart, selectionEnd := inputRange(value, snapshot.SelectionStart, snapshot.SelectionEnd)
 	var selections []gfx.Rect
@@ -200,10 +222,12 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 	// The line is centered in the field like the caret and the selection, but its
 	// box is the text's line box (20px at the 14px body size), not the taller
 	// band the caret and selection fill: accessibility and parity report label
-	// bounds, and those should describe the glyph line the field draws.
+	// bounds, and those should describe the glyph line the field draws. It is moved
+	// with the caret, on the same offset the caret and selection take.
 	lineTop, lineHeight := inputLineBox(bounds, fontSize)
-	line := gfx.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
-	canvas.LabelAligned(value, line, style, snapshot.Alignment)
+	glyphs := gfx.Rect{X: bounds.X, Y: lineTop, Width: bounds.Width, Height: lineHeight}
+	glyphs.X -= scroll
+	canvas.LabelAligned(value, glyphs, style, snapshot.Alignment)
 	for _, selection := range selections {
 		if selection.Width <= 0 {
 			continue
@@ -215,10 +239,32 @@ func inputPaintLine(canvas *gfx.Canvas, theme gfx.Theme, bounds gfx.Rect, value,
 		}
 		selected := textStyle
 		selected.Color = selectedColor
-		canvas.LabelAligned(value, line, selected, snapshot.Alignment)
+		canvas.LabelAligned(value, glyphs, selected, snapshot.Alignment)
 		canvas.Unclip()
 	}
 	canvas.Unclip()
+	return scroll
+}
+
+// inputFollowScroll is how far the line of a field that paints its own text is moved
+// left to keep the caret in view, and asks the field's InputScroll to work it out.
+// A field that leaves the line to the platform editor keeps it where it is: that
+// editor scrolls its own caret, and moving the glyphs under it would put the two out
+// of step.
+func inputFollowScroll(canvas *gfx.Canvas, bounds gfx.Rect, value string, style gfx.TextStyle, snapshot InputSnapshot, placeholderShown bool) float32 {
+	if snapshot.Scroll == nil || !inputSelfPainted(snapshot) || placeholderShown || bounds.Width <= 0 {
+		return 0
+	}
+	caret := inputBoundary(value, snapshot.Caret)
+	caretX := canvas.TextCaretStyle(value, style, caret)
+	return snapshot.Scroll.Follow(caretX, canvas.TextWidthStyle(value, style), bounds.Width)
+}
+
+// inputSelfPainted reports whether the component draws the field's text itself, so the
+// platform editor is only where input arrives (see InputSnapshot.HideEditorText and
+// InputTextStyle.Mono).
+func inputSelfPainted(snapshot InputSnapshot) bool {
+	return snapshot.Text.Mono || snapshot.HideEditorText
 }
 
 // fillInputSelections paints the bands of the field's selections and returns

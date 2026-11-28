@@ -572,6 +572,12 @@ type HitOptions struct {
 	// TextAlignment is the line's placement within TextBounds. Zero preserves
 	// an ordinary input's left alignment; the component resolves its default.
 	TextAlignment Alignment
+	// TextScroll is how far a field that paints its own line has moved it left to keep
+	// its caret in view, in pixels. The pointer that lands in the field and the input
+	// method's window are placed from it, so they follow the glyphs the component drew
+	// rather than where an unscrolled line would have started. A field the platform
+	// editor paints scrolls its own line and leaves it 0.
+	TextScroll float32
 	// HideNativeOverlays asks the platform text service to keep its caret and
 	// selection invisible while preserving native editing, IME and clipboard
 	// behavior. Components that paint their own caret and selection set this
@@ -613,7 +619,7 @@ func (options HitOptions) IsZero() bool {
 		options.Live == 0 && options.Range == (ValueRange{}) && !options.SkipFocus && !options.SkipTab && !options.Backdrop && !options.PassSecondary &&
 		!options.PassPrimary && !options.label && !options.Presentational && !options.Autofocus &&
 		options.TextBounds == (Rect{}) && options.TextSize == 0 && options.TextWeight == 0 && options.TextColor == (Color{}) && options.TextAlignment == 0 &&
-		!options.HideNativeOverlays && !options.NavigationKeys && !options.TypeAhead && options.Placement == nil
+		options.TextScroll == 0 && !options.HideNativeOverlays && !options.NavigationKeys && !options.TypeAhead && options.Placement == nil
 }
 
 // TextPlacement is what a text field that lays its own rows out tells the
@@ -639,6 +645,9 @@ type HitText struct {
 	Color     Color
 	Alignment Alignment
 	Placement TextPlacement
+	// Scroll is HitOptions.TextScroll: how far a field that paints its own line moved
+	// it left, which the geometry of the field's text is measured from.
+	Scroll float32
 }
 
 // Hit is one pointer interaction region in back-to-front paint order. The zero
@@ -1801,10 +1810,11 @@ func (canvas *Canvas) HitWithOptions(id ID, bounds Rect, label string, options H
 	// stretch of hits owns a contiguous stretch of hitTexts (see replay.go).
 	var text int32
 	if options.TextBounds != (Rect{}) || options.TextSize != 0 || options.TextWeight != 0 ||
-		options.TextColor != (Color{}) || options.TextAlignment != 0 || options.Placement != nil {
+		options.TextColor != (Color{}) || options.TextAlignment != 0 || options.TextScroll != 0 || options.Placement != nil {
 		canvas.hitTexts = append(canvas.hitTexts, HitText{
 			Bounds: options.TextBounds, Size: options.TextSize, Weight: options.TextWeight,
 			Color: options.TextColor, Alignment: options.TextAlignment, Placement: options.Placement,
+			Scroll: options.TextScroll,
 		})
 		text = int32(len(canvas.hitTexts))
 	}

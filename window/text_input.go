@@ -151,6 +151,11 @@ type TextInputContext struct {
 	FontWeight float32
 	TextColor  gfx.Color
 	Alignment  gfx.Alignment
+	// TextScroll is how far a field that paints its own line moved it left to keep its
+	// caret in view (gfx.HitOptions.TextScroll): the text the component drew starts that
+	// far before TextBounds, so the pointer and the input method's window are placed from
+	// there. It is 0 for a field the platform editor paints, which scrolls its own line.
+	TextScroll float32
 	// HideNativeOverlays requests that the platform editor keep its own caret
 	// and selection invisible. Editing, IME and clipboard behavior are
 	// unchanged. Components that paint those overlays themselves set it.
