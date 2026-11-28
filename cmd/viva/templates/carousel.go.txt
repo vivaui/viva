@@ -1,6 +1,9 @@
 package {{PACKAGE}}
 
-import "github.com/vivaui/viva/gfx"
+import (
+	"github.com/vivaui/viva/base"
+	"github.com/vivaui/viva/gfx"
+)
 
 // carouselControlOffset is the 16px between the viewport and a button (-left-12
 // puts a size-8 button 48px out).
@@ -61,6 +64,7 @@ type Carousel struct {
 	contentExtent       float32
 	offset              float32
 	orientation         CarouselOrientation
+	direction           Direction
 	previousID          gfx.ID
 	previousLabel       string
 	nextID              gfx.ID
@@ -85,6 +89,17 @@ func (carousel Carousel) Content(extent, offset float32) Carousel {
 // Vertical changes the content axis and control placement to vertical.
 func (carousel Carousel) Vertical() Carousel {
 	carousel.orientation = CarouselVertical
+	return carousel
+}
+
+// Direction sets the reading direction of a horizontal carousel. The zero
+// value is LTR. Under RTL the content reads right to left: the first slide
+// sits at the viewport's right edge and the offset reveals slides on its left,
+// the previous control stands on the right of the viewport and the next one on
+// the left, and a vertical carousel ignores it, since the block axis has no
+// reading direction.
+func (carousel Carousel) Direction(direction Direction) Carousel {
+	carousel.direction = direction
 	return carousel
 }
 
@@ -191,8 +206,7 @@ func (carousel Carousel) Geometry() CarouselGeometry {
 	}
 	geometry := CarouselGeometry{
 		Bounds: viewport, Viewport: viewport,
-		Content: gfx.Rect{X: viewport.X - offset, Y: viewport.Y, Width: contentExtent, Height: viewport.Height},
-		Offset:  offset, MaxOffset: maximum, Index: index, ItemCount: itemCount,
+		Offset: offset, MaxOffset: maximum, Index: index, ItemCount: itemCount,
 		CanPrevious: !carousel.disabled && itemCount > 0 && index > 0,
 		CanNext:     !carousel.disabled && itemCount > 0 && index+1 < itemCount,
 	}
@@ -209,20 +223,36 @@ func (carousel Carousel) Geometry() CarouselGeometry {
 		}
 		return geometry
 	}
+	// LTR content grows to the right and the offset moves it left; RTL content
+	// grows to the left from the viewport's right edge and the offset moves it
+	// right, so the logical [offset, offset+viewportExtent] window of the
+	// content shows through the viewport either way.
+	contentX := viewport.X - offset
+	if base.WritingDirection(carousel.direction).IsRTL() {
+		contentX = viewport.X + offset + viewport.Width - contentExtent
+	}
+	geometry.Content = gfx.Rect{X: contentX, Y: viewport.Y, Width: contentExtent, Height: viewport.Height}
+	// The previous control stands at the content's inline start and the next one
+	// at its inline end: left and right in LTR, right and left in RTL.
+	previousX, nextX := viewport.X-carouselControlOffset-controlSize, viewport.X+viewport.Width+carouselControlOffset
+	if base.WritingDirection(carousel.direction).IsRTL() {
+		previousX, nextX = nextX, previousX
+	}
 	geometry.PreviousButton = gfx.Rect{
-		X:     viewport.X - carouselControlOffset - controlSize,
-		Y:     viewport.Y + (viewport.Height-controlSize)/2,
+		X: previousX, Y: viewport.Y + (viewport.Height-controlSize)/2,
 		Width: controlSize, Height: controlSize,
 	}
 	geometry.NextButton = gfx.Rect{
-		X: viewport.X + viewport.Width + carouselControlOffset, Y: geometry.PreviousButton.Y,
+		X: nextX, Y: geometry.PreviousButton.Y,
 		Width: controlSize, Height: controlSize,
 	}
 	return geometry
 }
 
 // ItemGeometry translates one caller-supplied slide offset and extent along
-// the carousel axis. It does not retain, measure, or virtualize the item.
+// the carousel axis, placing it at the reading direction's edge of the content:
+// its left edge in LTR and its right edge in RTL. It does not retain, measure,
+// or virtualize the item.
 func (carousel Carousel) ItemGeometry(index int, contentOffset, extent float32) CarouselItemGeometry {
 	geometry := carousel.Geometry()
 	contentOffset = carouselFiniteNonNegative(contentOffset)
@@ -230,6 +260,9 @@ func (carousel Carousel) ItemGeometry(index int, contentOffset, extent float32) 
 	bounds := gfx.Rect{
 		X: geometry.Content.X + contentOffset, Y: geometry.Content.Y,
 		Width: extent, Height: geometry.Viewport.Height,
+	}
+	if base.WritingDirection(carousel.direction).IsRTL() && carousel.orientation != CarouselVertical {
+		bounds.X = geometry.Content.X + geometry.Content.Width - contentOffset - extent
 	}
 	if carousel.orientation == CarouselVertical {
 		bounds = gfx.Rect{
@@ -295,6 +328,9 @@ func (carousel Carousel) paintControl(bounds gfx.Rect, id gfx.ID, label string, 
 		border.Alpha *= 0.50
 	}
 	carousel.canvas.RoundedBorder(bounds, radius, 1, border, background)
+	// The arrow points along the reading direction: back toward the previous
+	// slide's edge and forward toward the next one's, mirrored under RTL.
+	rtl := base.WritingDirection(carousel.direction).IsRTL() && carousel.orientation != CarouselVertical
 	icon := &carouselArrowRight
 	switch {
 	case carousel.orientation == CarouselVertical && previous:
@@ -302,7 +338,17 @@ func (carousel Carousel) paintControl(bounds gfx.Rect, id gfx.ID, label string, 
 	case carousel.orientation == CarouselVertical:
 		icon = &carouselArrowDown
 	case previous:
-		icon = &carouselArrowLeft
+		if rtl {
+			icon = &carouselArrowRight
+		} else {
+			icon = &carouselArrowLeft
+		}
+	default:
+		if rtl {
+			icon = &carouselArrowLeft
+		} else {
+			icon = &carouselArrowRight
+		}
 	}
 	paintChevronSized(carousel.canvas, icon, bounds, 16, foreground)
 	carousel.canvas.HitWithOptions(id, bounds, label, gfx.HitOptions{

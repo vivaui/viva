@@ -56,6 +56,11 @@ type Geometry = components.CarouselGeometry
 type State struct {
 	// Orientation selects the content axis. The zero value is horizontal.
 	Orientation components.CarouselOrientation
+	// Direction sets the reading direction of a horizontal carousel. The zero
+	// value is LTR. Under RTL the slides read right to left, the offset reveals
+	// slides on the left of the first one, and the previous and next controls
+	// swap sides; see components.Carousel.Direction.
+	Direction components.Direction
 	// ItemCount is the number of caller-owned slides.
 	ItemCount int
 	// Index is the selected slide. It is clamped by the component.
@@ -170,6 +175,9 @@ func (c *State) draw(d *ui.DrawContext) {
 	if c.Orientation == components.CarouselVertical {
 		strip = strip.Vertical()
 	}
+	if c.Direction != 0 {
+		strip = strip.Direction(c.Direction)
+	}
 	if c.Disabled {
 		strip = strip.Disabled()
 	}
@@ -187,10 +195,11 @@ func (c *State) draw(d *ui.DrawContext) {
 func (c *State) Geometry() components.CarouselGeometry { return c.geometry }
 
 // ItemBounds maps one slide of an evenly divided content extent to page
-// coordinates: Index along the axis, the viewport extent across it. It returns
-// an empty rectangle for an index outside the item count. Use it in Draw for
-// the common one-slide-per-view layout; a caller with items of different
-// extents maps them from Geometry.Content instead.
+// coordinates: Index along the axis at the reading direction's edge of the
+// content — its left in LTR and its right in RTL — and the viewport extent
+// across it. It returns an empty rectangle for an index outside the item count.
+// Use it in Draw for the common one-slide-per-view layout; a caller with items
+// of different extents maps them from Geometry.Content instead.
 func (c *State) ItemBounds(geometry components.CarouselGeometry, index int) gfx.Rect {
 	if index < 0 || index >= c.ItemCount || c.ItemCount <= 0 {
 		return gfx.Rect{}
@@ -207,8 +216,12 @@ func (c *State) ItemBounds(geometry components.CarouselGeometry, index int) gfx.
 			Width: geometry.Viewport.Width, Height: itemExtent,
 		}
 	}
+	x := content.X + float32(index)*itemExtent
+	if c.Direction.IsRTL() {
+		x = content.X + content.Width - float32(index+1)*itemExtent
+	}
 	return gfx.Rect{
-		X: content.X + float32(index)*itemExtent, Y: content.Y,
+		X: x, Y: content.Y,
 		Width: itemExtent, Height: geometry.Viewport.Height,
 	}
 }
