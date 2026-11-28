@@ -55,12 +55,15 @@ func paintColorPickerPanel(s *ColorPickerState, d *DrawContext, c C, ID gfx.ID, 
 	}
 	empty = empty || look.GetEmpty()
 	options := components.ColorPickerOptions{
-		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(),
+		IDs: ids, Labels: labels, Value: value, Open: s.GetOpen(), Empty: empty, ShowAlpha: s.ShowsAlpha(), Live: s.Live(),
 		RoundTrigger: look.GetRound(), TriggerIcon: look.GetIcon(), SaturationText: s.Summary,
 		Viewport: Rect{Width: c.Bounds().Width, Height: c.Bounds().Height}, Layer: s.GetLayer(),
 	}
 	if s.GetOpen() {
 		options.Scope = s.GetHandlers().GetParts().At(8)
+		if s.Live() {
+			options.Scope = canvas.FocusScope()
+		}
 		options.Hex = s.HexPtr().Snapshot(c.GetF(), ids.Hex, labels.Hex, "#3B82F6")
 		if s.GetInvalid() {
 			options.Error = labels.InvalidColor

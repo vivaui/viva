@@ -60,6 +60,7 @@ func (b Box) TabStop(on bool) Box {
 type ColorPickerState struct {
 	open, restoreFocus, applied bool
 	showAlpha                   bool
+	live                        bool
 	draft                       ColorPickerValue
 	hexEditor                   text.Editor
 	hex                         Field
@@ -98,6 +99,28 @@ func (s *ColorPickerState) Applied() bool {
 	applied := s.applied
 	s.applied = false
 	return applied
+}
+
+// Live reports whether edits update the bound color immediately.
+func (s *ColorPickerState) Live() bool { return s.live }
+
+// Live makes a ColorPicker update its bound color as it is edited, without
+// Clear, Cancel or Apply buttons. Escape and outside clicks close the panel
+// without reverting edits. Bind a draft when the application owns Save/Cancel.
+func (b Box) Live(on bool) Box {
+	if extra := b.pickerExtra(); extra != nil {
+		extra.picker.live = on
+	}
+	return b
+}
+
+func (s *ColorPickerState) commitLive() {
+	if s.live && s.open && !s.invalid && s.target != nil {
+		color := s.draft.Color()
+		if *s.target != color {
+			*s.target, s.applied = color, true
+		}
+	}
 }
 
 // colorPickerLook is how a ColorPicker looks, set by its Box methods.
@@ -247,6 +270,7 @@ func (s *ColorPickerState) SetDraftValue(v ColorPickerValue) {
 	}
 	s.seen, s.invalid = value, false
 	s.Summary = Summary(v)
+	s.commitLive()
 }
 
 func Summary(v ColorPickerValue) string {
@@ -304,5 +328,6 @@ func (s *ColorPickerState) syncHex() {
 	if valid {
 		s.draft = s.draft.WithColor(color)
 		s.Summary = Summary(s.draft)
+		s.commitLive()
 	}
 }

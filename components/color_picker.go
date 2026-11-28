@@ -29,6 +29,7 @@ type ColorPickerOptions struct {
 	Open, Empty, Disabled, ShowAlpha   bool
 	// RoundTrigger renders a circular swatch. TriggerIcon can identify a custom
 	// color action independently of its selected color.
+	Live         bool
 	RoundTrigger bool
 	TriggerIcon  *gfx.Icon
 	Viewport     gfx.Rect
@@ -172,16 +173,19 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 		alphaHeight = 16 + gap
 	}
 	fixed := float32(16) + 3*gap + 2*control + alphaHeight + errorHeight
+	if o.Live {
+		fixed -= control + gap
+	}
 	overhead := 2*theme.Metrics.PadSurface + popoverHeaderHeight(theme.Metrics, 0) + popoverBodyGap(theme.Metrics) + 16
 	planeHeight := min(float32(160), max(0, o.Viewport.Height-fixed-overhead))
 	popover := BeginPopover(c, theme, o.Viewport, picker.bounds, PopoverOptions{
-		Layer: o.Layer, Scope: o.Scope, DismissID: o.IDs.Dismiss, AnchorDismiss: true, ConsumeOutsidePress: true,
+		Layer: o.Layer, Scope: o.Scope, DismissID: o.IDs.Dismiss, AnchorDismiss: true, ConsumeOutsidePress: !o.Live, Instant: o.Live,
 		Align: PopoverAlignEnd, SideOffset: 6, ContentSize: gfx.Size{Width: 280}, BodyHeight: planeHeight + fixed,
 		InitialFocusID: o.IDs.Saturation,
 	})
 	body := popover.Begin(labels.Color, "").Body
 	defer popover.End()
-	if !o.Scope.IsZero() {
+	if !o.Scope.IsZero() && !o.Live {
 		c.TrapFocus(o.Scope)
 	}
 	l.Content = body
@@ -224,6 +228,9 @@ func (picker ColorPicker) Paint() ColorPickerLayout {
 	if o.Error != "" {
 		c.Label(o.Error, gfx.Rect{X: body.X, Y: y, Width: body.Width, Height: errorHeight - gap}, gfx.TextStyle{Size: theme.Metrics.FontSizeS, Color: theme.Danger})
 		y += errorHeight
+	}
+	if o.Live {
+		return l
 	}
 	width := max(0, (body.Width-2*gap)/3)
 	BeginButton(c, theme, o.IDs.Clear, gfx.Rect{X: body.X, Y: y, Width: width, Height: control}).Ghost(labels.Clear)
