@@ -3,6 +3,7 @@ package windows
 import (
 	"unsafe"
 
+	"github.com/vivaui/viva/internal/diag"
 	"github.com/vivaui/viva/internal/platform"
 )
 
@@ -74,8 +75,11 @@ func (renderer *renderer) initializeComposition(software bool) bool {
 	if !renderer.composition {
 		return false
 	}
-	if err := renderer.createCompositionDevice(software); err == nil {
-		if err := renderer.createResources(); err == nil {
+	err := renderer.createCompositionDevice(software)
+	if err == nil {
+		err = renderer.createResources()
+		if err == nil {
+			renderer.describeDevice()
 			return true
 		}
 	}
@@ -83,6 +87,11 @@ func (renderer *renderer) initializeComposition(software bool) bool {
 	renderer.releaseDevice()
 	renderer.composition = false
 	restoreWindowRedirection(renderer.window)
+	if diag.Enabled(diag.Warn) {
+		diag.Report(diag.Warn, "render", "composition-fallback",
+			"DirectComposition could not be made, so the window presents through its own swap chain",
+			diag.String("error", err.Error()))
+	}
 	return false
 }
 

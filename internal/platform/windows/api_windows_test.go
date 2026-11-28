@@ -39,6 +39,7 @@ func TestNativeStructureABI(t *testing.T) {
 		{"D3D11_SUBRESOURCE_DATA", unsafe.Sizeof(resourceData{}), 16},
 		{"D3D11_SHADER_RESOURCE_VIEW_DESC", unsafe.Sizeof(resourceViewDesc{}), 24},
 		{"DXGI_SWAP_CHAIN_DESC1", unsafe.Sizeof(swapChainDesc1{}), 48},
+		{"DXGI_ADAPTER_DESC", unsafe.Sizeof(adapterDesc{}), 312},
 		{"D3D11_RENDER_TARGET_BLEND_DESC", unsafe.Sizeof(renderBlend{}), 32},
 		{"D3D11_BLEND_DESC", unsafe.Sizeof(blendDesc{}), 264},
 		{"D3D11_RASTERIZER_DESC", unsafe.Sizeof(rasterDesc{}), 40},

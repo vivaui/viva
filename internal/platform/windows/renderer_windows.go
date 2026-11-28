@@ -129,6 +129,9 @@ func rectangleScissor(batch compositingBatch, scale float32, width, height int) 
 type renderer struct {
 	drawScratch drawScratch // what draw hands Direct3D by address
 	compositionState
+	// software says the device is WARP, Microsoft's software rasterizer, rather
+	// than the display driver, when the driver could not be used or was skipped.
+	software                                                     bool
 	window, device, context, swap, target                        uintptr
 	rectangleVertex, rectangleFragment, textVertex, textFragment uintptr
 	buffer, view, constants, blend, textBlend, raster, sampler   uintptr
@@ -260,6 +263,7 @@ func (renderer *renderer) createDeviceAndResources(software bool) error {
 			release(&renderer.device)
 			continue
 		}
+		renderer.software = driver == 5
 		if err := renderer.createWindowSwapChain(); err != nil {
 			failure = err
 			release(&renderer.context)
@@ -267,7 +271,11 @@ func (renderer *renderer) createDeviceAndResources(software bool) error {
 			release(&renderer.swap)
 			continue
 		}
-		return renderer.createResources()
+		err := renderer.createResources()
+		if err == nil {
+			renderer.describeDevice()
+		}
+		return err
 	}
 	if failure == nil {
 		failure = fmt.Errorf("no Direct3D driver type was tried")

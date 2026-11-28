@@ -2,6 +2,8 @@ package windows
 
 import (
 	"fmt"
+	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -14,6 +16,72 @@ import (
 // system switches to another one. Everything made on the device goes with it, but
 // what the window shows is in memory in the renderer, so the device is made again
 // and the scene drawn once more, instead of closing the window.
+
+var describeDeviceOnce sync.Once
+
+// describeDevice reports the graphics path once per process: which driver and
+// adapter stand behind the Direct3D device, its feature level, and whether
+// DirectComposition or the window's own swap chain presents. Every window makes
+// its own device the same way, so the first one speaks for the rest.
+func (renderer *renderer) describeDevice() {
+	describeDeviceOnce.Do(func() {
+		if !diag.Enabled(diag.Info) {
+			return
+		}
+		driver, present := "hardware", "window"
+		if renderer.software {
+			driver = "warp"
+		}
+		if renderer.usesComposition() {
+			present = "direct-composition"
+		}
+		attrs := []diag.Attr{
+			diag.String("driver", driver),
+			diag.String("present", present),
+			diag.String("feature-level", featureLevelName(uint32(comCall0(renderer.device, 37)))), // ID3D11Device::GetFeatureLevel
+		}
+		if name, ok := renderer.adapterName(); ok {
+			attrs = append(attrs, diag.String("adapter", name))
+		}
+		diag.Report(diag.Info, "render", "device", "the window draws with Direct3D 11", attrs...)
+	})
+}
+
+// featureLevelName spells a D3D_FEATURE_LEVEL the way the SDK does: 0xb000 is 11_0.
+func featureLevelName(level uint32) string {
+	return fmt.Sprintf("%d_%d", level>>12, level>>8&0xf)
+}
+
+var dxgiDeviceIID = guid{0x54ec77fa, 0x1377, 0x44e6, [8]byte{0x8c, 0x32, 0x88, 0xfd, 0x5f, 0x44, 0xc8, 0x4c}}
+
+// adapterDesc is DXGI_ADAPTER_DESC.
+type adapterDesc struct {
+	Description                         [128]uint16
+	Vendor, Device, Subsystem, Revision uint32
+	Video, System, Shared               uintptr
+	LUID                                [2]uint32
+	Flags                               uint32
+}
+
+// adapterName is the adapter the device draws with, as DXGI names it: a display
+// driver by its model, or "Microsoft Basic Render Driver" for WARP.
+func (renderer *renderer) adapterName() (string, bool) {
+	var device, adapter uintptr
+	if renderer.device == 0 || hresult(comCall2(renderer.device, 0, uintptr(unsafe.Pointer(&dxgiDeviceIID)), uintptr(unsafe.Pointer(&device)))) != nil {
+		return "", false
+	}
+	defer release(&device)
+	// IDXGIDevice::GetAdapter, IDXGIAdapter::GetDesc.
+	if hresult(comCall1(device, 7, uintptr(unsafe.Pointer(&adapter)))) != nil {
+		return "", false
+	}
+	defer release(&adapter)
+	var desc adapterDesc
+	if hresult(comCall1(adapter, 8, uintptr(unsafe.Pointer(&desc)))) != nil {
+		return "", false
+	}
+	return syscall.UTF16ToString(desc.Description[:]), true
+}
 
 // deviceLost reports whether the renderer's device is gone. It asks the device
 // itself (ID3D11Device::GetDeviceRemovedReason), which any failing call can then

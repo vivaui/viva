@@ -48,6 +48,7 @@ func (renderer *renderer) createCompositionDevice(software bool) error {
 	for _, driver := range drivers {
 		status, _, _ = createD3DDevice.Call(0, driver, 0, 0x20, uintptr(unsafe.Pointer(&levels[0])), 1, 7, uintptr(unsafe.Pointer(&renderer.device)), 0, uintptr(unsafe.Pointer(&renderer.context)))
 		if hresult(status) == nil {
+			renderer.software = driver == 5
 			break
 		}
 		release(&renderer.context)
