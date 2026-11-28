@@ -406,6 +406,86 @@ func TestMenuScrollbarIsDraggableAndRowsLeaveItRoom(t *testing.T) {
 	}
 }
 
+// The drag goes through the runtime's pointer event pass: the paint asks the
+// canvas for the events aimed at the bar, a press on it starts a drag the held
+// moves follow, the release ends it, and every event of the press was consumed
+// instead of left to become a click. A move the pointer hovers with is neither
+// delivered to the drag nor consumed.
+func TestMenuScrollbarDragsThroughThePointerEventPass(t *testing.T) {
+	scroll := MenuScroll{BarID: gfx.Item(9)}
+	var canvas gfx.Canvas
+	paint := func(canvas *gfx.Canvas, size gfx.Size) {
+		menu := BeginDropdownMenu(canvas, gfx.DarkTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 104}, DropdownMenuOptions{Layer: 7, Scope: gfx.Item(42), Scroll: &scroll})
+		for index := range 8 {
+			menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: "Item"})
+		}
+		menu.End()
+	}
+	paint(&canvas, gfx.Size{})
+	hits := map[gfx.ID]gfx.Rect{}
+	for _, hit := range canvas.Hits() {
+		hits[hit.ID] = hit.Bounds
+	}
+	bar, ok := hits[scroll.BarID]
+	if !ok {
+		t.Fatal("a scrolling menu with a BarID declares no scrollbar hit")
+	}
+	if !canvas.ListensForPointer() {
+		t.Fatal("a menu with a scrollbar did not ask for pointer events")
+	}
+	drag := func(kind gfx.PointerEventKind, y float32) bool {
+		return canvas.DeliverPointer(gfx.PointerEvent{Kind: kind, Button: gfx.PointerButtonPrimary, X: bar.X + 2, Y: y, Target: scroll.BarID, Captured: kind != gfx.PointerDown}, gfx.Size{Width: 200, Height: 200}, paint)
+	}
+	if !drag(gfx.PointerDown, bar.Y+2) || !scroll.Dragging() {
+		t.Fatal("pressing the thumb neither started a drag nor was consumed")
+	}
+	if !drag(gfx.PointerMove, bar.Y+bar.Height+500) || scroll.Offset != scroll.Max() {
+		t.Fatalf("the held drag left the offset at %v of %v", scroll.Offset, scroll.Max())
+	}
+	if !drag(gfx.PointerUp, bar.Y+bar.Height+500) || scroll.Dragging() {
+		t.Fatal("the release did not end the drag")
+	}
+	if drag(gfx.PointerMove, bar.Y+2) {
+		t.Fatal("a move the pointer hovers with was delivered to the drag")
+	}
+}
+
+func TestMenuScrollbarDragPassAllocatesNothing(t *testing.T) {
+	scroll := MenuScroll{BarID: gfx.Item(9)}
+	var canvas gfx.Canvas
+	paint := func(canvas *gfx.Canvas, size gfx.Size) {
+		menu := BeginDropdownMenu(canvas, gfx.DarkTheme(), gfx.Rect{X: 10, Y: 20, Width: 160, Height: 104}, DropdownMenuOptions{Layer: 7, Scope: gfx.Item(42), Scroll: &scroll})
+		for index := range 8 {
+			menu.AddItem(DropdownMenuItem{ID: gfx.Item(100 + index), Label: "Item"})
+		}
+		menu.End()
+	}
+	paint(&canvas, gfx.Size{})
+	hits := canvas.Hits()
+	var bar gfx.Rect
+	for _, hit := range hits {
+		if hit.ID == scroll.BarID {
+			bar = hit.Bounds
+		}
+	}
+	if bar.Height == 0 {
+		t.Fatal("a scrolling menu with a BarID declares no scrollbar hit")
+	}
+	if !canvas.DeliverPointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonPrimary, X: bar.X + 2, Y: bar.Y + 2, Target: scroll.BarID}, gfx.Size{Width: 200, Height: 200}, paint) {
+		t.Fatal("pressing the thumb was not delivered")
+	}
+	event := gfx.PointerEvent{Kind: gfx.PointerMove, Button: gfx.PointerButtonPrimary, X: bar.X + 2, Y: bar.Y + 8, Target: scroll.BarID, Captured: true}
+	if !canvas.DeliverPointer(event, gfx.Size{Width: 200, Height: 200}, paint) {
+		t.Fatal("the held drag was not delivered")
+	}
+	if allocations := testing.AllocsPerRun(100, func() {
+		canvas.DeliverPointer(event, gfx.Size{Width: 200, Height: 200}, paint)
+	}); allocations != 0 {
+		t.Fatalf("a drag pass over the scrollbar allocated %v times", allocations)
+	}
+	canvas.DeliverPointer(gfx.PointerEvent{Kind: gfx.PointerUp, Button: gfx.PointerButtonPrimary, Target: scroll.BarID}, gfx.Size{Width: 200, Height: 200}, paint)
+}
+
 func TestScrollingMenuAllocatesNothingOncePainted(t *testing.T) {
 	scroll := MenuScroll{BarID: gfx.Item(9)}
 	var canvas gfx.Canvas
