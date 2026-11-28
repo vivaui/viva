@@ -123,7 +123,7 @@ func fontFamilies(mono bool) []string {
 		for name := range seen {
 			names = append(names, name)
 		}
-	} else if services, err := newTextServices(); err == nil {
+	} else if services, err := newFontScanTextServices(); err == nil {
 		defer services.close()
 		names = make([]string, 0, len(seen))
 		for name := range seen {

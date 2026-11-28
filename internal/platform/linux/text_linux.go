@@ -193,6 +193,15 @@ func loadTextAPI() (*textServices, error) {
 }
 
 func newTextServices() (*textServices, error) {
+	return newTextServicesWithFontMap(false)
+}
+
+// 字体扫描使用独立的 FT2 字体映射，避免与界面共享 Cairo 的原生字体缓存。
+func newFontScanTextServices() (*textServices, error) {
+	return newTextServicesWithFontMap(true)
+}
+
+func newTextServicesWithFontMap(isolated bool) (*textServices, error) {
 	systemTextAPI.once.Do(func() {
 		systemTextAPI.api, systemTextAPI.err = loadTextAPI()
 	})
@@ -201,12 +210,28 @@ func newTextServices() (*textServices, error) {
 	}
 	services := *systemTextAPI.api
 
-	fontMap := services.fontMapGetDefault()
+	var fontMap uintptr
+	if isolated {
+		// Linux PangoCairo 依赖 PangoFT2；缺少该符号时由调用方退回 Fontconfig。
+		symbol, err := purego.Dlsym(services.pangoCairo, "pango_ft2_font_map_new")
+		if err != nil || symbol == 0 {
+			return nil, fmt.Errorf("linux: isolated Pango font map is unavailable")
+		}
+		var fontMapNew func() uintptr
+		purego.RegisterFunc(&fontMapNew, symbol)
+		fontMap = fontMapNew()
+	} else {
+		fontMap = services.fontMapGetDefault()
+	}
 	if fontMap == 0 {
 		services.close()
 		return nil, fmt.Errorf("linux: system Pango font map is unavailable")
 	}
 	services.context = services.fontMapCreateContext(fontMap)
+	if isolated {
+		// context 持有自己的引用；无论创建是否成功，都释放构造器返回的引用。
+		services.objectUnref(fontMap)
+	}
 	if services.context == 0 {
 		services.close()
 		return nil, fmt.Errorf("linux: create Pango font context")
