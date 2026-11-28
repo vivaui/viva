@@ -289,7 +289,7 @@ func (scroll *MenuScroll) Dragging() bool { return scroll.Held }
 func (scroll *MenuScroll) Drag(event gfx.PointerEvent) bool {
 	switch event.Kind {
 	case gfx.PointerDown:
-		if scroll.BarID.IsZero() || event.Target != scroll.BarID || scroll.MaxValue <= 0 {
+		if scroll.BarID.IsZero() || event.Target != scroll.BarID || scroll.MaxValue <= 0 || event.Button > gfx.PointerButtonPrimary {
 			return false
 		}
 		at := scroll.BarTop + (scroll.View-scroll.Thumb)*scroll.Offset/scroll.MaxValue

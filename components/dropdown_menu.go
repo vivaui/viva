@@ -982,7 +982,8 @@ func (menu *menuSurface) end() {
 			// follow wherever the pointer goes. Without this ask the bar
 			// hit-tests and paints its thumb, but nothing ever drags it. A move
 			// the pointer merely hovers with is not a drag and stays hover.
-			if event, ok := menu.canvas.PointerOn(scroll.BarID); ok && (event.Kind != gfx.PointerMove || scroll.Dragging()) {
+			if event, ok := menu.canvas.PointerOn(scroll.BarID); ok &&
+				((event.Kind == gfx.PointerDown && event.Button <= gfx.PointerButtonPrimary) || (scroll.Dragging() && event.Kind != gfx.PointerDown)) {
 				scroll.Drag(event)
 				menu.canvas.Consume()
 			}

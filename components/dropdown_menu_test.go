@@ -399,6 +399,9 @@ func TestMenuScrollbarIsDraggableAndRowsLeaveItRoom(t *testing.T) {
 	if scroll.Dragging() || scroll.Drag(gfx.PointerEvent{Kind: gfx.PointerMove, Y: 0}) {
 		t.Fatal("moving after release still dragged")
 	}
+	if scroll.Drag(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonSecondary, Target: scroll.BarID, Y: bar.Y + 2}) || scroll.Dragging() {
+		t.Fatal("a secondary press started a scrollbar drag")
+	}
 	// Without a BarID nothing but the rows is declared.
 	plain := MenuScroll{}
 	if _, ok := scrollingMenu(&plain, &canvas, 8, nil)[gfx.Item(9)]; ok || len(nonBlockHits(canvas.Hits())) != 3 {
@@ -447,6 +450,9 @@ func TestMenuScrollbarDragsThroughThePointerEventPass(t *testing.T) {
 	}
 	if drag(gfx.PointerMove, bar.Y+2) {
 		t.Fatal("a move the pointer hovers with was delivered to the drag")
+	}
+	if canvas.DeliverPointer(gfx.PointerEvent{Kind: gfx.PointerDown, Button: gfx.PointerButtonSecondary, X: bar.X + 2, Y: bar.Y + 2, Target: scroll.BarID}, gfx.Size{Width: 200, Height: 200}, paint) || scroll.Dragging() {
+		t.Fatal("a secondary press started or consumed a scrollbar drag")
 	}
 }
 
