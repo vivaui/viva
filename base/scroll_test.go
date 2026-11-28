@@ -292,7 +292,7 @@ func TestScrollPaintsOnWholeLogicalPixels(t *testing.T) {
 }
 
 // ScrollState.Key is the keyboard's counterpart of Wheel: a page that owns an
-// area's focus moves it with the arrow keys, a viewport at a time with PageUp and
+// area's focus moves it with the arrow keys, a page at a time with PageUp and
 // PageDown, and to either end with Home and End, never past them.
 func TestScrollStateKeyScrollsWithinItsContent(t *testing.T) {
 	var view View
@@ -304,7 +304,7 @@ func TestScrollStateKeyScrollsWithinItsContent(t *testing.T) {
 	}{
 		{gfx.KeyDown, 32},
 		{gfx.KeyUp, 0},
-		{gfx.KeyPageDown, 90},
+		{gfx.KeyPageDown, gfx.ScrollPage(state.Viewport)},
 		{gfx.KeyPageUp, 0},
 		{gfx.KeyEnd, 200},
 		{gfx.KeyHome, 0},
@@ -324,8 +324,8 @@ func TestScrollStateKeyScrollsWithinItsContent(t *testing.T) {
 	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyDown, Release: true}, 32); result.Handled || state.Offset != 0 {
 		t.Errorf("a key release moved the area to %v, handled %v", state.Offset, result.Handled)
 	}
-	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyPageDown}, 32); result.Handled && state.Offset != 90 {
-		t.Errorf("a zero step paged to %v, want 90", state.Offset)
+	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyPageDown}, 32); result.Handled && state.Offset != gfx.ScrollPage(state.Viewport) {
+		t.Errorf("a zero step paged to %v, want %v", state.Offset, gfx.ScrollPage(state.Viewport))
 	}
 	state.ScrollTo(state.Max())
 	if result := state.Key(gfx.KeyEvent{Key: gfx.KeyDown}, 32); !result.Handled || result.Repaint {
@@ -369,19 +369,21 @@ func TestAWheelPageMovesTheAreasOwnPage(t *testing.T) {
 	state := view.ScrollState(listID)
 	window := gfx.Size{Width: 800, Height: 1000}
 	// The system asks for a screen per notch: the event's delta is a screen of
-	// the window, and the area moves a screen of its own instead.
+	// the window, and the area moves a page of its own instead, short of its
+	// whole viewport so the edge it leaves stays in view.
 	if result := state.Wheel(gfx.ScrollEvent{DeltaY: 1000, Pages: 1, Viewport: window}); !result.Handled {
 		t.Fatal("a page notch was not handled")
 	}
-	if state.Offset != 100 {
-		t.Fatalf("one page notch moved the area to %v, want its own page 100, not the window's", state.Offset)
+	page := state.Offset
+	if page <= state.Viewport/2 || page >= state.Viewport {
+		t.Fatalf("one page notch moved the area %v of its %v viewport, want most of it with an overlap, not the window's", page, state.Viewport)
 	}
 	state.Wheel(gfx.ScrollEvent{DeltaY: 1000, Pages: 1, Viewport: window})
-	if state.Offset != 200 {
-		t.Fatalf("the second page notch left the area at %v, want 200", state.Offset)
+	if state.Offset != 2*page {
+		t.Fatalf("the second page notch left the area at %v, want %v", state.Offset, 2*page)
 	}
 	state.Wheel(gfx.ScrollEvent{DeltaY: -1000, Pages: -1, Viewport: window})
-	if state.Offset != 100 {
-		t.Fatalf("a page notch up left the area at %v, want 100", state.Offset)
+	if state.Offset != page {
+		t.Fatalf("a page notch up left the area at %v, want %v", state.Offset, page)
 	}
 }

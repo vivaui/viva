@@ -362,11 +362,11 @@ func (s *ScrollState) relax(canvas *gfx.Canvas) {
 
 // Key applies the keyboard's scrolling to the area, from the content and viewport
 // of its last layout: Left and Right move a Sideways area by step, Up and Down
-// vertically by step, PageUp and PageDown by a viewport, and Home and End to the
-// start and the end. A step of zero or less is 32 pixels, one line. It reports a
-// recognized key as handled even when the area was already at that end, so the
-// caller stops there rather than looking for another area, and Repaint only when
-// the offsets moved.
+// vertically by step, PageUp and PageDown by gfx.ScrollPage of the viewport, and
+// Home and End to the start and the end. A step of zero or less is 32 pixels,
+// one line. It reports a recognized key as handled even when the area was
+// already at that end, so the caller stops there rather than looking for another
+// area, and Repaint only when the offsets moved.
 //
 // It is for a page that gives the keyboard to the area itself, as one does to a
 // terminal or a log beside a control: a List and a Table scroll with the arrow
@@ -378,7 +378,7 @@ func (s *ScrollState) Key(event gfx.KeyEvent, step float32) gfx.EventResult {
 	if step <= 0 {
 		step = 32
 	}
-	page := max(s.Viewport*0.9, step)
+	page := max(gfx.ScrollPage(s.Viewport), step)
 	before, beforeX := s.Offset, s.OffsetX
 	switch event.Key {
 	case gfx.KeyLeft:

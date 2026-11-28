@@ -298,9 +298,9 @@ func (e ScrollEvent) StepY(unit float32) float32 {
 
 // StepYIn is StepY for content of unit-sized rows inside a scroll region whose
 // visible height is viewport. When the system asks for whole screens, the notch
-// moves as many of the region's pages as Pages says, rounded down to whole rows,
-// rather than the window-sized distance DeltaY carries; that is one screen of
-// the region, which is a screen of the rows a user sees in it.
+// moves as many of the region's pages, ScrollPage of its viewport, as Pages
+// says, rounded down to whole rows, rather than the window-sized distance
+// DeltaY carries; the rows at the edge it leaves stay in view at the other.
 func (e ScrollEvent) StepYIn(unit, viewport float32) float32 {
 	if e.Pages == 0 || unit <= 0 || e.DeltaY == 0 {
 		return e.StepY(unit)
@@ -322,13 +322,21 @@ func (e ScrollEvent) StepXIn(unit, viewport float32) float32 {
 	return pageStep(e.DeltaX, e.Pages, unit, viewport)
 }
 
+// ScrollPage is how far a page of scrolling moves a region whose visible extent
+// along the axis is viewport: seven eighths of it, as browsers page, so the
+// last lines of one page are still in view at the top of the next and a reader
+// keeps their place. A page key and a wheel set to whole screens both move it.
+func ScrollPage(viewport float32) float32 {
+	return max(viewport, 0) * 7 / 8
+}
+
 // pageStep is how far pages of a region of viewport units-by-unit move it in the
 // direction of delta.
 func pageStep(delta, pages, unit, viewport float32) float32 {
 	if pages < 0 {
 		pages = -pages
 	}
-	units := float32(int(pages * viewport / unit))
+	units := float32(int(pages * ScrollPage(viewport) / unit))
 	if units < 1 {
 		units = 1
 	}
