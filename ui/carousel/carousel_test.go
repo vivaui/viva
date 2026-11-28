@@ -186,7 +186,8 @@ func TestRTLDirectionMirrorsSlidesAndControls(t *testing.T) {
 
 // A click on a navigation control is read with Clicked after View, and a
 // different identity is not reported.
-func TestViewReportsClicksForCallerIdentities(t *testing.T) {	m := new(model)
+func TestViewReportsClicksForCallerIdentities(t *testing.T) {
+	m := new(model)
 	m.open(t, carousel.Horizontal)
 
 	drawClick(m.page, m.canvas, m.viewPage, testNext)
