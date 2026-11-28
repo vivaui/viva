@@ -259,6 +259,59 @@ func run(application *app.Application) error {
 }
 ```
 
+## 可以响应点击的通知
+
+`Application.ShowNotification` 发出通知并返回 `NotificationHandle`。用户点击时执行 `OnActivate`，投递失败通过 `OnError` 报告，`Close` 撤回通知。先用 `app.Supports(app.CapabilityNotificationActivation)` 检查：平台无法回报点击时，通知不可交互，示例会改为显示提示文字而不是控件。macOS 上应用必须打包，并获准显示通知。
+
+执行 `go run ./examples/guides/notifications` 可以运行完整示例。
+
+<!-- example: notifications/main.go -->
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/ui"
+)
+
+func main() {
+	err := app.RunApplication(func(application *app.Application) error {
+		var window *app.Window
+		var latest *app.NotificationHandle
+		var err error
+		window, err = ui.OpenWindow(application, app.Config{Title: "System notifications", Width: 600, Height: 300}, ui.PageConfig{View: func(c ui.C) {
+			ui.Column(c).Fill().Pad(24).Gap(12).Children(func() {
+				if !app.Supports(app.CapabilityNotificationActivation) {
+					ui.Text(c, "Interactive notifications are not supported on this target.")
+					return
+				}
+				ui.Text(c, "On macOS, run the packaged application and allow system notifications.")
+				if ui.Button(c, "Show notification").Clicked() {
+					latest.Close()
+					latest, err = application.ShowNotification(app.Notification{Title: "Viva", Body: "Click to restore the application window."}, app.NotificationEvents{
+						OnActivate: func() { window.Show() },
+						OnError:    func(err error) { log.Printf("notification delivery: %v", err) },
+					})
+					if err != nil {
+						log.Printf("request notification: %v", err)
+					}
+				}
+				if ui.Button(c, "Withdraw notification").Clicked() {
+					latest.Close()
+					latest = nil
+				}
+			})
+		}})
+		return err
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 ## 值得了解的边界
 
 - Linux 上的文件对话框、URL 分发和通知，会在用户请求时启动已安装的桌面工具。Viva 不捆绑 GTK、Qt 或 D-Bus 栈。

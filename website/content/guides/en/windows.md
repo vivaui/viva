@@ -205,6 +205,37 @@ When a `Menu` is set, a press opens the system's own native menu, built by calli
 
 `StatusItem.SetIcon`, `SetTooltip` and `Remove` change or remove the icon later.
 
+## Watermarks
+
+`Config.Watermark` draws repeated text over the whole window, including embedded native views, without taking input. An empty `Text` turns it off. Native support is reported by `app.Supports(app.CapabilityWindowWatermark)`; hosts without it ignore the setting, so the example sets the watermark only when the capability is present.
+
+Run `go run ./examples/guides/watermark` to try the complete example.
+
+<!-- example: watermark/main.go -->
+```go
+// A native watermark stays above embedded views without receiving input.
+package main
+
+import (
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+	"log"
+)
+
+func main() {
+	config := app.Config{Title: "Native watermark", Width: 800, Height: 500}
+	if app.Supports(app.CapabilityWindowWatermark) {
+		config.Watermark = app.Watermark{Text: "DRAFT", Angle: -25, FontWeight: gfx.WeightLight, Insets: gfx.All(24)}
+	}
+	if err := ui.Run(config, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(24).Children(func() { ui.Button(c, "The watermark does not intercept input") })
+	}}); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 ## What differs between platforms
 
 The same call can only say what the platform can say. A status icon reports its rectangle on macOS and Windows but only the click point on Linux. A panel is dismissed by losing key status, by deactivation or by `FocusOut` respectively. A new icon in a full macOS menu bar can be hidden by the system, notably next to the notch, and Windows 11 shows a new icon in the overflow flyout until the user promotes it. `docs/conformance.md` in the repository lists these, and what must be checked by hand on each platform.

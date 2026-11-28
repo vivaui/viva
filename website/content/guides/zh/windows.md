@@ -171,6 +171,37 @@ func addTray(application *app.Application, window *app.Window, icon app.StatusIc
 
 之后可以用 `StatusItem.SetIcon`、`SetTooltip` 和 `Remove` 修改或移除图标。
 
+## 水印
+
+`Config.Watermark` 在整个窗口上绘制重复文字，包括嵌入的原生视图，且不接收输入；`Text` 为空时关闭。原生支持由 `app.Supports(app.CapabilityWindowWatermark)` 报告；不支持的宿主会忽略该设置，因此示例只在具备该能力时设置水印。
+
+执行 `go run ./examples/guides/watermark` 可以运行完整示例。
+
+<!-- example: watermark/main.go -->
+```go
+// A native watermark stays above embedded views without receiving input.
+package main
+
+import (
+	"github.com/vivaui/viva/app"
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/ui"
+	"log"
+)
+
+func main() {
+	config := app.Config{Title: "Native watermark", Width: 800, Height: 500}
+	if app.Supports(app.CapabilityWindowWatermark) {
+		config.Watermark = app.Watermark{Text: "DRAFT", Angle: -25, FontWeight: gfx.WeightLight, Insets: gfx.All(24)}
+	}
+	if err := ui.Run(config, ui.PageConfig{View: func(c ui.C) {
+		ui.Column(c).Fill().Pad(24).Children(func() { ui.Button(c, "The watermark does not intercept input") })
+	}}); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
 ## 各平台的差异
 
 同一个调用只能说出平台能说的东西。状态栏图标在 macOS 和 Windows 上报告它的矩形，在 Linux 上只报告点击点；面板分别因失去 key 状态、窗口停用或 `FocusOut` 而关闭。在已满的 macOS 菜单栏里，新图标可能被系统隐藏，尤其是刘海旁边；Windows 11 会把新图标放进溢出浮层，直到用户把它提升出来。仓库中的 `docs/conformance.md`列出了这些，以及每个平台必须手动检查的项目。
