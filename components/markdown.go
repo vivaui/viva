@@ -327,7 +327,6 @@ const (
 	markdownCodePadY  = 8
 	markdownCellPadX  = 8
 	markdownCellPadY  = 5
-	markdownLabelGap  = 12
 	markdownMaxLines  = 20000 // the most lines one layout produces
 )
 
@@ -452,8 +451,6 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 	body := mdFont{size: style.Size, line: style.LineHeight, weight: gfx.WeightRegular, color: mdColText}
 	y := float32(0)
 	var prev *markdown.Block
-	labeledEnd := -1
-	labeledColW := float32(0)
 	for index := range doc.Blocks {
 		if l.lines >= markdownMaxLines {
 			break
@@ -508,24 +505,6 @@ func (v *MarkdownView) Layout(canvas *gfx.Canvas, style MarkdownStyle, doc *mark
 			blkSpan.tableRowLo = int32(len(v.tableRows))
 			y = l.table(b, x0, w, y, t)
 			blkSpan.tableRowHi = int32(len(v.tableRows))
-		case markdown.Labeled:
-			if index >= labeledEnd {
-				labelFont := t
-				labelFont.color = mdColMuted
-				maxLabel := float32(0)
-				end := index
-				for end < len(doc.Blocks) && doc.Blocks[end].Kind == markdown.Labeled && doc.Blocks[end].Quote == b.Quote {
-					if ls := doc.LabelSpans(&doc.Blocks[end]); len(ls) > 0 {
-						maxLabel = max(maxLabel, l.natural(ls, labelFont))
-					}
-					end++
-				}
-				labeledEnd = end
-				labeledColW = min(maxLabel, max(w*0.28, 48))
-			}
-			blkSpan.cellLo = int32(len(v.cellSpans))
-			y = l.labeled(b, x0, w, y, t, labeledColW)
-			blkSpan.cellHi = int32(len(v.cellSpans))
 		}
 		blkSpan.bottom = y
 		v.blockSpans = append(v.blockSpans, blkSpan)
@@ -593,52 +572,12 @@ func (l *mdLayout) gap(prev, cur *markdown.Block) float32 {
 	switch {
 	case prev.Kind == markdown.Item && (cur.Kind == markdown.Item || cur.Kind == markdown.Paragraph && cur.Level > 0):
 		return float32(int(lh * 0.25))
-	case prev.Kind == markdown.Labeled && cur.Kind == markdown.Labeled:
-		return float32(int(lh * 0.25))
 	case cur.Kind == markdown.Heading:
 		return float32(int(lh * 0.75))
 	case prev.Kind == markdown.Heading:
 		return float32(int(lh * 0.3))
 	}
 	return float32(int(lh * 0.45))
-}
-
-// labeled lays out one borderless two-column label–content block.
-func (l *mdLayout) labeled(b *markdown.Block, x, width, y float32, t mdFont, labelW float32) float32 {
-	v, doc := l.v, l.doc
-	labelSpans := doc.LabelSpans(b)
-	valueSpans := doc.Spans(b)
-	labelFont := t
-	labelFont.color = mdColMuted
-	top := y
-
-	lRowLo := int32(len(v.rowSpans))
-	labelEnd := top
-	if len(labelSpans) > 0 && labelW > 0 {
-		l.appendSpans(labelSpans)
-		labelEnd = l.inline(labelSpans, x, labelW, top, labelFont, markdown.AlignLeft)
-	}
-	v.cellSpans = append(v.cellSpans, mdCellSpan{rowLo: lRowLo, rowHi: int32(len(v.rowSpans))})
-
-	if len(labelSpans) > 0 && len(valueSpans) > 0 {
-		v.plain = append(v.plain, ' ')
-	}
-
-	valX := x
-	valW := width
-	if labelW > 0 {
-		valX = x + labelW + markdownLabelGap
-		valW = max(width-labelW-markdownLabelGap, 40)
-	}
-	vRowLo := int32(len(v.rowSpans))
-	valEnd := top
-	if len(valueSpans) > 0 {
-		l.appendSpans(valueSpans)
-		valEnd = l.inline(valueSpans, valX, valW, top, t, markdown.AlignLeft)
-	}
-	v.cellSpans = append(v.cellSpans, mdCellSpan{rowLo: vRowLo, rowHi: int32(len(v.rowSpans))})
-
-	return max(max(labelEnd, valEnd), top+t.line)
 }
 
 // quoteBars keeps one bar per quote level running through the blocks inside it.

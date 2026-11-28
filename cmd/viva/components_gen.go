@@ -148,7 +148,7 @@ var componentRequires = map[string][]string{
 	"item":                    {"button"},
 	"markdown":                {"markdown-anchor", "markdown-index"},
 	"markdown-anchor":         {"markdown"},
-	"markdown-index":          {"markdown", "markdown-anchor"},
+	"markdown-index":          {"markdown"},
 	"marker":                  {"spinner"},
 	"menubar":                 {"dialog", "direction", "dropdown-menu", "hover-card", "popover"},
 	"metric-card":             {"card"},
