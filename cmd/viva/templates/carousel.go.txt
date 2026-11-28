@@ -104,19 +104,40 @@ func (carousel Carousel) Label(label string) Carousel {
 }
 
 // CarouselStepForKey is the carousel region's keyboard movement: Left/Up go to
-// the previous slide, Right/Down to the next, and Home/End to the ends. The
-// caller owns the index and does not move past either end.
+// the previous slide, Right/Down to the next, and Home/End to the ends. Left
+// and Right follow the reading direction, as the framework's other horizontal
+// roving keys do (TabsKeyDown, CalendarFocusForKey): an RTL carousel reads
+// Left as the next slide and Right as the previous one. The caller owns the
+// index and does not move past either end.
 func CarouselStepForKey(key gfx.Key, index, count int, direction Direction) (int, bool) {
 	if count <= 0 || index < 0 || index >= count {
 		return index, false
 	}
 	switch key {
-	case gfx.KeyLeft, gfx.KeyUp:
+	case gfx.KeyLeft:
+		step := -1
+		if direction.IsRTL() {
+			step = 1
+		}
+		if next := index + step; next >= 0 && next < count {
+			return next, true
+		}
+		return index, true
+	case gfx.KeyRight:
+		step := 1
+		if direction.IsRTL() {
+			step = -1
+		}
+		if next := index + step; next >= 0 && next < count {
+			return next, true
+		}
+		return index, true
+	case gfx.KeyUp:
 		if index > 0 {
 			return index - 1, true
 		}
 		return index, true
-	case gfx.KeyRight, gfx.KeyDown:
+	case gfx.KeyDown:
 		if index < count-1 {
 			return index + 1, true
 		}
