@@ -218,7 +218,9 @@ func (s *ListState) HasFocus() bool {
 // list has not laid out is placed at the average height of the rows it has, so the
 // request stays for the paints that show the rows around the target and measure
 // them, and goes once the offset no longer moves; the list asks for those paints
-// itself, and lets the request go if anything else moves the list first.
+// itself, and lets the request go if anything else moves the list first. On a list
+// that follows its end, a row away from the end leaves the end, as a scroll by the
+// user does; ScrollToEnd follows it again.
 func (s *ListState) ScrollTo(row int, align ListAlign) {
 	kind := listScrollStart
 	switch align {
@@ -910,7 +912,9 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 	id := p.ID(at)
 	// Follow is declared on the area the List returns, after its rows: whether the area
 	// keeps to its end is what the paint before left it, as ScrollState.Pinned says.
-	pinned := c.f.Scrolls.get(id).pinned()
+	// ScrollArea forgets whether it follows until that declaration, so it is kept here.
+	prev := c.f.Scrolls.get(id)
+	pinned, followed := prev.pinned(), prev.follow
 	area := c.f.ScrollArea(id)
 	p.SetNode(area.i, at)
 	in := &state.list
@@ -918,11 +922,17 @@ func (p *Page) ListArea(c C, state *ListState, n int, horizontal bool, row func(
 	state.resize(n)
 	scroll := c.f.Exts[c.f.Nodes[area.i].Ext].scrollState
 	in.Scroll = scroll
+	// The request settles against the follow the paint before declared: a ScrollTo
+	// away from the end of a following list leaves the end, as a scroll by the user
+	// does, instead of the Follow(true) after the rows pulling the list back to it.
+	scroll.follow = followed
 	if state.applyScrollRequest(c.f) {
 		// The area was declared at the offset it had; the layout reads the node, so it
 		// takes the requested one too, which the rows are placed for below (as ScrollAt).
 		c.f.Nodes[area.i].Scroll = scroll.Offset
+		pinned = scroll.pinned()
 	}
+	scroll.follow = false
 	viewport := scroll.Viewport
 	if viewport <= 0 {
 		viewport = c.f.bounds.Height
