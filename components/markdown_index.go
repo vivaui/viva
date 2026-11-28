@@ -1,0 +1,423 @@
+package components
+
+import (
+	"sort"
+	"unsafe"
+
+	"github.com/vivaui/viva/gfx"
+	"github.com/vivaui/viva/markdown"
+)
+
+// Four-level hierarchical spatial index and independent text-offset index for
+// MarkdownView. Original pieces, boxes, images, links and plain text stay in
+// reading order so selection and copy semantics never change; Paint, OffsetAt
+// and CaretAt query these flat reusable indices in O(log N + visible) time
+// without steady-state allocations.
+
+// mdRowSpan indexes one laid-out visual line of a block or table cell. Ranges
+// refer to contiguous slices of MarkdownView's backing arrays in exact emission
+// order.
+type mdRowSpan struct {
+	y, bottom        float32
+	pieceLo, pieceHi int32
+	boxLo, boxHi     int32
+	linkLo, linkHi   int32
+	imageLo, imageHi int32
+}
+
+// mdCellSpan indexes the monotonic visual rows of one table cell.
+type mdCellSpan struct {
+	rowLo, rowHi int32
+}
+
+// mdTableRowSpan indexes one row of a Table block: its cells (at most 24) and
+// row-level boxes (header fill and horizontal divider).
+type mdTableRowSpan struct {
+	y, bottom      float32
+	cellLo, cellHi int32
+	boxLo, boxHi   int32
+}
+
+// mdBlockSpan indexes one top-level block of the laid-out document. Blocks are
+// strictly disjoint and monotonically ordered by y.
+type mdBlockSpan struct {
+	kind                   markdown.Kind
+	y, bottom              float32
+	rowLo, rowHi           int32
+	tableRowLo, tableRowHi int32
+	blockBox               int32 // mdBoxCode or mdBoxLine, or -1
+	markerPiece            int32 // Item bullet/number piece, or -1
+}
+
+func (v *MarkdownView) visibleBlockRange(clipped bool, clipTop, clipBottom float32) (int, int) {
+	n := len(v.blockSpans)
+	if !clipped || n == 0 {
+		return 0, n
+	}
+	lo := sort.Search(n, func(i int) bool { return v.blockSpans[i].bottom >= clipTop })
+	hi := sort.Search(n, func(i int) bool { return v.blockSpans[i].y > clipBottom })
+	if hi < lo {
+		hi = lo
+	}
+	return lo, hi
+}
+
+func visibleRowRange(rows []mdRowSpan, clipped bool, clipTop, clipBottom float32) (int, int) {
+	n := len(rows)
+	if !clipped || n == 0 {
+		return 0, n
+	}
+	lo := sort.Search(n, func(i int) bool { return rows[i].bottom >= clipTop })
+	hi := sort.Search(n, func(i int) bool { return rows[i].y > clipBottom })
+	if hi < lo {
+		hi = lo
+	}
+	return lo, hi
+}
+
+func visibleTableRowRange(rows []mdTableRowSpan, clipped bool, clipTop, clipBottom float32) (int, int) {
+	n := len(rows)
+	if !clipped || n == 0 {
+		return 0, n
+	}
+	lo := sort.Search(n, func(i int) bool { return rows[i].bottom >= clipTop })
+	hi := sort.Search(n, func(i int) bool { return rows[i].y > clipBottom })
+	if hi < lo {
+		hi = lo
+	}
+	return lo, hi
+}
+
+func (v *MarkdownView) visibleQuoteBars(level int, clipped bool, clipTop, clipBottom float32) []int32 {
+	bars := v.quoteBarIdx[level]
+	n := len(bars)
+	if !clipped || n == 0 {
+		return bars
+	}
+	lo := sort.Search(n, func(i int) bool {
+		b := v.boxes[bars[i]]
+		return b.y+b.h >= clipTop
+	})
+	hi := sort.Search(n, func(i int) bool {
+		return v.boxes[bars[i]].y > clipBottom
+	})
+	if hi < lo {
+		hi = lo
+	}
+	return bars[lo:hi]
+}
+
+// visitVisibleRows invokes fn for every laid-out visual row intersecting
+// [clipTop, clipBottom] inside blocks [firstBlk, lastBlk). For Table blocks it
+// descends Table -> TableRow -> Cell -> CellVisualRow so a single very tall
+// cell row only visits its visible lines.
+func (v *MarkdownView) visitVisibleRows(firstBlk, lastBlk int, clipped bool, clipTop, clipBottom float32, fn func(row *mdRowSpan)) {
+	for bi := firstBlk; bi < lastBlk; bi++ {
+		blk := &v.blockSpans[bi]
+		if blk.kind == markdown.Table {
+			tRows := v.tableRows[blk.tableRowLo:blk.tableRowHi]
+			rLo, rHi := visibleTableRowRange(tRows, clipped, clipTop, clipBottom)
+			for ri := rLo; ri < rHi; ri++ {
+				tr := &tRows[ri]
+				for ci := tr.cellLo; ci < tr.cellHi; ci++ {
+					cell := &v.cellSpans[ci]
+					cRows := v.rowSpans[cell.rowLo:cell.rowHi]
+					lo, hi := visibleRowRange(cRows, clipped, clipTop, clipBottom)
+					for k := lo; k < hi; k++ {
+						fn(&cRows[k])
+					}
+				}
+			}
+			continue
+		}
+		rows := v.rowSpans[blk.rowLo:blk.rowHi]
+		lo, hi := visibleRowRange(rows, clipped, clipTop, clipBottom)
+		for k := lo; k < hi; k++ {
+			fn(&rows[k])
+		}
+	}
+}
+
+// offsetAtIndexed locates the rendered byte offset nearest (x, y) in local
+// coordinates using the hierarchical spatial index. Because every block, table
+// row, and visual row strictly encloses its pieces vertically, widening outward
+// by increasing vertical distance and pruning once minDy*1_000_000 > bestScore
+// produces the exact same result as a full linear scan over v.pieces.
+func (v *MarkdownView) offsetAtIndexed(x, y float32) (int, bool) {
+	if len(v.blockSpans) == 0 {
+		return 0, false
+	}
+	best, bestScore := -1, float32(0)
+
+	prevPlainPiece := func(pi int32) *mdPiece {
+		for j := pi - 1; j >= 0; j-- {
+			if v.pieces[j].plainLo >= 0 {
+				return &v.pieces[j]
+			}
+		}
+		return nil
+	}
+
+	checkRow := func(row *mdRowSpan) (int, bool) {
+		var previous *mdPiece
+		for pi := row.pieceLo; pi < row.pieceHi; pi++ {
+			piece := &v.pieces[pi]
+			if piece.plainLo < 0 {
+				continue
+			}
+			prev := previous
+			if prev == nil && y >= piece.y && y <= piece.y+piece.h {
+				prev = prevPlainPiece(pi)
+			}
+			if prev != nil && prev.y == piece.y && prev.plainHi < piece.plainLo && y >= piece.y && y <= piece.y+piece.h {
+				start := prev.x + v.caretAdvance(prev, int(prev.plainHi-prev.plainLo))
+				end := piece.x + v.caretAdvance(piece, 0)
+				if end > start && x >= start && x <= end {
+					gap := int(piece.plainLo - prev.plainHi)
+					position := int(float32(gap)*(x-start)/(end-start) + 0.5)
+					return gfx.GraphemeStart(unsafe.String(unsafe.SliceData(v.plain), len(v.plain)), int(prev.plainHi)+min(max(position, 0), gap)), true
+				}
+			}
+			previous = piece
+			dx, dy := float32(0), float32(0)
+			if x < piece.x {
+				dx = piece.x - x
+			} else if x > piece.x+piece.w {
+				dx = x - piece.x - piece.w
+			}
+			if y < piece.y {
+				dy = piece.y - y
+			} else if y > piece.y+piece.h {
+				dy = y - piece.y - piece.h
+			}
+			score := dy*1_000_000 + dx
+			if best < 0 || score < bestScore || (score == bestScore && int(pi) < best) {
+				best, bestScore = int(pi), score
+			}
+		}
+		return 0, false
+	}
+
+	spanDist := func(top, bottom float32) float32 {
+		if y < top {
+			return top - y
+		}
+		if y > bottom {
+			return y - bottom
+		}
+		return 0
+	}
+
+	spanCouldBeat := func(top, bottom float32) bool {
+		return best < 0 || spanDist(top, bottom)*1_000_000 <= bestScore
+	}
+
+	// checkRowsNearY searches rows sorted by y around the pointer, widening
+	// within the slice before returning so empty rows (such as blank lines
+	// inside a code block) resolve against other rows of the same cell/block.
+	checkRowsNearY := func(rows []mdRowSpan) (int, bool) {
+		rn := len(rows)
+		if rn == 0 {
+			return 0, false
+		}
+		ri := sort.Search(rn, func(i int) bool { return rows[i].bottom >= y })
+		up := ri - 1
+		down := ri
+		if down < rn && y >= rows[down].y && y <= rows[down].bottom {
+			if off, hit := checkRow(&rows[down]); hit {
+				return off, true
+			}
+			down++
+		}
+		for up >= 0 || down < rn {
+			upOK := up >= 0 && spanCouldBeat(rows[up].y, rows[up].bottom)
+			downOK := down < rn && spanCouldBeat(rows[down].y, rows[down].bottom)
+			if !upOK && !downOK {
+				break
+			}
+			if upOK && (!downOK || spanDist(rows[up].y, rows[up].bottom) <= spanDist(rows[down].y, rows[down].bottom)) {
+				if off, hit := checkRow(&rows[up]); hit {
+					return off, true
+				}
+				up--
+			} else {
+				if off, hit := checkRow(&rows[down]); hit {
+					return off, true
+				}
+				down++
+			}
+		}
+		return 0, false
+	}
+
+	checkTableRow := func(tr *mdTableRowSpan) (int, bool) {
+		for ci := tr.cellLo; ci < tr.cellHi; ci++ {
+			cell := &v.cellSpans[ci]
+			if off, hit := checkRowsNearY(v.rowSpans[cell.rowLo:cell.rowHi]); hit {
+				return off, true
+			}
+		}
+		return 0, false
+	}
+
+	checkBlock := func(blk *mdBlockSpan) (int, bool) {
+		if blk.kind == markdown.Table {
+			tRows := v.tableRows[blk.tableRowLo:blk.tableRowHi]
+			trn := len(tRows)
+			if trn == 0 {
+				return 0, false
+			}
+			tri := sort.Search(trn, func(i int) bool { return tRows[i].bottom >= y })
+			up := tri - 1
+			down := tri
+			if down < trn && y >= tRows[down].y && y <= tRows[down].bottom {
+				if off, hit := checkTableRow(&tRows[down]); hit {
+					return off, true
+				}
+				down++
+			}
+			for up >= 0 || down < trn {
+				upOK := up >= 0 && spanCouldBeat(tRows[up].y, tRows[up].bottom)
+				downOK := down < trn && spanCouldBeat(tRows[down].y, tRows[down].bottom)
+				if !upOK && !downOK {
+					break
+				}
+				if upOK && (!downOK || spanDist(tRows[up].y, tRows[up].bottom) <= spanDist(tRows[down].y, tRows[down].bottom)) {
+					if off, hit := checkTableRow(&tRows[up]); hit {
+						return off, true
+					}
+					up--
+				} else {
+					if off, hit := checkTableRow(&tRows[down]); hit {
+						return off, true
+					}
+					down++
+				}
+			}
+			return 0, false
+		}
+		if off, hit := checkRowsNearY(v.rowSpans[blk.rowLo:blk.rowHi]); hit {
+			return off, true
+		}
+		return 0, false
+	}
+
+	// Search the block covering y first, then widen outward by increasing
+	// vertical distance while any neighbour block could still beat bestScore.
+	n := len(v.blockSpans)
+	bi := sort.Search(n, func(i int) bool { return v.blockSpans[i].bottom >= y })
+	up := bi - 1
+	down := bi
+	if down < n && y >= v.blockSpans[down].y && y <= v.blockSpans[down].bottom {
+		if off, hit := checkBlock(&v.blockSpans[down]); hit {
+			return off, true
+		}
+		down++
+	}
+	for up >= 0 || down < n {
+		upOK := up >= 0 && spanCouldBeat(v.blockSpans[up].y, v.blockSpans[up].bottom)
+		downOK := down < n && spanCouldBeat(v.blockSpans[down].y, v.blockSpans[down].bottom)
+		if !upOK && !downOK {
+			break
+		}
+		if upOK && (!downOK || spanDist(v.blockSpans[up].y, v.blockSpans[up].bottom) <= spanDist(v.blockSpans[down].y, v.blockSpans[down].bottom)) {
+			if off, hit := checkBlock(&v.blockSpans[up]); hit {
+				return off, true
+			}
+			up--
+		} else {
+			if off, hit := checkBlock(&v.blockSpans[down]); hit {
+				return off, true
+			}
+			down++
+		}
+	}
+
+	if best < 0 {
+		return 0, false
+	}
+	piece := &v.pieces[best]
+	localX := min(max(x-piece.x, 0), piece.w)
+	var local int
+	if piece.mono {
+		local = v.codeOffsetAt(piece, localX)
+	} else {
+		local = v.measure.TextOffsetAtStyle(piece.text, gfx.TextStyle{Size: piece.size, Weight: piece.weight, Italic: piece.italic}, localX)
+	}
+	local = min(max(local, 0), int(piece.plainHi-piece.plainLo))
+	return int(piece.plainLo) + local, true
+}
+
+// caretAtIndexed resolves a rendered byte offset using the monotonic
+// plainPieces index in O(log P) time, preserving exact boundary affinity and
+// same-line gap interpolation semantics.
+func (v *MarkdownView) caretAtIndexed(offset int) (gfx.Rect, bool) {
+	n := len(v.plainPieces)
+	if n == 0 {
+		return gfx.Rect{}, false
+	}
+	value := unsafe.String(unsafe.SliceData(v.plain), len(v.plain))
+	offset = gfx.GraphemeStart(value, offset)
+
+	// Find the first text-bearing piece whose plainHi >= offset.
+	i := sort.Search(n, func(k int) bool {
+		return int(v.pieces[v.plainPieces[k]].plainHi) >= offset
+	})
+
+	var chosen, before, after *mdPiece
+	for i < n && v.pieces[v.plainPieces[i]].plainLo < 0 {
+		i++
+	}
+	if i < n {
+		cand := &v.pieces[v.plainPieces[i]]
+		if offset >= int(cand.plainLo) && offset <= int(cand.plainHi) {
+			chosen = cand
+			// When offset sits on the exact seam between two adjacent pieces
+			// (prev.plainHi == offset == next.plainLo), prefer the piece that
+			// starts at offset, matching the linear scan's affinity rule.
+			if i+1 < n {
+				next := &v.pieces[v.plainPieces[i+1]]
+				if next.plainLo >= 0 && int(next.plainLo) == offset && int(chosen.plainLo) < offset {
+					chosen = next
+				}
+			}
+		} else {
+			after = cand
+			for j := i - 1; j >= 0; j-- {
+				if v.pieces[v.plainPieces[j]].plainLo >= 0 {
+					before = &v.pieces[v.plainPieces[j]]
+					break
+				}
+			}
+		}
+	} else {
+		for j := n - 1; j >= 0; j-- {
+			if v.pieces[v.plainPieces[j]].plainLo >= 0 {
+				before = &v.pieces[v.plainPieces[j]]
+				break
+			}
+		}
+	}
+
+	if chosen == nil {
+		if before != nil && after != nil && before.y == after.y {
+			start := before.x + v.caretAdvance(before, int(before.plainHi-before.plainLo))
+			end := after.x + v.caretAdvance(after, 0)
+			fraction := float32(offset-int(before.plainHi)) / float32(after.plainLo-before.plainHi)
+			return gfx.Rect{X: v.paintX + start + (end-start)*fraction, Y: v.paintY + before.y, Width: 1, Height: before.h}, true
+		}
+		if before == nil && after == nil {
+			return gfx.Rect{}, false
+		}
+		if before == nil || after != nil && int(after.plainLo)-offset <= offset-int(before.plainHi) {
+			chosen = after
+			offset = int(after.plainLo)
+		} else {
+			chosen = before
+			offset = int(before.plainHi)
+		}
+	}
+	local := min(max(offset-int(chosen.plainLo), 0), int(chosen.plainHi-chosen.plainLo))
+	advance := v.caretAdvance(chosen, local)
+	return gfx.Rect{X: v.paintX + chosen.x + advance, Y: v.paintY + chosen.y, Width: 1, Height: chosen.h}, true
+}

@@ -36,6 +36,7 @@ var docPrimaryEntries = map[string][]string{
 	"kbd.go":                {"Kbd"},
 	"markdown.go":           {"MarkdownView"},
 	"markdown_anchor.go":    {"MarkdownView"},
+	"markdown_index.go":     {"MarkdownView"},
 	"marker.go":             {"Marker"},
 	"menu_typeahead.go":     {"MenuTypeahead"},
 	"message.go":            {"Message"},
