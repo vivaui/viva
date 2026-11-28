@@ -144,13 +144,20 @@ func (overlay *watermarkOverlay) close() {
 // raiseWatermark is the only stacking entry point. New native child/owned windows
 // must call it after changing the native view tree.
 func (state *windowState) raiseWatermark() {
-	if state.watermark != nil && state.watermark.window != 0 {
-		level := ^uintptr(1) // HWND_NOTOPMOST: match the owner, including demotion.
-		if style, err := readDecorationStyle(state.window, ^uintptr(19)); err == nil && style&wsExTopmost != 0 {
-			level = ^uintptr(0)
-		}
-		setWindowPosition.Call(state.watermark.window, level, 0, 0, 0, 0, 0x13) // HWND_TOP, NOMOVE|NOSIZE|NOACTIVATE
+	if state.watermark == nil || state.watermark.window == 0 {
+		return
 	}
+	// The overlay takes its owner's topmost level, at the top of that level.
+	// HWND_NOTOPMOST would not do alone: it has no effect on a window that is
+	// not topmost, so a popup shown after the overlay would stay above it and
+	// see no watermark. HWND_TOP and HWND_TOPMOST always reorder.
+	level := uintptr(0) // HWND_TOP: the top of the non-topmost group, popup or not.
+	if style, err := readDecorationStyle(state.window, ^uintptr(19)); err == nil && style&wsExTopmost != 0 {
+		level = ^uintptr(0) // HWND_TOPMOST: the top of the topmost group, with the bit.
+	} else if style, err := readDecorationStyle(state.watermark.window, ^uintptr(19)); err == nil && style&wsExTopmost != 0 {
+		level = ^uintptr(1) // HWND_NOTOPMOST: a stale topmost bit the owner lost is dropped here, above the popups.
+	}
+	setWindowPosition.Call(state.watermark.window, level, 0, 0, 0, 0, 0x13) // NOMOVE|NOSIZE|NOACTIVATE
 }
 
 func (state *windowState) syncWatermark() error {
