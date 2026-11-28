@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-<p align="center">English | <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center">English | <a href="README.zh-CN.md">简体中文</a> | <a href="README.tr.md">Türkçe</a></p>
 
 <p align="center">
   <a href="https://docs.qq.com/doc/DVXZWdWFscGxjaWVP"><img src="https://img.shields.io/badge/Viva_交流群-扫码加入-07C160?style=for-the-badge&logo=wechat&logoColor=white" alt="Viva 交流群" /></a>
