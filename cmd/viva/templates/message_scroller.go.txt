@@ -444,10 +444,15 @@ func (state *MessageScrollState) AnchorTurn(top float32) {
 // Prepended tells the state that height of content was inserted above what it was
 // showing, older history loaded while the reader looks at the transcript. The offset
 // moves by the same amount at the next Resolve so the rows on screen stay where they
-// are. A transcript that follows its end needs no correction.
+// are. A transcript that follows its end needs no correction. While an anchored turn
+// holds the viewport, the anchor moves with the insert: the turn sits below the
+// history that was loaded, so its content-space top moves down by the same height.
 func (state *MessageScrollState) Prepended(height float32) {
 	if height > 0 && height == height {
 		state.shift += height
+		if state.anchoring {
+			state.anchorTop += height
+		}
 	}
 }
 

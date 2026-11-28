@@ -167,6 +167,29 @@ func TestMessageScrollStateAnchorsATurnThenHandsOverToTheLiveEdge(t *testing.T) 
 	}
 }
 
+// Loading older history while a turn is anchored keeps the anchored message
+// where it sits on screen: its content-space top moves down with the insert.
+func TestMessageScrollStatePrependsWhileATurnIsAnchored(t *testing.T) {
+	state := MessageScrollState{PreviousPeek: MessageScrollPreviousPeek}
+	state.AnchorTurn(250)
+	if got := state.Resolve(100, 500); got != 186 {
+		t.Fatalf("anchored offset = %v, want 186", got)
+	}
+	state.Prepended(120)
+	if got := state.Resolve(100, 620); got != 306 {
+		t.Fatalf("anchored offset after prepending 120 above = %v, want 306 (the turn kept in place)", got)
+	}
+	// An anchor the reader released before the Resolve keeps the plain shift.
+	scrolled := MessageScrollState{PreviousPeek: MessageScrollPreviousPeek}
+	scrolled.AnchorTurn(250)
+	scrolled.Resolve(100, 500)
+	scrolled.ScrollBy(-20)
+	scrolled.Prepended(120)
+	if got := scrolled.Resolve(100, 620); got != 286 {
+		t.Fatalf("released anchor after prepending 120 = %v, want 286", got)
+	}
+}
+
 func TestMessageScrollStateAllocatesNothing(t *testing.T) {
 	state := MessageScrollState{AutoScroll: true}
 	if allocations := testing.AllocsPerRun(100, func() {
