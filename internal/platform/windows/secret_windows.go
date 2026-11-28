@@ -50,6 +50,12 @@ func secretTarget(service, account string) (*uint16, error) {
 func secretError(operation string, code syscall.Errno) error {
 	switch code {
 	case errorNotFound:
+		if operation == "write" {
+			// Nothing was being looked for: a write the store cannot place
+			// means it has nowhere to keep credentials for this logon, which
+			// is "no secret store" to the caller, not a missing secret.
+			return fmt.Errorf("%w: %s: %v", platform.ErrSecretStoreUnavailable, operation, code)
+		}
 		return platform.ErrSecretNotFound
 	case errorAccessDenied:
 		return fmt.Errorf("%w: %s: %v", platform.ErrSecretDenied, operation, code)
