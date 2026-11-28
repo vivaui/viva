@@ -103,3 +103,32 @@ func TestCarouselStepForKey(t *testing.T) {
 		t.Fatal("Enter is not a carousel movement")
 	}
 }
+
+// An RTL carousel reads right to left: Left shows the next slide and Right the
+// previous one, while the vertical keys and the ends keep their meaning.
+func TestCarouselStepForKeyFollowsTheReadingDirection(t *testing.T) {
+	if next, ok := CarouselStepForKey(gfx.KeyLeft, 1, 3, RTL); !ok || next != 2 {
+		t.Fatalf("RTL Left = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyRight, 1, 3, RTL); !ok || next != 0 {
+		t.Fatalf("RTL Right = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyLeft, 2, 3, RTL); !ok || next != 2 {
+		t.Fatalf("RTL Left at the last slide = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyRight, 0, 3, RTL); !ok || next != 0 {
+		t.Fatalf("RTL Right at the first slide = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyUp, 1, 3, RTL); !ok || next != 0 {
+		t.Fatalf("RTL Up = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyDown, 1, 3, RTL); !ok || next != 2 {
+		t.Fatalf("RTL Down = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyHome, 2, 3, RTL); !ok || next != 0 {
+		t.Fatalf("RTL Home = %v, %v", next, ok)
+	}
+	if next, ok := CarouselStepForKey(gfx.KeyEnd, 0, 3, RTL); !ok || next != 2 {
+		t.Fatalf("RTL End = %v, %v", next, ok)
+	}
+}
