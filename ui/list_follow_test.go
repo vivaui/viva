@@ -100,3 +100,57 @@ func TestListFollowReachesTheEndOfALongListItStartsWith(t *testing.T) {
 		t.Fatalf("the last row painted %v (Visible %v, at the end %v)", d.has("row 4999"), visibleOf(&m.list), m.list.AtEnd())
 	}
 }
+
+// ScrollTo on a List that follows its end leaves the end, as a scroll by the user
+// does: the request is applied when the list is declared, before the Box it returns
+// says Follow(true) again, and the rows that arrive after it do not pull the list
+// back to the end. ScrollToEnd follows the end again.
+func TestListScrollToLeavesTheEndOfAFollowingList(t *testing.T) {
+	m := newLogRows(400)
+	d := openPage(t, followingRows(m))
+	settle := func(step string) {
+		t.Helper()
+		for frames := 0; d.driver.Transitioning(); frames++ {
+			if frames == 10 {
+				t.Fatalf("%s: the list asked for ten paints", step)
+			}
+			if err := d.driver.Advance(16 * time.Millisecond); err != nil {
+				t.Fatal(err)
+			}
+		}
+		d.repaint()
+	}
+	d.repaint()
+	settle("start")
+	if !m.list.AtEnd() {
+		t.Fatalf("the following list did not start at its end (Visible %v)", visibleOf(&m.list))
+	}
+	const target = 20
+	label := "row " + strconv.Itoa(target)
+	m.list.ScrollTo(target, ui.ListStart)
+	d.repaint()
+	settle("ScrollTo")
+	if !d.has(label) || m.list.AtEnd() {
+		t.Fatalf("after ScrollTo(%d) %s painted %v, at the end %v (Visible %v)", target, label, d.has(label), m.list.AtEnd(), visibleOf(&m.list))
+	}
+	area := d.ListArea("Rows")
+	if top := d.hit(label).Bounds.Y - area.Y; top < -2 || top > 2 {
+		t.Fatalf("row %d is %v px from the top of the list, want it at the top", target, top)
+	}
+	m.n += 5
+	d.repaint()
+	settle("rows arrived")
+	if !d.has(label) || m.list.AtEnd() {
+		t.Fatalf("rows that arrived after ScrollTo moved the list: %s painted %v, at the end %v (Visible %v)", label, d.has(label), m.list.AtEnd(), visibleOf(&m.list))
+	}
+	m.list.ScrollToEnd()
+	d.repaint()
+	settle("ScrollToEnd")
+	m.n += 5
+	d.repaint()
+	settle("rows arrived at the end")
+	last := "row " + strconv.Itoa(m.n-1)
+	if !d.has(last) || !m.list.AtEnd() {
+		t.Fatalf("after ScrollToEnd the list did not follow its end: %s painted %v, at the end %v (Visible %v)", last, d.has(last), m.list.AtEnd(), visibleOf(&m.list))
+	}
+}
