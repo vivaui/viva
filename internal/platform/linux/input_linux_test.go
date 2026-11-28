@@ -964,3 +964,58 @@ func TestX11ModifierTapsDeliverOnlyModifiers(t *testing.T) {
 		}
 	}
 }
+
+func TestTerminalRawKeypadRespectsNumLock(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		navigation uint32
+		digit      uint32
+		state      uint16
+		wantKey    input.Key
+		wantText   string
+	}{
+		{"digit 0", 0xff9e, 0xffb0, xcbMod2, input.KeyUnknown, "0"},
+		{"digit 1", keysymKPEnd, 0xffb1, xcbMod2, input.KeyUnknown, "1"},
+		{"digit 2", keysymKPDown, 0xffb2, xcbMod2, input.KeyUnknown, "2"},
+		{"digit 3", 0xff9b, 0xffb3, xcbMod2, input.KeyUnknown, "3"},
+		{"digit 4", keysymKPLeft, 0xffb4, xcbMod2, input.KeyUnknown, "4"},
+		{"digit 5", 0xff9d, 0xffb5, xcbMod2, input.KeyUnknown, "5"},
+		{"digit 6", keysymKPRight, 0xffb6, xcbMod2, input.KeyUnknown, "6"},
+		{"digit 7", keysymKPHome, 0xffb7, xcbMod2, input.KeyUnknown, "7"},
+		{"digit 8", keysymKPUp, 0xffb8, xcbMod2, input.KeyUnknown, "8"},
+		{"digit 9", 0xff9a, 0xffb9, xcbMod2, input.KeyUnknown, "9"},
+		{"decimal", keysymKPDelete, 0xffae, xcbMod2, input.KeyUnknown, "."},
+		{"left", keysymKPLeft, 0xffb4, 0, input.KeyLeft, ""},
+		{"right", keysymKPRight, 0xffb6, 0, input.KeyRight, ""},
+		{"shift left", keysymKPLeft, 0xffb4, xcbMod2 | xcbModShift, input.KeyLeft, ""},
+		{"shift digit", keysymKPLeft, 0xffb4, xcbModShift, input.KeyUnknown, "4"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var keys []platform.KeyEvent
+			router := eventRouter{
+				config: platform.Config{OnKey: func(event platform.KeyEvent) (platform.Frame, error) {
+					keys = append(keys, event)
+					return platform.Frame{}, nil
+				}},
+				text:         &linuxTextInput{enabled: true, input: platform.TextInput{Terminal: true, KeyReleases: true}},
+				present:      func(platform.Frame) error { return nil },
+				modifierKeys: newModifierTracker(),
+			}
+			keymap := xcbKeymap{first: 79, last: 79, perKeycode: 2, keysyms: []uint32{test.navigation, test.digit}}
+			event := xcbInputEvent{Detail: 79, State: test.state}
+			if err := router.key(&keymap, &event, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := router.release(&keymap, &event); err != nil {
+				t.Fatal(err)
+			}
+			want := []platform.KeyEvent{
+				{Key: test.wantKey, Text: test.wantText, Typed: test.wantText, Code: 79, Modifiers: xcbModifiers(test.state)},
+				{Key: test.wantKey, Code: 79, Release: true, Modifiers: xcbModifiers(test.state)},
+			}
+			if !reflect.DeepEqual(keys, want) {
+				t.Fatalf("keys = %+v, want %+v", keys, want)
+			}
+		})
+	}
+}

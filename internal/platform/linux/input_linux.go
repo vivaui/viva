@@ -239,6 +239,12 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 		keyEvent.Text = keymap.text(event.Detail, event.State)
 	}
 	keysym := keymap.keysym(event.Detail, event.State)
+	// 小键盘按当前 Num Lock 和 Shift 状态区分数字与导航键。
+	if isKeypadKeysym(keysym) {
+		key = normalizedKeysym(keysym)
+		keyEvent.Key = key
+		keyEvent.Text = keymap.text(event.Detail, event.State)
+	}
 	if key.IsModifier() && router.ime != nil {
 		// An input method reads a lone modifier by its press and its release (a bare
 		// Shift switches between Chinese and English), so it gets both.
@@ -249,6 +255,10 @@ func (router eventRouter) key(keymap *xcbKeymap, event *xcbInputEvent, repeat bo
 		keyEvent.Code = uint32(event.Detail)
 		keyEvent.Text = keymap.shortcutText(event.Detail, 0)
 		keyEvent.Typed = keymap.text(event.Detail, event.State)
+		// 清空修饰状态会丢失小键盘数字的身份，需保留实际选中的字符。
+		if isKeypadKeysym(keysym) {
+			keyEvent.Text = keyEvent.Typed
+		}
 	}
 	if handled, err := router.modifierPress(keyEvent, keysym, uint32(event.Detail)); handled {
 		return err
@@ -396,6 +406,9 @@ func (router eventRouter) release(keymap *xcbKeymap, event *xcbInputEvent) error
 	// The symbol at the state without the AltGr level: for the AltGr key itself
 	// that is ISO_Level3_Shift, which is not Alt.
 	keysym := keymap.keysym(event.Detail, event.State&^keymap.level3Mask())
+	if isKeypadKeysym(keysym) {
+		key = normalizedKeysym(keysym)
+	}
 	modifiers := router.releaseModifiers(xcbModifiers(event.State), key, keysym, uint32(event.Detail))
 	if !router.wantsKeyReleases() && !router.wantsModifierTap(key) || router.config.OnKey == nil {
 		return nil
