@@ -190,6 +190,25 @@ func TestWriteLinuxPatchRefusesAProgramWithoutExecutionBits(t *testing.T) {
 	}
 }
 
+// TestFindExecutableTrustsTheArchiveNotTheDisk pins the fix's reason to exist:
+// an unpacked copy whose file has no execution bit on disk (every file reads
+// back 0666 on Windows) is still the program the archive marked executable.
+// It holds on every host, so a regression to a disk-mode check fails here too.
+func TestFindExecutableTrustsTheArchiveNotTheDisk(t *testing.T) {
+	dir := t.TempDir()
+	program := filepath.Join(dir, "app")
+	if err := os.WriteFile(program, []byte("the program"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := findExecutable(dir, "", []string{"app"})
+	if err != nil {
+		t.Fatalf("findExecutable() error = %v", err)
+	}
+	if got != program {
+		t.Fatalf("findExecutable() = %q, want %q", got, program)
+	}
+}
+
 func TestWriteDarwinPatch(t *testing.T) {
 	dir := t.TempDir()
 	oldArchive := filepath.Join(dir, "app-1.0.0-darwin-arm64.zip")
